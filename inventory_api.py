@@ -30,10 +30,10 @@ class InventoryApi:
     ]
 
     def __init__(self):
-        self.base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.input_csv = os.path.join(self.base_dir, "Running_Inventory.csv")
-        self.output_csv = os.path.join(self.base_dir, "Running_Inventory_Organized.csv")
-        self.adjustments_csv = os.path.join(self.base_dir, "inventory_adjustments.csv")
+        self.base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+        self.input_csv = os.path.join(self.base_dir, "purchase_ledger.csv")
+        self.output_csv = os.path.join(self.base_dir, "inventory.csv")
+        self.adjustments_csv = os.path.join(self.base_dir, "adjustments.csv")
 
     # ── Utility methods (ported from organize_inventory.py) ──────────────
 
@@ -155,7 +155,7 @@ class InventoryApi:
     # ── Core pipeline ────────────────────────────────────────────────────
 
     def _read_raw_inventory(self):
-        """Read Running_Inventory.csv, fix encoding, merge duplicates.
+        """Read purchase_ledger.csv, fix encoding, merge duplicates.
         Returns (fieldnames, merged_OrderedDict).
         """
         if not os.path.exists(self.input_csv):
@@ -197,7 +197,7 @@ class InventoryApi:
         return fieldnames, merged
 
     def _apply_adjustments(self, merged, fieldnames):
-        """Apply inventory_adjustments.csv entries to merged dict."""
+        """Apply adjustments.csv entries to merged dict."""
         if not os.path.exists(self.adjustments_csv):
             return
         with open(self.adjustments_csv, newline="", encoding="utf-8-sig") as f:
@@ -251,7 +251,7 @@ class InventoryApi:
         return categorized
 
     def _write_organized(self, categorized, fieldnames):
-        """Write Running_Inventory_Organized.csv."""
+        """Write inventory.csv."""
         with open(self.output_csv, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             writer.writerow(["Section"] + list(fieldnames))
@@ -306,7 +306,7 @@ class InventoryApi:
 
     def _append_adjustment(self, adj_type, part_key, quantity, note="",
                            bom_file="", board_qty=""):
-        """Append one row to inventory_adjustments.csv."""
+        """Append one row to adjustments.csv."""
         exists = os.path.exists(self.adjustments_csv)
         with open(self.adjustments_csv, "a", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=self.ADJ_FIELDNAMES)
@@ -368,7 +368,7 @@ class InventoryApi:
         return self._rebuild()
 
     def import_purchases(self, rows_json):
-        """Append purchase rows to Running_Inventory.csv. Returns fresh inventory."""
+        """Append purchase rows to purchase_ledger.csv. Returns fresh inventory."""
         rows = json.loads(rows_json) if isinstance(rows_json, str) else rows_json
         if not rows:
             return {"error": "No rows to import"}
