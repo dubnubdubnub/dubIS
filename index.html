@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOM Inventory Manager</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="header">
+  <h1>BOM Inventory Manager</h1>
+  <span class="inv-count" id="inv-count"></span>
+</div>
+
+<div class="panels">
+  <!-- Left Panel: Purchase Import -->
+  <div class="panel panel-import" id="panel-import">
+    <div class="panel-header">Purchase Import</div>
+    <div class="panel-body" id="import-body"></div>
+  </div>
+
+  <!-- Middle Panel: Inventory Viewer -->
+  <div class="panel panel-inventory" id="panel-inventory">
+    <div class="panel-header">
+      Inventory
+      <input type="text" class="search-input" id="inv-search" placeholder="Search parts...">
+    </div>
+    <div class="panel-body" id="inventory-body"></div>
+  </div>
+
+  <!-- Right Panel: BOM Comparison -->
+  <div class="panel panel-bom" id="panel-bom">
+    <div class="panel-header">BOM Comparison</div>
+    <div class="panel-body" id="bom-body"></div>
+  </div>
+</div>
+
+<!-- Adjustment Modal -->
+<div class="modal-overlay hidden" id="adjust-modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title"></div>
+    <div class="modal-subtitle" id="modal-subtitle"></div>
+    <div class="modal-qty" id="modal-current-qty"></div>
+    <div class="modal-form">
+      <select id="adj-type">
+        <option value="set">Set to</option>
+        <option value="add">Add</option>
+        <option value="remove">Remove</option>
+      </select>
+      <input type="number" id="adj-qty" min="0" step="1" value="0">
+    </div>
+    <div class="modal-form">
+      <label for="adj-note">Note:</label>
+      <input type="text" id="adj-note" placeholder="Reason for adjustment">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="adj-cancel">Cancel</button>
+      <button class="btn btn-apply" id="adj-apply">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- Consume Confirmation Modal -->
+<div class="modal-overlay hidden" id="consume-modal">
+  <div class="modal">
+    <div class="modal-title" id="consume-title">Consume BOM Parts</div>
+    <div class="modal-subtitle" id="consume-subtitle"></div>
+    <div class="modal-form">
+      <label for="consume-note">Note:</label>
+      <input type="text" id="consume-note" placeholder="Build batch note (optional)">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="consume-cancel">Cancel</button>
+      <button class="btn btn-apply" id="consume-confirm">Consume</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="js/main.js"></script>
+<script src="js/csv-parser.js"></script>
+<script src="js/matching.js"></script>
+<script src="js/inventory-panel.js"></script>
+<script src="js/bom-panel.js"></script>
+<script src="js/import-panel.js"></script>
+</body>
+</html>
