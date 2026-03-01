@@ -117,17 +117,33 @@ function findAlternatives(bom, primaryInv, invByValue) {
 
 // ── 5-step BOM matching ──
 
-function matchBOM(aggregated, inventory) {
+function matchBOM(aggregated, inventory, manualLinks) {
   const maps = buildLookupMaps(inventory);
   const { invByLCSC, invByMPN, invByValue } = maps;
   const results = [];
+
+  // Build manual link lookup: bomKey -> invPartKey
+  const manualLinkMap = {};
+  if (manualLinks && manualLinks.length > 0) {
+    manualLinks.forEach(link => { manualLinkMap[link.bomKey] = link.invPartKey; });
+  }
 
   aggregated.forEach((bom, key) => {
     let inv = null;
     let matchType = "none";
 
+    // 0. Manual link override
+    if (manualLinkMap[key]) {
+      const invKey = manualLinkMap[key];
+      const found = invByLCSC[invKey.toUpperCase()] || invByMPN[invKey.toUpperCase()];
+      if (found) {
+        inv = found;
+        matchType = "manual";
+      }
+    }
+
     // 1. LCSC exact match
-    if (bom.lcsc && invByLCSC[bom.lcsc]) {
+    if (!inv && bom.lcsc && invByLCSC[bom.lcsc]) {
       inv = invByLCSC[bom.lcsc];
       matchType = "lcsc";
     }

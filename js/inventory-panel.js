@@ -12,14 +12,11 @@
   let activeFilter = "all";
   let expandedAlts = new Set();
 
-  const SECTION_ORDER = [
-    "Connectors", "Switches", "Passives - Resistors", "Passives - Capacitors",
-    "Passives - Inductors", "LEDs", "Crystals & Oscillators", "Diodes",
-    "Discrete Semiconductors", "ICs - Microcontrollers",
-    "ICs - Power / Voltage Regulators", "ICs - Voltage References",
-    "ICs - Sensors", "ICs - Amplifiers", "ICs - Interface",
-    "ICs - ESD Protection", "Mechanical & Hardware", "Other",
-  ];
+  // Linking mode state
+  let linkingMode = false;
+  let linkingInvItem = null;
+
+  const SECTION_ORDER = App.SECTION_ORDER;
 
   function getPartKey(item) {
     return item.lcsc || item.mpn || item.digikey || "";
@@ -58,8 +55,8 @@
     const query = (searchInput.value || "").toLowerCase();
     const rows = bomData.rows;
 
-    // Sort: missing first, then possible, short, ok
-    const order = { missing: 0, possible: 1, short: 2, ok: 3 };
+    // Sort: manual first, then missing, possible, short, ok
+    const order = { missing: 0, manual: 0.5, possible: 1, short: 2, ok: 3 };
     const sortedRows = [...rows].sort((a, b) => order[a.effectiveStatus] - order[b.effectiveStatus]);
 
     // Counts for filter bar
@@ -67,6 +64,7 @@
     const countShort = rows.filter(r => r.effectiveStatus === "short").length;
     const countPossible = rows.filter(r => r.effectiveStatus === "possible").length;
     const countMissing = rows.filter(r => r.effectiveStatus === "missing").length;
+    const countManual = rows.filter(r => r.effectiveStatus === "manual").length;
     const total = rows.length;
 
     // Filter bar
@@ -74,6 +72,7 @@
     filterBar.className = "filter-bar";
     filterBar.innerHTML = `
       <button class="filter-btn${activeFilter === "all" ? " active" : ""}" data-filter="all">All (${total})</button>
+      ${countManual > 0 ? `<button class="filter-btn${activeFilter === "manual" ? " active" : ""}" data-filter="manual">Manual (${countManual})</button>` : ''}
       <button class="filter-btn${activeFilter === "ok" ? " active" : ""}" data-filter="ok">In Stock (${countOk})</button>
       <button class="filter-btn${activeFilter === "short" ? " active" : ""}" data-filter="short">Short (${countShort})</button>
       <button class="filter-btn${activeFilter === "possible" ? " active" : ""}" data-filter="possible">Possible (${countPossible})</button>
@@ -99,6 +98,8 @@
       <th style="width:50px">Have</th>
       <th>Description</th>
       <th style="width:55px">Match</th>
+      <th style="width:36px"></th>
+      <th style="width:36px"></th>
     </tr></thead>`;
 
     const tbody = document.createElement("tbody");
@@ -120,18 +121,22 @@
       const tr = document.createElement("tr");
       tr.dataset.partKey = partKey;
 
-      const rowClass = st === "ok" ? "row-green"
+      const rowClass = st === "manual" ? "row-pink"
+        : st === "ok" ? "row-green"
         : st === "short" ? (r.coveredByAlts ? "row-yellow-covered" : "row-yellow")
         : st === "possible" ? "row-orange" : "row-red";
       tr.className = rowClass;
 
-      const icon = st === "ok" ? "+" : st === "short" ? (r.coveredByAlts ? "~+" : "~") : st === "possible" ? "?" : "-";
+      const mult = bomData.multiplier || 1;
+      const manualQtyOk = st === "manual" && r.inv && r.bom.qty * mult <= r.inv.qty;
+      const icon = st === "manual" ? "\u2726" : st === "ok" ? "+" : st === "short" ? (r.coveredByAlts ? "~+" : "~") : st === "possible" ? "?" : "-";
       const dispLcsc = (r.inv ? r.inv.lcsc : "") || r.bom.lcsc || "";
       const dispMpn = (r.inv ? r.inv.mpn : "") || r.bom.mpn || "";
       const invQty = r.inv ? r.inv.qty : "\u2014";
       const invDesc = r.inv ? (r.inv.description || r.inv.mpn) : (r.bom.desc || r.bom.value || "not in inventory");
-      const matchLabel = r.matchType === "lcsc" ? "LCSC" : r.matchType === "mpn" ? "MPN" : r.matchType === "fuzzy" ? "Fuzzy" : r.matchType === "value" ? "Value" : "\u2014";
-      const qtyClass = st === "ok" ? "qty-ok" : st === "short" ? (r.coveredByAlts ? "qty-ok" : "qty-short") : st === "possible" ? "qty-possible" : "qty-miss";
+      const matchLabel = r.matchType === "lcsc" ? "LCSC" : r.matchType === "mpn" ? "MPN" : r.matchType === "fuzzy" ? "Fuzzy" : r.matchType === "value" ? "Value" : r.matchType === "manual" ? "Manual" : "\u2014";
+      const qtyClass = st === "manual" ? (manualQtyOk ? "qty-manual" : "qty-manual-short")
+        : st === "ok" ? "qty-ok" : st === "short" ? (r.coveredByAlts ? "qty-ok" : "qty-short") : st === "possible" ? "qty-possible" : "qty-miss";
 
       // Inv qty with alt badge
       let haveHtml = "" + invQty;
@@ -149,6 +154,9 @@
         haveHtml += '<br><span class="alt-badge' + coveredCls + expandedCls + '" data-part-key="' + escHtml(partKey) + '"><span class="chevron">\u25B8</span>+' + r.altQty + ' (' + badgeText + ')</span>';
       }
 
+      const adjBtnHtml = r.inv ? '<button class="adj-btn" title="Adjust qty">Adjust</button>' : '';
+      const linkBtnHtml = r.inv ? `<button class="link-btn${linkingMode && linkingInvItem === r.inv ? ' active' : ''}" title="Link to missing BOM row">Link</button>` : '';
+      const isLinkingSource = linkingMode && linkingInvItem === r.inv;
       tr.innerHTML = `
         <td class="status">${icon}</td>
         <td class="mono">${escHtml(dispLcsc)}</td>
@@ -157,15 +165,27 @@
         <td class="inv-qty-cell ${qtyClass}" style="text-align:right;font-weight:600">${haveHtml}</td>
         <td class="${st === 'missing' ? 'muted' : ''}">${escHtml(invDesc)}</td>
         <td class="mono" style="text-align:center">${matchLabel}</td>
+        <td style="text-align:center">${adjBtnHtml}</td>
+        <td style="text-align:center">${linkBtnHtml}</td>
       `;
+      if (isLinkingSource) tr.classList.add("linking-source");
 
-      // Click to adjust (if matched to inventory)
+      // Adjust button (if matched to inventory)
       if (r.inv) {
-        tr.style.cursor = "pointer";
-        tr.addEventListener("click", (e) => {
-          if (e.target.closest(".alt-badge")) return;
-          openAdjustModal(r.inv);
-        });
+        const adjTd = tr.querySelector(".adj-btn");
+        if (adjTd) {
+          adjTd.addEventListener("click", (e) => {
+            e.stopPropagation();
+            openAdjustModal(r.inv);
+          });
+        }
+        const linkBtn = tr.querySelector(".link-btn");
+        if (linkBtn) {
+          linkBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            EventBus.emit("linking-mode", { active: true, invItem: r.inv });
+          });
+        }
       }
 
       tbody.appendChild(tr);
@@ -241,9 +261,13 @@
         '<td></td>' +
         '<td style="text-align:right;font-weight:600">' + alt.qty + '</td>' +
         '<td>' + escHtml(alt.description) + ' <span class="muted">' + escHtml(alt.package) + '</span></td>' +
+        '<td></td>' +
+        '<td style="text-align:center"><button class="adj-btn" title="Adjust qty">Adjust</button></td>' +
         '<td></td>';
-      altTr.style.cursor = "pointer";
-      altTr.addEventListener("click", () => openAdjustModal(alt));
+      altTr.querySelector(".adj-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        openAdjustModal(alt);
+      });
       tbody.appendChild(altTr);
     });
   }
@@ -283,13 +307,41 @@
         const displayMpn = item.mpn || "";
         const displayDesc = item.description || "";
 
+        const stockValue = item.qty * (item.unit_price || 0);
+        const qtyColor = stockValueColor(stockValue, getThreshold(name));
+        const showPriceWarn = item.qty > 0 && !(item.unit_price > 0);
+
+        const isSource = linkingMode && linkingInvItem === item;
+        const linkBtnStr = bomData ? `<button class="link-btn${isSource ? ' active' : ''}" title="Link to missing BOM row">Link</button>` : '';
+        const valueStr = stockValue > 0 ? "$" + stockValue.toFixed(2) : "\u2014";
         row.innerHTML = `
           <span class="part-id">${escHtml(displayId)}</span>
           <span class="part-mpn" title="${escHtml(displayMpn)}">${escHtml(displayMpn)}</span>
-          <span class="part-qty">${item.qty}</span>
+          <span class="part-value">${valueStr}</span>
+          <span class="part-qty" style="color:${qtyColor}">${showPriceWarn ? '<button class="price-warn-btn" title="No price data — click to set">\u26A0</button>' : ''}${item.qty}</span>
           <span class="part-desc" title="${escHtml(displayDesc)}">${escHtml(displayDesc)}</span>
+          <button class="adj-btn" title="Adjust qty">Adjust</button>
+          ${linkBtnStr}
         `;
-        row.addEventListener("click", () => openAdjustModal(item));
+        if (isSource) row.classList.add("linking-source");
+        row.querySelector(".adj-btn").addEventListener("click", (e) => {
+          e.stopPropagation();
+          openAdjustModal(item);
+        });
+        const warnBtn = row.querySelector(".price-warn-btn");
+        if (warnBtn) {
+          warnBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            openPriceModal(item);
+          });
+        }
+        const linkBtnEl = row.querySelector(".link-btn");
+        if (linkBtnEl) {
+          linkBtnEl.addEventListener("click", (e) => {
+            e.stopPropagation();
+            EventBus.emit("linking-mode", { active: true, invItem: item });
+          });
+        }
         section.appendChild(row);
       });
     }
@@ -308,6 +360,8 @@
   const adjType = document.getElementById("adj-type");
   const adjQty = document.getElementById("adj-qty");
   const adjNote = document.getElementById("adj-note");
+  const adjUnitPrice = document.getElementById("adj-unit-price");
+  const adjExtPrice = document.getElementById("adj-ext-price");
   let currentPart = null;
 
   function openAdjustModal(item) {
@@ -319,10 +373,30 @@
     adjType.value = "set";
     adjQty.value = item.qty;
     adjNote.value = "";
+    adjUnitPrice.value = item.unit_price > 0 ? item.unit_price : "";
+    adjExtPrice.value = item.ext_price > 0 ? item.ext_price : "";
     modal.classList.remove("hidden");
     adjQty.focus();
     adjQty.select();
   }
+
+  // Auto-calc: adj unit → ext
+  adjUnitPrice.addEventListener("input", () => {
+    if (!currentPart) return;
+    const up = parseFloat(adjUnitPrice.value);
+    if (!isNaN(up) && currentPart.qty > 0) {
+      adjExtPrice.value = (up * currentPart.qty).toFixed(2);
+    }
+  });
+
+  // Auto-calc: adj ext → unit
+  adjExtPrice.addEventListener("input", () => {
+    if (!currentPart) return;
+    const ep = parseFloat(adjExtPrice.value);
+    if (!isNaN(ep) && currentPart.qty > 0) {
+      adjUnitPrice.value = (ep / currentPart.qty).toFixed(4);
+    }
+  });
 
   function closeAdjustModal() {
     modal.classList.add("hidden");
@@ -341,15 +415,37 @@
     const qty = parseInt(adjQty.value, 10) || 0;
     const note = adjNote.value;
 
+    // Check if price changed
+    const newUp = parseFloat(adjUnitPrice.value);
+    const newEp = parseFloat(adjExtPrice.value);
+    const origUp = currentPart.unit_price || 0;
+    const origEp = currentPart.ext_price || 0;
+    const priceChanged = (!isNaN(newUp) && newUp !== origUp) || (!isNaN(newEp) && newEp !== origEp);
+
     try {
-      const fresh = await api("adjust_part", type, pk, qty, note);
+      // Apply qty adjustment
+      let fresh = await api("adjust_part", type, pk, qty, note);
       if (fresh.error) {
         showToast("Error: " + fresh.error);
-      } else {
-        closeAdjustModal();
-        onInventoryUpdated(fresh);
-        showToast("Adjusted " + pk);
+        return;
       }
+
+      // Apply price update if changed
+      if (priceChanged) {
+        const up = !isNaN(newUp) ? newUp : null;
+        const ep = !isNaN(newEp) ? newEp : null;
+        fresh = await api("update_part_price", pk, up, ep);
+        if (fresh.error) {
+          showToast("Qty adjusted, but price error: " + fresh.error);
+          onInventoryUpdated(fresh);
+          closeAdjustModal();
+          return;
+        }
+      }
+
+      closeAdjustModal();
+      onInventoryUpdated(fresh);
+      showToast("Adjusted " + pk);
     } catch (e) {
       showToast("Error: " + e.message);
     }
@@ -363,9 +459,86 @@
     }
   });
 
+  // ── Price Modal ──
+  const priceModal = document.getElementById("price-modal");
+  const priceTitle = document.getElementById("price-modal-title");
+  const priceSubtitle = document.getElementById("price-modal-subtitle");
+  const priceUnitInput = document.getElementById("price-unit");
+  const priceExtInput = document.getElementById("price-ext");
+  let pricePart = null;
+
+  function openPriceModal(item) {
+    pricePart = item;
+    const pk = getPartKey(item);
+    priceTitle.textContent = pk + (item.mpn && item.lcsc ? " \u2014 " + item.mpn : "");
+    priceSubtitle.textContent = (item.description || item.package || "") + " (qty: " + item.qty + ")";
+    priceUnitInput.value = item.unit_price > 0 ? item.unit_price : "";
+    priceExtInput.value = item.ext_price > 0 ? item.ext_price : "";
+    priceModal.classList.remove("hidden");
+    priceUnitInput.focus();
+  }
+
+  function closePriceModal() {
+    priceModal.classList.add("hidden");
+    pricePart = null;
+  }
+
+  // Auto-calc: unit → ext
+  priceUnitInput.addEventListener("input", () => {
+    if (!pricePart) return;
+    const up = parseFloat(priceUnitInput.value);
+    if (!isNaN(up) && pricePart.qty > 0) {
+      priceExtInput.value = (up * pricePart.qty).toFixed(2);
+    }
+  });
+
+  // Auto-calc: ext → unit
+  priceExtInput.addEventListener("input", () => {
+    if (!pricePart) return;
+    const ep = parseFloat(priceExtInput.value);
+    if (!isNaN(ep) && pricePart.qty > 0) {
+      priceUnitInput.value = (ep / pricePart.qty).toFixed(4);
+    }
+  });
+
+  document.getElementById("price-cancel").addEventListener("click", closePriceModal);
+  priceModal.addEventListener("click", (e) => {
+    if (e.target === priceModal) closePriceModal();
+  });
+
+  document.getElementById("price-apply").addEventListener("click", async () => {
+    if (!pricePart) return;
+    const pk = getPartKey(pricePart);
+    const up = parseFloat(priceUnitInput.value) || null;
+    const ep = parseFloat(priceExtInput.value) || null;
+    if (up === null && ep === null) {
+      showToast("Enter a unit or ext price");
+      return;
+    }
+    try {
+      const fresh = await api("update_part_price", pk, up, ep);
+      if (fresh.error) {
+        showToast("Error: " + fresh.error);
+      } else {
+        closePriceModal();
+        onInventoryUpdated(fresh);
+        showToast("Price updated for " + pk);
+      }
+    } catch (e) {
+      showToast("Error: " + e.message);
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (priceModal.classList.contains("hidden")) return;
+    if (e.key === "Escape") closePriceModal();
+    if (e.key === "Enter") document.getElementById("price-apply").click();
+  });
+
   // ── Event listeners ──
   EventBus.on("inventory-loaded", () => render());
   EventBus.on("inventory-updated", () => render());
+  EventBus.on("preferences-changed", () => render());
 
   EventBus.on("bom-loaded", (data) => {
     bomData = data;
@@ -376,6 +549,21 @@
     bomData = null;
     activeFilter = "all";
     expandedAlts = new Set();
+    linkingMode = false;
+    linkingInvItem = null;
+    App.manualLinks = [];
     render();
+  });
+
+  EventBus.on("linking-mode", (data) => {
+    linkingMode = data.active;
+    linkingInvItem = data.active ? data.invItem : null;
+    render();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && linkingMode) {
+      EventBus.emit("linking-mode", { active: false });
+    }
   });
 })();
