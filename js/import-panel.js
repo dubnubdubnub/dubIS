@@ -1,4 +1,4 @@
-/* import-panel.js — Left panel: purchase CSV import with column mapper */
+/* import-panel.js — Left panel: purchase CSV import with editable staging table */
 
 (function () {
   const body = document.getElementById("import-body");
@@ -19,6 +19,8 @@
     "Customer NO.",
   ];
 
+  const PART_ID_FIELDS = ["LCSC Part Number", "Digikey Part Number", "Manufacture Part Number"];
+
   let parsedHeaders = [];
   let parsedRows = [];
   let columnMapping = {}; // source index -> target field name
@@ -36,6 +38,12 @@
       </div>
     `;
     setupDropZone();
+
+    UndoRedo.register("import", (action, data) => {
+      if (action === "snapshot") return JSON.parse(JSON.stringify(parsedRows));
+      parsedRows = data;
+      renderMapper();
+    });
   }
 
   function setupDropZone() {
@@ -43,11 +51,7 @@
     const fileInput = document.getElementById("import-file-input");
 
     zone.addEventListener("click", (e) => {
-      if (e.target.tagName !== 'INPUT') {
-        const fi = document.getElementById("import-file-input");
-        if (fi) fi.click();
-        else browseImportFile();
-      }
+      if (e.target.tagName !== 'INPUT') browseImportFile();
     });
     zone.addEventListener("dragover", (e) => { e.preventDefault(); e.stopPropagation(); zone.classList.add("dragover"); });
     zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
@@ -64,8 +68,14 @@
 
   async function browseImportFile() {
     try {
-      const result = await api("open_file_dialog", "Select Purchase CSV");
-      if (result && result.content) loadImportText(result.content, result.name);
+      const result = await api("open_file_dialog", "Select Purchase CSV", App.preferences.lastImportDir || null);
+      if (result && result.content) {
+        if (result.directory) {
+          App.preferences.lastImportDir = result.directory;
+          savePreferences();
+        }
+        loadImportText(result.content, result.name);
+      }
     } catch (e) { showToast("Could not open file dialog"); }
   }
 
@@ -86,11 +96,7 @@
     parsedRows = lines.slice(1).filter(row => row.some(cell => cell !== ""));
     importFileName = fileName;
 
-    // Filter out summary/subtotal rows
-    parsedRows = parsedRows.filter(row => {
-      const joined = row.join("").toLowerCase();
-      return !joined.includes("subtotal") && !joined.includes("total:");
-    });
+    // No subtotal filtering — all rows kept for user review
 
     // Auto-detect columns via Python API
     try {
@@ -110,7 +116,64 @@
     const newInput = document.getElementById("import-file-input");
     if (newInput) newInput.addEventListener("change", function () { if (this.files.length) handleImportFile(this.files[0]); });
 
+    AppLog.info("Loaded " + parsedRows.length + " rows from " + fileName);
     renderMapper();
+  }
+
+  // --- Row validation ---
+  function classifyRow(row) {
+    const joined = row.join("").toLowerCase();
+    if (joined.includes("subtotal") || joined.includes("total:")) return "subtotal";
+
+    // Check part ID: any column mapped to a part ID field has a value
+    const hasPart = PART_ID_FIELDS.some(f => {
+      const colIdx = Object.keys(columnMapping).find(k => columnMapping[k] === f);
+      return colIdx !== undefined && (row[parseInt(colIdx)] || "").trim() !== "";
+    });
+
+    // Check quantity
+    const qtyField = Object.keys(columnMapping).find(k => columnMapping[k] === "Quantity");
+    let qtyOk = true;
+    if (qtyField !== undefined) {
+      const raw = (row[parseInt(qtyField)] || "").replace(/,/g, "").replace(/"/g, "").trim();
+      const parsed = parseInt(raw, 10);
+      if (isNaN(parsed) || parsed <= 0) qtyOk = false;
+    }
+
+    if (!hasPart || !qtyOk) return "warn";
+    return "ok";
+  }
+
+  function countWarnings() {
+    let warns = 0;
+    parsedRows.forEach(row => {
+      const cls = classifyRow(row);
+      if (cls === "warn" || cls === "subtotal") warns++;
+    });
+    return warns;
+  }
+
+  // --- Apply validation classes to table rows (without full re-render) ---
+  function applyRowClasses() {
+    const tbody = document.querySelector("#import-mapper .import-preview tbody");
+    if (!tbody) return;
+    const trs = tbody.querySelectorAll("tr");
+    trs.forEach((tr, i) => {
+      if (i >= parsedRows.length) return;
+      const cls = classifyRow(parsedRows[i]);
+      tr.classList.remove("row-warn", "row-subtotal");
+      if (cls === "warn") tr.classList.add("row-warn");
+      else if (cls === "subtotal") tr.classList.add("row-subtotal");
+    });
+    updateImportButton();
+  }
+
+  function updateImportButton() {
+    const btn = document.getElementById("do-import-btn");
+    if (!btn) return;
+    const warns = countWarnings();
+    const warnText = warns > 0 ? " (" + warns + " warnings)" : "";
+    btn.textContent = "Import " + parsedRows.length + " rows" + warnText;
   }
 
   function renderMapper() {
@@ -135,41 +198,36 @@
 
     html += '</div>';
 
-    // Preview table (first 8 rows)
-    const previewRows = parsedRows.slice(0, 8);
-    const mappedCols = Object.keys(columnMapping).map(Number).filter(i => columnMapping[i] !== "Skip");
-
-    if (mappedCols.length > 0 && previewRows.length > 0) {
-      html += '<h3>Preview</h3><div class="import-preview"><table><thead><tr>';
-      mappedCols.forEach(i => {
-        html += `<th>${escHtml(columnMapping[i])}</th>`;
+    // Editable staging table — ALL rows
+    if (parsedRows.length > 0) {
+      html += '<div class="staging-toolbar"><h3>Staging (' + parsedRows.length + ' rows)</h3></div>'
+            + '<div class="import-preview"><table><thead><tr>';
+      html += '<th class="row-delete"></th>';
+      parsedHeaders.forEach((h, i) => {
+        html += `<th><span class="th-label">${escHtml(h)}</span></th>`;
       });
       html += '</tr></thead><tbody>';
-      previewRows.forEach(row => {
-        html += '<tr>';
-        mappedCols.forEach(i => {
-          html += `<td>${escHtml(row[i] || "")}</td>`;
+      parsedRows.forEach((row, ri) => {
+        const cls = classifyRow(row);
+        const trClass = cls === "warn" ? " class=\"row-warn\"" : cls === "subtotal" ? " class=\"row-subtotal\"" : "";
+        html += `<tr${trClass}>`;
+        html += `<td class="row-delete" data-row="${ri}">\u00d7</td>`;
+        row.forEach((cell, ci) => {
+          html += `<td><input type="text" value="${escHtml(cell)}" data-row="${ri}" data-col="${ci}"></td>`;
         });
         html += '</tr>';
       });
       html += '</tbody></table></div>';
     }
 
-    // Import button
-    const hasQty = Object.values(columnMapping).includes("Quantity");
-    const hasPart = Object.values(columnMapping).includes("LCSC Part Number") ||
-                    Object.values(columnMapping).includes("Digikey Part Number") ||
-                    Object.values(columnMapping).includes("Manufacture Part Number");
-    const canImport = hasQty && hasPart;
-
+    // Import button — always enabled, user has full control
+    const warns = countWarnings();
+    const warnText = warns > 0 ? " (" + warns + " warnings)" : "";
     html += `
-      <button class="import-btn" id="do-import-btn" ${canImport ? '' : 'disabled'}>
-        Import ${parsedRows.length} rows
+      <button class="import-btn" id="do-import-btn">
+        Import ${parsedRows.length} rows${warnText}
       </button>
     `;
-    if (!canImport) {
-      html += '<div class="import-count">Map at least one part ID column and Quantity</div>';
-    }
 
     mapper.innerHTML = html;
 
@@ -191,9 +249,33 @@
       });
     });
 
+    // Attach cell edit listeners
+    mapper.querySelectorAll(".import-preview td input").forEach(inp => {
+      inp.addEventListener("change", () => {
+        const ri = parseInt(inp.dataset.row);
+        const ci = parseInt(inp.dataset.col);
+        UndoRedo.save("import", parsedRows);
+        parsedRows[ri][ci] = inp.value;
+        applyRowClasses();
+      });
+    });
+
+    // Attach row delete listeners
+    mapper.querySelectorAll(".import-preview .row-delete").forEach(del => {
+      del.addEventListener("click", () => {
+        const ri = parseInt(del.dataset.row);
+        if (ri >= 0 && ri < parsedRows.length) {
+          UndoRedo.save("import", parsedRows);
+          parsedRows.splice(ri, 1);
+          AppLog.info("Deleted staging row " + (ri + 1));
+          renderMapper();
+        }
+      });
+    });
+
     // Attach import button listener
     const importBtn = document.getElementById("do-import-btn");
-    if (importBtn && canImport) {
+    if (importBtn) {
       importBtn.addEventListener("click", doImport);
     }
   }
@@ -202,7 +284,7 @@
     const btn = document.getElementById("do-import-btn");
     if (btn) btn.disabled = true;
 
-    // Transform rows to inventory format
+    // Transform ALL remaining rows — no silent filtering
     const invRows = [];
     parsedRows.forEach(row => {
       const invRow = {};
@@ -225,16 +307,12 @@
         invRow[targetField] = val;
       }
 
-      // Skip rows with no part identifier or zero quantity
-      const hasPart = invRow["LCSC Part Number"] || invRow["Digikey Part Number"] || invRow["Manufacture Part Number"];
-      const qty = parseInt(invRow["Quantity"] || "0", 10);
-      if (hasPart && qty > 0) {
-        invRows.push(invRow);
-      }
+      invRows.push(invRow);
     });
 
     if (invRows.length === 0) {
-      showToast("No valid rows to import");
+      showToast("No rows to import");
+      AppLog.warn("Import cancelled: no rows");
       if (btn) btn.disabled = false;
       return;
     }
@@ -243,10 +321,12 @@
       const fresh = await api("import_purchases", JSON.stringify(invRows));
       if (fresh.error) {
         showToast("Error: " + fresh.error);
+        AppLog.error("Import error: " + fresh.error);
         if (btn) btn.disabled = false;
       } else {
         onInventoryUpdated(fresh);
         showToast(`Imported ${invRows.length} rows from ${importFileName}`);
+        AppLog.info("Imported " + invRows.length + " parts from " + importFileName);
         // Reset import panel
         parsedHeaders = [];
         parsedRows = [];
@@ -255,6 +335,7 @@
       }
     } catch (e) {
       showToast("Error: " + e.message);
+      AppLog.error("Import failed: " + e.message);
       if (btn) btn.disabled = false;
     }
   }

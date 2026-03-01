@@ -34,6 +34,7 @@ class InventoryApi:
         self.input_csv = os.path.join(self.base_dir, "purchase_ledger.csv")
         self.output_csv = os.path.join(self.base_dir, "inventory.csv")
         self.adjustments_csv = os.path.join(self.base_dir, "adjustments.csv")
+        self.prefs_json = os.path.join(self.base_dir, "preferences.json")
 
     # ── Utility methods (ported from organize_inventory.py) ──────────────
 
@@ -109,7 +110,7 @@ class InventoryApi:
 
         if ("switch" in desc or "tactile" in desc) and "switching regulator" not in desc:
             return "Switches"
-        if "led" in desc:
+        if "led" in desc or "emitter" in desc or "emit" in desc:
             return "LEDs"
         if "inductor" in desc:
             return "Passives - Inductors"
@@ -299,6 +300,8 @@ class InventoryApi:
                     "package": (row.get("Package") or "").strip(),
                     "description": (row.get("Description") or "").strip(),
                     "qty": int(float((row.get("Quantity") or "0").replace(",", ""))),
+                    "unit_price": float((row.get("Unit Price($)") or "0").replace(",", "") or "0"),
+                    "ext_price": float((row.get("Ext.Price($)") or "0").replace(",", "") or "0"),
                 })
         return rows
 
@@ -328,6 +331,10 @@ class InventoryApi:
         """Load organized inventory. If organized CSV exists, load it; otherwise rebuild."""
         if os.path.exists(self.output_csv):
             return self._load_organized()
+        return self._rebuild()
+
+    def rebuild_inventory(self):
+        """Force full rebuild of inventory.csv from purchase_ledger + adjustments."""
         return self._rebuild()
 
     def adjust_part(self, adj_type, part_key, quantity, note=""):
@@ -393,6 +400,60 @@ class InventoryApi:
 
         return self._rebuild()
 
+    def update_part_price(self, part_key, unit_price=None, ext_price=None):
+        """Update unit price and ext price for a part in purchase_ledger.csv.
+        Auto-calculates the missing price field if only one is provided.
+        Returns fresh inventory after rebuild.
+        """
+        if unit_price is not None:
+            unit_price = float(unit_price)
+        if ext_price is not None:
+            ext_price = float(ext_price)
+
+        if not os.path.exists(self.input_csv):
+            return {"error": "No purchase ledger found"}
+
+        with open(self.input_csv, newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames
+            rows = list(reader)
+
+        found = False
+        for row in rows:
+            pk = self.get_part_key(row)
+            if pk == part_key:
+                qty = int(float((row.get("Quantity") or "0").replace(",", "")))
+                if unit_price is not None and ext_price is None and qty > 0:
+                    ext_price = unit_price * qty
+                elif ext_price is not None and unit_price is None and qty > 0:
+                    unit_price = ext_price / qty
+                if unit_price is not None:
+                    row["Unit Price($)"] = f"{unit_price:.4f}"
+                if ext_price is not None:
+                    row["Ext.Price($)"] = f"{ext_price:.2f}"
+                found = True
+
+        if not found:
+            # Part only exists via adjustments — add a new ledger row with price info
+            new_row = {fn: "" for fn in fieldnames}
+            if part_key.upper().startswith("C") and part_key[1:].isdigit():
+                new_row["LCSC Part Number"] = part_key
+            else:
+                new_row["Manufacture Part Number"] = part_key
+            new_row["Quantity"] = "0"
+            if unit_price is not None:
+                new_row["Unit Price($)"] = f"{unit_price:.4f}"
+            if ext_price is not None:
+                new_row["Ext.Price($)"] = f"{ext_price:.2f}"
+            rows.append(new_row)
+
+        with open(self.input_csv, "w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        return self._rebuild()
+
     def detect_columns(self, headers_json):
         """Auto-detect column mapping for purchase CSV import.
         Returns dict of {source_column_index: target_inventory_field}.
@@ -446,22 +507,52 @@ class InventoryApi:
 
         return mapping
 
-    def open_file_dialog(self, title="Select CSV file"):
-        """Open native file dialog, return {name, content} or None."""
+    def load_preferences(self):
+        """Read preferences.json and return its contents (empty dict if missing/corrupt)."""
+        try:
+            if os.path.exists(self.prefs_json):
+                with open(self.prefs_json, encoding="utf-8") as f:
+                    return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+        return {}
+
+    def save_preferences(self, prefs_json):
+        """Write preferences JSON string to disk."""
+        prefs = json.loads(prefs_json) if isinstance(prefs_json, str) else prefs_json
+        with open(self.prefs_json, "w", encoding="utf-8") as f:
+            json.dump(prefs, f, indent=2)
+
+    def open_file_dialog(self, title="Select CSV file", default_dir=None):
+        """Open native file dialog, return {name, content, directory} or None."""
         import webview
+        kwargs = {"file_types": ("CSV Files (*.csv)",)}
+        if default_dir and os.path.isdir(default_dir):
+            kwargs["directory"] = default_dir
         result = webview.windows[0].create_file_dialog(
-            webview.OPEN_DIALOG,
-            file_types=("CSV Files (*.csv)",),
+            webview.FileDialog.OPEN,
+            **kwargs,
         )
         if result and len(result) > 0:
             path = result[0]
-            with open(path, encoding="utf-8-sig") as f:
-                return {"name": os.path.basename(path), "content": f.read()}
+            return {
+                "name": os.path.basename(path),
+                "content": self._read_text(path),
+                "directory": os.path.dirname(path),
+            }
         return None
 
     def read_file(self, path):
         """Read a file by path and return its content. Used as fallback."""
         if not os.path.exists(path):
             return {"error": f"File not found: {path}"}
-        with open(path, encoding="utf-8-sig") as f:
-            return {"name": os.path.basename(path), "content": f.read()}
+        return {"name": os.path.basename(path), "content": self._read_text(path)}
+
+    @staticmethod
+    def _read_text(path):
+        """Read a text file, auto-detecting UTF-16 vs UTF-8 encoding."""
+        with open(path, "rb") as f:
+            bom = f.read(2)
+        encoding = "utf-16" if bom in (b"\xff\xfe", b"\xfe\xff") else "utf-8-sig"
+        with open(path, encoding=encoding) as f:
+            return f.read()
