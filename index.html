@@ -3,14 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BOM Inventory Manager</title>
+<title>dubIS</title>
+<link rel="icon" href="data/dubIS.png" type="image/png">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
 <div class="header">
-  <h1>BOM Inventory Manager</h1>
-  <span class="inv-count" id="inv-count"></span>
+  <div class="header-left">
+    <button class="prefs-btn" id="prefs-btn">Preferences</button>
+  </div>
+  <div class="header-center">
+    <button class="header-btn" id="global-undo" title="Undo (Ctrl+Z)" disabled>&#x21A9;</button>
+    <button class="header-btn" id="global-redo" title="Redo (Ctrl+Shift+Z)" disabled>&#x21AA;</button>
+  </div>
+  <div class="header-right">
+    <span class="inv-count" id="inv-count"></span>
+    <span class="inv-total-value" id="inv-total-value"></span>
+  </div>
 </div>
 
 <div class="panels">
@@ -18,12 +28,20 @@
   <div class="panel panel-import" id="panel-import">
     <div class="panel-header">Purchase Import</div>
     <div class="panel-body" id="import-body"></div>
+    <div id="console-log">
+      <div class="console-header">
+        <span>Log</span>
+        <button id="console-clear" title="Clear">&times;</button>
+      </div>
+      <div class="console-entries" id="console-entries"></div>
+    </div>
   </div>
 
   <!-- Middle Panel: Inventory Viewer -->
   <div class="panel panel-inventory" id="panel-inventory">
     <div class="panel-header">
       Inventory
+      <button class="rebuild-btn" id="rebuild-inv" title="Reload Inventory">Reload Inventory</button>
       <input type="text" class="search-input" id="inv-search" placeholder="Search parts...">
     </div>
     <div class="panel-body" id="inventory-body"></div>
@@ -54,6 +72,15 @@
       <label for="adj-note">Note:</label>
       <input type="text" id="adj-note" placeholder="Reason for adjustment">
     </div>
+    <div class="modal-divider"></div>
+    <div class="modal-form">
+      <label for="adj-unit-price">Unit Price ($):</label>
+      <input type="number" id="adj-unit-price" min="0" step="0.01" placeholder="—">
+    </div>
+    <div class="modal-form">
+      <label for="adj-ext-price">Ext. Price ($):</label>
+      <input type="number" id="adj-ext-price" min="0" step="0.01" placeholder="—">
+    </div>
     <div class="modal-actions">
       <button class="btn btn-cancel" id="adj-cancel">Cancel</button>
       <button class="btn btn-apply" id="adj-apply">Apply</button>
@@ -77,6 +104,39 @@
   </div>
 </div>
 
+<!-- Preferences Modal -->
+<div class="modal-overlay hidden" id="prefs-modal">
+  <div class="modal prefs-modal-wide">
+    <div class="modal-title">Preferences</div>
+    <div class="modal-subtitle">Qty color reflects stock dollar value (qty &times; unit price). Adjust the green threshold per category.</div>
+    <div class="prefs-sliders" id="prefs-sliders"></div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="prefs-cancel">Cancel</button>
+      <button class="btn btn-apply" id="prefs-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Price Modal -->
+<div class="modal-overlay hidden" id="price-modal">
+  <div class="modal">
+    <div class="modal-title" id="price-modal-title"></div>
+    <div class="modal-subtitle" id="price-modal-subtitle"></div>
+    <div class="modal-form">
+      <label for="price-unit">Unit Price ($):</label>
+      <input type="number" id="price-unit" min="0" step="0.01">
+    </div>
+    <div class="modal-form">
+      <label for="price-ext">Ext. Price ($):</label>
+      <input type="number" id="price-ext" min="0" step="0.01">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="price-cancel">Cancel</button>
+      <button class="btn btn-apply" id="price-apply">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
@@ -86,5 +146,6 @@
 <script src="js/inventory-panel.js"></script>
 <script src="js/bom-panel.js"></script>
 <script src="js/import-panel.js"></script>
+<script src="js/resize-panels.js"></script>
 </body>
 </html>
