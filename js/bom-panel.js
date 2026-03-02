@@ -6,10 +6,6 @@
   let lastResults = null;
   let lastFileName = "";
 
-  // Linking mode state
-  let linkingMode = false;
-  let linkingInvItem = null;
-
   // Editable raw-row state
   let bomRawRows = [];
   let bomHeaders = [];
@@ -61,7 +57,7 @@
 
   function reprocessAndRender() {
     const aggregated = aggregateFromRawRows();
-    const results = matchBOM(aggregated, App.inventory, App.manualLinks, App.confirmedMatches);
+    const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches);
     lastResults = results;
     App.bomResults = results;
     App.bomHeaders = bomHeaders;
@@ -97,7 +93,7 @@
         </div>
       </div>
     `;
-    setupDropZone();
+    setupDropZone("bom-drop-zone", "bom-file-input", browseBomFile, handleFile);
     setupMultiplier();
     setupSaveBom();
     setupConsume();
@@ -112,40 +108,14 @@
 
   // ── Drop Zone ──
 
-  function setupDropZone() {
-    const zone = document.getElementById("bom-drop-zone");
-    const fileInput = document.getElementById("bom-file-input");
-
-    zone.addEventListener("click", (e) => {
-      if (e.target.tagName !== 'INPUT') browseBomFile();
-    });
-    zone.addEventListener("dragover", (e) => { e.preventDefault(); e.stopPropagation(); zone.classList.add("dragover"); });
-    zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
-    zone.addEventListener("drop", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      zone.classList.remove("dragover");
-      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-    });
-    fileInput.addEventListener("change", () => {
-      if (fileInput.files.length) handleFile(fileInput.files[0]);
-    });
-  }
-
   async function browseBomFile() {
-    try {
-      const result = await api("open_file_dialog", "Select BOM CSV", App.preferences.lastBomDir || null);
-      if (result && result.content) {
-        if (result.directory) {
-          App.preferences.lastBomDir = result.directory;
-          savePreferences();
-        }
-        loadBomText(result.content, result.name, result.links || null);
-      }
-    } catch (e) {
-      showToast("Could not open file dialog");
-      AppLog.error("BOM file dialog failed: " + e.message);
+    const result = await api("open_file_dialog", "Select BOM CSV", App.preferences.lastBomDir || null);
+    if (!result || !result.content) return;
+    if (result.directory) {
+      App.preferences.lastBomDir = result.directory;
+      savePreferences();
     }
+    loadBomText(result.content, result.name, result.links || null);
   }
 
   function handleFile(file) {
@@ -188,16 +158,7 @@
 
     App.bomHeaders = headers;
     App.bomCols = cols;
-    if (Array.isArray(savedLinks)) {
-      App.manualLinks = savedLinks;
-      App.confirmedMatches = [];
-    } else if (savedLinks && typeof savedLinks === "object") {
-      App.manualLinks = Array.isArray(savedLinks.manualLinks) ? savedLinks.manualLinks : [];
-      App.confirmedMatches = Array.isArray(savedLinks.confirmedMatches) ? savedLinks.confirmedMatches : [];
-    } else {
-      App.manualLinks = [];
-      App.confirmedMatches = [];
-    }
+    App.links.loadFromSaved(savedLinks);
 
     // Log warnings
     warnings.forEach(w => {
@@ -205,7 +166,7 @@
     });
 
     // Match
-    const results = matchBOM(aggregated, App.inventory, App.manualLinks, App.confirmedMatches);
+    const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches);
     lastResults = results;
     lastFileName = fileName;
     App.bomResults = results;
@@ -222,8 +183,7 @@
     zone.innerHTML = `<p>Loaded <strong>${escHtml(fileName)}</strong> \u2014 drop or click to replace</p>
       <input type="file" id="bom-file-input" accept=".csv,.tsv,.txt" style="display:none">`;
     zone.classList.add("loaded");
-    const newInput = document.getElementById("bom-file-input");
-    if (newInput) newInput.addEventListener("change", () => { if (newInput.files.length) handleFile(newInput.files[0]); });
+    resetDropZoneInput("bom-file-input", handleFile);
 
     document.getElementById("bom-save-btn").disabled = false;
     document.getElementById("bom-consume-btn").disabled = false;
@@ -285,35 +245,24 @@
 
   // ── Render the BOM panel (editable raw rows + summary) ──
 
-  function renderBomPanel(rows) {
-    const mult = getMultiplier();
-    const countOk = rows.filter(r => r.effectiveStatus === "ok").length;
-    const countShort = rows.filter(r => r.effectiveStatus === "short" || r.effectiveStatus === "manual-short" || r.effectiveStatus === "confirmed-short").length;
-    const countPossible = rows.filter(r => r.effectiveStatus === "possible").length;
-    const countMissing = rows.filter(r => r.effectiveStatus === "missing").length;
-    const countManual = rows.filter(r => r.effectiveStatus === "manual" || r.effectiveStatus === "manual-short").length;
-    const countConfirmed = rows.filter(r => r.effectiveStatus === "confirmed" || r.effectiveStatus === "confirmed-short").length;
-    const countCovered = rows.filter(r => r.coveredByAlts).length;
-    const countDnp = rows.filter(r => r.effectiveStatus === "dnp").length;
-    const total = rows.length;
-
-    // Summary
+  function renderBomSummary(c, mult) {
     const summary = document.getElementById("bom-summary");
     const multLabel = mult > 1 ? ` (x${mult})` : "";
     summary.innerHTML = `
       <span class="bom-name">${escHtml(lastFileName)}${multLabel}</span>
-      <span class="chip blue">${total} unique</span>
-      ${countManual > 0 ? `<span class="chip pink">${countManual} manual</span>` : ''}
-      ${countConfirmed > 0 ? `<span class="chip teal">${countConfirmed} confirmed</span>` : ''}
-      <span class="chip green">${countOk} ok</span>
-      <span class="chip yellow">${countShort} short</span>
-      <span class="chip orange">${countPossible} possible</span>
-      <span class="chip red">${countMissing} missing</span>
-      ${countDnp > 0 ? `<span class="chip grey">${countDnp} DNP</span>` : ''}
-      ${countCovered > 0 ? `<span class="chip green">${countCovered} covered</span>` : ''}
+      <span class="chip blue">${c.total} unique</span>
+      ${c.manual > 0 ? `<span class="chip pink">${c.manual} manual</span>` : ''}
+      ${c.confirmed > 0 ? `<span class="chip teal">${c.confirmed} confirmed</span>` : ''}
+      <span class="chip green">${c.ok} ok</span>
+      <span class="chip yellow">${c.short} short</span>
+      <span class="chip orange">${c.possible} possible</span>
+      <span class="chip red">${c.missing} missing</span>
+      ${c.dnp > 0 ? `<span class="chip grey">${c.dnp} DNP</span>` : ''}
+      ${c.covered > 0 ? `<span class="chip green">${c.covered} covered</span>` : ''}
     `;
+  }
 
-    // BOM price info
+  function renderBomPriceInfo(rows, mult) {
     const pricePerBoard = rows.reduce((sum, r) => {
       if (r.inv && r.inv.unit_price > 0) return sum + r.bom.qty * r.inv.unit_price;
       return sum;
@@ -326,65 +275,33 @@
       if (mult > 1 && totalPrice > 0) parts.push("$" + totalPrice.toFixed(2) + " total");
       priceInfo.textContent = parts.join(" \u00b7 ");
     }
+  }
 
-    // Linking mode banner
+  function renderLinkingBanner() {
     const bannerEl = document.getElementById("linking-banner");
     if (bannerEl) bannerEl.remove();
-    if (linkingMode && linkingInvItem) {
+    if (App.links.linkingMode && App.links.linkingInvItem) {
       const banner = document.createElement("div");
       banner.className = "linking-banner";
       banner.id = "linking-banner";
-      const partId = linkingInvItem.lcsc || linkingInvItem.mpn || linkingInvItem.description || "part";
+      const partId = App.links.linkingInvItem.lcsc || App.links.linkingInvItem.mpn || App.links.linkingInvItem.description || "part";
       banner.innerHTML = `<span>Linking: <strong>${escHtml(partId)}</strong> \u2014 click a missing, possible, or short BOM row</span><button class="cancel-link-btn">Cancel</button>`;
       banner.querySelector(".cancel-link-btn").addEventListener("click", () => {
-        EventBus.emit(Events.LINKING_MODE, { active: false });
+        App.links.setLinkingMode(false);
       });
       const resultsEl = document.getElementById("bom-results");
       const tableWrap = resultsEl.querySelector(".bom-table-wrap");
       if (tableWrap) resultsEl.insertBefore(banner, tableWrap);
     }
+  }
 
-    // Staging toolbar title
-    const warnCount = countBomWarnings();
-    const stagingTitle = document.getElementById("bom-staging-title");
-    if (stagingTitle) {
-      stagingTitle.textContent = "Staging (" + bomRawRows.length + " rows" + (warnCount > 0 ? ", " + warnCount + " warnings" : "") + ")";
-    }
-
-    // Build missing-key set for linking mode (DNP-aware)
-    const missingKeys = new Set();
-    if (linkingMode && linkingInvItem) {
-      rows.forEach(r => {
-        if (r.effectiveStatus === "missing" || r.effectiveStatus === "possible" || r.effectiveStatus === "short" || r.effectiveStatus === "manual-short" || r.effectiveStatus === "confirmed-short") {
-          const bsk = bomAggKey(r.bom);
-          if (bsk) missingKeys.add(bsk);
-        }
-      });
-    }
-
-    // Build status lookup: aggregation key → effectiveStatus (DNP-aware)
-    const statusMap = {};
-    rows.forEach(r => {
-      const statusKey = bomAggKey(r.bom);
-      if (statusKey) statusMap[statusKey] = r.effectiveStatus;
-    });
-
-    // Helper: derive aggregation key from a raw row (DNP-aware)
-    function rawRowKey(row) {
-      return rawRowAggKey(row, bomCols);
-    }
-
-    const statusIcons = STATUS_ICONS;
-    const statusRowClass = STATUS_ROW_CLASS;
-
-    // Dynamic table header from CSV columns
+  function renderStagingRows(rows, statusMap, missingKeys) {
     const hdrs = bomHeaders;
     let theadHtml = '<tr><th class="row-delete"></th><th style="width:24px"></th>';
     hdrs.forEach(h => { theadHtml += `<th>${escHtml(h)}</th>`; });
     theadHtml += '</tr>';
     document.getElementById("bom-thead").innerHTML = theadHtml;
 
-    // Table body — editable raw rows
     const tbody = document.getElementById("bom-tbody");
     tbody.innerHTML = "";
 
@@ -392,29 +309,23 @@
       const cls = classifyBomRow(row);
       const tr = document.createElement("tr");
 
-      // Determine match status for this row
-      const rk = rawRowKey(row);
+      const rk = rawRowAggKey(row, bomCols);
       const st = (cls === "ok" && rk) ? (statusMap[rk] || null) : null;
 
       if (cls === "warn") tr.className = "row-warn";
       else if (cls === "subtotal") tr.className = "row-subtotal";
-      else if (st && statusRowClass[st]) tr.className = statusRowClass[st];
+      else if (st && STATUS_ROW_CLASS[st]) tr.className = STATUS_ROW_CLASS[st];
 
-      // Linking mode: highlight missing rows as link targets
-      if (linkingMode && linkingInvItem && cls === "ok") {
+      if (App.links.linkingMode && App.links.linkingInvItem && cls === "ok") {
         if (rk && missingKeys.has(rk)) {
           tr.classList.add("link-target");
           tr.addEventListener("click", () => {
-            const matchedResult = rows.find(r => {
-              const k = bomAggKey(r.bom);
-              return k === rk;
-            });
+            const matchedResult = rows.find(r => bomAggKey(r.bom) === rk);
             if (matchedResult) createManualLink(matchedResult);
           });
         }
       }
 
-      // Delete button
       const delTd = document.createElement("td");
       delTd.className = "row-delete";
       delTd.textContent = "\u00d7";
@@ -428,13 +339,11 @@
       });
       tr.appendChild(delTd);
 
-      // Status icon cell
       const stTd = document.createElement("td");
       stTd.className = "status";
-      stTd.textContent = st ? (statusIcons[st] || "") : "";
+      stTd.textContent = st ? (STATUS_ICONS[st] || "") : "";
       tr.appendChild(stTd);
 
-      // Editable cells
       hdrs.forEach((h, ci) => {
         const td = document.createElement("td");
         const inp = document.createElement("input");
@@ -454,7 +363,41 @@
 
       tbody.appendChild(tr);
     });
+  }
 
+  function renderBomPanel(rows) {
+    const mult = getMultiplier();
+    const c = countStatuses(rows);
+
+    renderBomSummary(c, mult);
+    renderBomPriceInfo(rows, mult);
+    renderLinkingBanner();
+
+    // Staging toolbar title
+    const warnCount = countBomWarnings();
+    const stagingTitle = document.getElementById("bom-staging-title");
+    if (stagingTitle) {
+      stagingTitle.textContent = "Staging (" + bomRawRows.length + " rows" + (warnCount > 0 ? ", " + warnCount + " warnings" : "") + ")";
+    }
+
+    // Build status + linking maps
+    const statusMap = {};
+    rows.forEach(r => {
+      const statusKey = bomAggKey(r.bom);
+      if (statusKey) statusMap[statusKey] = r.effectiveStatus;
+    });
+
+    const missingKeys = new Set();
+    if (App.links.linkingMode && App.links.linkingInvItem) {
+      rows.forEach(r => {
+        if (r.effectiveStatus === "missing" || r.effectiveStatus === "possible" || r.effectiveStatus === "short" || r.effectiveStatus === "manual-short" || r.effectiveStatus === "confirmed-short") {
+          const bsk = bomAggKey(r.bom);
+          if (bsk) missingKeys.add(bsk);
+        }
+      });
+    }
+
+    renderStagingRows(rows, statusMap, missingKeys);
     document.getElementById("bom-results").classList.remove("hidden");
   }
 
@@ -465,22 +408,16 @@
       if (e.target.id !== "bom-save-btn") return;
       if (!bomHeaders.length || !bomRawRows.length) return;
       const csvText = generateCSV(bomHeaders, bomRawRows);
-      const hasLinks = App.manualLinks.length > 0 || App.confirmedMatches.length > 0;
-      const linksJson = hasLinks ? JSON.stringify({
-        manualLinks: App.manualLinks,
-        confirmedMatches: App.confirmedMatches,
+      const linksJson = App.links.hasLinks() ? JSON.stringify({
+        manualLinks: App.links.manualLinks,
+        confirmedMatches: App.links.confirmedMatches,
       }) : null;
-      try {
-        const result = await api("save_file_dialog", csvText, lastFileName || "bom.csv", App.preferences.lastBomDir || null, linksJson);
-        if (result && result.path) {
-          bomDirty = false;
-          updateSaveBtnState();
-          showToast("Saved BOM to " + result.path);
-          AppLog.info("Saved BOM: " + result.path);
-        }
-      } catch (e) {
-        showToast("Could not save BOM");
-        AppLog.error("Save BOM failed: " + e.message);
+      const result = await api("save_file_dialog", csvText, lastFileName || "bom.csv", App.preferences.lastBomDir || null, linksJson);
+      if (result && result.path) {
+        bomDirty = false;
+        updateSaveBtnState();
+        showToast("Saved BOM to " + result.path);
+        AppLog.info("Saved BOM: " + result.path);
       }
     });
   }
@@ -498,8 +435,6 @@
       bomDirty = false;
       App.bomResults = null;
       App.bomFileName = "";
-      linkingMode = false;
-      linkingInvItem = null;
       document.getElementById("bom-results").classList.add("hidden");
       document.getElementById("bom-thead").innerHTML = "";
       document.getElementById("bom-tbody").innerHTML = "";
@@ -508,8 +443,7 @@
         <div class="hint">Supports JLCPCB, KiCad, and generic BOM formats</div>
         <input type="file" id="bom-file-input" accept=".csv,.tsv,.txt">`;
       zone.classList.remove("loaded");
-      const newInput = document.getElementById("bom-file-input");
-      if (newInput) newInput.addEventListener("change", () => { if (newInput.files.length) handleFile(newInput.files[0]); });
+      resetDropZoneInput("bom-file-input", handleFile);
       AppLog.info("BOM cleared");
       EventBus.emit(Events.BOM_CLEARED);
     });
@@ -538,28 +472,21 @@
     }
   }
 
+  const consumeModal = Modal("consume-modal", {
+    onClose: () => resetConsumeConfirm(),
+    cancelId: "consume-cancel",
+  });
+
   function openConsumeModal() {
     AppLog.info("Opening consume modal");
     const mult = getMultiplier();
     const matched = lastResults.filter(r => r.inv && r.matchType !== "value" && r.matchType !== "fuzzy");
-    const modal = document.getElementById("consume-modal");
     document.getElementById("consume-subtitle").textContent =
       `Consume ${matched.length} matched parts x${mult} from "${lastFileName}"?`;
     document.getElementById("consume-note").value = "";
     resetConsumeConfirm();
-    modal.classList.remove("hidden");
+    consumeModal.open();
   }
-
-  document.getElementById("consume-cancel").addEventListener("click", () => {
-    document.getElementById("consume-modal").classList.add("hidden");
-    resetConsumeConfirm();
-  });
-  document.getElementById("consume-modal").addEventListener("click", (e) => {
-    if (e.target.id === "consume-modal") {
-      e.target.classList.add("hidden");
-      resetConsumeConfirm();
-    }
-  });
 
   document.getElementById("consume-confirm").addEventListener("click", async () => {
     if (!consumeArmed) {
@@ -586,32 +513,16 @@
     if (matches.length === 0) {
       showToast("No matched parts to consume");
       AppLog.warn("Consume cancelled: no matched parts");
-      document.getElementById("consume-modal").classList.add("hidden");
+      consumeModal.close();
       return;
     }
 
-    try {
-      const fresh = await api("consume_bom", JSON.stringify(matches), mult, lastFileName, note);
-      if (fresh.error) {
-        showToast("Error: " + fresh.error);
-        AppLog.error("Consume error: " + fresh.error);
-      } else {
-        document.getElementById("consume-modal").classList.add("hidden");
-        onInventoryUpdated(fresh);
-        showToast(`Consumed ${matches.length} parts x${mult}`);
-        AppLog.info("Consumed " + matches.length + " parts x" + mult + " from " + lastFileName);
-      }
-    } catch (e) {
-      showToast("Error: " + e.message);
-      AppLog.error("Consume failed: " + e.message);
-    }
-  });
-
-  document.addEventListener("keydown", (e) => {
-    const modal = document.getElementById("consume-modal");
-    if (!modal.classList.contains("hidden") && e.key === "Escape") {
-      modal.classList.add("hidden");
-    }
+    const fresh = await api("consume_bom", JSON.stringify(matches), mult, lastFileName, note);
+    if (!fresh) return;
+    consumeModal.close();
+    onInventoryUpdated(fresh);
+    showToast(`Consumed ${matches.length} parts x${mult}`);
+    AppLog.info("Consumed " + matches.length + " parts x" + mult + " from " + lastFileName);
   });
 
   // ── Re-match when inventory updates ──
@@ -629,22 +540,19 @@
 
   function createManualLink(bomRow) {
     const bk = bomKey(bomRow.bom);
-    const ipk = invPartKey(linkingInvItem);
+    const ipk = invPartKey(App.links.linkingInvItem);
     if (!bk || !ipk) {
       showToast("Cannot create link — missing part key");
       return;
     }
-    App.manualLinks.push({ bomKey: bk, invPartKey: ipk });
+    App.links.addManualLink(bk, ipk);
     AppLog.info("Manual link: " + ipk + " → " + bk);
-    EventBus.emit(Events.LINKING_MODE, { active: false });
+    App.links.setLinkingMode(false);
     reprocessAndRender();
     showToast("Linked " + ipk + " → " + bk);
   }
 
-  EventBus.on(Events.LINKING_MODE, (data) => {
-    linkingMode = data.active;
-    linkingInvItem = data.active ? data.invItem : null;
-    // Re-render BOM panel visuals (banner/targets) without re-emitting bom-loaded
+  EventBus.on(Events.LINKING_MODE, () => {
     if (lastResults) {
       const rows = computeRows();
       if (rows) renderBomPanel(rows);
