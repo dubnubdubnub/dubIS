@@ -16,13 +16,6 @@
   let bomCols = {};
   let bomDirty = false;
 
-  // Linkify URLs in escaped HTML text
-  function linkifyHtml(escaped) {
-    return escaped.replace(/https?:\/\/[^\s<&]+/g, function (url) {
-      return '<a href="' + url + '" target="_blank" title="' + url + '">' + url + '</a>';
-    });
-  }
-
   function updateSaveBtnState() {
     const btn = document.getElementById("bom-save-btn");
     if (btn) btn.classList.toggle("dirty", bomDirty);
@@ -149,7 +142,10 @@
         }
         loadBomText(result.content, result.name, result.links || null);
       }
-    } catch (e) { showToast("Could not open file dialog"); }
+    } catch (e) {
+      showToast("Could not open file dialog");
+      AppLog.error("BOM file dialog failed: " + e.message);
+    }
   }
 
   function handleFile(file) {
@@ -284,7 +280,7 @@
     const rows = computeRows();
     if (!rows) return;
     renderBomPanel(rows);
-    EventBus.emit("bom-loaded", { rows, fileName: lastFileName, multiplier: getMultiplier() });
+    EventBus.emit(Events.BOM_LOADED, { rows, fileName: lastFileName, multiplier: getMultiplier() });
   }
 
   // ── Render the BOM panel (editable raw rows + summary) ──
@@ -341,7 +337,7 @@
       const partId = linkingInvItem.lcsc || linkingInvItem.mpn || linkingInvItem.description || "part";
       banner.innerHTML = `<span>Linking: <strong>${escHtml(partId)}</strong> \u2014 click a missing, possible, or short BOM row</span><button class="cancel-link-btn">Cancel</button>`;
       banner.querySelector(".cancel-link-btn").addEventListener("click", () => {
-        EventBus.emit("linking-mode", { active: false });
+        EventBus.emit(Events.LINKING_MODE, { active: false });
       });
       const resultsEl = document.getElementById("bom-results");
       const tableWrap = resultsEl.querySelector(".bom-table-wrap");
@@ -378,8 +374,8 @@
       return rawRowAggKey(row, bomCols);
     }
 
-    const statusIcons = { ok: "+", short: "~", possible: "?", missing: "\u2014", manual: "\u2726", confirmed: "\u2714", "manual-short": "\u2726~", "confirmed-short": "\u2714~", dnp: "\u2716" };
-    const statusRowClass = { ok: "row-green", short: "row-yellow", possible: "row-orange", missing: "row-red", manual: "row-pink", confirmed: "row-teal", "manual-short": "row-pink-short", "confirmed-short": "row-teal-short", dnp: "row-dnp" };
+    const statusIcons = STATUS_ICONS;
+    const statusRowClass = STATUS_ROW_CLASS;
 
     // Dynamic table header from CSV columns
     const hdrs = bomHeaders;
@@ -515,7 +511,7 @@
       const newInput = document.getElementById("bom-file-input");
       if (newInput) newInput.addEventListener("change", () => { if (newInput.files.length) handleFile(newInput.files[0]); });
       AppLog.info("BOM cleared");
-      EventBus.emit("bom-cleared");
+      EventBus.emit(Events.BOM_CLEARED);
     });
   }
 
@@ -619,13 +615,13 @@
   });
 
   // ── Re-match when inventory updates ──
-  EventBus.on("inventory-updated", (inventory) => {
+  EventBus.on(Events.INVENTORY_UPDATED, (inventory) => {
     if (lastResults && lastFileName && bomRawRows.length) {
       reprocessAndRender();
     }
   });
 
-  EventBus.on("confirmed-match-changed", () => {
+  EventBus.on(Events.CONFIRMED_CHANGED, () => {
     if (lastResults && lastFileName && bomRawRows.length) reprocessAndRender();
   });
 
@@ -640,12 +636,12 @@
     }
     App.manualLinks.push({ bomKey: bk, invPartKey: ipk });
     AppLog.info("Manual link: " + ipk + " → " + bk);
-    EventBus.emit("linking-mode", { active: false });
+    EventBus.emit(Events.LINKING_MODE, { active: false });
     reprocessAndRender();
     showToast("Linked " + ipk + " → " + bk);
   }
 
-  EventBus.on("linking-mode", (data) => {
+  EventBus.on(Events.LINKING_MODE, (data) => {
     linkingMode = data.active;
     linkingInvItem = data.active ? data.invItem : null;
     // Re-render BOM panel visuals (banner/targets) without re-emitting bom-loaded

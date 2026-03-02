@@ -331,12 +331,6 @@ class InventoryApi:
 
     # ── Public API methods (called from JS via pywebview) ────────────────
 
-    def get_inventory(self):
-        """Load organized inventory. If organized CSV exists, load it; otherwise rebuild."""
-        if os.path.exists(self.output_csv):
-            return self._load_organized()
-        return self._rebuild()
-
     def rebuild_inventory(self):
         """Force full rebuild of inventory.csv from purchase_ledger + adjustments."""
         return self._rebuild()
@@ -584,12 +578,6 @@ class InventoryApi:
                     pass
             return resp
         return None
-
-    def read_file(self, path):
-        """Read a file by path and return its content. Used as fallback."""
-        if not os.path.exists(path):
-            return {"error": f"File not found: {path}"}
-        return {"name": os.path.basename(path), "content": self._read_text(path)}
 
     @staticmethod
     def _read_text(path):

@@ -1,5 +1,30 @@
 /* main.js — Event bus, global state, inventory loading */
 
+// ── Constants ──────────────────────────────────────────
+const TOAST_DURATION_MS = 2500;
+const UNDO_MAX_HISTORY = 500;
+const LOG_MAX_ENTRIES = 200;
+const PREFS_MAX_THRESHOLD = 200;
+const PREFS_MIN_THRESHOLD = 5;
+
+const STOCK_COLOR_STOPS = [
+  { r: 248, g: 81, b: 73 },   // #f85149  red
+  { r: 240, g: 136, b: 62 },  // #f0883e  orange
+  { r: 210, g: 153, b: 34 },  // #d29922  yellow
+  { r: 63, g: 185, b: 80 },   // #3fb950  green
+];
+
+// ── Event Names ────────────────────────────────────────
+const Events = {
+  INVENTORY_LOADED:  "inventory-loaded",
+  INVENTORY_UPDATED: "inventory-updated",
+  BOM_LOADED:        "bom-loaded",
+  BOM_CLEARED:       "bom-cleared",
+  PREFS_CHANGED:     "preferences-changed",
+  CONFIRMED_CHANGED: "confirmed-match-changed",
+  LINKING_MODE:      "linking-mode",
+};
+
 // ── Event Bus ──────────────────────────────────────────
 const EventBus = {
   _listeners: {},
@@ -19,7 +44,7 @@ const EventBus = {
 const UndoRedo = {
   _undo: [],
   _redo: [],
-  _max: 500,
+  _max: UNDO_MAX_HISTORY,
   _restorers: {},  // panel → fn(action, data)
 
   register(panel, restoreFn) { this._restorers[panel] = restoreFn; },
@@ -56,11 +81,18 @@ const UndoRedo = {
 
 // ── Global State ───────────────────────────────────────
 const App = {
+  // ── Data (owned by main.js, set via API) ──
   inventory: [],
+
+  // ── BOM state (owned by bom-panel.js) ──
   bomResults: null,
   bomFileName: "",
+  bomHeaders: [],
+  bomCols: {},
   manualLinks: [],
   confirmedMatches: [],
+
+  // ── Configuration (read-only) ──
   SECTION_ORDER: [
     "Connectors", "Switches", "Passives - Resistors", "Passives - Capacitors",
     "Passives - Inductors", "LEDs", "Crystals & Oscillators", "Diodes",
@@ -69,6 +101,8 @@ const App = {
     "ICs - Sensors", "ICs - Amplifiers", "ICs - Motor Drivers",
     "ICs - Interface", "ICs - ESD Protection", "Mechanical & Hardware", "Other",
   ],
+
+  // ── Preferences (owned by main.js) ──
   preferences: { thresholds: {} },
 };
 
@@ -77,7 +111,7 @@ function showToast(msg) {
   const t = document.getElementById("toast");
   t.textContent = msg;
   t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 2500);
+  setTimeout(() => t.classList.remove("show"), TOAST_DURATION_MS);
 }
 
 // ── Escape HTML ────────────────────────────────────────
@@ -90,7 +124,7 @@ function escHtml(s) {
 // ── Console Log ───────────────────────────────────────
 const AppLog = {
   _entries: [],
-  _max: 200,
+  _max: LOG_MAX_ENTRIES,
   _add(level, msg) {
     const entry = { level, msg, time: new Date() };
     this._entries.push(entry);
@@ -129,13 +163,13 @@ async function loadPreferences() {
       if (stored.lastBomDir) App.preferences.lastBomDir = stored.lastBomDir;
       if (stored.lastImportDir) App.preferences.lastImportDir = stored.lastImportDir;
     }
-  } catch (_) { /* API not ready or corrupt file — use defaults */ }
+  } catch (e) { AppLog.warn("Preferences load failed, using defaults: " + e.message); }
 }
 
 async function savePreferences() {
   try {
     await api("save_preferences", JSON.stringify(App.preferences));
-  } catch (_) { /* ignore write failures */ }
+  } catch (e) { AppLog.warn("Preferences save failed: " + e.message); }
 }
 
 function getThreshold(section) {
@@ -145,7 +179,7 @@ function getThreshold(section) {
 function setThreshold(section, value) {
   App.preferences.thresholds[section] = value;
   savePreferences();
-  EventBus.emit("preferences-changed");
+  EventBus.emit(Events.PREFS_CHANGED);
 }
 
 // ── Stock Value → Color (4-stop RGB lerp) ──────────────
@@ -154,12 +188,7 @@ function stockValueColor(stockValue, threshold) {
   const ratio = Math.min(Math.max(stockValue / threshold, 0), 1);
 
   // 4 stops: 0=red, 1/3=orange, 2/3=yellow, 1=green
-  const stops = [
-    { r: 248, g: 81, b: 73 },   // #f85149
-    { r: 240, g: 136, b: 62 },  // #f0883e
-    { r: 210, g: 153, b: 34 },  // #d29922
-    { r: 63, g: 185, b: 80 },   // #3fb950
-  ];
+  const stops = STOCK_COLOR_STOPS;
 
   const t = ratio * 3; // scale to [0, 3]
   const i = Math.min(Math.floor(t), 2);
@@ -181,12 +210,6 @@ function updateSliderTrack(slider) {
   slider.style.background = g;
 }
 
-function syncSliderToInput(slider, input) {
-  slider.max = Math.max(parseInt(input.value, 10) || 200, 5);
-  slider.value = Math.min(parseInt(slider.value, 10), slider.max);
-  updateSliderTrack(slider);
-}
-
 function openPreferencesModal() {
   const modal = document.getElementById("prefs-modal");
   const container = document.getElementById("prefs-sliders");
@@ -198,7 +221,7 @@ function openPreferencesModal() {
     row.className = "prefs-row";
     row.innerHTML = `
       <label class="prefs-label">${escHtml(section)}</label>
-      <input type="range" class="prefs-slider" min="0" max="${Math.max(val, 200)}" step="1" value="${val}" data-section="${escHtml(section)}">
+      <input type="range" class="prefs-slider" min="0" max="${Math.max(val, PREFS_MAX_THRESHOLD)}" step="1" value="${val}" data-section="${escHtml(section)}">
       <span class="prefs-value-wrap">$<input type="number" class="prefs-input" min="0" step="1" value="${val}"></span>
     `;
     const slider = row.querySelector(".prefs-slider");
@@ -213,7 +236,7 @@ function openPreferencesModal() {
     input.addEventListener("input", () => {
       const v = parseInt(input.value, 10);
       if (isNaN(v) || v < 0) return;
-      slider.max = Math.max(v, 5);
+      slider.max = Math.max(v, PREFS_MIN_THRESHOLD);
       slider.value = v;
       updateSliderTrack(slider);
     });
@@ -222,7 +245,7 @@ function openPreferencesModal() {
       let v = parseInt(input.value, 10);
       if (isNaN(v) || v < 0) v = 0;
       input.value = v;
-      slider.max = Math.max(v, 5);
+      slider.max = Math.max(v, PREFS_MIN_THRESHOLD);
       slider.value = v;
       updateSliderTrack(slider);
     });
@@ -246,7 +269,7 @@ function applyPreferences() {
   });
   savePreferences();
   closePreferencesModal();
-  EventBus.emit("preferences-changed");
+  EventBus.emit(Events.PREFS_CHANGED);
 }
 
 // ── Update header stats ────────────────────────────────
@@ -261,7 +284,7 @@ async function loadInventory() {
   try {
     App.inventory = await api("rebuild_inventory");
     updateInventoryHeader();
-    EventBus.emit("inventory-loaded", App.inventory);
+    EventBus.emit(Events.INVENTORY_LOADED, App.inventory);
     AppLog.info("Loaded inventory: " + App.inventory.length + " parts");
   } catch (e) {
     console.error("Failed to load inventory:", e);
@@ -274,7 +297,7 @@ async function loadInventory() {
 function onInventoryUpdated(freshInventory) {
   App.inventory = freshInventory;
   updateInventoryHeader();
-  EventBus.emit("inventory-updated", App.inventory);
+  EventBus.emit(Events.INVENTORY_UPDATED, App.inventory);
 }
 
 // ── Prevent accidental file navigation ─────────────────
@@ -329,8 +352,8 @@ async function initApp() {
   if (globalRedo) globalRedo.addEventListener("click", () => { UndoRedo.redo(); syncUndoRedoButtons(); });
 
   // Keep buttons in sync after any undo/redo action or data change
-  EventBus.on("inventory-updated", syncUndoRedoButtons);
-  EventBus.on("bom-loaded", syncUndoRedoButtons);
+  EventBus.on(Events.INVENTORY_UPDATED, syncUndoRedoButtons);
+  EventBus.on(Events.BOM_LOADED, syncUndoRedoButtons);
 
   document.addEventListener("keydown", (e) => {
     if (!e.ctrlKey || e.altKey) return;

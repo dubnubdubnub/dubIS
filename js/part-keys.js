@@ -1,5 +1,17 @@
 /* part-keys.js — Canonical key derivation for BOM and inventory parts.
-   Depends on: extractLCSC (from csv-parser.js). */
+   Depends on: isDnp, extractPartIds (from csv-parser.js). */
+
+// ── Status display constants (shared by bom-panel.js and inventory-panel.js) ──
+const STATUS_ICONS = {
+  ok: "+", short: "~", possible: "?", missing: "\u2014",
+  manual: "\u2726", confirmed: "\u2714",
+  "manual-short": "\u2726~", "confirmed-short": "\u2714~", dnp: "\u2716",
+};
+const STATUS_ROW_CLASS = {
+  ok: "row-green", short: "row-yellow", possible: "row-orange", missing: "row-red",
+  manual: "row-pink", confirmed: "row-teal",
+  "manual-short": "row-pink-short", "confirmed-short": "row-teal-short", dnp: "row-dnp",
+};
 
 function bomKey(bom) {
   return (bom.lcsc || bom.mpn || "").toUpperCase();
@@ -11,21 +23,6 @@ function bomAggKey(bom) {
 
 function invPartKey(item) {
   return item.lcsc || item.mpn || item.digikey || "";
-}
-
-function isDnp(val) {
-  const v = (val || "").trim().toLowerCase();
-  return v === "dnp" || v === "1" || v === "yes" || v === "true";
-}
-
-function extractPartIds(row, cols) {
-  let lcsc = cols.lcsc !== -1 ? (row[cols.lcsc] || "").trim() : "";
-  let mpn  = cols.mpn  !== -1 ? (row[cols.mpn]  || "").trim() : "";
-  if (!lcsc && mpn) {
-    const extracted = extractLCSC(mpn);
-    if (extracted) lcsc = extracted;
-  }
-  return { lcsc: lcsc ? lcsc.toUpperCase() : "", mpn };
 }
 
 function rawRowAggKey(row, cols) {
