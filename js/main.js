@@ -89,8 +89,55 @@ const App = {
   bomFileName: "",
   bomHeaders: [],
   bomCols: {},
-  manualLinks: [],
-  confirmedMatches: [],
+
+  // ── Linking state (central mutation API) ──
+  links: {
+    manualLinks: [],
+    confirmedMatches: [],
+    linkingMode: false,
+    linkingInvItem: null,
+
+    addManualLink(bk, ipk) {
+      this.manualLinks.push({ bomKey: bk, invPartKey: ipk });
+    },
+    confirmMatch(bk, ipk) {
+      this.confirmedMatches = this.confirmedMatches.filter(c => c.bomKey !== bk);
+      this.confirmedMatches.push({ bomKey: bk, invPartKey: ipk });
+      EventBus.emit(Events.CONFIRMED_CHANGED);
+    },
+    unconfirmMatch(bk) {
+      this.confirmedMatches = this.confirmedMatches.filter(c => c.bomKey !== bk);
+      EventBus.emit(Events.CONFIRMED_CHANGED);
+    },
+    setLinkingMode(active, invItem) {
+      this.linkingMode = active;
+      this.linkingInvItem = active ? invItem : null;
+      EventBus.emit(Events.LINKING_MODE, { active, invItem: this.linkingInvItem });
+    },
+    loadFromSaved(savedLinks) {
+      if (Array.isArray(savedLinks)) {
+        this.manualLinks = savedLinks;
+        this.confirmedMatches = [];
+      } else if (savedLinks && typeof savedLinks === "object") {
+        this.manualLinks = Array.isArray(savedLinks.manualLinks) ? savedLinks.manualLinks : [];
+        this.confirmedMatches = Array.isArray(savedLinks.confirmedMatches) ? savedLinks.confirmedMatches : [];
+      } else {
+        this.manualLinks = [];
+        this.confirmedMatches = [];
+      }
+      this.linkingMode = false;
+      this.linkingInvItem = null;
+    },
+    clearAll() {
+      this.manualLinks = [];
+      this.confirmedMatches = [];
+      this.linkingMode = false;
+      this.linkingInvItem = null;
+    },
+    hasLinks() {
+      return this.manualLinks.length > 0 || this.confirmedMatches.length > 0;
+    },
+  },
 
   // ── Configuration (read-only) ──
   SECTION_ORDER: [
@@ -151,25 +198,72 @@ const AppLog = {
 
 // ── API wrapper ────────────────────────────────────────
 async function api(method, ...args) {
-  return window.pywebview.api[method](...args);
+  try {
+    return await window.pywebview.api[method](...args);
+  } catch (e) {
+    AppLog.error(method + ": " + e.message);
+    showToast("Error: " + e.message);
+    return undefined;
+  }
+}
+
+// ── Modal lifecycle helper ──────────────────────────────
+function Modal(id, { onClose, cancelId } = {}) {
+  const el = document.getElementById(id);
+  function open()  { el.classList.remove("hidden"); }
+  function close() { el.classList.add("hidden"); if (onClose) onClose(); }
+  el.addEventListener("click", (e) => { if (e.target === el) close(); });
+  if (cancelId) document.getElementById(cancelId).addEventListener("click", close);
+  document.addEventListener("keydown", (e) => {
+    if (el.classList.contains("hidden")) return;
+    if (e.key === "Escape") close();
+  });
+  return { el, open, close };
+}
+
+// ── Drop-zone wiring ────────────────────────────────────
+function setupDropZone(zoneId, inputId, onBrowse, onFile) {
+  const zone = document.getElementById(zoneId);
+  const input = document.getElementById(inputId);
+  zone.addEventListener("click", (e) => { if (e.target.tagName !== "INPUT") onBrowse(); });
+  zone.addEventListener("dragover", (e) => { e.preventDefault(); e.stopPropagation(); zone.classList.add("dragover"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+  zone.addEventListener("drop", (e) => {
+    e.preventDefault(); e.stopPropagation(); zone.classList.remove("dragover");
+    if (e.dataTransfer.files.length) onFile(e.dataTransfer.files[0]);
+  });
+  input.addEventListener("change", () => { if (input.files.length) onFile(input.files[0]); });
+}
+
+function resetDropZoneInput(inputId, onFile) {
+  const input = document.getElementById(inputId);
+  if (input) input.addEventListener("change", () => { if (input.files.length) onFile(input.files[0]); });
+}
+
+// ── Unit ↔ Ext price auto-calc ──────────────────────────
+function linkPriceInputs(unitEl, extEl, getQty) {
+  unitEl.addEventListener("input", () => {
+    const up = parseFloat(unitEl.value), qty = getQty();
+    if (!isNaN(up) && qty > 0) extEl.value = (up * qty).toFixed(2);
+  });
+  extEl.addEventListener("input", () => {
+    const ep = parseFloat(extEl.value), qty = getQty();
+    if (!isNaN(ep) && qty > 0) unitEl.value = (ep / qty).toFixed(4);
+  });
 }
 
 // ── Preferences (persisted to data/preferences.json) ────
 async function loadPreferences() {
-  try {
-    const stored = await api("load_preferences");
-    if (stored && typeof stored === "object") {
-      if (stored.thresholds) App.preferences.thresholds = stored.thresholds;
-      if (stored.lastBomDir) App.preferences.lastBomDir = stored.lastBomDir;
-      if (stored.lastImportDir) App.preferences.lastImportDir = stored.lastImportDir;
-    }
-  } catch (e) { AppLog.warn("Preferences load failed, using defaults: " + e.message); }
+  const stored = await api("load_preferences");
+  if (stored && typeof stored === "object") {
+    if (stored.thresholds) App.preferences.thresholds = stored.thresholds;
+    if (stored.lastBomDir) App.preferences.lastBomDir = stored.lastBomDir;
+    if (stored.lastImportDir) App.preferences.lastImportDir = stored.lastImportDir;
+  }
 }
 
 async function savePreferences() {
-  try {
-    await api("save_preferences", JSON.stringify(App.preferences));
-  } catch (e) { AppLog.warn("Preferences save failed: " + e.message); }
+  await api("save_preferences", JSON.stringify(App.preferences));
 }
 
 function getThreshold(section) {
@@ -201,6 +295,8 @@ function stockValueColor(stockValue, threshold) {
 }
 
 // ── Preferences Modal ──────────────────────────────────
+const prefsModal = Modal("prefs-modal", { cancelId: "prefs-cancel" });
+
 function updateSliderTrack(slider) {
   const pct = ((slider.value - slider.min) / (slider.max - slider.min)) * 100;
   // Map the 4-stop gradient into the filled portion, dark track for the rest
@@ -211,7 +307,6 @@ function updateSliderTrack(slider) {
 }
 
 function openPreferencesModal() {
-  const modal = document.getElementById("prefs-modal");
   const container = document.getElementById("prefs-sliders");
   container.innerHTML = "";
 
@@ -253,11 +348,11 @@ function openPreferencesModal() {
     container.appendChild(row);
   });
 
-  modal.classList.remove("hidden");
+  prefsModal.open();
 }
 
 function closePreferencesModal() {
-  document.getElementById("prefs-modal").classList.add("hidden");
+  prefsModal.close();
 }
 
 function applyPreferences() {
@@ -281,16 +376,12 @@ function updateInventoryHeader() {
 
 // ── Load inventory and notify panels ───────────────────
 async function loadInventory() {
-  try {
-    App.inventory = await api("rebuild_inventory");
-    updateInventoryHeader();
-    EventBus.emit(Events.INVENTORY_LOADED, App.inventory);
-    AppLog.info("Loaded inventory: " + App.inventory.length + " parts");
-  } catch (e) {
-    console.error("Failed to load inventory:", e);
-    showToast("Error loading inventory");
-    AppLog.error("Failed to load inventory: " + e.message);
-  }
+  const fresh = await api("rebuild_inventory");
+  if (!fresh) return;
+  App.inventory = fresh;
+  updateInventoryHeader();
+  EventBus.emit(Events.INVENTORY_LOADED, App.inventory);
+  AppLog.info("Loaded inventory: " + App.inventory.length + " parts");
 }
 
 // After any mutation, refresh everything
@@ -313,30 +404,20 @@ async function initApp() {
   const clearBtn = document.getElementById("console-clear");
   if (clearBtn) clearBtn.addEventListener("click", () => AppLog.clear());
 
-  // Preferences modal
+  // Preferences modal (cancel + backdrop + Escape handled by Modal)
   const prefsBtn = document.getElementById("prefs-btn");
   if (prefsBtn) prefsBtn.addEventListener("click", openPreferencesModal);
-  const prefsCancel = document.getElementById("prefs-cancel");
-  if (prefsCancel) prefsCancel.addEventListener("click", closePreferencesModal);
   const prefsSave = document.getElementById("prefs-save");
   if (prefsSave) prefsSave.addEventListener("click", applyPreferences);
-  const prefsModal = document.getElementById("prefs-modal");
-  if (prefsModal) prefsModal.addEventListener("click", (e) => {
-    if (e.target === prefsModal) closePreferencesModal();
-  });
 
   const rebuildBtn = document.getElementById("rebuild-inv");
   if (rebuildBtn) rebuildBtn.addEventListener("click", async () => {
-    try {
-      AppLog.info("Rebuilding inventory...");
-      const fresh = await api("rebuild_inventory");
-      onInventoryUpdated(fresh);
-      showToast("Inventory rebuilt");
-      AppLog.info("Inventory rebuilt: " + fresh.length + " parts");
-    } catch (e) {
-      showToast("Rebuild failed: " + e.message);
-      AppLog.error("Rebuild failed: " + e.message);
-    }
+    AppLog.info("Rebuilding inventory...");
+    const fresh = await api("rebuild_inventory");
+    if (!fresh) return;
+    onInventoryUpdated(fresh);
+    showToast("Inventory rebuilt");
+    AppLog.info("Inventory rebuilt: " + fresh.length + " parts");
   });
 
   // Global undo/redo buttons + keyboard

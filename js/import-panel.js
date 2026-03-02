@@ -37,7 +37,7 @@
         <div id="import-mapper" class="hidden"></div>
       </div>
     `;
-    setupDropZone();
+    setupDropZone("import-drop-zone", "import-file-input", browseImportFile, handleImportFile);
 
     UndoRedo.register("import", (action, data) => {
       if (action === "snapshot") return JSON.parse(JSON.stringify(parsedRows));
@@ -46,40 +46,14 @@
     });
   }
 
-  function setupDropZone() {
-    const zone = document.getElementById("import-drop-zone");
-    const fileInput = document.getElementById("import-file-input");
-
-    zone.addEventListener("click", (e) => {
-      if (e.target.tagName !== 'INPUT') browseImportFile();
-    });
-    zone.addEventListener("dragover", (e) => { e.preventDefault(); e.stopPropagation(); zone.classList.add("dragover"); });
-    zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
-    zone.addEventListener("drop", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      zone.classList.remove("dragover");
-      if (e.dataTransfer.files.length) handleImportFile(e.dataTransfer.files[0]);
-    });
-    fileInput.addEventListener("change", () => {
-      if (fileInput.files.length) handleImportFile(fileInput.files[0]);
-    });
-  }
-
   async function browseImportFile() {
-    try {
-      const result = await api("open_file_dialog", "Select Purchase CSV", App.preferences.lastImportDir || null);
-      if (result && result.content) {
-        if (result.directory) {
-          App.preferences.lastImportDir = result.directory;
-          savePreferences();
-        }
-        loadImportText(result.content, result.name);
-      }
-    } catch (e) {
-      showToast("Could not open file dialog");
-      AppLog.error("Import file dialog failed: " + e.message);
+    const result = await api("open_file_dialog", "Select Purchase CSV", App.preferences.lastImportDir || null);
+    if (!result || !result.content) return;
+    if (result.directory) {
+      App.preferences.lastImportDir = result.directory;
+      savePreferences();
     }
+    loadImportText(result.content, result.name);
   }
 
   function handleImportFile(file) {
@@ -102,23 +76,19 @@
     // No subtotal filtering — all rows kept for user review
 
     // Auto-detect columns via Python API
-    try {
-      const detected = await api("detect_columns", JSON.stringify(parsedHeaders));
-      columnMapping = {};
+    const detected = await api("detect_columns", JSON.stringify(parsedHeaders));
+    columnMapping = {};
+    if (detected) {
       for (const [idx, field] of Object.entries(detected)) {
         columnMapping[parseInt(idx)] = field;
       }
-    } catch (e) {
-      AppLog.warn("detect_columns failed", e);
-      columnMapping = {};
     }
 
     const zone = document.getElementById("import-drop-zone");
     zone.innerHTML = `<p>${escHtml(fileName)}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
       <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`;
     zone.classList.add("loaded");
-    const newInput = document.getElementById("import-file-input");
-    if (newInput) newInput.addEventListener("change", function () { if (this.files.length) handleImportFile(this.files[0]); });
+    resetDropZoneInput("import-file-input", handleImportFile);
 
     AppLog.info("Loaded " + parsedRows.length + " rows from " + fileName);
     renderMapper();
@@ -321,27 +291,19 @@
       return;
     }
 
-    try {
-      const fresh = await api("import_purchases", JSON.stringify(invRows));
-      if (fresh.error) {
-        showToast("Error: " + fresh.error);
-        AppLog.error("Import error: " + fresh.error);
-        if (btn) btn.disabled = false;
-      } else {
-        onInventoryUpdated(fresh);
-        showToast(`Imported ${invRows.length} rows from ${importFileName}`);
-        AppLog.info("Imported " + invRows.length + " parts from " + importFileName);
-        // Reset import panel
-        parsedHeaders = [];
-        parsedRows = [];
-        columnMapping = {};
-        init();
-      }
-    } catch (e) {
-      showToast("Error: " + e.message);
-      AppLog.error("Import failed: " + e.message);
+    const fresh = await api("import_purchases", JSON.stringify(invRows));
+    if (!fresh) {
       if (btn) btn.disabled = false;
+      return;
     }
+    onInventoryUpdated(fresh);
+    showToast(`Imported ${invRows.length} rows from ${importFileName}`);
+    AppLog.info("Imported " + invRows.length + " parts from " + importFileName);
+    // Reset import panel
+    parsedHeaders = [];
+    parsedRows = [];
+    columnMapping = {};
+    init();
   }
 
   init();
