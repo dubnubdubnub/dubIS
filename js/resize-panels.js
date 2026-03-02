@@ -7,9 +7,11 @@
     document.getElementById('panel-inventory'),
     document.getElementById('panel-bom')
   ];
+  const PANEL_MIN_WIDTHS = [240, 300, 380];  // [import, inventory, bom]
+  const CONSOLE_MIN_HEIGHT = 100;
+
   const panelsContainer = document.querySelector('.panels');
   const consoleLog = document.getElementById('console-log');
-  const minWidths = [240, 300, 380];
 
   /* ── Horizontal handles (between panels) ─────────────── */
   function createHHandle(leftIdx) {
@@ -57,12 +59,12 @@
         let newLeft = startLeft + dx;
         let newRight = startRight - dx;
 
-        if (newLeft < minWidths[leftIdx]) {
-          newLeft = minWidths[leftIdx];
+        if (newLeft < PANEL_MIN_WIDTHS[leftIdx]) {
+          newLeft = PANEL_MIN_WIDTHS[leftIdx];
           newRight = startLeft + startRight - newLeft;
         }
-        if (newRight < minWidths[rightIdx]) {
-          newRight = minWidths[rightIdx];
+        if (newRight < PANEL_MIN_WIDTHS[rightIdx]) {
+          newRight = PANEL_MIN_WIDTHS[rightIdx];
           newLeft = startLeft + startRight - newRight;
         }
 
@@ -109,7 +111,7 @@
     function onMove(ev) {
       const dy = startY - ev.clientY;
       let newH = startH + dy;
-      if (newH < 100) newH = 100;
+      if (newH < CONSOLE_MIN_HEIGHT) newH = CONSOLE_MIN_HEIGHT;
       if (newH > maxH) newH = maxH;
       consoleLog.style.height = newH + 'px';
     }

@@ -3,6 +3,12 @@
    BOM mode: matched parts at top with status/need/have/alts, then remaining inventory. */
 
 (function () {
+  const BOM_STATUS_SORT_ORDER = {
+    missing: 0, "manual-short": 0.4, manual: 0.5,
+    "confirmed-short": 0.7, confirmed: 0.75,
+    possible: 1, short: 2, ok: 3, dnp: 4,
+  };
+
   const body = document.getElementById("inventory-body");
   const searchInput = document.getElementById("inv-search");
   let collapsedSections = new Set();
@@ -52,8 +58,7 @@
     const rows = bomData.rows;
 
     // Sort: manual first, then missing, confirmed, possible, short, ok
-    const order = { missing: 0, "manual-short": 0.4, manual: 0.5, "confirmed-short": 0.7, confirmed: 0.75, possible: 1, short: 2, ok: 3, dnp: 4 };
-    const sortedRows = [...rows].sort((a, b) => order[a.effectiveStatus] - order[b.effectiveStatus]);
+    const sortedRows = [...rows].sort((a, b) => BOM_STATUS_SORT_ORDER[a.effectiveStatus] - BOM_STATUS_SORT_ORDER[b.effectiveStatus]);
 
     // Counts for filter bar
     const countOk = rows.filter(r => r.effectiveStatus === "ok").length;
@@ -126,17 +131,10 @@
       const tr = document.createElement("tr");
       tr.dataset.partKey = partKey;
 
-      const rowClass = st === "dnp" ? "row-dnp"
-        : st === "manual" ? "row-pink"
-        : st === "manual-short" ? "row-pink-short"
-        : st === "confirmed" ? "row-teal"
-        : st === "confirmed-short" ? "row-teal-short"
-        : st === "ok" ? "row-green"
-        : st === "short" ? (r.coveredByAlts ? "row-yellow-covered" : "row-yellow")
-        : st === "possible" ? "row-orange" : "row-red";
+      const rowClass = (st === "short" && r.coveredByAlts) ? "row-yellow-covered" : (STATUS_ROW_CLASS[st] || "row-red");
       tr.className = rowClass;
 
-      const icon = st === "dnp" ? "\u2716" : st === "manual" ? "\u2726" : st === "manual-short" ? "\u2726~" : st === "confirmed" ? "\u2714" : st === "confirmed-short" ? "\u2714~" : st === "ok" ? "+" : st === "short" ? (r.coveredByAlts ? "~+" : "~") : st === "possible" ? "?" : "-";
+      const icon = (st === "short" && r.coveredByAlts) ? "~+" : (STATUS_ICONS[st] || "\u2014");
       const dispLcsc = (r.inv ? r.inv.lcsc : "") || r.bom.lcsc || "";
       const dispMpn = (r.inv ? r.inv.mpn : "") || r.bom.mpn || "";
       const invQty = r.inv ? r.inv.qty : "\u2014";
@@ -216,7 +214,7 @@
         if (linkBtn) {
           linkBtn.addEventListener("click", (e) => {
             e.stopPropagation();
-            EventBus.emit("linking-mode", { active: true, invItem: r.inv });
+            EventBus.emit(Events.LINKING_MODE, { active: true, invItem: r.inv });
           });
         }
       }
@@ -375,7 +373,7 @@
         if (linkBtnEl) {
           linkBtnEl.addEventListener("click", (e) => {
             e.stopPropagation();
-            EventBus.emit("linking-mode", { active: true, invItem: item });
+            EventBus.emit(Events.LINKING_MODE, { active: true, invItem: item });
           });
         }
         section.appendChild(row);
@@ -460,9 +458,9 @@
 
     try {
       // Apply qty adjustment
-      let fresh = await api("adjust_part", type, pk, qty, note);
-      if (fresh.error) {
-        showToast("Error: " + fresh.error);
+      const qtyResult = await api("adjust_part", type, pk, qty, note);
+      if (qtyResult.error) {
+        showToast("Error: " + qtyResult.error);
         return;
       }
 
@@ -470,17 +468,20 @@
       if (priceChanged) {
         const up = !isNaN(newUp) ? newUp : null;
         const ep = !isNaN(newEp) ? newEp : null;
-        fresh = await api("update_part_price", pk, up, ep);
-        if (fresh.error) {
-          showToast("Qty adjusted, but price error: " + fresh.error);
-          onInventoryUpdated(fresh);
+        const priceResult = await api("update_part_price", pk, up, ep);
+        if (priceResult.error) {
+          showToast("Qty adjusted, but price error: " + priceResult.error);
+          AppLog.error("Price update failed: " + priceResult.error);
+          onInventoryUpdated(qtyResult);  // Use the good qty result
           closeAdjustModal();
           return;
         }
+        onInventoryUpdated(priceResult);
+      } else {
+        onInventoryUpdated(qtyResult);
       }
 
       closeAdjustModal();
-      onInventoryUpdated(fresh);
       showToast("Adjusted " + pk);
     } catch (e) {
       showToast("Error: " + e.message);
@@ -545,8 +546,10 @@
   document.getElementById("price-apply").addEventListener("click", async () => {
     if (!pricePart) return;
     const pk = invPartKey(pricePart);
-    const up = parseFloat(priceUnitInput.value) || null;
-    const ep = parseFloat(priceExtInput.value) || null;
+    const rawUp = parseFloat(priceUnitInput.value);
+    const up = isNaN(rawUp) ? null : rawUp;
+    const rawEp = parseFloat(priceExtInput.value);
+    const ep = isNaN(rawEp) ? null : rawEp;
     if (up === null && ep === null) {
       showToast("Enter a unit or ext price");
       return;
@@ -572,16 +575,16 @@
   });
 
   // ── Event listeners ──
-  EventBus.on("inventory-loaded", () => render());
-  EventBus.on("inventory-updated", () => render());
-  EventBus.on("preferences-changed", () => render());
+  EventBus.on(Events.INVENTORY_LOADED, () => render());
+  EventBus.on(Events.INVENTORY_UPDATED, () => render());
+  EventBus.on(Events.PREFS_CHANGED, () => render());
 
-  EventBus.on("bom-loaded", (data) => {
+  EventBus.on(Events.BOM_LOADED, (data) => {
     bomData = data;
     render();
   });
 
-  EventBus.on("bom-cleared", () => {
+  EventBus.on(Events.BOM_CLEARED, () => {
     bomData = null;
     activeFilter = "all";
     expandedAlts = new Set();
@@ -592,7 +595,7 @@
     render();
   });
 
-  EventBus.on("linking-mode", (data) => {
+  EventBus.on(Events.LINKING_MODE, (data) => {
     linkingMode = data.active;
     linkingInvItem = data.active ? data.invItem : null;
     render();
@@ -607,7 +610,7 @@
     App.confirmedMatches = App.confirmedMatches.filter(c => c.bomKey !== bk);
     App.confirmedMatches.push({ bomKey: bk, invPartKey: ipk });
     AppLog.info("Confirmed: " + bk + " \u2192 " + ipk);
-    EventBus.emit("confirmed-match-changed");
+    EventBus.emit(Events.CONFIRMED_CHANGED);
     showToast("Confirmed " + bk);
   }
 
@@ -616,7 +619,7 @@
     if (!bk) return;
     App.confirmedMatches = App.confirmedMatches.filter(c => c.bomKey !== bk);
     AppLog.info("Unconfirmed: " + bk);
-    EventBus.emit("confirmed-match-changed");
+    EventBus.emit(Events.CONFIRMED_CHANGED);
     showToast("Unconfirmed " + bk);
   }
 
@@ -627,13 +630,13 @@
     App.confirmedMatches = App.confirmedMatches.filter(c => c.bomKey !== bk);
     App.confirmedMatches.push({ bomKey: bk, invPartKey: ipk });
     AppLog.info("Confirmed alt: " + bk + " \u2192 " + ipk);
-    EventBus.emit("confirmed-match-changed");
+    EventBus.emit(Events.CONFIRMED_CHANGED);
     showToast("Confirmed " + bk + " \u2192 " + ipk);
   }
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && linkingMode) {
-      EventBus.emit("linking-mode", { active: false });
+      EventBus.emit(Events.LINKING_MODE, { active: false });
     }
   });
 })();

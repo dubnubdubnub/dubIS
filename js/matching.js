@@ -1,5 +1,11 @@
 /* matching.js — 5-step BOM matching engine (ported from build_compare.py) */
 
+// ── Constants ──
+const VALUE_TOLERANCE = 1e-3;          // 0.1% relative error
+const MPN_PREFIX_MIN_LEN = 6;
+const MPN_FUZZY_MIN_LEN = 8;
+const MPN_FUZZY_MIN_RATIO = 0.7;      // 70% of shorter string
+
 // ── Value parsing for possible matches ──
 
 function getMult(c) {
@@ -66,7 +72,7 @@ function valuesCompatible(bom, invItem) {
   if (bomVal == null || invVal == null) return true;
   if (bomVal === 0 && invVal === 0) return true;
   if (bomVal === 0 || invVal === 0) return false;
-  return Math.abs(bomVal - invVal) / Math.max(Math.abs(bomVal), Math.abs(invVal)) <= 1e-3;
+  return Math.abs(bomVal - invVal) / Math.max(Math.abs(bomVal), Math.abs(invVal)) <= VALUE_TOLERANCE;
 }
 
 function isFuzzyMatchValid(bom, invItem) {
@@ -125,7 +131,7 @@ function findValueMatch(bom, inventory, invByValue) {
     if (invVal == null) return;
     if (bomVal === 0 && invVal === 0) { /* match */ }
     else if (bomVal === 0 || invVal === 0) return;
-    else if (Math.abs(bomVal - invVal) / Math.max(Math.abs(bomVal), Math.abs(invVal)) > 1e-3) return;
+    else if (Math.abs(bomVal - invVal) / Math.max(Math.abs(bomVal), Math.abs(invVal)) > VALUE_TOLERANCE) return;
     if (item.qty > bestQty) { best = item; bestQty = item.qty; }
   });
 
@@ -209,23 +215,23 @@ function matchBOM(aggregated, inventory, manualLinks, confirmedMatches) {
       }
     }
     // 3. MPN prefix match (one starts with the other, min 6 chars)
-    if (!inv && bom.mpn && bom.mpn.length >= 6) {
+    if (!inv && bom.mpn && bom.mpn.length >= MPN_PREFIX_MIN_LEN) {
       const mpnUpper = bom.mpn.toUpperCase();
       for (const [k, item] of Object.entries(invByMPN)) {
-        if ((k.startsWith(mpnUpper) || mpnUpper.startsWith(k)) && Math.min(mpnUpper.length, k.length) >= 6) {
+        if ((k.startsWith(mpnUpper) || mpnUpper.startsWith(k)) && Math.min(mpnUpper.length, k.length) >= MPN_PREFIX_MIN_LEN) {
           if (isFuzzyMatchValid(bom, item)) { inv = item; matchType = "mpn"; break; }
         }
       }
     }
     // 4. Fuzzy MPN match (longest common prefix >= 8 chars AND >= 70% of shorter)
-    if (!inv && bom.mpn && bom.mpn.length >= 8) {
+    if (!inv && bom.mpn && bom.mpn.length >= MPN_FUZZY_MIN_LEN) {
       const mpnUpper = bom.mpn.toUpperCase();
       let bestItem = null, bestLen = 0;
       for (const [k, item] of Object.entries(invByMPN)) {
         let i = 0;
         while (i < mpnUpper.length && i < k.length && mpnUpper[i] === k[i]) i++;
         const shorter = Math.min(mpnUpper.length, k.length);
-        if (i >= 8 && i / shorter >= 0.7 && i > bestLen && isFuzzyMatchValid(bom, item)) { bestItem = item; bestLen = i; }
+        if (i >= MPN_FUZZY_MIN_LEN && i / shorter >= MPN_FUZZY_MIN_RATIO && i > bestLen && isFuzzyMatchValid(bom, item)) { bestItem = item; bestLen = i; }
       }
       if (bestItem) { inv = bestItem; matchType = "fuzzy"; }
     }
@@ -251,8 +257,5 @@ function matchBOM(aggregated, inventory, manualLinks, confirmedMatches) {
     results.push({ bom, inv, status, matchType, alts });
   });
 
-  // Sort: missing first, then possible, then short, then ok
-  const order = { missing: 0, possible: 1, short: 2, ok: 3 };
-  results.sort((a, b) => order[a.status] - order[b.status]);
   return results;
 }

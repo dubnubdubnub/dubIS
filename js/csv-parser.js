@@ -66,15 +66,27 @@ function detectBOMColumns(headers) {
   return cols;
 }
 
-// ── Check if a string looks like an LCSC part number ──
-function looksLikeLCSC(s) {
-  return /^C\d{3,}$/i.test(s);
-}
-
 // ── Extract LCSC part number from a value string ──
 function extractLCSC(s) {
   const m = s.match(/\b(C\d{4,})\b/i);
   return m ? m[1].toUpperCase() : null;
+}
+
+// ── Check if a DNP column value indicates "Do Not Place" ──
+function isDnp(val) {
+  const v = (val || "").trim().toLowerCase();
+  return v === "dnp" || v === "1" || v === "yes" || v === "true";
+}
+
+// ── Extract LCSC + MPN from a raw BOM row using detected column indices ──
+function extractPartIds(row, cols) {
+  let lcsc = cols.lcsc !== -1 ? (row[cols.lcsc] || "").trim() : "";
+  let mpn  = cols.mpn  !== -1 ? (row[cols.mpn]  || "").trim() : "";
+  if (!lcsc && mpn) {
+    const extracted = extractLCSC(mpn);
+    if (extracted) lcsc = extracted;
+  }
+  return { lcsc: lcsc ? lcsc.toUpperCase() : "", mpn };
 }
 
 // ── Generate RFC 4180 CSV from headers + rows ──

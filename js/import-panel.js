@@ -76,7 +76,10 @@
         }
         loadImportText(result.content, result.name);
       }
-    } catch (e) { showToast("Could not open file dialog"); }
+    } catch (e) {
+      showToast("Could not open file dialog");
+      AppLog.error("Import file dialog failed: " + e.message);
+    }
   }
 
   function handleImportFile(file) {
@@ -106,6 +109,7 @@
         columnMapping[parseInt(idx)] = field;
       }
     } catch (e) {
+      AppLog.warn("detect_columns failed", e);
       columnMapping = {};
     }
 
