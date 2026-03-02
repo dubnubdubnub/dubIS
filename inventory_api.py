@@ -25,8 +25,8 @@ class InventoryApi:
         "Passives - Inductors", "LEDs", "Crystals & Oscillators", "Diodes",
         "Discrete Semiconductors", "ICs - Microcontrollers",
         "ICs - Power / Voltage Regulators", "ICs - Voltage References",
-        "ICs - Sensors", "ICs - Amplifiers", "ICs - Interface",
-        "ICs - ESD Protection", "Mechanical & Hardware", "Other",
+        "ICs - Sensors", "ICs - Amplifiers", "ICs - Motor Drivers",
+        "ICs - Interface", "ICs - ESD Protection", "Mechanical & Hardware", "Other",
     ]
 
     def __init__(self):
@@ -141,8 +141,12 @@ class InventoryApi:
             return "ICs - Voltage References"
         if "current sensor" in desc:
             return "ICs - Sensors"
-        if "amplifier" in desc:
+        if "amplifier" in desc or "csa" in desc:
             return "ICs - Amplifiers"
+        if any(kw in desc for kw in ["motor", "mtr drvr", "half-bridge", "three-phase"]):
+            return "ICs - Motor Drivers"
+        if any(kw in mpn for kw in ["drv8", "l6226"]):
+            return "ICs - Motor Drivers"
         if "transceiver" in desc or "driver" in desc:
             return "ICs - Interface"
         if "position" in desc or "angle" in desc or "mt6835" in mpn:
@@ -523,6 +527,36 @@ class InventoryApi:
         with open(self.prefs_json, "w", encoding="utf-8") as f:
             json.dump(prefs, f, indent=2)
 
+    def save_file_dialog(self, content, default_name="export.csv", default_dir=None,
+                         links_json=None):
+        """Open native Save As dialog and write content to the chosen path.
+        If links_json is provided, writes a .links.json sidecar file next to the CSV.
+        Returns {"path": chosen_path} on success, None if cancelled.
+        """
+        import webview
+        kwargs = {"file_types": ("CSV Files (*.csv)",)}
+        if default_dir and os.path.isdir(default_dir):
+            kwargs["directory"] = default_dir
+        if default_name:
+            kwargs["save_filename"] = default_name
+        result = webview.windows[0].create_file_dialog(
+            webview.FileDialog.SAVE,
+            **kwargs,
+        )
+        if result:
+            path = result if isinstance(result, str) else result[0]
+            with open(path, "w", newline="", encoding="utf-8") as f:
+                f.write(content)
+            # Write sidecar links file
+            if links_json:
+                links = json.loads(links_json) if isinstance(links_json, str) else links_json
+                if links:
+                    links_path = os.path.splitext(path)[0] + ".links.json"
+                    with open(links_path, "w", encoding="utf-8") as f:
+                        json.dump(links, f, indent=2)
+            return {"path": path}
+        return None
+
     def open_file_dialog(self, title="Select CSV file", default_dir=None):
         """Open native file dialog, return {name, content, directory} or None."""
         import webview
@@ -535,11 +569,20 @@ class InventoryApi:
         )
         if result and len(result) > 0:
             path = result[0]
-            return {
+            resp = {
                 "name": os.path.basename(path),
                 "content": self._read_text(path),
                 "directory": os.path.dirname(path),
             }
+            # Check for sidecar .links.json
+            links_path = os.path.splitext(path)[0] + ".links.json"
+            if os.path.exists(links_path):
+                try:
+                    with open(links_path, encoding="utf-8") as lf:
+                        resp["links"] = json.load(lf)
+                except (json.JSONDecodeError, OSError):
+                    pass
+            return resp
         return None
 
     def read_file(self, path):

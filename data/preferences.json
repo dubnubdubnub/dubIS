@@ -1,5 +1,24 @@
 {
-  "thresholds": {},
+  "thresholds": {
+    "Connectors": 20,
+    "Switches": 50,
+    "Passives - Resistors": 4,
+    "Passives - Capacitors": 20,
+    "Passives - Inductors": 50,
+    "LEDs": 50,
+    "Crystals & Oscillators": 10,
+    "Diodes": 10,
+    "Discrete Semiconductors": 50,
+    "ICs - Microcontrollers": 50,
+    "ICs - Power / Voltage Regulators": 50,
+    "ICs - Voltage References": 50,
+    "ICs - Sensors": 50,
+    "ICs - Amplifiers": 50,
+    "ICs - Interface": 50,
+    "ICs - ESD Protection": 50,
+    "Mechanical & Hardware": 50,
+    "Other": 50
+  },
   "lastBomDir": "D:\\gehub\\dubIS\\data",
   "lastImportDir": "D:\\gehub\\dubIS\\data"
 }

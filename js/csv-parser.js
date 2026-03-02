@@ -49,7 +49,7 @@ function parseCSV(text) {
 
 // ── Auto-detect BOM columns ──
 function detectBOMColumns(headers) {
-  const cols = { lcsc: -1, mpn: -1, qty: -1, ref: -1, desc: -1, value: -1, footprint: -1 };
+  const cols = { lcsc: -1, mpn: -1, qty: -1, ref: -1, desc: -1, value: -1, footprint: -1, dnp: -1 };
   const lower = headers.map(h => h.toLowerCase());
   lower.forEach((h, i) => {
     if (cols.lcsc === -1 && (/lcsc/.test(h) || /jlcpcb/.test(h) || /supplier.*part/.test(h) || (h.includes("part") && (h.includes("#") || h.includes("number"))))) cols.lcsc = i;
@@ -59,6 +59,7 @@ function detectBOMColumns(headers) {
     if (cols.value === -1 && h === "value") cols.value = i;
     if (cols.mpn === -1 && (/^mpn$/.test(h) || /manufactur.*part/.test(h))) cols.mpn = i;
     if (cols.footprint === -1 && /footprint/.test(h)) cols.footprint = i;
+    if (cols.dnp === -1 && /^dnp$/.test(h)) cols.dnp = i;
   });
   // If no explicit MPN column but there is a Value column, use Value as MPN fallback
   if (cols.mpn === -1 && cols.value !== -1) cols.mpn = cols.value;
@@ -76,75 +77,70 @@ function extractLCSC(s) {
   return m ? m[1].toUpperCase() : null;
 }
 
-// ── Process BOM text into aggregated parts map + raw rows + warnings ──
-function processBOM(text, fileName) {
-  const lines = parseCSV(text);
-  if (lines.length < 2) return null;
+// ── Generate RFC 4180 CSV from headers + rows ──
+function generateCSV(headers, rows) {
+  function escapeField(val) {
+    const s = val == null ? "" : String(val);
+    if (s.indexOf(",") !== -1 || s.indexOf('"') !== -1 || s.indexOf("\n") !== -1) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  }
+  const lines = [headers.map(escapeField).join(",")];
+  rows.forEach(row => {
+    lines.push(row.map(escapeField).join(","));
+  });
+  return lines.join("\r\n") + "\r\n";
+}
 
-  const headers = lines[0];
-  const cols = detectBOMColumns(headers);
-  const rawRows = lines.slice(1);
+// ── Aggregate raw BOM rows into a Map keyed by part+DNP ──
+function aggregateBomRows(rawRows, headers, cols) {
   const aggregated = new Map();
   const warnings = [];
 
   rawRows.forEach((row, ri) => {
-    let lcsc = cols.lcsc !== -1 ? (row[cols.lcsc] || "").trim() : "";
-    let mpn = cols.mpn !== -1 ? (row[cols.mpn] || "").trim() : "";
+    const { lcsc, mpn } = extractPartIds(row, cols);
     let rawQty = cols.qty !== -1 ? parseInt(row[cols.qty], 10) : NaN;
     let qty;
     if (isNaN(rawQty) || rawQty <= 0) {
-      if (cols.qty !== -1 && (row[cols.qty] || "").trim() !== "") {
+      if (cols.qty !== -1 && (row[cols.qty] || "").trim() !== "")
         warnings.push({ ri, msg: "Invalid qty '" + (row[cols.qty] || "") + "', defaulting to 1" });
-      }
       qty = 1;
-    } else {
-      qty = rawQty;
-    }
-    let ref = cols.ref !== -1 ? (row[cols.ref] || "").trim() : "";
-    let desc = cols.desc !== -1 ? (row[cols.desc] || "").trim() : "";
-    let value = cols.value !== -1 ? (row[cols.value] || "").trim() : "";
-    let footprint = cols.footprint !== -1 ? (row[cols.footprint] || "").trim() : "";
+    } else { qty = rawQty; }
 
-    // Preserve all original CSV columns
+    let ref       = cols.ref       !== -1 ? (row[cols.ref]       || "").trim() : "";
+    let desc      = cols.desc      !== -1 ? (row[cols.desc]      || "").trim() : "";
+    let value     = cols.value     !== -1 ? (row[cols.value]     || "").trim() : "";
+    let footprint = cols.footprint !== -1 ? (row[cols.footprint] || "").trim() : "";
+    let dnp = cols.dnp !== -1 && isDnp(row[cols.dnp]);
+
     const rawCols = {};
     headers.forEach((h, i) => { rawCols[h] = (row[i] || "").trim(); });
 
-    // Try to extract LCSC from MPN/Value if no explicit LCSC column
-    if (!lcsc && mpn) {
-      const extracted = extractLCSC(mpn);
-      if (extracted) lcsc = extracted;
-    }
+    if (!lcsc && !mpn) { warnings.push({ ri, msg: "No LCSC or MPN" }); return; }
 
-    if (!lcsc && !mpn) {
-      warnings.push({ ri, msg: "No LCSC or MPN" });
-      return;
-    }
-
-    const key = lcsc ? lcsc.toUpperCase() : mpn.toUpperCase();
-
+    const key = (lcsc || mpn.toUpperCase()) + (dnp ? ":DNP" : "");
     if (aggregated.has(key)) {
       const existing = aggregated.get(key);
       existing.qty += qty;
-      if (ref) {
-        if (existing.refs) existing.refs += ", " + ref;
-        else existing.refs = ref;
-      }
-      // Update rawCols to reflect aggregated qty and refs
+      if (ref) { existing.refs = existing.refs ? existing.refs + ", " + ref : ref; }
       if (cols.qty !== -1) existing.rawCols[headers[cols.qty]] = String(existing.qty);
       if (cols.ref !== -1) existing.rawCols[headers[cols.ref]] = existing.refs;
     } else {
-      aggregated.set(key, {
-        lcsc: lcsc.toUpperCase(),
-        mpn: mpn,
-        qty: qty,
-        refs: ref,
-        value: value,
-        desc: desc,
-        footprint: footprint,
-        rawCols: rawCols,
-      });
+      aggregated.set(key, { lcsc, mpn, qty, refs: ref, value, desc, footprint, dnp, rawCols });
     }
   });
 
+  return { aggregated, warnings };
+}
+
+// ── Process BOM text into aggregated parts map + raw rows + warnings ──
+function processBOM(text, fileName) {
+  const lines = parseCSV(text);
+  if (lines.length < 2) return null;
+  const headers = lines[0];
+  const cols = detectBOMColumns(headers);
+  const rawRows = lines.slice(1);
+  const { aggregated, warnings } = aggregateBomRows(rawRows, headers, cols);
   return { headers, cols, rawRows, aggregated, warnings };
 }

@@ -43,6 +43,37 @@ function componentTypeFromSection(section) {
   return null;
 }
 
+// ── Validate fuzzy/prefix matches for passive components ──
+// Priority: package, value, name — reject if package or value mismatches.
+
+function isPassiveSection(section) {
+  return /Resistor|Capacitor|Inductor/i.test(section || "");
+}
+
+function packagesCompatible(bom, invItem) {
+  var bomPkg = (bom.footprint || "").toUpperCase();
+  var invPkg = (invItem.package || "").toUpperCase();
+  if (!bomPkg || !invPkg) return true;
+  return bomPkg.includes(invPkg) || invPkg.includes(bomPkg);
+}
+
+function valuesCompatible(bom, invItem) {
+  var bomVal = parseEEValue(bom.value);
+  if (bomVal == null) bomVal = extractValueFromDesc(bom.value);
+  if (bomVal == null) bomVal = parseEEValue(bom.desc);
+  if (bomVal == null) bomVal = extractValueFromDesc(bom.desc);
+  var invVal = extractValueFromDesc(invItem.description);
+  if (bomVal == null || invVal == null) return true;
+  if (bomVal === 0 && invVal === 0) return true;
+  if (bomVal === 0 || invVal === 0) return false;
+  return Math.abs(bomVal - invVal) / Math.max(Math.abs(bomVal), Math.abs(invVal)) <= 1e-3;
+}
+
+function isFuzzyMatchValid(bom, invItem) {
+  if (!isPassiveSection(invItem.section)) return true;
+  return packagesCompatible(bom, invItem) && valuesCompatible(bom, invItem);
+}
+
 // ── Normalize float to stable string key (avoids IEEE 754 mismatch) ──
 
 function valueKey(type, val) {
@@ -117,7 +148,7 @@ function findAlternatives(bom, primaryInv, invByValue) {
 
 // ── 5-step BOM matching ──
 
-function matchBOM(aggregated, inventory, manualLinks) {
+function matchBOM(aggregated, inventory, manualLinks, confirmedMatches) {
   const maps = buildLookupMaps(inventory);
   const { invByLCSC, invByMPN, invByValue } = maps;
   const results = [];
@@ -128,18 +159,32 @@ function matchBOM(aggregated, inventory, manualLinks) {
     manualLinks.forEach(link => { manualLinkMap[link.bomKey] = link.invPartKey; });
   }
 
+  // Build confirmed match lookup: bomKey -> invPartKey
+  const confirmedMap = {};
+  if (confirmedMatches && confirmedMatches.length > 0) {
+    confirmedMatches.forEach(link => { confirmedMap[link.bomKey] = link.invPartKey; });
+  }
+
   aggregated.forEach((bom, key) => {
     let inv = null;
     let matchType = "none";
+    const bk = bomKey(bom);
 
-    // 0. Manual link override
-    if (manualLinkMap[key]) {
-      const invKey = manualLinkMap[key];
+    // 0. Manual link override (use clean bomKey, not the :DNP-suffixed map key)
+    if (manualLinkMap[bk]) {
+      const invKey = manualLinkMap[bk];
       const found = invByLCSC[invKey.toUpperCase()] || invByMPN[invKey.toUpperCase()];
       if (found) {
         inv = found;
         matchType = "manual";
       }
+    }
+
+    // 0.5. Confirmed match override (use clean bomKey)
+    if (!inv && confirmedMap[bk]) {
+      const invKey = confirmedMap[bk];
+      const found = invByLCSC[invKey.toUpperCase()] || invByMPN[invKey.toUpperCase()];
+      if (found) { inv = found; matchType = "confirmed"; }
     }
 
     // 1. LCSC exact match
@@ -168,7 +213,7 @@ function matchBOM(aggregated, inventory, manualLinks) {
       const mpnUpper = bom.mpn.toUpperCase();
       for (const [k, item] of Object.entries(invByMPN)) {
         if ((k.startsWith(mpnUpper) || mpnUpper.startsWith(k)) && Math.min(mpnUpper.length, k.length) >= 6) {
-          inv = item; matchType = "mpn"; break;
+          if (isFuzzyMatchValid(bom, item)) { inv = item; matchType = "mpn"; break; }
         }
       }
     }
@@ -180,7 +225,7 @@ function matchBOM(aggregated, inventory, manualLinks) {
         let i = 0;
         while (i < mpnUpper.length && i < k.length && mpnUpper[i] === k[i]) i++;
         const shorter = Math.min(mpnUpper.length, k.length);
-        if (i >= 8 && i / shorter >= 0.7 && i > bestLen) { bestItem = item; bestLen = i; }
+        if (i >= 8 && i / shorter >= 0.7 && i > bestLen && isFuzzyMatchValid(bom, item)) { bestItem = item; bestLen = i; }
       }
       if (bestItem) { inv = bestItem; matchType = "fuzzy"; }
     }
