@@ -168,6 +168,7 @@ body {
 .chip.blue { background: #58a6ff20; color: #58a6ff; border: 1px solid #58a6ff40; }
 .chip.orange { background: #f0883e20; color: #f0883e; border: 1px solid #f0883e40; }
 .chip.pink { background: #db61a220; color: #f778ba; border: 1px solid #db61a240; }
+.chip.grey { background: #484f5820; color: #636c76; border: 1px solid #484f5840; }
 .bom-name { color: #e6edf3; font-weight: 600; font-size: 13px; }
 
 /* ── Multiplier Bar ────────────────────────────────────── */
@@ -177,6 +178,11 @@ body {
   align-items: center;
   gap: 8px;
   border-bottom: 1px solid #21262d;
+}
+.bom-price-info {
+  font-size: 12px; font-weight: 600; color: #3fb950;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  margin-left: auto;
 }
 .multiplier-bar label { font-size: 12px; color: #8b949e; }
 .multiplier-bar input[type="number"] {
@@ -252,6 +258,9 @@ tbody td.inv-qty-cell { overflow: visible; z-index: 1; }
 tbody tr { transition: background 0.1s; }
 tbody tr:hover { background: #1c2333 !important; }
 
+/* ── Selectable Text in Matched BOM Table ──────────────── */
+#inventory-body .table-wrap tbody td { user-select: text; -webkit-user-select: text; }
+
 /* ── Status Column ─────────────────────────────────────── */
 .status { font-weight: 700; text-align: center; width: 24px; font-size: 14px; }
 
@@ -267,6 +276,16 @@ tr.row-yellow td.status { color: #d29922; }
 tr.row-red td.status { color: #f85149; }
 tr.row-orange td.status { color: #f0883e; }
 tr.row-pink td.status { color: #f778ba; }
+
+tr.row-pink-short { background: #db61a218; border-left: 3px solid #d29922; }
+tr.row-pink-short td.status { color: #f778ba; }
+
+tr.row-teal-short { background: #2dd4bf10; border-left: 3px solid #d29922; }
+tr.row-teal-short td.status { color: #2dd4bf; }
+
+tr.row-dnp { background: #484f5810; }
+tr.row-dnp td.status { color: #636c76; }
+tr.row-dnp td { color: #636c76; }
 
 tr.row-yellow-covered { background: #23863620; border-left: 3px solid #3fb950; }
 tr.row-yellow-covered td.status { color: #3fb950; }
@@ -287,6 +306,7 @@ td.sep, th.sep { border-left: 2px solid #30363d; }
 .qty-possible { color: #f0883e; }
 .qty-manual { color: #f778ba; }
 .qty-manual-short { color: #db61a2; }
+.qty-dnp { color: #636c76; }
 
 /* ── Alternatives ──────────────────────────────────────── */
 .alt-badge {
@@ -314,6 +334,23 @@ tr.alt-row td { font-size: 11px; color: #8b949e; padding: 3px 8px; border-bottom
 tr.alt-row td:first-child { border-left: 2px solid #58a6ff40; }
 tr.alt-row:hover { background: #1c2333 !important; }
 
+/* ── Save BOM Button ──────────────────────────────────── */
+.save-bom-btn {
+  padding: 3px 12px;
+  border-radius: 6px;
+  border: 1px solid #30363d;
+  background: #21262d;
+  color: #8b949e;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.save-bom-btn:hover:not(:disabled) { border-color: #484f58; color: #c9d1d9; }
+.save-bom-btn:disabled { opacity: 0.4; cursor: default; }
+.save-bom-btn.dirty { border-color: #d2992240; background: #d2992220; color: #d29922; }
+.save-bom-btn.dirty:hover { background: #d2992240; border-color: #d29922; }
+
 /* ── Consume Button ────────────────────────────────────── */
 .consume-btn {
   padding: 3px 12px;
@@ -328,6 +365,21 @@ tr.alt-row:hover { background: #1c2333 !important; }
 }
 .consume-btn:hover { background: #f0883e40; border-color: #f0883e; }
 .consume-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Clear BOM Button ─────────────────────────────────── */
+.clear-bom-btn {
+  padding: 3px 12px;
+  border-radius: 6px;
+  border: 1px solid #30363d;
+  background: #21262d;
+  color: #8b949e;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.clear-bom-btn:hover { border-color: #f85149; color: #f85149; background: #f8514920; }
+.clear-bom-btn:disabled { opacity: 0.4; cursor: default; }
 
 /* ── Toast ─────────────────────────────────────────────── */
 .toast {
@@ -542,6 +594,9 @@ tr.alt-row:hover { background: #1c2333 !important; }
 .import-preview .row-delete:hover { color: #f85149; }
 
 /* ── Adjust Button ────────────────────────────────────── */
+td.btn-group { white-space: nowrap; text-align: right; }
+td.btn-group button + button { margin-left: 6px; }
+
 .adj-btn {
   background: #21262d; border: 1px solid #30363d; color: #8b949e;
   border-radius: 4px; padding: 1px 6px; cursor: pointer;
@@ -863,3 +918,28 @@ tr.link-target:hover {
   transition: text-shadow 0.15s;
 }
 .price-warn-btn:hover { text-shadow: 0 0 6px #d29922; }
+
+/* ── Confirmed (Teal) ────────────────────────────────── */
+tr.row-teal { background: #2dd4bf10; }
+tr.row-teal td.status { color: #2dd4bf; }
+
+.qty-confirmed { color: #2dd4bf; }
+.qty-confirmed-short { color: #1a9985; }
+
+.chip.teal { background: #2dd4bf20; color: #2dd4bf; border: 1px solid #2dd4bf40; }
+
+.confirm-btn, .unconfirm-btn {
+  background: #21262d; border: 1px solid #30363d; color: #8b949e;
+  border-radius: 4px; padding: 1px 6px; cursor: pointer;
+  font-size: 10px; line-height: 1.4; white-space: nowrap;
+  flex-shrink: 0; transition: all 0.15s;
+}
+.confirm-btn:hover, .unconfirm-btn:hover { border-color: #2dd4bf; color: #2dd4bf; background: #2dd4bf26; }
+
+.swap-btn {
+  background: #21262d; border: 1px solid #30363d; color: #8b949e;
+  border-radius: 4px; padding: 1px 6px; cursor: pointer;
+  font-size: 10px; line-height: 1.4; white-space: nowrap;
+  flex-shrink: 0; transition: all 0.15s;
+}
+.swap-btn:hover { border-color: #2dd4bf; color: #2dd4bf; background: #2dd4bf26; }

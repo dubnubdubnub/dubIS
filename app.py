@@ -27,7 +27,7 @@ def set_icon():
         from System import Action
         ico = DrawingIcon(ICON_PATH)
         for w in webview.windows:
-            while w.native is None:
+            while w.native is None or not w.native.IsHandleCreated:
                 time.sleep(0.05)
             w.native.Invoke(Action(lambda: setattr(w.native, "Icon", ico)))
 

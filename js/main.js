@@ -60,13 +60,14 @@ const App = {
   bomResults: null,
   bomFileName: "",
   manualLinks: [],
+  confirmedMatches: [],
   SECTION_ORDER: [
     "Connectors", "Switches", "Passives - Resistors", "Passives - Capacitors",
     "Passives - Inductors", "LEDs", "Crystals & Oscillators", "Diodes",
     "Discrete Semiconductors", "ICs - Microcontrollers",
     "ICs - Power / Voltage Regulators", "ICs - Voltage References",
-    "ICs - Sensors", "ICs - Amplifiers", "ICs - Interface",
-    "ICs - ESD Protection", "Mechanical & Hardware", "Other",
+    "ICs - Sensors", "ICs - Amplifiers", "ICs - Motor Drivers",
+    "ICs - Interface", "ICs - ESD Protection", "Mechanical & Hardware", "Other",
   ],
   preferences: { thresholds: {} },
 };

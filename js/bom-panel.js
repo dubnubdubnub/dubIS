@@ -14,6 +14,7 @@
   let bomRawRows = [];
   let bomHeaders = [];
   let bomCols = {};
+  let bomDirty = false;
 
   // Linkify URLs in escaped HTML text
   function linkifyHtml(escaped) {
@@ -22,20 +23,18 @@
     });
   }
 
+  function updateSaveBtnState() {
+    const btn = document.getElementById("bom-save-btn");
+    if (btn) btn.classList.toggle("dirty", bomDirty);
+  }
+
   // ── Row classification ──
 
   function classifyBomRow(row) {
     const joined = row.join("").toLowerCase();
     if (joined.includes("subtotal") || joined.includes("total:")) return "subtotal";
 
-    let lcsc = bomCols.lcsc !== -1 ? (row[bomCols.lcsc] || "").trim() : "";
-    let mpn = bomCols.mpn !== -1 ? (row[bomCols.mpn] || "").trim() : "";
-
-    // Try to extract LCSC from MPN if no explicit LCSC
-    if (!lcsc && mpn) {
-      const extracted = extractLCSC(mpn);
-      if (extracted) lcsc = extracted;
-    }
+    const { lcsc, mpn } = extractPartIds(row, bomCols);
 
     if (!lcsc && !mpn) return "warn";
 
@@ -62,61 +61,14 @@
   // ── Aggregate from in-memory raw rows ──
 
   function aggregateFromRawRows() {
-    const aggregated = new Map();
-
-    bomRawRows.forEach(row => {
-      let lcsc = bomCols.lcsc !== -1 ? (row[bomCols.lcsc] || "").trim() : "";
-      let mpn = bomCols.mpn !== -1 ? (row[bomCols.mpn] || "").trim() : "";
-      let rawQty = bomCols.qty !== -1 ? parseInt(row[bomCols.qty], 10) : NaN;
-      let qty = (isNaN(rawQty) || rawQty <= 0) ? 1 : rawQty;
-      let ref = bomCols.ref !== -1 ? (row[bomCols.ref] || "").trim() : "";
-      let desc = bomCols.desc !== -1 ? (row[bomCols.desc] || "").trim() : "";
-      let value = bomCols.value !== -1 ? (row[bomCols.value] || "").trim() : "";
-      let footprint = bomCols.footprint !== -1 ? (row[bomCols.footprint] || "").trim() : "";
-
-      const rawCols = {};
-      bomHeaders.forEach((h, i) => { rawCols[h] = (row[i] || "").trim(); });
-
-      if (!lcsc && mpn) {
-        const extracted = extractLCSC(mpn);
-        if (extracted) lcsc = extracted;
-      }
-
-      if (!lcsc && !mpn) return;
-
-      const key = lcsc ? lcsc.toUpperCase() : mpn.toUpperCase();
-
-      if (aggregated.has(key)) {
-        const existing = aggregated.get(key);
-        existing.qty += qty;
-        if (ref) {
-          if (existing.refs) existing.refs += ", " + ref;
-          else existing.refs = ref;
-        }
-        if (bomCols.qty !== -1) existing.rawCols[bomHeaders[bomCols.qty]] = String(existing.qty);
-        if (bomCols.ref !== -1) existing.rawCols[bomHeaders[bomCols.ref]] = existing.refs;
-      } else {
-        aggregated.set(key, {
-          lcsc: lcsc.toUpperCase(),
-          mpn: mpn,
-          qty: qty,
-          refs: ref,
-          value: value,
-          desc: desc,
-          footprint: footprint,
-          rawCols: rawCols,
-        });
-      }
-    });
-
-    return aggregated;
+    return aggregateBomRows(bomRawRows, bomHeaders, bomCols).aggregated;
   }
 
   // ── Single source of truth: re-derive everything from raw rows ──
 
   function reprocessAndRender() {
     const aggregated = aggregateFromRawRows();
-    const results = matchBOM(aggregated, App.inventory, App.manualLinks);
+    const results = matchBOM(aggregated, App.inventory, App.manualLinks, App.confirmedMatches);
     lastResults = results;
     App.bomResults = results;
     App.bomHeaders = bomHeaders;
@@ -136,7 +88,10 @@
         <div class="multiplier-bar" id="bom-multiplier-bar">
           <label for="bom-qty-mult">Board qty:</label>
           <input type="number" id="bom-qty-mult" value="1" min="1" step="1">
+          <button class="save-bom-btn" id="bom-save-btn" disabled>Save BOM</button>
           <button class="consume-btn" id="bom-consume-btn" disabled>Consume from inventory</button>
+          <button class="clear-bom-btn" id="bom-clear-btn" disabled>Clear BOM</button>
+          <span class="bom-price-info" id="bom-price-info"></span>
         </div>
         <div class="bom-staging-toolbar" id="bom-staging-toolbar">
           <h3 id="bom-staging-title">Staging</h3>
@@ -151,7 +106,9 @@
     `;
     setupDropZone();
     setupMultiplier();
+    setupSaveBom();
     setupConsume();
+    setupClearBom();
 
     UndoRedo.register("bom", (action, data) => {
       if (action === "snapshot") return JSON.parse(JSON.stringify(bomRawRows));
@@ -190,7 +147,7 @@
           App.preferences.lastBomDir = result.directory;
           savePreferences();
         }
-        loadBomText(result.content, result.name);
+        loadBomText(result.content, result.name, result.links || null);
       }
     } catch (e) { showToast("Could not open file dialog"); }
   }
@@ -213,7 +170,7 @@
     reader.readAsArrayBuffer(file);
   }
 
-  function loadBomText(text, fileName) {
+  function loadBomText(text, fileName, savedLinks) {
     const result = processBOM(text, fileName);
     if (!result) {
       showToast("Could not parse BOM — too few lines");
@@ -235,7 +192,16 @@
 
     App.bomHeaders = headers;
     App.bomCols = cols;
-    App.manualLinks = [];
+    if (Array.isArray(savedLinks)) {
+      App.manualLinks = savedLinks;
+      App.confirmedMatches = [];
+    } else if (savedLinks && typeof savedLinks === "object") {
+      App.manualLinks = Array.isArray(savedLinks.manualLinks) ? savedLinks.manualLinks : [];
+      App.confirmedMatches = Array.isArray(savedLinks.confirmedMatches) ? savedLinks.confirmedMatches : [];
+    } else {
+      App.manualLinks = [];
+      App.confirmedMatches = [];
+    }
 
     // Log warnings
     warnings.forEach(w => {
@@ -243,7 +209,7 @@
     });
 
     // Match
-    const results = matchBOM(aggregated, App.inventory, App.manualLinks);
+    const results = matchBOM(aggregated, App.inventory, App.manualLinks, App.confirmedMatches);
     lastResults = results;
     lastFileName = fileName;
     App.bomResults = results;
@@ -263,7 +229,9 @@
     const newInput = document.getElementById("bom-file-input");
     if (newInput) newInput.addEventListener("change", () => { if (newInput.files.length) handleFile(newInput.files[0]); });
 
+    document.getElementById("bom-save-btn").disabled = false;
     document.getElementById("bom-consume-btn").disabled = false;
+    document.getElementById("bom-clear-btn").disabled = false;
   }
 
   // ── Multiplier ──
@@ -289,12 +257,16 @@
     const mult = getMultiplier();
     return lastResults.map(r => {
       let status;
-      if (!r.inv) {
+      if (r.bom.dnp) {
+        status = "dnp";
+      } else if (!r.inv) {
         status = "missing";
-      } else if (r.matchType === "manual") {
-        status = "manual";
       } else if (r.matchType === "value" || r.matchType === "fuzzy") {
         status = "possible";
+      } else if (r.matchType === "manual") {
+        status = r.bom.qty * mult > r.inv.qty ? "manual-short" : "manual";
+      } else if (r.matchType === "confirmed") {
+        status = r.bom.qty * mult > r.inv.qty ? "confirmed-short" : "confirmed";
       } else if (r.bom.qty * mult <= r.inv.qty) {
         status = "ok";
       } else {
@@ -302,7 +274,8 @@
       }
       const altQty = (r.alts || []).reduce((sum, a) => sum + a.qty, 0);
       const combinedQty = (r.inv ? r.inv.qty : 0) + altQty;
-      const coveredByAlts = (status === "short" && combinedQty >= r.bom.qty * mult);
+      const isShort = status === "short" || status === "manual-short" || status === "confirmed-short";
+      const coveredByAlts = (isShort && combinedQty >= r.bom.qty * mult);
       return { ...r, effectiveStatus: status, effectiveQty: r.bom.qty * mult, altQty, combinedQty, coveredByAlts };
     });
   }
@@ -319,11 +292,13 @@
   function renderBomPanel(rows) {
     const mult = getMultiplier();
     const countOk = rows.filter(r => r.effectiveStatus === "ok").length;
-    const countShort = rows.filter(r => r.effectiveStatus === "short").length;
+    const countShort = rows.filter(r => r.effectiveStatus === "short" || r.effectiveStatus === "manual-short" || r.effectiveStatus === "confirmed-short").length;
     const countPossible = rows.filter(r => r.effectiveStatus === "possible").length;
     const countMissing = rows.filter(r => r.effectiveStatus === "missing").length;
-    const countManual = rows.filter(r => r.effectiveStatus === "manual").length;
+    const countManual = rows.filter(r => r.effectiveStatus === "manual" || r.effectiveStatus === "manual-short").length;
+    const countConfirmed = rows.filter(r => r.effectiveStatus === "confirmed" || r.effectiveStatus === "confirmed-short").length;
     const countCovered = rows.filter(r => r.coveredByAlts).length;
+    const countDnp = rows.filter(r => r.effectiveStatus === "dnp").length;
     const total = rows.length;
 
     // Summary
@@ -333,12 +308,28 @@
       <span class="bom-name">${escHtml(lastFileName)}${multLabel}</span>
       <span class="chip blue">${total} unique</span>
       ${countManual > 0 ? `<span class="chip pink">${countManual} manual</span>` : ''}
+      ${countConfirmed > 0 ? `<span class="chip teal">${countConfirmed} confirmed</span>` : ''}
       <span class="chip green">${countOk} ok</span>
       <span class="chip yellow">${countShort} short</span>
       <span class="chip orange">${countPossible} possible</span>
       <span class="chip red">${countMissing} missing</span>
+      ${countDnp > 0 ? `<span class="chip grey">${countDnp} DNP</span>` : ''}
       ${countCovered > 0 ? `<span class="chip green">${countCovered} covered</span>` : ''}
     `;
+
+    // BOM price info
+    const pricePerBoard = rows.reduce((sum, r) => {
+      if (r.inv && r.inv.unit_price > 0) return sum + r.bom.qty * r.inv.unit_price;
+      return sum;
+    }, 0);
+    const totalPrice = pricePerBoard * mult;
+    const priceInfo = document.getElementById("bom-price-info");
+    if (priceInfo) {
+      const parts = [];
+      if (pricePerBoard > 0) parts.push("$" + pricePerBoard.toFixed(2) + "/board");
+      if (mult > 1 && totalPrice > 0) parts.push("$" + totalPrice.toFixed(2) + " total");
+      priceInfo.textContent = parts.join(" \u00b7 ");
+    }
 
     // Linking mode banner
     const bannerEl = document.getElementById("linking-banner");
@@ -348,7 +339,7 @@
       banner.className = "linking-banner";
       banner.id = "linking-banner";
       const partId = linkingInvItem.lcsc || linkingInvItem.mpn || linkingInvItem.description || "part";
-      banner.innerHTML = `<span>Linking: <strong>${escHtml(partId)}</strong> \u2014 click a missing BOM row</span><button class="cancel-link-btn">Cancel</button>`;
+      banner.innerHTML = `<span>Linking: <strong>${escHtml(partId)}</strong> \u2014 click a missing, possible, or short BOM row</span><button class="cancel-link-btn">Cancel</button>`;
       banner.querySelector(".cancel-link-btn").addEventListener("click", () => {
         EventBus.emit("linking-mode", { active: false });
       });
@@ -364,37 +355,31 @@
       stagingTitle.textContent = "Staging (" + bomRawRows.length + " rows" + (warnCount > 0 ? ", " + warnCount + " warnings" : "") + ")";
     }
 
-    // Build missing-key set for linking mode
+    // Build missing-key set for linking mode (DNP-aware)
     const missingKeys = new Set();
     if (linkingMode && linkingInvItem) {
       rows.forEach(r => {
-        if (r.effectiveStatus === "missing") {
-          const key = r.bom.lcsc || r.bom.mpn.toUpperCase();
-          if (key) missingKeys.add(key);
+        if (r.effectiveStatus === "missing" || r.effectiveStatus === "possible" || r.effectiveStatus === "short" || r.effectiveStatus === "manual-short" || r.effectiveStatus === "confirmed-short") {
+          const bsk = bomAggKey(r.bom);
+          if (bsk) missingKeys.add(bsk);
         }
       });
     }
 
-    // Build status lookup: aggregation key → effectiveStatus
+    // Build status lookup: aggregation key → effectiveStatus (DNP-aware)
     const statusMap = {};
     rows.forEach(r => {
-      const key = r.bom.lcsc || r.bom.mpn.toUpperCase();
-      if (key) statusMap[key] = r.effectiveStatus;
+      const statusKey = bomAggKey(r.bom);
+      if (statusKey) statusMap[statusKey] = r.effectiveStatus;
     });
 
-    // Helper: derive aggregation key from a raw row
+    // Helper: derive aggregation key from a raw row (DNP-aware)
     function rawRowKey(row) {
-      let lcsc = bomCols.lcsc !== -1 ? (row[bomCols.lcsc] || "").trim() : "";
-      let mpn = bomCols.mpn !== -1 ? (row[bomCols.mpn] || "").trim() : "";
-      if (!lcsc && mpn) {
-        const extracted = extractLCSC(mpn);
-        if (extracted) lcsc = extracted;
-      }
-      return lcsc ? lcsc.toUpperCase() : (mpn ? mpn.toUpperCase() : "");
+      return rawRowAggKey(row, bomCols);
     }
 
-    const statusIcons = { ok: "+", short: "~", possible: "?", missing: "\u2014", manual: "\u2726" };
-    const statusRowClass = { ok: "row-green", short: "row-yellow", possible: "row-orange", missing: "row-red", manual: "row-pink" };
+    const statusIcons = { ok: "+", short: "~", possible: "?", missing: "\u2014", manual: "\u2726", confirmed: "\u2714", "manual-short": "\u2726~", "confirmed-short": "\u2714~", dnp: "\u2716" };
+    const statusRowClass = { ok: "row-green", short: "row-yellow", possible: "row-orange", missing: "row-red", manual: "row-pink", confirmed: "row-teal", "manual-short": "row-pink-short", "confirmed-short": "row-teal-short", dnp: "row-dnp" };
 
     // Dynamic table header from CSV columns
     const hdrs = bomHeaders;
@@ -425,7 +410,7 @@
           tr.classList.add("link-target");
           tr.addEventListener("click", () => {
             const matchedResult = rows.find(r => {
-              const k = r.bom.lcsc || r.bom.mpn.toUpperCase();
+              const k = bomAggKey(r.bom);
               return k === rk;
             });
             if (matchedResult) createManualLink(matchedResult);
@@ -440,6 +425,8 @@
       delTd.addEventListener("click", () => {
         UndoRedo.save("bom", bomRawRows);
         bomRawRows.splice(ri, 1);
+        bomDirty = true;
+        updateSaveBtnState();
         AppLog.info("Deleted BOM row " + (ri + 1));
         reprocessAndRender();
       });
@@ -460,6 +447,8 @@
         inp.addEventListener("change", () => {
           UndoRedo.save("bom", bomRawRows);
           bomRawRows[ri][ci] = inp.value;
+          bomDirty = true;
+          updateSaveBtnState();
           AppLog.info("Edited BOM cell [" + (ri + 1) + ", " + ci + "]");
           reprocessAndRender();
         });
@@ -471,6 +460,63 @@
     });
 
     document.getElementById("bom-results").classList.remove("hidden");
+  }
+
+  // ── Save BOM ──
+
+  function setupSaveBom() {
+    body.addEventListener("click", async (e) => {
+      if (e.target.id !== "bom-save-btn") return;
+      if (!bomHeaders.length || !bomRawRows.length) return;
+      const csvText = generateCSV(bomHeaders, bomRawRows);
+      const hasLinks = App.manualLinks.length > 0 || App.confirmedMatches.length > 0;
+      const linksJson = hasLinks ? JSON.stringify({
+        manualLinks: App.manualLinks,
+        confirmedMatches: App.confirmedMatches,
+      }) : null;
+      try {
+        const result = await api("save_file_dialog", csvText, lastFileName || "bom.csv", App.preferences.lastBomDir || null, linksJson);
+        if (result && result.path) {
+          bomDirty = false;
+          updateSaveBtnState();
+          showToast("Saved BOM to " + result.path);
+          AppLog.info("Saved BOM: " + result.path);
+        }
+      } catch (e) {
+        showToast("Could not save BOM");
+        AppLog.error("Save BOM failed: " + e.message);
+      }
+    });
+  }
+
+  // ── Clear BOM ──
+
+  function setupClearBom() {
+    body.addEventListener("click", (e) => {
+      if (e.target.id !== "bom-clear-btn") return;
+      lastResults = null;
+      lastFileName = "";
+      bomRawRows = [];
+      bomHeaders = [];
+      bomCols = {};
+      bomDirty = false;
+      App.bomResults = null;
+      App.bomFileName = "";
+      linkingMode = false;
+      linkingInvItem = null;
+      document.getElementById("bom-results").classList.add("hidden");
+      document.getElementById("bom-thead").innerHTML = "";
+      document.getElementById("bom-tbody").innerHTML = "";
+      const zone = document.getElementById("bom-drop-zone");
+      zone.innerHTML = `<p>Drop a BOM CSV here, or click to browse</p>
+        <div class="hint">Supports JLCPCB, KiCad, and generic BOM formats</div>
+        <input type="file" id="bom-file-input" accept=".csv,.tsv,.txt">`;
+      zone.classList.remove("loaded");
+      const newInput = document.getElementById("bom-file-input");
+      if (newInput) newInput.addEventListener("change", () => { if (newInput.files.length) handleFile(newInput.files[0]); });
+      AppLog.info("BOM cleared");
+      EventBus.emit("bom-cleared");
+    });
   }
 
   // ── Consume ──
@@ -536,7 +582,7 @@
     const matches = [];
     lastResults.forEach(r => {
       if (r.inv && r.matchType !== "value" && r.matchType !== "fuzzy") {
-        const pk = r.inv.lcsc || r.inv.mpn;
+        const pk = invPartKey(r.inv);
         if (pk) matches.push({ part_key: pk, bom_qty: r.bom.qty });
       }
     });
@@ -579,20 +625,24 @@
     }
   });
 
+  EventBus.on("confirmed-match-changed", () => {
+    if (lastResults && lastFileName && bomRawRows.length) reprocessAndRender();
+  });
+
   // ── Manual Linking ──
 
   function createManualLink(bomRow) {
-    const bomKey = bomRow.bom.lcsc || bomRow.bom.mpn.toUpperCase();
-    const invPartKey = linkingInvItem.lcsc || linkingInvItem.mpn;
-    if (!bomKey || !invPartKey) {
+    const bk = bomKey(bomRow.bom);
+    const ipk = invPartKey(linkingInvItem);
+    if (!bk || !ipk) {
       showToast("Cannot create link — missing part key");
       return;
     }
-    App.manualLinks.push({ bomKey, invPartKey });
-    AppLog.info("Manual link: " + invPartKey + " → " + bomKey);
+    App.manualLinks.push({ bomKey: bk, invPartKey: ipk });
+    AppLog.info("Manual link: " + ipk + " → " + bk);
     EventBus.emit("linking-mode", { active: false });
     reprocessAndRender();
-    showToast("Linked " + invPartKey + " → " + bomKey);
+    showToast("Linked " + ipk + " → " + bk);
   }
 
   EventBus.on("linking-mode", (data) => {

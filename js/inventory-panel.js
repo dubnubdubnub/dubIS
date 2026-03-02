@@ -18,10 +18,6 @@
 
   const SECTION_ORDER = App.SECTION_ORDER;
 
-  function getPartKey(item) {
-    return item.lcsc || item.mpn || item.digikey || "";
-  }
-
   // ── Main render ──
 
   function render() {
@@ -55,16 +51,18 @@
     const query = (searchInput.value || "").toLowerCase();
     const rows = bomData.rows;
 
-    // Sort: manual first, then missing, possible, short, ok
-    const order = { missing: 0, manual: 0.5, possible: 1, short: 2, ok: 3 };
+    // Sort: manual first, then missing, confirmed, possible, short, ok
+    const order = { missing: 0, "manual-short": 0.4, manual: 0.5, "confirmed-short": 0.7, confirmed: 0.75, possible: 1, short: 2, ok: 3, dnp: 4 };
     const sortedRows = [...rows].sort((a, b) => order[a.effectiveStatus] - order[b.effectiveStatus]);
 
     // Counts for filter bar
     const countOk = rows.filter(r => r.effectiveStatus === "ok").length;
-    const countShort = rows.filter(r => r.effectiveStatus === "short").length;
+    const countShort = rows.filter(r => r.effectiveStatus === "short" || r.effectiveStatus === "manual-short" || r.effectiveStatus === "confirmed-short").length;
     const countPossible = rows.filter(r => r.effectiveStatus === "possible").length;
     const countMissing = rows.filter(r => r.effectiveStatus === "missing").length;
-    const countManual = rows.filter(r => r.effectiveStatus === "manual").length;
+    const countManual = rows.filter(r => r.effectiveStatus === "manual" || r.effectiveStatus === "manual-short").length;
+    const countConfirmed = rows.filter(r => r.effectiveStatus === "confirmed" || r.effectiveStatus === "confirmed-short").length;
+    const countDnp = rows.filter(r => r.effectiveStatus === "dnp").length;
     const total = rows.length;
 
     // Filter bar
@@ -73,10 +71,12 @@
     filterBar.innerHTML = `
       <button class="filter-btn${activeFilter === "all" ? " active" : ""}" data-filter="all">All (${total})</button>
       ${countManual > 0 ? `<button class="filter-btn${activeFilter === "manual" ? " active" : ""}" data-filter="manual">Manual (${countManual})</button>` : ''}
+      ${countConfirmed > 0 ? `<button class="filter-btn${activeFilter === "confirmed" ? " active" : ""}" data-filter="confirmed">Confirmed (${countConfirmed})</button>` : ''}
       <button class="filter-btn${activeFilter === "ok" ? " active" : ""}" data-filter="ok">In Stock (${countOk})</button>
       <button class="filter-btn${activeFilter === "short" ? " active" : ""}" data-filter="short">Short (${countShort})</button>
       <button class="filter-btn${activeFilter === "possible" ? " active" : ""}" data-filter="possible">Possible (${countPossible})</button>
       <button class="filter-btn${activeFilter === "missing" ? " active" : ""}" data-filter="missing">Missing (${countMissing})</button>
+      ${countDnp > 0 ? `<button class="filter-btn${activeFilter === "dnp" ? " active" : ""}" data-filter="dnp">DNP (${countDnp})</button>` : ''}
     `;
     filterBar.querySelectorAll(".filter-btn").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -97,16 +97,21 @@
       <th style="width:50px">Need</th>
       <th style="width:50px">Have</th>
       <th>Description</th>
-      <th style="width:55px">Match</th>
-      <th style="width:36px"></th>
-      <th style="width:36px"></th>
+      <th style="width:78px;text-align:center">Match</th>
+      <th></th>
     </tr></thead>`;
 
     const tbody = document.createElement("tbody");
 
     sortedRows.forEach(r => {
       const st = r.effectiveStatus;
-      if (activeFilter !== "all" && st !== activeFilter) return;
+      if (activeFilter !== "all" && st !== activeFilter) {
+        const matchesFilter =
+          (activeFilter === "manual" && st === "manual-short") ||
+          (activeFilter === "confirmed" && st === "confirmed-short") ||
+          (activeFilter === "short" && (st === "manual-short" || st === "confirmed-short"));
+        if (!matchesFilter) return;
+      }
 
       // Query filter: search across BOM + inventory fields
       if (query) {
@@ -117,25 +122,31 @@
         if (!text.includes(query)) return;
       }
 
-      const partKey = r.bom.lcsc || r.bom.mpn;
+      const partKey = bomKey(r.bom);
       const tr = document.createElement("tr");
       tr.dataset.partKey = partKey;
 
-      const rowClass = st === "manual" ? "row-pink"
+      const rowClass = st === "dnp" ? "row-dnp"
+        : st === "manual" ? "row-pink"
+        : st === "manual-short" ? "row-pink-short"
+        : st === "confirmed" ? "row-teal"
+        : st === "confirmed-short" ? "row-teal-short"
         : st === "ok" ? "row-green"
         : st === "short" ? (r.coveredByAlts ? "row-yellow-covered" : "row-yellow")
         : st === "possible" ? "row-orange" : "row-red";
       tr.className = rowClass;
 
-      const mult = bomData.multiplier || 1;
-      const manualQtyOk = st === "manual" && r.inv && r.bom.qty * mult <= r.inv.qty;
-      const icon = st === "manual" ? "\u2726" : st === "ok" ? "+" : st === "short" ? (r.coveredByAlts ? "~+" : "~") : st === "possible" ? "?" : "-";
+      const icon = st === "dnp" ? "\u2716" : st === "manual" ? "\u2726" : st === "manual-short" ? "\u2726~" : st === "confirmed" ? "\u2714" : st === "confirmed-short" ? "\u2714~" : st === "ok" ? "+" : st === "short" ? (r.coveredByAlts ? "~+" : "~") : st === "possible" ? "?" : "-";
       const dispLcsc = (r.inv ? r.inv.lcsc : "") || r.bom.lcsc || "";
       const dispMpn = (r.inv ? r.inv.mpn : "") || r.bom.mpn || "";
       const invQty = r.inv ? r.inv.qty : "\u2014";
       const invDesc = r.inv ? (r.inv.description || r.inv.mpn) : (r.bom.desc || r.bom.value || "not in inventory");
-      const matchLabel = r.matchType === "lcsc" ? "LCSC" : r.matchType === "mpn" ? "MPN" : r.matchType === "fuzzy" ? "Fuzzy" : r.matchType === "value" ? "Value" : r.matchType === "manual" ? "Manual" : "\u2014";
-      const qtyClass = st === "manual" ? (manualQtyOk ? "qty-manual" : "qty-manual-short")
+      const matchLabel = r.matchType === "lcsc" ? "LCSC" : r.matchType === "mpn" ? "MPN" : r.matchType === "fuzzy" ? "Fuzzy" : r.matchType === "value" ? "Value" : r.matchType === "manual" ? "Manual" : r.matchType === "confirmed" ? "Confirmed" : "\u2014";
+      const qtyClass = st === "dnp" ? "qty-dnp"
+        : st === "manual" ? "qty-manual"
+        : st === "manual-short" ? "qty-manual-short"
+        : st === "confirmed" ? "qty-confirmed"
+        : st === "confirmed-short" ? "qty-confirmed-short"
         : st === "ok" ? "qty-ok" : st === "short" ? (r.coveredByAlts ? "qty-ok" : "qty-short") : st === "possible" ? "qty-possible" : "qty-miss";
 
       // Inv qty with alt badge
@@ -143,7 +154,7 @@
       if (r.alts && r.alts.length > 0) {
         const altS = r.alts.length === 1 ? "alt" : "alts";
         let badgeText, coveredCls = "";
-        if (st === "short") {
+        if (st === "short" || st === "manual-short" || st === "confirmed-short") {
           badgeText = r.coveredByAlts ? "\u2714 covers" : "still short";
           coveredCls = r.coveredByAlts ? " covered" : "";
         } else {
@@ -155,6 +166,11 @@
       }
 
       const adjBtnHtml = r.inv ? '<button class="adj-btn" title="Adjust qty">Adjust</button>' : '';
+      const confirmBtnHtml = st === "possible" && r.inv
+        ? '<button class="confirm-btn" title="Confirm this match">Confirm</button>'
+        : (st === "confirmed" || st === "confirmed-short") && r.inv
+        ? '<button class="unconfirm-btn" title="Revert to possible match">Unconfirm</button>'
+        : '';
       const linkBtnHtml = r.inv ? `<button class="link-btn${linkingMode && linkingInvItem === r.inv ? ' active' : ''}" title="Link to missing BOM row">Link</button>` : '';
       const isLinkingSource = linkingMode && linkingInvItem === r.inv;
       tr.innerHTML = `
@@ -165,10 +181,27 @@
         <td class="inv-qty-cell ${qtyClass}" style="text-align:right;font-weight:600">${haveHtml}</td>
         <td class="${st === 'missing' ? 'muted' : ''}">${escHtml(invDesc)}</td>
         <td class="mono" style="text-align:center">${matchLabel}</td>
-        <td style="text-align:center">${adjBtnHtml}</td>
-        <td style="text-align:center">${linkBtnHtml}</td>
+        <td class="btn-group">${confirmBtnHtml}${adjBtnHtml}${linkBtnHtml}</td>
       `;
       if (isLinkingSource) tr.classList.add("linking-source");
+
+      // Confirm button (if possible match)
+      const confirmBtn = tr.querySelector(".confirm-btn");
+      if (confirmBtn) {
+        confirmBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          confirmMatch(r);
+        });
+      }
+
+      // Unconfirm button (if confirmed match)
+      const unconfirmBtn = tr.querySelector(".unconfirm-btn");
+      if (unconfirmBtn) {
+        unconfirmBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          unconfirmMatch(r);
+        });
+      }
 
       // Adjust button (if matched to inventory)
       if (r.inv) {
@@ -192,7 +225,7 @@
 
       // Alt sub-rows if expanded
       if (r.alts && r.alts.length > 0 && expandedAlts.has(partKey)) {
-        renderAltRows(tbody, r.alts, partKey);
+        renderAltRows(tbody, r.alts, partKey, st, r);
       }
     });
 
@@ -218,14 +251,14 @@
     const matchedInvKeys = new Set();
     rows.forEach(r => {
       if (r.inv) {
-        const pk = (r.inv.lcsc || r.inv.mpn || "").toUpperCase();
+        const pk = invPartKey(r.inv).toUpperCase();
         if (pk) matchedInvKeys.add(pk);
       }
     });
 
     const otherParts = {};
     App.inventory.forEach(item => {
-      const pk = getPartKey(item).toUpperCase();
+      const pk = invPartKey(item).toUpperCase();
       if (matchedInvKeys.has(pk)) return;
       const sec = item.section || "Other";
       (otherParts[sec] = otherParts[sec] || []).push(item);
@@ -249,7 +282,7 @@
     }
   }
 
-  function renderAltRows(tbody, alts, partKey) {
+  function renderAltRows(tbody, alts, partKey, parentStatus, parentBom) {
     alts.forEach(alt => {
       const altTr = document.createElement("tr");
       altTr.className = "alt-row";
@@ -262,11 +295,14 @@
         '<td style="text-align:right;font-weight:600">' + alt.qty + '</td>' +
         '<td>' + escHtml(alt.description) + ' <span class="muted">' + escHtml(alt.package) + '</span></td>' +
         '<td></td>' +
-        '<td style="text-align:center"><button class="adj-btn" title="Adjust qty">Adjust</button></td>' +
-        '<td></td>';
+        '<td class="btn-group"><button class="swap-btn" title="Use this alt as the selected part">Swap</button><button class="adj-btn" title="Adjust qty">Adjust</button></td>';
       altTr.querySelector(".adj-btn").addEventListener("click", (e) => {
         e.stopPropagation();
         openAdjustModal(alt);
+      });
+      altTr.querySelector(".swap-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        confirmAltMatch(parentBom, alt);
       });
       tbody.appendChild(altTr);
     });
@@ -366,7 +402,7 @@
 
   function openAdjustModal(item) {
     currentPart = item;
-    const pk = getPartKey(item);
+    const pk = invPartKey(item);
     modalTitle.textContent = pk + (item.mpn && item.lcsc ? " \u2014 " + item.mpn : "");
     modalSubtitle.textContent = item.description || item.package || "";
     modalQty.textContent = "Current qty: " + item.qty;
@@ -410,7 +446,7 @@
 
   document.getElementById("adj-apply").addEventListener("click", async () => {
     if (!currentPart) return;
-    const pk = getPartKey(currentPart);
+    const pk = invPartKey(currentPart);
     const type = adjType.value;
     const qty = parseInt(adjQty.value, 10) || 0;
     const note = adjNote.value;
@@ -469,7 +505,7 @@
 
   function openPriceModal(item) {
     pricePart = item;
-    const pk = getPartKey(item);
+    const pk = invPartKey(item);
     priceTitle.textContent = pk + (item.mpn && item.lcsc ? " \u2014 " + item.mpn : "");
     priceSubtitle.textContent = (item.description || item.package || "") + " (qty: " + item.qty + ")";
     priceUnitInput.value = item.unit_price > 0 ? item.unit_price : "";
@@ -508,7 +544,7 @@
 
   document.getElementById("price-apply").addEventListener("click", async () => {
     if (!pricePart) return;
-    const pk = getPartKey(pricePart);
+    const pk = invPartKey(pricePart);
     const up = parseFloat(priceUnitInput.value) || null;
     const ep = parseFloat(priceExtInput.value) || null;
     if (up === null && ep === null) {
@@ -552,6 +588,7 @@
     linkingMode = false;
     linkingInvItem = null;
     App.manualLinks = [];
+    App.confirmedMatches = [];
     render();
   });
 
@@ -560,6 +597,39 @@
     linkingInvItem = data.active ? data.invItem : null;
     render();
   });
+
+  // ── Confirm Match Functions ──
+
+  function confirmMatch(bomRow) {
+    const bk = bomKey(bomRow.bom);
+    const ipk = invPartKey(bomRow.inv);
+    if (!bk || !ipk) return;
+    App.confirmedMatches = App.confirmedMatches.filter(c => c.bomKey !== bk);
+    App.confirmedMatches.push({ bomKey: bk, invPartKey: ipk });
+    AppLog.info("Confirmed: " + bk + " \u2192 " + ipk);
+    EventBus.emit("confirmed-match-changed");
+    showToast("Confirmed " + bk);
+  }
+
+  function unconfirmMatch(bomRow) {
+    const bk = bomKey(bomRow.bom);
+    if (!bk) return;
+    App.confirmedMatches = App.confirmedMatches.filter(c => c.bomKey !== bk);
+    AppLog.info("Unconfirmed: " + bk);
+    EventBus.emit("confirmed-match-changed");
+    showToast("Unconfirmed " + bk);
+  }
+
+  function confirmAltMatch(bomRow, altInvItem) {
+    const bk = bomKey(bomRow.bom);
+    const ipk = invPartKey(altInvItem);
+    if (!bk || !ipk) return;
+    App.confirmedMatches = App.confirmedMatches.filter(c => c.bomKey !== bk);
+    App.confirmedMatches.push({ bomKey: bk, invPartKey: ipk });
+    AppLog.info("Confirmed alt: " + bk + " \u2192 " + ipk);
+    EventBus.emit("confirmed-match-changed");
+    showToast("Confirmed " + bk + " \u2192 " + ipk);
+  }
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && linkingMode) {
