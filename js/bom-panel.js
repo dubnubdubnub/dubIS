@@ -286,14 +286,23 @@
   function renderLinkingBanner() {
     const bannerEl = document.getElementById("linking-banner");
     if (bannerEl) bannerEl.remove();
-    if (App.links.linkingMode && App.links.linkingInvItem) {
+    if (App.links.linkingMode && (App.links.linkingInvItem || App.links.linkingBomRow)) {
       const banner = document.createElement("div");
       banner.className = "linking-banner";
       banner.id = "linking-banner";
-      const partId = App.links.linkingInvItem.lcsc || App.links.linkingInvItem.mpn || App.links.linkingInvItem.description || "part";
-      banner.innerHTML = `<span>Linking: <strong>${escHtml(partId)}</strong> \u2014 click a missing, possible, or short BOM row</span><button class="cancel-link-btn">Cancel</button>`;
+      let bannerText;
+      if (App.links.linkingInvItem) {
+        const partId = App.links.linkingInvItem.lcsc || App.links.linkingInvItem.mpn || App.links.linkingInvItem.description || "part";
+        bannerText = `Linking: <strong>${escHtml(partId)}</strong> \u2014 click a missing, possible, or short BOM row`;
+      } else {
+        const bomRow = App.links.linkingBomRow;
+        const partId = bomRow.bom.lcsc || bomRow.bom.mpn || bomRow.bom.value || "part";
+        bannerText = `Linking: <strong>${escHtml(partId)}</strong> \u2014 click an inventory part`;
+      }
+      banner.innerHTML = `<span>${bannerText}</span><button class="cancel-link-btn">Cancel</button>`;
       banner.querySelector(".cancel-link-btn").addEventListener("click", () => {
-        App.links.setLinkingMode(false);
+        if (App.links.linkingInvItem) App.links.setLinkingMode(false);
+        else App.links.setReverseLinkingMode(false);
       });
       const resultsEl = document.getElementById("bom-results");
       const tableWrap = resultsEl.querySelector(".bom-table-wrap");
@@ -561,6 +570,10 @@
     if (lastResults && lastFileName && bomRawRows.length) reprocessAndRender();
   });
 
+  EventBus.on(Events.LINKS_CHANGED, () => {
+    if (lastResults && lastFileName && bomRawRows.length) reprocessAndRender();
+  });
+
   // ── Manual Linking ──
 
   function createManualLink(bomRow) {
@@ -573,7 +586,6 @@
     App.links.addManualLink(bk, ipk);
     AppLog.info("Manual link: " + ipk + " → " + bk);
     App.links.setLinkingMode(false);
-    reprocessAndRender();
     showToast("Linked " + ipk + " → " + bk);
   }
 

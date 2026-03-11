@@ -47,6 +47,23 @@
     }).join(", ");
   }
 
+  // ── Reverse link helper (BOM missing row → inventory part) ──
+
+  function createReverseLink(invItem) {
+    const bomRow = App.links.linkingBomRow;
+    if (!bomRow) return;
+    const bk = bomKey(bomRow.bom);
+    const ipk = invPartKey(invItem);
+    if (!bk || !ipk) {
+      showToast("Cannot create link \u2014 missing part key");
+      return;
+    }
+    App.links.addManualLink(bk, ipk);
+    AppLog.info("Manual link: " + ipk + " \u2192 " + bk);
+    App.links.setReverseLinkingMode(false);
+    showToast("Linked " + ipk + " \u2192 " + bk);
+  }
+
   // ── Main render ──
 
   function render() {
@@ -157,7 +174,14 @@
       : (st === "confirmed" || st === "confirmed-short") && r.inv
       ? '<button class="unconfirm-btn" title="Revert to possible match">Unconfirm</button>'
       : '';
-    const linkBtnHtml = r.inv ? `<button class="link-btn${App.links.linkingMode && App.links.linkingInvItem === r.inv ? ' active' : ''}" title="Link to missing BOM row">Link</button>` : '';
+    let linkBtnHtml = '';
+    if (r.inv) {
+      const isActive = App.links.linkingMode && App.links.linkingInvItem === r.inv;
+      linkBtnHtml = `<button class="link-btn${isActive ? ' active' : ''}" title="Link to missing BOM row">Link</button>`;
+    } else if (st === "missing") {
+      const isActive = App.links.linkingMode && App.links.linkingBomRow && bomKey(App.links.linkingBomRow.bom) === bomKey(r.bom);
+      linkBtnHtml = `<button class="link-btn${isActive ? ' active' : ''}" title="Link to inventory part">Link</button>`;
+    }
     const isLinkingSource = App.links.linkingMode && App.links.linkingInvItem === r.inv;
     const refsStr = r.bom.refs || "";
     tr.innerHTML = `
@@ -172,6 +196,16 @@
       <td class="btn-group">${confirmBtnHtml}${adjBtnHtml}${linkBtnHtml}</td>
     `;
     if (isLinkingSource) tr.classList.add("linking-source");
+
+    // Reverse linking: highlight source missing row
+    const isReverseLinkingSource = App.links.linkingMode && App.links.linkingBomRow && bomKey(App.links.linkingBomRow.bom) === partKey;
+    if (isReverseLinkingSource) tr.classList.add("linking-source");
+
+    // Reverse linking: make inventory-matched rows clickable targets
+    if (App.links.linkingMode && App.links.linkingBomRow && r.inv && !isReverseLinkingSource) {
+      tr.classList.add("link-target");
+      tr.addEventListener("click", () => createReverseLink(r.inv));
+    }
 
     const confirmBtn = tr.querySelector(".confirm-btn");
     if (confirmBtn) {
@@ -202,6 +236,14 @@
         linkBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           App.links.setLinkingMode(true, r.inv);
+        });
+      }
+    } else if (st === "missing") {
+      const linkBtn = tr.querySelector(".link-btn");
+      if (linkBtn) {
+        linkBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          App.links.setReverseLinkingMode(true, r);
         });
       }
     }
@@ -371,6 +413,13 @@
           ${linkBtnStr}
         `;
         if (isSource) row.classList.add("linking-source");
+
+        // Reverse linking: make inventory rows clickable targets
+        if (App.links.linkingMode && App.links.linkingBomRow) {
+          row.classList.add("link-target");
+          row.addEventListener("click", () => createReverseLink(item));
+        }
+
         row.querySelector(".adj-btn").addEventListener("click", (e) => {
           e.stopPropagation();
           openAdjustModal(item);
@@ -581,7 +630,8 @@
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && App.links.linkingMode) {
-      App.links.setLinkingMode(false);
+      if (App.links.linkingBomRow) App.links.setReverseLinkingMode(false);
+      else App.links.setLinkingMode(false);
     }
   });
 })();
