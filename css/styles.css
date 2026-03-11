@@ -349,7 +349,8 @@ tr.row-teal-short td.status { color: var(--color-teal); }
 
 tr.row-dnp { background: #484f5810; }
 tr.row-dnp td.status { color: var(--color-gray-muted); }
-tr.row-dnp td { color: var(--color-gray-muted); }
+tr.row-dnp td { color: var(--color-gray-muted); text-decoration: line-through; }
+tr.row-dnp td input { color: var(--color-gray-muted); text-decoration: line-through; }
 
 tr.row-yellow-covered { background: #23863620; border-left: 3px solid var(--color-green); }
 tr.row-yellow-covered td.status { color: var(--color-green); }
