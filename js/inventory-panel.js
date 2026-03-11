@@ -370,7 +370,14 @@
   }
 
   // ── Search ──
-  searchInput.addEventListener("input", () => render());
+  function debounce(fn, ms) {
+    let timer;
+    return function(...args) {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), ms);
+    };
+  }
+  searchInput.addEventListener("input", debounce(() => render(), 150));
 
   // ── Adjustment Modal ──
   const modalTitle = document.getElementById("modal-title");
