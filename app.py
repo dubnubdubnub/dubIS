@@ -46,7 +46,11 @@ def main():
     def on_closing():
         if api._force_close:
             return True
-        window.evaluate_js("handleWindowClose()")
+        try:
+            window.evaluate_js("handleWindowClose()")
+        except Exception:
+            api._force_close = True
+            return True
         return False
 
     window.events.closing += on_closing

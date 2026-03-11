@@ -419,6 +419,9 @@ class TestConfirmClose:
     def test_force_close_flag(self, api):
         assert api._force_close is False
 
+    def test_closing_flag_default(self, api):
+        assert api._closing is False
+
     def test_confirm_close_sets_flag(self, api, monkeypatch):
         import types
         mock_win = types.SimpleNamespace(destroy=lambda: None)
@@ -435,6 +438,29 @@ class TestConfirmClose:
         monkeypatch.setitem(__import__("sys").modules, "webview", mock_webview)
         api.confirm_close()
         assert len(destroyed) == 1
+
+    def test_confirm_close_double_call(self, api, monkeypatch):
+        import types
+        destroyed = []
+        mock_win = types.SimpleNamespace(destroy=lambda: destroyed.append(True))
+        mock_webview = types.SimpleNamespace(windows=[mock_win])
+        monkeypatch.setitem(__import__("sys").modules, "webview", mock_webview)
+        api.confirm_close()
+        api.confirm_close()
+        assert len(destroyed) == 1
+
+    def test_confirm_close_destroy_exception(self, api, monkeypatch):
+        import types
+
+        def exploding_destroy():
+            raise RuntimeError("window already destroyed")
+
+        mock_win = types.SimpleNamespace(destroy=exploding_destroy)
+        mock_webview = types.SimpleNamespace(windows=[mock_win])
+        monkeypatch.setitem(__import__("sys").modules, "webview", mock_webview)
+        api.confirm_close()  # should not raise
+        assert api._force_close is True
+        assert api._closing is True
 
 
 class TestFullPipeline:
