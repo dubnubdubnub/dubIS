@@ -42,6 +42,7 @@ class InventoryApi:
         self.prefs_json: str = os.path.join(self.base_dir, "preferences.json")
         self._force_close: bool = False
         self._closing: bool = False
+        self._bom_dirty: bool = False
 
     # ── Utility methods (ported from organize_inventory.py) ──────────────
 
@@ -642,6 +643,10 @@ class InventoryApi:
             except (json.JSONDecodeError, OSError) as exc:
                 logger.warning("Failed to read sidecar links: %s", exc)
         return resp
+
+    def set_bom_dirty(self, dirty) -> None:
+        """Track BOM dirty state so on_closing can check without evaluate_js."""
+        self._bom_dirty = bool(dirty)
 
     def confirm_close(self) -> None:
         """Set force-close flag and destroy the window."""

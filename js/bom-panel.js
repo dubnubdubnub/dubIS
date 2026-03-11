@@ -337,6 +337,7 @@
         bomRawRows.splice(ri, 1);
         bomDirty = true;
         App.bomDirty = true;
+        api("set_bom_dirty", true);
         updateSaveBtnState();
         AppLog.info("Deleted BOM row " + (ri + 1));
         reprocessAndRender();
@@ -358,6 +359,7 @@
           bomRawRows[ri][ci] = inp.value;
           bomDirty = true;
           App.bomDirty = true;
+          api("set_bom_dirty", true);
           updateSaveBtnState();
           AppLog.info("Edited BOM cell [" + (ri + 1) + ", " + ci + "]");
           reprocessAndRender();
@@ -421,6 +423,7 @@
       if (result && result.path) {
         bomDirty = false;
         App.bomDirty = false;
+        api("set_bom_dirty", false);
         updateSaveBtnState();
         App.preferences.lastBomFile = result.path;
         savePreferences();
@@ -442,6 +445,7 @@
       bomCols = {};
       bomDirty = false;
       App.bomDirty = false;
+      api("set_bom_dirty", false);
       App.bomResults = null;
       App.bomFileName = "";
       App.preferences.lastBomFile = null;
@@ -585,6 +589,7 @@
     if (result && result.path) {
       bomDirty = false;
       App.bomDirty = false;
+      api("set_bom_dirty", false);
       App.preferences.lastBomFile = result.path;
       await savePreferences();
     }
