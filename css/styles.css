@@ -311,6 +311,17 @@ tbody tr:hover { background: var(--bg-hover) !important; }
 /* ── Status Column ─────────────────────────────────────── */
 .status { font-weight: 700; text-align: center; width: 24px; font-size: 14px; }
 
+/* ── Designators Column ───────────────────────────────── */
+.refs-col { width: 140px; }
+.refs-cell {
+  font-size: 11px;
+  color: var(--text-secondary);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Row Color Coding ──────────────────────────────────── */
 tr.row-green { background: #23863610; }
 tr.row-yellow { background: #d2992210; }
