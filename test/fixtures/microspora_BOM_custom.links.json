@@ -1,0 +1,38 @@
+{
+  "manualLinks": [
+    {
+      "bomKey": "C2765186",
+      "invPartKey": "C2760486"
+    },
+    {
+      "bomKey": "C529356",
+      "invPartKey": "STM32G491CCU6"
+    },
+    {
+      "bomKey": "C5155979",
+      "invPartKey": "C5382546"
+    },
+    {
+      "bomKey": "C72038",
+      "invPartKey": "C2290"
+    }
+  ],
+  "confirmedMatches": [
+    {
+      "bomKey": "C25104",
+      "invPartKey": "C2930002"
+    },
+    {
+      "bomKey": "C25741",
+      "invPartKey": "C2906859"
+    },
+    {
+      "bomKey": "C52923",
+      "invPartKey": "C1518208"
+    },
+    {
+      "bomKey": "C59461",
+      "invPartKey": "C86295"
+    }
+  ]
+}
