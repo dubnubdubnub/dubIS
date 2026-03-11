@@ -27,6 +27,9 @@
 
     if (!lcsc && !mpn) return "warn";
 
+    // DNP rows with valid part IDs are always OK — skip qty validation
+    if (bomCols.dnp !== -1 && isDnp(row[bomCols.dnp])) return "ok";
+
     if (bomCols.qty !== -1) {
       const rawQty = parseInt(row[bomCols.qty], 10);
       if (isNaN(rawQty) || rawQty <= 0) {
