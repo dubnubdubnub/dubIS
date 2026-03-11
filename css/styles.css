@@ -856,14 +856,14 @@ body.resizing-v { user-select: none; cursor: row-resize; }
   background: #a371f715 !important;
 }
 
-/* ── Linking Mode — Target BOM Rows ──────────────────── */
-tr.link-target {
+/* ── Linking Mode — Target Rows ───────────────────────── */
+tr.link-target, .inv-part-row.link-target {
   outline: 2px dashed var(--color-purple);
   outline-offset: -2px;
   cursor: pointer;
   animation: link-pulse 1.5s ease-in-out infinite;
 }
-tr.link-target:hover {
+tr.link-target:hover, .inv-part-row.link-target:hover {
   outline-style: solid;
   background: #a371f730 !important;
   animation: none;
