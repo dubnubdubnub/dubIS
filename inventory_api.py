@@ -40,6 +40,7 @@ class InventoryApi:
         self.output_csv: str = os.path.join(self.base_dir, "inventory.csv")
         self.adjustments_csv: str = os.path.join(self.base_dir, "adjustments.csv")
         self.prefs_json: str = os.path.join(self.base_dir, "preferences.json")
+        self._force_close: bool = False
 
     # ── Utility methods (ported from organize_inventory.py) ──────────────
 
@@ -593,7 +594,7 @@ class InventoryApi:
 
     def open_file_dialog(self, title: str = "Select CSV file",
                          default_dir: str | None = None) -> dict[str, Any] | None:
-        """Open native file dialog, return {name, content, directory} or None."""
+        """Open native file dialog, return {name, content, directory, path} or None."""
         import webview
         kwargs = {"file_types": ("CSV Files (*.csv)",)}
         if default_dir and os.path.isdir(default_dir):
@@ -608,6 +609,7 @@ class InventoryApi:
                 "name": os.path.basename(path),
                 "content": self._read_text(path),
                 "directory": os.path.dirname(path),
+                "path": path,
             }
             # Check for sidecar .links.json
             links_path = os.path.splitext(path)[0] + ".links.json"
@@ -619,6 +621,32 @@ class InventoryApi:
                     logger.warning("Failed to read sidecar links: %s", exc)
             return resp
         return None
+
+    def load_file(self, path: str) -> dict[str, Any] | None:
+        """Load a file by path, return {name, content, directory, path, links?} or None."""
+        if not path or not os.path.isfile(path):
+            return None
+        resp = {
+            "name": os.path.basename(path),
+            "content": self._read_text(path),
+            "directory": os.path.dirname(path),
+            "path": path,
+        }
+        # Check for sidecar .links.json
+        links_path = os.path.splitext(path)[0] + ".links.json"
+        if os.path.exists(links_path):
+            try:
+                with open(links_path, encoding="utf-8") as lf:
+                    resp["links"] = json.load(lf)
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.warning("Failed to read sidecar links: %s", exc)
+        return resp
+
+    def confirm_close(self) -> None:
+        """Set force-close flag and destroy the window."""
+        import webview
+        self._force_close = True
+        webview.windows[0].destroy()
 
     @staticmethod
     def _read_text(path: str) -> str:

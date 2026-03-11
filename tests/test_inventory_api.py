@@ -385,6 +385,58 @@ class TestDetectColumns:
         assert mapping.get("0") == "LCSC Part Number"
 
 
+class TestLoadFile:
+    def test_existing_file(self, api, tmp_path):
+        test_file = tmp_path / "test.csv"
+        test_file.write_text("col1,col2\na,b\n", encoding="utf-8")
+        result = api.load_file(str(test_file))
+        assert result is not None
+        assert result["name"] == "test.csv"
+        assert "col1,col2" in result["content"]
+        assert result["directory"] == str(tmp_path)
+        assert result["path"] == str(test_file)
+
+    def test_missing_file(self, api):
+        result = api.load_file("/nonexistent/path/file.csv")
+        assert result is None
+
+    def test_empty_path(self, api):
+        assert api.load_file("") is None
+        assert api.load_file(None) is None
+
+    def test_sidecar_links(self, api, tmp_path):
+        test_file = tmp_path / "bom.csv"
+        test_file.write_text("h1,h2\n1,2\n", encoding="utf-8")
+        links_file = tmp_path / "bom.links.json"
+        links_file.write_text('{"manualLinks": [{"bomKey": "a", "invPartKey": "b"}]}', encoding="utf-8")
+        result = api.load_file(str(test_file))
+        assert result is not None
+        assert "links" in result
+        assert result["links"]["manualLinks"][0]["bomKey"] == "a"
+
+
+class TestConfirmClose:
+    def test_force_close_flag(self, api):
+        assert api._force_close is False
+
+    def test_confirm_close_sets_flag(self, api, monkeypatch):
+        import types
+        mock_win = types.SimpleNamespace(destroy=lambda: None)
+        mock_webview = types.SimpleNamespace(windows=[mock_win])
+        monkeypatch.setitem(__import__("sys").modules, "webview", mock_webview)
+        api.confirm_close()
+        assert api._force_close is True
+
+    def test_confirm_close_calls_destroy(self, api, monkeypatch):
+        import types
+        destroyed = []
+        mock_win = types.SimpleNamespace(destroy=lambda: destroyed.append(True))
+        mock_webview = types.SimpleNamespace(windows=[mock_win])
+        monkeypatch.setitem(__import__("sys").modules, "webview", mock_webview)
+        api.confirm_close()
+        assert len(destroyed) == 1
+
+
 class TestFullPipeline:
     def test_import_adjust_consume_rebuild(self, api):
         # 1. Import

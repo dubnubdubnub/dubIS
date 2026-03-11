@@ -42,6 +42,14 @@ def main():
         height=900,
         min_size=(1200, 700),
     )
+
+    def on_closing():
+        if api._force_close:
+            return True
+        window.evaluate_js("handleWindowClose()")
+        return False
+
+    window.events.closing += on_closing
     webview.start(func=set_icon, debug="--debug" in sys.argv)
 
 

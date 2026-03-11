@@ -113,8 +113,11 @@
     if (!result || !result.content) return;
     if (result.directory) {
       App.preferences.lastBomDir = result.directory;
-      savePreferences();
     }
+    if (result.path) {
+      App.preferences.lastBomFile = result.path;
+    }
+    savePreferences();
     loadBomText(result.content, result.name, result.links || null);
   }
 
@@ -333,6 +336,7 @@
         UndoRedo.save("bom", bomRawRows);
         bomRawRows.splice(ri, 1);
         bomDirty = true;
+        App.bomDirty = true;
         updateSaveBtnState();
         AppLog.info("Deleted BOM row " + (ri + 1));
         reprocessAndRender();
@@ -353,6 +357,7 @@
           UndoRedo.save("bom", bomRawRows);
           bomRawRows[ri][ci] = inp.value;
           bomDirty = true;
+          App.bomDirty = true;
           updateSaveBtnState();
           AppLog.info("Edited BOM cell [" + (ri + 1) + ", " + ci + "]");
           reprocessAndRender();
@@ -415,7 +420,10 @@
       const result = await api("save_file_dialog", csvText, lastFileName || "bom.csv", App.preferences.lastBomDir || null, linksJson);
       if (result && result.path) {
         bomDirty = false;
+        App.bomDirty = false;
         updateSaveBtnState();
+        App.preferences.lastBomFile = result.path;
+        savePreferences();
         showToast("Saved BOM to " + result.path);
         AppLog.info("Saved BOM: " + result.path);
       }
@@ -433,8 +441,11 @@
       bomHeaders = [];
       bomCols = {};
       bomDirty = false;
+      App.bomDirty = false;
       App.bomResults = null;
       App.bomFileName = "";
+      App.preferences.lastBomFile = null;
+      savePreferences();
       document.getElementById("bom-results").classList.add("hidden");
       document.getElementById("bom-thead").innerHTML = "";
       document.getElementById("bom-tbody").innerHTML = "";
@@ -556,6 +567,38 @@
     if (lastResults) {
       const rows = computeRows();
       if (rows) renderBomPanel(rows);
+    }
+  });
+
+  // ── Save & Close (triggered by close modal) ──
+  EventBus.on(Events.SAVE_AND_CLOSE, async () => {
+    if (!bomHeaders.length || !bomRawRows.length) {
+      api("confirm_close");
+      return;
+    }
+    const csvText = generateCSV(bomHeaders, bomRawRows);
+    const linksJson = App.links.hasLinks() ? JSON.stringify({
+      manualLinks: App.links.manualLinks,
+      confirmedMatches: App.links.confirmedMatches,
+    }) : null;
+    const result = await api("save_file_dialog", csvText, lastFileName || "bom.csv", App.preferences.lastBomDir || null, linksJson);
+    if (result && result.path) {
+      bomDirty = false;
+      App.bomDirty = false;
+      App.preferences.lastBomFile = result.path;
+      await savePreferences();
+    }
+    api("confirm_close");
+  });
+
+  // ── Auto-open last BOM on startup ──
+  EventBus.on(Events.INVENTORY_LOADED, async () => {
+    const lastFile = App.preferences.lastBomFile;
+    if (!lastFile) return;
+    const result = await api("load_file", lastFile);
+    if (result && result.content) {
+      loadBomText(result.content, result.name, result.links || null);
+      AppLog.info("Auto-loaded last BOM: " + result.name);
     }
   });
 
