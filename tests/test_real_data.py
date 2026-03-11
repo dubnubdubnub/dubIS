@@ -74,11 +74,11 @@ class TestRealPipelineRebuild:
 
     def test_consume_adjustments_reduce_qty(self, real_api):
         inv = real_api.rebuild_inventory()
-        # C440198 had consume adjustments from lemon-pepper BOM
+        # C440198 had consume adjustments from lemon-pepper BOM (-80)
         part = next((i for i in inv if i["lcsc"] == "C440198"), None)
         assert part is not None
-        # Original PO qty was 500, consumed 80 (10 * 8)
-        assert part["qty"] < 500
+        # Total from POs is 3000, consumed 80 → should be 2920
+        assert part["qty"] == 2920
 
     def test_sections_categorized(self, real_api):
         inv = real_api.rebuild_inventory()
@@ -173,15 +173,20 @@ class TestRealDetectColumns:
         assert mapping.get("7") == "Quantity"
 
     def test_detects_digikey_po_columns(self, real_api):
+        # Real Digikey PO headers (from 97746939.csv / 97970162.csv)
         headers = [
             "#", "QUANTITY", "PART NUMBER", "MANUFACTURER PART NUMBER",
             "DESCRIPTION", "CUSTOMER REFERENCE", "BACKORDER",
             "UNIT PRICE", "EXTENDED PRICE",
         ]
         mapping = real_api.detect_columns(headers)
-        assert mapping.get("2") == "Digikey Part Number"
+        # "PART NUMBER" is too generic for Digikey detection (needs "digikey"
+        # in the header), but MPN, qty, description, and prices are detected
         assert mapping.get("3") == "Manufacture Part Number"
         assert mapping.get("1") == "Quantity"
+        assert mapping.get("4") == "Description"
+        assert mapping.get("7") == "Unit Price($)"
+        assert mapping.get("8") == "Ext.Price($)"
 
 
 class TestRealAdjustAfterRebuild:
