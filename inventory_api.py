@@ -411,21 +411,34 @@ class InventoryApi:
                 else:
                     subcat_name = cat.get("catalogName", "")
 
+        # Extract key attributes from paramVOList
+        attributes = []
+        for param in (result_data.get("paramVOList") or []):
+            if isinstance(param, dict):
+                name = param.get("paramNameEn", "")
+                value = param.get("paramValueEn", "")
+                if name and value and value != "-":
+                    attributes.append({"name": name, "value": value})
+
+        # Image: API returns productImages array, fall back to productImageUrl
+        images = result_data.get("productImages") or []
+        image_url = images[0] if images else result_data.get("productImageUrl", "")
+
         product = {
             "productCode": result_data.get("productCode", product_code),
-            "title": result_data.get("productIntroEn", ""),
+            "title": result_data.get("title", "") or result_data.get("productIntroEn", ""),
             "manufacturer": result_data.get("brandNameEn", ""),
             "mpn": result_data.get("productModel", ""),
             "package": result_data.get("encapStandard", ""),
             "description": result_data.get("productIntroEn", ""),
-            "productName": result_data.get("productNameEn", ""),
             "stock": result_data.get("stockNumber", 0),
             "prices": prices,
-            "imageUrl": result_data.get("productImageUrl", ""),
+            "imageUrl": image_url,
             "pdfUrl": result_data.get("pdfUrl", ""),
             "lcscUrl": f"https://www.lcsc.com/product-detail/{product_code}.html",
             "category": cat_name,
             "subcategory": subcat_name,
+            "attributes": attributes,
         }
 
         self._lcsc_cache[product_code] = product
