@@ -364,6 +364,12 @@
           AppLog.info("Edited BOM cell [" + (ri + 1) + ", " + ci + "]");
           reprocessAndRender();
         });
+        if (ci === bomCols.lcsc) {
+          const cellVal = (row[ci] || "").trim().toUpperCase();
+          if (/^C\d{4,}$/.test(cellVal)) {
+            td.dataset.lcsc = cellVal;
+          }
+        }
         td.appendChild(inp);
         tr.appendChild(td);
       });

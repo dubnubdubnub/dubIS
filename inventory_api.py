@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import urllib.request
 from datetime import datetime
 from typing import Any
 
@@ -43,6 +44,7 @@ class InventoryApi:
         self._force_close: bool = False
         self._closing: bool = False
         self._bom_dirty: bool = False
+        self._lcsc_cache: dict[str, dict[str, Any] | None] = {}
 
     # ── Utility methods (ported from organize_inventory.py) ──────────────
 
@@ -358,6 +360,76 @@ class InventoryApi:
             "board_qty": board_qty,
             "note": note,
         }])
+
+    # ── LCSC product preview ────────────────────────────────────────────
+
+    def fetch_lcsc_product(self, product_code: str) -> dict[str, Any] | None:
+        """Fetch LCSC product details by product code (e.g. C2040).
+
+        Returns a normalized dict of product info, or None if not found/failed.
+        Results (including None) are cached for the session.
+        """
+        product_code = str(product_code).strip().upper()
+        if not re.match(r"^C\d{4,}$", product_code):
+            raise ValueError(f"Invalid LCSC product code: {product_code!r}")
+
+        if product_code in self._lcsc_cache:
+            return self._lcsc_cache[product_code]
+
+        url = f"https://wmsc.lcsc.com/ftps/wm/product/detail?productCode={product_code}"
+        try:
+            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:
+            logger.warning("LCSC fetch failed for %s: %s", product_code, exc)
+            self._lcsc_cache[product_code] = None
+            return None
+
+        result_data = data.get("result") if isinstance(data, dict) else None
+        if not result_data or not isinstance(result_data, dict):
+            logger.warning("LCSC returned no result for %s", product_code)
+            self._lcsc_cache[product_code] = None
+            return None
+
+        # Extract price tiers
+        prices = []
+        for tier in (result_data.get("productPriceList") or []):
+            if isinstance(tier, dict):
+                prices.append({
+                    "qty": tier.get("startPurchasedNumber", 0),
+                    "price": tier.get("productPrice", 0),
+                })
+
+        # Build normalized response
+        cat_name = ""
+        subcat_name = ""
+        for cat in (result_data.get("parentCatalogList") or []):
+            if isinstance(cat, dict):
+                if not cat_name:
+                    cat_name = cat.get("catalogName", "")
+                else:
+                    subcat_name = cat.get("catalogName", "")
+
+        product = {
+            "productCode": result_data.get("productCode", product_code),
+            "title": result_data.get("productIntroEn", ""),
+            "manufacturer": result_data.get("brandNameEn", ""),
+            "mpn": result_data.get("productModel", ""),
+            "package": result_data.get("encapStandard", ""),
+            "description": result_data.get("productIntroEn", ""),
+            "productName": result_data.get("productNameEn", ""),
+            "stock": result_data.get("stockNumber", 0),
+            "prices": prices,
+            "imageUrl": result_data.get("productImageUrl", ""),
+            "pdfUrl": result_data.get("pdfUrl", ""),
+            "lcscUrl": f"https://www.lcsc.com/product-detail/{product_code}.html",
+            "category": cat_name,
+            "subcategory": subcat_name,
+        }
+
+        self._lcsc_cache[product_code] = product
+        return product
 
     # ── Public API methods (called from JS via pywebview) ────────────────
 
