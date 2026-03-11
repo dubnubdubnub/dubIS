@@ -41,6 +41,7 @@ class InventoryApi:
         self.adjustments_csv: str = os.path.join(self.base_dir, "adjustments.csv")
         self.prefs_json: str = os.path.join(self.base_dir, "preferences.json")
         self._force_close: bool = False
+        self._closing: bool = False
 
     # ── Utility methods (ported from organize_inventory.py) ──────────────
 
@@ -644,9 +645,15 @@ class InventoryApi:
 
     def confirm_close(self) -> None:
         """Set force-close flag and destroy the window."""
+        if self._closing:
+            return
+        self._closing = True
         import webview
         self._force_close = True
-        webview.windows[0].destroy()
+        try:
+            webview.windows[0].destroy()
+        except Exception:
+            logger.debug("Window already destroyed or unavailable", exc_info=True)
 
     @staticmethod
     def _read_text(path: str) -> str:
