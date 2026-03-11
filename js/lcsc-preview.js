@@ -136,10 +136,14 @@
       html += '<div class="lcsc-preview-img"><img src="' + escHtml(data.imageUrl) + '" alt="Product"></div>';
     }
 
-    // Title
-    var title = (data.manufacturer || "") + (data.mpn ? " " + data.mpn : "");
-    if (title.trim()) {
-      html += '<div class="lcsc-preview-title">' + escHtml(title.trim()) + '</div>';
+    // Title (product name like "Raspberry Pi RP2040")
+    if (data.title) {
+      html += '<div class="lcsc-preview-title">' + escHtml(data.title) + '</div>';
+    }
+
+    // Description (spec summary like "133MHz 30 LQFN-56(7x7) Microcontrollers RoHS")
+    if (data.description && data.description !== data.title) {
+      html += '<div class="lcsc-preview-desc">' + escHtml(data.description) + '</div>';
     }
 
     // Info table
@@ -148,12 +152,20 @@
     if (data.mpn) html += infoRow("Mfr. Part #", data.mpn);
     html += infoRow("LCSC Part #", data.productCode);
     if (data.package) html += infoRow("Package", data.package);
-    if (data.description && data.description !== data.title) html += infoRow("Description", data.description);
     if (data.category) {
       var catText = data.category + (data.subcategory ? " > " + data.subcategory : "");
       html += infoRow("Category", catText);
     }
     html += '</table>';
+
+    // Key attributes (e.g. ADC, CPU Speed, I/O count)
+    if (data.attributes && data.attributes.length > 0) {
+      html += '<div class="lcsc-preview-attrs">';
+      data.attributes.forEach(function (a) {
+        html += '<span class="lcsc-preview-attr">' + escHtml(a.name) + ': <strong>' + escHtml(a.value) + '</strong></span>';
+      });
+      html += '</div>';
+    }
 
     // Stock badge
     var stockNum = typeof data.stock === "number" ? data.stock : 0;
@@ -171,10 +183,15 @@
       html += '</tbody></table>';
     }
 
-    // LCSC link
+    // Action links: datasheet + LCSC page
+    html += '<div class="lcsc-preview-actions">';
+    if (data.pdfUrl) {
+      html += '<a class="lcsc-preview-link" href="' + escHtml(data.pdfUrl) + '" target="_blank">Datasheet (PDF)</a>';
+    }
     if (data.lcscUrl) {
       html += '<a class="lcsc-preview-link" href="' + escHtml(data.lcscUrl) + '" target="_blank">View on LCSC &rarr;</a>';
     }
+    html += '</div>';
 
     html += '</div>';
     tooltip.innerHTML = html;
