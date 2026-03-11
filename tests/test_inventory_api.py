@@ -1,8 +1,22 @@
-"""Smoke tests for InventoryApi static methods."""
+"""Tests for InventoryApi."""
+
+import json
+import os
 
 import pytest
 
 from inventory_api import InventoryApi
+
+
+@pytest.fixture
+def api(tmp_path):
+    inst = InventoryApi()
+    inst.base_dir = str(tmp_path)
+    inst.input_csv = str(tmp_path / "purchase_ledger.csv")
+    inst.output_csv = str(tmp_path / "inventory.csv")
+    inst.adjustments_csv = str(tmp_path / "adjustments.csv")
+    inst.prefs_json = str(tmp_path / "preferences.json")
+    return inst
 
 
 class TestGetPartKey:
@@ -72,3 +86,18 @@ class TestParseCapacitance:
 
     def test_no_match_returns_inf(self):
         assert InventoryApi.parse_capacitance("no cap") == float("inf")
+
+
+class TestLoadPreferences:
+    def test_malformed_json_returns_empty(self, api):
+        with open(api.prefs_json, "w") as f:
+            f.write("{bad json!!")
+        assert api.load_preferences() == {}
+
+    def test_missing_file_returns_empty(self, api):
+        assert api.load_preferences() == {}
+
+    def test_valid_json_loaded(self, api):
+        with open(api.prefs_json, "w") as f:
+            json.dump({"theme": "dark"}, f)
+        assert api.load_preferences() == {"theme": "dark"}
