@@ -5,7 +5,6 @@ import json
 import logging
 import os
 import re
-from collections import OrderedDict
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -40,6 +39,29 @@ class InventoryApi:
         self.prefs_json = os.path.join(self.base_dir, "preferences.json")
 
     # ── Utility methods (ported from organize_inventory.py) ──────────────
+
+    @staticmethod
+    def _parse_qty(value, default=0):
+        """Parse a quantity string to int, tolerating commas and floats."""
+        try:
+            return int(float(str(value).replace(",", "")))
+        except (ValueError, TypeError):
+            return default
+
+    @staticmethod
+    def _ensure_parsed(value):
+        """Parse JSON string if needed, otherwise return as-is."""
+        return json.loads(value) if isinstance(value, str) else value
+
+    def _append_csv_rows(self, path, fieldnames, rows):
+        """Append rows to a CSV file, writing header if the file is new."""
+        exists = os.path.exists(path)
+        with open(path, "a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            if not exists:
+                writer.writeheader()
+            for row in rows:
+                writer.writerow(row)
 
     @staticmethod
     def fix_double_utf8(text):
@@ -163,10 +185,10 @@ class InventoryApi:
 
     def _read_raw_inventory(self):
         """Read purchase_ledger.csv, fix encoding, merge duplicates.
-        Returns (fieldnames, merged_OrderedDict).
+        Returns (fieldnames, merged_dict).
         """
         if not os.path.exists(self.input_csv):
-            return list(self.FIELDNAMES), OrderedDict()
+            return list(self.FIELDNAMES), {}
 
         with open(self.input_csv, newline="", encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
@@ -180,15 +202,15 @@ class InventoryApi:
                     r[field] = self.fix_double_utf8(r[field])
 
         # Merge duplicates by part key
-        merged = OrderedDict()
+        merged = {}
         for r in rows:
             pn = self.get_part_key(r)
             if not pn:
                 continue
-            qty = int(r["Quantity"].replace(",", "")) if r.get("Quantity") else 0
+            qty = self._parse_qty(r.get("Quantity"))
             ext = float(r["Ext.Price($)"]) if r.get("Ext.Price($)") else 0.0
             if pn in merged:
-                prev_qty = int(merged[pn]["Quantity"].replace(",", "") or "0")
+                prev_qty = self._parse_qty(merged[pn]["Quantity"])
                 merged[pn]["Quantity"] = str(prev_qty + qty)
                 new_ext = float(merged[pn]["Ext.Price($)"] or "0") + ext
                 merged[pn]["Ext.Price($)"] = f"{new_ext:.2f}"
@@ -231,7 +253,7 @@ class InventoryApi:
                     else:
                         continue
 
-                current = int(merged[pn]["Quantity"].replace(",", "") or "0")
+                current = self._parse_qty(merged[pn]["Quantity"])
                 if adj_type == "set":
                     new_qty = max(0, qty)
                 elif adj_type in ("consume", "add", "remove"):
@@ -241,7 +263,7 @@ class InventoryApi:
                 merged[pn]["Quantity"] = str(new_qty)
 
     def _categorize_and_sort(self, parts):
-        """Categorize parts and sort within sections. Returns OrderedDict."""
+        """Categorize parts and sort within sections."""
         categorized = {}
         for p in parts:
             cat = self.categorize(p)
@@ -306,7 +328,7 @@ class InventoryApi:
                     "manufacturer": (row.get("Manufacturer") or "").strip(),
                     "package": (row.get("Package") or "").strip(),
                     "description": (row.get("Description") or "").strip(),
-                    "qty": int(float((row.get("Quantity") or "0").replace(",", ""))),
+                    "qty": self._parse_qty(row.get("Quantity")),
                     "unit_price": float((row.get("Unit Price($)") or "0").replace(",", "") or "0"),
                     "ext_price": float((row.get("Ext.Price($)") or "0").replace(",", "") or "0"),
                 })
@@ -317,20 +339,15 @@ class InventoryApi:
     def _append_adjustment(self, adj_type, part_key, quantity, note="",
                            bom_file="", board_qty=""):
         """Append one row to adjustments.csv."""
-        exists = os.path.exists(self.adjustments_csv)
-        with open(self.adjustments_csv, "a", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=self.ADJ_FIELDNAMES)
-            if not exists:
-                writer.writeheader()
-            writer.writerow({
-                "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-                "type": adj_type,
-                "lcsc_part": part_key,
-                "quantity": quantity,
-                "bom_file": bom_file,
-                "board_qty": board_qty,
-                "note": note,
-            })
+        self._append_csv_rows(self.adjustments_csv, self.ADJ_FIELDNAMES, [{
+            "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+            "type": adj_type,
+            "lcsc_part": part_key,
+            "quantity": quantity,
+            "bom_file": bom_file,
+            "board_qty": board_qty,
+            "note": note,
+        }])
 
     # ── Public API methods (called from JS via pywebview) ────────────────
 
@@ -354,30 +371,27 @@ class InventoryApi:
 
     def consume_bom(self, matches_json, board_qty, bom_name, note=""):
         """Consume matched BOM parts. Returns fresh inventory."""
-        matches = json.loads(matches_json) if isinstance(matches_json, str) else matches_json
+        matches = self._ensure_parsed(matches_json)
         board_qty = int(board_qty)
         ts = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-        exists = os.path.exists(self.adjustments_csv)
-        with open(self.adjustments_csv, "a", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=self.ADJ_FIELDNAMES)
-            if not exists:
-                writer.writeheader()
-            for m in matches:
-                delta = -(m["bom_qty"] * board_qty)
-                writer.writerow({
-                    "timestamp": ts,
-                    "type": "consume",
-                    "lcsc_part": m["part_key"],
-                    "quantity": delta,
-                    "bom_file": bom_name,
-                    "board_qty": board_qty,
-                    "note": note or f"consumed {board_qty}x {bom_name}",
-                })
+        adj_rows = []
+        for m in matches:
+            delta = -(m["bom_qty"] * board_qty)
+            adj_rows.append({
+                "timestamp": ts,
+                "type": "consume",
+                "lcsc_part": m["part_key"],
+                "quantity": delta,
+                "bom_file": bom_name,
+                "board_qty": board_qty,
+                "note": note or f"consumed {board_qty}x {bom_name}",
+            })
+        self._append_csv_rows(self.adjustments_csv, self.ADJ_FIELDNAMES, adj_rows)
         return self._rebuild()
 
     def import_purchases(self, rows_json):
         """Append purchase rows to purchase_ledger.csv. Returns fresh inventory."""
-        rows = json.loads(rows_json) if isinstance(rows_json, str) else rows_json
+        rows = self._ensure_parsed(rows_json)
         if not rows:
             return {"error": "No rows to import"}
 
@@ -423,7 +437,7 @@ class InventoryApi:
         for row in rows:
             pk = self.get_part_key(row)
             if pk == part_key:
-                qty = int(float((row.get("Quantity") or "0").replace(",", "")))
+                qty = self._parse_qty(row.get("Quantity"))
                 if unit_price is not None and ext_price is None and qty > 0:
                     ext_price = unit_price * qty
                 elif ext_price is not None and unit_price is None and qty > 0:
@@ -459,7 +473,7 @@ class InventoryApi:
         """Auto-detect column mapping for purchase CSV import.
         Returns dict of {source_column_index: target_inventory_field}.
         """
-        headers = json.loads(headers_json) if isinstance(headers_json, str) else headers_json
+        headers = self._ensure_parsed(headers_json)
         lower_headers = [h.lower().strip() for h in headers]
 
         # Collect candidates for each target field
@@ -520,7 +534,7 @@ class InventoryApi:
 
     def save_preferences(self, prefs_json):
         """Write preferences JSON string to disk."""
-        prefs = json.loads(prefs_json) if isinstance(prefs_json, str) else prefs_json
+        prefs = self._ensure_parsed(prefs_json)
         with open(self.prefs_json, "w", encoding="utf-8") as f:
             json.dump(prefs, f, indent=2)
 
@@ -546,7 +560,7 @@ class InventoryApi:
                 f.write(content)
             # Write sidecar links file
             if links_json:
-                links = json.loads(links_json) if isinstance(links_json, str) else links_json
+                links = self._ensure_parsed(links_json)
                 if links:
                     links_path = os.path.splitext(path)[0] + ".links.json"
                     with open(links_path, "w", encoding="utf-8") as f:
