@@ -2,10 +2,13 @@
 
 import csv
 import json
+import logging
 import os
 import re
 from collections import OrderedDict
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 class InventoryApi:
@@ -214,6 +217,7 @@ class InventoryApi:
                 try:
                     qty = int(float(row.get("quantity", "0")))
                 except ValueError:
+                    logger.warning("Skipping adjustment: malformed quantity %r for part %s", row.get("quantity"), pn)
                     continue
 
                 if pn not in merged:
@@ -510,8 +514,8 @@ class InventoryApi:
             if os.path.exists(self.prefs_json):
                 with open(self.prefs_json, encoding="utf-8") as f:
                     return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Failed to load preferences: %s", exc)
         return {}
 
     def save_preferences(self, prefs_json):
@@ -573,8 +577,8 @@ class InventoryApi:
                 try:
                     with open(links_path, encoding="utf-8") as lf:
                         resp["links"] = json.load(lf)
-                except (json.JSONDecodeError, OSError):
-                    pass
+                except (json.JSONDecodeError, OSError) as exc:
+                    logger.warning("Failed to read sidecar links: %s", exc)
             return resp
         return None
 
