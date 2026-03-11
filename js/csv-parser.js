@@ -59,7 +59,7 @@ function detectBOMColumns(headers) {
     if (cols.value === -1 && h === "value") cols.value = i;
     if (cols.mpn === -1 && (/^mpn$/.test(h) || /manufactur.*part/.test(h))) cols.mpn = i;
     if (cols.footprint === -1 && /footprint/.test(h)) cols.footprint = i;
-    if (cols.dnp === -1 && /^dnp$/.test(h)) cols.dnp = i;
+    if (cols.dnp === -1 && (/^dnp$/.test(h) || /exclude.*bom/.test(h) || /^procurement/.test(h))) cols.dnp = i;
   });
   // If no explicit MPN column but there is a Value column, use Value as MPN fallback
   if (cols.mpn === -1 && cols.value !== -1) cols.mpn = cols.value;
@@ -75,7 +75,8 @@ function extractLCSC(s) {
 // ── Check if a DNP column value indicates "Do Not Place" ──
 function isDnp(val) {
   const v = (val || "").trim().toLowerCase();
-  return v === "dnp" || v === "1" || v === "yes" || v === "true";
+  return v === "dnp" || v === "1" || v === "yes" || v === "true"
+      || v === "excluded from bom" || v === "excluded" || v === "exclude";
 }
 
 // ── Extract LCSC + MPN from a raw BOM row using detected column indices ──
