@@ -23,6 +23,7 @@ const Events = {
   PREFS_CHANGED:     "preferences-changed",
   CONFIRMED_CHANGED: "confirmed-match-changed",
   LINKING_MODE:      "linking-mode",
+  SAVE_AND_CLOSE:    "save-and-close",
 };
 
 // ── Event Bus ──────────────────────────────────────────
@@ -89,6 +90,7 @@ const App = {
   bomFileName: "",
   bomHeaders: [],
   bomCols: {},
+  bomDirty: false,
 
   // ── Linking state (central mutation API) ──
   links: {
@@ -259,6 +261,7 @@ async function loadPreferences() {
     if (stored.thresholds) App.preferences.thresholds = stored.thresholds;
     if (stored.lastBomDir) App.preferences.lastBomDir = stored.lastBomDir;
     if (stored.lastImportDir) App.preferences.lastImportDir = stored.lastImportDir;
+    if (stored.lastBomFile) App.preferences.lastBomFile = stored.lastBomFile;
   }
 }
 
@@ -389,6 +392,27 @@ function onInventoryUpdated(freshInventory) {
   App.inventory = freshInventory;
   updateInventoryHeader();
   EventBus.emit(Events.INVENTORY_UPDATED, App.inventory);
+}
+
+// ── Close confirmation modal ────────────────────────────
+const closeModal = Modal("close-modal", { cancelId: "close-cancel" });
+
+document.getElementById("close-discard").addEventListener("click", () => {
+  closeModal.close();
+  api("confirm_close");
+});
+
+document.getElementById("close-save").addEventListener("click", () => {
+  closeModal.close();
+  EventBus.emit(Events.SAVE_AND_CLOSE);
+});
+
+function handleWindowClose() {
+  if (!App.bomDirty) {
+    api("confirm_close");
+    return;
+  }
+  closeModal.open();
 }
 
 // ── Prevent accidental file navigation ─────────────────

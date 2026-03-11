@@ -41,6 +41,8 @@ export default [
         updateInventoryHeader: "readonly",
         loadInventory: "readonly",
         onInventoryUpdated: "readonly",
+        closeModal: "readonly",
+        handleWindowClose: "readonly",
         initApp: "readonly",
 
         // ── csv-parser.js ──
