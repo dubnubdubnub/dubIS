@@ -88,7 +88,7 @@ describe('extractValueFromDesc', () => {
   });
 
   it('returns null when no unit found', () => {
-    expect(g.extractValueFromDesc('STM32F405')).toBeNull();
+    expect(g.extractValueFromDesc('ATmega328P')).toBeNull();
   });
 });
 
