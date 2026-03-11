@@ -1,8 +1,22 @@
-"""Smoke tests for InventoryApi static methods."""
+"""Tests for InventoryApi."""
+
+import json
+import os
 
 import pytest
 
 from inventory_api import InventoryApi
+
+
+@pytest.fixture
+def api(tmp_path):
+    inst = InventoryApi()
+    inst.base_dir = str(tmp_path)
+    inst.input_csv = str(tmp_path / "purchase_ledger.csv")
+    inst.output_csv = str(tmp_path / "inventory.csv")
+    inst.adjustments_csv = str(tmp_path / "adjustments.csv")
+    inst.prefs_json = str(tmp_path / "preferences.json")
+    return inst
 
 
 class TestGetPartKey:
@@ -72,3 +86,331 @@ class TestParseCapacitance:
 
     def test_no_match_returns_inf(self):
         assert InventoryApi.parse_capacitance("no cap") == float("inf")
+
+
+class TestLoadPreferences:
+    def test_malformed_json_returns_empty(self, api):
+        with open(api.prefs_json, "w") as f:
+            f.write("{bad json!!")
+        assert api.load_preferences() == {}
+
+    def test_missing_file_returns_empty(self, api):
+        assert api.load_preferences() == {}
+
+    def test_valid_json_loaded(self, api):
+        with open(api.prefs_json, "w") as f:
+            json.dump({"theme": "dark"}, f)
+        assert api.load_preferences() == {"theme": "dark"}
+
+
+# ── Helper to write purchase_ledger.csv ──
+
+def _write_ledger(api, rows):
+    """Write rows to purchase_ledger.csv with standard fieldnames."""
+    import csv
+    with open(api.input_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=InventoryApi.FIELDNAMES)
+        writer.writeheader()
+        for r in rows:
+            row = {fn: "" for fn in InventoryApi.FIELDNAMES}
+            row.update(r)
+            writer.writerow(row)
+
+
+def _make_part(lcsc="", mpn="", qty=10, desc="Resistor 10kΩ", pkg="0402",
+               unit_price="0.01", ext_price="0.10"):
+    return {
+        "LCSC Part Number": lcsc,
+        "Manufacture Part Number": mpn,
+        "Quantity": str(qty),
+        "Description": desc,
+        "Package": pkg,
+        "Unit Price($)": unit_price,
+        "Ext.Price($)": ext_price,
+    }
+
+
+# ── New helper tests ──
+
+class TestParseQty:
+    def test_basic_int(self):
+        assert InventoryApi._parse_qty("42") == 42
+
+    def test_with_commas(self):
+        assert InventoryApi._parse_qty("1,000") == 1000
+
+    def test_float_truncated(self):
+        assert InventoryApi._parse_qty("3.7") == 3
+
+    def test_empty_returns_default(self):
+        assert InventoryApi._parse_qty("") == 0
+
+    def test_garbage_returns_default(self):
+        assert InventoryApi._parse_qty("abc", default=-1) == -1
+
+
+class TestEnsureParsed:
+    def test_parses_json_string(self):
+        assert InventoryApi._ensure_parsed('{"a": 1}') == {"a": 1}
+
+    def test_passes_through_dict(self):
+        d = {"a": 1}
+        assert InventoryApi._ensure_parsed(d) is d
+
+    def test_invalid_json_raises(self):
+        with pytest.raises(json.JSONDecodeError):
+            InventoryApi._ensure_parsed("{bad}")
+
+
+# ── Core pipeline tests ──
+
+class TestReadRawInventory:
+    def test_no_file_returns_empty(self, api):
+        fieldnames, merged = api._read_raw_inventory()
+        assert merged == {}
+        assert fieldnames == list(InventoryApi.FIELDNAMES)
+
+    def test_single_row(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=5)])
+        _, merged = api._read_raw_inventory()
+        assert "C100000" in merged
+        assert merged["C100000"]["Quantity"] == "5"
+
+    def test_merges_duplicates(self, api):
+        _write_ledger(api, [
+            _make_part(lcsc="C100000", qty=3, unit_price="0.01", ext_price="0.03"),
+            _make_part(lcsc="C100000", qty=7, unit_price="0.02", ext_price="0.14"),
+        ])
+        _, merged = api._read_raw_inventory()
+        assert merged["C100000"]["Quantity"] == "10"
+
+    def test_skips_empty_keys(self, api):
+        _write_ledger(api, [_make_part()])  # no lcsc, no mpn
+        _, merged = api._read_raw_inventory()
+        assert len(merged) == 0
+
+
+class TestApplyAdjustments:
+    def _write_adj(self, api, rows):
+        import csv
+        with open(api.adjustments_csv, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=InventoryApi.ADJ_FIELDNAMES)
+            writer.writeheader()
+            for r in rows:
+                row = {fn: "" for fn in InventoryApi.ADJ_FIELDNAMES}
+                row.update(r)
+                writer.writerow(row)
+
+    def test_set_adjustment(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        fieldnames, merged = api._read_raw_inventory()
+        self._write_adj(api, [{"type": "set", "lcsc_part": "C100000", "quantity": "5"}])
+        api._apply_adjustments(merged, fieldnames)
+        assert merged["C100000"]["Quantity"] == "5"
+
+    def test_add_adjustment(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        fieldnames, merged = api._read_raw_inventory()
+        self._write_adj(api, [{"type": "add", "lcsc_part": "C100000", "quantity": "3"}])
+        api._apply_adjustments(merged, fieldnames)
+        assert merged["C100000"]["Quantity"] == "13"
+
+    def test_consume_adjustment(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        fieldnames, merged = api._read_raw_inventory()
+        self._write_adj(api, [{"type": "consume", "lcsc_part": "C100000", "quantity": "-4"}])
+        api._apply_adjustments(merged, fieldnames)
+        assert merged["C100000"]["Quantity"] == "6"
+
+    def test_malformed_qty_skipped(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        fieldnames, merged = api._read_raw_inventory()
+        self._write_adj(api, [{"type": "set", "lcsc_part": "C100000", "quantity": "abc"}])
+        api._apply_adjustments(merged, fieldnames)
+        assert merged["C100000"]["Quantity"] == "10"  # unchanged
+
+    def test_set_creates_new_part(self, api):
+        fieldnames = list(InventoryApi.FIELDNAMES)
+        merged = {}
+        self._write_adj(api, [{"type": "set", "lcsc_part": "C999999", "quantity": "5"}])
+        api._apply_adjustments(merged, fieldnames)
+        assert "C999999" in merged
+        assert merged["C999999"]["LCSC Part Number"] == "C999999"
+
+
+class TestConsumeBom:
+    def test_basic_consume(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=20)])
+        matches = [{"part_key": "C100000", "bom_qty": 2}]
+        result = api.consume_bom(matches, 3, "test.csv")
+        # 20 - (2*3) = 14
+        part = next(r for r in result if r["lcsc"] == "C100000")
+        assert part["qty"] == 14
+
+    def test_writes_adjustments_csv(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=20)])
+        api.consume_bom([{"part_key": "C100000", "bom_qty": 1}], 2, "bom.csv")
+        assert os.path.exists(api.adjustments_csv)
+
+    def test_json_string_input(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        matches_json = json.dumps([{"part_key": "C100000", "bom_qty": 1}])
+        result = api.consume_bom(matches_json, 1, "test.csv")
+        part = next(r for r in result if r["lcsc"] == "C100000")
+        assert part["qty"] == 9
+
+    def test_zero_board_qty_raises(self, api):
+        with pytest.raises(ValueError, match="positive"):
+            api.consume_bom([{"part_key": "C100000", "bom_qty": 1}], 0, "test.csv")
+
+    def test_empty_matches_raises(self, api):
+        with pytest.raises(ValueError, match="empty"):
+            api.consume_bom([], 1, "test.csv")
+
+    def test_zero_bom_qty_raises(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        with pytest.raises(ValueError, match="bom_qty must be positive"):
+            api.consume_bom([{"part_key": "C100000", "bom_qty": 0}], 1, "test.csv")
+
+    def test_negative_board_qty_raises(self, api):
+        with pytest.raises(ValueError, match="positive"):
+            api.consume_bom([{"part_key": "C100000", "bom_qty": 1}], -1, "test.csv")
+
+
+class TestImportPurchases:
+    def test_creates_ledger(self, api):
+        rows = [_make_part(lcsc="C100000", qty=5)]
+        result = api.import_purchases(rows)
+        assert any(r["lcsc"] == "C100000" for r in result)
+
+    def test_appends_to_existing(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=5)])
+        rows = [_make_part(lcsc="C200000", qty=3, desc="Capacitor 100nF 25V")]
+        result = api.import_purchases(rows)
+        lcscs = {r["lcsc"] for r in result}
+        assert "C100000" in lcscs
+        assert "C200000" in lcscs
+
+    def test_empty_rows_error(self, api):
+        result = api.import_purchases([])
+        assert result == {"error": "No rows to import"}
+
+    def test_json_string_input(self, api):
+        rows_json = json.dumps([_make_part(lcsc="C100000", qty=5)])
+        result = api.import_purchases(rows_json)
+        assert any(r["lcsc"] == "C100000" for r in result)
+
+
+class TestAdjustPart:
+    def test_add(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        result = api.adjust_part("add", "C100000", 5)
+        part = next(r for r in result if r["lcsc"] == "C100000")
+        assert part["qty"] == 15
+
+    def test_remove(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        result = api.adjust_part("remove", "C100000", 3)
+        part = next(r for r in result if r["lcsc"] == "C100000")
+        assert part["qty"] == 7
+
+    def test_set(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        result = api.adjust_part("set", "C100000", 42)
+        part = next(r for r in result if r["lcsc"] == "C100000")
+        assert part["qty"] == 42
+
+    def test_unknown_type_error(self, api):
+        result = api.adjust_part("delete", "C100000", 1)
+        assert "error" in result
+
+    def test_negative_quantity_raises(self, api):
+        with pytest.raises(ValueError, match="non-negative"):
+            api.adjust_part("add", "C100000", -5)
+
+    def test_empty_part_key_raises(self, api):
+        with pytest.raises(ValueError, match="empty"):
+            api.adjust_part("add", "", 5)
+
+
+class TestUpdatePartPrice:
+    def test_unit_price_auto_ext(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        result = api.update_part_price("C100000", unit_price=0.05)
+        part = next(r for r in result if r["lcsc"] == "C100000")
+        assert part["unit_price"] == pytest.approx(0.05)
+        assert part["ext_price"] == pytest.approx(0.50)
+
+    def test_ext_price_auto_unit(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        result = api.update_part_price("C100000", ext_price=1.00)
+        part = next(r for r in result if r["lcsc"] == "C100000")
+        assert part["unit_price"] == pytest.approx(0.10)
+        assert part["ext_price"] == pytest.approx(1.00)
+
+    def test_missing_part_creates_row(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        result = api.update_part_price("C999999", unit_price=0.01)
+        # Should not error — creates a new row
+        assert isinstance(result, list)
+
+    def test_no_ledger_error(self, api):
+        result = api.update_part_price("C100000", unit_price=0.01)
+        assert result == {"error": "No purchase ledger found"}
+
+
+class TestDetectColumns:
+    def test_digikey_headers(self, api):
+        headers = ["Digi-Key Part Number", "Manufacturer Part Number",
+                    "Manufacturer", "Quantity", "Unit Price", "Extended Price"]
+        mapping = api.detect_columns(headers)
+        assert mapping.get("0") == "Digikey Part Number"
+        assert mapping.get("1") == "Manufacture Part Number"
+        assert mapping.get("3") == "Quantity"
+
+    def test_lcsc_headers(self, api):
+        headers = ["LCSC Part Number", "Quantity", "Description"]
+        mapping = api.detect_columns(headers)
+        assert mapping.get("0") == "LCSC Part Number"
+        assert mapping.get("1") == "Quantity"
+
+    def test_no_match(self, api):
+        headers = ["foo", "bar", "baz"]
+        mapping = api.detect_columns(headers)
+        assert mapping == {}
+
+    def test_json_string_input(self, api):
+        headers_json = json.dumps(["LCSC Part Number", "Quantity"])
+        mapping = api.detect_columns(headers_json)
+        assert mapping.get("0") == "LCSC Part Number"
+
+
+class TestFullPipeline:
+    def test_import_adjust_consume_rebuild(self, api):
+        # 1. Import
+        rows = [
+            _make_part(lcsc="C100000", qty=100, desc="Resistor 10kΩ"),
+            _make_part(lcsc="C200000", qty=50, desc="Capacitor 100nF 25V"),
+        ]
+        inv = api.import_purchases(rows)
+        assert len(inv) == 2
+
+        # 2. Adjust
+        inv = api.adjust_part("add", "C100000", 10)
+        part = next(r for r in inv if r["lcsc"] == "C100000")
+        assert part["qty"] == 110
+
+        # 3. Consume
+        matches = [
+            {"part_key": "C100000", "bom_qty": 5},
+            {"part_key": "C200000", "bom_qty": 2},
+        ]
+        inv = api.consume_bom(matches, 3, "board.csv")
+        r_part = next(r for r in inv if r["lcsc"] == "C100000")
+        c_part = next(r for r in inv if r["lcsc"] == "C200000")
+        assert r_part["qty"] == 95   # 110 - 15
+        assert c_part["qty"] == 44   # 50 - 6
+
+        # 4. Rebuild
+        inv2 = api.rebuild_inventory()
+        assert len(inv2) == 2
