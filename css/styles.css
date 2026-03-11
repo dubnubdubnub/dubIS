@@ -1093,6 +1093,36 @@ tr.row-teal td.status { color: var(--color-teal); }
   font-family: "SFMono-Regular", Consolas, monospace;
 }
 
+.lcsc-preview-desc {
+  padding: 0 12px 6px;
+  font-size: 11px;
+  color: #656d76;
+  line-height: 1.4;
+}
+
+.lcsc-preview-attrs {
+  padding: 6px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-top: 1px solid #f0f0f0;
+}
+.lcsc-preview-attr {
+  font-size: 11px;
+  color: #656d76;
+  background: #f6f8fa;
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.lcsc-preview-attr strong { color: #1f2328; font-weight: 600; }
+
+.lcsc-preview-actions {
+  display: flex;
+  border-top: 1px solid #f0f0f0;
+}
+.lcsc-preview-actions .lcsc-preview-link { flex: 1; }
+
 .lcsc-preview-link {
   display: block;
   padding: 8px 12px;
