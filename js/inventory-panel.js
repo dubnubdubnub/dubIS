@@ -20,6 +20,33 @@
 
   const SECTION_ORDER = App.SECTION_ORDER;
 
+  // ── Designator color coding ──
+
+  const REF_COLOR_MAP = {
+    R: "ref-r", RM: "ref-r",
+    C: "ref-c",
+    Y: "ref-osc", X: "ref-osc",
+    U: "ref-ic", IC: "ref-ic", Q: "ref-ic",
+    L: "ref-l",
+    D: "ref-d", LED: "ref-d",
+  };
+
+  function refColorClass(ref) {
+    const m = ref.trim().match(/^([A-Za-z]+)/);
+    if (!m) return "";
+    return REF_COLOR_MAP[m[1].toUpperCase()] || "";
+  }
+
+  function colorizeRefs(refsStr) {
+    if (!refsStr) return "";
+    return refsStr.split(/,\s*/).map(ref => {
+      const cls = refColorClass(ref);
+      return cls
+        ? '<span class="' + cls + '">' + escHtml(ref) + '</span>'
+        : escHtml(ref);
+    }).join(", ");
+  }
+
   // ── Main render ──
 
   function render() {
@@ -134,13 +161,13 @@
     const isLinkingSource = App.links.linkingMode && App.links.linkingInvItem === r.inv;
     const refsStr = r.bom.refs || "";
     tr.innerHTML = `
+      <td class="refs-cell" title="${escHtml(refsStr)}">${colorizeRefs(refsStr)}</td>
       <td class="status">${icon}</td>
       <td class="mono">${escHtml(dispLcsc)}</td>
       <td class="mono" title="${escHtml(dispMpn)}">${escHtml(dispMpn)}</td>
       <td class="${qtyClass}" style="text-align:right;font-weight:600">${r.effectiveQty}</td>
       <td class="inv-qty-cell ${qtyClass}" style="text-align:right;font-weight:600">${haveHtml}</td>
       <td class="${st === 'missing' ? 'muted' : ''}">${escHtml(invDesc)}</td>
-      <td class="refs-cell" title="${escHtml(refsStr)}">${escHtml(refsStr)}</td>
       <td class="mono" style="text-align:center">${matchLabel}</td>
       <td class="btn-group">${confirmBtnHtml}${adjBtnHtml}${linkBtnHtml}</td>
     `;
@@ -226,13 +253,13 @@
     tableWrap.className = "table-wrap";
     const table = document.createElement("table");
     table.innerHTML = `<thead><tr>
+      <th class="refs-col">Designators</th>
       <th style="width:24px"></th>
       <th style="width:90px">LCSC</th>
       <th style="width:140px">MPN</th>
       <th style="width:50px">Need</th>
       <th style="width:50px">Have</th>
       <th>Description</th>
-      <th class="refs-col">Designators</th>
       <th style="width:78px;text-align:center">Match</th>
       <th></th>
     </tr></thead>`;
@@ -272,12 +299,12 @@
       altTr.dataset.altFor = partKey;
       altTr.innerHTML =
         '<td></td>' +
+        '<td></td>' +
         '<td class="mono">' + escHtml(alt.lcsc || '') + '</td>' +
         '<td class="mono" title="' + escHtml(alt.mpn || '') + '">' + escHtml(alt.mpn || '') + '</td>' +
         '<td></td>' +
         '<td style="text-align:right;font-weight:600">' + alt.qty + '</td>' +
         '<td>' + escHtml(alt.description) + ' <span class="muted">' + escHtml(alt.package) + '</span></td>' +
-        '<td></td>' +
         '<td></td>' +
         '<td class="btn-group"><button class="swap-btn" title="Use this alt as the selected part">Swap</button><button class="adj-btn" title="Adjust qty">Adjust</button></td>';
       altTr.querySelector(".adj-btn").addEventListener("click", (e) => {

@@ -321,6 +321,12 @@ tbody tr:hover { background: var(--bg-hover) !important; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ref-r  { color: var(--color-red); }
+.ref-c  { color: var(--color-blue); }
+.ref-osc { color: var(--color-yellow); }
+.ref-ic { color: var(--color-pink); }
+.ref-l  { color: var(--color-green); }
+.ref-d  { color: var(--color-orange); }
 
 /* ── Row Color Coding ──────────────────────────────────── */
 tr.row-green { background: #23863610; }
