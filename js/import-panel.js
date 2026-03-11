@@ -194,13 +194,16 @@
       html += '</tbody></table></div>';
     }
 
-    // Import button — always enabled, user has full control
+    // Import / Clear buttons
     const warns = countWarnings();
     const warnText = warns > 0 ? " (" + warns + " warnings)" : "";
     html += `
-      <button class="import-btn" id="do-import-btn">
-        Import ${parsedRows.length} rows${warnText}
-      </button>
+      <div class="import-btn-row">
+        <button class="clear-import-btn" id="clear-import-btn" title="Clear import">✕</button>
+        <button class="import-btn" id="do-import-btn">
+          Import ${parsedRows.length} rows${warnText}
+        </button>
+      </div>
     `;
 
     mapper.innerHTML = html;
@@ -252,6 +255,21 @@
     if (importBtn) {
       importBtn.addEventListener("click", doImport);
     }
+
+    // Attach clear button listener
+    const clearBtn = document.getElementById("clear-import-btn");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", clearImport);
+    }
+  }
+
+  function clearImport() {
+    parsedHeaders = [];
+    parsedRows = [];
+    columnMapping = {};
+    importFileName = "";
+    AppLog.info("Cleared import panel");
+    init();
   }
 
   async function doImport() {
