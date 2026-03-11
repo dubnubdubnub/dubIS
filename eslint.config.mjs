@@ -70,6 +70,7 @@ export default [
         getMult: "readonly",
         parseEEValue: "readonly",
         extractValueFromDesc: "readonly",
+        extractBomValue: "readonly",
         componentTypeFromRefs: "readonly",
         componentTypeFromSection: "readonly",
         isPassiveSection: "readonly",
