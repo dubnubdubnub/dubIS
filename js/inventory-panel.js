@@ -163,7 +163,7 @@
     tr.innerHTML = `
       <td class="refs-cell" title="${escHtml(refsStr)}">${colorizeRefs(refsStr)}</td>
       <td class="status">${icon}</td>
-      <td class="mono">${escHtml(dispLcsc)}</td>
+      <td class="mono"${dispLcsc && /^C\d{4,}$/i.test(dispLcsc) ? ' data-lcsc="' + escHtml(dispLcsc) + '"' : ''}>${escHtml(dispLcsc)}</td>
       <td class="mono" title="${escHtml(dispMpn)}">${escHtml(dispMpn)}</td>
       <td class="${qtyClass}" style="text-align:right;font-weight:600">${r.effectiveQty}</td>
       <td class="inv-qty-cell ${qtyClass}" style="text-align:right;font-weight:600">${haveHtml}</td>
@@ -300,7 +300,7 @@
       altTr.innerHTML =
         '<td></td>' +
         '<td></td>' +
-        '<td class="mono">' + escHtml(alt.lcsc || '') + '</td>' +
+        '<td class="mono"' + (alt.lcsc && /^C\d{4,}$/i.test(alt.lcsc) ? ' data-lcsc="' + escHtml(alt.lcsc) + '"' : '') + '>' + escHtml(alt.lcsc || '') + '</td>' +
         '<td class="mono" title="' + escHtml(alt.mpn || '') + '">' + escHtml(alt.mpn || '') + '</td>' +
         '<td></td>' +
         '<td style="text-align:right;font-weight:600">' + alt.qty + '</td>' +
@@ -362,7 +362,7 @@
         const linkBtnStr = bomData ? `<button class="link-btn${isSource ? ' active' : ''}" title="Link to missing BOM row">Link</button>` : '';
         const valueStr = stockValue > 0 ? "$" + stockValue.toFixed(2) : "\u2014";
         row.innerHTML = `
-          <span class="part-id">${escHtml(displayId)}</span>
+          <span class="part-id"${displayId && /^C\d{4,}$/i.test(displayId) ? ' data-lcsc="' + escHtml(displayId) + '"' : ''}>${escHtml(displayId)}</span>
           <span class="part-mpn" title="${escHtml(displayMpn)}">${escHtml(displayMpn)}</span>
           <span class="part-value">${valueStr}</span>
           <span class="part-qty" style="color:${qtyColor}">${showPriceWarn ? '<button class="price-warn-btn" title="No price data — click to set">\u26A0</button>' : ''}${item.qty}</span>
