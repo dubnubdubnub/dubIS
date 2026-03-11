@@ -23,12 +23,12 @@
     const joined = row.join("").toLowerCase();
     if (joined.includes("subtotal") || joined.includes("total:")) return "subtotal";
 
+    // DNP check before part-ID validation — DNP rows without MPN/LCSC are not warnings
+    if (bomCols.dnp !== -1 && isDnp(row[bomCols.dnp])) return "dnp";
+
     const { lcsc, mpn } = extractPartIds(row, bomCols);
 
     if (!lcsc && !mpn) return "warn";
-
-    // DNP rows with valid part IDs are always OK — skip qty validation
-    if (bomCols.dnp !== -1 && isDnp(row[bomCols.dnp])) return "ok";
 
     if (bomCols.qty !== -1) {
       const rawQty = parseInt(row[bomCols.qty], 10);
@@ -320,6 +320,7 @@
 
       if (cls === "warn") tr.className = "row-warn";
       else if (cls === "subtotal") tr.className = "row-subtotal";
+      else if (cls === "dnp") tr.className = "row-dnp";
       else if (st && STATUS_ROW_CLASS[st]) tr.className = STATUS_ROW_CLASS[st];
 
       if (App.links.linkingMode && App.links.linkingInvItem && cls === "ok") {
