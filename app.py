@@ -46,11 +46,13 @@ def main():
     def on_closing():
         if api._force_close:
             return True
+        if not api._bom_dirty:
+            return True  # No unsaved changes — close immediately
+        # Unsaved changes — show the confirmation modal
         try:
-            window.evaluate_js("handleWindowClose()")
+            window.evaluate_js("closeModal.open()")
         except Exception:
-            api._force_close = True
-            return True
+            return True  # Can't show modal — allow close as fallback
         return False
 
     window.events.closing += on_closing

@@ -422,6 +422,21 @@ class TestConfirmClose:
     def test_closing_flag_default(self, api):
         assert api._closing is False
 
+    def test_bom_dirty_flag_default(self, api):
+        assert api._bom_dirty is False
+
+    def test_set_bom_dirty(self, api):
+        api.set_bom_dirty(True)
+        assert api._bom_dirty is True
+        api.set_bom_dirty(False)
+        assert api._bom_dirty is False
+
+    def test_set_bom_dirty_coerces(self, api):
+        api.set_bom_dirty(1)
+        assert api._bom_dirty is True
+        api.set_bom_dirty(0)
+        assert api._bom_dirty is False
+
     def test_confirm_close_sets_flag(self, api, monkeypatch):
         import types
         mock_win = types.SimpleNamespace(destroy=lambda: None)
