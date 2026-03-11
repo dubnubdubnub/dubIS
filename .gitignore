@@ -3,3 +3,6 @@ __pycache__/
 *.pyo
 .env
 data/*.csv
+data/*.json
+node_modules/
+.claude/

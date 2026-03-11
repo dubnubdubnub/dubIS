@@ -92,7 +92,6 @@ class InventoryApi:
     @staticmethod
     def categorize(row):
         desc = (row.get("Description") or "").lower()
-        pkg = (row.get("Package") or "").lower()
         mpn = (row.get("Manufacture Part Number") or "").lower()
 
         connector_kw = [
