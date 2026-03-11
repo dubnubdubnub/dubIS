@@ -19,25 +19,35 @@ function parseEEValue(str) {
   if (!str) return null;
   str = str.split(/[\/\u00b1%]/)[0].trim();
   str = str.replace(/[FH\u03a9\u2126]+$/i, '').replace(/ohm$/i, '').trim();
-  var m = str.match(/^(\d+\.?\d*)([pnumkMGR\u00b5\u03bc])(\d+)$/);
-  if (m) { var mul = getMult(m[2]); return mul != null ? parseFloat(m[1]+'.'+m[3]) * mul : null; }
+  let m = str.match(/^(\d+\.?\d*)([pnumkMGR\u00b5\u03bc])(\d+)$/);
+  if (m) { const mul = getMult(m[2]); return mul != null ? parseFloat(m[1]+'.'+m[3]) * mul : null; }
   m = str.match(/^(\d+\.?\d*)\s*([pnumkMGR\u00b5\u03bc])$/);
-  if (m) { var mul = getMult(m[2]); return mul != null ? parseFloat(m[1]) * mul : null; }
+  if (m) { const mul = getMult(m[2]); return mul != null ? parseFloat(m[1]) * mul : null; }
   return null;
 }
 
 function extractValueFromDesc(desc) {
   if (!desc) return null;
-  var m = desc.match(/(\d+\.?\d*)\s*([pnumkMG\u00b5\u03bc])?\s*(F|\u03a9|\u2126|H)/i);
+  const m = desc.match(/(\d+\.?\d*)\s*([pnumkMG\u00b5\u03bc])?\s*(F|\u03a9|\u2126|H)/i);
   if (!m) return null;
-  var num = parseFloat(m[1]);
-  var mul = m[2] ? (getMult(m[2]) || 1) : 1;
+  const num = parseFloat(m[1]);
+  const mul = m[2] ? (getMult(m[2]) || 1) : 1;
   return num * mul;
+}
+
+// ── Extract BOM value (tries value then desc, both parseEE and extractFromDesc) ──
+
+function extractBomValue(bom) {
+  let val = parseEEValue(bom.value);
+  if (val == null) val = extractValueFromDesc(bom.value);
+  if (val == null) val = parseEEValue(bom.desc);
+  if (val == null) val = extractValueFromDesc(bom.desc);
+  return val;
 }
 
 function componentTypeFromRefs(refs) {
   if (!refs) return null;
-  var ch = refs.trim().charAt(0).toUpperCase();
+  const ch = refs.trim().charAt(0).toUpperCase();
   return 'CRL'.includes(ch) ? ch : null;
 }
 
@@ -57,18 +67,15 @@ function isPassiveSection(section) {
 }
 
 function packagesCompatible(bom, invItem) {
-  var bomPkg = (bom.footprint || "").toUpperCase();
-  var invPkg = (invItem.package || "").toUpperCase();
+  const bomPkg = (bom.footprint || "").toUpperCase();
+  const invPkg = (invItem.package || "").toUpperCase();
   if (!bomPkg || !invPkg) return true;
   return bomPkg.includes(invPkg) || invPkg.includes(bomPkg);
 }
 
 function valuesCompatible(bom, invItem) {
-  var bomVal = parseEEValue(bom.value);
-  if (bomVal == null) bomVal = extractValueFromDesc(bom.value);
-  if (bomVal == null) bomVal = parseEEValue(bom.desc);
-  if (bomVal == null) bomVal = extractValueFromDesc(bom.desc);
-  var invVal = extractValueFromDesc(invItem.description);
+  const bomVal = extractBomValue(bom);
+  const invVal = extractValueFromDesc(invItem.description);
   if (bomVal == null || invVal == null) return true;
   if (bomVal === 0 && invVal === 0) return true;
   if (bomVal === 0 || invVal === 0) return false;
@@ -98,11 +105,11 @@ function buildLookupMaps(inventory) {
     if (item.lcsc) invByLCSC[item.lcsc.toUpperCase()] = item;
     if (item.mpn) invByMPN[item.mpn.toUpperCase()] = item;
 
-    var type = componentTypeFromSection(item.section);
+    const type = componentTypeFromSection(item.section);
     if (!type) return;
-    var val = extractValueFromDesc(item.description);
+    const val = extractValueFromDesc(item.description);
     if (val == null) return;
-    var key = valueKey(type, val);
+    const key = valueKey(type, val);
     if (!invByValue[key]) invByValue[key] = [];
     invByValue[key].push(item);
   });
@@ -113,21 +120,18 @@ function buildLookupMaps(inventory) {
 // ── Find value match (possible match) ──
 
 function findValueMatch(bom, inventory, invByValue) {
-  var bomVal = parseEEValue(bom.value);
-  if (bomVal == null) bomVal = extractValueFromDesc(bom.value);
-  if (bomVal == null) bomVal = parseEEValue(bom.desc);
-  if (bomVal == null) bomVal = extractValueFromDesc(bom.desc);
+  const bomVal = extractBomValue(bom);
   if (bomVal == null) return null;
 
-  var bomType = componentTypeFromRefs(bom.refs);
-  var best = null, bestQty = -1;
+  const bomType = componentTypeFromRefs(bom.refs);
+  let best = null, bestQty = -1;
 
   inventory.forEach(function(item) {
     if (bomType) {
-      var invType = componentTypeFromSection(item.section);
+      const invType = componentTypeFromSection(item.section);
       if (invType && invType !== bomType) return;
     }
-    var invVal = extractValueFromDesc(item.description);
+    const invVal = extractValueFromDesc(item.description);
     if (invVal == null) return;
     if (bomVal === 0 && invVal === 0) { /* match */ }
     else if (bomVal === 0 || invVal === 0) return;
@@ -142,13 +146,13 @@ function findValueMatch(bom, inventory, invByValue) {
 
 function findAlternatives(bom, primaryInv, invByValue) {
   if (!primaryInv) return [];
-  var bomType = componentTypeFromRefs(bom.refs);
+  let bomType = componentTypeFromRefs(bom.refs);
   if (!bomType) bomType = componentTypeFromSection(primaryInv.section);
   if (!bomType) return [];
-  var val = extractValueFromDesc(primaryInv.description);
+  const val = extractValueFromDesc(primaryInv.description);
   if (val == null) return [];
-  var key = valueKey(bomType, val);
-  var candidates = invByValue[key] || [];
+  const key = valueKey(bomType, val);
+  const candidates = invByValue[key] || [];
   return candidates.filter(function(c) { return c !== primaryInv; });
 }
 
@@ -252,7 +256,7 @@ function matchBOM(aggregated, inventory, manualLinks, confirmedMatches) {
       status = "short";
     }
 
-    let alts = findAlternatives(bom, inv, invByValue);
+    const alts = findAlternatives(bom, inv, invByValue);
 
     results.push({ bom, inv, status, matchType, alts });
   });
