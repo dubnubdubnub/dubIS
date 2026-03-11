@@ -1,0 +1,17 @@
+{
+  "manualLinks": [],
+  "confirmedMatches": [
+    {
+      "bomKey": "0402WGF1003TCE",
+      "invPartKey": "C2906859"
+    },
+    {
+      "bomKey": "0402WGF3300TCE",
+      "invPartKey": "C2930002"
+    },
+    {
+      "bomKey": "CL10A226MQ8NRNC",
+      "invPartKey": "C86295"
+    }
+  ]
+}
