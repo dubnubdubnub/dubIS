@@ -132,6 +132,7 @@
       : '';
     const linkBtnHtml = r.inv ? `<button class="link-btn${App.links.linkingMode && App.links.linkingInvItem === r.inv ? ' active' : ''}" title="Link to missing BOM row">Link</button>` : '';
     const isLinkingSource = App.links.linkingMode && App.links.linkingInvItem === r.inv;
+    const refsStr = r.bom.refs || "";
     tr.innerHTML = `
       <td class="status">${icon}</td>
       <td class="mono">${escHtml(dispLcsc)}</td>
@@ -139,6 +140,7 @@
       <td class="${qtyClass}" style="text-align:right;font-weight:600">${r.effectiveQty}</td>
       <td class="inv-qty-cell ${qtyClass}" style="text-align:right;font-weight:600">${haveHtml}</td>
       <td class="${st === 'missing' ? 'muted' : ''}">${escHtml(invDesc)}</td>
+      <td class="refs-cell" title="${escHtml(refsStr)}">${escHtml(refsStr)}</td>
       <td class="mono" style="text-align:center">${matchLabel}</td>
       <td class="btn-group">${confirmBtnHtml}${adjBtnHtml}${linkBtnHtml}</td>
     `;
@@ -230,6 +232,7 @@
       <th style="width:50px">Need</th>
       <th style="width:50px">Have</th>
       <th>Description</th>
+      <th class="refs-col">Designators</th>
       <th style="width:78px;text-align:center">Match</th>
       <th></th>
     </tr></thead>`;
@@ -274,6 +277,7 @@
         '<td></td>' +
         '<td style="text-align:right;font-weight:600">' + alt.qty + '</td>' +
         '<td>' + escHtml(alt.description) + ' <span class="muted">' + escHtml(alt.package) + '</span></td>' +
+        '<td></td>' +
         '<td></td>' +
         '<td class="btn-group"><button class="swap-btn" title="Use this alt as the selected part">Swap</button><button class="adj-btn" title="Adjust qty">Adjust</button></td>';
       altTr.querySelector(".adj-btn").addEventListener("click", (e) => {
