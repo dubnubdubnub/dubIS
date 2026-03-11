@@ -52,7 +52,7 @@ function detectBOMColumns(headers) {
   const cols = { lcsc: -1, mpn: -1, qty: -1, ref: -1, desc: -1, value: -1, footprint: -1, dnp: -1 };
   const lower = headers.map(h => h.toLowerCase());
   lower.forEach((h, i) => {
-    if (cols.lcsc === -1 && (/lcsc/.test(h) || /jlcpcb/.test(h) || /supplier.*part/.test(h) || (h.includes("part") && (h.includes("#") || h.includes("number"))))) cols.lcsc = i;
+    if (cols.lcsc === -1 && (/lcsc/.test(h) || /jlcpcb/.test(h) || /supplier.*part/.test(h) || (h.includes("part") && (h.includes("#") || h.includes("number")) && !h.includes("manufactur")))) cols.lcsc = i;
     if (cols.ref === -1 && (/designator/.test(h) || /reference/.test(h))) cols.ref = i;
     if (cols.qty === -1 && (/^qty$/.test(h) || /quantity/.test(h))) cols.qty = i;
     if (cols.desc === -1 && (/description/.test(h) || /^desc$/.test(h) || /^comment$/.test(h))) cols.desc = i;
