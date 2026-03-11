@@ -124,21 +124,32 @@ function findValueMatch(bom, inventory, invByValue) {
   if (bomVal == null) return null;
 
   const bomType = componentTypeFromRefs(bom.refs);
-  let best = null, bestQty = -1;
 
-  inventory.forEach(function(item) {
-    if (bomType) {
-      const invType = componentTypeFromSection(item.section);
-      if (invType && invType !== bomType) return;
+  // O(1) lookup when component type is known
+  if (bomType) {
+    const key = valueKey(bomType, bomVal);
+    const candidates = invByValue[key] || [];
+    let best = null, bestQty = -1;
+    for (let i = 0; i < candidates.length; i++) {
+      if (candidates[i].qty > bestQty) { best = candidates[i]; bestQty = candidates[i].qty; }
     }
-    const invVal = extractValueFromDesc(item.description);
-    if (invVal == null) return;
-    if (bomVal === 0 && invVal === 0) { /* match */ }
-    else if (bomVal === 0 || invVal === 0) return;
-    else if (Math.abs(bomVal - invVal) / Math.max(Math.abs(bomVal), Math.abs(invVal)) > VALUE_TOLERANCE) return;
-    if (item.qty > bestQty) { best = item; bestQty = item.qty; }
-  });
+    return best;
+  }
 
+  // Fallback: scan all value groups when type is unknown
+  let best = null, bestQty = -1;
+  for (const key in invByValue) {
+    const candidates = invByValue[key];
+    for (let i = 0; i < candidates.length; i++) {
+      const item = candidates[i];
+      const invVal = extractValueFromDesc(item.description);
+      if (invVal == null) continue;
+      if (bomVal === 0 && invVal === 0) { /* match */ }
+      else if (bomVal === 0 || invVal === 0) continue;
+      else if (Math.abs(bomVal - invVal) / Math.max(Math.abs(bomVal), Math.abs(invVal)) > VALUE_TOLERANCE) continue;
+      if (item.qty > bestQty) { best = item; bestQty = item.qty; }
+    }
+  }
   return best;
 }
 
