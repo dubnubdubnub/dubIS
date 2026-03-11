@@ -85,6 +85,16 @@ describe('detectBOMColumns', () => {
     const cols = g.detectBOMColumns(headers);
     expect(cols.mpn).toBe(1); // falls back to Value column
   });
+
+  it('does not misdetect Manufacturer Part Number as LCSC', () => {
+    const headers = ['Designator*', 'Quantity*', 'Manufacturer Part Number*', 'Value', 'Procurement Type', 'Exclude from BOM'];
+    const cols = g.detectBOMColumns(headers);
+    expect(cols.lcsc).toBe(-1);
+    expect(cols.mpn).toBe(2);
+    expect(cols.ref).toBe(0);
+    expect(cols.qty).toBe(1);
+    expect(cols.value).toBe(3);
+  });
 });
 
 describe('extractPartIds', () => {
@@ -140,5 +150,41 @@ describe('processBOM', () => {
     const result = g.processBOM(csv, 'test.csv');
     expect(result).not.toBeNull();
     expect(result.aggregated.size).toBe(1);
+  });
+
+  it('preserves designators from NextPCB/KiCad format with asterisk headers', () => {
+    const csv = [
+      'Designator*,Quantity*,Manufacturer Part Number*,Value,Procurement Type,Exclude from BOM,Exclude from Board',
+      '"C1,C2,C4,C5",4,CL05A475MP5NRNC,4u7,,,',
+      '"R1,R2,R3",3,0402WGF3300TCE,330R,,,',
+    ].join('\n');
+    const result = g.processBOM(csv, 'test-nextpcb.csv');
+    expect(result).not.toBeNull();
+    expect(result.cols.ref).toBe(0);
+    expect(result.aggregated.size).toBe(2);
+    const parts = [...result.aggregated.values()];
+    const cap = parts.find(p => p.mpn === 'CL05A475MP5NRNC');
+    expect(cap).toBeDefined();
+    expect(cap.refs).toBe('C1,C2,C4,C5');
+    expect(cap.qty).toBe(4);
+    const res = parts.find(p => p.mpn === '0402WGF3300TCE');
+    expect(res).toBeDefined();
+    expect(res.refs).toBe('R1,R2,R3');
+    expect(res.qty).toBe(3);
+  });
+
+  it('aggregates refs when same MPN appears in multiple rows', () => {
+    const csv = [
+      'Reference,Quantity,MPN,Value',
+      'R1,1,RC0402FR-0710KL,10k',
+      'R2,1,RC0402FR-0710KL,10k',
+      'R3,1,RC0402FR-0710KL,10k',
+    ].join('\n');
+    const result = g.processBOM(csv, 'test-split.csv');
+    expect(result).not.toBeNull();
+    const parts = [...result.aggregated.values()];
+    expect(parts.length).toBe(1);
+    expect(parts[0].refs).toBe('R1, R2, R3');
+    expect(parts[0].qty).toBe(3);
   });
 });
