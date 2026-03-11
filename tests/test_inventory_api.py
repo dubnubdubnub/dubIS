@@ -259,6 +259,23 @@ class TestConsumeBom:
         part = next(r for r in result if r["lcsc"] == "C100000")
         assert part["qty"] == 9
 
+    def test_zero_board_qty_raises(self, api):
+        with pytest.raises(ValueError, match="positive"):
+            api.consume_bom([{"part_key": "C100000", "bom_qty": 1}], 0, "test.csv")
+
+    def test_empty_matches_raises(self, api):
+        with pytest.raises(ValueError, match="empty"):
+            api.consume_bom([], 1, "test.csv")
+
+    def test_zero_bom_qty_raises(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        with pytest.raises(ValueError, match="bom_qty must be positive"):
+            api.consume_bom([{"part_key": "C100000", "bom_qty": 0}], 1, "test.csv")
+
+    def test_negative_board_qty_raises(self, api):
+        with pytest.raises(ValueError, match="positive"):
+            api.consume_bom([{"part_key": "C100000", "bom_qty": 1}], -1, "test.csv")
+
 
 class TestImportPurchases:
     def test_creates_ledger(self, api):
@@ -306,6 +323,14 @@ class TestAdjustPart:
     def test_unknown_type_error(self, api):
         result = api.adjust_part("delete", "C100000", 1)
         assert "error" in result
+
+    def test_negative_quantity_raises(self, api):
+        with pytest.raises(ValueError, match="non-negative"):
+            api.adjust_part("add", "C100000", -5)
+
+    def test_empty_part_key_raises(self, api):
+        with pytest.raises(ValueError, match="empty"):
+            api.adjust_part("add", "", 5)
 
 
 class TestUpdatePartPrice:
