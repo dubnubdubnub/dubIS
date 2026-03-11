@@ -579,7 +579,7 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 .import-section { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 12px; }
 .import-section h3 { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
 
-.col-mapper { margin: 8px 0; }
+.col-mapper { margin: 8px 0; flex-shrink: 0; }
 .col-mapper-row {
   display: flex;
   align-items: center;
@@ -609,11 +609,17 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 }
 .col-mapper-row select.mapped { border-color: var(--color-green); color: var(--color-green); }
 
-.import-preview {
-  max-height: none;
+#import-mapper {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+}
+
+.import-preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 .import-preview table { font-size: 11px; }
 .import-preview th {
@@ -662,6 +668,7 @@ td.btn-group button + button { margin-left: 6px; }
 .staging-toolbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 6px 12px; border-bottom: 1px solid var(--bg-raised);
+  flex-shrink: 0;
 }
 .staging-toolbar h3 {
   font-size: 12px; color: var(--text-secondary); margin: 0;
@@ -678,6 +685,7 @@ td.btn-group button + button { margin-left: 6px; }
   font-size: 13px;
   font-weight: 600;
   width: 100%;
+  flex-shrink: 0;
   transition: all 0.15s;
 }
 .import-btn:hover { background: #23863640; border-color: var(--color-green); }
