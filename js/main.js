@@ -23,6 +23,7 @@ const Events = {
   PREFS_CHANGED:     "preferences-changed",
   CONFIRMED_CHANGED: "confirmed-match-changed",
   LINKING_MODE:      "linking-mode",
+  LINKS_CHANGED:     "links-changed",
   SAVE_AND_CLOSE:    "save-and-close",
 };
 
@@ -98,9 +99,11 @@ const App = {
     confirmedMatches: [],
     linkingMode: false,
     linkingInvItem: null,
+    linkingBomRow: null,
 
     addManualLink(bk, ipk) {
       this.manualLinks.push({ bomKey: bk, invPartKey: ipk });
+      EventBus.emit(Events.LINKS_CHANGED);
     },
     confirmMatch(bk, ipk) {
       this.confirmedMatches = this.confirmedMatches.filter(c => c.bomKey !== bk);
@@ -114,7 +117,14 @@ const App = {
     setLinkingMode(active, invItem) {
       this.linkingMode = active;
       this.linkingInvItem = active ? invItem : null;
+      this.linkingBomRow = null;
       EventBus.emit(Events.LINKING_MODE, { active, invItem: this.linkingInvItem });
+    },
+    setReverseLinkingMode(active, bomRow) {
+      this.linkingMode = active;
+      this.linkingBomRow = active ? bomRow : null;
+      this.linkingInvItem = null;
+      EventBus.emit(Events.LINKING_MODE, { active, bomRow: this.linkingBomRow });
     },
     loadFromSaved(savedLinks) {
       if (Array.isArray(savedLinks)) {
@@ -129,12 +139,14 @@ const App = {
       }
       this.linkingMode = false;
       this.linkingInvItem = null;
+      this.linkingBomRow = null;
     },
     clearAll() {
       this.manualLinks = [];
       this.confirmedMatches = [];
       this.linkingMode = false;
       this.linkingInvItem = null;
+      this.linkingBomRow = null;
     },
     hasLinks() {
       return this.manualLinks.length > 0 || this.confirmedMatches.length > 0;
