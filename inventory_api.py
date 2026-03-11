@@ -397,7 +397,7 @@ class InventoryApi:
         for tier in (result_data.get("productPriceList") or []):
             if isinstance(tier, dict):
                 prices.append({
-                    "qty": tier.get("startPurchasedNumber", 0),
+                    "qty": tier.get("ladder", 0),
                     "price": tier.get("productPrice", 0),
                 })
 
