@@ -200,10 +200,34 @@ const App = {
 
   // ── Configuration (read-only, from data/constants.json) ──
   SECTION_ORDER: _SHARED_CONSTANTS.SECTION_ORDER,
+  SECTION_HIERARCHY: [],   // [{name, children: [...] | null}]
+  FLAT_SECTIONS: [],       // flat list of all section strings
 
   // ── Preferences (owned by main.js) ──
   preferences: { thresholds: {} },
 };
+
+// Parse mixed SECTION_ORDER into hierarchy + flat list
+(function parseSectionOrder() {
+  var raw = App.SECTION_ORDER;
+  var hierarchy = [];
+  var flat = [];
+  for (var i = 0; i < raw.length; i++) {
+    var entry = raw[i];
+    if (typeof entry === "string") {
+      hierarchy.push({ name: entry, children: null });
+      flat.push(entry);
+    } else {
+      hierarchy.push({ name: entry.name, children: entry.children });
+      flat.push(entry.name);
+      for (var j = 0; j < entry.children.length; j++) {
+        flat.push(entry.name + " > " + entry.children[j]);
+      }
+    }
+  }
+  App.SECTION_HIERARCHY = hierarchy;
+  App.FLAT_SECTIONS = flat;
+})();
 
 // ── Toast ──────────────────────────────────────────────
 function showToast(msg) {
@@ -320,7 +344,14 @@ async function savePreferences() {
 }
 
 function getThreshold(section) {
-  return App.preferences.thresholds[section] ?? 50;
+  if (section in App.preferences.thresholds) return App.preferences.thresholds[section];
+  // Fallback: compound "Parent > Sub" → try parent threshold
+  var sep = section.indexOf(" > ");
+  if (sep !== -1) {
+    var parent = section.substring(0, sep);
+    if (parent in App.preferences.thresholds) return App.preferences.thresholds[parent];
+  }
+  return 50;
 }
 
 function setThreshold(section, value) {
@@ -363,46 +394,58 @@ function updateSliderTrack(slider) {
   slider.style.background = g;
 }
 
+function _createPrefsSliderRow(section, indent) {
+  const val = getThreshold(section);
+  const row = document.createElement("div");
+  row.className = "prefs-row";
+  if (indent) row.style.paddingLeft = "18px";
+  row.innerHTML = `
+    <label class="prefs-label" ${indent ? 'style="font-size:11px;color:var(--text-secondary)"' : ''}>${escHtml(indent ? section.split(" > ").pop() : section)}</label>
+    <input type="range" class="prefs-slider" min="0" max="${Math.max(val, PREFS_MAX_THRESHOLD)}" step="1" value="${val}" data-section="${escHtml(section)}">
+    <span class="prefs-value-wrap">$<input type="number" class="prefs-input" min="0" step="1" value="${val}"></span>
+  `;
+  const slider = row.querySelector(".prefs-slider");
+  const input = row.querySelector(".prefs-input");
+  updateSliderTrack(slider);
+
+  slider.addEventListener("input", () => {
+    input.value = slider.value;
+    updateSliderTrack(slider);
+  });
+
+  input.addEventListener("input", () => {
+    const v = parseInt(input.value, 10);
+    if (isNaN(v) || v < 0) return;
+    slider.max = Math.max(v, PREFS_MIN_THRESHOLD);
+    slider.value = v;
+    updateSliderTrack(slider);
+  });
+
+  input.addEventListener("blur", () => {
+    let v = parseInt(input.value, 10);
+    if (isNaN(v) || v < 0) v = 0;
+    input.value = v;
+    slider.max = Math.max(v, PREFS_MIN_THRESHOLD);
+    slider.value = v;
+    updateSliderTrack(slider);
+  });
+
+  return row;
+}
+
 function openPreferencesModal() {
   const container = document.getElementById("prefs-sliders");
   container.innerHTML = "";
 
-  App.SECTION_ORDER.forEach(section => {
-    const val = getThreshold(section);
-    const row = document.createElement("div");
-    row.className = "prefs-row";
-    row.innerHTML = `
-      <label class="prefs-label">${escHtml(section)}</label>
-      <input type="range" class="prefs-slider" min="0" max="${Math.max(val, PREFS_MAX_THRESHOLD)}" step="1" value="${val}" data-section="${escHtml(section)}">
-      <span class="prefs-value-wrap">$<input type="number" class="prefs-input" min="0" step="1" value="${val}"></span>
-    `;
-    const slider = row.querySelector(".prefs-slider");
-    const input = row.querySelector(".prefs-input");
-    updateSliderTrack(slider);
-
-    slider.addEventListener("input", () => {
-      input.value = slider.value;
-      updateSliderTrack(slider);
-    });
-
-    input.addEventListener("input", () => {
-      const v = parseInt(input.value, 10);
-      if (isNaN(v) || v < 0) return;
-      slider.max = Math.max(v, PREFS_MIN_THRESHOLD);
-      slider.value = v;
-      updateSliderTrack(slider);
-    });
-
-    input.addEventListener("blur", () => {
-      let v = parseInt(input.value, 10);
-      if (isNaN(v) || v < 0) v = 0;
-      input.value = v;
-      slider.max = Math.max(v, PREFS_MIN_THRESHOLD);
-      slider.value = v;
-      updateSliderTrack(slider);
-    });
-
-    container.appendChild(row);
+  App.SECTION_HIERARCHY.forEach(entry => {
+    // Parent slider (always shown)
+    container.appendChild(_createPrefsSliderRow(entry.name, false));
+    // Subcategory sliders (indented)
+    if (entry.children) {
+      entry.children.forEach(child => {
+        container.appendChild(_createPrefsSliderRow(entry.name + " > " + child, true));
+      });
+    }
   });
 
   // Load Digikey login status

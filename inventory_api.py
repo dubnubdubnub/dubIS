@@ -26,6 +26,32 @@ def _load_constants() -> dict:
 _CONSTANTS = _load_constants()
 
 
+def _parse_section_order(raw: list) -> tuple[list[str], list[dict]]:
+    """Parse mixed SECTION_ORDER (strings + objects with children) into:
+    - flat_order: list of all section strings (compound + bare parents) for iteration
+    - hierarchy: structured list for the frontend
+    """
+    flat_order: list[str] = []
+    hierarchy: list[dict] = []
+    for entry in raw:
+        if isinstance(entry, str):
+            flat_order.append(entry)
+            hierarchy.append({"name": entry, "children": None})
+        else:
+            name = entry["name"]
+            children = entry["children"]
+            # Parent section (for parts that don't match any subcategory)
+            flat_order.append(name)
+            # Compound sections for each child
+            for child in children:
+                flat_order.append(f"{name} > {child}")
+            hierarchy.append({"name": name, "children": children})
+    return flat_order, hierarchy
+
+
+_FLAT_SECTION_ORDER, _SECTION_HIERARCHY = _parse_section_order(_CONSTANTS["SECTION_ORDER"])
+
+
 class InventoryApi:
     FIELDNAMES = _CONSTANTS["FIELDNAMES"]
 
@@ -34,6 +60,8 @@ class InventoryApi:
     ]
 
     SECTION_ORDER = _CONSTANTS["SECTION_ORDER"]
+    FLAT_SECTION_ORDER = _FLAT_SECTION_ORDER
+    SECTION_HIERARCHY = _SECTION_HIERARCHY
 
     def __init__(self) -> None:
         self.base_dir: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
@@ -185,12 +213,29 @@ class InventoryApi:
         {"category": "Mechanical & Hardware", "desc": ["spacer", "standoff", "battery holder"]},
     ]
 
+    SUBCATEGORY_RULES: dict[str, list[dict[str, Any]]] = {
+        "Passives - Capacitors": [
+            {"subcategory": "MLCC", "desc": ["mlcc", "cap cer"]},
+            {"subcategory": "Aluminum Polymer", "desc": ["aluminum", "polymer", "electrolytic"]},
+            {"subcategory": "Tantalum", "desc": ["tantalum"]},
+        ],
+        "Discrete Semiconductors": [
+            {"subcategory": "MOSFETs", "desc": ["mosfet"]},
+        ],
+        "ICs - Power / Voltage Regulators": [
+            {"subcategory": "Load Switches", "desc": ["load switch", "pwr switch", "power switch"]},
+            {"subcategory": "Switchers", "desc": ["buck", "boost", "switching regulator"]},
+            {"subcategory": "LDOs", "desc": ["ldo", "linear voltage"]},
+        ],
+    }
+
     @staticmethod
     def categorize(row: dict[str, str]) -> str:
         desc = (row.get("Description") or "").lower()
         mpn = (row.get("Manufacture Part Number") or "").lower()
         mfr = (row.get("Manufacturer") or "").lower()
 
+        parent = "Other"
         for rule in InventoryApi.CATEGORY_RULES:
             if "exclude_desc" in rule and any(kw in desc for kw in rule["exclude_desc"]):
                 continue
@@ -203,8 +248,17 @@ class InventoryApi:
                         matched = False
                         break
             if has_condition and matched:
-                return rule["category"]
-        return "Other"
+                parent = rule["category"]
+                break
+
+        # Check subcategory rules
+        sub_rules = InventoryApi.SUBCATEGORY_RULES.get(parent)
+        if sub_rules:
+            for sr in sub_rules:
+                if any(kw in desc for kw in sr["desc"]):
+                    return f"{parent} > {sr['subcategory']}"
+
+        return parent
 
     # ── Core pipeline ────────────────────────────────────────────────────
 
@@ -295,15 +349,14 @@ class InventoryApi:
             cat = self.categorize(p)
             categorized.setdefault(cat, []).append(p)
 
-        if "Passives - Resistors" in categorized:
-            categorized["Passives - Resistors"].sort(
-                key=lambda r: self.parse_resistance(r.get("Description", "")))
-        if "Passives - Capacitors" in categorized:
-            categorized["Passives - Capacitors"].sort(
-                key=lambda r: self.parse_capacitance(r.get("Description", "")))
-        if "Passives - Inductors" in categorized:
-            categorized["Passives - Inductors"].sort(
-                key=lambda r: self.parse_inductance(r.get("Description", "")))
+        # Sort passives by value — applies to both bare and compound section names
+        for section, items in categorized.items():
+            if "Resistor" in section:
+                items.sort(key=lambda r: self.parse_resistance(r.get("Description", "")))
+            elif "Capacitor" in section:
+                items.sort(key=lambda r: self.parse_capacitance(r.get("Description", "")))
+            elif "Inductor" in section:
+                items.sort(key=lambda r: self.parse_inductance(r.get("Description", "")))
         return categorized
 
     def _write_organized(self, categorized: dict[str, list[dict[str, str]]],
@@ -312,7 +365,7 @@ class InventoryApi:
         with open(self.output_csv, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             writer.writerow(["Section"] + list(fieldnames))
-            for section in self.SECTION_ORDER:
+            for section in self.FLAT_SECTION_ORDER:
                 items = categorized.get(section)
                 if not items:
                     continue
