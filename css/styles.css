@@ -1016,7 +1016,7 @@ tr.row-teal td.status { color: var(--color-teal); }
 .swap-btn:hover { border-color: var(--color-teal); color: var(--color-teal); background: #2dd4bf26; }
 
 /* ── Part Preview Tooltip ─────────────────────────────── */
-[data-lcsc], [data-digikey] { cursor: pointer; }
+[data-lcsc], [data-digikey] { cursor: pointer; display: inline-flex; align-items: center; white-space: nowrap; }
 
 .part-preview {
   position: fixed;
@@ -1172,4 +1172,4 @@ tr.row-teal td.status { color: var(--color-teal); }
 .part-id-digikey { font-family: Consolas, monospace; font-size: 11px; color: #cc6600; cursor: pointer; }
 
 /* ── Vendor Icons ─────────────────────────────────────── */
-.vendor-icon { width: 12px; height: 12px; vertical-align: middle; margin-right: 2px; }
+.vendor-icon { width: 12px; height: 12px; margin-right: 2px; flex-shrink: 0; }
