@@ -623,10 +623,16 @@ async function initApp() {
 
   if (window.pywebview && window.pywebview.api) {
     loadInventory();
+    api("check_digikey_session").then(function (r) {
+      if (r && r.logged_in) AppLog.info("Digikey: existing session found");
+    });
   } else {
     window.addEventListener("pywebviewready", async () => {
       await loadPreferences();
       loadInventory();
+      api("check_digikey_session").then(function (r) {
+        if (r && r.logged_in) AppLog.info("Digikey: existing session found");
+      });
     });
   }
 }

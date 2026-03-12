@@ -533,6 +533,52 @@ class InventoryApi:
         except OSError:
             return None
 
+    def check_digikey_session(self) -> dict[str, Any]:
+        """Check if there's an existing Digikey session from the default browser.
+
+        Launches the browser headless with CDP to read cookies without
+        showing a window.  Called on app startup.
+        """
+        import random
+        import subprocess
+        import time
+
+        exe = self._find_default_browser_exe()
+        if not exe:
+            return {"logged_in": False}
+
+        port = random.randint(19200, 19299)
+        proc = subprocess.Popen(
+            [exe, "--headless=new", f"--remote-debugging-port={port}", "about:blank"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        try:
+            # Give headless browser a moment to start
+            time.sleep(1.5)
+            cookies = self._cdp_get_cookies(port)
+            dk_cookies = [c for c in cookies if "digikey.com" in c.get("domain", "")]
+            if dk_cookies and self._check_dk_cookies_logged_in(dk_cookies):
+                self._dk_pending_cookies = dk_cookies
+                self._dk_sync_result = {
+                    "status": "ok",
+                    "message": "Logged in",
+                    "logged_in": True,
+                    "cookies_injected": len(dk_cookies),
+                    "browser": "cdp",
+                }
+                print(f"[DK] startup: found existing session ({len(dk_cookies)} cookies)", flush=True)
+                return {"logged_in": True}
+            print(f"[DK] startup: no existing session ({len(dk_cookies)} digikey cookies)", flush=True)
+            return {"logged_in": False}
+        except Exception as exc:
+            print(f"[DK] startup: session check failed: {exc}", flush=True)
+            return {"logged_in": False}
+        finally:
+            try:
+                proc.terminate()
+            except OSError:
+                pass
+
     def start_digikey_login(self) -> dict[str, Any]:
         """Launch the default browser with CDP enabled and open the login page.
 
