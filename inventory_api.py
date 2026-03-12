@@ -955,18 +955,18 @@ class InventoryApi:
                 "https://www.digikey.com/en/products/result?keywords="
                 + quote(part_number, safe="")
             )
-            print(f"[DK] fetch: loading {search_url}", flush=True)
+            logger.debug("DK fetch: loading %s", search_url)
             self._dk_loaded.clear()
             self._dk_window.load_url(search_url)
             if not self._dk_loaded.wait(timeout=15):
-                print(f"[DK] fetch: page load timed out for {part_number}", flush=True)
+                logger.warning("DK fetch: page load timed out for %s", part_number)
                 self._digikey_cache[part_number] = None
                 return None
 
             try:
                 # Get the final URL to check for redirects (e.g. login page)
                 final_url = self._dk_window.evaluate_js("window.location.href") or ""
-                print(f"[DK] fetch: final URL = {final_url}", flush=True)
+                logger.debug("DK fetch: final URL = %s", final_url)
 
                 result = self._dk_window.evaluate_js(
                     "(function() {"
@@ -1005,15 +1005,18 @@ class InventoryApi:
                     "  return null;"
                     "})()"
                 )
-                print(f"[DK] fetch: scrape result type={type(result).__name__}, "
-                      f"keys={list(result.keys()) if isinstance(result, dict) else 'N/A'}", flush=True)
+                logger.debug(
+                    "DK fetch: scrape result type=%s, keys=%s",
+                    type(result).__name__,
+                    list(result.keys()) if isinstance(result, dict) else "N/A",
+                )
             except Exception as exc:
-                print(f"[DK] fetch: evaluate_js failed for {part_number}: {exc}", flush=True)
+                logger.error("DK fetch: evaluate_js failed for %s: %s", part_number, exc)
                 self._digikey_cache[part_number] = None
                 return None
 
         if not result or not isinstance(result, dict):
-            print(f"[DK] fetch: no product data for {part_number}", flush=True)
+            logger.debug("DK fetch: no product data for %s", part_number)
             self._digikey_cache[part_number] = None
             return None
 
@@ -1071,60 +1074,121 @@ class InventoryApi:
                 "provider": "digikey",
             }
 
-        # Next.js SSR data or other raw format — best-effort extraction
-        props = raw.get("_props") or raw
+        # Next.js SSR data — extract from envelope.data structure
+        if raw.get("_source") == "nextdata":
+            props = raw.get("_props") or {}
+            envelope = props.get("envelope") or {}
+            data = envelope.get("data") or {}
+            overview = data.get("productOverview") or {}
+            pq = data.get("priceQuantity") or {}
+            pa = data.get("productAttributes") or {}
+            media = data.get("carouselMedia") or []
+            crumbs = data.get("breadcrumb") or []
+
+            # Stock
+            stock = 0
+            try:
+                stock = int(
+                    str(pq.get("qtyAvailable", "0")).replace(",", "")
+                )
+            except (ValueError, TypeError):
+                pass
+
+            # Prices — use first pricing option (smallest MOQ packaging)
+            prices: list[dict[str, int | float]] = []
+            pricing_list = pq.get("pricing") or []
+            if pricing_list:
+                tiers = pricing_list[0].get("mergedPricingTiers") or []
+                for t in tiers:
+                    try:
+                        qty = int(
+                            str(t.get("brkQty", "0")).replace(",", "")
+                        )
+                        price = float(
+                            str(t.get("unitPrice", "0"))
+                            .replace("$", "")
+                            .replace(",", "")
+                        )
+                        prices.append({"qty": qty, "price": price})
+                    except (ValueError, TypeError):
+                        continue
+
+            # Image — first Image type in carousel
+            image_url = ""
+            for m in media:
+                if m.get("type") == "Image":
+                    image_url = (
+                        m.get("displayUrl") or m.get("smallPhoto") or ""
+                    )
+                    break
+            if image_url.startswith("//"):
+                image_url = "https:" + image_url
+
+            # Package and attributes from attribute list
+            package = ""
+            attrs_out: list[dict[str, str]] = []
+            skip_ids = {"-1", "-4", "-5", "1989", "-7"}
+            for attr in pa.get("attributes") or []:
+                vals = attr.get("values") or []
+                val = vals[0].get("value", "") if vals else ""
+                if attr.get("label") == "Package / Case":
+                    package = val
+                attr_id = str(attr.get("id", ""))
+                if attr_id not in skip_ids and val and val != "-":
+                    attrs_out.append(
+                        {"name": attr.get("label", ""), "value": val}
+                    )
+
+            # Category from categories list
+            cats = pa.get("categories") or []
+            category = cats[-1]["label"] if cats else ""
+            subcategory = cats[-2]["label"] if len(cats) >= 2 else ""
+
+            # Digikey URL from last breadcrumb
+            dk_url = ""
+            if crumbs:
+                dk_url = crumbs[-1].get("url", "")
+                if dk_url and not dk_url.startswith("http"):
+                    dk_url = "https://www.digikey.com" + dk_url
+
+            return {
+                "productCode": (
+                    overview.get("rolledUpProductNumber") or part_number
+                ),
+                "title": overview.get("title") or "",
+                "manufacturer": overview.get("manufacturer") or "",
+                "mpn": overview.get("manufacturerProductNumber") or "",
+                "package": package,
+                "description": (
+                    overview.get("detailedDescription")
+                    or overview.get("description")
+                    or ""
+                ),
+                "stock": stock,
+                "prices": prices,
+                "imageUrl": image_url,
+                "pdfUrl": overview.get("datasheetUrl") or "",
+                "digikeyUrl": dk_url,
+                "category": category,
+                "subcategory": subcategory,
+                "attributes": attrs_out,
+                "provider": "digikey",
+            }
+
+        # Unknown format — return empty shell
         return {
-            "productCode": (
-                props.get("digiKeyPartNumber")
-                or props.get("DigiKeyPartNumber")
-                or part_number
-            ),
-            "title": (
-                props.get("productDescription")
-                or props.get("ProductDescription")
-                or props.get("name")
-                or ""
-            ),
-            "manufacturer": props.get("manufacturer") or "",
-            "mpn": (
-                props.get("manufacturerPartNumber")
-                or props.get("ManufacturerPartNumber")
-                or props.get("mpn")
-                or ""
-            ),
-            "package": props.get("package") or "",
-            "description": (
-                props.get("detailedDescription")
-                or props.get("DetailedDescription")
-                or ""
-            ),
-            "stock": (
-                props.get("quantityAvailable")
-                or props.get("QuantityAvailable")
-                or 0
-            ),
-            "prices": props.get("prices") or [],
-            "imageUrl": (
-                props.get("primaryPhoto")
-                or props.get("PrimaryPhoto")
-                or props.get("imageUrl")
-                or ""
-            ),
-            "pdfUrl": (
-                props.get("primaryDatasheet")
-                or props.get("PrimaryDatasheet")
-                or props.get("pdfUrl")
-                or ""
-            ),
-            "digikeyUrl": (
-                props.get("productUrl")
-                or props.get("ProductUrl")
-                or props.get("digikeyUrl")
-                or ""
-            ),
-            "attributes": (
-                props.get("attributes") or props.get("parameters") or []
-            ),
+            "productCode": part_number,
+            "title": "",
+            "manufacturer": "",
+            "mpn": "",
+            "package": "",
+            "description": "",
+            "stock": 0,
+            "prices": [],
+            "imageUrl": "",
+            "pdfUrl": "",
+            "digikeyUrl": "",
+            "attributes": [],
             "provider": "digikey",
         }
 
