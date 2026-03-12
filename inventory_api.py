@@ -596,11 +596,20 @@ class InventoryApi:
                     "  for (var i = 0; i < scripts.length; i++) {"
                     "    try {"
                     "      var ld = JSON.parse(scripts[i].textContent);"
-                    "      if (ld['@type'] === 'Product') return ld;"
-                    "      if (Array.isArray(ld)) {"
+                    "      var prod = null;"
+                    "      if (ld['@type'] === 'Product') prod = ld;"
+                    "      if (!prod && Array.isArray(ld)) {"
                     "        for (var j = 0; j < ld.length; j++) {"
-                    "          if (ld[j]['@type'] === 'Product') return ld[j];"
+                    "          if (ld[j]['@type'] === 'Product') { prod = ld[j]; break; }"
                     "        }"
+                    "      }"
+                    "      if (prod) {"
+                    "        try {"
+                    "          var bt = document.body.innerText || '';"
+                    "          var sm = bt.match(/(\\d[\\d,]*)\\s+In\\s*Stock/i);"
+                    "          if (sm) prod._stock = parseInt(sm[1].replace(/,/g,''),10);"
+                    "        } catch(e2) {}"
+                    "        return prod;"
                     "      }"
                     "    } catch(e) {}"
                     "  }"
@@ -668,7 +677,11 @@ class InventoryApi:
                 "mpn": raw.get("mpn", "") or raw.get("sku", ""),
                 "package": "",
                 "description": raw.get("description", ""),
-                "stock": 0,
+                "stock": raw.get("_stock") or (
+                    1 if "InStock" in str(
+                        offers.get("availability", "")
+                    ) else 0
+                ),
                 "prices": (
                     [{"qty": 1, "price": price_val}] if price_val else []
                 ),
