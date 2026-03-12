@@ -13,6 +13,12 @@
   const searchInput = document.getElementById("inv-search");
   let collapsedSections = new Set();
 
+  // Hide descriptions when panel is too narrow for readable text (~520px threshold)
+  const DESC_HIDE_WIDTH = 520;
+  new ResizeObserver(([entry]) => {
+    body.classList.toggle("narrow-panel", entry.contentRect.width < DESC_HIDE_WIDTH);
+  }).observe(body);
+
   // Undo/redo tracking for inventory mutations
   let lastAdjustMeta = null;
   let lastPriceMeta = null;
