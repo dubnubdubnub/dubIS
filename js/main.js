@@ -503,7 +503,7 @@ async function initApp() {
   if (dkLoginBtn) dkLoginBtn.addEventListener("click", async () => {
     await api("start_digikey_login");
     var dkStatus = document.getElementById("dk-status");
-    dkStatus.textContent = "Waiting for login...";
+    dkStatus.textContent = "Browser opened — waiting for login...";
     dkStatus.style.color = "var(--text-muted)";
     dkLoginBtn.classList.add("hidden");
 
