@@ -491,6 +491,27 @@ function handleWindowClose() {
   closeModal.open();
 }
 
+// ── Cross-panel designator hover highlighting ──────────
+(function () {
+  var highlightedRef = null;
+  document.addEventListener("mouseover", function (e) {
+    var target = e.target.closest("[data-ref]");
+    var ref = target ? target.dataset.ref : null;
+    if (ref === highlightedRef) return;
+    if (highlightedRef) {
+      document.querySelectorAll(".ref-highlight").forEach(function (el) {
+        el.classList.remove("ref-highlight");
+      });
+    }
+    highlightedRef = ref;
+    if (ref) {
+      document.querySelectorAll('[data-ref="' + CSS.escape(ref) + '"]').forEach(function (el) {
+        el.classList.add("ref-highlight");
+      });
+    }
+  });
+})();
+
 // ── Prevent accidental file navigation ─────────────────
 document.addEventListener("dragover", e => e.preventDefault());
 document.addEventListener("drop", e => e.preventDefault());

@@ -328,6 +328,11 @@ tbody tr:hover { background: var(--bg-hover) !important; }
 .ref-ic { color: var(--color-pink); }
 .ref-l  { color: var(--color-green); }
 .ref-d  { color: var(--color-orange); }
+[data-ref] { cursor: default; }
+.ref-highlight { background: rgba(255,255,255,0.12); border-radius: 2px; text-decoration: underline; }
+
+/* Colored refs display in BOM staging table */
+#bom-tbody .refs-cell { cursor: text; }
 
 /* ── Row Color Coding ──────────────────────────────────── */
 tr.row-green { background: #23863610; }
