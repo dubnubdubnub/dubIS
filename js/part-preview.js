@@ -88,7 +88,10 @@
     if (!data) {
       var errMsg = "Product not found";
       if (provider === "digikey") {
-        errMsg = "Login to Digikey in Preferences to enable preview";
+        var dkStatus = await api("get_digikey_login_status");
+        errMsg = (dkStatus && dkStatus.logged_in)
+          ? "Could not load product data"
+          : "Login to Digikey in Preferences to enable preview";
       }
       tooltip.innerHTML = '<div class="part-preview-card"><div class="part-preview-error">' + escHtml(errMsg) + '</div></div>';
       return;

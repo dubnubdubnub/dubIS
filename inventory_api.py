@@ -56,6 +56,7 @@ class InventoryApi:
         self._dk_sync_result: dict[str, Any] = {}
         self._dk_poll_stop = threading.Event()
         self._dk_pending_cookies: list[dict] | None = None
+        self._dk_cookies_file: str = os.path.join(self.base_dir, "digikey_cookies.json")
 
     # ── Utility methods (ported from organize_inventory.py) ──────────────
 
@@ -533,12 +534,32 @@ class InventoryApi:
         except OSError:
             return None
 
-    def check_digikey_session(self) -> dict[str, Any]:
-        """Check if there's an existing Digikey session from the default browser.
+    def _set_dk_logged_in(self, cookies: list[dict]) -> None:
+        """Store cookies as the active Digikey session and persist to disk."""
+        self._dk_pending_cookies = cookies
+        self._dk_sync_result = {
+            "status": "ok",
+            "message": "Logged in",
+            "logged_in": True,
+            "cookies_injected": len(cookies),
+            "browser": "cdp",
+        }
+        self._save_dk_cookies(cookies)
 
-        Launches the browser headless with CDP to read cookies without
-        showing a window.  Called on app startup.
+    def check_digikey_session(self) -> dict[str, Any]:
+        """Check if there's an existing Digikey session.
+
+        Tries saved cookies first, then launches the browser headless
+        with CDP to read fresh cookies.  Called on app startup.
         """
+        # 1. Try saved cookies from disk (instant)
+        saved = self._load_dk_cookies()
+        if saved:
+            self._set_dk_logged_in(saved)
+            print(f"[DK] startup: loaded saved session ({len(saved)} cookies)", flush=True)
+            return {"logged_in": True}
+
+        # 2. Try headless browser CDP
         import random
         import subprocess
         import time
@@ -558,15 +579,8 @@ class InventoryApi:
             cookies = self._cdp_get_cookies(port)
             dk_cookies = [c for c in cookies if "digikey.com" in c.get("domain", "")]
             if dk_cookies and self._check_dk_cookies_logged_in(dk_cookies):
-                self._dk_pending_cookies = dk_cookies
-                self._dk_sync_result = {
-                    "status": "ok",
-                    "message": "Logged in",
-                    "logged_in": True,
-                    "cookies_injected": len(dk_cookies),
-                    "browser": "cdp",
-                }
-                print(f"[DK] startup: found existing session ({len(dk_cookies)} cookies)", flush=True)
+                self._set_dk_logged_in(dk_cookies)
+                print(f"[DK] startup: found browser session ({len(dk_cookies)} cookies)", flush=True)
                 return {"logged_in": True}
             print(f"[DK] startup: no existing session ({len(dk_cookies)} digikey cookies)", flush=True)
             return {"logged_in": False}
@@ -637,6 +651,25 @@ class InventoryApi:
         # dkuhint = "digikey user hint", only set after login
         return "dkuhint" in cookie_names
 
+    def _save_dk_cookies(self, cookies: list[dict]) -> None:
+        """Persist Digikey cookies to disk."""
+        try:
+            with open(self._dk_cookies_file, "w", encoding="utf-8") as f:
+                json.dump(cookies, f)
+        except Exception as exc:
+            print(f"[DK] failed to save cookies: {exc}", flush=True)
+
+    def _load_dk_cookies(self) -> list[dict] | None:
+        """Load persisted Digikey cookies from disk."""
+        try:
+            with open(self._dk_cookies_file, "r", encoding="utf-8") as f:
+                cookies = json.load(f)
+            if cookies and self._check_dk_cookies_logged_in(cookies):
+                return cookies
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
+        return None
+
     def _dk_poll_loop(self, port: int) -> None:
         """Background thread: poll CDP for cookies, store when found.
 
@@ -659,17 +692,10 @@ class InventoryApi:
                 print(f"[DK] poll #{attempt}: {len(cdp_cookies)} digikey cookies", flush=True)
 
                 if cdp_cookies and self._check_dk_cookies_logged_in(cdp_cookies):
-                    # Logged in — store cookies for later injection
-                    self._dk_pending_cookies = cdp_cookies
+                    # Logged in — store and persist cookies
+                    self._set_dk_logged_in(cdp_cookies)
                     cookie_names = [c["name"] for c in cdp_cookies[:20]]
-                    self._dk_sync_result = {
-                        "status": "ok",
-                        "message": "Logged in",
-                        "logged_in": True,
-                        "cookies_injected": len(cdp_cookies),
-                        "browser": "cdp",
-                        "debug": debug_log + [f"names={cookie_names}"],
-                    }
+                    self._dk_sync_result["debug"] = debug_log + [f"names={cookie_names}"]
                     print(f"[DK] poll #{attempt}: logged in!", flush=True)
                     return  # done
 
@@ -879,6 +905,10 @@ class InventoryApi:
         self._dk_poll_stop.set()  # stop any running poll thread
         self._dk_sync_result = {}
         self._dk_pending_cookies = None
+        try:
+            os.remove(self._dk_cookies_file)
+        except FileNotFoundError:
+            pass
         if self._dk_window is not None:
             try:
                 import System
