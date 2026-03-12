@@ -4,5 +4,6 @@ __pycache__/
 .env
 data/*.csv
 data/*.json
+!data/constants.json
 node_modules/
 .claude/

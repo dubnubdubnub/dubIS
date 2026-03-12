@@ -41,6 +41,28 @@ class TestGetPartKey:
         assert InventoryApi.get_part_key(row) == "MPN1"
 
 
+class TestSharedConstants:
+    def test_section_order_loaded_from_json(self):
+        """SECTION_ORDER should match data/constants.json."""
+        constants_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "data", "constants.json",
+        )
+        with open(constants_path, encoding="utf-8") as f:
+            constants = json.load(f)
+        assert InventoryApi.SECTION_ORDER == constants["SECTION_ORDER"]
+
+    def test_fieldnames_loaded_from_json(self):
+        """FIELDNAMES should match data/constants.json."""
+        constants_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "data", "constants.json",
+        )
+        with open(constants_path, encoding="utf-8") as f:
+            constants = json.load(f)
+        assert InventoryApi.FIELDNAMES == constants["FIELDNAMES"]
+
+
 class TestCategorize:
     def test_resistor_by_description(self):
         row = {"Description": "Resistor 10k\u03a9 \u00b11%", "Package": "0402", "Manufacture Part Number": ""}
