@@ -88,11 +88,7 @@
     if (!data) {
       var errMsg = "Product not found";
       if (provider === "digikey") {
-        // Check if credentials are configured
-        try {
-          var status = await api("get_digikey_credentials_status");
-          if (status && !status.configured) errMsg = "Digikey API not configured";
-        } catch (_e) { /* ignore */ }
+        errMsg = "Login to Digikey in Preferences to enable preview";
       }
       tooltip.innerHTML = '<div class="part-preview-card"><div class="part-preview-error">' + escHtml(errMsg) + '</div></div>';
       return;
