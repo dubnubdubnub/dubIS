@@ -134,7 +134,7 @@ class TestRealPipelineRebuild:
             "C30170202": "Connectors", "C307331": "Passives - Capacitors",
             "C315248": "Passives - Capacitors", "C327198": "Passives - Capacitors",
             "C32949": "Passives - Capacitors", "C333990": "Passives - Inductors",
-            "C36658": "ICs - Voltage References", "C393094": "Other",
+            "C36658": "ICs - Voltage References", "C393094": "Passives - Resistors",
             "C41421517": "ICs - Sensors", "C41430893": "Switches",
             "C42387346": "Diodes", "C42438032": "Connectors",
             "C42438034": "Connectors", "C42438041": "Connectors",
