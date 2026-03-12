@@ -60,7 +60,12 @@ def main():
         return False
 
     window.events.closing += on_closing
-    window.events.closed += lambda: os._exit(0)
+    def on_closed():
+        import time
+        time.sleep(0.2)  # Let WebView2 finish teardown before force-exit
+        os._exit(0)
+
+    window.events.closed += on_closed
     start_kwargs = {"func": set_icon, "debug": "--debug" in sys.argv}
     if sys.platform != "win32" and os.path.isfile(PNG_ICON_PATH):
         start_kwargs["icon"] = PNG_ICON_PATH
