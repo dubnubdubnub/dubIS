@@ -69,7 +69,12 @@ test.describe('Description auto-hide based on panel width', () => {
     await page.waitForTimeout(300);
     const dims = await logDimensions(page, 'narrow-1200');
     const descCount = await countDescs(page);
+    const narrowRow = await page.locator('.inv-part-row').first().evaluate(el => ({
+      width: el.offsetWidth,
+      height: el.offsetHeight,
+    }));
     console.log('Desc count at 1200px:', descCount);
+    console.log('First .inv-part-row (narrow):', narrowRow);
     expect(descCount).toBe(0);
     expect(dims.invBodyWidth).toBeLessThan(680);
   });
@@ -86,10 +91,18 @@ test.describe('Description auto-hide based on panel width', () => {
     expect(descCount).toBeGreaterThan(0);
     expect(dims.invBodyWidth).toBeGreaterThanOrEqual(680);
 
-    // Verify first description has non-zero rendered width
-    const firstDescWidth = await page.locator('.part-desc').first().evaluate(el => el.offsetWidth);
-    console.log('First .part-desc width:', firstDescWidth);
-    expect(firstDescWidth).toBeGreaterThan(0);
+    // Verify first description has non-zero rendered dimensions
+    const firstDesc = await page.locator('.part-desc').first().evaluate(el => ({
+      width: el.offsetWidth,
+      height: el.offsetHeight,
+    }));
+    const firstRow = await page.locator('.inv-part-row').first().evaluate(el => ({
+      width: el.offsetWidth,
+      height: el.offsetHeight,
+    }));
+    console.log('First .part-desc:', firstDesc);
+    console.log('First .inv-part-row:', firstRow);
+    expect(firstDesc.width).toBeGreaterThan(0);
   });
 
   test('resize wide → narrow — descriptions disappear', async ({ page }) => {
