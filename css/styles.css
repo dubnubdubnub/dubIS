@@ -301,7 +301,8 @@ tbody td {
   overflow: hidden;
   position: relative;
 }
-tbody td.inv-qty-cell { overflow: visible; z-index: 1; padding-bottom: 8px; }
+tbody td.inv-qty-cell { overflow: visible; z-index: 1; }
+tbody td.inv-qty-cell:has(.alt-badge) { padding-bottom: 26px; }
 tbody tr { transition: background 0.1s; }
 tbody tr:hover { background: var(--bg-hover) !important; }
 
