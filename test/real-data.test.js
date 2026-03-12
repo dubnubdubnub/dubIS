@@ -29,7 +29,7 @@ describe('real inventory fixture', () => {
 
   it('contains expected sections', () => {
     const sections = new Set(inventory.map(i => i.section));
-    expect(sections.has('Connectors')).toBe(true);
+    expect(sections.has('Connectors > SMD')).toBe(true);
     expect(sections.has('Passives - Resistors')).toBe(true);
     expect(sections.has('Passives - Capacitors')).toBe(true);
     expect(sections.has('ICs - Microcontrollers')).toBe(true);
