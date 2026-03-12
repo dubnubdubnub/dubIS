@@ -13,6 +13,10 @@
   const searchInput = document.getElementById("inv-search");
   let collapsedSections = new Set();
 
+  // Undo/redo tracking for inventory mutations
+  let lastAdjustMeta = null;
+  let lastPriceMeta = null;
+
   // BOM comparison state
   let bomData = null;        // { rows, fileName, multiplier } from bom-loaded event
   let activeFilter = "all";
@@ -58,6 +62,10 @@
       showToast("Cannot create link \u2014 missing part key");
       return;
     }
+    UndoRedo.save("links", {
+      manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
+      confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
+    });
     App.links.addManualLink(bk, ipk);
     AppLog.info("Manual link: " + ipk + " \u2192 " + bk);
     App.links.setReverseLinkingMode(false);
@@ -468,6 +476,64 @@
   }
   searchInput.addEventListener("input", debounce(() => render(), 150));
 
+  // ── Undo/Redo handlers for inventory mutations ──
+
+  UndoRedo.register("adjust", async (action, data) => {
+    if (action === "snapshot") {
+      if (lastAdjustMeta) {
+        return { _undoType: "adjust-done", ...lastAdjustMeta };
+      }
+      return { _undoType: "adjust-none" };
+    }
+    if (data._undoType === "adjust") {
+      const fresh = await api("remove_last_adjustments", 1);
+      if (!fresh) throw new Error("Failed to undo adjustment");
+      let result = fresh;
+      if (data.priceChanged) {
+        result = await api("update_part_price", data.partKey, data.oldUp, data.oldEp);
+        if (!result) throw new Error("Failed to undo price change");
+      }
+      lastAdjustMeta = null;
+      onInventoryUpdated(result);
+      showToast("Undid adjustment for " + data.partKey);
+    } else if (data._undoType === "adjust-done") {
+      const qtyResult = await api("adjust_part", data.adjType, data.partKey, data.qty, data.note);
+      if (!qtyResult) throw new Error("Failed to redo adjustment");
+      let result = qtyResult;
+      if (data.priceChanged) {
+        result = await api("update_part_price", data.partKey, data.newUp, data.newEp);
+        if (!result) throw new Error("Failed to redo price change");
+      }
+      lastAdjustMeta = { ...data };
+      delete lastAdjustMeta._undoType;
+      onInventoryUpdated(result);
+      showToast("Redid adjustment for " + data.partKey);
+    }
+  });
+
+  UndoRedo.register("price", async (action, data) => {
+    if (action === "snapshot") {
+      if (lastPriceMeta) {
+        return { _undoType: "price-done", ...lastPriceMeta };
+      }
+      return { _undoType: "price-none" };
+    }
+    if (data._undoType === "price") {
+      const fresh = await api("update_part_price", data.partKey, data.oldUp, data.oldEp);
+      if (!fresh) throw new Error("Failed to undo price update");
+      lastPriceMeta = null;
+      onInventoryUpdated(fresh);
+      showToast("Undid price update for " + data.partKey);
+    } else if (data._undoType === "price-done") {
+      const fresh = await api("update_part_price", data.partKey, data.newUp, data.newEp);
+      if (!fresh) throw new Error("Failed to redo price update");
+      lastPriceMeta = { ...data };
+      delete lastPriceMeta._undoType;
+      onInventoryUpdated(fresh);
+      showToast("Redid price update for " + data.partKey);
+    }
+  });
+
   // ── Adjustment Modal ──
   const modalTitle = document.getElementById("modal-title");
   const modalSubtitle = document.getElementById("modal-subtitle");
@@ -515,9 +581,26 @@
     const origEp = currentPart.ext_price || 0;
     const priceChanged = (!isNaN(newUp) && newUp !== origUp) || (!isNaN(newEp) && newEp !== origEp);
 
+    // Save undo state
+    UndoRedo.save("adjust", {
+      _undoType: "adjust",
+      partKey: pk,
+      adjType: type,
+      qty: qty,
+      note: note,
+      priceChanged: priceChanged,
+      oldUp: origUp,
+      oldEp: origEp,
+      newUp: priceChanged ? (!isNaN(newUp) ? newUp : null) : null,
+      newEp: priceChanged ? (!isNaN(newEp) ? newEp : null) : null,
+    });
+
     // Apply qty adjustment
     const qtyResult = await api("adjust_part", type, pk, qty, note);
-    if (!qtyResult) return;
+    if (!qtyResult) {
+      UndoRedo._undo.pop();
+      return;
+    }
 
     // Apply price update if changed
     if (priceChanged) {
@@ -526,6 +609,7 @@
       const priceResult = await api("update_part_price", pk, up, ep);
       if (!priceResult) {
         AppLog.warn("Qty adjusted, but price update failed for " + pk);
+        UndoRedo._undo[UndoRedo._undo.length - 1].data.priceChanged = false;
         onInventoryUpdated(qtyResult);
         adjModal.close();
         return;
@@ -535,6 +619,13 @@
       onInventoryUpdated(qtyResult);
     }
 
+    lastAdjustMeta = {
+      partKey: pk, adjType: type, qty: qty, note: note,
+      priceChanged: priceChanged,
+      oldUp: origUp, oldEp: origEp,
+      newUp: priceChanged ? (!isNaN(newUp) ? newUp : null) : null,
+      newEp: priceChanged ? (!isNaN(newEp) ? newEp : null) : null,
+    };
     adjModal.close();
     showToast("Adjusted " + pk);
   });
@@ -581,8 +672,29 @@
       showToast("Enter a unit or ext price");
       return;
     }
+
+    // Save undo state
+    UndoRedo.save("price", {
+      _undoType: "price",
+      partKey: pk,
+      oldUp: pricePart.unit_price || 0,
+      oldEp: pricePart.ext_price || 0,
+      newUp: up,
+      newEp: ep,
+    });
+
     const fresh = await api("update_part_price", pk, up, ep);
-    if (!fresh) return;
+    if (!fresh) {
+      UndoRedo._undo.pop();
+      return;
+    }
+    lastPriceMeta = {
+      partKey: pk,
+      oldUp: pricePart.unit_price || 0,
+      oldEp: pricePart.ext_price || 0,
+      newUp: up,
+      newEp: ep,
+    };
     priceModal.close();
     onInventoryUpdated(fresh);
     showToast("Price updated for " + pk);
@@ -619,6 +731,10 @@
     const bk = bomKey(bomRow.bom);
     const ipk = invPartKey(bomRow.inv);
     if (!bk || !ipk) return;
+    UndoRedo.save("links", {
+      manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
+      confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
+    });
     App.links.confirmMatch(bk, ipk);
     AppLog.info("Confirmed: " + bk + " \u2192 " + ipk);
     showToast("Confirmed " + bk);
@@ -627,6 +743,10 @@
   function unconfirmMatch(bomRow) {
     const bk = bomKey(bomRow.bom);
     if (!bk) return;
+    UndoRedo.save("links", {
+      manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
+      confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
+    });
     App.links.unconfirmMatch(bk);
     AppLog.info("Unconfirmed: " + bk);
     showToast("Unconfirmed " + bk);
@@ -636,6 +756,10 @@
     const bk = bomKey(bomRow.bom);
     const ipk = invPartKey(altInvItem);
     if (!bk || !ipk) return;
+    UndoRedo.save("links", {
+      manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
+      confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
+    });
     App.links.confirmMatch(bk, ipk);
     AppLog.info("Confirmed alt: " + bk + " \u2192 " + ipk);
     showToast("Confirmed " + bk + " \u2192 " + ipk);

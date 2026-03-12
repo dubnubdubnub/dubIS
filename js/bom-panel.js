@@ -107,6 +107,34 @@
       bomRawRows = data;
       reprocessAndRender();
     });
+
+    UndoRedo.register("consume", async (action, data) => {
+      if (action === "snapshot") {
+        if (lastConsumeMeta) {
+          return { _undoType: "consume-done", ...lastConsumeMeta };
+        }
+        return { _undoType: "consume-none" };
+      }
+      if (data._undoType === "consume") {
+        const fresh = await api("remove_last_adjustments", data.adjustmentCount);
+        if (!fresh) throw new Error("Failed to undo consume");
+        lastConsumeMeta = null;
+        onInventoryUpdated(fresh);
+        showToast("Undid consume of " + data.adjustmentCount + " parts");
+      } else if (data._undoType === "consume-done") {
+        const fresh = await api("consume_bom", data.matchesJson, data.mult, data.bomName, data.note);
+        if (!fresh) throw new Error("Failed to redo consume");
+        lastConsumeMeta = {
+          matchesJson: data.matchesJson,
+          mult: data.mult,
+          bomName: data.bomName,
+          note: data.note,
+          adjustmentCount: data.adjustmentCount,
+        };
+        onInventoryUpdated(fresh);
+        showToast("Redid consume of " + data.adjustmentCount + " parts");
+      }
+    });
   }
 
   // ── Drop Zone ──
@@ -495,6 +523,7 @@
   }
 
   let consumeArmed = false;
+  let lastConsumeMeta = null;
 
   function resetConsumeConfirm() {
     consumeArmed = false;
@@ -551,8 +580,28 @@
       return;
     }
 
-    const fresh = await api("consume_bom", JSON.stringify(matches), mult, lastFileName, note);
-    if (!fresh) return;
+    const matchesJson = JSON.stringify(matches);
+    UndoRedo.save("consume", {
+      _undoType: "consume",
+      adjustmentCount: matches.length,
+      matchesJson: matchesJson,
+      mult: mult,
+      bomName: lastFileName,
+      note: note,
+    });
+
+    const fresh = await api("consume_bom", matchesJson, mult, lastFileName, note);
+    if (!fresh) {
+      UndoRedo._undo.pop();
+      return;
+    }
+    lastConsumeMeta = {
+      matchesJson: matchesJson,
+      mult: mult,
+      bomName: lastFileName,
+      note: note,
+      adjustmentCount: matches.length,
+    };
     consumeModal.close();
     onInventoryUpdated(fresh);
     showToast(`Consumed ${matches.length} parts x${mult}`);
@@ -583,6 +632,10 @@
       showToast("Cannot create link — missing part key");
       return;
     }
+    UndoRedo.save("links", {
+      manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
+      confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
+    });
     App.links.addManualLink(bk, ipk);
     AppLog.info("Manual link: " + ipk + " → " + bk);
     App.links.setLinkingMode(false);

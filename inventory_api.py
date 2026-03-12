@@ -915,6 +915,37 @@ class InventoryApi:
 
         return self._rebuild()
 
+    def remove_last_adjustments(self, count: int | str) -> list[dict[str, Any]]:
+        """Remove the last `count` rows from adjustments.csv and rebuild inventory.
+
+        Safe for undo because adjustments always append to end of file (LIFO).
+        """
+        count = int(count)
+        if count <= 0:
+            raise ValueError(f"count must be positive, got {count}")
+
+        if not os.path.exists(self.adjustments_csv):
+            raise ValueError("No adjustments file found")
+
+        with open(self.adjustments_csv, newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames
+            rows = list(reader)
+
+        if count > len(rows):
+            raise ValueError(
+                f"Cannot remove {count} rows: adjustments only has {len(rows)} rows"
+            )
+
+        rows = rows[:-count]
+
+        with open(self.adjustments_csv, "w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        return self._rebuild()
+
     def import_purchases(self, rows_json: str | list[dict[str, str]]) -> list[dict[str, Any]] | dict[str, str]:
         """Append purchase rows to purchase_ledger.csv. Returns fresh inventory."""
         rows = self._ensure_parsed(rows_json)

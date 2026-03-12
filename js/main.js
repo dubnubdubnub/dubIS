@@ -547,6 +547,20 @@ async function initApp() {
     AppLog.info("Inventory rebuilt: " + fresh.length + " parts");
   });
 
+  // Register links undo handler (used by bom-panel + inventory-panel)
+  UndoRedo.register("links", (action, data) => {
+    if (action === "snapshot") {
+      return {
+        manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
+        confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
+      };
+    }
+    App.links.manualLinks = data.manualLinks;
+    App.links.confirmedMatches = data.confirmedMatches;
+    EventBus.emit(Events.LINKS_CHANGED);
+    EventBus.emit(Events.CONFIRMED_CHANGED);
+  });
+
   // Global undo/redo buttons + keyboard
   const globalUndo = document.getElementById("global-undo");
   const globalRedo = document.getElementById("global-redo");
