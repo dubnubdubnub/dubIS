@@ -1,5 +1,16 @@
 /* main.js — Event bus, global state, inventory loading */
 
+// ── Shared constants (loaded from data/constants.json) ──────────────
+var _SHARED_CONSTANTS = (function () {
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", "data/constants.json", false);
+  xhr.send();
+  if (xhr.status !== 200 && xhr.status !== 0) {
+    throw new Error("Failed to load data/constants.json: " + xhr.status);
+  }
+  return JSON.parse(xhr.responseText);
+})();
+
 // ── Constants ──────────────────────────────────────────
 const TOAST_DURATION_MS = 2500;
 const UNDO_MAX_HISTORY = 500;
@@ -187,15 +198,8 @@ const App = {
     },
   },
 
-  // ── Configuration (read-only) ──
-  SECTION_ORDER: [
-    "Connectors", "Switches", "Passives - Resistors", "Passives - Capacitors",
-    "Passives - Inductors", "LEDs", "Crystals & Oscillators", "Diodes",
-    "Discrete Semiconductors", "ICs - Microcontrollers",
-    "ICs - Power / Voltage Regulators", "ICs - Voltage References",
-    "ICs - Sensors", "ICs - Amplifiers", "ICs - Motor Drivers",
-    "ICs - Interface", "ICs - ESD Protection", "Mechanical & Hardware", "Other",
-  ],
+  // ── Configuration (read-only, from data/constants.json) ──
+  SECTION_ORDER: _SHARED_CONSTANTS.SECTION_ORDER,
 
   // ── Preferences (owned by main.js) ──
   preferences: { thresholds: {} },

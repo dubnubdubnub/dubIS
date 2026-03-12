@@ -40,7 +40,9 @@ function bomAggKey(bom) {
 }
 
 function invPartKey(item) {
-  return item.lcsc || item.mpn || item.digikey || "";
+  var lcsc = item.lcsc || "";
+  if (lcsc && /^C/i.test(lcsc)) return lcsc;
+  return item.mpn || item.digikey || "";
 }
 
 function rawRowAggKey(row, cols) {

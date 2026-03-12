@@ -17,26 +17,24 @@ from urllib.parse import quote
 logger = logging.getLogger(__name__)
 
 
+def _load_constants() -> dict:
+    """Load shared constants from data/constants.json."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "constants.json")
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+_CONSTANTS = _load_constants()
+
+
 class InventoryApi:
-    FIELDNAMES = [
-        "Digikey Part Number", "LCSC Part Number", "Manufacture Part Number",
-        "Manufacturer", "Customer NO.", "Package", "Description", "RoHS",
-        "Quantity", "Unit Price($)", "Ext.Price($)",
-        "Estimated lead time (business days)", "Date Code / Lot No.",
-    ]
+    FIELDNAMES = _CONSTANTS["FIELDNAMES"]
 
     ADJ_FIELDNAMES = [
         "timestamp", "type", "lcsc_part", "quantity", "bom_file", "board_qty", "note",
     ]
 
-    SECTION_ORDER = [
-        "Connectors", "Switches", "Passives - Resistors", "Passives - Capacitors",
-        "Passives - Inductors", "LEDs", "Crystals & Oscillators", "Diodes",
-        "Discrete Semiconductors", "ICs - Microcontrollers",
-        "ICs - Power / Voltage Regulators", "ICs - Voltage References",
-        "ICs - Sensors", "ICs - Amplifiers", "ICs - Motor Drivers",
-        "ICs - Interface", "ICs - ESD Protection", "Mechanical & Hardware", "Other",
-    ]
+    SECTION_ORDER = _CONSTANTS["SECTION_ORDER"]
 
     def __init__(self) -> None:
         self.base_dir: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")

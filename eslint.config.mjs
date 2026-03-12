@@ -10,6 +10,7 @@ export default [
         ...globals.browser,
 
         // ── main.js ──
+        _SHARED_CONSTANTS: "readonly",
         TOAST_DURATION_MS: "readonly",
         UNDO_MAX_HISTORY: "readonly",
         LOG_MAX_ENTRIES: "readonly",
