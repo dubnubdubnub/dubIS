@@ -8,9 +8,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'fixtures', 'inventory.json'), 'utf8')
 );
-const BOM_CSV = fs.readFileSync(
-  path.join(__dirname, 'fixtures', 'bom.csv'), 'utf8'
-);
+const BOM_CSV_PATH = path.join(__dirname, 'fixtures', 'bom.csv');
+const BOM_CSV = fs.readFileSync(BOM_CSV_PATH, 'utf8');
 
 /** Expected CSS class per designator prefix */
 const EXPECTED_CLASSES = {
@@ -50,11 +49,15 @@ async function waitForInventoryRows(page) {
   await page.waitForSelector('.inv-part-row', { timeout: 10_000 });
 }
 
-async function loadBom(page, bomCsv) {
+/**
+ * Load BOM via evaluate (populates inventory panel only — no staging table).
+ * Used for inventory-panel-only tests.
+ */
+async function loadBomViaEmit(page, bomCsv) {
   await page.evaluate((csv) => {
     const result = processBOM(csv, 'test-bom.csv');
     if (!result) throw new Error('processBOM returned null');
-    const { headers, cols, rawRows, aggregated } = result;
+    const { headers, cols, aggregated } = result;
     App.bomHeaders = headers;
     App.bomCols = cols;
     const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches);
@@ -83,6 +86,17 @@ async function loadBom(page, bomCsv) {
   }, bomCsv);
 }
 
+/**
+ * Load BOM via file input (populates BOTH bom-panel staging table and inventory panel).
+ * This triggers the full bom-panel loadBomText flow.
+ */
+async function loadBomViaFileInput(page, csvFilePath) {
+  const fileInput = page.locator('#bom-file-input');
+  await fileInput.setInputFiles(csvFilePath);
+  // Wait for the BOM staging table to be populated
+  await page.waitForSelector('#bom-tbody tr', { timeout: 10_000 });
+}
+
 // ── Designator coloring in inventory panel (BOM comparison table) ──
 
 test.describe('Designator colors — inventory panel BOM table', () => {
@@ -93,7 +107,7 @@ test.describe('Designator colors — inventory panel BOM table', () => {
     await page.goto('/index.html');
     await waitForInventoryRows(page);
     await page.waitForTimeout(300);
-    await loadBom(page, BOM_CSV);
+    await loadBomViaEmit(page, BOM_CSV);
     await page.waitForTimeout(300);
 
     // Inventory panel's BOM comparison table should have colored ref spans
@@ -113,13 +127,13 @@ test.describe('Designator colors — inventory panel BOM table', () => {
     }
   });
 
-  test('all ref spans have data-ref attribute', async ({ page }) => {
+  test('all ref spans have data-ref attribute matching text', async ({ page }) => {
     await addMockSetup(page);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
     await page.waitForTimeout(300);
-    await loadBom(page, BOM_CSV);
+    await loadBomViaEmit(page, BOM_CSV);
     await page.waitForTimeout(300);
 
     const refSpans = page.locator('#inventory-body .refs-cell [data-ref]');
@@ -146,7 +160,7 @@ test.describe('Designator colors — BOM panel staging table', () => {
     await page.goto('/index.html');
     await waitForInventoryRows(page);
     await page.waitForTimeout(300);
-    await loadBom(page, BOM_CSV);
+    await loadBomViaFileInput(page, BOM_CSV_PATH);
     await page.waitForTimeout(300);
 
     // BOM staging table should have .refs-cell display divs with colored ref spans
@@ -178,7 +192,7 @@ test.describe('Designator colors — BOM panel staging table', () => {
     await page.goto('/index.html');
     await waitForInventoryRows(page);
     await page.waitForTimeout(300);
-    await loadBom(page, BOM_CSV);
+    await loadBomViaFileInput(page, BOM_CSV_PATH);
     await page.waitForTimeout(300);
 
     const firstRefsDisplay = page.locator('#bom-tbody .refs-cell').first();
@@ -213,7 +227,7 @@ test.describe('Cross-panel designator hover highlighting', () => {
     await page.goto('/index.html');
     await waitForInventoryRows(page);
     await page.waitForTimeout(300);
-    await loadBom(page, BOM_CSV);
+    await loadBomViaFileInput(page, BOM_CSV_PATH);
     await page.waitForTimeout(300);
 
     // Find a designator that appears in both panels (e.g. C1)
@@ -243,7 +257,7 @@ test.describe('Cross-panel designator hover highlighting', () => {
     await page.goto('/index.html');
     await waitForInventoryRows(page);
     await page.waitForTimeout(300);
-    await loadBom(page, BOM_CSV);
+    await loadBomViaFileInput(page, BOM_CSV_PATH);
     await page.waitForTimeout(300);
 
     // Find R1 in both panels
@@ -268,7 +282,7 @@ test.describe('Cross-panel designator hover highlighting', () => {
     await page.goto('/index.html');
     await waitForInventoryRows(page);
     await page.waitForTimeout(300);
-    await loadBom(page, BOM_CSV);
+    await loadBomViaFileInput(page, BOM_CSV_PATH);
     await page.waitForTimeout(300);
 
     const invRefC1 = page.locator('#inventory-body [data-ref="C1"]').first();
