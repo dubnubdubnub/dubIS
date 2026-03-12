@@ -1,20 +1,18 @@
 /* inventory-panel.js — Middle panel: inventory viewer + BOM comparison overlay.
    Normal mode: parts grouped by section with search.
-   BOM mode: matched parts at top with status/need/have/alts, then remaining inventory. */
+   BOM mode: delegates to bom-comparison.js, then renders remaining inventory. */
 
 import { EventBus, Events } from './event-bus.js';
-import { api, AppLog } from './api.js';
-import { showToast, escHtml, Modal, linkPriceInputs, stockValueColor } from './ui-helpers.js';
+import { AppLog } from './api.js';
+import { showToast, escHtml, stockValueColor } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
-import { App, snapshotLinks, onInventoryUpdated, getThreshold } from './store.js';
-import { bomKey, invPartKey, countStatuses, STATUS_ICONS, STATUS_ROW_CLASS, colorizeRefs, REF_COLOR_MAP } from './part-keys.js';
-import { bomRowDisplayData } from './bom-row-data.js';
-
-const BOM_STATUS_SORT_ORDER = {
-  missing: 0, "manual-short": 0.4, manual: 0.5,
-  "confirmed-short": 0.7, confirmed: 0.75,
-  possible: 1, short: 2, ok: 3, dnp: 4,
-};
+import { App, snapshotLinks, getThreshold } from './store.js';
+import { bomKey, invPartKey } from './part-keys.js';
+import { openAdjustModal, openPriceModal } from './inventory-modals.js';
+import {
+  bomData, initBomComparison, setBomData, clearBomState,
+  renderBomComparison,
+} from './bom-comparison.js';
 
 const body = document.getElementById("inventory-body");
 const searchInput = document.getElementById("inv-search");
@@ -38,18 +36,19 @@ window.addEventListener("resize", () => {
   AppLog.info("Window: " + window.innerWidth + "×" + window.innerHeight + "  inv-body: " + body.offsetWidth + "×" + body.offsetHeight);
 });
 
-// Undo/redo tracking for inventory mutations
-let lastAdjustMeta = null;
-let lastPriceMeta = null;
-
-// BOM comparison state
-let bomData = null;        // { rows, fileName, multiplier } from bom-loaded event
-let activeFilter = "all";
-let expandedAlts = new Set();
-let rowMap = new Map();    // partKey → r, rebuilt each render for delegation
-
 const SECTION_HIERARCHY = App.SECTION_HIERARCHY;
 const FLAT_SECTIONS = App.FLAT_SECTIONS;
+
+// ── Wire up bom-comparison dependencies ──
+
+initBomComparison({
+  render,
+  openAdjustModal,
+  openPriceModal,
+  createReverseLink,
+  renderNormalSections: renderRemainingNormalSections,
+  filterByQuery,
+});
 
 // ── Reverse link helper (BOM missing row → inventory part) ──
 
@@ -74,7 +73,8 @@ function createReverseLink(invItem) {
 function render() {
   body.innerHTML = "";
   if (bomData) {
-    renderBomComparison();
+    const matchedInvKeys = renderBomComparison(body, searchInput);
+    renderRemainingInventory(matchedInvKeys, (searchInput.value || "").toLowerCase());
   } else {
     renderNormalInventory();
   }
@@ -162,274 +162,75 @@ function renderSubSection(container, displayName, fullKey, parts) {
 
   if (!isCollapsed) {
     parts.forEach(function (item) {
-      var row = document.createElement("div");
-      row.className = "inv-part-row";
-
-      var displayMpn = item.mpn || "";
-      var displayDesc = item.description || "";
-
-      var stockValue = item.qty * (item.unit_price || 0);
-      var qtyColor = stockValueColor(stockValue, getThreshold(fullKey));
-      var showPriceWarn = item.qty > 0 && !(item.unit_price > 0);
-
-      var isSource = App.links.linkingMode && App.links.linkingInvItem === item;
-      var linkBtnStr = bomData ? '<button class="link-btn' + (isSource ? ' active' : '') + '" title="Link to missing BOM row">Link</button>' : '';
-      var valueStr = stockValue > 0 ? "$" + stockValue.toFixed(2) : "—";
-
-      var partIdsHtml = '<span class="part-ids">';
-      if (item.lcsc) partIdsHtml += '<span class="part-id-lcsc" data-lcsc="' + escHtml(item.lcsc) + '"><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(item.lcsc) + '</span>';
-      if (item.digikey) partIdsHtml += '<span class="part-id-digikey" data-digikey="' + escHtml(item.digikey) + '"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(item.digikey) + '</span>';
-      if (!item.lcsc && !item.digikey) partIdsHtml += '<span></span>';
-      partIdsHtml += '</span>';
-
-      row.innerHTML =
-        partIdsHtml +
-        '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + '</span>' +
-        '<span class="part-value">' + valueStr + '</span>' +
-        '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data — click to set">⚠</button>' : '') + item.qty + '</span>' +
-        (hideDescs ? '' : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
-        '<button class="adj-btn" title="Adjust qty">Adjust</button>' +
-        linkBtnStr;
-
-      if (isSource) row.classList.add("linking-source");
-
-      if (App.links.linkingMode && App.links.linkingBomRow) {
-        row.classList.add("link-target");
-        row.addEventListener("click", function () { createReverseLink(item); });
-      }
-
-      row.querySelector(".adj-btn").addEventListener("click", function (e) {
-        e.stopPropagation();
-        openAdjustModal(item);
-      });
-      var warnBtn = row.querySelector(".price-warn-btn");
-      if (warnBtn) {
-        warnBtn.addEventListener("click", function (e) {
-          e.stopPropagation();
-          openPriceModal(item);
-        });
-      }
-      var linkBtnEl = row.querySelector(".link-btn");
-      if (linkBtnEl) {
-        linkBtnEl.addEventListener("click", function (e) {
-          e.stopPropagation();
-          App.links.setLinkingMode(true, item);
-        });
-      }
-      sub.appendChild(row);
+      sub.appendChild(createPartRow(item, fullKey));
     });
   }
 
   container.appendChild(sub);
 }
 
-// ── BOM comparison mode ──
+// ── Shared part row builder (used by both renderSubSection and renderSection) ──
 
-function renderFilterBar(c) {
-  const filterBar = document.createElement("div");
-  filterBar.className = "filter-bar";
-  filterBar.innerHTML = `
-    <button class="filter-btn${activeFilter === "all" ? " active" : ""}" data-filter="all">All (${c.total})</button>
-    ${c.manual > 0 ? `<button class="filter-btn${activeFilter === "manual" ? " active" : ""}" data-filter="manual">Manual (${c.manual})</button>` : ''}
-    ${c.confirmed > 0 ? `<button class="filter-btn${activeFilter === "confirmed" ? " active" : ""}" data-filter="confirmed">Confirmed (${c.confirmed})</button>` : ''}
-    <button class="filter-btn${activeFilter === "ok" ? " active" : ""}" data-filter="ok">In Stock (${c.ok})</button>
-    <button class="filter-btn${activeFilter === "short" ? " active" : ""}" data-filter="short">Short (${c.short})</button>
-    <button class="filter-btn${activeFilter === "possible" ? " active" : ""}" data-filter="possible">Possible (${c.possible})</button>
-    <button class="filter-btn${activeFilter === "missing" ? " active" : ""}" data-filter="missing">Missing (${c.missing})</button>
-    ${c.dnp > 0 ? `<button class="filter-btn${activeFilter === "dnp" ? " active" : ""}" data-filter="dnp">DNP (${c.dnp})</button>` : ''}
-  `;
-  filterBar.querySelectorAll(".filter-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      activeFilter = btn.dataset.filter;
-      render();
+function createPartRow(item, sectionKey) {
+  var row = document.createElement("div");
+  row.className = "inv-part-row";
+
+  var displayMpn = item.mpn || "";
+  var displayDesc = item.description || "";
+
+  var stockValue = item.qty * (item.unit_price || 0);
+  var qtyColor = stockValueColor(stockValue, getThreshold(sectionKey));
+  var showPriceWarn = item.qty > 0 && !(item.unit_price > 0);
+
+  var isSource = App.links.linkingMode && App.links.linkingInvItem === item;
+  var linkBtnStr = bomData ? '<button class="link-btn' + (isSource ? ' active' : '') + '" title="Link to missing BOM row">Link</button>' : '';
+  var valueStr = stockValue > 0 ? "$" + stockValue.toFixed(2) : "—";
+
+  var partIdsHtml = '<span class="part-ids">';
+  if (item.lcsc) partIdsHtml += '<span class="part-id-lcsc" data-lcsc="' + escHtml(item.lcsc) + '"><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(item.lcsc) + '</span>';
+  if (item.digikey) partIdsHtml += '<span class="part-id-digikey" data-digikey="' + escHtml(item.digikey) + '"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(item.digikey) + '</span>';
+  if (!item.lcsc && !item.digikey) partIdsHtml += '<span></span>';
+  partIdsHtml += '</span>';
+
+  row.innerHTML =
+    partIdsHtml +
+    '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + '</span>' +
+    '<span class="part-value">' + valueStr + '</span>' +
+    '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data — click to set">⚠</button>' : '') + item.qty + '</span>' +
+    (hideDescs ? '' : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
+    '<button class="adj-btn" title="Adjust qty">Adjust</button>' +
+    linkBtnStr;
+
+  if (isSource) row.classList.add("linking-source");
+
+  if (App.links.linkingMode && App.links.linkingBomRow) {
+    row.classList.add("link-target");
+    row.addEventListener("click", function () { createReverseLink(item); });
+  }
+
+  row.querySelector(".adj-btn").addEventListener("click", function (e) {
+    e.stopPropagation();
+    openAdjustModal(item);
+  });
+  var warnBtn = row.querySelector(".price-warn-btn");
+  if (warnBtn) {
+    warnBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      openPriceModal(item);
     });
-  });
-  body.appendChild(filterBar);
-}
-
-// ── BOM row element builder (consumes bomRowDisplayData output) ──
-
-function createBomRowElement(d) {
-  const tr = document.createElement("tr");
-  tr.dataset.partKey = d.partKey;
-  tr.className = d.rowClass;
-  if (d.isLinkingSource || d.isReverseLinkingSource) tr.classList.add("linking-source");
-  if (d.isReverseTarget) tr.classList.add("link-target");
-
-  let haveHtml = "" + d.invQty;
-  if (d.altBadge) {
-    const coveredCls = d.altBadge.covered ? " covered" : "";
-    const expandedCls = d.altBadge.expanded ? " expanded" : "";
-    haveHtml += '<br><span class="alt-badge' + coveredCls + expandedCls + '" data-part-key="' + escHtml(d.partKey) + '"><span class="chevron">▸</span>+' + d.altBadge.altQty + ' (' + d.altBadge.badgeText + ')</span>';
+  }
+  var linkBtnEl = row.querySelector(".link-btn");
+  if (linkBtnEl) {
+    linkBtnEl.addEventListener("click", function (e) {
+      e.stopPropagation();
+      App.links.setLinkingMode(true, item);
+    });
   }
 
-  const adjBtnHtml = d.showAdjust ? '<button class="adj-btn" title="Adjust qty">Adjust</button>' : '';
-  const confirmBtnHtml = d.showConfirm
-    ? '<button class="confirm-btn" title="Confirm this match">Confirm</button>'
-    : d.showUnconfirm
-      ? '<button class="unconfirm-btn" title="Revert to possible match">Unconfirm</button>'
-      : '';
-  const linkBtnHtml = d.showLink
-    ? `<button class="link-btn${d.linkActive ? ' active' : ''}" title="${d.hasInv ? 'Link to missing BOM row' : 'Link to inventory part'}">Link</button>`
-    : '';
-
-  tr.innerHTML = `
-    <td class="refs-cell" title="${escHtml(d.refs)}">${colorizeRefs(d.refs)}</td>
-    <td class="status">${d.icon}</td>
-    <td class="mono">${d.dispLcsc ? '<span' + (/^C\d{4,}$/i.test(d.dispLcsc) ? ' data-lcsc="' + escHtml(d.dispLcsc) + '"' : '') + '><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(d.dispLcsc) + '</span>' : ''}${d.dispLcsc && d.dispDigikey ? '<br>' : ''}${d.dispDigikey ? '<span data-digikey="' + escHtml(d.dispDigikey) + '" style="color:#cc6600"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(d.dispDigikey) + '</span>' : ''}</td>
-    <td class="mono" title="${escHtml(d.dispMpn)}">${escHtml(d.dispMpn)}</td>
-    <td class="${d.qtyClass}" style="text-align:right;font-weight:600">${d.effectiveQty}</td>
-    <td class="inv-qty-cell ${d.qtyClass}" style="text-align:right;font-weight:600">${haveHtml}</td>
-    <td class="desc-cell${d.isMissing ? ' muted' : ''}" title="${escHtml(d.invDesc)}">${escHtml(d.invDesc)}</td>
-    <td class="mono" style="text-align:center">${d.matchLabel}</td>
-    <td class="btn-group">${confirmBtnHtml}${adjBtnHtml}${linkBtnHtml}</td>
-  `;
-
-  return tr;
+  return row;
 }
 
-// ── Alt rows builder ──
-
-function renderAltRows(tbody, alts, partKey) {
-  alts.forEach(alt => {
-    const altTr = document.createElement("tr");
-    altTr.className = "alt-row";
-    altTr.dataset.altFor = partKey;
-    altTr.dataset.invKey = invPartKey(alt);
-    var altLcsc = alt.lcsc || '';
-    var altDigikey = alt.digikey || '';
-    var altPartHtml = '';
-    if (altLcsc) altPartHtml += '<span' + (/^C\d{4,}$/i.test(altLcsc) ? ' data-lcsc="' + escHtml(altLcsc) + '"' : '') + '><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(altLcsc) + '</span>';
-    if (altLcsc && altDigikey) altPartHtml += '<br>';
-    if (altDigikey) altPartHtml += '<span data-digikey="' + escHtml(altDigikey) + '" style="color:#cc6600"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(altDigikey) + '</span>';
-    altTr.innerHTML =
-      '<td></td>' +
-      '<td></td>' +
-      '<td class="mono">' + altPartHtml + '</td>' +
-      '<td class="mono" title="' + escHtml(alt.mpn || '') + '">' + escHtml(alt.mpn || '') + '</td>' +
-      '<td></td>' +
-      '<td style="text-align:right;font-weight:600">' + alt.qty + '</td>' +
-      '<td class="desc-cell" title="' + escHtml(alt.description) + ' ' + escHtml(alt.package) + '">' + escHtml(alt.description) + ' <span class="muted">' + escHtml(alt.package) + '</span></td>' +
-      '<td></td>' +
-      '<td class="btn-group"><button class="swap-btn" title="Use this alt as the selected part">Swap</button><button class="adj-btn" title="Adjust qty">Adjust</button></td>';
-    tbody.appendChild(altTr);
-  });
-}
-
-// ── Delegated tbody click handler ──
-
-function handleBomTableClick(e) {
-  // Alt badge toggle
-  const badge = e.target.closest(".alt-badge");
-  if (badge) {
-    e.stopPropagation();
-    const pk = badge.dataset.partKey;
-    if (expandedAlts.has(pk)) expandedAlts.delete(pk);
-    else expandedAlts.add(pk);
-    render();
-    return;
-  }
-
-  // Button clicks (both main rows and alt rows)
-  const btn = e.target.closest("button");
-  if (btn) {
-    e.stopPropagation();
-    const tr = btn.closest("tr");
-
-    // Alt row buttons
-    if (tr.classList.contains("alt-row")) {
-      const parentKey = tr.dataset.altFor;
-      const parentRow = rowMap.get(parentKey);
-      const altKey = tr.dataset.invKey;
-      const alt = parentRow && parentRow.alts
-        ? parentRow.alts.find(a => invPartKey(a) === altKey)
-        : null;
-      if (!alt) return;
-      if (btn.classList.contains("adj-btn")) openAdjustModal(alt);
-      else if (btn.classList.contains("swap-btn")) confirmAltMatch(parentRow, alt);
-      return;
-    }
-
-    // Main row buttons
-    const pk = tr.dataset.partKey;
-    const r = rowMap.get(pk);
-    if (!r) return;
-    if (btn.classList.contains("confirm-btn")) confirmMatch(r);
-    else if (btn.classList.contains("unconfirm-btn")) unconfirmMatch(r);
-    else if (btn.classList.contains("adj-btn")) openAdjustModal(r.inv);
-    else if (btn.classList.contains("link-btn")) {
-      if (r.inv) App.links.setLinkingMode(true, r.inv);
-      else if (r.effectiveStatus === "missing") App.links.setReverseLinkingMode(true, r);
-    }
-    return;
-  }
-
-  // Reverse linking: row click on link-target
-  const tr = e.target.closest("tr.link-target");
-  if (tr && !tr.classList.contains("alt-row")) {
-    const pk = tr.dataset.partKey;
-    const r = rowMap.get(pk);
-    if (r && r.inv) createReverseLink(r.inv);
-  }
-}
-
-function renderBomComparison() {
-  const query = (searchInput.value || "").toLowerCase();
-  const rows = bomData.rows;
-  const sortedRows = [...rows].sort((a, b) => BOM_STATUS_SORT_ORDER[a.effectiveStatus] - BOM_STATUS_SORT_ORDER[b.effectiveStatus]);
-  const c = countStatuses(rows);
-  const linkingState = {
-    linkingMode: App.links.linkingMode,
-    linkingInvItem: App.links.linkingInvItem,
-    linkingBomRow: App.links.linkingBomRow,
-  };
-
-  renderFilterBar(c);
-
-  // Build row lookup map for delegation
-  rowMap = new Map();
-  sortedRows.forEach(r => { rowMap.set(bomKey(r.bom), r); });
-
-  // BOM matched section — table with full comparison
-  const tableWrap = document.createElement("div");
-  tableWrap.className = "table-wrap";
-  const table = document.createElement("table");
-  table.innerHTML = `<thead><tr>
-    <th class="refs-col">Designators</th>
-    <th style="width:24px"></th>
-    <th style="width:110px">Part #</th>
-    <th style="width:140px">MPN</th>
-    <th style="width:50px">Need</th>
-    <th style="width:50px">Have</th>
-    <th>Description</th>
-    <th style="width:78px;text-align:center">Match</th>
-    <th class="btn-group-hdr"></th>
-  </tr></thead>`;
-
-  const tbody = document.createElement("tbody");
-  sortedRows.forEach(r => {
-    const d = bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState);
-    if (!d) return;
-    tbody.appendChild(createBomRowElement(d));
-    if (d.showAlts) renderAltRows(tbody, r.alts, d.partKey);
-  });
-
-  tbody.addEventListener("click", handleBomTableClick);
-
-  table.appendChild(tbody);
-  tableWrap.appendChild(table);
-  body.appendChild(tableWrap);
-
-  // Remaining inventory (not matched to BOM)
-  const matchedInvKeys = new Set();
-  rows.forEach(r => {
-    if (r.inv) {
-      const pk = invPartKey(r.inv).toUpperCase();
-      if (pk) matchedInvKeys.add(pk);
-    }
-  });
-  renderRemainingInventory(matchedInvKeys, query);
-}
+// ── Remaining inventory (after BOM comparison) ──
 
 function renderRemainingInventory(matchedInvKeys, query) {
   const otherParts = {};
@@ -440,6 +241,10 @@ function renderRemainingInventory(matchedInvKeys, query) {
     (otherParts[sec] = otherParts[sec] || []).push(item);
   });
 
+  renderRemainingNormalSections(otherParts, query);
+}
+
+function renderRemainingNormalSections(otherParts, query) {
   const hasAny = FLAT_SECTIONS.some(s => otherParts[s]);
   if (hasAny) {
     const divider = document.createElement("div");
@@ -490,62 +295,7 @@ function renderSection(name, parts) {
 
   if (!isCollapsed) {
     parts.forEach(item => {
-      const row = document.createElement("div");
-      row.className = "inv-part-row";
-
-      const displayMpn = item.mpn || "";
-      const displayDesc = item.description || "";
-
-      const stockValue = item.qty * (item.unit_price || 0);
-      const qtyColor = stockValueColor(stockValue, getThreshold(name));
-      const showPriceWarn = item.qty > 0 && !(item.unit_price > 0);
-
-      const isSource = App.links.linkingMode && App.links.linkingInvItem === item;
-      const linkBtnStr = bomData ? `<button class="link-btn${isSource ? ' active' : ''}" title="Link to missing BOM row">Link</button>` : '';
-      const valueStr = stockValue > 0 ? "$" + stockValue.toFixed(2) : "—";
-
-      let partIdsHtml = '<span class="part-ids">';
-      if (item.lcsc) partIdsHtml += '<span class="part-id-lcsc" data-lcsc="' + escHtml(item.lcsc) + '"><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(item.lcsc) + '</span>';
-      if (item.digikey) partIdsHtml += '<span class="part-id-digikey" data-digikey="' + escHtml(item.digikey) + '"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(item.digikey) + '</span>';
-      if (!item.lcsc && !item.digikey) partIdsHtml += '<span></span>';
-      partIdsHtml += '</span>';
-
-      row.innerHTML = `
-        ${partIdsHtml}
-        <span class="part-mpn" title="${escHtml(displayMpn)}">${escHtml(displayMpn)}</span>
-        <span class="part-value">${valueStr}</span>
-        <span class="part-qty" style="color:${qtyColor}">${showPriceWarn ? '<button class="price-warn-btn" title="No price data — click to set">⚠</button>' : ''}${item.qty}</span>
-        ${hideDescs ? '' : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>'}
-        <button class="adj-btn" title="Adjust qty">Adjust</button>
-        ${linkBtnStr}
-      `;
-      if (isSource) row.classList.add("linking-source");
-
-      // Reverse linking: make inventory rows clickable targets
-      if (App.links.linkingMode && App.links.linkingBomRow) {
-        row.classList.add("link-target");
-        row.addEventListener("click", () => createReverseLink(item));
-      }
-
-      row.querySelector(".adj-btn").addEventListener("click", (e) => {
-        e.stopPropagation();
-        openAdjustModal(item);
-      });
-      const warnBtn = row.querySelector(".price-warn-btn");
-      if (warnBtn) {
-        warnBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          openPriceModal(item);
-        });
-      }
-      const linkBtnEl = row.querySelector(".link-btn");
-      if (linkBtnEl) {
-        linkBtnEl.addEventListener("click", (e) => {
-          e.stopPropagation();
-          App.links.setLinkingMode(true, item);
-        });
-      }
-      section.appendChild(row);
+      section.appendChild(createPartRow(item, name));
     });
   }
 
@@ -562,285 +312,23 @@ function debounce(fn, ms) {
 }
 searchInput.addEventListener("input", debounce(() => render(), 150));
 
-// ── Undo/Redo handlers for inventory mutations ──
-
-UndoRedo.register("adjust", async (action, data) => {
-  if (action === "snapshot") {
-    if (lastAdjustMeta) {
-      return { _undoType: "adjust-done", ...lastAdjustMeta };
-    }
-    return { _undoType: "adjust-none" };
-  }
-  if (data._undoType === "adjust") {
-    const fresh = await api("remove_last_adjustments", 1);
-    if (!fresh) throw new Error("Failed to undo adjustment");
-    let result = fresh;
-    if (data.priceChanged) {
-      result = await api("update_part_price", data.partKey, data.oldUp, data.oldEp);
-      if (!result) throw new Error("Failed to undo price change");
-    }
-    lastAdjustMeta = null;
-    onInventoryUpdated(result);
-    showToast("Undid adjustment for " + data.partKey);
-  } else if (data._undoType === "adjust-done") {
-    const qtyResult = await api("adjust_part", data.adjType, data.partKey, data.qty, data.note);
-    if (!qtyResult) throw new Error("Failed to redo adjustment");
-    let result = qtyResult;
-    if (data.priceChanged) {
-      result = await api("update_part_price", data.partKey, data.newUp, data.newEp);
-      if (!result) throw new Error("Failed to redo price change");
-    }
-    lastAdjustMeta = { ...data };
-    delete lastAdjustMeta._undoType;
-    onInventoryUpdated(result);
-    showToast("Redid adjustment for " + data.partKey);
-  }
-});
-
-UndoRedo.register("price", async (action, data) => {
-  if (action === "snapshot") {
-    if (lastPriceMeta) {
-      return { _undoType: "price-done", ...lastPriceMeta };
-    }
-    return { _undoType: "price-none" };
-  }
-  if (data._undoType === "price") {
-    const fresh = await api("update_part_price", data.partKey, data.oldUp, data.oldEp);
-    if (!fresh) throw new Error("Failed to undo price update");
-    lastPriceMeta = null;
-    onInventoryUpdated(fresh);
-    showToast("Undid price update for " + data.partKey);
-  } else if (data._undoType === "price-done") {
-    const fresh = await api("update_part_price", data.partKey, data.newUp, data.newEp);
-    if (!fresh) throw new Error("Failed to redo price update");
-    lastPriceMeta = { ...data };
-    delete lastPriceMeta._undoType;
-    onInventoryUpdated(fresh);
-    showToast("Redid price update for " + data.partKey);
-  }
-});
-
-// ── Adjustment Modal ──
-const modalTitle = document.getElementById("modal-title");
-const modalSubtitle = document.getElementById("modal-subtitle");
-const modalQty = document.getElementById("modal-current-qty");
-const adjType = document.getElementById("adj-type");
-const adjQty = document.getElementById("adj-qty");
-const adjNote = document.getElementById("adj-note");
-const adjUnitPrice = document.getElementById("adj-unit-price");
-const adjExtPrice = document.getElementById("adj-ext-price");
-let currentPart = null;
-
-const adjModal = Modal("adjust-modal", {
-  onClose: () => { currentPart = null; },
-  cancelId: "adj-cancel",
-});
-linkPriceInputs(adjUnitPrice, adjExtPrice, () => currentPart ? currentPart.qty : 0);
-
-function openAdjustModal(item) {
-  currentPart = item;
-  const pk = invPartKey(item);
-  modalTitle.textContent = pk + (item.mpn && item.lcsc ? " — " + item.mpn : "");
-  modalSubtitle.textContent = item.description || item.package || "";
-  modalQty.textContent = "Current qty: " + item.qty;
-  adjType.value = "set";
-  adjQty.value = item.qty;
-  adjNote.value = "";
-  adjUnitPrice.value = item.unit_price > 0 ? item.unit_price : "";
-  adjExtPrice.value = item.ext_price > 0 ? item.ext_price : "";
-  adjModal.open();
-  adjQty.focus();
-  adjQty.select();
-}
-
-document.getElementById("adj-apply").addEventListener("click", async () => {
-  if (!currentPart) return;
-  const pk = invPartKey(currentPart);
-  const type = adjType.value;
-  const qty = parseInt(adjQty.value, 10) || 0;
-  const note = adjNote.value;
-
-  // Check if price changed
-  const newUp = parseFloat(adjUnitPrice.value);
-  const newEp = parseFloat(adjExtPrice.value);
-  const origUp = currentPart.unit_price || 0;
-  const origEp = currentPart.ext_price || 0;
-  const priceChanged = (!isNaN(newUp) && newUp !== origUp) || (!isNaN(newEp) && newEp !== origEp);
-
-  // Save undo state
-  UndoRedo.save("adjust", {
-    _undoType: "adjust",
-    partKey: pk,
-    adjType: type,
-    qty: qty,
-    note: note,
-    priceChanged: priceChanged,
-    oldUp: origUp,
-    oldEp: origEp,
-    newUp: priceChanged ? (!isNaN(newUp) ? newUp : null) : null,
-    newEp: priceChanged ? (!isNaN(newEp) ? newEp : null) : null,
-  });
-
-  // Apply qty adjustment
-  const qtyResult = await api("adjust_part", type, pk, qty, note);
-  if (!qtyResult) {
-    UndoRedo.popLast();
-    return;
-  }
-
-  // Apply price update if changed
-  if (priceChanged) {
-    const up = !isNaN(newUp) ? newUp : null;
-    const ep = !isNaN(newEp) ? newEp : null;
-    const priceResult = await api("update_part_price", pk, up, ep);
-    if (!priceResult) {
-      AppLog.warn("Qty adjusted, but price update failed for " + pk);
-      UndoRedo._undo[UndoRedo._undo.length - 1].data.priceChanged = false;
-      onInventoryUpdated(qtyResult);
-      adjModal.close();
-      return;
-    }
-    onInventoryUpdated(priceResult);
-  } else {
-    onInventoryUpdated(qtyResult);
-  }
-
-  lastAdjustMeta = {
-    partKey: pk, adjType: type, qty: qty, note: note,
-    priceChanged: priceChanged,
-    oldUp: origUp, oldEp: origEp,
-    newUp: priceChanged ? (!isNaN(newUp) ? newUp : null) : null,
-    newEp: priceChanged ? (!isNaN(newEp) ? newEp : null) : null,
-  };
-  adjModal.close();
-  showToast("Adjusted " + pk);
-});
-
-document.addEventListener("keydown", (e) => {
-  if (adjModal.el.classList.contains("hidden")) return;
-  if (e.key === "Enter" && document.activeElement !== adjNote) {
-    document.getElementById("adj-apply").click();
-  }
-});
-
-// ── Price Modal ──
-const priceTitle = document.getElementById("price-modal-title");
-const priceSubtitle = document.getElementById("price-modal-subtitle");
-const priceUnitInput = document.getElementById("price-unit");
-const priceExtInput = document.getElementById("price-ext");
-let pricePart = null;
-
-const priceModal = Modal("price-modal", {
-  onClose: () => { pricePart = null; },
-  cancelId: "price-cancel",
-});
-linkPriceInputs(priceUnitInput, priceExtInput, () => pricePart ? pricePart.qty : 0);
-
-function openPriceModal(item) {
-  pricePart = item;
-  const pk = invPartKey(item);
-  priceTitle.textContent = pk + (item.mpn && item.lcsc ? " — " + item.mpn : "");
-  priceSubtitle.textContent = (item.description || item.package || "") + " (qty: " + item.qty + ")";
-  priceUnitInput.value = item.unit_price > 0 ? item.unit_price : "";
-  priceExtInput.value = item.ext_price > 0 ? item.ext_price : "";
-  priceModal.open();
-  priceUnitInput.focus();
-}
-
-document.getElementById("price-apply").addEventListener("click", async () => {
-  if (!pricePart) return;
-  const pk = invPartKey(pricePart);
-  const rawUp = parseFloat(priceUnitInput.value);
-  const up = isNaN(rawUp) ? null : rawUp;
-  const rawEp = parseFloat(priceExtInput.value);
-  const ep = isNaN(rawEp) ? null : rawEp;
-  if (up === null && ep === null) {
-    showToast("Enter a unit or ext price");
-    return;
-  }
-
-  // Save undo state
-  UndoRedo.save("price", {
-    _undoType: "price",
-    partKey: pk,
-    oldUp: pricePart.unit_price || 0,
-    oldEp: pricePart.ext_price || 0,
-    newUp: up,
-    newEp: ep,
-  });
-
-  const fresh = await api("update_part_price", pk, up, ep);
-  if (!fresh) {
-    UndoRedo.popLast();
-    return;
-  }
-  lastPriceMeta = {
-    partKey: pk,
-    oldUp: pricePart.unit_price || 0,
-    oldEp: pricePart.ext_price || 0,
-    newUp: up,
-    newEp: ep,
-  };
-  priceModal.close();
-  onInventoryUpdated(fresh);
-  showToast("Price updated for " + pk);
-});
-
-document.addEventListener("keydown", (e) => {
-  if (priceModal.el.classList.contains("hidden")) return;
-  if (e.key === "Enter") document.getElementById("price-apply").click();
-});
-
 // ── Event listeners ──
 EventBus.on(Events.INVENTORY_LOADED, () => render());
 EventBus.on(Events.INVENTORY_UPDATED, () => render());
 EventBus.on(Events.PREFS_CHANGED, () => render());
 
 EventBus.on(Events.BOM_LOADED, (data) => {
-  bomData = data;
+  setBomData(data);
   render();
 });
 
 EventBus.on(Events.BOM_CLEARED, () => {
-  bomData = null;
-  activeFilter = "all";
-  expandedAlts = new Set();
+  clearBomState();
   App.links.clearAll();
   render();
 });
 
 EventBus.on(Events.LINKING_MODE, () => render());
-
-// ── Confirm Match Functions ──
-
-function confirmMatch(bomRow) {
-  const bk = bomKey(bomRow.bom);
-  const ipk = invPartKey(bomRow.inv);
-  if (!bk || !ipk) return;
-  UndoRedo.save("links", snapshotLinks());
-  App.links.confirmMatch(bk, ipk);
-  AppLog.info("Confirmed: " + bk + " → " + ipk);
-  showToast("Confirmed " + bk);
-}
-
-function unconfirmMatch(bomRow) {
-  const bk = bomKey(bomRow.bom);
-  if (!bk) return;
-  UndoRedo.save("links", snapshotLinks());
-  App.links.unconfirmMatch(bk);
-  AppLog.info("Unconfirmed: " + bk);
-  showToast("Unconfirmed " + bk);
-}
-
-function confirmAltMatch(bomRow, altInvItem) {
-  const bk = bomKey(bomRow.bom);
-  const ipk = invPartKey(altInvItem);
-  if (!bk || !ipk) return;
-  UndoRedo.save("links", snapshotLinks());
-  App.links.confirmMatch(bk, ipk);
-  AppLog.info("Confirmed alt: " + bk + " → " + ipk);
-  showToast("Confirmed " + bk + " → " + ipk);
-}
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && App.links.linkingMode) {
