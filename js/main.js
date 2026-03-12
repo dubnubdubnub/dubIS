@@ -391,6 +391,7 @@ function openPreferencesModal() {
   // Load Digikey login status
   var dkStatus = document.getElementById("dk-status");
   var dkLoginBtn = document.getElementById("dk-login");
+  var dkSyncBtn = document.getElementById("dk-sync");
   var dkLogoutBtn = document.getElementById("dk-logout");
   dkStatus.textContent = "Checking...";
   dkStatus.style.color = "var(--text-muted)";
@@ -399,11 +400,13 @@ function openPreferencesModal() {
       dkStatus.textContent = "Logged in";
       dkStatus.style.color = "var(--color-green)";
       dkLoginBtn.classList.add("hidden");
+      dkSyncBtn.classList.add("hidden");
       dkLogoutBtn.classList.remove("hidden");
     } else {
       dkStatus.textContent = "Not logged in";
       dkStatus.style.color = "var(--text-muted)";
       dkLoginBtn.classList.remove("hidden");
+      dkSyncBtn.classList.add("hidden");
       dkLogoutBtn.classList.add("hidden");
     }
   });
@@ -493,20 +496,43 @@ async function initApp() {
   if (prefsSave) prefsSave.addEventListener("click", applyPreferences);
 
   var dkLoginBtn = document.getElementById("dk-login");
+  var dkSyncBtn = document.getElementById("dk-sync");
+  var dkLogoutBtn = document.getElementById("dk-logout");
+
   if (dkLoginBtn) dkLoginBtn.addEventListener("click", async () => {
     await api("start_digikey_login");
     var dkStatus = document.getElementById("dk-status");
-    dkStatus.textContent = "Browser opened — log in and close the window";
+    dkStatus.textContent = "Browser opened — log in, then click Check login";
     dkStatus.style.color = "var(--text-muted)";
+    dkSyncBtn.classList.remove("hidden");
   });
 
-  var dkLogoutBtn = document.getElementById("dk-logout");
+  if (dkSyncBtn) dkSyncBtn.addEventListener("click", async () => {
+    var dkStatus = document.getElementById("dk-status");
+    dkStatus.textContent = "Checking...";
+    dkStatus.style.color = "var(--text-muted)";
+    var result = await api("sync_digikey_cookies");
+    if (result && result.logged_in) {
+      var label = "Logged in" + (result.browser ? " (via " + result.browser + ")" : "");
+      dkStatus.textContent = label;
+      dkStatus.style.color = "var(--color-green)";
+      dkLoginBtn.classList.add("hidden");
+      dkSyncBtn.classList.add("hidden");
+      dkLogoutBtn.classList.remove("hidden");
+      showToast(label);
+    } else {
+      dkStatus.textContent = (result && result.message) || "Could not sync cookies";
+      dkStatus.style.color = "var(--color-red, #e74c3c)";
+    }
+  });
+
   if (dkLogoutBtn) dkLogoutBtn.addEventListener("click", async () => {
     await api("logout_digikey");
     var dkStatus = document.getElementById("dk-status");
     dkStatus.textContent = "Not logged in";
     dkStatus.style.color = "var(--text-muted)";
     dkLoginBtn.classList.remove("hidden");
+    dkSyncBtn.classList.add("hidden");
     dkLogoutBtn.classList.add("hidden");
     showToast("Digikey logged out");
   });
