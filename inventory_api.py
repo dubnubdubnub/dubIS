@@ -131,71 +131,82 @@ class InventoryApi:
         prefix = m.group(2) or ""
         return value * {"n": 1e-9, "u": 1e-6, "\u00b5": 1e-6, "m": 1e-3, "": 1}[prefix]
 
+    # Each rule: first match wins.  Within a rule, keywords in the same field
+    # are OR'd; different fields (desc + mfr) are AND'd.  exclude_desc vetoes.
+    CATEGORY_RULES: list[dict[str, Any]] = [
+        # Connectors
+        {"category": "Connectors", "desc": [
+            "connector", "header", "receptacle", "banana", "xt60", "xt30",
+            "ipex", "usb-c", "usb type-c", "crimp", "housing",
+            "nv-2a", "nv-4a", "nv-2y", "nv-4y", "df40",
+        ]},
+        {"category": "Connectors", "mpn": [
+            "xt60", "xt30", "sm04b", "sm05b", "sm06b",
+            "svh-21t", "nv-", "df40", "bwipx", "xy-sh", "type-c",
+        ]},
+        # Switches (not "switching regulator")
+        {"category": "Switches", "desc": ["switch", "tactile"],
+         "exclude_desc": ["switching regulator"]},
+        # LEDs
+        {"category": "LEDs", "desc": ["led", "emitter", "emit"]},
+        # Passives
+        {"category": "Passives - Inductors", "desc": ["inductor"]},
+        {"category": "Passives - Resistors", "desc": ["resistor"]},
+        {"category": "Passives - Resistors", "desc": ["\u03c9", "\u03a9", "\u2126", "ohm"]},
+        {"category": "Passives - Resistors", "mfr": ["uni-royal"]},
+        {"category": "Passives - Resistors", "mfr": ["ta-i tech"], "desc": ["m\u03c9"]},
+        {"category": "Passives - Capacitors", "desc": ["capacitor", "electrolytic", "cap cer"]},
+        # Crystals
+        {"category": "Crystals & Oscillators", "desc": ["crystal", "oscillator"]},
+        # Diodes (not ESD)
+        {"category": "Diodes", "desc": ["diode"], "exclude_desc": ["esd"]},
+        {"category": "ICs - ESD Protection", "desc": ["esd"]},
+        # Discrete
+        {"category": "Discrete Semiconductors", "desc": ["transistor", "bjt", "mosfet"]},
+        # Power
+        {"category": "ICs - Power / Voltage Regulators", "desc": [
+            "voltage regulator", "buck", "ldo", "linear voltage", "switching regulator",
+        ]},
+        # References
+        {"category": "ICs - Voltage References", "desc": ["voltage reference"]},
+        {"category": "ICs - Voltage References", "mpn": ["ref30"]},
+        # Sensors
+        {"category": "ICs - Sensors", "desc": ["current sensor"]},
+        # Amplifiers
+        {"category": "ICs - Amplifiers", "desc": ["amplifier", "csa"]},
+        # Motor Drivers
+        {"category": "ICs - Motor Drivers", "desc": ["motor", "mtr drvr", "half-bridge", "three-phase"]},
+        {"category": "ICs - Motor Drivers", "mpn": ["drv8", "l6226"]},
+        # Interface
+        {"category": "ICs - Interface", "desc": ["transceiver", "driver"]},
+        # Sensors (position / angle)
+        {"category": "ICs - Sensors", "desc": ["position", "angle"]},
+        {"category": "ICs - Sensors", "mpn": ["mt6835"]},
+        # MCU
+        {"category": "ICs - Microcontrollers", "desc": ["microcontroller", "mcu"]},
+        # Mechanical
+        {"category": "Mechanical & Hardware", "desc": ["spacer", "standoff", "battery holder"]},
+    ]
+
     @staticmethod
     def categorize(row: dict[str, str]) -> str:
         desc = (row.get("Description") or "").lower()
         mpn = (row.get("Manufacture Part Number") or "").lower()
-
-        connector_kw = [
-            "connector", "header", "receptacle", "banana", "xt60", "xt30",
-            "ipex", "usb-c", "usb type-c", "crimp", "housing",
-            "nv-2a", "nv-4a", "nv-2y", "nv-4y", "df40",
-        ]
-        if any(kw in desc for kw in connector_kw):
-            return "Connectors"
-        if any(kw in mpn for kw in [
-            "xt60", "xt30", "sm04b", "sm05b", "sm06b",
-            "svh-21t", "nv-", "df40", "bwipx", "xy-sh", "type-c",
-        ]):
-            return "Connectors"
-
-        if ("switch" in desc or "tactile" in desc) and "switching regulator" not in desc:
-            return "Switches"
-        if "led" in desc or "emitter" in desc or "emit" in desc:
-            return "LEDs"
-        if "inductor" in desc:
-            return "Passives - Inductors"
-        if "resistor" in desc:
-            return "Passives - Resistors"
-        if "\u03c9" in desc or "\u03a9" in desc or "\u2126" in desc or "ohm" in desc:
-            return "Passives - Resistors"
         mfr = (row.get("Manufacturer") or "").lower()
-        if "uni-royal" in mfr:
-            return "Passives - Resistors"
-        if "ta-i tech" in mfr and "m\u03c9" in desc:
-            return "Passives - Resistors"
-        if "capacitor" in desc or "electrolytic" in desc or "cap cer" in desc:
-            return "Passives - Capacitors"
-        if "crystal" in desc or "oscillator" in desc:
-            return "Crystals & Oscillators"
-        if "diode" in desc and "esd" not in desc:
-            return "Diodes"
-        if "esd" in desc:
-            return "ICs - ESD Protection"
-        if "transistor" in desc or "bjt" in desc or "mosfet" in desc:
-            return "Discrete Semiconductors"
-        if "voltage regulator" in desc or "buck" in desc or "ldo" in desc or "linear voltage" in desc:
-            return "ICs - Power / Voltage Regulators"
-        if "switching regulator" in desc:
-            return "ICs - Power / Voltage Regulators"
-        if "voltage reference" in desc or "ref30" in mpn:
-            return "ICs - Voltage References"
-        if "current sensor" in desc:
-            return "ICs - Sensors"
-        if "amplifier" in desc or "csa" in desc:
-            return "ICs - Amplifiers"
-        if any(kw in desc for kw in ["motor", "mtr drvr", "half-bridge", "three-phase"]):
-            return "ICs - Motor Drivers"
-        if any(kw in mpn for kw in ["drv8", "l6226"]):
-            return "ICs - Motor Drivers"
-        if "transceiver" in desc or "driver" in desc:
-            return "ICs - Interface"
-        if "position" in desc or "angle" in desc or "mt6835" in mpn:
-            return "ICs - Sensors"
-        if "microcontroller" in desc or "mcu" in desc:
-            return "ICs - Microcontrollers"
-        if "spacer" in desc or "standoff" in desc or "battery holder" in desc:
-            return "Mechanical & Hardware"
+
+        for rule in InventoryApi.CATEGORY_RULES:
+            if "exclude_desc" in rule and any(kw in desc for kw in rule["exclude_desc"]):
+                continue
+            matched = True
+            has_condition = False
+            for field, text in [("desc", desc), ("mpn", mpn), ("mfr", mfr)]:
+                if field in rule:
+                    has_condition = True
+                    if not any(kw in text for kw in rule[field]):
+                        matched = False
+                        break
+            if has_condition and matched:
+                return rule["category"]
         return "Other"
 
     # ── Core pipeline ────────────────────────────────────────────────────
