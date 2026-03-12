@@ -576,7 +576,7 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 .inv-part-row .part-value { width: 70px; flex-shrink: 0; text-align: right; font-size: 11px; font-family: Consolas, monospace; color: var(--text-primary); }
 .inv-part-row .part-qty { width: 60px; flex-shrink: 0; text-align: right; font-weight: 600; }
 .inv-part-row .part-desc { flex: 1; min-width: 0; overflow: hidden; }
-.part-desc-inner { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; color: var(--text-secondary); }
+.part-desc-inner { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; color: var(--text-secondary); width: 100%; }
 
 /* ── Import Panel ──────────────────────────────────────── */
 #import-body { display: flex; flex-direction: column; overflow: hidden; }
