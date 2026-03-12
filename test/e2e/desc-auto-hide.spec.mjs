@@ -82,6 +82,39 @@ async function logRowHeights(page, label) {
   }
 }
 
+/** Measure first N inventory rows */
+async function measureInvRows(page, n) {
+  const count = await page.locator('.inv-part-row').count();
+  const limit = Math.min(n, count);
+  const rows = [];
+  for (let i = 0; i < limit; i++) {
+    const info = await page.locator('.inv-part-row').nth(i).evaluate(el => ({
+      height: el.offsetHeight,
+      hasDesc: !!el.querySelector('.part-desc'),
+      descHeight: el.querySelector('.part-desc') ? el.querySelector('.part-desc').offsetHeight : null,
+      text: (el.querySelector('.part-mpn') || {}).textContent || '',
+    }));
+    rows.push(info);
+  }
+  return rows;
+}
+
+/** Measure first N BOM table rows */
+async function measureBomRows(page, n) {
+  const count = await page.locator('tr[data-part-key]').count();
+  const limit = Math.min(n, count);
+  const rows = [];
+  for (let i = 0; i < limit; i++) {
+    const info = await page.locator('tr[data-part-key]').nth(i).evaluate(el => ({
+      height: el.offsetHeight,
+      width: el.offsetWidth,
+      partKey: el.dataset.partKey,
+    }));
+    rows.push(info);
+  }
+  return rows;
+}
+
 /** Load BOM into the app by calling its global functions directly */
 async function loadBom(page, bomCsv) {
   await page.evaluate((csv) => {
@@ -273,4 +306,50 @@ test.describe('Row heights — BOM comparison mode', () => {
     await logRowHeights(page, 'bom-resize-narrow');
     expect(descCountNarrow).toBe(0);
   });
+});
+
+// ── Row height survey across viewport sizes ──
+
+const VIEWPORTS = [
+  { width: 1200, height: 700, label: '1200×700' },
+  { width: 1400, height: 800, label: '1400×800' },
+  { width: 1600, height: 900, label: '1600×900' },
+  { width: 1920, height: 1080, label: '1920×1080' },
+  { width: 2560, height: 1440, label: '2560×1440' },
+];
+
+test.describe('Row height survey — without BOM', () => {
+  for (const vp of VIEWPORTS) {
+    test(`inventory rows at ${vp.label}`, async ({ page }) => {
+      await addMockSetup(page);
+      await page.setViewportSize(vp);
+      await page.goto('/index.html');
+      await waitForInventoryRows(page);
+      await page.waitForTimeout(300);
+      const dims = await logDimensions(page, `inv-${vp.label}`);
+      const invRows = await measureInvRows(page, 5);
+      console.log(`Inv rows at ${vp.label}:`, invRows);
+    });
+  }
+});
+
+test.describe('Row height survey — with BOM', () => {
+  for (const vp of VIEWPORTS) {
+    test(`BOM + inv rows at ${vp.label}`, async ({ page }) => {
+      await addMockSetup(page);
+      await page.setViewportSize(vp);
+      await page.goto('/index.html');
+      await waitForInventoryRows(page);
+      await page.waitForTimeout(300);
+
+      await loadBom(page, BOM_CSV);
+      await page.waitForTimeout(300);
+
+      const dims = await logDimensions(page, `bom-${vp.label}`);
+      const bomRows = await measureBomRows(page, 5);
+      console.log(`BOM rows at ${vp.label}:`, bomRows);
+      const invRows = await measureInvRows(page, 5);
+      console.log(`Remaining inv rows at ${vp.label}:`, invRows);
+    });
+  }
 });
