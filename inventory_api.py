@@ -8,6 +8,7 @@ import logging
 import os
 import re
 import threading
+import urllib.error
 import urllib.request
 from datetime import datetime
 from typing import Any
@@ -388,7 +389,7 @@ class InventoryApi:
             req = urllib.request.Request(url, headers={"Accept": "application/json"})
             with urllib.request.urlopen(req, timeout=8) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
-        except Exception as exc:
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
             logger.warning("LCSC fetch failed for %s: %s", product_code, exc)
             self._lcsc_cache[product_code] = None
             return None
@@ -471,7 +472,7 @@ class InventoryApi:
         def on_closing():
             try:
                 self._dk_window.hide()
-            except Exception:
+            except (AttributeError, RuntimeError):
                 pass
             return False  # Hide instead of destroy
 
@@ -504,7 +505,7 @@ class InventoryApi:
                 cmd = winreg.QueryValueEx(key, "")[0]
             exe = cmd.split('"')[1] if cmd.startswith('"') else cmd.split()[0]
             return exe if os.path.exists(exe) else None
-        except Exception:
+        except OSError:
             return None
 
     def start_digikey_login(self) -> dict[str, Any]:
@@ -642,7 +643,7 @@ class InventoryApi:
             if instance is None:
                 return None
             return instance.browser.webview.CoreWebView2.CookieManager
-        except Exception as exc:
+        except (AttributeError, RuntimeError, ImportError) as exc:
             logger.warning("Could not access WebView2 CookieManager: %s", exc)
             return None
 
@@ -682,7 +683,7 @@ class InventoryApi:
                         epoch = System.DateTime(1970, 1, 1, 0, 0, 0, System.DateTimeKind.Utc)
                         wv2_cookie.Expires = epoch.AddSeconds(float(expires))
                     cookie_mgr.AddOrUpdateCookie(wv2_cookie)
-                except Exception as exc:
+                except (AttributeError, RuntimeError, ValueError) as exc:
                     logger.debug("Failed to inject cookie %s: %s", n, exc)
 
             browser_form.Invoke(System.Action(_add_cookie))
@@ -715,7 +716,7 @@ class InventoryApi:
                 if cdp_cookies:
                     cookies = cdp_cookies
                     browser_used = "cdp"
-            except Exception as exc:
+            except (OSError, RuntimeError, json.JSONDecodeError, KeyError) as exc:
                 debug_log.append(
                     f"cdp(port={self._dk_cdp_port}): {type(exc).__name__}: {exc}"
                 )
@@ -788,7 +789,7 @@ class InventoryApi:
                 "})()"
             )
             return {"logged_in": bool(result)}
-        except Exception:
+        except (RuntimeError, AttributeError):
             return {"logged_in": False}
 
     def logout_digikey(self) -> dict[str, str]:
@@ -809,7 +810,7 @@ class InventoryApi:
                 self._dk_window.load_url(
                     "https://www.digikey.com/MyDigiKey/Logout"
                 )
-            except Exception as exc:
+            except (RuntimeError, AttributeError, ImportError) as exc:
                 logger.warning("Digikey logout failed: %s", exc)
         self._digikey_cache.clear()
         return {"status": "ok"}
@@ -884,7 +885,7 @@ class InventoryApi:
                     "  return null;"
                     "})()"
                 )
-            except Exception as exc:
+            except (RuntimeError, AttributeError) as exc:
                 logger.warning(
                     "Digikey evaluate_js failed for %s: %s",
                     part_number,
@@ -1342,7 +1343,7 @@ class InventoryApi:
         self._force_close = True
         try:
             webview.windows[0].destroy()
-        except Exception:
+        except (IndexError, RuntimeError, AttributeError):
             logger.debug("Window already destroyed or unavailable", exc_info=True)
 
     @staticmethod
