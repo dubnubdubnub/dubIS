@@ -565,6 +565,7 @@ class InventoryApi:
 
         cookies = []
         browser_used = None
+        debug_log = []
         for browser_name, fn in [
             ("edge", browser_cookie3.edge),
             ("chrome", browser_cookie3.chrome),
@@ -572,6 +573,11 @@ class InventoryApi:
         ]:
             try:
                 cj = fn(domain_name="digikey.com")
+                all_cookies = list(cj)
+                debug_log.append(
+                    f"{browser_name}: {len(all_cookies)} cookies, "
+                    f"domains={set(c.domain for c in all_cookies)}"
+                )
                 cookies = [
                     {
                         "name": c.name,
@@ -582,13 +588,13 @@ class InventoryApi:
                         "httpOnly": True,
                         "expires": c.expires,
                     }
-                    for c in cj
+                    for c in all_cookies
                 ]
                 if cookies:
                     browser_used = browser_name
                     break
             except Exception as exc:
-                logger.debug("browser_cookie3.%s failed: %s", browser_name, exc)
+                debug_log.append(f"{browser_name}: error — {type(exc).__name__}: {exc}")
 
         if not cookies:
             return {
@@ -596,6 +602,7 @@ class InventoryApi:
                 "message": "No Digikey cookies found. Make sure you logged in and try again in a few seconds.",
                 "logged_in": False,
                 "cookies_injected": 0,
+                "debug": debug_log,
             }
 
         with self._dk_lock:
@@ -606,6 +613,7 @@ class InventoryApi:
         login_result = self.get_digikey_login_status()
         logged_in = login_result.get("logged_in", False)
 
+        cookie_names = [c["name"] for c in cookies[:20]]
         return {
             "status": "ok" if logged_in else "error",
             "message": ("Logged in" if logged_in
@@ -613,6 +621,7 @@ class InventoryApi:
             "logged_in": logged_in,
             "cookies_injected": injected,
             "browser": browser_used,
+            "debug": debug_log + [f"injected={injected}, logged_in={logged_in}, names={cookie_names}"],
         }
 
     def get_digikey_login_status(self) -> dict[str, bool]:
