@@ -51,6 +51,7 @@ class InventoryApi:
         self._dk_window = None
         self._dk_loaded = threading.Event()
         self._dk_lock = threading.Lock()
+        self._dk_cdp_port: int | None = None
 
     # ── Utility methods (ported from organize_inventory.py) ──────────────
 
@@ -485,12 +486,134 @@ class InventoryApi:
         self._dk_window.events.closing += on_closing
         self._dk_loaded.wait(timeout=15)
 
-    def start_digikey_login(self) -> dict[str, str]:
-        """Open the user's default browser to the Digikey login page."""
-        import webbrowser
+    @staticmethod
+    def _find_default_browser_exe() -> str | None:
+        """Find the default browser executable on Windows via registry."""
+        try:
+            import winreg
 
-        webbrowser.open("https://www.digikey.com/MyDigiKey/Login")
-        return {"status": "opened"}
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice",
+            ) as key:
+                prog_id = winreg.QueryValueEx(key, "ProgId")[0]
+            with winreg.OpenKey(
+                winreg.HKEY_CLASSES_ROOT,
+                rf"{prog_id}\shell\open\command",
+            ) as key:
+                cmd = winreg.QueryValueEx(key, "")[0]
+            exe = cmd.split('"')[1] if cmd.startswith('"') else cmd.split()[0]
+            return exe if os.path.exists(exe) else None
+        except Exception:
+            return None
+
+    def start_digikey_login(self) -> dict[str, Any]:
+        """Launch the default browser with CDP enabled and open the login page.
+
+        If the browser is already running, CDP won't be available on our port
+        (the URL just opens in the existing instance). The cookie sync will
+        fall back to browser_cookie3 in that case.
+        """
+        import random
+        import subprocess
+
+        url = "https://www.digikey.com/MyDigiKey/Login"
+        exe = self._find_default_browser_exe()
+        if not exe:
+            import webbrowser
+            webbrowser.open(url)
+            self._dk_cdp_port = None
+            return {"status": "opened", "cdp": False}
+
+        port = random.randint(19200, 19299)
+        subprocess.Popen(
+            [exe, f"--remote-debugging-port={port}", url],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        self._dk_cdp_port = port
+        return {"status": "opened", "cdp": True, "port": port}
+
+    @staticmethod
+    def _cdp_get_cookies(port: int) -> list[dict]:
+        """Read digikey.com cookies via Chrome DevTools Protocol.
+
+        Implements a minimal WebSocket client (no external deps) to send a
+        single CDP command and read the response.
+        """
+        import base64
+        import http.client
+        import socket
+        import struct
+
+        # 1. Get browser WebSocket debug URL
+        conn = http.client.HTTPConnection("localhost", port, timeout=3)
+        conn.request("GET", "/json/version")
+        info = json.loads(conn.getresponse().read())
+        conn.close()
+        ws_url = info["webSocketDebuggerUrl"]
+        # ws://localhost:PORT/devtools/browser/UUID → /devtools/browser/UUID
+        ws_path = "/" + ws_url.split("/", 3)[3]
+
+        # 2. WebSocket handshake
+        sock = socket.create_connection(("localhost", port), timeout=5)
+        ws_key = base64.b64encode(os.urandom(16)).decode()
+        sock.sendall(
+            f"GET {ws_path} HTTP/1.1\r\n"
+            f"Host: localhost:{port}\r\n"
+            f"Upgrade: websocket\r\nConnection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {ws_key}\r\n"
+            f"Sec-WebSocket-Version: 13\r\n\r\n".encode()
+        )
+        buf = b""
+        while b"\r\n\r\n" not in buf:
+            buf += sock.recv(4096)
+        if b"101" not in buf.split(b"\r\n")[0]:
+            sock.close()
+            raise RuntimeError("WebSocket upgrade failed")
+
+        # 3. Send Network.getCookies for digikey.com
+        cmd = json.dumps({
+            "id": 1,
+            "method": "Network.getCookies",
+            "params": {"urls": ["https://www.digikey.com/"]},
+        }).encode()
+        mask = os.urandom(4)
+        hdr = bytes([0x81])  # FIN + text opcode
+        if len(cmd) < 126:
+            hdr += bytes([0x80 | len(cmd)])
+        else:
+            hdr += bytes([0x80 | 126]) + struct.pack(">H", len(cmd))
+        hdr += mask
+        sock.sendall(hdr + bytes(b ^ mask[i % 4] for i, b in enumerate(cmd)))
+
+        # 4. Read frames until we get our response (id=1)
+        def _recv(n):
+            d = b""
+            while len(d) < n:
+                c = sock.recv(n - len(d))
+                if not c:
+                    raise RuntimeError("CDP connection closed")
+                d += c
+            return d
+
+        try:
+            for _ in range(50):  # safety limit
+                h = _recv(2)
+                plen = h[1] & 0x7F
+                if plen == 126:
+                    plen = struct.unpack(">H", _recv(2))[0]
+                elif plen == 127:
+                    plen = struct.unpack(">Q", _recv(8))[0]
+                payload = _recv(plen)
+                try:
+                    msg = json.loads(payload)
+                    if msg.get("id") == 1:
+                        return msg.get("result", {}).get("cookies", [])
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    continue
+        finally:
+            sock.close()
+        raise RuntimeError("No CDP response received")
 
     def _get_dk_cookie_manager(self):
         """Access the WebView2 CookieManager from the hidden Digikey window.
@@ -556,86 +679,66 @@ class InventoryApi:
 
         return injected
 
-    @staticmethod
-    def _detect_default_browser() -> str | None:
-        """Detect the default browser on Windows via the registry."""
-        try:
-            import winreg
-
-            with winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice",
-            ) as key:
-                prog_id = winreg.QueryValueEx(key, "ProgId")[0].lower()
-            browser_map = {
-                "brave": "brave", "chrome": "chrome", "firefox": "firefox",
-                "msedge": "edge", "edge": "edge", "opera": "opera",
-                "vivaldi": "vivaldi", "chromium": "chromium",
-            }
-            for keyword, name in browser_map.items():
-                if keyword in prog_id:
-                    return name
-        except Exception:
-            pass
-        return None
-
     def sync_digikey_cookies(self) -> dict[str, Any]:
-        """Read Digikey cookies from the user's browser and inject into webview.
+        """Read Digikey cookies via CDP or browser_cookie3, inject into webview.
 
-        Detects default browser and tries it first, then falls back to others.
+        Tries CDP first (works with any Chromium browser if we launched it).
+        Falls back to browser_cookie3 (Edge/Firefox) if CDP is unavailable.
         """
-        import browser_cookie3
-
-        all_browsers = {
-            "edge": browser_cookie3.edge,
-            "chrome": browser_cookie3.chrome,
-            "firefox": browser_cookie3.firefox,
-            "brave": browser_cookie3.brave,
-            "opera": browser_cookie3.opera,
-            "chromium": browser_cookie3.chromium,
-        }
-
-        default = self._detect_default_browser()
-        ordered = []
-        if default and default in all_browsers:
-            ordered.append((default, all_browsers[default]))
-        for name, fn in all_browsers.items():
-            if name != default:
-                ordered.append((name, fn))
-
         cookies = []
         browser_used = None
-        debug_log = [f"default_browser={default}"]
-        for browser_name, fn in ordered:
+        debug_log = []
+
+        # Try CDP first
+        if self._dk_cdp_port:
             try:
-                cj = fn(domain_name="digikey.com")
-                all_cookies = list(cj)
-                debug_log.append(
-                    f"{browser_name}: {len(all_cookies)} cookies, "
-                    f"domains={set(c.domain for c in all_cookies)}"
-                )
-                cookies = [
-                    {
-                        "name": c.name,
-                        "value": c.value,
-                        "domain": c.domain,
-                        "path": c.path,
-                        "secure": c.secure,
-                        "httpOnly": True,
-                        "expires": c.expires,
-                    }
-                    for c in all_cookies
-                ]
-                if cookies:
-                    browser_used = browser_name
-                    break
+                cdp_cookies = self._cdp_get_cookies(self._dk_cdp_port)
+                debug_log.append(f"cdp(port={self._dk_cdp_port}): {len(cdp_cookies)} cookies")
+                if cdp_cookies:
+                    cookies = cdp_cookies
+                    browser_used = "cdp"
             except Exception as exc:
-                debug_log.append(f"{browser_name}: error — {type(exc).__name__}: {exc}")
+                debug_log.append(
+                    f"cdp(port={self._dk_cdp_port}): {type(exc).__name__}: {exc}"
+                )
+
+        # Fall back to browser_cookie3
+        if not cookies:
+            import browser_cookie3
+
+            for browser_name, fn in [
+                ("edge", browser_cookie3.edge),
+                ("firefox", browser_cookie3.firefox),
+            ]:
+                try:
+                    cj = fn(domain_name="digikey.com")
+                    all_cookies = list(cj)
+                    debug_log.append(f"{browser_name}: {len(all_cookies)} cookies")
+                    cookies = [
+                        {
+                            "name": c.name,
+                            "value": c.value,
+                            "domain": c.domain,
+                            "path": c.path,
+                            "secure": c.secure,
+                            "httpOnly": True,
+                            "expires": c.expires,
+                        }
+                        for c in all_cookies
+                    ]
+                    if cookies:
+                        browser_used = browser_name
+                        break
+                except Exception as exc:
+                    debug_log.append(f"{browser_name}: {type(exc).__name__}: {exc}")
 
         if not cookies:
+            msg = "No cookies found."
+            if self._dk_cdp_port:
+                msg += " If your browser was already open, close it and try again."
             return {
                 "status": "error",
-                "message": "No Digikey cookies found. Make sure you logged in and try again in a few seconds.",
+                "message": msg,
                 "logged_in": False,
                 "cookies_injected": 0,
                 "debug": debug_log,
