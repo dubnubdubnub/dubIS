@@ -571,7 +571,7 @@ class InventoryApi:
             ("firefox", browser_cookie3.firefox),
         ]:
             try:
-                cj = fn(domain_name=".digikey.com")
+                cj = fn(domain_name="digikey.com")
                 cookies = [
                     {
                         "name": c.name,
