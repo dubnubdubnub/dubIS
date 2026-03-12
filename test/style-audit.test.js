@@ -37,13 +37,13 @@ function propertyValue(ruleText, prop) {
 }
 
 describe('Description auto-hide when panel is narrow', () => {
-  it('CSS hides .part-desc when #inventory-body has .narrow-panel', () => {
-    expect(css).toMatch(/#inventory-body\.narrow-panel\s+\.inv-part-row\s+\.part-desc\s*\{[^}]*display:\s*none/);
+  it('JS uses ResizeObserver to track panel width', () => {
+    expect(invPanelJs).toContain('ResizeObserver');
+    expect(invPanelJs).toContain('hideDescs');
   });
 
-  it('JS sets up ResizeObserver to toggle narrow-panel class', () => {
-    expect(invPanelJs).toContain('narrow-panel');
-    expect(invPanelJs).toContain('ResizeObserver');
+  it('JS conditionally skips .part-desc based on hideDescs flag', () => {
+    expect(invPanelJs).toMatch(/hideDescs\s*\?\s*['"]{2}\s*:/);
   });
 });
 
