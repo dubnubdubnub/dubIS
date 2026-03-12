@@ -1082,67 +1082,40 @@ class InventoryApi:
         self._append_csv_rows(self.adjustments_csv, self.ADJ_FIELDNAMES, adj_rows)
         return self._rebuild()
 
-    def remove_last_purchases(self, count: int | str) -> list[dict[str, Any]]:
-        """Remove the last `count` rows from purchase_ledger.csv and rebuild inventory.
-
-        Safe for undo because imports always append to end of ledger (LIFO).
-        """
-        count = int(count)
+    def _truncate_csv(self, csv_path: str, count: int, label: str) -> list[dict[str, Any]]:
+        """Remove the last *count* rows from a CSV and rebuild inventory."""
         if count <= 0:
             raise ValueError(f"count must be positive, got {count}")
 
-        if not os.path.exists(self.input_csv):
-            raise ValueError("No purchase ledger found")
+        if not os.path.exists(csv_path):
+            raise ValueError(f"No {label} file found")
 
-        with open(self.input_csv, newline="", encoding="utf-8-sig") as f:
+        with open(csv_path, newline="", encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
             fieldnames = reader.fieldnames
             rows = list(reader)
 
         if count > len(rows):
             raise ValueError(
-                f"Cannot remove {count} rows: ledger only has {len(rows)} rows"
+                f"Cannot remove {count} rows: {label} only has {len(rows)} rows"
             )
 
         rows = rows[:-count]
 
-        with open(self.input_csv, "w", newline="", encoding="utf-8-sig") as f:
+        with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows)
 
         return self._rebuild()
+
+    def remove_last_purchases(self, count: int | str) -> list[dict[str, Any]]:
+        """Remove the last `count` rows from purchase_ledger.csv and rebuild inventory."""
+        return self._truncate_csv(self.input_csv, int(count), "purchase ledger")
 
     def remove_last_adjustments(self, count: int | str) -> list[dict[str, Any]]:
-        """Remove the last `count` rows from adjustments.csv and rebuild inventory.
-
-        Safe for undo because adjustments always append to end of file (LIFO).
-        """
-        count = int(count)
-        if count <= 0:
-            raise ValueError(f"count must be positive, got {count}")
-
-        if not os.path.exists(self.adjustments_csv):
-            raise ValueError("No adjustments file found")
-
-        with open(self.adjustments_csv, newline="", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            fieldnames = reader.fieldnames
-            rows = list(reader)
-
-        if count > len(rows):
-            raise ValueError(
-                f"Cannot remove {count} rows: adjustments only has {len(rows)} rows"
-            )
-
-        rows = rows[:-count]
-
-        with open(self.adjustments_csv, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(rows)
-
-        return self._rebuild()
+        """Remove the last `count` rows from adjustments.csv and rebuild inventory."""
+        return self._truncate_csv(self.adjustments_csv, int(count), "adjustments")
 
     def import_purchases(self, rows_json: str | list[dict[str, str]]) -> list[dict[str, Any]] | dict[str, str]:
         """Append purchase rows to purchase_ledger.csv. Returns fresh inventory."""
