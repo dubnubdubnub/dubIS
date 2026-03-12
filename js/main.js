@@ -525,6 +525,11 @@ async function initApp() {
         dkLogoutBtn.classList.remove("hidden");
         showToast(label);
         AppLog.info("DK login success: " + label);
+      } else if (result && result.status === "browser_running") {
+        stopDkPolling();
+        dkStatus.textContent = result.message;
+        dkStatus.style.color = "var(--color-red, #e74c3c)";
+        dkLoginBtn.classList.remove("hidden");
       } else if (attempts >= maxAttempts) {
         stopDkPolling();
         dkStatus.textContent = "Timed out — reopen Preferences to retry";
