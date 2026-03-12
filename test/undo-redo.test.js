@@ -7,6 +7,15 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
+const constantsJson = readFileSync(join(ROOT, 'data/constants.json'), 'utf-8');
+
+function FakeXHR() {
+  this.status = 200;
+  this.responseText = '';
+}
+FakeXHR.prototype.open = function () {};
+FakeXHR.prototype.send = function () { this.responseText = constantsJson; };
+
 function fakeEl() {
   return {
     textContent: '', innerHTML: '', className: '',
@@ -30,6 +39,7 @@ function loadMain() {
     JSON, console, RegExp, Date, Error, TypeError, RangeError,
     setTimeout: () => {}, clearTimeout: () => {},
     setInterval: () => {}, clearInterval: () => {},
+    XMLHttpRequest: FakeXHR,
     navigator: { platform: 'Win32' },
     window: { addEventListener() {} },
     document: {
