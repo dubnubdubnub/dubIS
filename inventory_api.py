@@ -612,23 +612,19 @@ class InventoryApi:
                 )
                 print(f"[DK] poll #{attempt}: {len(cdp_cookies)} digikey cookies", flush=True)
 
-                if cdp_cookies:
-                    logged_in = self._check_dk_cookies_logged_in(cdp_cookies)
-                    # Store cookies for later injection into dk window
+                if cdp_cookies and self._check_dk_cookies_logged_in(cdp_cookies):
+                    # Logged in — store cookies for later injection
                     self._dk_pending_cookies = cdp_cookies
                     cookie_names = [c["name"] for c in cdp_cookies[:20]]
                     self._dk_sync_result = {
-                        "status": "ok" if logged_in else "error",
-                        "message": ("Logged in" if logged_in
-                                    else "Cookies found but login check failed"),
-                        "logged_in": logged_in,
+                        "status": "ok",
+                        "message": "Logged in",
+                        "logged_in": True,
                         "cookies_injected": len(cdp_cookies),
                         "browser": "cdp",
-                        "debug": debug_log + [
-                            f"logged_in={logged_in}, names={cookie_names}"
-                        ],
+                        "debug": debug_log + [f"names={cookie_names}"],
                     }
-                    print(f"[DK] poll #{attempt}: logged_in={logged_in}", flush=True)
+                    print(f"[DK] poll #{attempt}: logged in!", flush=True)
                     return  # done
 
             except ConnectionRefusedError:
