@@ -15,8 +15,10 @@
 
   // Hide descriptions when panel is too narrow for readable text (~520px threshold)
   const DESC_HIDE_WIDTH = 520;
+  let hideDescs = body.offsetWidth > 0 && body.offsetWidth < DESC_HIDE_WIDTH;
   new ResizeObserver(([entry]) => {
-    body.classList.toggle("narrow-panel", entry.contentRect.width < DESC_HIDE_WIDTH);
+    const narrow = entry.contentRect.width < DESC_HIDE_WIDTH;
+    if (narrow !== hideDescs) { hideDescs = narrow; render(); }
   }).observe(body);
 
   // Undo/redo tracking for inventory mutations
@@ -391,7 +393,7 @@
           <span class="part-mpn" title="${escHtml(displayMpn)}">${escHtml(displayMpn)}</span>
           <span class="part-value">${valueStr}</span>
           <span class="part-qty" style="color:${qtyColor}">${showPriceWarn ? '<button class="price-warn-btn" title="No price data — click to set">\u26A0</button>' : ''}${item.qty}</span>
-          <span class="part-desc"><span class="part-desc-inner" title="${escHtml(displayDesc)}">${escHtml(displayDesc)}</span></span>
+          ${hideDescs ? '' : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>'}
           <button class="adj-btn" title="Adjust qty">Adjust</button>
           ${linkBtnStr}
         `;
