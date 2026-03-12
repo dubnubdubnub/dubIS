@@ -171,7 +171,7 @@ class TestRealPipelineRebuild:
             "STM32G491CCU6": "ICs - Microcontrollers",
             "TCAN1044AEVDRQ1": "ICs - Interface",
             "TPD2EUSB30DRTR": "Diodes",
-            "UCS2114-1-V/LX": "Switches",
+            "UCS2114-1-V/LX": "ICs - Power / Voltage Regulators",
             "UTC2000-I/MG": "Other",
         }
         for key, section in expected.items():
