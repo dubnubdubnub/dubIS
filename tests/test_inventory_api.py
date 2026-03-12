@@ -478,6 +478,46 @@ class TestConfirmClose:
         assert api._closing is True
 
 
+class TestTruncateCsv:
+    def test_remove_last_purchases(self, api):
+        _write_ledger(api, [
+            _make_part(lcsc="C100000", qty=10),
+            _make_part(lcsc="C200000", qty=20, desc="Capacitor 100nF 25V"),
+            _make_part(lcsc="C300000", qty=30, desc="LED Red"),
+        ])
+        result = api.remove_last_purchases(2)
+        lcscs = {r["lcsc"] for r in result}
+        assert "C100000" in lcscs
+        assert "C200000" not in lcscs
+        assert "C300000" not in lcscs
+
+    def test_remove_last_adjustments(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        api.adjust_part("add", "C100000", 5)
+        api.adjust_part("add", "C100000", 3)
+        result = api.remove_last_adjustments(1)
+        part = next(r for r in result if r["lcsc"] == "C100000")
+        assert part["qty"] == 15  # 10 + 5, last adj removed
+
+    def test_zero_count_raises(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        with pytest.raises(ValueError, match="positive"):
+            api.remove_last_purchases(0)
+
+    def test_count_exceeds_rows_raises(self, api):
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        with pytest.raises(ValueError, match="Cannot remove"):
+            api.remove_last_purchases(5)
+
+    def test_missing_file_raises(self, api):
+        with pytest.raises(ValueError, match="No purchase ledger file found"):
+            api.remove_last_purchases(1)
+
+    def test_missing_adjustments_file_raises(self, api):
+        with pytest.raises(ValueError, match="No adjustments file found"):
+            api.remove_last_adjustments(1)
+
+
 class TestFullPipeline:
     def test_import_adjust_consume_rebuild(self, api):
         # 1. Import
