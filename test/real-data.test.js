@@ -3,10 +3,10 @@
  * Exercises the full pipeline: parseCSV → detectBOMColumns → aggregateBomRows → matchBOM.
  */
 import { describe, it, expect } from 'vitest';
-import { loadGlobals } from './helpers/load-globals.js';
+import { matchBOM } from '../js/matching.js';
+import { processBOM } from '../js/csv-parser.js';
+import { bomKey } from '../js/part-keys.js';
 import { readFixture, readFixtureBytes, readFixtureJSON, loadInventory } from './helpers/load-fixtures.js';
-
-const g = loadGlobals();
 
 // ── Load real data once ──
 
@@ -62,7 +62,7 @@ describe('real inventory fixture', () => {
 
 describe('lemon-pepper BOM matching', () => {
   const bomText = readFixture('lemon-pepper-BOM.csv');
-  const result = g.processBOM(bomText, 'lemon-pepper-BOM.csv');
+  const result = processBOM(bomText, 'lemon-pepper-BOM.csv');
 
   it('parses successfully', () => {
     expect(result).not.toBeNull();
@@ -84,7 +84,7 @@ describe('lemon-pepper BOM matching', () => {
   });
 
   it('matches against real inventory with high match rate', () => {
-    const results = g.matchBOM(result.aggregated, inventory, null, null);
+    const results = matchBOM(result.aggregated, inventory, null, null);
     const matched = results.filter(r => r.inv !== null);
     const missing = results.filter(r => r.status === 'missing');
 
@@ -97,7 +97,7 @@ describe('lemon-pepper BOM matching', () => {
   });
 
   it('C440198 (10uF cap) matches by LCSC', () => {
-    const results = g.matchBOM(result.aggregated, inventory, null, null);
+    const results = matchBOM(result.aggregated, inventory, null, null);
     const cap10u = results.find(r => r.bom.lcsc === 'C440198');
     expect(cap10u).toBeTruthy();
     expect(cap10u.matchType).toBe('lcsc');
@@ -106,7 +106,7 @@ describe('lemon-pepper BOM matching', () => {
   });
 
   it('C1567 (47pF cap) matches by LCSC', () => {
-    const results = g.matchBOM(result.aggregated, inventory, null, null);
+    const results = matchBOM(result.aggregated, inventory, null, null);
     const cap47p = results.find(r => r.bom.lcsc === 'C1567');
     expect(cap47p).toBeTruthy();
     expect(cap47p.matchType).toBe('lcsc');
@@ -127,7 +127,7 @@ describe('microspora BOM matching (UTF-16)', () => {
     bomText = new TextDecoder('utf-8').decode(bytes);
   }
 
-  const result = g.processBOM(bomText, 'microspora_BOM.csv');
+  const result = processBOM(bomText, 'microspora_BOM.csv');
 
   it('parses the UTF-16 file successfully', () => {
     expect(result).not.toBeNull();
@@ -143,13 +143,13 @@ describe('microspora BOM matching (UTF-16)', () => {
   });
 
   it('matches against real inventory', () => {
-    const results = g.matchBOM(result.aggregated, inventory, null, null);
+    const results = matchBOM(result.aggregated, inventory, null, null);
     const matched = results.filter(r => r.inv !== null);
     expect(matched.length).toBeGreaterThan(0);
   });
 
   it('DRV8316CRRGFR (motor driver) matches', () => {
-    const results = g.matchBOM(result.aggregated, inventory, null, null);
+    const results = matchBOM(result.aggregated, inventory, null, null);
     // The BOM has C5447274 as supplier part for DRV8316CRRGFR
     const drv = results.find(r => r.bom.mpn === 'DRV8316CRRGFR' || r.bom.lcsc === 'C5447274');
     expect(drv).toBeTruthy();
@@ -161,7 +161,7 @@ describe('microspora BOM matching (UTF-16)', () => {
 
 describe('microspora BOM custom with links', () => {
   const bomText = readFixture('microspora_BOM_custom.csv');
-  const result = g.processBOM(bomText, 'microspora_BOM_custom.csv');
+  const result = processBOM(bomText, 'microspora_BOM_custom.csv');
   const links = readFixtureJSON('microspora_BOM_custom.links.json');
 
   it('parses successfully', () => {
@@ -175,7 +175,7 @@ describe('microspora BOM custom with links', () => {
   });
 
   it('manual links resolve to inventory parts', () => {
-    const results = g.matchBOM(result.aggregated, inventory, links.manualLinks, links.confirmedMatches);
+    const results = matchBOM(result.aggregated, inventory, links.manualLinks, links.confirmedMatches);
     const manualResults = results.filter(r => r.matchType === 'manual');
     expect(manualResults.length).toBeGreaterThan(0);
     manualResults.forEach(r => {
@@ -184,7 +184,7 @@ describe('microspora BOM custom with links', () => {
   });
 
   it('confirmed matches resolve to inventory parts', () => {
-    const results = g.matchBOM(result.aggregated, inventory, links.manualLinks, links.confirmedMatches);
+    const results = matchBOM(result.aggregated, inventory, links.manualLinks, links.confirmedMatches);
     const confirmedResults = results.filter(r => r.matchType === 'confirmed');
     expect(confirmedResults.length).toBeGreaterThan(0);
     confirmedResults.forEach(r => {
@@ -194,8 +194,8 @@ describe('microspora BOM custom with links', () => {
 
   it('C2765186 → C2760486 manual link resolves', () => {
     // Manual link: BOM has C2765186 (USB-C connector), linked to C2760486 in inventory
-    const results = g.matchBOM(result.aggregated, inventory, links.manualLinks, links.confirmedMatches);
-    const usbC = results.find(r => g.bomKey(r.bom) === 'C2765186');
+    const results = matchBOM(result.aggregated, inventory, links.manualLinks, links.confirmedMatches);
+    const usbC = results.find(r => bomKey(r.bom) === 'C2765186');
     if (usbC) {
       expect(usbC.matchType).toBe('manual');
       expect(usbC.inv.lcsc).toBe('C2760486');
@@ -203,8 +203,8 @@ describe('microspora BOM custom with links', () => {
   });
 
   it('match count improves with links vs without', () => {
-    const withoutLinks = g.matchBOM(result.aggregated, inventory, null, null);
-    const withLinks = g.matchBOM(result.aggregated, inventory, links.manualLinks, links.confirmedMatches);
+    const withoutLinks = matchBOM(result.aggregated, inventory, null, null);
+    const withLinks = matchBOM(result.aggregated, inventory, links.manualLinks, links.confirmedMatches);
 
     const matchedWithout = withoutLinks.filter(r => r.inv !== null).length;
     const matchedWith = withLinks.filter(r => r.inv !== null).length;
@@ -218,7 +218,7 @@ describe('microspora BOM custom with links', () => {
 
 describe('expansion card BOM matching', () => {
   const bomText = readFixture('Expansion_Card-bom-next-pcb.csv');
-  const result = g.processBOM(bomText, 'Expansion_Card-bom-next-pcb.csv');
+  const result = processBOM(bomText, 'Expansion_Card-bom-next-pcb.csv');
   const links = readFixtureJSON('Expansion_Card-bom-next-pcb_custom.links.json');
 
   it('parses successfully', () => {
@@ -244,13 +244,13 @@ describe('expansion card BOM matching', () => {
   });
 
   it('matches against inventory (MPN-based matching)', () => {
-    const results = g.matchBOM(result.aggregated, inventory, null, null);
+    const results = matchBOM(result.aggregated, inventory, null, null);
     const matched = results.filter(r => r.inv !== null);
     expect(matched.length).toBeGreaterThan(0);
   });
 
   it('CL05B104KB54PNC (100nF cap) matches by MPN', () => {
-    const results = g.matchBOM(result.aggregated, inventory, null, null);
+    const results = matchBOM(result.aggregated, inventory, null, null);
     const cap100n = results.find(r =>
       r.bom.mpn === 'CL05B104KB54PNC' || r.bom.mpn.includes('CL05B104KB54PNC')
     );
@@ -261,7 +261,7 @@ describe('expansion card BOM matching', () => {
   });
 
   it('confirmed matches from links file resolve correctly', () => {
-    const results = g.matchBOM(result.aggregated, inventory, links.manualLinks || [], links.confirmedMatches);
+    const results = matchBOM(result.aggregated, inventory, links.manualLinks || [], links.confirmedMatches);
     const confirmedResults = results.filter(r => r.matchType === 'confirmed');
     // links file has 3 confirmed matches
     expect(confirmedResults.length).toBeGreaterThan(0);
@@ -284,8 +284,8 @@ describe('cross-BOM consistency', () => {
     }
     const utf8Text = readFixture('microspora_BOM_custom.csv');
 
-    const r1 = g.processBOM(utf16Text, 'microspora_BOM.csv');
-    const r2 = g.processBOM(utf8Text, 'microspora_BOM_custom.csv');
+    const r1 = processBOM(utf16Text, 'microspora_BOM.csv');
+    const r2 = processBOM(utf8Text, 'microspora_BOM_custom.csv');
 
     expect(r1.aggregated.size).toBe(r2.aggregated.size);
   });
@@ -296,10 +296,10 @@ describe('cross-BOM consistency', () => {
 describe('real-data matchBOM performance', () => {
   it('lemon-pepper BOM matches under 100ms', () => {
     const bomText = readFixture('lemon-pepper-BOM.csv');
-    const result = g.processBOM(bomText, 'lemon-pepper-BOM.csv');
+    const result = processBOM(bomText, 'lemon-pepper-BOM.csv');
 
     const start = performance.now();
-    g.matchBOM(result.aggregated, inventory, null, null);
+    matchBOM(result.aggregated, inventory, null, null);
     const elapsed = performance.now() - start;
 
     expect(elapsed).toBeLessThan(100);
@@ -307,10 +307,10 @@ describe('real-data matchBOM performance', () => {
 
   it('expansion card BOM matches under 100ms', () => {
     const bomText = readFixture('Expansion_Card-bom-next-pcb.csv');
-    const result = g.processBOM(bomText, 'Expansion_Card-bom-next-pcb.csv');
+    const result = processBOM(bomText, 'Expansion_Card-bom-next-pcb.csv');
 
     const start = performance.now();
-    g.matchBOM(result.aggregated, inventory, null, null);
+    matchBOM(result.aggregated, inventory, null, null);
     const elapsed = performance.now() - start;
 
     expect(elapsed).toBeLessThan(100);
@@ -318,11 +318,11 @@ describe('real-data matchBOM performance', () => {
 
   it('microspora BOM matches under 100ms', () => {
     const bomText = readFixture('microspora_BOM_custom.csv');
-    const result = g.processBOM(bomText, 'microspora_BOM_custom.csv');
+    const result = processBOM(bomText, 'microspora_BOM_custom.csv');
     const links = readFixtureJSON('microspora_BOM_custom.links.json');
 
     const start = performance.now();
-    g.matchBOM(result.aggregated, inventory, links.manualLinks, links.confirmedMatches);
+    matchBOM(result.aggregated, inventory, links.manualLinks, links.confirmedMatches);
     const elapsed = performance.now() - start;
 
     expect(elapsed).toBeLessThan(100);

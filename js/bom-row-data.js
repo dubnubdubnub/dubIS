@@ -1,9 +1,10 @@
 /* bom-row-data.js — Pure display-data computation for BOM table rows.
-   No DOM dependencies. Depends on: bomKey, invPartKey, STATUS_ICONS,
+   No DOM dependencies. Depends on: bomKey, STATUS_ICONS,
    STATUS_ROW_CLASS (from part-keys.js). */
 
-// eslint-disable-next-line no-unused-vars
-function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState) {
+import { bomKey, STATUS_ICONS, STATUS_ROW_CLASS } from './part-keys.js';
+
+export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState) {
   var st = r.effectiveStatus;
 
   // ── Filter by status ──

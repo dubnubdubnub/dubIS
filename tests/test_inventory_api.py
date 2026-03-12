@@ -5,6 +5,7 @@ import os
 
 import pytest
 
+from categorize import categorize, parse_capacitance, parse_resistance
 from inventory_api import InventoryApi
 
 
@@ -91,138 +92,138 @@ class TestSharedConstants:
 class TestCategorize:
     def test_resistor_by_description(self):
         row = {"Description": "Resistor 10k\u03a9 \u00b11%", "Package": "0402", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "Passives - Resistors"
+        assert categorize(row) == "Passives - Resistors"
 
     def test_capacitor_by_description(self):
         """Generic capacitor without subcategory keywords stays at parent level."""
         row = {"Description": "Capacitor 100nF 25V", "Package": "0402", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "Passives - Capacitors"
+        assert categorize(row) == "Passives - Capacitors"
 
     def test_capacitor_mlcc(self):
         row = {"Description": "Cap Cer 100nF 25V X7R", "Package": "0402", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "Passives - Capacitors > MLCC"
+        assert categorize(row) == "Passives - Capacitors > MLCC"
 
     def test_capacitor_mlcc_keyword(self):
         row = {"Description": "MLCC Capacitor 10uF", "Package": "0805", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "Passives - Capacitors > MLCC"
+        assert categorize(row) == "Passives - Capacitors > MLCC"
 
     def test_capacitor_aluminum_polymer(self):
         row = {"Description": "Aluminum Electrolytic Capacitor 100uF 25V", "Package": "", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "Passives - Capacitors > Aluminum Polymer"
+        assert categorize(row) == "Passives - Capacitors > Aluminum Polymer"
 
     def test_capacitor_tantalum(self):
         row = {"Description": "Tantalum Capacitor 10uF 16V", "Package": "", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "Passives - Capacitors > Tantalum"
+        assert categorize(row) == "Passives - Capacitors > Tantalum"
 
     def test_mosfet_subcategory(self):
         row = {"Description": "N-Channel MOSFET 30V 5A", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "Discrete Semiconductors > MOSFETs"
+        assert categorize(row) == "Discrete Semiconductors > MOSFETs"
 
     def test_discrete_without_mosfet(self):
         row = {"Description": "NPN Transistor BJT 40V", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "Discrete Semiconductors"
+        assert categorize(row) == "Discrete Semiconductors"
 
     def test_ldo_subcategory(self):
         row = {"Description": "LDO Voltage Regulator 3.3V 500mA", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators > LDOs"
+        assert categorize(row) == "ICs - Power / Voltage Regulators > LDOs"
 
     def test_buck_switcher_subcategory(self):
         row = {"Description": "Buck Switching Regulator IC 5V 2A", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators > Switchers"
+        assert categorize(row) == "ICs - Power / Voltage Regulators > Switchers"
 
     def test_boost_switcher_subcategory(self):
         row = {"Description": "Boost Voltage Regulator IC 12V", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators > Switchers"
+        assert categorize(row) == "ICs - Power / Voltage Regulators > Switchers"
 
     def test_load_switch_subcategory(self):
         row = {"Description": "Load Switch IC 3.3V 1A", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators > Load Switches"
+        assert categorize(row) == "ICs - Power / Voltage Regulators > Load Switches"
 
     def test_pwr_switch_subcategory(self):
         row = {"Description": "IC PWR SWITCH 1:1 20VQFN", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators > Load Switches"
+        assert categorize(row) == "ICs - Power / Voltage Regulators > Load Switches"
 
     def test_generic_voltage_regulator(self):
         """Voltage regulator without subcategory keywords stays at parent."""
         row = {"Description": "Voltage Regulator IC 3.3V", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators"
+        assert categorize(row) == "ICs - Power / Voltage Regulators"
 
     def test_connector_by_keyword(self):
         row = {"Description": "USB-C Connector", "Package": "", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "Connectors"
+        assert categorize(row) == "Connectors"
 
     def test_mcu(self):
         row = {"Description": "Microcontroller ARM Cortex-M4", "Package": "LQFP-64", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "ICs - Microcontrollers"
+        assert categorize(row) == "ICs - Microcontrollers"
 
     def test_other_fallback(self):
         row = {"Description": "Something unknown", "Package": "", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "Other"
+        assert categorize(row) == "Other"
 
     def test_switching_regulator_not_switch(self):
         row = {"Description": "Switching Regulator IC", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators > Switchers"
+        assert categorize(row) == "ICs - Power / Voltage Regulators > Switchers"
 
     def test_tactile_switch(self):
         row = {"Description": "Tactile switch 6x6mm", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "Switches"
+        assert categorize(row) == "Switches"
 
     def test_esd_diode_not_diodes(self):
         row = {"Description": "ESD Protection Diode", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "ICs - ESD Protection"
+        assert categorize(row) == "ICs - ESD Protection"
 
     def test_diode_without_esd(self):
         row = {"Description": "Schottky Diode 40V", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "Diodes"
+        assert categorize(row) == "Diodes"
 
     def test_connector_by_mpn(self):
         row = {"Description": "something", "Manufacture Part Number": "SM04B-GHS"}
-        assert InventoryApi.categorize(row) == "Connectors"
+        assert categorize(row) == "Connectors"
 
     def test_motor_driver_by_mpn(self):
         row = {"Description": "IC chip", "Manufacture Part Number": "DRV8353"}
-        assert InventoryApi.categorize(row) == "ICs - Motor Drivers"
+        assert categorize(row) == "ICs - Motor Drivers"
 
     def test_resistor_by_manufacturer(self):
         row = {"Description": "Chip component", "Manufacture Part Number": "", "Manufacturer": "UNI-ROYAL"}
-        assert InventoryApi.categorize(row) == "Passives - Resistors"
+        assert categorize(row) == "Passives - Resistors"
 
     def test_resistor_by_mfr_and_desc(self):
         row = {"Description": "100m\u03c9 shunt", "Manufacture Part Number": "", "Manufacturer": "TA-I Tech"}
-        assert InventoryApi.categorize(row) == "Passives - Resistors"
+        assert categorize(row) == "Passives - Resistors"
 
     def test_voltage_reference_by_mpn(self):
         row = {"Description": "Voltage ref IC", "Manufacture Part Number": "REF3033"}
-        assert InventoryApi.categorize(row) == "ICs - Voltage References"
+        assert categorize(row) == "ICs - Voltage References"
 
     def test_sensor_by_mpn(self):
         row = {"Description": "Magnetic encoder", "Manufacture Part Number": "MT6835"}
-        assert InventoryApi.categorize(row) == "ICs - Sensors"
+        assert categorize(row) == "ICs - Sensors"
 
 
 class TestParseResistance:
     def test_kilo_ohm(self):
-        assert InventoryApi.parse_resistance("10k\u03a9") == 10000.0
+        assert parse_resistance("10k\u03a9") == 10000.0
 
     def test_fractional_kilo_ohm(self):
-        assert InventoryApi.parse_resistance("4.7k\u03a9") == 4700.0
+        assert parse_resistance("4.7k\u03a9") == 4700.0
 
     def test_mega_ohm(self):
-        assert InventoryApi.parse_resistance("1M\u03a9") == 1000000.0
+        assert parse_resistance("1M\u03a9") == 1000000.0
 
     def test_no_match_returns_inf(self):
-        assert InventoryApi.parse_resistance("no resistor here") == float("inf")
+        assert parse_resistance("no resistor here") == float("inf")
 
 
 class TestParseCapacitance:
     def test_nanofarad(self):
-        assert InventoryApi.parse_capacitance("100nF") == pytest.approx(100e-9)
+        assert parse_capacitance("100nF") == pytest.approx(100e-9)
 
     def test_picofarad(self):
-        assert InventoryApi.parse_capacitance("22pF") == pytest.approx(22e-12)
+        assert parse_capacitance("22pF") == pytest.approx(22e-12)
 
     def test_no_match_returns_inf(self):
-        assert InventoryApi.parse_capacitance("no cap") == float("inf")
+        assert parse_capacitance("no cap") == float("inf")
 
 
 class TestLoadPreferences:
