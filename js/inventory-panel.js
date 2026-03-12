@@ -43,33 +43,6 @@
 
   const SECTION_ORDER = App.SECTION_ORDER;
 
-  // ── Designator color coding ──
-
-  const REF_COLOR_MAP = {
-    R: "ref-r", RM: "ref-r",
-    C: "ref-c",
-    Y: "ref-osc", X: "ref-osc",
-    U: "ref-ic", IC: "ref-ic", Q: "ref-ic",
-    L: "ref-l",
-    D: "ref-d", LED: "ref-d",
-  };
-
-  function refColorClass(ref) {
-    const m = ref.trim().match(/^([A-Za-z]+)/);
-    if (!m) return "";
-    return REF_COLOR_MAP[m[1].toUpperCase()] || "";
-  }
-
-  function colorizeRefs(refsStr) {
-    if (!refsStr) return "";
-    return refsStr.split(/,\s*/).map(ref => {
-      const cls = refColorClass(ref);
-      return cls
-        ? '<span class="' + cls + '">' + escHtml(ref) + '</span>'
-        : escHtml(ref);
-    }).join(", ");
-  }
-
   // ── Reverse link helper (BOM missing row → inventory part) ──
 
   function createReverseLink(invItem) {
