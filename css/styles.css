@@ -724,15 +724,22 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 }
 .import-preview .row-delete:hover { color: var(--color-red); }
 
-/* ── Button Column (sticky-right so always visible on horizontal scroll) */
-td.btn-group, th.btn-group-hdr {
+/* ── Button Column (sticky-right so always visible on horizontal scroll) ──
+   ::before provides an opaque base; background:inherit picks up the row tint */
+td.btn-group {
   position: sticky; right: 0; z-index: 1;
-  background: var(--bg-base);
+  background: inherit;
   white-space: nowrap; text-align: right;
 }
-th.btn-group-hdr { z-index: 3; background: var(--bg-surface); }
-tbody tr:hover td.btn-group { background: var(--bg-hover) !important; }
-tr.alt-row td.btn-group { background: var(--bg-surface); }
+td.btn-group::before {
+  content: ''; position: absolute; inset: 0;
+  background: var(--bg-base); z-index: -1;
+}
+th.btn-group-hdr {
+  position: sticky; right: 0; z-index: 3;
+  background: var(--bg-surface);
+  white-space: nowrap; text-align: right;
+}
 td.btn-group button + button { margin-left: 6px; }
 
 .adj-btn {
