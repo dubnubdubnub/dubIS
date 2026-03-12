@@ -1,9 +1,12 @@
 {
   "SECTION_ORDER": [
-    "Connectors", "Switches", "Passives - Resistors", "Passives - Capacitors",
+    "Connectors", "Switches", "Passives - Resistors",
+    { "name": "Passives - Capacitors", "children": ["MLCC", "Aluminum Polymer", "Tantalum"] },
     "Passives - Inductors", "LEDs", "Crystals & Oscillators", "Diodes",
-    "Discrete Semiconductors", "ICs - Microcontrollers",
-    "ICs - Power / Voltage Regulators", "ICs - Voltage References",
+    { "name": "Discrete Semiconductors", "children": ["MOSFETs"] },
+    "ICs - Microcontrollers",
+    { "name": "ICs - Power / Voltage Regulators", "children": ["Load Switches", "Switchers", "LDOs"] },
+    "ICs - Voltage References",
     "ICs - Sensors", "ICs - Amplifiers", "ICs - Motor Drivers",
     "ICs - Interface", "ICs - ESD Protection", "Mechanical & Hardware", "Other"
   ],
