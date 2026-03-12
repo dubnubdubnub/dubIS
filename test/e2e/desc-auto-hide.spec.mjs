@@ -99,17 +99,27 @@ async function measureInvRows(page, n) {
   return rows;
 }
 
-/** Measure first N BOM table rows */
+/** Measure first N BOM table rows with per-cell breakdown for tall rows */
 async function measureBomRows(page, n) {
   const count = await page.locator('tr[data-part-key]').count();
   const limit = Math.min(n, count);
   const rows = [];
   for (let i = 0; i < limit; i++) {
-    const info = await page.locator('tr[data-part-key]').nth(i).evaluate(el => ({
-      height: el.offsetHeight,
-      width: el.offsetWidth,
-      partKey: el.dataset.partKey,
-    }));
+    const info = await page.locator('tr[data-part-key]').nth(i).evaluate(el => {
+      const cells = Array.from(el.querySelectorAll('td'));
+      const cellHeights = cells.map((td, idx) => ({
+        idx,
+        h: td.offsetHeight,
+        cls: td.className || '',
+        text: td.textContent.slice(0, 40),
+      }));
+      return {
+        height: el.offsetHeight,
+        width: el.offsetWidth,
+        partKey: el.dataset.partKey,
+        cells: cellHeights,
+      };
+    });
     rows.push(info);
   }
   return rows;
