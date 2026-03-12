@@ -517,12 +517,9 @@ async function initApp() {
     dkLoginBtn.classList.add("hidden");
 
     stopDkPolling();
-    var attempts = 0;
-    var maxAttempts = 40; // ~2 minutes at 3s intervals
+    // Backend poll thread does the heavy CDP work; we just check cached state.
     function pollDkLogin() {
       _dkPollTimer = setTimeout(async () => {
-        attempts++;
-        AppLog.info("DK poll #" + attempts + "...");
         var result = await api("sync_digikey_cookies");
         if (result && result.debug) {
           result.debug.forEach(function (line) { AppLog.info("  DK: " + line); });
@@ -540,15 +537,17 @@ async function initApp() {
           dkStatus.textContent = result.message;
           dkStatus.style.color = "var(--color-red, #e74c3c)";
           dkLoginBtn.classList.remove("hidden");
-        } else if (attempts >= maxAttempts) {
+        } else if (result && result.status === "error") {
           stopDkPolling();
-          dkStatus.textContent = "Timed out — reopen Preferences to retry";
+          dkStatus.textContent = result.message;
           dkStatus.style.color = "var(--color-red, #e74c3c)";
           dkLoginBtn.classList.remove("hidden");
+          AppLog.warn("DK: " + result.message);
         } else {
+          dkStatus.textContent = (result && result.message) || "Waiting for login...";
           pollDkLogin();
         }
-      }, 3000);
+      }, 1500);
     }
     pollDkLogin();
   });
