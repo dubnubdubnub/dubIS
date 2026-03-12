@@ -1016,7 +1016,7 @@ tr.row-teal td.status { color: var(--color-teal); }
 .swap-btn:hover { border-color: var(--color-teal); color: var(--color-teal); background: #2dd4bf26; }
 
 /* ── Part Preview Tooltip ─────────────────────────────── */
-[data-lcsc], [data-digikey] { cursor: pointer; display: inline-flex; align-items: center; white-space: nowrap; }
+[data-lcsc], [data-digikey] { cursor: pointer; display: inline-flex; align-items: center; }
 
 .part-preview {
   position: fixed;
