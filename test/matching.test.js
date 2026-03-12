@@ -133,6 +133,11 @@ describe('componentTypeFromSection', () => {
     expect(g.componentTypeFromSection('Connectors')).toBeNull();
     expect(g.componentTypeFromSection(null)).toBeNull();
   });
+
+  it('returns C for compound capacitor section', () => {
+    expect(g.componentTypeFromSection('Passives - Capacitors > MLCC')).toBe('C');
+    expect(g.componentTypeFromSection('Passives - Capacitors > Tantalum')).toBe('C');
+  });
 });
 
 // ── packagesCompatible ──

@@ -87,6 +87,10 @@ class TestRealPipelineRebuild:
         assert "Passives - Resistors" in sections
         assert "Passives - Capacitors" in sections
         assert "ICs - Microcontrollers" in sections
+        # Subcategory compound sections should exist
+        assert "Passives - Capacitors > Tantalum" in sections
+        assert "Discrete Semiconductors > MOSFETs" in sections
+        assert "ICs - Power / Voltage Regulators > Switchers" in sections
 
     def test_categorization_snapshot(self, real_api):
         """Every part must categorize identically to the known-good snapshot."""
@@ -94,12 +98,12 @@ class TestRealPipelineRebuild:
         actual = {(item["lcsc"] or item["mpn"]): item["section"] for item in inv}
         # Snapshot generated from main branch (pre-refactor)
         expected = {
-            "ADP2230ACPZ-1233R7": "ICs - Power / Voltage Regulators",
+            "ADP2230ACPZ-1233R7": "ICs - Power / Voltage Regulators > Switchers",
             "C106231": "Passives - Resistors", "C11702": "Passives - Resistors",
             "C12084": "ICs - Interface", "C12624": "LEDs",
             "C127692": "Passives - Resistors", "C12891": "Passives - Capacitors",
             "C134082": "Connectors", "C136657": "Connectors",
-            "C14289": "ICs - Power / Voltage Regulators", "C14996": "Diodes",
+            "C14289": "ICs - Power / Voltage Regulators > LDOs", "C14996": "Diodes",
             "C15127": "Other", "C1518208": "Passives - Capacitors",
             "C1538": "Passives - Capacitors", "C1554": "Passives - Capacitors",
             "C1555": "Passives - Capacitors", "C1567": "Passives - Capacitors",
@@ -125,9 +129,9 @@ class TestRealPipelineRebuild:
             "C25890": "Passives - Resistors", "C25897": "Passives - Resistors",
             "C25900": "Passives - Resistors", "C25905": "Passives - Resistors",
             "C272878": "Passives - Capacitors", "C2760486": "Connectors",
-            "C2846801": "ICs - Power / Voltage Regulators",
+            "C2846801": "ICs - Power / Voltage Regulators > Switchers",
             "C2875244": "Crystals & Oscillators", "C2879839": "Switches",
-            "C2887272": "Passives - Capacitors", "C2888932": "Switches",
+            "C2887272": "Passives - Capacitors > Aluminum Polymer", "C2888932": "Switches",
             "C2906859": "Passives - Resistors", "C2913974": "ICs - Sensors",
             "C2930002": "Passives - Resistors", "C2932578": "ICs - Sensors",
             "C2933103": "Passives - Resistors", "C2984637": "ICs - Sensors",
@@ -147,22 +151,22 @@ class TestRealPipelineRebuild:
             "C529356": "ICs - Microcontrollers", "C529361": "ICs - Microcontrollers",
             "C5301773": "Mechanical & Hardware", "C5334533": "Connectors",
             "C5382546": "ICs - Interface", "C544538": "ICs - Amplifiers",
-            "C5446": "ICs - Power / Voltage Regulators",
-            "C5942077": "ICs - Power / Voltage Regulators",
+            "C5446": "ICs - Power / Voltage Regulators > LDOs",
+            "C5942077": "ICs - Power / Voltage Regulators > Switchers",
             "C602034": "Passives - Inductors",
             "C6119795": "Passives - Capacitors", "C6305267": "Connectors",
             "C633619": "Other", "C7437027": "ICs - Microcontrollers",
             "C7471904": "Other", "C76947": "Passives - Capacitors",
             "C85960": "Passives - Capacitors", "C86295": "Passives - Capacitors",
-            "C879894": "Passives - Capacitors", "C88982": "Passives - Resistors",
+            "C879894": "Passives - Capacitors > Tantalum", "C88982": "Passives - Resistors",
             "C9002": "Crystals & Oscillators",
             "C96151": "Passives - Inductors", "C962978": "ICs - ESD Protection",
             "C963223": "Connectors", "C963349": "Switches",
             "C964792": "Mechanical & Hardware", "C965891": "LEDs",
             "C98514": "Passives - Inductors", "C98732": "Connectors",
             "C99101": "Connectors", "C99102": "Connectors",
-            "CL05A104KA5NNNC": "Passives - Capacitors",
-            "CMLDM8005 TR PBFREE": "Discrete Semiconductors",
+            "CL05A104KA5NNNC": "Passives - Capacitors > MLCC",
+            "CMLDM8005 TR PBFREE": "Discrete Semiconductors > MOSFETs",
             "DRV8316CRRGFR": "ICs - Motor Drivers",
             "L6226QTR": "ICs - Motor Drivers",
             "MAX49925XATB+": "ICs - Amplifiers",
