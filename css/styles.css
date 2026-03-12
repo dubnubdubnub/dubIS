@@ -1170,3 +1170,6 @@ tr.row-teal td.status { color: var(--color-teal); }
 .inv-part-row .part-ids { width: 100px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1px; }
 .part-id-lcsc { font-family: Consolas, monospace; font-size: 11px; color: var(--color-blue); cursor: pointer; }
 .part-id-digikey { font-family: Consolas, monospace; font-size: 11px; color: #cc6600; cursor: pointer; }
+
+/* ── Vendor Icons ─────────────────────────────────────── */
+.vendor-icon { width: 12px; height: 12px; vertical-align: middle; margin-right: 2px; }

@@ -188,7 +188,7 @@
     tr.innerHTML = `
       <td class="refs-cell" title="${escHtml(refsStr)}">${colorizeRefs(refsStr)}</td>
       <td class="status">${icon}</td>
-      <td class="mono">${dispLcsc ? '<span' + (/^C\d{4,}$/i.test(dispLcsc) ? ' data-lcsc="' + escHtml(dispLcsc) + '"' : '') + '>' + escHtml(dispLcsc) + '</span>' : ''}${dispLcsc && dispDigikey ? '<br>' : ''}${dispDigikey ? '<span data-digikey="' + escHtml(dispDigikey) + '" style="color:#cc6600">' + escHtml(dispDigikey) + '</span>' : ''}</td>
+      <td class="mono">${dispLcsc ? '<span' + (/^C\d{4,}$/i.test(dispLcsc) ? ' data-lcsc="' + escHtml(dispLcsc) + '"' : '') + '><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(dispLcsc) + '</span>' : ''}${dispLcsc && dispDigikey ? '<br>' : ''}${dispDigikey ? '<span data-digikey="' + escHtml(dispDigikey) + '" style="color:#cc6600"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(dispDigikey) + '</span>' : ''}</td>
       <td class="mono" title="${escHtml(dispMpn)}">${escHtml(dispMpn)}</td>
       <td class="${qtyClass}" style="text-align:right;font-weight:600">${r.effectiveQty}</td>
       <td class="inv-qty-cell ${qtyClass}" style="text-align:right;font-weight:600">${haveHtml}</td>
@@ -343,9 +343,9 @@
       var altLcsc = alt.lcsc || '';
       var altDigikey = alt.digikey || '';
       var altPartHtml = '';
-      if (altLcsc) altPartHtml += '<span' + (/^C\d{4,}$/i.test(altLcsc) ? ' data-lcsc="' + escHtml(altLcsc) + '"' : '') + '>' + escHtml(altLcsc) + '</span>';
+      if (altLcsc) altPartHtml += '<span' + (/^C\d{4,}$/i.test(altLcsc) ? ' data-lcsc="' + escHtml(altLcsc) + '"' : '') + '><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(altLcsc) + '</span>';
       if (altLcsc && altDigikey) altPartHtml += '<br>';
-      if (altDigikey) altPartHtml += '<span data-digikey="' + escHtml(altDigikey) + '" style="color:#cc6600">' + escHtml(altDigikey) + '</span>';
+      if (altDigikey) altPartHtml += '<span data-digikey="' + escHtml(altDigikey) + '" style="color:#cc6600"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(altDigikey) + '</span>';
       altTr.innerHTML =
         '<td></td>' +
         '<td></td>' +
@@ -411,8 +411,8 @@
         const valueStr = stockValue > 0 ? "$" + stockValue.toFixed(2) : "\u2014";
 
         let partIdsHtml = '<span class="part-ids">';
-        if (item.lcsc) partIdsHtml += '<span class="part-id-lcsc" data-lcsc="' + escHtml(item.lcsc) + '">' + escHtml(item.lcsc) + '</span>';
-        if (item.digikey) partIdsHtml += '<span class="part-id-digikey" data-digikey="' + escHtml(item.digikey) + '">' + escHtml(item.digikey) + '</span>';
+        if (item.lcsc) partIdsHtml += '<span class="part-id-lcsc" data-lcsc="' + escHtml(item.lcsc) + '"><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(item.lcsc) + '</span>';
+        if (item.digikey) partIdsHtml += '<span class="part-id-digikey" data-digikey="' + escHtml(item.digikey) + '"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(item.digikey) + '</span>';
         if (!item.lcsc && !item.digikey) partIdsHtml += '<span></span>';
         partIdsHtml += '</span>';
 
