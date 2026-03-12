@@ -592,7 +592,7 @@
 
     const fresh = await api("consume_bom", matchesJson, mult, lastFileName, note);
     if (!fresh) {
-      UndoRedo._undo.pop();
+      UndoRedo.popLast();
       return;
     }
     lastConsumeMeta = {
@@ -632,10 +632,7 @@
       showToast("Cannot create link — missing part key");
       return;
     }
-    UndoRedo.save("links", {
-      manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
-      confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
-    });
+    UndoRedo.save("links", snapshotLinks());
     App.links.addManualLink(bk, ipk);
     AppLog.info("Manual link: " + ipk + " → " + bk);
     App.links.setLinkingMode(false);
