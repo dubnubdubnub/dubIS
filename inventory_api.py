@@ -561,18 +561,34 @@ class InventoryApi:
 
         Tries Edge first (DPAPI, no admin), then Chrome, then Firefox.
         """
-        import rookiepy
+        import browser_cookie3
 
         cookies = []
         browser_used = None
-        for browser_name, fn in [("edge", rookiepy.edge), ("chrome", rookiepy.chrome), ("firefox", rookiepy.firefox)]:
+        for browser_name, fn in [
+            ("edge", browser_cookie3.edge),
+            ("chrome", browser_cookie3.chrome),
+            ("firefox", browser_cookie3.firefox),
+        ]:
             try:
-                cookies = fn([".digikey.com"])
+                cj = fn(domain_name=".digikey.com")
+                cookies = [
+                    {
+                        "name": c.name,
+                        "value": c.value,
+                        "domain": c.domain,
+                        "path": c.path,
+                        "secure": c.secure,
+                        "httpOnly": True,
+                        "expires": c.expires,
+                    }
+                    for c in cj
+                ]
                 if cookies:
                     browser_used = browser_name
                     break
             except Exception as exc:
-                logger.debug("rookiepy.%s failed: %s", browser_name, exc)
+                logger.debug("browser_cookie3.%s failed: %s", browser_name, exc)
 
         if not cookies:
             return {
