@@ -363,6 +363,28 @@ function openPreferencesModal() {
     container.appendChild(row);
   });
 
+  // Load Digikey credential status
+  var dkStatus = document.getElementById("dk-status");
+  var dkIdInput = document.getElementById("dk-client-id");
+  var dkSecretInput = document.getElementById("dk-client-secret");
+  dkIdInput.value = "";
+  dkSecretInput.value = "";
+  dkStatus.textContent = "Checking...";
+  dkStatus.style.color = "var(--text-muted)";
+  api("get_digikey_credentials_status").then(function (result) {
+    if (result && result.configured) {
+      dkStatus.textContent = "Configured";
+      dkStatus.style.color = "var(--color-green)";
+      dkIdInput.placeholder = "••••••••  (saved)";
+      dkSecretInput.placeholder = "••••••••  (saved)";
+    } else {
+      dkStatus.textContent = "Not configured";
+      dkStatus.style.color = "var(--color-yellow)";
+      dkIdInput.placeholder = "Enter Client ID";
+      dkSecretInput.placeholder = "Enter Client Secret";
+    }
+  });
+
   prefsModal.open();
 }
 
@@ -377,6 +399,16 @@ function applyPreferences() {
     const val = parseInt(row.querySelector(".prefs-input").value, 10);
     App.preferences.thresholds[section] = isNaN(val) || val < 0 ? 0 : val;
   });
+
+  // Save Digikey credentials if provided
+  const dkId = document.getElementById("dk-client-id").value.trim();
+  const dkSecret = document.getElementById("dk-client-secret").value.trim();
+  if (dkId && dkSecret) {
+    api("save_digikey_credentials", dkId, dkSecret).then(function () {
+      showToast("Digikey credentials saved");
+    });
+  }
+
   savePreferences();
   closePreferencesModal();
   EventBus.emit(Events.PREFS_CHANGED);
@@ -445,6 +477,17 @@ async function initApp() {
   if (prefsBtn) prefsBtn.addEventListener("click", openPreferencesModal);
   const prefsSave = document.getElementById("prefs-save");
   if (prefsSave) prefsSave.addEventListener("click", applyPreferences);
+
+  const dkClearBtn = document.getElementById("dk-clear");
+  if (dkClearBtn) dkClearBtn.addEventListener("click", async () => {
+    await api("clear_digikey_credentials");
+    var dkStatus = document.getElementById("dk-status");
+    dkStatus.textContent = "Not configured";
+    dkStatus.style.color = "var(--color-yellow)";
+    document.getElementById("dk-client-id").placeholder = "Enter Client ID";
+    document.getElementById("dk-client-secret").placeholder = "Enter Client Secret";
+    showToast("Digikey credentials cleared");
+  });
 
   const rebuildBtn = document.getElementById("rebuild-inv");
   if (rebuildBtn) rebuildBtn.addEventListener("click", async () => {
