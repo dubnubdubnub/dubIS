@@ -528,6 +528,11 @@ async function initApp() {
   const globalUndo = document.getElementById("global-undo");
   const globalRedo = document.getElementById("global-redo");
 
+  const isMac = navigator.platform.toUpperCase().includes("MAC");
+  const mod = isMac ? "\u2318" : "Ctrl+";
+  if (globalUndo) globalUndo.title = "Undo (" + mod + "Z)";
+  if (globalRedo) globalRedo.title = "Redo (" + mod + "Shift+Z)";
+
   function syncUndoRedoButtons() {
     if (globalUndo) globalUndo.disabled = !UndoRedo.canUndo();
     if (globalRedo) globalRedo.disabled = !UndoRedo.canRedo();
@@ -541,7 +546,7 @@ async function initApp() {
   EventBus.on(Events.BOM_LOADED, syncUndoRedoButtons);
 
   document.addEventListener("keydown", async (e) => {
-    if (!e.ctrlKey || e.altKey) return;
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
     if (e.key === "z" && !e.shiftKey && UndoRedo.canUndo()) {
       e.preventDefault();
       await UndoRedo.undo();
