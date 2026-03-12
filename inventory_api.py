@@ -556,21 +556,57 @@ class InventoryApi:
 
         return injected
 
+    @staticmethod
+    def _detect_default_browser() -> str | None:
+        """Detect the default browser on Windows via the registry."""
+        try:
+            import winreg
+
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice",
+            ) as key:
+                prog_id = winreg.QueryValueEx(key, "ProgId")[0].lower()
+            browser_map = {
+                "brave": "brave", "chrome": "chrome", "firefox": "firefox",
+                "msedge": "edge", "edge": "edge", "opera": "opera",
+                "vivaldi": "vivaldi", "chromium": "chromium",
+            }
+            for keyword, name in browser_map.items():
+                if keyword in prog_id:
+                    return name
+        except Exception:
+            pass
+        return None
+
     def sync_digikey_cookies(self) -> dict[str, Any]:
         """Read Digikey cookies from the user's browser and inject into webview.
 
-        Tries Edge first (DPAPI, no admin), then Chrome, then Firefox.
+        Detects default browser and tries it first, then falls back to others.
         """
         import browser_cookie3
 
+        all_browsers = {
+            "edge": browser_cookie3.edge,
+            "chrome": browser_cookie3.chrome,
+            "firefox": browser_cookie3.firefox,
+            "brave": browser_cookie3.brave,
+            "opera": browser_cookie3.opera,
+            "chromium": browser_cookie3.chromium,
+        }
+
+        default = self._detect_default_browser()
+        ordered = []
+        if default and default in all_browsers:
+            ordered.append((default, all_browsers[default]))
+        for name, fn in all_browsers.items():
+            if name != default:
+                ordered.append((name, fn))
+
         cookies = []
         browser_used = None
-        debug_log = []
-        for browser_name, fn in [
-            ("edge", browser_cookie3.edge),
-            ("chrome", browser_cookie3.chrome),
-            ("firefox", browser_cookie3.firefox),
-        ]:
+        debug_log = [f"default_browser={default}"]
+        for browser_name, fn in ordered:
             try:
                 cj = fn(domain_name="digikey.com")
                 all_cookies = list(cj)
