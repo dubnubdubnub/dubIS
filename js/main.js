@@ -48,6 +48,7 @@ const UndoRedo = {
   _redo: [],
   _max: UNDO_MAX_HISTORY,
   _restorers: {},  // panel → fn(action, data)
+  _busy: false,
 
   register(panel, restoreFn) { this._restorers[panel] = restoreFn; },
 
@@ -57,28 +58,52 @@ const UndoRedo = {
     this._redo = [];
   },
 
-  undo() {
-    if (!this._undo.length) return false;
+  async undo() {
+    if (!this._undo.length || this._busy) return false;
+    this._busy = true;
     const entry = this._undo.pop();
-    const current = this._restorers[entry.panel]("snapshot");
-    this._redo.push({ panel: entry.panel, data: current });
-    this._restorers[entry.panel]("restore", entry.data);
-    AppLog.info("Undo (" + entry.panel + ")");
-    return true;
+    const savedRedo = this._redo.slice();
+    try {
+      const current = await this._restorers[entry.panel]("snapshot");
+      this._redo.push({ panel: entry.panel, data: current });
+      await this._restorers[entry.panel]("restore", entry.data);
+      AppLog.info("Undo (" + entry.panel + ")");
+      return true;
+    } catch (err) {
+      // Restore stacks on failure
+      this._undo.push(entry);
+      this._redo = savedRedo;
+      AppLog.error("Undo failed: " + err.message);
+      throw err;
+    } finally {
+      this._busy = false;
+    }
   },
 
-  redo() {
-    if (!this._redo.length) return false;
+  async redo() {
+    if (!this._redo.length || this._busy) return false;
+    this._busy = true;
     const entry = this._redo.pop();
-    const current = this._restorers[entry.panel]("snapshot");
-    this._undo.push({ panel: entry.panel, data: current });
-    this._restorers[entry.panel]("restore", entry.data);
-    AppLog.info("Redo (" + entry.panel + ")");
-    return true;
+    const savedUndo = this._undo.slice();
+    try {
+      const current = await this._restorers[entry.panel]("snapshot");
+      this._undo.push({ panel: entry.panel, data: current });
+      await this._restorers[entry.panel]("restore", entry.data);
+      AppLog.info("Redo (" + entry.panel + ")");
+      return true;
+    } catch (err) {
+      // Restore stacks on failure
+      this._redo.push(entry);
+      this._undo = savedUndo;
+      AppLog.error("Redo failed: " + err.message);
+      throw err;
+    } finally {
+      this._busy = false;
+    }
   },
 
-  canUndo() { return this._undo.length > 0; },
-  canRedo() { return this._redo.length > 0; },
+  canUndo() { return this._undo.length > 0 && !this._busy; },
+  canRedo() { return this._redo.length > 0 && !this._busy; },
 };
 
 // ── Global State ───────────────────────────────────────
@@ -508,22 +533,22 @@ async function initApp() {
     if (globalRedo) globalRedo.disabled = !UndoRedo.canRedo();
   }
 
-  if (globalUndo) globalUndo.addEventListener("click", () => { UndoRedo.undo(); syncUndoRedoButtons(); });
-  if (globalRedo) globalRedo.addEventListener("click", () => { UndoRedo.redo(); syncUndoRedoButtons(); });
+  if (globalUndo) globalUndo.addEventListener("click", async () => { await UndoRedo.undo(); syncUndoRedoButtons(); });
+  if (globalRedo) globalRedo.addEventListener("click", async () => { await UndoRedo.redo(); syncUndoRedoButtons(); });
 
   // Keep buttons in sync after any undo/redo action or data change
   EventBus.on(Events.INVENTORY_UPDATED, syncUndoRedoButtons);
   EventBus.on(Events.BOM_LOADED, syncUndoRedoButtons);
 
-  document.addEventListener("keydown", (e) => {
+  document.addEventListener("keydown", async (e) => {
     if (!e.ctrlKey || e.altKey) return;
     if (e.key === "z" && !e.shiftKey && UndoRedo.canUndo()) {
       e.preventDefault();
-      UndoRedo.undo();
+      await UndoRedo.undo();
       syncUndoRedoButtons();
     } else if (e.key === "Z" && e.shiftKey && UndoRedo.canRedo()) {
       e.preventDefault();
-      UndoRedo.redo();
+      await UndoRedo.redo();
       syncUndoRedoButtons();
     }
   });
