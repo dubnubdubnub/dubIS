@@ -1,6 +1,7 @@
 {
   "SECTION_ORDER": [
-    "Connectors", "Switches", "Passives - Resistors",
+    { "name": "Connectors", "children": ["High Speed", "SMD", "Through Hole"] },
+    "Switches", "Passives - Resistors",
     { "name": "Passives - Capacitors", "children": ["MLCC", "Aluminum Polymer", "Tantalum"] },
     "Passives - Inductors", "LEDs", "Crystals & Oscillators", "Diodes",
     { "name": "Discrete Semiconductors", "children": ["MOSFETs"] },
