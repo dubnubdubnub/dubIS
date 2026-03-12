@@ -571,11 +571,10 @@ class InventoryApi:
             sock.close()
             raise RuntimeError("WebSocket upgrade failed")
 
-        # 3. Send Network.getCookies for digikey.com
+        # 3. Send Network.getAllCookies (browser-level, no page context needed)
         cmd = json.dumps({
             "id": 1,
-            "method": "Network.getCookies",
-            "params": {"urls": ["https://www.digikey.com/"]},
+            "method": "Network.getAllCookies",
         }).encode()
         mask = os.urandom(4)
         hdr = bytes([0x81])  # FIN + text opcode
@@ -692,8 +691,12 @@ class InventoryApi:
         # Try CDP first
         if self._dk_cdp_port:
             try:
-                cdp_cookies = self._cdp_get_cookies(self._dk_cdp_port)
-                debug_log.append(f"cdp(port={self._dk_cdp_port}): {len(cdp_cookies)} cookies")
+                all_cdp = self._cdp_get_cookies(self._dk_cdp_port)
+                cdp_cookies = [c for c in all_cdp if "digikey.com" in c.get("domain", "")]
+                debug_log.append(
+                    f"cdp(port={self._dk_cdp_port}): {len(cdp_cookies)} digikey cookies "
+                    f"(of {len(all_cdp)} total)"
+                )
                 if cdp_cookies:
                     cookies = cdp_cookies
                     browser_used = "cdp"
