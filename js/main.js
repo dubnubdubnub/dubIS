@@ -104,7 +104,16 @@ const UndoRedo = {
 
   canUndo() { return this._undo.length > 0 && !this._busy; },
   canRedo() { return this._redo.length > 0 && !this._busy; },
+  popLast() { return this._undo.pop(); },
 };
+
+// ── Snapshot helper ────────────────────────────────────
+function snapshotLinks() {
+  return {
+    manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
+    confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
+  };
+}
 
 // ── Global State ───────────────────────────────────────
 const App = {
