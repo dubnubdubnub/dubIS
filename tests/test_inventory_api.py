@@ -149,7 +149,7 @@ class TestCategorize:
 
     def test_connector_by_keyword(self):
         row = {"Description": "USB-C Connector", "Package": "", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "Connectors"
+        assert InventoryApi.categorize(row) == "Connectors > High Speed"
 
     def test_mcu(self):
         row = {"Description": "Microcontroller ARM Cortex-M4", "Package": "LQFP-64", "Manufacture Part Number": ""}

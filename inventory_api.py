@@ -214,6 +214,15 @@ class InventoryApi:
     ]
 
     SUBCATEGORY_RULES: dict[str, list[dict[str, Any]]] = {
+        "Connectors": [
+            {"subcategory": "High Speed", "desc": [
+                "usb-c", "usb type-c", "board to board", "ipex", "hdmi", "dvi",
+            ], "mpn": ["df40", "bm24"]},
+            {"subcategory": "Through Hole", "desc": [
+                "through hole", "banana", "crimp", "housing",
+            ]},
+            {"subcategory": "SMD", "desc": ["surface mount", "header"]},
+        ],
         "Passives - Capacitors": [
             {"subcategory": "MLCC", "desc": ["mlcc", "cap cer"]},
             {"subcategory": "Aluminum Polymer", "desc": ["aluminum", "polymer", "electrolytic"]},
@@ -255,7 +264,9 @@ class InventoryApi:
         sub_rules = InventoryApi.SUBCATEGORY_RULES.get(parent)
         if sub_rules:
             for sr in sub_rules:
-                if any(kw in desc for kw in sr["desc"]):
+                if "desc" in sr and any(kw in desc for kw in sr["desc"]):
+                    return f"{parent} > {sr['subcategory']}"
+                if "mpn" in sr and any(kw in mpn for kw in sr["mpn"]):
                     return f"{parent} > {sr['subcategory']}"
 
         return parent
