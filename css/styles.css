@@ -572,10 +572,10 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 }
 .inv-part-row:hover { background: var(--bg-hover); }
 .inv-part-row .part-id { width: 90px; flex-shrink: 0; font-family: Consolas, monospace; font-size: 11px; color: var(--color-blue); }
-.inv-part-row .part-mpn { width: 160px; flex-shrink: 0; font-family: Consolas, monospace; font-size: 11px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-part-row .part-mpn { width: 160px; min-width: 0; font-family: Consolas, monospace; font-size: 11px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inv-part-row .part-value { width: 70px; flex-shrink: 0; text-align: right; font-size: 11px; font-family: Consolas, monospace; color: var(--text-primary); }
 .inv-part-row .part-qty { width: 60px; flex-shrink: 0; text-align: right; font-weight: 600; }
-.inv-part-row .part-desc { flex: 1; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-part-row .part-desc { flex: 1; min-width: 0; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Import Panel ──────────────────────────────────────── */
 #import-body { display: flex; flex-direction: column; overflow: hidden; }
@@ -1167,9 +1167,11 @@ tr.row-teal td.status { color: var(--color-teal); }
 .part-preview-card.provider-digikey { border-top: 3px solid #cc0000; }
 
 /* ── Dual Part ID Display ─────────────────────────────── */
-.inv-part-row .part-ids { width: 100px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1px; }
+.inv-part-row .part-ids { width: 100px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
 .part-id-lcsc { font-family: Consolas, monospace; font-size: 11px; color: var(--color-blue); cursor: pointer; }
 .part-id-digikey { font-family: Consolas, monospace; font-size: 11px; color: #cc6600; cursor: pointer; }
+.inv-part-row .part-id-lcsc,
+.inv-part-row .part-id-digikey { overflow: hidden; white-space: nowrap; max-width: 100%; }
 
 /* ── Vendor Icons ─────────────────────────────────────── */
 .vendor-icon { width: 12px; height: 12px; margin-right: 2px; flex-shrink: 0; }
