@@ -5,8 +5,12 @@ import os
 import sys
 
 # Ensure the app directory is on the path
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, 'frozen', False):
+    APP_DIR = os.path.dirname(sys.executable)
+else:
+    APP_DIR = os.path.dirname(os.path.abspath(__file__))
 ICON_PATH = os.path.join(APP_DIR, "data", "dubIS.ico")
+PNG_ICON_PATH = os.path.join(APP_DIR, "data", "dubIS.png")
 sys.path.insert(0, APP_DIR)
 
 import ctypes
@@ -56,7 +60,10 @@ def main():
         return False
 
     window.events.closing += on_closing
-    webview.start(func=set_icon, debug="--debug" in sys.argv)
+    start_kwargs = {"func": set_icon, "debug": "--debug" in sys.argv}
+    if sys.platform != "win32" and os.path.isfile(PNG_ICON_PATH):
+        start_kwargs["icon"] = PNG_ICON_PATH
+    webview.start(**start_kwargs)
 
 
 if __name__ == "__main__":
