@@ -549,7 +549,7 @@ class InventoryApi:
 
         port = random.randint(19200, 19299)
         proc = subprocess.Popen(
-            [exe, f"--headless=new", f"--remote-debugging-port={port}", "about:blank"],
+            [exe, "--headless=new", f"--remote-debugging-port={port}", "about:blank"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         try:
