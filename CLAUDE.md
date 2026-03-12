@@ -60,3 +60,4 @@ ruff check inventory_api.py app.py
 - **Each Claude instance** works in a separate git worktree
 - **Coordination**: via GitHub Issues (labels: `feature`, `refactor`)
 - **Before creating a PR**: ensure `npm ci && npx eslint js/ && npx vitest run` passes, and `ruff check inventory_api.py app.py && pytest tests/ -v` passes
+- **Always use a new branch for new work**: Once a PR is merged, its branch is dead — CI does not run on merged PRs. Before starting new work, check if your current branch's PR was already merged (`gh pr list --head <branch>`). If so, create a fresh branch from `origin/main` (`git fetch origin main && git checkout -b claude/<new-scope> origin/main`). Never push new commits to a branch whose PR was already merged.
