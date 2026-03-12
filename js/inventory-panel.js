@@ -21,6 +21,11 @@
     if (narrow !== hideDescs) { hideDescs = narrow; render(); }
   }).observe(body);
 
+  // Log app dimensions on resize
+  window.addEventListener("resize", () => {
+    AppLog.info("Window: " + window.innerWidth + "×" + window.innerHeight + "  inv-body: " + body.offsetWidth + "×" + body.offsetHeight);
+  });
+
   // Undo/redo tracking for inventory mutations
   let lastAdjustMeta = null;
   let lastPriceMeta = null;
