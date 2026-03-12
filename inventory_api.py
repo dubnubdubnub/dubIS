@@ -821,7 +821,14 @@ class InventoryApi:
         }
 
     def get_digikey_login_status(self) -> dict[str, bool]:
-        """Check whether user is logged into Digikey via session cookies."""
+        """Check whether user is logged into Digikey.
+
+        Checks pending cookies (from CDP login flow) or the hidden window's
+        session cookies if the window exists.
+        """
+        # Check pending cookies from CDP login (window not created yet)
+        if self._dk_pending_cookies:
+            return {"logged_in": self._check_dk_cookies_logged_in(self._dk_pending_cookies)}
         if self._dk_window is None:
             return {"logged_in": False}
         try:
