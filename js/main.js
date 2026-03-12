@@ -346,7 +346,7 @@ function stockValueColor(stockValue, threshold) {
 // ── Preferences Modal ──────────────────────────────────
 var _dkPollTimer = null;
 function stopDkPolling() {
-  if (_dkPollTimer) { clearInterval(_dkPollTimer); _dkPollTimer = null; }
+  if (_dkPollTimer) { clearTimeout(_dkPollTimer); _dkPollTimer = null; }
 }
 const prefsModal = Modal("prefs-modal", { cancelId: "prefs-cancel" });
 
@@ -519,33 +519,38 @@ async function initApp() {
     stopDkPolling();
     var attempts = 0;
     var maxAttempts = 40; // ~2 minutes at 3s intervals
-    _dkPollTimer = setInterval(async () => {
-      attempts++;
-      AppLog.info("DK poll #" + attempts + "...");
-      var result = await api("sync_digikey_cookies");
-      if (result && result.debug) {
-        result.debug.forEach(function (line) { AppLog.info("  DK: " + line); });
-      }
-      if (result && result.logged_in) {
-        stopDkPolling();
-        var label = "Logged in" + (result.browser ? " (via " + result.browser + ")" : "");
-        dkStatus.textContent = label;
-        dkStatus.style.color = "var(--color-green)";
-        dkLogoutBtn.classList.remove("hidden");
-        showToast(label);
-        AppLog.info("DK login success: " + label);
-      } else if (result && result.status === "browser_running") {
-        stopDkPolling();
-        dkStatus.textContent = result.message;
-        dkStatus.style.color = "var(--color-red, #e74c3c)";
-        dkLoginBtn.classList.remove("hidden");
-      } else if (attempts >= maxAttempts) {
-        stopDkPolling();
-        dkStatus.textContent = "Timed out — reopen Preferences to retry";
-        dkStatus.style.color = "var(--color-red, #e74c3c)";
-        dkLoginBtn.classList.remove("hidden");
-      }
-    }, 3000);
+    function pollDkLogin() {
+      _dkPollTimer = setTimeout(async () => {
+        attempts++;
+        AppLog.info("DK poll #" + attempts + "...");
+        var result = await api("sync_digikey_cookies");
+        if (result && result.debug) {
+          result.debug.forEach(function (line) { AppLog.info("  DK: " + line); });
+        }
+        if (result && result.logged_in) {
+          stopDkPolling();
+          var label = "Logged in" + (result.browser ? " (via " + result.browser + ")" : "");
+          dkStatus.textContent = label;
+          dkStatus.style.color = "var(--color-green)";
+          dkLogoutBtn.classList.remove("hidden");
+          showToast(label);
+          AppLog.info("DK login success: " + label);
+        } else if (result && result.status === "browser_running") {
+          stopDkPolling();
+          dkStatus.textContent = result.message;
+          dkStatus.style.color = "var(--color-red, #e74c3c)";
+          dkLoginBtn.classList.remove("hidden");
+        } else if (attempts >= maxAttempts) {
+          stopDkPolling();
+          dkStatus.textContent = "Timed out — reopen Preferences to retry";
+          dkStatus.style.color = "var(--color-red, #e74c3c)";
+          dkLoginBtn.classList.remove("hidden");
+        } else {
+          pollDkLogin();
+        }
+      }, 3000);
+    }
+    pollDkLogin();
   });
 
   if (dkLogoutBtn) dkLogoutBtn.addEventListener("click", async () => {
