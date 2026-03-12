@@ -519,6 +519,7 @@ class InventoryApi:
 
         url = "https://www.digikey.com/MyDigiKey/Login"
         exe = self._find_default_browser_exe()
+        print(f"[DK] login: browser exe={exe}", flush=True)
         if not exe:
             import webbrowser
             webbrowser.open(url)
@@ -526,11 +527,13 @@ class InventoryApi:
             return {"status": "opened", "cdp": False}
 
         port = random.randint(19200, 19299)
+        print(f"[DK] login: launching with CDP port {port}", flush=True)
         subprocess.Popen(
             [exe, f"--remote-debugging-port={port}", url],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         self._dk_cdp_port = port
+        print("[DK] login: browser launched", flush=True)
         return {"status": "opened", "cdp": True, "port": port}
 
     @staticmethod
@@ -693,6 +696,7 @@ class InventoryApi:
         Tries CDP first (works with any Chromium browser if we launched it).
         Falls back to browser_cookie3 (Edge/Firefox) if CDP is unavailable.
         """
+        print("[DK] sync: starting", flush=True)
         cookies = []
         browser_used = None
         debug_log = []
@@ -763,13 +767,17 @@ class InventoryApi:
                 "debug": debug_log,
             }
 
+        print(f"[DK] sync: got {len(cookies)} cookies via {browser_used}, ensuring dk window...", flush=True)
         with self._dk_lock:
             self._ensure_dk_window()
 
+        print("[DK] sync: dk window ready, injecting cookies...", flush=True)
         injected = self._inject_cookies_to_dk_window(cookies)
 
+        print(f"[DK] sync: injected {injected} cookies, checking login status...", flush=True)
         login_result = self.get_digikey_login_status()
         logged_in = login_result.get("logged_in", False)
+        print(f"[DK] sync: logged_in={logged_in}", flush=True)
 
         cookie_names = [c["name"] for c in cookies[:20]]
         return {
