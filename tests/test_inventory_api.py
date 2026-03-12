@@ -62,6 +62,46 @@ class TestCategorize:
         row = {"Description": "Something unknown", "Package": "", "Manufacture Part Number": ""}
         assert InventoryApi.categorize(row) == "Other"
 
+    def test_switching_regulator_not_switch(self):
+        row = {"Description": "Switching Regulator IC", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators"
+
+    def test_tactile_switch(self):
+        row = {"Description": "Tactile switch 6x6mm", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "Switches"
+
+    def test_esd_diode_not_diodes(self):
+        row = {"Description": "ESD Protection Diode", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "ICs - ESD Protection"
+
+    def test_diode_without_esd(self):
+        row = {"Description": "Schottky Diode 40V", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "Diodes"
+
+    def test_connector_by_mpn(self):
+        row = {"Description": "something", "Manufacture Part Number": "SM04B-GHS"}
+        assert InventoryApi.categorize(row) == "Connectors"
+
+    def test_motor_driver_by_mpn(self):
+        row = {"Description": "IC chip", "Manufacture Part Number": "DRV8353"}
+        assert InventoryApi.categorize(row) == "ICs - Motor Drivers"
+
+    def test_resistor_by_manufacturer(self):
+        row = {"Description": "Chip component", "Manufacture Part Number": "", "Manufacturer": "UNI-ROYAL"}
+        assert InventoryApi.categorize(row) == "Passives - Resistors"
+
+    def test_resistor_by_mfr_and_desc(self):
+        row = {"Description": "100m\u03c9 shunt", "Manufacture Part Number": "", "Manufacturer": "TA-I Tech"}
+        assert InventoryApi.categorize(row) == "Passives - Resistors"
+
+    def test_voltage_reference_by_mpn(self):
+        row = {"Description": "Voltage ref IC", "Manufacture Part Number": "REF3033"}
+        assert InventoryApi.categorize(row) == "ICs - Voltage References"
+
+    def test_sensor_by_mpn(self):
+        row = {"Description": "Magnetic encoder", "Manufacture Part Number": "MT6835"}
+        assert InventoryApi.categorize(row) == "ICs - Sensors"
+
 
 class TestParseResistance:
     def test_kilo_ohm(self):
