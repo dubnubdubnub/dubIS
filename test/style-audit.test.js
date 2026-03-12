@@ -36,6 +36,18 @@ function propertyValue(ruleText, prop) {
   return m ? m[1].trim() : null;
 }
 
+describe('Description auto-hide via container query', () => {
+  it('#inventory-body has container-type: inline-size', () => {
+    expect(css).toMatch(/#inventory-body\s*\{[^}]*container-type:\s*inline-size/);
+  });
+
+  it('@container rule hides .part-desc when panel is narrow', () => {
+    // Must have a @container rule that sets display: none on .part-desc
+    expect(css).toMatch(/@container\s+inv-body\s*\([^)]*max-width/);
+    expect(css).toMatch(/@container\s+inv-body\b[\s\S]*?\.part-desc\s*\{[^}]*display:\s*none/);
+  });
+});
+
 describe('Description line-clamp contract', () => {
   it('JS renders .part-desc-inner wrapper inside .part-desc', () => {
     // The inventory panel must wrap description text in an inner span
