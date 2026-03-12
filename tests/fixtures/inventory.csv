@@ -40,7 +40,7 @@ Switches,,C963349,B3U-3000P,OMRON,,"SMD,3x2.5mm","Tactile Switch SPST 1.59N 1.2m
 Switches,,C22459526,TS1187A26020,HanElectricity,,"SMD-4P,5.2x5.2mm",Tactile Switch SPST 2.6N Surface Mount,YES,4000,0.0064,25.6,,
 Switches,,C41430893,CPG151101S11-16,HanElectricity,"SMD,14.5x5.9mm",,"5,000 cycles 2 12V 3000gf SMD,14.5x5.9mm Pushbutton Switches RoHS",yes,3000,0.0257,77.1,https://www.lcsc.com/product-detail/C41430893.html,
 Switches,,C2888932,TSA002A3512A02,BZCN,,"SMD,4.8x2mm","Tactile Switch 120gf 3.5mm 4.8mm x 2mm Surface Mount, Right Angle",YES,200,0.02,3.86,,
-Switches,UCS2114-1-V/LX-ND,,UCS2114-1-V/LX,,,,IC PWR SWITCH 1:1 20VQFN,,32,2.73,87.36,,
+ICs - Power / Voltage Regulators,UCS2114-1-V/LX-ND,,UCS2114-1-V/LX,,,,IC PWR SWITCH 1:1 20VQFN,,32,2.73,87.36,,
 
 === Passives - Resistors ===,,,,,,,,,,,,,
 Passives - Resistors,,C106231,RC0402FR-070RL,YAGEO,,0402,0Ω 62.5mW 50V Thick Film Resistor ±1% 0402 Chip Resistor - Surface Mount RoHS,YES,10000,0.0003,3,,
