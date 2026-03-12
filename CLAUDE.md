@@ -6,7 +6,7 @@ Desktop app: Python (pywebview) backend + vanilla JS/HTML/CSS frontend.
 
 | Layer | Files |
 |-------|-------|
-| **Backend** | `app.py` (webview launcher), `inventory_api.py` (file I/O, inventory CRUD) |
+| **Backend** | `app.py` (webview launcher), `inventory_api.py` (file I/O, inventory CRUD), `digikey_client.py` (Digikey browser session + scraping), `lcsc_client.py` (LCSC API fetching) |
 | **Frontend** | `index.html`, `css/styles.css`, 7 JS files (no build step, no modules) |
 | **Data** | CSV files in `data/` — `inventory.csv`, `purchase_ledger.csv`, `adjustments.csv`, `preferences.json` |
 
@@ -49,7 +49,7 @@ pytest tests/ -v
 npx eslint js/
 
 # Python
-ruff check inventory_api.py app.py
+ruff check inventory_api.py app.py digikey_client.py lcsc_client.py
 ```
 
 ## Branch Workflow (for multi-Claude development)
@@ -59,5 +59,5 @@ ruff check inventory_api.py app.py
 - **Squash-merge** PRs to keep linear history
 - **Each Claude instance** works in a separate git worktree
 - **Coordination**: via GitHub Issues (labels: `feature`, `refactor`)
-- **Before creating a PR**: ensure `npm ci && npx eslint js/ && npx vitest run` passes, and `ruff check inventory_api.py app.py && pytest tests/ -v` passes
+- **Before creating a PR**: ensure `npm ci && npx eslint js/ && npx vitest run` passes, and `ruff check inventory_api.py app.py digikey_client.py lcsc_client.py && pytest tests/ -v` passes
 - **Always use a new branch for new work**: Once a PR is merged, its branch is dead — CI does not run on merged PRs. Before starting new work, check if your current branch's PR was already merged (`gh pr list --head <branch>`). If so, create a fresh branch from `origin/main` (`git fetch origin main && git checkout -b claude/<new-scope> origin/main`). Never push new commits to a branch whose PR was already merged.
