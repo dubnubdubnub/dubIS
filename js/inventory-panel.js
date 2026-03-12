@@ -426,7 +426,7 @@
           <span class="part-mpn" title="${escHtml(displayMpn)}">${escHtml(displayMpn)}</span>
           <span class="part-value">${valueStr}</span>
           <span class="part-qty" style="color:${qtyColor}">${showPriceWarn ? '<button class="price-warn-btn" title="No price data — click to set">\u26A0</button>' : ''}${item.qty}</span>
-          <span class="part-desc" title="${escHtml(displayDesc)}">${escHtml(displayDesc)}</span>
+          <span class="part-desc"><span class="part-desc-inner" title="${escHtml(displayDesc)}">${escHtml(displayDesc)}</span></span>
           <button class="adj-btn" title="Adjust qty">Adjust</button>
           ${linkBtnStr}
         `;
