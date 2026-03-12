@@ -957,16 +957,19 @@ class InventoryApi:
                 "https://www.digikey.com/en/products/detail/-/-/"
                 + quote(part_number, safe="")
             )
+            print(f"[DK] fetch: loading {search_url}", flush=True)
             self._dk_loaded.clear()
             self._dk_window.load_url(search_url)
             if not self._dk_loaded.wait(timeout=15):
-                logger.warning(
-                    "Digikey page load timed out for %s", part_number
-                )
+                print(f"[DK] fetch: page load timed out for {part_number}", flush=True)
                 self._digikey_cache[part_number] = None
                 return None
 
             try:
+                # Get the final URL to check for redirects (e.g. login page)
+                final_url = self._dk_window.evaluate_js("window.location.href") or ""
+                print(f"[DK] fetch: final URL = {final_url}", flush=True)
+
                 result = self._dk_window.evaluate_js(
                     "(function() {"
                     # Strategy 1: JSON-LD structured data
@@ -1004,17 +1007,15 @@ class InventoryApi:
                     "  return null;"
                     "})()"
                 )
-            except (RuntimeError, AttributeError) as exc:
-                logger.warning(
-                    "Digikey evaluate_js failed for %s: %s",
-                    part_number,
-                    exc,
-                )
+                print(f"[DK] fetch: scrape result type={type(result).__name__}, "
+                      f"keys={list(result.keys()) if isinstance(result, dict) else 'N/A'}", flush=True)
+            except Exception as exc:
+                print(f"[DK] fetch: evaluate_js failed for {part_number}: {exc}", flush=True)
                 self._digikey_cache[part_number] = None
                 return None
 
         if not result or not isinstance(result, dict):
-            logger.info("Digikey product not found: %s", part_number)
+            print(f"[DK] fetch: no product data for {part_number}", flush=True)
             self._digikey_cache[part_number] = None
             return None
 
