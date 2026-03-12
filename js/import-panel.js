@@ -3,7 +3,7 @@
 import { api, AppLog } from './api.js';
 import { showToast, escHtml, Modal, setupDropZone, resetDropZoneInput } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
-import { App, snapshotLinks, loadInventory, onInventoryUpdated } from './store.js';
+import { App, snapshotLinks, loadInventory, onInventoryUpdated, savePreferences } from './store.js';
 import { parseCSV, processBOM, generateCSV } from './csv-parser.js';
 
 const body = document.getElementById("import-body");
