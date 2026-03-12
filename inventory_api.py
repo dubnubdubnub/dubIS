@@ -952,7 +952,7 @@ class InventoryApi:
             self._ensure_dk_window()
 
             search_url = (
-                "https://www.digikey.com/en/products/detail/-/-/"
+                "https://www.digikey.com/en/products/result?keywords="
                 + quote(part_number, safe="")
             )
             print(f"[DK] fetch: loading {search_url}", flush=True)
