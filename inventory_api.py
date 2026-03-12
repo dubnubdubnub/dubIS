@@ -522,8 +522,8 @@ class InventoryApi:
         if cookie_mgr is None:
             raise RuntimeError("WebView2 CookieManager not available")
 
-        from webview.platforms.winforms import BrowserView
         import System
+        from webview.platforms.winforms import BrowserView
 
         uid = self._dk_window.uid
         instance = BrowserView.instances[uid]
