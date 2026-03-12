@@ -357,7 +357,12 @@ test.describe('Row height survey — with BOM', () => {
 
       const dims = await logDimensions(page, `bom-${vp.label}`);
       const bomRows = await measureBomRows(page, 5);
-      console.log(`BOM rows at ${vp.label}:`, bomRows);
+      for (const row of bomRows) {
+        console.log(`BOM row ${row.partKey} (${vp.label}): h=${row.height} w=${row.width}`);
+        for (const c of row.cells) {
+          if (c.h > 30) console.log(`  TALL cell[${c.idx}] h=${c.h} cls="${c.cls}" text="${c.text}"`);
+        }
+      }
       const invRows = await measureInvRows(page, 5);
       console.log(`Remaining inv rows at ${vp.label}:`, invRows);
     });
