@@ -545,14 +545,23 @@ class InventoryApi:
         import socket
         import struct
 
-        # 1. Get browser WebSocket debug URL
+        # 1. Get a page target's WebSocket URL (cookies need page context)
         conn = http.client.HTTPConnection("localhost", port, timeout=3)
-        conn.request("GET", "/json/version")
-        info = json.loads(conn.getresponse().read())
+        conn.request("GET", "/json")
+        targets = json.loads(conn.getresponse().read())
         conn.close()
-        ws_url = info["webSocketDebuggerUrl"]
-        # ws://localhost:PORT/devtools/browser/UUID → /devtools/browser/UUID
-        ws_path = "/" + ws_url.split("/", 3)[3]
+        # Prefer a digikey tab; fall back to any page target
+        page = None
+        for t in targets:
+            if t.get("type") == "page":
+                if page is None:
+                    page = t
+                if "digikey" in t.get("url", "").lower():
+                    page = t
+                    break
+        if not page or "webSocketDebuggerUrl" not in page:
+            raise RuntimeError(f"No page target found ({len(targets)} targets)")
+        ws_path = "/" + page["webSocketDebuggerUrl"].split("/", 3)[3]
 
         # 2. WebSocket handshake
         sock = socket.create_connection(("localhost", port), timeout=5)
@@ -571,7 +580,7 @@ class InventoryApi:
             sock.close()
             raise RuntimeError("WebSocket upgrade failed")
 
-        # 3. Send Network.getAllCookies (browser-level, no page context needed)
+        # 3. Send Network.getAllCookies on the page target
         cmd = json.dumps({
             "id": 1,
             "method": "Network.getAllCookies",
