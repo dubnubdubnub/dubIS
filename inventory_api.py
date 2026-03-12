@@ -582,28 +582,14 @@ class InventoryApi:
         return {"status": "opened", "cdp": True, "port": port}
 
     @staticmethod
-    def _check_dk_login_via_http(cookies: list[dict]) -> bool:
-        """Verify Digikey login by making an HTTP request with the given cookies.
+    def _check_dk_cookies_logged_in(cookies: list[dict]) -> bool:
+        """Check whether cookies indicate a logged-in Digikey session.
 
-        No webview needed — runs entirely on the calling thread.
+        Looks for session cookies that are only present after login.
         """
-        import http.client
-
-        cookie_header = "; ".join(
-            f"{c['name']}={c['value']}" for c in cookies if c.get("name") and c.get("value")
-        )
-        try:
-            conn = http.client.HTTPSConnection("www.digikey.com", timeout=5)
-            conn.request("HEAD", "/MyDigiKey", headers={"Cookie": cookie_header})
-            resp = conn.getresponse()
-            conn.close()
-            # If logged in, /MyDigiKey returns 200; if not, it redirects to /Login
-            location = resp.getheader("Location", "")
-            if resp.status in (301, 302, 303, 307, 308):
-                return "login" not in location.lower()
-            return resp.status == 200
-        except Exception:
-            return False
+        cookie_names = {c.get("name", "") for c in cookies}
+        # dkuhint = "digikey user hint", only set after login
+        return "dkuhint" in cookie_names
 
     def _dk_poll_loop(self, port: int) -> None:
         """Background thread: poll CDP for cookies, store when found.
@@ -627,8 +613,7 @@ class InventoryApi:
                 print(f"[DK] poll #{attempt}: {len(cdp_cookies)} digikey cookies", flush=True)
 
                 if cdp_cookies:
-                    # Verify login via HTTP (no webview needed)
-                    logged_in = self._check_dk_login_via_http(cdp_cookies)
+                    logged_in = self._check_dk_cookies_logged_in(cdp_cookies)
                     # Store cookies for later injection into dk window
                     self._dk_pending_cookies = cdp_cookies
                     cookie_names = [c["name"] for c in cdp_cookies[:20]]
