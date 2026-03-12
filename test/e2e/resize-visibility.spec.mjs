@@ -3,6 +3,10 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import {
+  addMockSetup, waitForInventoryRows, loadBomViaEmit, loadBomViaFileInput,
+  checkElementVisibility, isReachableByScroll,
+} from './helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -10,138 +14,6 @@ const MOCK_INVENTORY = JSON.parse(
 );
 const BOM_CSV_PATH = path.join(__dirname, 'fixtures', 'bom.csv');
 const BOM_CSV = fs.readFileSync(BOM_CSV_PATH, 'utf8');
-
-/** Inject pywebview mock + inventory data before any app scripts run. */
-function addMockSetup(page) {
-  return page.addInitScript((inventory) => {
-    window.pywebview = {
-      api: {
-        load_inventory: async () => inventory,
-        rebuild_inventory: async () => inventory,
-        adjust_part: async () => inventory,
-        update_part_price: async () => inventory,
-        load_preferences: async () => ({ thresholds: {} }),
-        save_preferences: async () => true,
-        check_digikey_session: async () => ({ logged_in: false }),
-        start_digikey_login: async () => null,
-        sync_digikey_cookies: async () => ({ logged_in: false }),
-        logout_digikey: async () => null,
-        import_csv: async () => inventory,
-        remove_last_adjustments: async () => inventory,
-        set_bom_dirty: async () => null,
-        detect_columns: async () => ({}),
-        import_purchases: async () => inventory,
-        remove_last_purchases: async () => inventory,
-        open_file_dialog: async () => null,
-        save_file_dialog: async () => null,
-        load_file: async () => null,
-        confirm_close: async () => null,
-        consume_bom: async () => inventory,
-      },
-    };
-  }, MOCK_INVENTORY);
-}
-
-async function waitForInventoryRows(page) {
-  await page.waitForSelector('.inv-part-row', { timeout: 10_000 });
-}
-
-/** Load BOM via file input — populates both staging table and inventory panel. */
-async function loadBomViaFileInput(page) {
-  const fileInput = page.locator('#bom-file-input');
-  await fileInput.setInputFiles(BOM_CSV_PATH);
-  await page.waitForSelector('#bom-tbody tr', { timeout: 10_000 });
-}
-
-/** Load BOM via evaluate — populates inventory panel only. */
-async function loadBomViaEmit(page) {
-  await page.evaluate((csv) => {
-    const result = processBOM(csv, 'test-bom.csv');
-    if (!result) throw new Error('processBOM returned null');
-    const { headers, cols, aggregated } = result;
-    App.bomHeaders = headers;
-    App.bomCols = cols;
-    const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches);
-    App.bomResults = results;
-    App.bomFileName = 'test-bom.csv';
-    const rows = results.map(r => {
-      let status;
-      if (r.bom.dnp) status = 'dnp';
-      else if (!r.inv) status = 'missing';
-      else if (r.matchType === 'value' || r.matchType === 'fuzzy') status = 'possible';
-      else if (r.bom.qty <= r.inv.qty) status = 'ok';
-      else status = 'short';
-      const altQty = (r.alts || []).reduce((s, a) => s + a.qty, 0);
-      const combinedQty = (r.inv ? r.inv.qty : 0) + altQty;
-      return {
-        ...r,
-        effectiveQty: r.bom.qty,
-        effectiveStatus: status,
-        altQty,
-        combinedQty,
-        coveredByAlts: status === 'short' && combinedQty >= r.bom.qty,
-      };
-    });
-    EventBus.emit(Events.BOM_LOADED, { rows, fileName: 'test-bom.csv', multiplier: 1 });
-  }, BOM_CSV);
-}
-
-/**
- * Check that an element is visible and not clipped outside its parent or viewport.
- * Returns { visible, clipped, reason }.
- */
-async function checkElementVisibility(page, selector, label) {
-  return page.evaluate(({ sel, lbl }) => {
-    const el = document.querySelector(sel);
-    if (!el) return { visible: false, clipped: false, reason: `${lbl}: element not found` };
-    const rect = el.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) {
-      return { visible: false, clipped: false, reason: `${lbl}: zero dimensions (${rect.width}x${rect.height})` };
-    }
-    const style = getComputedStyle(el);
-    if (style.display === 'none') return { visible: false, clipped: false, reason: `${lbl}: display:none` };
-    if (style.visibility === 'hidden') return { visible: false, clipped: false, reason: `${lbl}: visibility:hidden` };
-    if (parseFloat(style.opacity) === 0 && !el.classList.contains('toast')) {
-      return { visible: false, clipped: false, reason: `${lbl}: opacity:0` };
-    }
-
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const outsideViewport = rect.right < 0 || rect.bottom < 0 || rect.left > vw || rect.top > vh;
-    if (outsideViewport) {
-      return { visible: false, clipped: true, reason: `${lbl}: outside viewport (rect: ${Math.round(rect.left)},${Math.round(rect.top)} ${Math.round(rect.width)}x${Math.round(rect.height)}, vp: ${vw}x${vh})` };
-    }
-
-    const partiallyClipped = rect.left < 0 || rect.top < 0 || rect.right > vw || rect.bottom > vh;
-    return {
-      visible: true,
-      clipped: partiallyClipped,
-      reason: partiallyClipped
-        ? `${lbl}: partially clipped (rect: ${Math.round(rect.left)},${Math.round(rect.top)} to ${Math.round(rect.right)},${Math.round(rect.bottom)}, vp: ${vw}x${vh})`
-        : `${lbl}: fully visible`,
-    };
-  }, { sel: selector, lbl: label });
-}
-
-/**
- * Check that an element is not overflowed/clipped by its scrollable ancestor.
- * An element is "reachable" if it can be scrolled into view.
- */
-async function isReachableByScroll(page, selector, label) {
-  return page.evaluate(({ sel, lbl }) => {
-    const el = document.querySelector(sel);
-    if (!el) return { reachable: false, reason: `${lbl}: not found` };
-    const rect = el.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return { reachable: false, reason: `${lbl}: zero dimensions` };
-    // Try scrolling into view
-    el.scrollIntoView({ block: 'center', inline: 'center' });
-    const after = el.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const inView = after.left >= -1 && after.top >= -1 && after.right <= vw + 1 && after.bottom <= vh + 1;
-    return { reachable: inView, reason: `${lbl}: after scroll, rect ${Math.round(after.left)},${Math.round(after.top)} to ${Math.round(after.right)},${Math.round(after.bottom)}` };
-  }, { sel: selector, lbl: label });
-}
 
 
 // ════════════════════════════════════════════════════════════
@@ -151,7 +23,7 @@ async function isReachableByScroll(page, selector, label) {
 test.describe('Header elements visibility on resize', () => {
 
   test('header buttons visible at minimum viable width (1024px)', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -173,7 +45,7 @@ test.describe('Header elements visibility on resize', () => {
   });
 
   test('header buttons visible at narrow width (800px)', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 800, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -192,7 +64,7 @@ test.describe('Header elements visibility on resize', () => {
   });
 
   test('header buttons not clipped after resize from wide to narrow', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -219,7 +91,7 @@ test.describe('Header elements visibility on resize', () => {
 test.describe('Inventory panel header controls on resize', () => {
 
   test('rebuild button and search input visible at 1200px', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -235,7 +107,7 @@ test.describe('Inventory panel header controls on resize', () => {
   });
 
   test('rebuild button and search fit within panel header at narrow width', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -272,11 +144,11 @@ test.describe('Inventory panel header controls on resize', () => {
 test.describe('BOM multiplier bar buttons on resize', () => {
 
   test('all BOM action buttons visible at 1920px', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
-    await loadBomViaFileInput(page);
+    await loadBomViaFileInput(page, BOM_CSV_PATH);
     await page.waitForTimeout(300);
 
     const saveBtn = await checkElementVisibility(page, '#bom-save-btn', 'Save BOM');
@@ -296,11 +168,11 @@ test.describe('BOM multiplier bar buttons on resize', () => {
   });
 
   test('BOM action buttons overflow check at 1200px', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
-    await loadBomViaFileInput(page);
+    await loadBomViaFileInput(page, BOM_CSV_PATH);
     await page.waitForTimeout(300);
 
     // Check if buttons overflow the multiplier bar
@@ -331,11 +203,11 @@ test.describe('BOM multiplier bar buttons on resize', () => {
   });
 
   test('BOM action buttons reachable by scroll at narrow viewport', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
-    await loadBomViaFileInput(page);
+    await loadBomViaFileInput(page, BOM_CSV_PATH);
     await page.waitForTimeout(300);
 
     // Even if they overflow, they should be reachable
@@ -358,7 +230,7 @@ test.describe('Panel minimum widths vs viewport', () => {
 
   // Panel min-widths sum to 240+300+380 = 920px + 10px handles = ~930px
   test('all three panels visible at 1024px', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -384,7 +256,7 @@ test.describe('Panel minimum widths vs viewport', () => {
   });
 
   test('panels overflow at very narrow viewport (800px)', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 800, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -415,7 +287,7 @@ test.describe('Panel minimum widths vs viewport', () => {
   });
 
   test('panels resize proportionally when viewport shrinks', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -453,11 +325,11 @@ test.describe('Panel minimum widths vs viewport', () => {
 test.describe('BOM comparison table buttons', () => {
 
   test('button group stays visible when table scrolled horizontally', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
-    await loadBomViaEmit(page);
+    await loadBomViaEmit(page, BOM_CSV);
     await page.waitForTimeout(300);
 
     const result = await page.evaluate(() => {
@@ -485,11 +357,11 @@ test.describe('BOM comparison table buttons', () => {
   });
 
   test('Adjust/Confirm/Link buttons visible in first BOM row at narrow width', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
-    await loadBomViaEmit(page);
+    await loadBomViaEmit(page, BOM_CSV);
     await page.waitForTimeout(300);
 
     const btns = await page.evaluate(() => {
@@ -528,11 +400,11 @@ test.describe('BOM comparison table buttons', () => {
 test.describe('Filter bar wrapping', () => {
 
   test('filter bar wraps gracefully at narrow width', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
-    await loadBomViaEmit(page);
+    await loadBomViaEmit(page, BOM_CSV);
     await page.waitForTimeout(300);
 
     const filterInfo = await page.evaluate(() => {
@@ -577,7 +449,7 @@ test.describe('Filter bar wrapping', () => {
 test.describe('Modal dialogs at narrow viewports', () => {
 
   test('adjustment modal fits within 800px viewport', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 800, height: 600 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -616,7 +488,7 @@ test.describe('Modal dialogs at narrow viewports', () => {
   });
 
   test('preferences modal at narrow viewport', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 800, height: 600 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -655,7 +527,7 @@ test.describe('Modal dialogs at narrow viewports', () => {
 test.describe('Import panel elements on resize', () => {
 
   test('drop zone visible at all viewport widths', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     for (const width of [800, 1024, 1200, 1920]) {
       await page.setViewportSize({ width, height: 700 });
       await page.goto('/index.html');
@@ -668,7 +540,7 @@ test.describe('Import panel elements on resize', () => {
   });
 
   test('console log clear button visible at narrow width', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -687,7 +559,7 @@ test.describe('Import panel elements on resize', () => {
 test.describe('Console log vs import body at short viewport', () => {
 
   test('import body retains usable height with console log at 500px viewport height', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 500 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -721,7 +593,7 @@ test.describe('Console log vs import body at short viewport', () => {
 test.describe('Panel body scrollability', () => {
 
   test('inventory panel body scrolls when content exceeds height', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 600 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -746,11 +618,11 @@ test.describe('Panel body scrollability', () => {
   });
 
   test('BOM table scrolls horizontally when narrow', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
-    await loadBomViaEmit(page);
+    await loadBomViaEmit(page, BOM_CSV);
     await page.waitForTimeout(300);
 
     const scrollInfo = await page.evaluate(() => {
@@ -780,7 +652,7 @@ test.describe('Panel body scrollability', () => {
 test.describe('Inventory row elements at narrow widths', () => {
 
   test('adjust button always visible in inventory rows', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -810,7 +682,7 @@ test.describe('Inventory row elements at narrow widths', () => {
   });
 
   test('part-id, mpn, qty visible in narrow inventory rows', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -866,7 +738,7 @@ const AUDIT_VIEWPORTS = [
 test.describe('Cross-viewport visibility audit — no BOM', () => {
   for (const vp of AUDIT_VIEWPORTS) {
     test(`UI elements at ${vp.width}x${vp.height}`, async ({ page }) => {
-      await addMockSetup(page);
+      await addMockSetup(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);
@@ -903,11 +775,11 @@ const BOM_AUDIT_ELEMENTS = [
 test.describe('Cross-viewport visibility audit — with BOM', () => {
   for (const vp of AUDIT_VIEWPORTS) {
     test(`BOM elements at ${vp.width}x${vp.height}`, async ({ page }) => {
-      await addMockSetup(page);
+      await addMockSetup(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);
-      await loadBomViaFileInput(page);
+      await loadBomViaFileInput(page, BOM_CSV_PATH);
       await page.waitForTimeout(300);
 
       const results = [];

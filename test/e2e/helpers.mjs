@@ -1,0 +1,169 @@
+/**
+ * Shared E2E test helpers — single source of truth for pywebview mock setup
+ * and common utility functions used across all Playwright spec files.
+ */
+
+/**
+ * Inject pywebview mock API + inventory data before any app scripts run.
+ * Includes the union of all API methods used across E2E tests.
+ */
+export function addMockSetup(page, inventory) {
+  return page.addInitScript((inv) => {
+    window.pywebview = {
+      api: {
+        load_inventory: async () => inv,
+        rebuild_inventory: async () => inv,
+        adjust_part: async () => inv,
+        update_part_price: async () => inv,
+        load_preferences: async () => ({ thresholds: {} }),
+        save_preferences: async () => true,
+        get_digikey_login_status: async () => ({ logged_in: false }),
+        check_digikey_session: async () => ({ logged_in: false }),
+        start_digikey_login: async () => null,
+        sync_digikey_cookies: async () => ({ logged_in: false }),
+        logout_digikey: async () => null,
+        import_csv: async () => inv,
+        remove_last_adjustments: async () => inv,
+        set_bom_dirty: async () => null,
+        detect_columns: async () => ({}),
+        import_purchases: async () => inv,
+        remove_last_purchases: async () => inv,
+        open_file_dialog: async () => null,
+        save_file_dialog: async () => null,
+        load_file: async () => null,
+        confirm_close: async () => null,
+        consume_bom: async () => inv,
+      },
+    };
+  }, inventory);
+}
+
+/** Wait for inventory rows to appear in the DOM. */
+export async function waitForInventoryRows(page) {
+  await page.waitForSelector('.inv-part-row', { timeout: 10_000 });
+}
+
+/**
+ * Load BOM via evaluate — simple version that uses matchBOM's status directly.
+ * Populates inventory panel only (no staging table).
+ */
+export async function loadBom(page, bomCsv) {
+  await page.evaluate((csv) => {
+    const result = processBOM(csv, 'test-bom.csv');
+    if (!result) throw new Error('processBOM returned null');
+    const { headers, cols, aggregated } = result;
+    const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches);
+    App.bomResults = results;
+    App.bomHeaders = headers;
+    App.bomCols = cols;
+    App.bomFileName = 'test-bom.csv';
+    const rows = results.map(r => ({
+      ...r,
+      effectiveQty: r.bom.qty,
+      effectiveStatus: r.status,
+    }));
+    EventBus.emit(Events.BOM_LOADED, { rows, fileName: 'test-bom.csv', multiplier: 1 });
+  }, bomCsv);
+}
+
+/**
+ * Load BOM via evaluate — detailed version with full status computation.
+ * Populates inventory panel only (no staging table).
+ */
+export async function loadBomViaEmit(page, bomCsv) {
+  await page.evaluate((csv) => {
+    const result = processBOM(csv, 'test-bom.csv');
+    if (!result) throw new Error('processBOM returned null');
+    const { headers, cols, aggregated } = result;
+    App.bomHeaders = headers;
+    App.bomCols = cols;
+    const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches);
+    App.bomResults = results;
+    App.bomFileName = 'test-bom.csv';
+    const rows = results.map(r => {
+      let status;
+      if (r.bom.dnp) status = 'dnp';
+      else if (!r.inv) status = 'missing';
+      else if (r.matchType === 'value' || r.matchType === 'fuzzy') status = 'possible';
+      else if (r.bom.qty <= r.inv.qty) status = 'ok';
+      else status = 'short';
+      const altQty = (r.alts || []).reduce((s, a) => s + a.qty, 0);
+      const combinedQty = (r.inv ? r.inv.qty : 0) + altQty;
+      return {
+        ...r,
+        effectiveQty: r.bom.qty,
+        effectiveStatus: status,
+        altQty,
+        combinedQty,
+        coveredByAlts: status === 'short' && combinedQty >= r.bom.qty,
+      };
+    });
+    EventBus.emit(Events.BOM_LOADED, { rows, fileName: 'test-bom.csv', multiplier: 1 });
+  }, bomCsv);
+}
+
+/**
+ * Load BOM via file input — populates BOTH bom-panel staging table and inventory panel.
+ * Triggers the full bom-panel loadBomText flow.
+ */
+export async function loadBomViaFileInput(page, csvFilePath) {
+  const fileInput = page.locator('#bom-file-input');
+  await fileInput.setInputFiles(csvFilePath);
+  await page.waitForSelector('#bom-tbody tr', { timeout: 10_000 });
+}
+
+/**
+ * Check that an element is visible and not clipped outside its parent or viewport.
+ * Returns { visible, clipped, reason }.
+ */
+export async function checkElementVisibility(page, selector, label) {
+  return page.evaluate(({ sel, lbl }) => {
+    const el = document.querySelector(sel);
+    if (!el) return { visible: false, clipped: false, reason: `${lbl}: element not found` };
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      return { visible: false, clipped: false, reason: `${lbl}: zero dimensions (${rect.width}x${rect.height})` };
+    }
+    const style = getComputedStyle(el);
+    if (style.display === 'none') return { visible: false, clipped: false, reason: `${lbl}: display:none` };
+    if (style.visibility === 'hidden') return { visible: false, clipped: false, reason: `${lbl}: visibility:hidden` };
+    if (parseFloat(style.opacity) === 0 && !el.classList.contains('toast')) {
+      return { visible: false, clipped: false, reason: `${lbl}: opacity:0` };
+    }
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const outsideViewport = rect.right < 0 || rect.bottom < 0 || rect.left > vw || rect.top > vh;
+    if (outsideViewport) {
+      return { visible: false, clipped: true, reason: `${lbl}: outside viewport (rect: ${Math.round(rect.left)},${Math.round(rect.top)} ${Math.round(rect.width)}x${Math.round(rect.height)}, vp: ${vw}x${vh})` };
+    }
+
+    const partiallyClipped = rect.left < 0 || rect.top < 0 || rect.right > vw || rect.bottom > vh;
+    return {
+      visible: true,
+      clipped: partiallyClipped,
+      reason: partiallyClipped
+        ? `${lbl}: partially clipped (rect: ${Math.round(rect.left)},${Math.round(rect.top)} to ${Math.round(rect.right)},${Math.round(rect.bottom)}, vp: ${vw}x${vh})`
+        : `${lbl}: fully visible`,
+    };
+  }, { sel: selector, lbl: label });
+}
+
+/**
+ * Check that an element is not overflowed/clipped by its scrollable ancestor.
+ * An element is "reachable" if it can be scrolled into view.
+ */
+export async function isReachableByScroll(page, selector, label) {
+  return page.evaluate(({ sel, lbl }) => {
+    const el = document.querySelector(sel);
+    if (!el) return { reachable: false, reason: `${lbl}: not found` };
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return { reachable: false, reason: `${lbl}: zero dimensions` };
+    el.scrollIntoView({ block: 'center', inline: 'center' });
+    const after = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const inView = after.left >= -1 && after.top >= -1 && after.right <= vw + 1 && after.bottom <= vh + 1;
+    return { reachable: inView, reason: `${lbl}: after scroll, rect ${Math.round(after.left)},${Math.round(after.top)} to ${Math.round(after.right)},${Math.round(after.bottom)}` };
+  }, { sel: selector, lbl: label });
+}
