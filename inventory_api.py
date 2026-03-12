@@ -7,9 +7,11 @@ import json
 import logging
 import os
 import re
+import time
 import urllib.request
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,9 @@ class InventoryApi:
         self._closing: bool = False
         self._bom_dirty: bool = False
         self._lcsc_cache: dict[str, dict[str, Any] | None] = {}
+        self._digikey_cache: dict[str, dict[str, Any] | None] = {}
+        self._digikey_token: str | None = None
+        self._digikey_token_expiry: float = 0
 
     # ── Utility methods (ported from organize_inventory.py) ──────────────
 
@@ -439,9 +444,175 @@ class InventoryApi:
             "category": cat_name,
             "subcategory": subcat_name,
             "attributes": attributes,
+            "provider": "lcsc",
         }
 
         self._lcsc_cache[product_code] = product
+        return product
+
+    # ── Digikey credential management ─────────────────────────────────────
+
+    @staticmethod
+    def _get_digikey_credentials() -> tuple[str, str] | None:
+        """Retrieve Digikey API credentials from OS keyring."""
+        import keyring
+        client_id = keyring.get_password("dubIS", "digikey_client_id")
+        client_secret = keyring.get_password("dubIS", "digikey_client_secret")
+        if client_id and client_secret:
+            return (client_id, client_secret)
+        return None
+
+    def save_digikey_credentials(self, client_id: str, client_secret: str) -> dict[str, str]:
+        """Store Digikey API credentials in OS keyring."""
+        import keyring
+        if not client_id or not client_secret:
+            raise ValueError("Client ID and Client Secret must not be empty")
+        keyring.set_password("dubIS", "digikey_client_id", client_id)
+        keyring.set_password("dubIS", "digikey_client_secret", client_secret)
+        self._digikey_token = None
+        self._digikey_token_expiry = 0
+        return {"status": "ok"}
+
+    def clear_digikey_credentials(self) -> dict[str, str]:
+        """Remove Digikey API credentials from OS keyring."""
+        import keyring
+        try:
+            keyring.delete_password("dubIS", "digikey_client_id")
+        except keyring.errors.PasswordDeleteError:
+            pass
+        try:
+            keyring.delete_password("dubIS", "digikey_client_secret")
+        except keyring.errors.PasswordDeleteError:
+            pass
+        self._digikey_token = None
+        self._digikey_token_expiry = 0
+        return {"status": "ok"}
+
+    def get_digikey_credentials_status(self) -> dict[str, bool]:
+        """Check whether Digikey credentials are configured (never exposes secrets)."""
+        return {"configured": self._get_digikey_credentials() is not None}
+
+    def _ensure_digikey_token(self) -> str:
+        """Return a valid Digikey OAuth2 bearer token, refreshing if needed."""
+        if self._digikey_token and time.time() < self._digikey_token_expiry:
+            return self._digikey_token
+
+        creds = self._get_digikey_credentials()
+        if not creds:
+            raise ValueError("Digikey API credentials not configured")
+
+        client_id, client_secret = creds
+        body = (
+            "grant_type=client_credentials"
+            f"&client_id={quote(client_id)}"
+            f"&client_secret={quote(client_secret)}"
+        ).encode("utf-8")
+
+        req = urllib.request.Request(
+            "https://api.digikey.com/v1/oauth2/token",
+            data=body,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:
+            raise RuntimeError(f"Digikey OAuth token request failed: {exc}") from exc
+
+        token = data.get("access_token")
+        if not token:
+            raise RuntimeError("Digikey OAuth response missing access_token")
+
+        expires_in = int(data.get("expires_in", 600))
+        self._digikey_token = token
+        self._digikey_token_expiry = time.time() + expires_in - 30
+        return token
+
+    def fetch_digikey_product(self, part_number: str) -> dict[str, Any] | None:
+        """Fetch Digikey product details by part number.
+
+        Returns a normalized dict (same shape as LCSC), or None if not found.
+        Results (including None) are cached for the session.
+        """
+        part_number = str(part_number).strip()
+        if not part_number:
+            raise ValueError("Part number must not be empty")
+
+        if part_number in self._digikey_cache:
+            return self._digikey_cache[part_number]
+
+        try:
+            token = self._ensure_digikey_token()
+        except (ValueError, RuntimeError) as exc:
+            logger.warning("Digikey auth failed for %s: %s", part_number, exc)
+            self._digikey_cache[part_number] = None
+            return None
+
+        creds = self._get_digikey_credentials()
+        client_id = creds[0] if creds else ""
+
+        encoded_pn = quote(part_number, safe="")
+        url = f"https://api.digikey.com/products/v4/search/{encoded_pn}/productdetails"
+        req = urllib.request.Request(url, headers={
+            "Authorization": f"Bearer {token}",
+            "X-IBMCLIENTID": client_id,
+            "Accept": "application/json",
+        })
+
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                logger.info("Digikey part not found: %s", part_number)
+            else:
+                logger.warning("Digikey fetch failed for %s: HTTP %s", part_number, exc.code)
+            self._digikey_cache[part_number] = None
+            return None
+        except Exception as exc:
+            logger.warning("Digikey fetch failed for %s: %s", part_number, exc)
+            self._digikey_cache[part_number] = None
+            return None
+
+        # Normalize to same shape as LCSC product
+        prices = []
+        for tier in (data.get("StandardPricing") or []):
+            if isinstance(tier, dict):
+                prices.append({
+                    "qty": tier.get("BreakQuantity", 0),
+                    "price": tier.get("UnitPrice", 0),
+                })
+
+        attributes = []
+        package = ""
+        for param in (data.get("Parameters") or []):
+            if isinstance(param, dict):
+                name = param.get("ParameterText", "")
+                value = param.get("ValueText", "")
+                if name and value and value != "-":
+                    attributes.append({"name": name, "value": value})
+                    if "package" in name.lower() and not package:
+                        package = value
+
+        mfr = data.get("Manufacturer") or {}
+
+        product = {
+            "productCode": data.get("DigiKeyPartNumber", part_number),
+            "title": data.get("ProductDescription", ""),
+            "manufacturer": mfr.get("Name", "") if isinstance(mfr, dict) else "",
+            "mpn": data.get("ManufacturerPartNumber", ""),
+            "package": package,
+            "description": data.get("DetailedDescription", ""),
+            "stock": data.get("QuantityAvailable", 0),
+            "prices": prices,
+            "imageUrl": data.get("PrimaryPhoto", ""),
+            "pdfUrl": data.get("PrimaryDatasheet", ""),
+            "digikeyUrl": data.get("ProductUrl", ""),
+            "attributes": attributes,
+            "provider": "digikey",
+        }
+
+        self._digikey_cache[part_number] = product
         return product
 
     # ── Public API methods (called from JS via pywebview) ────────────────
