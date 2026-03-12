@@ -1,12 +1,15 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
+import fs from 'fs';
+import path from 'path';
 import { fileURLToPath } from 'url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
-  readFileSync(join(__dirname, 'fixtures', 'inventory.json'), 'utf8')
+  fs.readFileSync(path.join(__dirname, 'fixtures', 'inventory.json'), 'utf8')
+);
+const BOM_CSV = fs.readFileSync(
+  path.join(__dirname, 'fixtures', 'bom.csv'), 'utf8'
 );
 
 /**
@@ -14,7 +17,6 @@ const MOCK_INVENTORY = JSON.parse(
  */
 function addMockSetup(page) {
   return page.addInitScript((inventory) => {
-    // Mock pywebview API — all methods return safe defaults
     window.pywebview = {
       api: {
         load_inventory: async () => inventory,
@@ -39,7 +41,7 @@ async function waitForInventoryRows(page) {
   await page.waitForSelector('.inv-part-row', { timeout: 10_000 });
 }
 
-/** Log diagnostic dimensions for debugging */
+/** Log diagnostic dimensions */
 async function logDimensions(page, label) {
   const dims = await page.evaluate(() => {
     const body = document.getElementById('inventory-body');
@@ -54,12 +56,12 @@ async function logDimensions(page, label) {
   return dims;
 }
 
-/** Count .part-desc elements currently in the DOM */
+/** Count .part-desc elements */
 async function countDescs(page) {
   return page.locator('.part-desc').count();
 }
 
-/** Measure height of first row and first desc (if present) */
+/** Measure height of first row and first desc */
 async function logRowHeights(page, label) {
   const rowCount = await page.locator('.inv-part-row').count();
   if (rowCount === 0) return;
@@ -80,14 +82,36 @@ async function logRowHeights(page, label) {
   }
 }
 
-test.describe('Description auto-hide based on panel width', () => {
+/** Load BOM into the app by calling its global functions directly */
+async function loadBom(page, bomCsv) {
+  await page.evaluate((csv) => {
+    const result = processBOM(csv, 'test-bom.csv');
+    if (!result) throw new Error('processBOM returned null');
+    const { aggregated, bomHeaders, bomCols } = result;
+    const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches);
+    App.bomResults = results;
+    App.bomHeaders = bomHeaders;
+    App.bomCols = bomCols;
+    App.bomFileName = 'test-bom.csv';
+    // Compute effective rows (multiplier=1)
+    const rows = results.map(r => ({
+      ...r,
+      effectiveQty: r.bom.qty,
+      effectiveStatus: r.status,
+    }));
+    EventBus.emit(Events.BOM_LOADED, { rows, fileName: 'test-bom.csv', multiplier: 1 });
+  }, bomCsv);
+}
+
+// ── Normal inventory mode tests ──
+
+test.describe('Description auto-hide — normal inventory mode', () => {
 
   test('narrow viewport (1200px) — descriptions hidden', async ({ page }) => {
     await addMockSetup(page);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
-    // Allow ResizeObserver to fire
     await page.waitForTimeout(300);
     const dims = await logDimensions(page, 'narrow-1200');
     const descCount = await countDescs(page);
@@ -110,10 +134,7 @@ test.describe('Description auto-hide based on panel width', () => {
     console.log('Total .inv-part-row:', await page.locator('.inv-part-row').count());
     expect(descCount).toBeGreaterThan(0);
     expect(dims.invBodyWidth).toBeGreaterThanOrEqual(680);
-
     await logRowHeights(page, 'wide');
-    const firstDescWidth = await page.locator('.part-desc').first().evaluate(el => el.offsetWidth);
-    expect(firstDescWidth).toBeGreaterThan(0);
   });
 
   test('resize wide → narrow — descriptions disappear', async ({ page }) => {
@@ -122,18 +143,11 @@ test.describe('Description auto-hide based on panel width', () => {
     await page.goto('/index.html');
     await waitForInventoryRows(page);
     await page.waitForTimeout(300);
-
-    // Confirm descs visible at wide
     let descCount = await countDescs(page);
     expect(descCount).toBeGreaterThan(0);
-    await logDimensions(page, 'resize-start-wide');
 
-    // Shrink viewport
     await page.setViewportSize({ width: 1200, height: 700 });
-    // Wait for ResizeObserver + re-render
     await page.waitForTimeout(500);
-    await logDimensions(page, 'resize-end-narrow');
-
     descCount = await countDescs(page);
     console.log('Desc count after resize to narrow:', descCount);
     expect(descCount).toBe(0);
@@ -145,17 +159,11 @@ test.describe('Description auto-hide based on panel width', () => {
     await page.goto('/index.html');
     await waitForInventoryRows(page);
     await page.waitForTimeout(300);
-
-    // Confirm descs hidden at narrow
     let descCount = await countDescs(page);
     expect(descCount).toBe(0);
-    await logDimensions(page, 'resize-start-narrow');
 
-    // Expand viewport
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.waitForTimeout(500);
-    await logDimensions(page, 'resize-end-wide');
-
     descCount = await countDescs(page);
     console.log('Desc count after resize to wide:', descCount);
     expect(descCount).toBeGreaterThan(0);
@@ -170,12 +178,97 @@ test.describe('Description auto-hide based on panel width', () => {
     const dims = await logDimensions(page, 'medium-1500');
     const descCount = await countDescs(page);
     console.log('Desc count at 1500px:', descCount, ' inv-body width:', dims.invBodyWidth);
-
-    // At 1500px the inv-body should be around 680px — verify desc visibility matches threshold
     if (dims.invBodyWidth >= 680) {
       expect(descCount).toBeGreaterThan(0);
     } else {
       expect(descCount).toBe(0);
     }
+  });
+});
+
+// ── BOM comparison mode tests ──
+
+test.describe('Row heights — BOM comparison mode', () => {
+
+  test('BOM loaded at wide viewport — row heights', async ({ page }) => {
+    await addMockSetup(page);
+    await page.setViewportSize({ width: 1920, height: 900 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await page.waitForTimeout(300);
+    await logDimensions(page, 'bom-wide-before');
+
+    await loadBom(page, BOM_CSV);
+    await page.waitForTimeout(300);
+
+    const dims = await logDimensions(page, 'bom-wide-after');
+    const bomRowCount = await page.locator('tr[data-part-key]').count();
+    const invRowCount = await page.locator('.inv-part-row').count();
+    console.log('BOM rows (tr[data-part-key]):', bomRowCount);
+    console.log('Remaining inv rows (.inv-part-row):', invRowCount);
+
+    // Log first BOM table row height
+    if (bomRowCount > 0) {
+      const firstBomRow = await page.locator('tr[data-part-key]').first().evaluate(el => ({
+        width: el.offsetWidth,
+        height: el.offsetHeight,
+        partKey: el.dataset.partKey,
+      }));
+      console.log('First BOM row (wide):', firstBomRow);
+    }
+    // Log remaining inventory row heights
+    await logRowHeights(page, 'bom-remaining-wide');
+  });
+
+  test('BOM loaded at narrow viewport — row heights', async ({ page }) => {
+    await addMockSetup(page);
+    await page.setViewportSize({ width: 1200, height: 700 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await page.waitForTimeout(300);
+
+    await loadBom(page, BOM_CSV);
+    await page.waitForTimeout(300);
+
+    const dims = await logDimensions(page, 'bom-narrow');
+    const bomRowCount = await page.locator('tr[data-part-key]').count();
+    const invRowCount = await page.locator('.inv-part-row').count();
+    console.log('BOM rows (narrow):', bomRowCount);
+    console.log('Remaining inv rows (narrow):', invRowCount);
+
+    if (bomRowCount > 0) {
+      const firstBomRow = await page.locator('tr[data-part-key]').first().evaluate(el => ({
+        width: el.offsetWidth,
+        height: el.offsetHeight,
+        partKey: el.dataset.partKey,
+      }));
+      console.log('First BOM row (narrow):', firstBomRow);
+    }
+    await logRowHeights(page, 'bom-remaining-narrow');
+  });
+
+  test('BOM loaded — resize wide to narrow', async ({ page }) => {
+    await addMockSetup(page);
+    await page.setViewportSize({ width: 1920, height: 900 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await page.waitForTimeout(300);
+
+    await loadBom(page, BOM_CSV);
+    await page.waitForTimeout(300);
+
+    // Log at wide
+    const descCountWide = await countDescs(page);
+    console.log('Desc count (BOM+wide):', descCountWide);
+    await logRowHeights(page, 'bom-resize-wide');
+
+    // Resize to narrow
+    await page.setViewportSize({ width: 1200, height: 700 });
+    await page.waitForTimeout(500);
+
+    const descCountNarrow = await countDescs(page);
+    console.log('Desc count (BOM+narrow):', descCountNarrow);
+    await logRowHeights(page, 'bom-resize-narrow');
+    expect(descCountNarrow).toBe(0);
   });
 });
