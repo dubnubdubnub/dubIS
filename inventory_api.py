@@ -55,6 +55,7 @@ class InventoryApi:
         self._dk_cdp_port: int | None = None
         self._dk_sync_result: dict[str, Any] = {}
         self._dk_poll_stop = threading.Event()
+        self._dk_pending_cookies: list[dict] | None = None
 
     # ── Utility methods (ported from organize_inventory.py) ──────────────
 
@@ -461,6 +462,8 @@ class InventoryApi:
         """Ensure the hidden Digikey webview window exists, creating if needed.
 
         NOT thread-safe — caller must hold ``_dk_lock``.
+        If pending cookies were stored by the login flow, they are injected
+        after the window is ready.
         """
         if self._dk_window is not None:
             return
@@ -488,6 +491,15 @@ class InventoryApi:
         self._dk_window.events.loaded += on_loaded
         self._dk_window.events.closing += on_closing
         self._dk_loaded.wait(timeout=15)
+
+        # Inject cookies that were stored during login
+        if self._dk_pending_cookies:
+            try:
+                self._inject_cookies_to_dk_window(self._dk_pending_cookies)
+                print(f"[DK] injected {len(self._dk_pending_cookies)} pending cookies into dk window", flush=True)
+            except Exception as exc:
+                print(f"[DK] pending cookie injection failed: {exc}", flush=True)
+            self._dk_pending_cookies = None
 
     @staticmethod
     def _find_default_browser_exe() -> str | None:
@@ -558,10 +570,37 @@ class InventoryApi:
         print("[DK] login: browser launched, poll thread started", flush=True)
         return {"status": "opened", "cdp": True, "port": port}
 
-    def _dk_poll_loop(self, port: int) -> None:
-        """Background thread: poll CDP for cookies, inject when found."""
-        import time
+    @staticmethod
+    def _check_dk_login_via_http(cookies: list[dict]) -> bool:
+        """Verify Digikey login by making an HTTP request with the given cookies.
 
+        No webview needed — runs entirely on the calling thread.
+        """
+        import http.client
+
+        cookie_header = "; ".join(
+            f"{c['name']}={c['value']}" for c in cookies if c.get("name") and c.get("value")
+        )
+        try:
+            conn = http.client.HTTPSConnection("www.digikey.com", timeout=5)
+            conn.request("HEAD", "/MyDigiKey", headers={"Cookie": cookie_header})
+            resp = conn.getresponse()
+            conn.close()
+            # If logged in, /MyDigiKey returns 200; if not, it redirects to /Login
+            location = resp.getheader("Location", "")
+            if resp.status in (301, 302, 303, 307, 308):
+                return "login" not in location.lower()
+            return resp.status == 200
+        except Exception:
+            return False
+
+    def _dk_poll_loop(self, port: int) -> None:
+        """Background thread: poll CDP for cookies, store when found.
+
+        Does NOT touch the UI thread at all — no webview creation, no Invoke.
+        Cookies are stored in ``_dk_pending_cookies`` and injected later when
+        ``_ensure_dk_window`` creates the hidden scraping window.
+        """
         for attempt in range(1, 41):  # max ~2 minutes at 3s intervals
             if self._dk_poll_stop.is_set():
                 return
@@ -577,43 +616,24 @@ class InventoryApi:
                 print(f"[DK] poll #{attempt}: {len(cdp_cookies)} digikey cookies", flush=True)
 
                 if cdp_cookies:
-                    # Found cookies — inject into webview
+                    # Verify login via HTTP (no webview needed)
+                    logged_in = self._check_dk_login_via_http(cdp_cookies)
+                    # Store cookies for later injection into dk window
+                    self._dk_pending_cookies = cdp_cookies
+                    cookie_names = [c["name"] for c in cdp_cookies[:20]]
                     self._dk_sync_result = {
-                        "status": "injecting",
-                        "message": "Injecting cookies...",
-                        "logged_in": False,
-                        "cookies_injected": 0,
-                        "debug": debug_log,
+                        "status": "ok" if logged_in else "error",
+                        "message": ("Logged in" if logged_in
+                                    else "Cookies found but login check failed"),
+                        "logged_in": logged_in,
+                        "cookies_injected": len(cdp_cookies),
+                        "browser": "cdp",
+                        "debug": debug_log + [
+                            f"logged_in={logged_in}, names={cookie_names}"
+                        ],
                     }
-                    try:
-                        with self._dk_lock:
-                            self._ensure_dk_window()
-                        injected = self._inject_cookies_to_dk_window(cdp_cookies)
-                        login_result = self.get_digikey_login_status()
-                        logged_in = login_result.get("logged_in", False)
-                        cookie_names = [c["name"] for c in cdp_cookies[:20]]
-                        self._dk_sync_result = {
-                            "status": "ok" if logged_in else "error",
-                            "message": ("Logged in" if logged_in
-                                        else "Cookies injected but login check failed"),
-                            "logged_in": logged_in,
-                            "cookies_injected": injected,
-                            "browser": "cdp",
-                            "debug": debug_log + [
-                                f"injected={injected}, logged_in={logged_in}, names={cookie_names}"
-                            ],
-                        }
-                        print(f"[DK] poll #{attempt}: injected={injected}, logged_in={logged_in}", flush=True)
-                    except Exception as exc:
-                        self._dk_sync_result = {
-                            "status": "error",
-                            "message": f"Cookie injection failed: {exc}",
-                            "logged_in": False,
-                            "cookies_injected": 0,
-                            "debug": debug_log + [f"inject error: {exc}"],
-                        }
-                        print(f"[DK] poll #{attempt}: inject error: {exc}", flush=True)
-                    return  # done — success or failure after injection
+                    print(f"[DK] poll #{attempt}: logged_in={logged_in}", flush=True)
+                    return  # done
 
             except ConnectionRefusedError:
                 debug_log.append(f"cdp(port={port}): ConnectionRefusedError")
@@ -828,6 +848,7 @@ class InventoryApi:
         """Log out of Digikey and clear the product cache."""
         self._dk_poll_stop.set()  # stop any running poll thread
         self._dk_sync_result = {}
+        self._dk_pending_cookies = None
         if self._dk_window is not None:
             try:
                 import System
