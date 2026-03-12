@@ -43,6 +43,8 @@ function loadMain() {
   const ctx = createContext(sandbox);
   const code = readFileSync(join(ROOT, 'js/main.js'), 'utf-8');
   runInContext(code, ctx, { filename: 'js/main.js' });
+  // const/let declarations don't land on the sandbox — expose them explicitly
+  runInContext('this.UndoRedo = UndoRedo; this.App = App; this.snapshotLinks = snapshotLinks;', ctx);
   return ctx;
 }
 
