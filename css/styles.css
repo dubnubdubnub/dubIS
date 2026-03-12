@@ -569,6 +569,56 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 .inv-section-header.collapsed .chevron { transform: rotate(-90deg); }
 .inv-section-count { color: var(--text-muted); font-weight: 400; }
 
+/* ── Parent Header (categories with subcategories) ──── */
+.inv-parent-header {
+  padding: 6px 12px;
+  background: var(--bg-surface);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  user-select: none;
+  border-bottom: 1px solid var(--border-default);
+}
+.inv-parent-header:hover { background: var(--bg-hover); }
+.inv-parent-header .chevron {
+  display: inline-block;
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+.inv-parent-header.collapsed .chevron { transform: rotate(-90deg); }
+
+/* ── Subsection (indented subcategory) ──────────────── */
+.inv-subsection { padding-left: 12px; }
+.inv-subsection-header {
+  padding: 4px 12px;
+  background: var(--bg-base);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  position: sticky;
+  top: 29px;
+  z-index: 3;
+  user-select: none;
+}
+.inv-subsection-header:hover { background: var(--bg-hover); color: var(--text-primary); }
+.inv-subsection-header .chevron {
+  display: inline-block;
+  font-size: 9px;
+  transition: transform 0.15s;
+}
+.inv-subsection-header.collapsed .chevron { transform: rotate(-90deg); }
+
 .inv-part-row {
   display: flex;
   align-items: flex-start;

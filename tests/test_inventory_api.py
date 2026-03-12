@@ -43,7 +43,7 @@ class TestGetPartKey:
 
 class TestSharedConstants:
     def test_section_order_loaded_from_json(self):
-        """SECTION_ORDER should match data/constants.json."""
+        """SECTION_ORDER should match data/constants.json (mixed format)."""
         constants_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             "data", "constants.json",
@@ -51,6 +51,31 @@ class TestSharedConstants:
         with open(constants_path, encoding="utf-8") as f:
             constants = json.load(f)
         assert InventoryApi.SECTION_ORDER == constants["SECTION_ORDER"]
+
+    def test_flat_section_order_contains_compound_keys(self):
+        """FLAT_SECTION_ORDER should include compound section strings."""
+        flat = InventoryApi.FLAT_SECTION_ORDER
+        assert "Passives - Capacitors" in flat
+        assert "Passives - Capacitors > MLCC" in flat
+        assert "Passives - Capacitors > Aluminum Polymer" in flat
+        assert "Passives - Capacitors > Tantalum" in flat
+        assert "Discrete Semiconductors > MOSFETs" in flat
+        assert "ICs - Power / Voltage Regulators > Load Switches" in flat
+        assert "ICs - Power / Voltage Regulators > Switchers" in flat
+        assert "ICs - Power / Voltage Regulators > LDOs" in flat
+        # Flat sections still present
+        assert "Passives - Resistors" in flat
+        assert "Other" in flat
+
+    def test_section_hierarchy_structure(self):
+        """SECTION_HIERARCHY should have correct structure."""
+        hier = InventoryApi.SECTION_HIERARCHY
+        # Find capacitors entry
+        cap = next(h for h in hier if h["name"] == "Passives - Capacitors")
+        assert cap["children"] == ["MLCC", "Aluminum Polymer", "Tantalum"]
+        # Flat entry has no children
+        res = next(h for h in hier if h["name"] == "Passives - Resistors")
+        assert res["children"] is None
 
     def test_fieldnames_loaded_from_json(self):
         """FIELDNAMES should match data/constants.json."""
@@ -69,8 +94,58 @@ class TestCategorize:
         assert InventoryApi.categorize(row) == "Passives - Resistors"
 
     def test_capacitor_by_description(self):
+        """Generic capacitor without subcategory keywords stays at parent level."""
         row = {"Description": "Capacitor 100nF 25V", "Package": "0402", "Manufacture Part Number": ""}
         assert InventoryApi.categorize(row) == "Passives - Capacitors"
+
+    def test_capacitor_mlcc(self):
+        row = {"Description": "Cap Cer 100nF 25V X7R", "Package": "0402", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "Passives - Capacitors > MLCC"
+
+    def test_capacitor_mlcc_keyword(self):
+        row = {"Description": "MLCC Capacitor 10uF", "Package": "0805", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "Passives - Capacitors > MLCC"
+
+    def test_capacitor_aluminum_polymer(self):
+        row = {"Description": "Aluminum Electrolytic Capacitor 100uF 25V", "Package": "", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "Passives - Capacitors > Aluminum Polymer"
+
+    def test_capacitor_tantalum(self):
+        row = {"Description": "Tantalum Capacitor 10uF 16V", "Package": "", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "Passives - Capacitors > Tantalum"
+
+    def test_mosfet_subcategory(self):
+        row = {"Description": "N-Channel MOSFET 30V 5A", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "Discrete Semiconductors > MOSFETs"
+
+    def test_discrete_without_mosfet(self):
+        row = {"Description": "NPN Transistor BJT 40V", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "Discrete Semiconductors"
+
+    def test_ldo_subcategory(self):
+        row = {"Description": "LDO Voltage Regulator 3.3V 500mA", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators > LDOs"
+
+    def test_buck_switcher_subcategory(self):
+        row = {"Description": "Buck Switching Regulator IC 5V 2A", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators > Switchers"
+
+    def test_boost_switcher_subcategory(self):
+        row = {"Description": "Boost Voltage Regulator IC 12V", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators > Switchers"
+
+    def test_load_switch_subcategory(self):
+        row = {"Description": "Load Switch IC 3.3V 1A", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators > Load Switches"
+
+    def test_pwr_switch_subcategory(self):
+        row = {"Description": "IC PWR SWITCH 1:1 20VQFN", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators > Load Switches"
+
+    def test_generic_voltage_regulator(self):
+        """Voltage regulator without subcategory keywords stays at parent."""
+        row = {"Description": "Voltage Regulator IC 3.3V", "Manufacture Part Number": ""}
+        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators"
 
     def test_connector_by_keyword(self):
         row = {"Description": "USB-C Connector", "Package": "", "Manufacture Part Number": ""}
@@ -86,7 +161,7 @@ class TestCategorize:
 
     def test_switching_regulator_not_switch(self):
         row = {"Description": "Switching Regulator IC", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators"
+        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators > Switchers"
 
     def test_tactile_switch(self):
         row = {"Description": "Tactile switch 6x6mm", "Manufacture Part Number": ""}

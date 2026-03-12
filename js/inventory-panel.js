@@ -41,7 +41,8 @@
   let expandedAlts = new Set();
   let rowMap = new Map();    // partKey → r, rebuilt each render for delegation
 
-  const SECTION_ORDER = App.SECTION_ORDER;
+  const SECTION_HIERARCHY = App.SECTION_HIERARCHY;
+  const FLAT_SECTIONS = App.FLAT_SECTIONS;
 
   // ── Reverse link helper (BOM missing row → inventory part) ──
 
@@ -82,10 +83,137 @@
       (sections[sec] = sections[sec] || []).push(item);
     });
 
-    SECTION_ORDER.filter(s => sections[s]).forEach(sec => {
-      const filtered = filterByQuery(sections[sec], query);
-      if (filtered.length > 0) renderSection(sec, filtered);
+    SECTION_HIERARCHY.forEach(entry => {
+      if (!entry.children) {
+        // Flat section — unchanged
+        const filtered = filterByQuery(sections[entry.name] || [], query);
+        if (filtered.length > 0) renderSection(entry.name, filtered);
+      } else {
+        // Parent with subcategories
+        renderHierarchySection(entry, sections, query);
+      }
     });
+  }
+
+  function renderHierarchySection(entry, sections, query) {
+    // Gather all parts: bare parent + compound children
+    var parentParts = filterByQuery(sections[entry.name] || [], query);
+    var childData = [];
+    var totalCount = parentParts.length;
+    for (var i = 0; i < entry.children.length; i++) {
+      var fullKey = entry.name + " > " + entry.children[i];
+      var filtered = filterByQuery(sections[fullKey] || [], query);
+      totalCount += filtered.length;
+      childData.push({ name: entry.children[i], fullKey: fullKey, parts: filtered });
+    }
+    if (totalCount === 0) return;
+
+    var container = document.createElement("div");
+    container.className = "inv-section";
+
+    var isParentCollapsed = collapsedSections.has(entry.name);
+    var header = document.createElement("div");
+    header.className = "inv-parent-header" + (isParentCollapsed ? " collapsed" : "");
+    header.innerHTML = '<span class="chevron">\u25BE</span> ' + escHtml(entry.name) + ' <span class="inv-section-count">(' + totalCount + ')</span>';
+    header.addEventListener("click", function () {
+      if (collapsedSections.has(entry.name)) collapsedSections.delete(entry.name);
+      else collapsedSections.add(entry.name);
+      render();
+    });
+    container.appendChild(header);
+
+    if (!isParentCollapsed) {
+      // Ungrouped parts at parent level
+      if (parentParts.length > 0) {
+        renderSubSection(container, "Ungrouped", entry.name, parentParts);
+      }
+      // Subcategory sections
+      for (var j = 0; j < childData.length; j++) {
+        if (childData[j].parts.length > 0) {
+          renderSubSection(container, childData[j].name, childData[j].fullKey, childData[j].parts);
+        }
+      }
+    }
+
+    body.appendChild(container);
+  }
+
+  function renderSubSection(container, displayName, fullKey, parts) {
+    var sub = document.createElement("div");
+    sub.className = "inv-subsection";
+
+    var isCollapsed = collapsedSections.has(fullKey);
+    var header = document.createElement("div");
+    header.className = "inv-subsection-header" + (isCollapsed ? " collapsed" : "");
+    header.innerHTML = '<span class="chevron">\u25BE</span> ' + escHtml(displayName) + ' <span class="inv-section-count">(' + parts.length + ')</span>';
+    header.addEventListener("click", function () {
+      if (collapsedSections.has(fullKey)) collapsedSections.delete(fullKey);
+      else collapsedSections.add(fullKey);
+      render();
+    });
+    sub.appendChild(header);
+
+    if (!isCollapsed) {
+      parts.forEach(function (item) {
+        var row = document.createElement("div");
+        row.className = "inv-part-row";
+
+        var displayMpn = item.mpn || "";
+        var displayDesc = item.description || "";
+
+        var stockValue = item.qty * (item.unit_price || 0);
+        var qtyColor = stockValueColor(stockValue, getThreshold(fullKey));
+        var showPriceWarn = item.qty > 0 && !(item.unit_price > 0);
+
+        var isSource = App.links.linkingMode && App.links.linkingInvItem === item;
+        var linkBtnStr = bomData ? '<button class="link-btn' + (isSource ? ' active' : '') + '" title="Link to missing BOM row">Link</button>' : '';
+        var valueStr = stockValue > 0 ? "$" + stockValue.toFixed(2) : "\u2014";
+
+        var partIdsHtml = '<span class="part-ids">';
+        if (item.lcsc) partIdsHtml += '<span class="part-id-lcsc" data-lcsc="' + escHtml(item.lcsc) + '"><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(item.lcsc) + '</span>';
+        if (item.digikey) partIdsHtml += '<span class="part-id-digikey" data-digikey="' + escHtml(item.digikey) + '"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(item.digikey) + '</span>';
+        if (!item.lcsc && !item.digikey) partIdsHtml += '<span></span>';
+        partIdsHtml += '</span>';
+
+        row.innerHTML =
+          partIdsHtml +
+          '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + '</span>' +
+          '<span class="part-value">' + valueStr + '</span>' +
+          '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data \u2014 click to set">\u26A0</button>' : '') + item.qty + '</span>' +
+          (hideDescs ? '' : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
+          '<button class="adj-btn" title="Adjust qty">Adjust</button>' +
+          linkBtnStr;
+
+        if (isSource) row.classList.add("linking-source");
+
+        if (App.links.linkingMode && App.links.linkingBomRow) {
+          row.classList.add("link-target");
+          row.addEventListener("click", function () { createReverseLink(item); });
+        }
+
+        row.querySelector(".adj-btn").addEventListener("click", function (e) {
+          e.stopPropagation();
+          openAdjustModal(item);
+        });
+        var warnBtn = row.querySelector(".price-warn-btn");
+        if (warnBtn) {
+          warnBtn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            openPriceModal(item);
+          });
+        }
+        var linkBtnEl = row.querySelector(".link-btn");
+        if (linkBtnEl) {
+          linkBtnEl.addEventListener("click", function (e) {
+            e.stopPropagation();
+            App.links.setLinkingMode(true, item);
+          });
+        }
+        sub.appendChild(row);
+      });
+    }
+
+    container.appendChild(sub);
   }
 
   // ── BOM comparison mode ──
@@ -305,8 +433,8 @@
       (otherParts[sec] = otherParts[sec] || []).push(item);
     });
 
-    const otherSections = SECTION_ORDER.filter(s => otherParts[s]);
-    if (otherSections.length > 0) {
+    const hasAny = FLAT_SECTIONS.some(s => otherParts[s]);
+    if (hasAny) {
       const divider = document.createElement("div");
       divider.className = "inv-section-header";
       divider.style.borderTop = "2px solid #30363d";
@@ -316,9 +444,13 @@
       divider.textContent = "Other Inventory";
       body.appendChild(divider);
 
-      otherSections.forEach(sec => {
-        const filtered = filterByQuery(otherParts[sec], query);
-        if (filtered.length > 0) renderSection(sec, filtered);
+      SECTION_HIERARCHY.forEach(entry => {
+        if (!entry.children) {
+          const filtered = filterByQuery(otherParts[entry.name] || [], query);
+          if (filtered.length > 0) renderSection(entry.name, filtered);
+        } else {
+          renderHierarchySection(entry, otherParts, query);
+        }
       });
     }
   }
