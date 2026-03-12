@@ -512,7 +512,11 @@ async function initApp() {
     var maxAttempts = 40; // ~2 minutes at 3s intervals
     _dkPollTimer = setInterval(async () => {
       attempts++;
+      AppLog.info("DK poll #" + attempts + "...");
       var result = await api("sync_digikey_cookies");
+      if (result && result.debug) {
+        result.debug.forEach(function (line) { AppLog.info("  DK: " + line); });
+      }
       if (result && result.logged_in) {
         stopDkPolling();
         var label = "Logged in" + (result.browser ? " (via " + result.browser + ")" : "");
@@ -520,6 +524,7 @@ async function initApp() {
         dkStatus.style.color = "var(--color-green)";
         dkLogoutBtn.classList.remove("hidden");
         showToast(label);
+        AppLog.info("DK login success: " + label);
       } else if (attempts >= maxAttempts) {
         stopDkPolling();
         dkStatus.textContent = "Timed out — reopen Preferences to retry";
