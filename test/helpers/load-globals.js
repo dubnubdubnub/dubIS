@@ -16,6 +16,7 @@ const SOURCE_FILES = [
   'js/csv-parser.js',
   'js/part-keys.js',
   'js/matching.js',
+  'js/bom-row-data.js',
 ];
 
 export function loadGlobals() {
