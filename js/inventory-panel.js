@@ -21,6 +21,7 @@
   let bomData = null;        // { rows, fileName, multiplier } from bom-loaded event
   let activeFilter = "all";
   let expandedAlts = new Set();
+  let rowMap = new Map();    // partKey → r, rebuilt each render for delegation
 
   const SECTION_ORDER = App.SECTION_ORDER;
 
@@ -120,145 +121,188 @@
     body.appendChild(filterBar);
   }
 
-  function renderBomTableRow(tbody, r, query) {
-    const st = r.effectiveStatus;
-    if (activeFilter !== "all" && st !== activeFilter) {
-      const matchesFilter =
-        (activeFilter === "manual" && st === "manual-short") ||
-        (activeFilter === "confirmed" && st === "confirmed-short") ||
-        (activeFilter === "short" && (st === "manual-short" || st === "confirmed-short"));
-      if (!matchesFilter) return;
-    }
+  // ── BOM row element builder (consumes bomRowDisplayData output) ──
 
-    if (query) {
-      const text = [
-        r.bom.lcsc, r.bom.mpn, r.bom.value, r.bom.refs, r.bom.desc,
-        r.inv ? r.inv.lcsc : "", r.inv ? r.inv.mpn : "", r.inv ? r.inv.description : "",
-      ].join(" ").toLowerCase();
-      if (!text.includes(query)) return;
-    }
-
-    const partKey = bomKey(r.bom);
+  function createBomRowElement(d) {
     const tr = document.createElement("tr");
-    tr.dataset.partKey = partKey;
+    tr.dataset.partKey = d.partKey;
+    tr.className = d.rowClass;
+    if (d.isLinkingSource || d.isReverseLinkingSource) tr.classList.add("linking-source");
+    if (d.isReverseTarget) tr.classList.add("link-target");
 
-    const rowClass = (st === "short" && r.coveredByAlts) ? "row-yellow-covered" : (STATUS_ROW_CLASS[st] || "row-red");
-    tr.className = rowClass;
-
-    const icon = (st === "short" && r.coveredByAlts) ? "~+" : (STATUS_ICONS[st] || "\u2014");
-    const dispLcsc = (r.inv ? r.inv.lcsc : "") || r.bom.lcsc || "";
-    const dispDigikey = (r.inv ? r.inv.digikey : "") || "";
-    const dispMpn = (r.inv ? r.inv.mpn : "") || r.bom.mpn || "";
-    const invQty = r.inv ? r.inv.qty : "\u2014";
-    const invDesc = r.inv ? (r.inv.description || r.inv.mpn) : (r.bom.desc || r.bom.value || "not in inventory");
-    const matchLabel = r.matchType === "lcsc" ? "LCSC" : r.matchType === "mpn" ? "MPN" : r.matchType === "fuzzy" ? "Fuzzy" : r.matchType === "value" ? "Value" : r.matchType === "manual" ? "Manual" : r.matchType === "confirmed" ? "Confirmed" : "\u2014";
-    const qtyClass = st === "dnp" ? "qty-dnp"
-      : st === "manual" ? "qty-manual"
-      : st === "manual-short" ? "qty-manual-short"
-      : st === "confirmed" ? "qty-confirmed"
-      : st === "confirmed-short" ? "qty-confirmed-short"
-      : st === "ok" ? "qty-ok" : st === "short" ? (r.coveredByAlts ? "qty-ok" : "qty-short") : st === "possible" ? "qty-possible" : "qty-miss";
-
-    let haveHtml = "" + invQty;
-    if (r.alts && r.alts.length > 0) {
-      const altS = r.alts.length === 1 ? "alt" : "alts";
-      let badgeText, coveredCls = "";
-      if (st === "short" || st === "manual-short" || st === "confirmed-short") {
-        badgeText = r.coveredByAlts ? "\u2714 covers" : "still short";
-        coveredCls = r.coveredByAlts ? " covered" : "";
-      } else {
-        badgeText = r.alts.length + " " + altS;
-        coveredCls = " covered";
-      }
-      const expandedCls = expandedAlts.has(partKey) ? " expanded" : "";
-      haveHtml += '<br><span class="alt-badge' + coveredCls + expandedCls + '" data-part-key="' + escHtml(partKey) + '"><span class="chevron">\u25B8</span>+' + r.altQty + ' (' + badgeText + ')</span>';
+    let haveHtml = "" + d.invQty;
+    if (d.altBadge) {
+      const coveredCls = d.altBadge.covered ? " covered" : "";
+      const expandedCls = d.altBadge.expanded ? " expanded" : "";
+      haveHtml += '<br><span class="alt-badge' + coveredCls + expandedCls + '" data-part-key="' + escHtml(d.partKey) + '"><span class="chevron">\u25B8</span>+' + d.altBadge.altQty + ' (' + d.altBadge.badgeText + ')</span>';
     }
 
-    const adjBtnHtml = r.inv ? '<button class="adj-btn" title="Adjust qty">Adjust</button>' : '';
-    const confirmBtnHtml = st === "possible" && r.inv
+    const adjBtnHtml = d.showAdjust ? '<button class="adj-btn" title="Adjust qty">Adjust</button>' : '';
+    const confirmBtnHtml = d.showConfirm
       ? '<button class="confirm-btn" title="Confirm this match">Confirm</button>'
-      : (st === "confirmed" || st === "confirmed-short") && r.inv
-      ? '<button class="unconfirm-btn" title="Revert to possible match">Unconfirm</button>'
+      : d.showUnconfirm
+        ? '<button class="unconfirm-btn" title="Revert to possible match">Unconfirm</button>'
+        : '';
+    const linkBtnHtml = d.showLink
+      ? `<button class="link-btn${d.linkActive ? ' active' : ''}" title="${d.hasInv ? 'Link to missing BOM row' : 'Link to inventory part'}">Link</button>`
       : '';
-    let linkBtnHtml = '';
-    if (r.inv) {
-      const isActive = App.links.linkingMode && App.links.linkingInvItem === r.inv;
-      linkBtnHtml = `<button class="link-btn${isActive ? ' active' : ''}" title="Link to missing BOM row">Link</button>`;
-    } else if (st === "missing") {
-      const isActive = App.links.linkingMode && App.links.linkingBomRow && bomKey(App.links.linkingBomRow.bom) === bomKey(r.bom);
-      linkBtnHtml = `<button class="link-btn${isActive ? ' active' : ''}" title="Link to inventory part">Link</button>`;
-    }
-    const isLinkingSource = App.links.linkingMode && App.links.linkingInvItem === r.inv;
-    const refsStr = r.bom.refs || "";
+
     tr.innerHTML = `
-      <td class="refs-cell" title="${escHtml(refsStr)}">${colorizeRefs(refsStr)}</td>
-      <td class="status">${icon}</td>
-      <td class="mono">${dispLcsc ? '<span' + (/^C\d{4,}$/i.test(dispLcsc) ? ' data-lcsc="' + escHtml(dispLcsc) + '"' : '') + '><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(dispLcsc) + '</span>' : ''}${dispLcsc && dispDigikey ? '<br>' : ''}${dispDigikey ? '<span data-digikey="' + escHtml(dispDigikey) + '" style="color:#cc6600"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(dispDigikey) + '</span>' : ''}</td>
-      <td class="mono" title="${escHtml(dispMpn)}">${escHtml(dispMpn)}</td>
-      <td class="${qtyClass}" style="text-align:right;font-weight:600">${r.effectiveQty}</td>
-      <td class="inv-qty-cell ${qtyClass}" style="text-align:right;font-weight:600">${haveHtml}</td>
-      <td class="${st === 'missing' ? 'muted' : ''}">${escHtml(invDesc)}</td>
-      <td class="mono" style="text-align:center">${matchLabel}</td>
+      <td class="refs-cell" title="${escHtml(d.refs)}">${colorizeRefs(d.refs)}</td>
+      <td class="status">${d.icon}</td>
+      <td class="mono">${d.dispLcsc ? '<span' + (/^C\d{4,}$/i.test(d.dispLcsc) ? ' data-lcsc="' + escHtml(d.dispLcsc) + '"' : '') + '><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(d.dispLcsc) + '</span>' : ''}${d.dispLcsc && d.dispDigikey ? '<br>' : ''}${d.dispDigikey ? '<span data-digikey="' + escHtml(d.dispDigikey) + '" style="color:#cc6600"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(d.dispDigikey) + '</span>' : ''}</td>
+      <td class="mono" title="${escHtml(d.dispMpn)}">${escHtml(d.dispMpn)}</td>
+      <td class="${d.qtyClass}" style="text-align:right;font-weight:600">${d.effectiveQty}</td>
+      <td class="inv-qty-cell ${d.qtyClass}" style="text-align:right;font-weight:600">${haveHtml}</td>
+      <td class="${d.isMissing ? 'muted' : ''}">${escHtml(d.invDesc)}</td>
+      <td class="mono" style="text-align:center">${d.matchLabel}</td>
       <td class="btn-group">${confirmBtnHtml}${adjBtnHtml}${linkBtnHtml}</td>
     `;
-    if (isLinkingSource) tr.classList.add("linking-source");
 
-    // Reverse linking: highlight source missing row
-    const isReverseLinkingSource = App.links.linkingMode && App.links.linkingBomRow && bomKey(App.links.linkingBomRow.bom) === partKey;
-    if (isReverseLinkingSource) tr.classList.add("linking-source");
+    return tr;
+  }
 
-    // Reverse linking: make inventory-matched rows clickable targets
-    if (App.links.linkingMode && App.links.linkingBomRow && r.inv && !isReverseLinkingSource) {
-      tr.classList.add("link-target");
-      tr.addEventListener("click", () => createReverseLink(r.inv));
+  // ── Alt rows builder ──
+
+  function renderAltRows(tbody, alts, partKey) {
+    alts.forEach(alt => {
+      const altTr = document.createElement("tr");
+      altTr.className = "alt-row";
+      altTr.dataset.altFor = partKey;
+      altTr.dataset.invKey = invPartKey(alt);
+      var altLcsc = alt.lcsc || '';
+      var altDigikey = alt.digikey || '';
+      var altPartHtml = '';
+      if (altLcsc) altPartHtml += '<span' + (/^C\d{4,}$/i.test(altLcsc) ? ' data-lcsc="' + escHtml(altLcsc) + '"' : '') + '><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(altLcsc) + '</span>';
+      if (altLcsc && altDigikey) altPartHtml += '<br>';
+      if (altDigikey) altPartHtml += '<span data-digikey="' + escHtml(altDigikey) + '" style="color:#cc6600"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(altDigikey) + '</span>';
+      altTr.innerHTML =
+        '<td></td>' +
+        '<td></td>' +
+        '<td class="mono">' + altPartHtml + '</td>' +
+        '<td class="mono" title="' + escHtml(alt.mpn || '') + '">' + escHtml(alt.mpn || '') + '</td>' +
+        '<td></td>' +
+        '<td style="text-align:right;font-weight:600">' + alt.qty + '</td>' +
+        '<td>' + escHtml(alt.description) + ' <span class="muted">' + escHtml(alt.package) + '</span></td>' +
+        '<td></td>' +
+        '<td class="btn-group"><button class="swap-btn" title="Use this alt as the selected part">Swap</button><button class="adj-btn" title="Adjust qty">Adjust</button></td>';
+      tbody.appendChild(altTr);
+    });
+  }
+
+  // ── Delegated tbody click handler ──
+
+  function handleBomTableClick(e) {
+    // Alt badge toggle
+    const badge = e.target.closest(".alt-badge");
+    if (badge) {
+      e.stopPropagation();
+      const pk = badge.dataset.partKey;
+      if (expandedAlts.has(pk)) expandedAlts.delete(pk);
+      else expandedAlts.add(pk);
+      render();
+      return;
     }
 
-    const confirmBtn = tr.querySelector(".confirm-btn");
-    if (confirmBtn) {
-      confirmBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        confirmMatch(r);
-      });
-    }
+    // Button clicks (both main rows and alt rows)
+    const btn = e.target.closest("button");
+    if (btn) {
+      e.stopPropagation();
+      const tr = btn.closest("tr");
 
-    const unconfirmBtn = tr.querySelector(".unconfirm-btn");
-    if (unconfirmBtn) {
-      unconfirmBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        unconfirmMatch(r);
-      });
-    }
-
-    if (r.inv) {
-      const adjTd = tr.querySelector(".adj-btn");
-      if (adjTd) {
-        adjTd.addEventListener("click", (e) => {
-          e.stopPropagation();
-          openAdjustModal(r.inv);
-        });
+      // Alt row buttons
+      if (tr.classList.contains("alt-row")) {
+        const parentKey = tr.dataset.altFor;
+        const parentRow = rowMap.get(parentKey);
+        const altKey = tr.dataset.invKey;
+        const alt = parentRow && parentRow.alts
+          ? parentRow.alts.find(a => invPartKey(a) === altKey)
+          : null;
+        if (!alt) return;
+        if (btn.classList.contains("adj-btn")) openAdjustModal(alt);
+        else if (btn.classList.contains("swap-btn")) confirmAltMatch(parentRow, alt);
+        return;
       }
-      const linkBtn = tr.querySelector(".link-btn");
-      if (linkBtn) {
-        linkBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          App.links.setLinkingMode(true, r.inv);
-        });
+
+      // Main row buttons
+      const pk = tr.dataset.partKey;
+      const r = rowMap.get(pk);
+      if (!r) return;
+      if (btn.classList.contains("confirm-btn")) confirmMatch(r);
+      else if (btn.classList.contains("unconfirm-btn")) unconfirmMatch(r);
+      else if (btn.classList.contains("adj-btn")) openAdjustModal(r.inv);
+      else if (btn.classList.contains("link-btn")) {
+        if (r.inv) App.links.setLinkingMode(true, r.inv);
+        else if (r.effectiveStatus === "missing") App.links.setReverseLinkingMode(true, r);
       }
-    } else if (st === "missing") {
-      const linkBtn = tr.querySelector(".link-btn");
-      if (linkBtn) {
-        linkBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          App.links.setReverseLinkingMode(true, r);
-        });
-      }
+      return;
     }
 
-    tbody.appendChild(tr);
-
-    if (r.alts && r.alts.length > 0 && expandedAlts.has(partKey)) {
-      renderAltRows(tbody, r.alts, partKey, st, r);
+    // Reverse linking: row click on link-target
+    const tr = e.target.closest("tr.link-target");
+    if (tr && !tr.classList.contains("alt-row")) {
+      const pk = tr.dataset.partKey;
+      const r = rowMap.get(pk);
+      if (r && r.inv) createReverseLink(r.inv);
     }
+  }
+
+  function renderBomComparison() {
+    const query = (searchInput.value || "").toLowerCase();
+    const rows = bomData.rows;
+    const sortedRows = [...rows].sort((a, b) => BOM_STATUS_SORT_ORDER[a.effectiveStatus] - BOM_STATUS_SORT_ORDER[b.effectiveStatus]);
+    const c = countStatuses(rows);
+    const linkingState = {
+      linkingMode: App.links.linkingMode,
+      linkingInvItem: App.links.linkingInvItem,
+      linkingBomRow: App.links.linkingBomRow,
+    };
+
+    renderFilterBar(c);
+
+    // Build row lookup map for delegation
+    rowMap = new Map();
+    sortedRows.forEach(r => { rowMap.set(bomKey(r.bom), r); });
+
+    // BOM matched section — table with full comparison
+    const tableWrap = document.createElement("div");
+    tableWrap.className = "table-wrap";
+    const table = document.createElement("table");
+    table.innerHTML = `<thead><tr>
+      <th class="refs-col">Designators</th>
+      <th style="width:24px"></th>
+      <th style="width:110px">Part #</th>
+      <th style="width:140px">MPN</th>
+      <th style="width:50px">Need</th>
+      <th style="width:50px">Have</th>
+      <th>Description</th>
+      <th style="width:78px;text-align:center">Match</th>
+      <th></th>
+    </tr></thead>`;
+
+    const tbody = document.createElement("tbody");
+    sortedRows.forEach(r => {
+      const d = bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState);
+      if (!d) return;
+      tbody.appendChild(createBomRowElement(d));
+      if (d.showAlts) renderAltRows(tbody, r.alts, d.partKey);
+    });
+
+    tbody.addEventListener("click", handleBomTableClick);
+
+    table.appendChild(tbody);
+    tableWrap.appendChild(table);
+    body.appendChild(tableWrap);
+
+    // Remaining inventory (not matched to BOM)
+    const matchedInvKeys = new Set();
+    rows.forEach(r => {
+      if (r.inv) {
+        const pk = invPartKey(r.inv).toUpperCase();
+        if (pk) matchedInvKeys.add(pk);
+      }
+    });
+    renderRemainingInventory(matchedInvKeys, query);
   }
 
   function renderRemainingInventory(matchedInvKeys, query) {
@@ -286,91 +330,6 @@
         if (filtered.length > 0) renderSection(sec, filtered);
       });
     }
-  }
-
-  function renderBomComparison() {
-    const query = (searchInput.value || "").toLowerCase();
-    const rows = bomData.rows;
-    const sortedRows = [...rows].sort((a, b) => BOM_STATUS_SORT_ORDER[a.effectiveStatus] - BOM_STATUS_SORT_ORDER[b.effectiveStatus]);
-    const c = countStatuses(rows);
-
-    renderFilterBar(c);
-
-    // BOM matched section — table with full comparison
-    const tableWrap = document.createElement("div");
-    tableWrap.className = "table-wrap";
-    const table = document.createElement("table");
-    table.innerHTML = `<thead><tr>
-      <th class="refs-col">Designators</th>
-      <th style="width:24px"></th>
-      <th style="width:110px">Part #</th>
-      <th style="width:140px">MPN</th>
-      <th style="width:50px">Need</th>
-      <th style="width:50px">Have</th>
-      <th>Description</th>
-      <th style="width:78px;text-align:center">Match</th>
-      <th></th>
-    </tr></thead>`;
-
-    const tbody = document.createElement("tbody");
-    sortedRows.forEach(r => renderBomTableRow(tbody, r, query));
-
-    tbody.addEventListener("click", (e) => {
-      const badge = e.target.closest(".alt-badge");
-      if (!badge) return;
-      e.stopPropagation();
-      const pk = badge.dataset.partKey;
-      if (expandedAlts.has(pk)) expandedAlts.delete(pk);
-      else expandedAlts.add(pk);
-      render();
-    });
-
-    table.appendChild(tbody);
-    tableWrap.appendChild(table);
-    body.appendChild(tableWrap);
-
-    // Remaining inventory (not matched to BOM)
-    const matchedInvKeys = new Set();
-    rows.forEach(r => {
-      if (r.inv) {
-        const pk = invPartKey(r.inv).toUpperCase();
-        if (pk) matchedInvKeys.add(pk);
-      }
-    });
-    renderRemainingInventory(matchedInvKeys, query);
-  }
-
-  function renderAltRows(tbody, alts, partKey, parentStatus, parentBom) {
-    alts.forEach(alt => {
-      const altTr = document.createElement("tr");
-      altTr.className = "alt-row";
-      altTr.dataset.altFor = partKey;
-      var altLcsc = alt.lcsc || '';
-      var altDigikey = alt.digikey || '';
-      var altPartHtml = '';
-      if (altLcsc) altPartHtml += '<span' + (/^C\d{4,}$/i.test(altLcsc) ? ' data-lcsc="' + escHtml(altLcsc) + '"' : '') + '><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(altLcsc) + '</span>';
-      if (altLcsc && altDigikey) altPartHtml += '<br>';
-      if (altDigikey) altPartHtml += '<span data-digikey="' + escHtml(altDigikey) + '" style="color:#cc6600"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(altDigikey) + '</span>';
-      altTr.innerHTML =
-        '<td></td>' +
-        '<td></td>' +
-        '<td class="mono">' + altPartHtml + '</td>' +
-        '<td class="mono" title="' + escHtml(alt.mpn || '') + '">' + escHtml(alt.mpn || '') + '</td>' +
-        '<td></td>' +
-        '<td style="text-align:right;font-weight:600">' + alt.qty + '</td>' +
-        '<td>' + escHtml(alt.description) + ' <span class="muted">' + escHtml(alt.package) + '</span></td>' +
-        '<td></td>' +
-        '<td class="btn-group"><button class="swap-btn" title="Use this alt as the selected part">Swap</button><button class="adj-btn" title="Adjust qty">Adjust</button></td>';
-      altTr.querySelector(".adj-btn").addEventListener("click", (e) => {
-        e.stopPropagation();
-        openAdjustModal(alt);
-      });
-      altTr.querySelector(".swap-btn").addEventListener("click", (e) => {
-        e.stopPropagation();
-        confirmAltMatch(parentBom, alt);
-      });
-      tbody.appendChild(altTr);
-    });
   }
 
   // ── Shared helpers ──
