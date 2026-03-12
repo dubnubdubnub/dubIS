@@ -403,7 +403,7 @@ function renderBomComparison() {
     <th style="width:50px">Have</th>
     <th>Description</th>
     <th style="width:78px;text-align:center">Match</th>
-    <th></th>
+    <th class="btn-group-hdr"></th>
   </tr></thead>`;
 
   const tbody = document.createElement("tbody");
