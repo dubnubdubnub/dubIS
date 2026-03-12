@@ -273,7 +273,7 @@
       <td class="mono" title="${escHtml(d.dispMpn)}">${escHtml(d.dispMpn)}</td>
       <td class="${d.qtyClass}" style="text-align:right;font-weight:600">${d.effectiveQty}</td>
       <td class="inv-qty-cell ${d.qtyClass}" style="text-align:right;font-weight:600">${haveHtml}</td>
-      <td class="${d.isMissing ? 'muted' : ''}">${escHtml(d.invDesc)}</td>
+      <td class="desc-cell${d.isMissing ? ' muted' : ''}" title="${escHtml(d.invDesc)}">${escHtml(d.invDesc)}</td>
       <td class="mono" style="text-align:center">${d.matchLabel}</td>
       <td class="btn-group">${confirmBtnHtml}${adjBtnHtml}${linkBtnHtml}</td>
     `;
@@ -302,7 +302,7 @@
         '<td class="mono" title="' + escHtml(alt.mpn || '') + '">' + escHtml(alt.mpn || '') + '</td>' +
         '<td></td>' +
         '<td style="text-align:right;font-weight:600">' + alt.qty + '</td>' +
-        '<td>' + escHtml(alt.description) + ' <span class="muted">' + escHtml(alt.package) + '</span></td>' +
+        '<td class="desc-cell" title="' + escHtml(alt.description) + ' ' + escHtml(alt.package) + '">' + escHtml(alt.description) + ' <span class="muted">' + escHtml(alt.package) + '</span></td>' +
         '<td></td>' +
         '<td class="btn-group"><button class="swap-btn" title="Use this alt as the selected part">Swap</button><button class="adj-btn" title="Adjust qty">Adjust</button></td>';
       tbody.appendChild(altTr);
