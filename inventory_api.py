@@ -139,9 +139,10 @@ class InventoryApi:
             "xt60", "xt30", "sm04b", "sm05b", "sm06b",
             "svh-21t", "nv-", "df40", "bwipx", "xy-sh", "type-c",
         ]},
-        # Switches (not "switching regulator")
+        # Switches (mechanical/tactile — not power ICs or switching regulators)
         {"category": "Switches", "desc": ["switch", "tactile"],
-         "exclude_desc": ["switching regulator"]},
+         "exclude_desc": ["switching regulator", "pwr switch", "load switch",
+                          "power switch"]},
         # LEDs
         {"category": "LEDs", "desc": ["led", "emitter", "emit"]},
         # Passives
@@ -158,9 +159,10 @@ class InventoryApi:
         {"category": "ICs - ESD Protection", "desc": ["esd"]},
         # Discrete
         {"category": "Discrete Semiconductors", "desc": ["transistor", "bjt", "mosfet"]},
-        # Power
+        # Power (includes load/power switch ICs)
         {"category": "ICs - Power / Voltage Regulators", "desc": [
             "voltage regulator", "buck", "ldo", "linear voltage", "switching regulator",
+            "pwr switch", "load switch", "power switch",
         ]},
         # References
         {"category": "ICs - Voltage References", "desc": ["voltage reference"]},
