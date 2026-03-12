@@ -380,7 +380,7 @@
     const fresh = await api("import_purchases", JSON.stringify(invRows));
     if (!fresh) {
       // Roll back the undo entry we just pushed
-      UndoRedo._undo.pop();
+      UndoRedo.popLast();
       if (btn) btn.disabled = false;
       return;
     }
