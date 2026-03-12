@@ -25,6 +25,67 @@
   let parsedRows = [];
   let columnMapping = {}; // source index -> target field name
   let importFileName = "";
+  let lastImportMeta = null; // set after successful import for undo
+
+  // ── Undo/Redo for import panel (registered once at IIFE scope) ──
+  async function handleImportUndo(data) {
+    const fresh = await api("remove_last_purchases", data.importedCount);
+    if (!fresh) throw new Error("Failed to undo import");
+    onInventoryUpdated(fresh);
+    // Restore staging panel state
+    parsedHeaders = data.parsedHeaders;
+    parsedRows = data.parsedRows;
+    columnMapping = data.columnMapping;
+    importFileName = data.importFileName;
+    lastImportMeta = null;
+
+    const zone = document.getElementById("import-drop-zone");
+    zone.innerHTML = `<p>${escHtml(importFileName)}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
+      <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`;
+    zone.classList.add("loaded");
+    resetDropZoneInput("import-file-input", handleImportFile);
+    renderMapper();
+    showToast("Undid import of " + data.importedCount + " rows");
+  }
+
+  async function handleImportRedo(data) {
+    const fresh = await api("import_purchases", JSON.stringify(data.invRows));
+    if (!fresh) throw new Error("Failed to redo import");
+    onInventoryUpdated(fresh);
+    lastImportMeta = {
+      importedCount: data.invRows.length,
+      invRows: data.invRows,
+    };
+    parsedHeaders = [];
+    parsedRows = [];
+    columnMapping = {};
+    importFileName = "";
+    init();
+    showToast("Redid import of " + data.invRows.length + " rows");
+  }
+
+  UndoRedo.register("import", async (action, data) => {
+    if (action === "snapshot") {
+      if (lastImportMeta) {
+        return {
+          _undoType: "import-done",
+          invRows: lastImportMeta.invRows,
+        };
+      }
+      return JSON.parse(JSON.stringify(parsedRows));
+    }
+    // action === "restore"
+    if (data && data._undoType === "import") {
+      await handleImportUndo(data);
+    } else if (data && data._undoType === "import-done") {
+      await handleImportRedo(data);
+    } else {
+      // Plain array — existing cell-edit / row-delete restore
+      parsedRows = data;
+      lastImportMeta = null;
+      renderMapper();
+    }
+  });
 
   function init() {
     body.innerHTML = `
@@ -38,12 +99,6 @@
       </div>
     `;
     setupDropZone("import-drop-zone", "import-file-input", browseImportFile, handleImportFile);
-
-    UndoRedo.register("import", (action, data) => {
-      if (action === "snapshot") return JSON.parse(JSON.stringify(parsedRows));
-      parsedRows = data;
-      renderMapper();
-    });
   }
 
   async function browseImportFile() {
@@ -72,6 +127,7 @@
     parsedHeaders = lines[0];
     parsedRows = lines.slice(1).filter(row => row.some(cell => cell !== ""));
     importFileName = fileName;
+    lastImportMeta = null;
 
     // No subtotal filtering — all rows kept for user review
 
@@ -268,6 +324,7 @@
     parsedRows = [];
     columnMapping = {};
     importFileName = "";
+    lastImportMeta = null;
     AppLog.info("Cleared import panel");
     init();
   }
@@ -309,14 +366,34 @@
       return;
     }
 
+    // Save undo state before mutating backend
+    UndoRedo.save("import", {
+      _undoType: "import",
+      parsedRows: JSON.parse(JSON.stringify(parsedRows)),
+      parsedHeaders: JSON.parse(JSON.stringify(parsedHeaders)),
+      columnMapping: JSON.parse(JSON.stringify(columnMapping)),
+      importFileName,
+      importedCount: invRows.length,
+      invRows,
+    });
+
     const fresh = await api("import_purchases", JSON.stringify(invRows));
     if (!fresh) {
+      // Roll back the undo entry we just pushed
+      UndoRedo._undo.pop();
       if (btn) btn.disabled = false;
       return;
     }
     onInventoryUpdated(fresh);
     showToast(`Imported ${invRows.length} rows from ${importFileName}`);
     AppLog.info("Imported " + invRows.length + " parts from " + importFileName);
+
+    // Track import for redo snapshot
+    lastImportMeta = {
+      importedCount: invRows.length,
+      invRows,
+    };
+
     // Reset import panel
     parsedHeaders = [];
     parsedRows = [];

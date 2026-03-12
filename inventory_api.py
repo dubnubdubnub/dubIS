@@ -669,6 +669,37 @@ class InventoryApi:
         self._append_csv_rows(self.adjustments_csv, self.ADJ_FIELDNAMES, adj_rows)
         return self._rebuild()
 
+    def remove_last_purchases(self, count: int | str) -> list[dict[str, Any]]:
+        """Remove the last `count` rows from purchase_ledger.csv and rebuild inventory.
+
+        Safe for undo because imports always append to end of ledger (LIFO).
+        """
+        count = int(count)
+        if count <= 0:
+            raise ValueError(f"count must be positive, got {count}")
+
+        if not os.path.exists(self.input_csv):
+            raise ValueError("No purchase ledger found")
+
+        with open(self.input_csv, newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames
+            rows = list(reader)
+
+        if count > len(rows):
+            raise ValueError(
+                f"Cannot remove {count} rows: ledger only has {len(rows)} rows"
+            )
+
+        rows = rows[:-count]
+
+        with open(self.input_csv, "w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        return self._rebuild()
+
     def import_purchases(self, rows_json: str | list[dict[str, str]]) -> list[dict[str, Any]] | dict[str, str]:
         """Append purchase rows to purchase_ledger.csv. Returns fresh inventory."""
         rows = self._ensure_parsed(rows_json)
