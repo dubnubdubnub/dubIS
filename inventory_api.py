@@ -701,10 +701,12 @@ class InventoryApi:
         browser_used = None
         debug_log = []
 
-        # Try CDP first
+        # Try CDP
+        cdp_connected = False
         if self._dk_cdp_port:
             try:
                 all_cdp = self._cdp_get_cookies(self._dk_cdp_port)
+                cdp_connected = True
                 cdp_cookies = [c for c in all_cdp if "digikey.com" in c.get("domain", "")]
                 debug_log.append(
                     f"cdp(port={self._dk_cdp_port}): {len(cdp_cookies)} digikey cookies "
@@ -718,38 +720,17 @@ class InventoryApi:
                     f"cdp(port={self._dk_cdp_port}): {type(exc).__name__}: {exc}"
                 )
 
-        # Fall back to browser_cookie3
         if not cookies:
-            import browser_cookie3
-
-            for browser_name, fn in [
-                ("edge", browser_cookie3.edge),
-                ("firefox", browser_cookie3.firefox),
-            ]:
-                try:
-                    cj = fn(domain_name="digikey.com")
-                    all_cookies = list(cj)
-                    debug_log.append(f"{browser_name}: {len(all_cookies)} cookies")
-                    cookies = [
-                        {
-                            "name": c.name,
-                            "value": c.value,
-                            "domain": c.domain,
-                            "path": c.path,
-                            "secure": c.secure,
-                            "httpOnly": True,
-                            "expires": c.expires,
-                        }
-                        for c in all_cookies
-                    ]
-                    if cookies:
-                        browser_used = browser_name
-                        break
-                except Exception as exc:
-                    debug_log.append(f"{browser_name}: {type(exc).__name__}: {exc}")
-
-        if not cookies:
-            # Check if CDP failed due to connection refused (browser was already running)
+            if cdp_connected:
+                # CDP works but no digikey cookies yet — user hasn't logged in
+                return {
+                    "status": "waiting",
+                    "message": "Waiting for login...",
+                    "logged_in": False,
+                    "cookies_injected": 0,
+                    "debug": debug_log,
+                }
+            # CDP failed entirely — browser was probably already running
             cdp_refused = any("ConnectionRefusedError" in line for line in debug_log)
             if cdp_refused:
                 return {
@@ -761,7 +742,7 @@ class InventoryApi:
                 }
             return {
                 "status": "error",
-                "message": "No Digikey cookies found — log in and try again.",
+                "message": "Could not connect to browser.",
                 "logged_in": False,
                 "cookies_injected": 0,
                 "debug": debug_log,
