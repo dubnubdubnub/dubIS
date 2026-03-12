@@ -4,12 +4,15 @@
   "private": true,
   "scripts": {
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "lint": "eslint js/",
     "lint:fix": "eslint js/ --fix"
   },
   "devDependencies": {
+    "@playwright/test": "^1.50.0",
     "eslint": "^9.0.0",
     "globals": "^15.0.0",
+    "serve": "^14.0.0",
     "vitest": "^3.0.0"
   }
 }

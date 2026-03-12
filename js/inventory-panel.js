@@ -17,7 +17,10 @@
   // Fixed children sum to ~511px (100 ids + 160 mpn + 70 value + 60 qty + 45 btn + 40 gaps + 36 pad)
   // 680px gives descriptions ~170px minimum usable width
   const DESC_HIDE_WIDTH = 680;
-  let hideDescs = body.offsetWidth > 0 && body.offsetWidth < DESC_HIDE_WIDTH;
+  // Start hidden — ResizeObserver will show them once panel is confirmed wide enough.
+  // This avoids a timing race where body.offsetWidth is 0 at script execution time
+  // and the first render() fires before the observer's initial callback.
+  let hideDescs = true;
   new ResizeObserver(([entry]) => {
     const narrow = entry.contentRect.width < DESC_HIDE_WIDTH;
     if (narrow !== hideDescs) { hideDescs = narrow; render(); }
