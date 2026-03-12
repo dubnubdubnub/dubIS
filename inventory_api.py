@@ -733,12 +733,19 @@ class InventoryApi:
                     debug_log.append(f"{browser_name}: {type(exc).__name__}: {exc}")
 
         if not cookies:
-            msg = "No cookies found."
-            if self._dk_cdp_port:
-                msg += " If your browser was already open, close it and try again."
+            # Check if CDP failed due to connection refused (browser was already running)
+            cdp_refused = any("ConnectionRefusedError" in line for line in debug_log)
+            if cdp_refused:
+                return {
+                    "status": "browser_running",
+                    "message": "Close your browser and click Login again.",
+                    "logged_in": False,
+                    "cookies_injected": 0,
+                    "debug": debug_log,
+                }
             return {
                 "status": "error",
-                "message": msg,
+                "message": "No Digikey cookies found — log in and try again.",
                 "logged_in": False,
                 "cookies_injected": 0,
                 "debug": debug_log,
