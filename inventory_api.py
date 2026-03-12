@@ -486,35 +486,118 @@ class InventoryApi:
         self._dk_loaded.wait(timeout=15)
 
     def start_digikey_login(self) -> dict[str, str]:
-        """Open a browser window to the Digikey login page."""
-        import webview
+        """Open the user's default browser to the Digikey login page."""
+        import webbrowser
 
-        login_url = "https://www.digikey.com/MyDigiKey/Login"
-        if self._dk_window is None:
-            self._dk_loaded.clear()
-
-            def on_loaded():
-                self._dk_loaded.set()
-
-            def on_closing():
-                try:
-                    self._dk_window.hide()
-                except Exception:
-                    pass
-                return False
-
-            self._dk_window = webview.create_window(
-                "Digikey",
-                url=login_url,
-                width=900,
-                height=700,
-            )
-            self._dk_window.events.loaded += on_loaded
-            self._dk_window.events.closing += on_closing
-        else:
-            self._dk_window.show()
-            self._dk_window.load_url(login_url)
+        webbrowser.open("https://www.digikey.com/MyDigiKey/Login")
         return {"status": "opened"}
+
+    def _get_dk_cookie_manager(self):
+        """Access the WebView2 CookieManager from the hidden Digikey window.
+
+        Relies on pywebview internals (Windows/WebView2 only). Returns None
+        if the internals have changed or the window doesn't exist.
+        """
+        if self._dk_window is None:
+            return None
+        try:
+            from webview.platforms.winforms import BrowserView
+
+            uid = self._dk_window.uid
+            instance = BrowserView.instances.get(uid)
+            if instance is None:
+                return None
+            return instance.browser.webview.CoreWebView2.CookieManager
+        except Exception as exc:
+            logger.warning("Could not access WebView2 CookieManager: %s", exc)
+            return None
+
+    def _inject_cookies_to_dk_window(self, cookies: list[dict]) -> int:
+        """Inject rookiepy cookie dicts into the WebView2 session via CookieManager.
+
+        Must be called from a thread — marshals to the UI thread internally.
+        Returns the number of cookies injected.
+        """
+        cookie_mgr = self._get_dk_cookie_manager()
+        if cookie_mgr is None:
+            raise RuntimeError("WebView2 CookieManager not available")
+
+        import System
+        from webview.platforms.winforms import BrowserView
+
+        uid = self._dk_window.uid
+        instance = BrowserView.instances[uid]
+        browser_form = instance.browser.form
+
+        injected = 0
+        for c in cookies:
+            name = c.get("name", "")
+            value = c.get("value", "")
+            domain = c.get("domain", "")
+            path = c.get("path", "/")
+            if not name:
+                continue
+
+            def _add_cookie(n=name, v=value, d=domain, p=path, ck=c):
+                try:
+                    wv2_cookie = cookie_mgr.CreateCookie(n, v, d, p)
+                    wv2_cookie.IsHttpOnly = bool(ck.get("httpOnly") or ck.get("is_httponly"))
+                    wv2_cookie.IsSecure = bool(ck.get("secure") or ck.get("is_secure"))
+                    expires = ck.get("expires")
+                    if expires and float(expires) > 0:
+                        epoch = System.DateTime(1970, 1, 1, 0, 0, 0, System.DateTimeKind.Utc)
+                        wv2_cookie.Expires = epoch.AddSeconds(float(expires))
+                    cookie_mgr.AddOrUpdateCookie(wv2_cookie)
+                except Exception as exc:
+                    logger.debug("Failed to inject cookie %s: %s", n, exc)
+
+            browser_form.Invoke(System.Action(_add_cookie))
+            injected += 1
+
+        return injected
+
+    def sync_digikey_cookies(self) -> dict[str, Any]:
+        """Read Digikey cookies from the user's browser and inject into webview.
+
+        Tries Edge first (DPAPI, no admin), then Chrome, then Firefox.
+        """
+        import rookiepy
+
+        cookies = []
+        browser_used = None
+        for browser_name, fn in [("edge", rookiepy.edge), ("chrome", rookiepy.chrome), ("firefox", rookiepy.firefox)]:
+            try:
+                cookies = fn([".digikey.com"])
+                if cookies:
+                    browser_used = browser_name
+                    break
+            except Exception as exc:
+                logger.debug("rookiepy.%s failed: %s", browser_name, exc)
+
+        if not cookies:
+            return {
+                "status": "error",
+                "message": "No Digikey cookies found. Make sure you logged in and try again in a few seconds.",
+                "logged_in": False,
+                "cookies_injected": 0,
+            }
+
+        with self._dk_lock:
+            self._ensure_dk_window()
+
+        injected = self._inject_cookies_to_dk_window(cookies)
+
+        login_result = self.get_digikey_login_status()
+        logged_in = login_result.get("logged_in", False)
+
+        return {
+            "status": "ok" if logged_in else "error",
+            "message": ("Logged in" if logged_in
+                        else "Cookies injected but login check failed — try again in a few seconds"),
+            "logged_in": logged_in,
+            "cookies_injected": injected,
+            "browser": browser_used,
+        }
 
     def get_digikey_login_status(self) -> dict[str, bool]:
         """Check whether user is logged into Digikey via session cookies."""
@@ -540,12 +623,9 @@ class InventoryApi:
         """Log out of Digikey and clear the product cache."""
         if self._dk_window is not None:
             try:
-                self._dk_window.evaluate_js(
-                    "document.cookie.split(';').forEach(function(c) {"
-                    "  document.cookie = c.trim().split('=')[0]"
-                    "    + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';"
-                    "});"
-                )
+                cookie_mgr = self._get_dk_cookie_manager()
+                if cookie_mgr is not None:
+                    cookie_mgr.DeleteAllCookies()
                 self._dk_loaded.clear()
                 self._dk_window.load_url(
                     "https://www.digikey.com/MyDigiKey/Logout"
