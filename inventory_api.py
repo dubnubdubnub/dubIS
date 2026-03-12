@@ -575,7 +575,7 @@ class InventoryApi:
             self._ensure_dk_window()
 
             search_url = (
-                "https://www.digikey.com/en/products/filter?keywords="
+                "https://www.digikey.com/en/products/detail/-/-/"
                 + quote(part_number, safe="")
             )
             self._dk_loaded.clear()
