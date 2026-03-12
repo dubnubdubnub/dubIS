@@ -218,13 +218,29 @@
 
     if (provider === "digikey" && data._debug) {
       html += '<div class="part-preview-debug">';
-      html += '<div style="font-size:11px;font-weight:600;margin-top:8px;color:#888;">Raw scraped data:</div>';
-      html += '<pre style="max-height:200px;overflow:auto;font-size:10px;background:#1a1a1a;color:#ccc;padding:6px;border-radius:4px;white-space:pre-wrap;word-break:break-all;">' + escHtml(JSON.stringify(data._debug, null, 2)) + '</pre>';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">';
+      html += '<span style="font-size:11px;font-weight:600;color:#888;">Raw scraped data:</span>';
+      html += '<button class="part-preview-copy-btn" style="font-size:10px;padding:2px 8px;border:1px solid #555;border-radius:3px;background:#2a2a2a;color:#ccc;cursor:pointer;">Copy JSON</button>';
+      html += '</div>';
+      html += '<pre class="part-preview-debug-json" style="max-height:200px;overflow:auto;font-size:10px;background:#1a1a1a;color:#ccc;padding:6px;border-radius:4px;white-space:pre-wrap;word-break:break-all;user-select:text;-webkit-user-select:text;">' + escHtml(JSON.stringify(data._debug, null, 2)) + '</pre>';
       html += '</div>';
     }
 
     html += '</div>';
     tooltip.innerHTML = html;
+
+    var copyBtn = tooltip.querySelector(".part-preview-copy-btn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", function () {
+        var pre = tooltip.querySelector(".part-preview-debug-json");
+        if (pre) {
+          navigator.clipboard.writeText(pre.textContent).then(function () {
+            copyBtn.textContent = "Copied!";
+            setTimeout(function () { copyBtn.textContent = "Copy JSON"; }, 1500);
+          });
+        }
+      });
+    }
   }
 
   function infoRow(label, value) {
