@@ -62,10 +62,7 @@
       showToast("Cannot create link \u2014 missing part key");
       return;
     }
-    UndoRedo.save("links", {
-      manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
-      confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
-    });
+    UndoRedo.save("links", snapshotLinks());
     App.links.addManualLink(bk, ipk);
     AppLog.info("Manual link: " + ipk + " \u2192 " + bk);
     App.links.setReverseLinkingMode(false);
@@ -598,7 +595,7 @@
     // Apply qty adjustment
     const qtyResult = await api("adjust_part", type, pk, qty, note);
     if (!qtyResult) {
-      UndoRedo._undo.pop();
+      UndoRedo.popLast();
       return;
     }
 
@@ -685,7 +682,7 @@
 
     const fresh = await api("update_part_price", pk, up, ep);
     if (!fresh) {
-      UndoRedo._undo.pop();
+      UndoRedo.popLast();
       return;
     }
     lastPriceMeta = {
@@ -731,10 +728,7 @@
     const bk = bomKey(bomRow.bom);
     const ipk = invPartKey(bomRow.inv);
     if (!bk || !ipk) return;
-    UndoRedo.save("links", {
-      manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
-      confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
-    });
+    UndoRedo.save("links", snapshotLinks());
     App.links.confirmMatch(bk, ipk);
     AppLog.info("Confirmed: " + bk + " \u2192 " + ipk);
     showToast("Confirmed " + bk);
@@ -743,10 +737,7 @@
   function unconfirmMatch(bomRow) {
     const bk = bomKey(bomRow.bom);
     if (!bk) return;
-    UndoRedo.save("links", {
-      manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
-      confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
-    });
+    UndoRedo.save("links", snapshotLinks());
     App.links.unconfirmMatch(bk);
     AppLog.info("Unconfirmed: " + bk);
     showToast("Unconfirmed " + bk);
@@ -756,10 +747,7 @@
     const bk = bomKey(bomRow.bom);
     const ipk = invPartKey(altInvItem);
     if (!bk || !ipk) return;
-    UndoRedo.save("links", {
-      manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
-      confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
-    });
+    UndoRedo.save("links", snapshotLinks());
     App.links.confirmMatch(bk, ipk);
     AppLog.info("Confirmed alt: " + bk + " \u2192 " + ipk);
     showToast("Confirmed " + bk + " \u2192 " + ipk);
