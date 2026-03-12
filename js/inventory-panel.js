@@ -298,7 +298,7 @@
     table.innerHTML = `<thead><tr>
       <th class="refs-col">Designators</th>
       <th style="width:24px"></th>
-      <th style="width:130px">Part #</th>
+      <th style="width:110px">Part #</th>
       <th style="width:140px">MPN</th>
       <th style="width:50px">Need</th>
       <th style="width:50px">Have</th>
