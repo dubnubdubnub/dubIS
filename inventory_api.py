@@ -52,6 +52,8 @@ class InventoryApi:
         self._dk_loaded = threading.Event()
         self._dk_lock = threading.Lock()
         self._dk_cdp_port: int | None = None
+        self._dk_sync_result: dict[str, Any] = {}
+        self._dk_poll_stop = threading.Event()
 
     # ── Utility methods (ported from organize_inventory.py) ──────────────
 
@@ -510,12 +512,13 @@ class InventoryApi:
     def start_digikey_login(self) -> dict[str, Any]:
         """Launch the default browser with CDP enabled and open the login page.
 
-        If the browser is already running, CDP won't be available on our port
-        (the URL just opens in the existing instance). The cookie sync will
-        fall back to browser_cookie3 in that case.
+        Starts a background thread that polls CDP for cookies so that
+        ``sync_digikey_cookies`` can return instantly with no I/O.
         """
         import random
         import subprocess
+
+        self._dk_poll_stop.set()  # stop any previous poll thread
 
         url = "https://www.digikey.com/MyDigiKey/Login"
         exe = self._find_default_browser_exe()
@@ -524,6 +527,12 @@ class InventoryApi:
             import webbrowser
             webbrowser.open(url)
             self._dk_cdp_port = None
+            self._dk_sync_result = {
+                "status": "error",
+                "message": "Could not find browser — cookie sync unavailable.",
+                "logged_in": False,
+                "cookies_injected": 0,
+            }
             return {"status": "opened", "cdp": False}
 
         port = random.randint(19200, 19299)
@@ -533,8 +542,112 @@ class InventoryApi:
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         self._dk_cdp_port = port
-        print("[DK] login: browser launched", flush=True)
+        self._dk_sync_result = {
+            "status": "waiting",
+            "message": "Browser opened — waiting for login...",
+            "logged_in": False,
+            "cookies_injected": 0,
+        }
+
+        # Start background CDP poll thread
+        self._dk_poll_stop = threading.Event()
+        thread = threading.Thread(target=self._dk_poll_loop, args=(port,), daemon=True)
+        thread.start()
+
+        print("[DK] login: browser launched, poll thread started", flush=True)
         return {"status": "opened", "cdp": True, "port": port}
+
+    def _dk_poll_loop(self, port: int) -> None:
+        """Background thread: poll CDP for cookies, inject when found."""
+        import time
+
+        for attempt in range(1, 41):  # max ~2 minutes at 3s intervals
+            if self._dk_poll_stop.is_set():
+                return
+
+            debug_log = []
+            try:
+                all_cdp = self._cdp_get_cookies(port)
+                cdp_cookies = [c for c in all_cdp if "digikey.com" in c.get("domain", "")]
+                debug_log.append(
+                    f"cdp(port={port}): {len(cdp_cookies)} digikey cookies "
+                    f"(of {len(all_cdp)} total)"
+                )
+                print(f"[DK] poll #{attempt}: {len(cdp_cookies)} digikey cookies", flush=True)
+
+                if cdp_cookies:
+                    # Found cookies — inject into webview
+                    self._dk_sync_result = {
+                        "status": "injecting",
+                        "message": "Injecting cookies...",
+                        "logged_in": False,
+                        "cookies_injected": 0,
+                        "debug": debug_log,
+                    }
+                    try:
+                        with self._dk_lock:
+                            self._ensure_dk_window()
+                        injected = self._inject_cookies_to_dk_window(cdp_cookies)
+                        login_result = self.get_digikey_login_status()
+                        logged_in = login_result.get("logged_in", False)
+                        cookie_names = [c["name"] for c in cdp_cookies[:20]]
+                        self._dk_sync_result = {
+                            "status": "ok" if logged_in else "error",
+                            "message": ("Logged in" if logged_in
+                                        else "Cookies injected but login check failed"),
+                            "logged_in": logged_in,
+                            "cookies_injected": injected,
+                            "browser": "cdp",
+                            "debug": debug_log + [
+                                f"injected={injected}, logged_in={logged_in}, names={cookie_names}"
+                            ],
+                        }
+                        print(f"[DK] poll #{attempt}: injected={injected}, logged_in={logged_in}", flush=True)
+                    except Exception as exc:
+                        self._dk_sync_result = {
+                            "status": "error",
+                            "message": f"Cookie injection failed: {exc}",
+                            "logged_in": False,
+                            "cookies_injected": 0,
+                            "debug": debug_log + [f"inject error: {exc}"],
+                        }
+                        print(f"[DK] poll #{attempt}: inject error: {exc}", flush=True)
+                    return  # done — success or failure after injection
+
+            except ConnectionRefusedError:
+                debug_log.append(f"cdp(port={port}): ConnectionRefusedError")
+                self._dk_sync_result = {
+                    "status": "browser_running",
+                    "message": "Close your browser and click Login again.",
+                    "logged_in": False,
+                    "cookies_injected": 0,
+                    "debug": debug_log,
+                }
+                print(f"[DK] poll #{attempt}: connection refused", flush=True)
+                return  # stop polling — browser was already running
+
+            except Exception as exc:
+                debug_log.append(f"cdp(port={port}): {type(exc).__name__}: {exc}")
+                self._dk_sync_result = {
+                    "status": "waiting",
+                    "message": "Waiting for login...",
+                    "logged_in": False,
+                    "cookies_injected": 0,
+                    "debug": debug_log,
+                }
+                print(f"[DK] poll #{attempt}: {type(exc).__name__}: {exc}", flush=True)
+
+            # Wait 3s before next attempt, but check stop flag
+            if self._dk_poll_stop.wait(timeout=3):
+                return
+
+        # Timed out
+        self._dk_sync_result = {
+            "status": "error",
+            "message": "Timed out waiting for login.",
+            "logged_in": False,
+            "cookies_injected": 0,
+        }
 
     @staticmethod
     def _cdp_get_cookies(port: int) -> list[dict]:
@@ -626,149 +739,68 @@ class InventoryApi:
             sock.close()
         raise RuntimeError("No CDP response received")
 
-    def _get_dk_cookie_manager(self):
-        """Access the WebView2 CookieManager from the hidden Digikey window.
+    def _inject_cookies_to_dk_window(self, cookies: list[dict]) -> int:
+        """Inject cookie dicts into the WebView2 session via CookieManager.
 
-        Relies on pywebview internals (Windows/WebView2 only). Returns None
-        if the internals have changed or the window doesn't exist.
+        All WebView2 access (CookieManager, CreateCookie, AddOrUpdateCookie)
+        must happen on the UI thread, so the entire operation is marshaled
+        via a single Invoke() call.
         """
         if self._dk_window is None:
-            return None
-        try:
-            from webview.platforms.winforms import BrowserView
-
-            uid = self._dk_window.uid
-            instance = BrowserView.instances.get(uid)
-            if instance is None:
-                return None
-            return instance.browser.webview.CoreWebView2.CookieManager
-        except Exception as exc:
-            logger.warning("Could not access WebView2 CookieManager: %s", exc)
-            return None
-
-    def _inject_cookies_to_dk_window(self, cookies: list[dict]) -> int:
-        """Inject rookiepy cookie dicts into the WebView2 session via CookieManager.
-
-        Must be called from a thread — marshals to the UI thread internally.
-        Returns the number of cookies injected.
-        """
-        cookie_mgr = self._get_dk_cookie_manager()
-        if cookie_mgr is None:
-            raise RuntimeError("WebView2 CookieManager not available")
+            raise RuntimeError("Digikey window not created")
 
         import System
         from webview.platforms.winforms import BrowserView
 
         uid = self._dk_window.uid
-        instance = BrowserView.instances[uid]
+        instance = BrowserView.instances.get(uid)
+        if instance is None:
+            raise RuntimeError("BrowserView instance not found")
         browser_form = instance.browser.form
 
-        injected = 0
-        for c in cookies:
-            name = c.get("name", "")
-            value = c.get("value", "")
-            domain = c.get("domain", "")
-            path = c.get("path", "/")
-            if not name:
-                continue
+        result = {"injected": 0, "error": None}
 
-            def _add_cookie(n=name, v=value, d=domain, p=path, ck=c):
-                try:
-                    wv2_cookie = cookie_mgr.CreateCookie(n, v, d, p)
-                    wv2_cookie.IsHttpOnly = bool(ck.get("httpOnly") or ck.get("is_httponly"))
-                    wv2_cookie.IsSecure = bool(ck.get("secure") or ck.get("is_secure"))
-                    expires = ck.get("expires")
-                    if expires and float(expires) > 0:
-                        epoch = System.DateTime(1970, 1, 1, 0, 0, 0, System.DateTimeKind.Utc)
-                        wv2_cookie.Expires = epoch.AddSeconds(float(expires))
-                    cookie_mgr.AddOrUpdateCookie(wv2_cookie)
-                except Exception as exc:
-                    logger.debug("Failed to inject cookie %s: %s", n, exc)
+        def _inject_all():
+            try:
+                cookie_mgr = instance.browser.webview.CoreWebView2.CookieManager
+                for c in cookies:
+                    name = c.get("name", "")
+                    if not name:
+                        continue
+                    value = c.get("value", "")
+                    domain = c.get("domain", "")
+                    path = c.get("path", "/")
+                    try:
+                        wv2_cookie = cookie_mgr.CreateCookie(name, value, domain, path)
+                        wv2_cookie.IsHttpOnly = bool(c.get("httpOnly") or c.get("is_httponly"))
+                        wv2_cookie.IsSecure = bool(c.get("secure") or c.get("is_secure"))
+                        expires = c.get("expires")
+                        if expires and float(expires) > 0:
+                            epoch = System.DateTime(1970, 1, 1, 0, 0, 0, System.DateTimeKind.Utc)
+                            wv2_cookie.Expires = epoch.AddSeconds(float(expires))
+                        cookie_mgr.AddOrUpdateCookie(wv2_cookie)
+                        result["injected"] += 1
+                    except Exception as exc:
+                        logger.debug("Failed to inject cookie %s: %s", name, exc)
+            except Exception as exc:
+                result["error"] = str(exc)
 
-            browser_form.Invoke(System.Action(_add_cookie))
-            injected += 1
+        browser_form.Invoke(System.Action(_inject_all))
 
-        return injected
+        if result["error"]:
+            raise RuntimeError(result["error"])
+        return result["injected"]
 
     def sync_digikey_cookies(self) -> dict[str, Any]:
-        """Read Digikey cookies via CDP or browser_cookie3, inject into webview.
+        """Return the latest cookie sync status from the background poll thread.
 
-        Tries CDP first (works with any Chromium browser if we launched it).
-        Falls back to browser_cookie3 (Edge/Firefox) if CDP is unavailable.
+        Does zero I/O — just reads cached state set by ``_dk_poll_loop``.
         """
-        print("[DK] sync: starting", flush=True)
-        cookies = []
-        browser_used = None
-        debug_log = []
-
-        # Try CDP
-        cdp_connected = False
-        if self._dk_cdp_port:
-            try:
-                all_cdp = self._cdp_get_cookies(self._dk_cdp_port)
-                cdp_connected = True
-                cdp_cookies = [c for c in all_cdp if "digikey.com" in c.get("domain", "")]
-                debug_log.append(
-                    f"cdp(port={self._dk_cdp_port}): {len(cdp_cookies)} digikey cookies "
-                    f"(of {len(all_cdp)} total)"
-                )
-                if cdp_cookies:
-                    cookies = cdp_cookies
-                    browser_used = "cdp"
-            except Exception as exc:
-                debug_log.append(
-                    f"cdp(port={self._dk_cdp_port}): {type(exc).__name__}: {exc}"
-                )
-
-        if not cookies:
-            if cdp_connected:
-                # CDP works but no digikey cookies yet — user hasn't logged in
-                return {
-                    "status": "waiting",
-                    "message": "Waiting for login...",
-                    "logged_in": False,
-                    "cookies_injected": 0,
-                    "debug": debug_log,
-                }
-            # CDP failed entirely — browser was probably already running
-            cdp_refused = any("ConnectionRefusedError" in line for line in debug_log)
-            if cdp_refused:
-                return {
-                    "status": "browser_running",
-                    "message": "Close your browser and click Login again.",
-                    "logged_in": False,
-                    "cookies_injected": 0,
-                    "debug": debug_log,
-                }
-            return {
-                "status": "error",
-                "message": "Could not connect to browser.",
-                "logged_in": False,
-                "cookies_injected": 0,
-                "debug": debug_log,
-            }
-
-        print(f"[DK] sync: got {len(cookies)} cookies via {browser_used}, ensuring dk window...", flush=True)
-        with self._dk_lock:
-            self._ensure_dk_window()
-
-        print("[DK] sync: dk window ready, injecting cookies...", flush=True)
-        injected = self._inject_cookies_to_dk_window(cookies)
-
-        print(f"[DK] sync: injected {injected} cookies, checking login status...", flush=True)
-        login_result = self.get_digikey_login_status()
-        logged_in = login_result.get("logged_in", False)
-        print(f"[DK] sync: logged_in={logged_in}", flush=True)
-
-        cookie_names = [c["name"] for c in cookies[:20]]
-        return {
-            "status": "ok" if logged_in else "error",
-            "message": ("Logged in" if logged_in
-                        else "Cookies injected but login check failed — try again in a few seconds"),
-            "logged_in": logged_in,
-            "cookies_injected": injected,
-            "browser": browser_used,
-            "debug": debug_log + [f"injected={injected}, logged_in={logged_in}, names={cookie_names}"],
+        return dict(self._dk_sync_result) if self._dk_sync_result else {
+            "status": "error",
+            "message": "Login not started.",
+            "logged_in": False,
+            "cookies_injected": 0,
         }
 
     def get_digikey_login_status(self) -> dict[str, bool]:
@@ -793,18 +825,24 @@ class InventoryApi:
 
     def logout_digikey(self) -> dict[str, str]:
         """Log out of Digikey and clear the product cache."""
+        self._dk_poll_stop.set()  # stop any running poll thread
+        self._dk_sync_result = {}
         if self._dk_window is not None:
             try:
-                cookie_mgr = self._get_dk_cookie_manager()
-                if cookie_mgr is not None:
-                    import System
-                    from webview.platforms.winforms import BrowserView
+                import System
+                from webview.platforms.winforms import BrowserView
 
-                    uid = self._dk_window.uid
-                    instance = BrowserView.instances[uid]
-                    instance.browser.form.Invoke(
-                        System.Action(lambda: cookie_mgr.DeleteAllCookies())
-                    )
+                uid = self._dk_window.uid
+                instance = BrowserView.instances.get(uid)
+                if instance is not None:
+                    def _clear():
+                        try:
+                            cm = instance.browser.webview.CoreWebView2.CookieManager
+                            cm.DeleteAllCookies()
+                        except Exception as exc:
+                            logger.debug("DeleteAllCookies failed: %s", exc)
+
+                    instance.browser.form.Invoke(System.Action(_clear))
                 self._dk_loaded.clear()
                 self._dk_window.load_url(
                     "https://www.digikey.com/MyDigiKey/Logout"
