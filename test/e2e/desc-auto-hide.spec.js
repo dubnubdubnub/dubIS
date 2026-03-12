@@ -1,12 +1,13 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-const MOCK_INVENTORY = [
-  { lcsc: 'C12345', digikey: '', mpn: 'RC0402FR-0710KL', manufacturer: 'Yageo', package: '0402', description: '10kOhm 1% 1/16W', qty: 100, unit_price: 0.01, ext_price: 1.0, section: 'Passives - Resistors' },
-  { lcsc: 'C22345', digikey: '', mpn: 'CL05A104KA5NNNC', manufacturer: 'Samsung', package: '0402', description: '100nF 25V X5R', qty: 200, unit_price: 0.005, ext_price: 1.0, section: 'Passives - Capacitors' },
-  { lcsc: 'C32345', digikey: 'DK-001', mpn: 'STM32F405RGT6', manufacturer: 'ST', package: 'LQFP-64', description: 'ARM Cortex-M4 168MHz 1MB Flash', qty: 5, unit_price: 5.0, ext_price: 25.0, section: 'ICs - Microcontrollers' },
-  { lcsc: 'C42345', digikey: '', mpn: 'BLM15AG102SN1D', manufacturer: 'Murata', package: '0402', description: 'Ferrite Bead 1kOhm 300mA', qty: 50, unit_price: 0.02, ext_price: 1.0, section: 'Passives - Inductors' },
-];
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const MOCK_INVENTORY = JSON.parse(
+  readFileSync(join(__dirname, 'fixtures', 'inventory.json'), 'utf8')
+);
 
 /**
  * Inject pywebview mock + inventory data before any app scripts run.
@@ -58,6 +59,27 @@ async function countDescs(page) {
   return page.locator('.part-desc').count();
 }
 
+/** Measure height of first row and first desc (if present) */
+async function logRowHeights(page, label) {
+  const rowCount = await page.locator('.inv-part-row').count();
+  if (rowCount === 0) return;
+  const firstRow = await page.locator('.inv-part-row').first().evaluate(el => ({
+    width: el.offsetWidth,
+    height: el.offsetHeight,
+  }));
+  console.log(`First .inv-part-row (${label}):`, firstRow);
+
+  const descCount = await page.locator('.part-desc').count();
+  if (descCount > 0) {
+    const firstDesc = await page.locator('.part-desc').first().evaluate(el => ({
+      width: el.offsetWidth,
+      height: el.offsetHeight,
+      text: el.textContent.slice(0, 60),
+    }));
+    console.log(`First .part-desc (${label}):`, firstDesc);
+  }
+}
+
 test.describe('Description auto-hide based on panel width', () => {
 
   test('narrow viewport (1200px) — descriptions hidden', async ({ page }) => {
@@ -69,12 +91,9 @@ test.describe('Description auto-hide based on panel width', () => {
     await page.waitForTimeout(300);
     const dims = await logDimensions(page, 'narrow-1200');
     const descCount = await countDescs(page);
-    const narrowRow = await page.locator('.inv-part-row').first().evaluate(el => ({
-      width: el.offsetWidth,
-      height: el.offsetHeight,
-    }));
     console.log('Desc count at 1200px:', descCount);
-    console.log('First .inv-part-row (narrow):', narrowRow);
+    console.log('Total .inv-part-row:', await page.locator('.inv-part-row').count());
+    await logRowHeights(page, 'narrow');
     expect(descCount).toBe(0);
     expect(dims.invBodyWidth).toBeLessThan(680);
   });
@@ -88,21 +107,13 @@ test.describe('Description auto-hide based on panel width', () => {
     const dims = await logDimensions(page, 'wide-1920');
     const descCount = await countDescs(page);
     console.log('Desc count at 1920px:', descCount);
+    console.log('Total .inv-part-row:', await page.locator('.inv-part-row').count());
     expect(descCount).toBeGreaterThan(0);
     expect(dims.invBodyWidth).toBeGreaterThanOrEqual(680);
 
-    // Verify first description has non-zero rendered dimensions
-    const firstDesc = await page.locator('.part-desc').first().evaluate(el => ({
-      width: el.offsetWidth,
-      height: el.offsetHeight,
-    }));
-    const firstRow = await page.locator('.inv-part-row').first().evaluate(el => ({
-      width: el.offsetWidth,
-      height: el.offsetHeight,
-    }));
-    console.log('First .part-desc:', firstDesc);
-    console.log('First .inv-part-row:', firstRow);
-    expect(firstDesc.width).toBeGreaterThan(0);
+    await logRowHeights(page, 'wide');
+    const firstDescWidth = await page.locator('.part-desc').first().evaluate(el => el.offsetWidth);
+    expect(firstDescWidth).toBeGreaterThan(0);
   });
 
   test('resize wide → narrow — descriptions disappear', async ({ page }) => {
