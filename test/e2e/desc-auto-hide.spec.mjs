@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { addMockSetup, waitForInventoryRows, loadBom } from './helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -11,35 +12,6 @@ const MOCK_INVENTORY = JSON.parse(
 const BOM_CSV = fs.readFileSync(
   path.join(__dirname, 'fixtures', 'bom.csv'), 'utf8'
 );
-
-/**
- * Inject pywebview mock + inventory data before any app scripts run.
- */
-function addMockSetup(page) {
-  return page.addInitScript((inventory) => {
-    window.pywebview = {
-      api: {
-        load_inventory: async () => inventory,
-        rebuild_inventory: async () => inventory,
-        adjust_part: async () => inventory,
-        update_part_price: async () => inventory,
-        load_preferences: async () => ({ thresholds: {} }),
-        save_preferences: async () => true,
-        check_digikey_session: async () => ({ logged_in: false }),
-        start_digikey_login: async () => null,
-        sync_digikey_cookies: async () => ({ logged_in: false }),
-        logout_digikey: async () => null,
-        import_csv: async () => inventory,
-        remove_last_adjustments: async () => inventory,
-      },
-    };
-  }, MOCK_INVENTORY);
-}
-
-/** Wait for inventory rows to appear in the DOM */
-async function waitForInventoryRows(page) {
-  await page.waitForSelector('.inv-part-row', { timeout: 10_000 });
-}
 
 /** Log diagnostic dimensions */
 async function logDimensions(page, label) {
@@ -125,33 +97,12 @@ async function measureBomRows(page, n) {
   return rows;
 }
 
-/** Load BOM into the app by calling its global functions directly */
-async function loadBom(page, bomCsv) {
-  await page.evaluate((csv) => {
-    const result = processBOM(csv, 'test-bom.csv');
-    if (!result) throw new Error('processBOM returned null');
-    const { aggregated, bomHeaders, bomCols } = result;
-    const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches);
-    App.bomResults = results;
-    App.bomHeaders = bomHeaders;
-    App.bomCols = bomCols;
-    App.bomFileName = 'test-bom.csv';
-    // Compute effective rows (multiplier=1)
-    const rows = results.map(r => ({
-      ...r,
-      effectiveQty: r.bom.qty,
-      effectiveStatus: r.status,
-    }));
-    EventBus.emit(Events.BOM_LOADED, { rows, fileName: 'test-bom.csv', multiplier: 1 });
-  }, bomCsv);
-}
-
 // ── Normal inventory mode tests ──
 
 test.describe('Description auto-hide — normal inventory mode', () => {
 
   test('narrow viewport (1200px) — descriptions hidden', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -166,7 +117,7 @@ test.describe('Description auto-hide — normal inventory mode', () => {
   });
 
   test('wide viewport (1920px) — descriptions visible', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -181,7 +132,7 @@ test.describe('Description auto-hide — normal inventory mode', () => {
   });
 
   test('resize wide → narrow — descriptions disappear', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -197,7 +148,7 @@ test.describe('Description auto-hide — normal inventory mode', () => {
   });
 
   test('resize narrow → wide — descriptions appear', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -213,7 +164,7 @@ test.describe('Description auto-hide — normal inventory mode', () => {
   });
 
   test('medium viewport (~1500px) — boundary check', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1500, height: 800 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -234,7 +185,7 @@ test.describe('Description auto-hide — normal inventory mode', () => {
 test.describe('Row heights — BOM comparison mode', () => {
 
   test('BOM loaded at wide viewport — row heights', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -264,7 +215,7 @@ test.describe('Row heights — BOM comparison mode', () => {
   });
 
   test('BOM loaded at narrow viewport — row heights', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -293,7 +244,7 @@ test.describe('Row heights — BOM comparison mode', () => {
   });
 
   test('BOM loaded — resize wide to narrow', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -331,7 +282,7 @@ const VIEWPORTS = [
 test.describe('Row height survey — without BOM', () => {
   for (const vp of VIEWPORTS) {
     test(`inventory rows at ${vp.label}`, async ({ page }) => {
-      await addMockSetup(page);
+      await addMockSetup(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);
@@ -346,7 +297,7 @@ test.describe('Row height survey — without BOM', () => {
 test.describe('Row height survey — with BOM', () => {
   for (const vp of VIEWPORTS) {
     test(`BOM + inv rows at ${vp.label}`, async ({ page }) => {
-      await addMockSetup(page);
+      await addMockSetup(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);

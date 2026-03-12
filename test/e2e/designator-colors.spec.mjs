@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { addMockSetup, waitForInventoryRows, loadBomViaEmit, loadBomViaFileInput } from './helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -22,87 +23,12 @@ const EXPECTED_CLASSES = {
   Y: 'ref-osc',
 };
 
-function addMockSetup(page) {
-  return page.addInitScript((inventory) => {
-    window.pywebview = {
-      api: {
-        load_inventory: async () => inventory,
-        rebuild_inventory: async () => inventory,
-        adjust_part: async () => inventory,
-        update_part_price: async () => inventory,
-        load_preferences: async () => ({ thresholds: {} }),
-        save_preferences: async () => true,
-        get_digikey_login_status: async () => ({ logged_in: false }),
-        check_digikey_session: async () => ({ logged_in: false }),
-        start_digikey_login: async () => null,
-        sync_digikey_cookies: async () => ({ logged_in: false }),
-        logout_digikey: async () => null,
-        import_csv: async () => inventory,
-        remove_last_adjustments: async () => inventory,
-        set_bom_dirty: async () => null,
-      },
-    };
-  }, MOCK_INVENTORY);
-}
-
-async function waitForInventoryRows(page) {
-  await page.waitForSelector('.inv-part-row', { timeout: 10_000 });
-}
-
-/**
- * Load BOM via evaluate (populates inventory panel only — no staging table).
- * Used for inventory-panel-only tests.
- */
-async function loadBomViaEmit(page, bomCsv) {
-  await page.evaluate((csv) => {
-    const result = processBOM(csv, 'test-bom.csv');
-    if (!result) throw new Error('processBOM returned null');
-    const { headers, cols, aggregated } = result;
-    App.bomHeaders = headers;
-    App.bomCols = cols;
-    const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches);
-    App.bomResults = results;
-    App.bomFileName = 'test-bom.csv';
-    const rows = results.map(r => {
-      let status;
-      if (r.bom.dnp) status = 'dnp';
-      else if (!r.inv) status = 'missing';
-      else if (r.matchType === 'value' || r.matchType === 'fuzzy') status = 'possible';
-      else if (r.bom.qty <= r.inv.qty) status = 'ok';
-      else status = 'short';
-      const altQty = (r.alts || []).reduce((s, a) => s + a.qty, 0);
-      const combinedQty = (r.inv ? r.inv.qty : 0) + altQty;
-      const isShort = status === 'short';
-      return {
-        ...r,
-        effectiveQty: r.bom.qty,
-        effectiveStatus: status,
-        altQty,
-        combinedQty,
-        coveredByAlts: isShort && combinedQty >= r.bom.qty,
-      };
-    });
-    EventBus.emit(Events.BOM_LOADED, { rows, fileName: 'test-bom.csv', multiplier: 1 });
-  }, bomCsv);
-}
-
-/**
- * Load BOM via file input (populates BOTH bom-panel staging table and inventory panel).
- * This triggers the full bom-panel loadBomText flow.
- */
-async function loadBomViaFileInput(page, csvFilePath) {
-  const fileInput = page.locator('#bom-file-input');
-  await fileInput.setInputFiles(csvFilePath);
-  // Wait for the BOM staging table to be populated
-  await page.waitForSelector('#bom-tbody tr', { timeout: 10_000 });
-}
-
 // ── Designator coloring in inventory panel (BOM comparison table) ──
 
 test.describe('Designator colors — inventory panel BOM table', () => {
 
   test('designators have correct color classes', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -128,7 +54,7 @@ test.describe('Designator colors — inventory panel BOM table', () => {
   });
 
   test('all ref spans have data-ref attribute matching text', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -155,7 +81,7 @@ test.describe('Designator colors — inventory panel BOM table', () => {
 test.describe('Designator colors — BOM panel staging table', () => {
 
   test('staging ref column shows colored display divs', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -187,7 +113,7 @@ test.describe('Designator colors — BOM panel staging table', () => {
   });
 
   test('clicking refs display reveals input for editing', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -222,7 +148,7 @@ test.describe('Designator colors — BOM panel staging table', () => {
 test.describe('Cross-panel designator hover highlighting', () => {
 
   test('hovering ref in inventory panel highlights matching refs everywhere', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -252,7 +178,7 @@ test.describe('Cross-panel designator hover highlighting', () => {
   });
 
   test('hovering ref in BOM panel highlights matching refs in inventory panel', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -277,7 +203,7 @@ test.describe('Cross-panel designator hover highlighting', () => {
   });
 
   test('moving mouse away clears highlights', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);

@@ -23,20 +23,24 @@ Entry point: `<script type="module" src="js/app-init.js">` in `index.html`.
 - `js/store.js` — `App` state object, `loadPreferences`, `savePreferences`, `getThreshold`, `setThreshold`, `loadInventory`, `onInventoryUpdated`, `snapshotLinks` (← event-bus, constants, api)
 
 ### Pure-logic modules (no DOM)
+- `js/types.js` — JSDoc `@typedef`s for shared data shapes (`InventoryItem`, `BomMatchResult`, `LinkState`, etc.) — no runtime code
 - `js/csv-parser.js` — `parseCSV`, `detectBOMColumns`, `extractLCSC`, `isDnp`, `extractPartIds`, `generateCSV`, `aggregateBomRows`, `processBOM`
 - `js/part-keys.js` — `bomKey`, `invPartKey`, `rawRowAggKey`, `bomAggKey`, `STATUS_ICONS`, `STATUS_ROW_CLASS`, `countStatuses` (← csv-parser)
 - `js/matching.js` — `matchBOM`, `parseEEValue`, `extractValueFromDesc`, `buildLookupMaps`, value/package compatibility (← part-keys)
 - `js/bom-row-data.js` — `bomRowDisplayData` (← part-keys)
 
 ### Panel modules (side-effect imports, self-initialise)
-- `js/inventory-panel.js` — middle panel (← event-bus, api, ui-helpers, undo-redo, store, part-keys, bom-row-data)
+- `js/inventory-panel.js` — middle panel: normal inventory view (grouped sections, search), render dispatcher, event listeners (← event-bus, api, ui-helpers, undo-redo, store, part-keys, inventory-modals, bom-comparison)
+- `js/inventory-modals.js` — adjustment + price modals with undo/redo handlers, exports `openAdjustModal`, `openPriceModal` (← api, ui-helpers, undo-redo, store, part-keys)
+- `js/bom-comparison.js` — BOM comparison table: filter bar, matched rows, alt rows, click delegation, confirm/unconfirm (← api, ui-helpers, undo-redo, store, part-keys, bom-row-data)
 - `js/bom-panel.js` — right panel (← event-bus, api, ui-helpers, undo-redo, store, part-keys, csv-parser, matching)
 - `js/import-panel.js` — left panel (← api, ui-helpers, undo-redo, store, csv-parser)
 - `js/resize-panels.js` — drag-to-resize (no JS imports)
 - `js/part-preview.js` — hover tooltips (← api, ui-helpers)
+- `js/preferences-modal.js` — preferences sliders + Digikey login/logout flow, exports `openPreferencesModal`, `applyPreferences`, `wireDigikeyButtons` (← api, ui-helpers, event-bus, store)
 
 ### Entry point
-- `js/app-init.js` — wires modals, global shortcuts, loads inventory, side-effect imports all panels
+- `js/app-init.js` — wires modals, global shortcuts, loads inventory, side-effect imports all panels + preferences-modal
 
 ## Key Conventions
 
