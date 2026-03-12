@@ -13,8 +13,10 @@
   const searchInput = document.getElementById("inv-search");
   let collapsedSections = new Set();
 
-  // Hide descriptions when panel is too narrow for readable text (~520px threshold)
-  const DESC_HIDE_WIDTH = 520;
+  // Hide descriptions when panel is too narrow for readable text
+  // Fixed children sum to ~511px (100 ids + 160 mpn + 70 value + 60 qty + 45 btn + 40 gaps + 36 pad)
+  // 680px gives descriptions ~170px minimum usable width
+  const DESC_HIDE_WIDTH = 680;
   let hideDescs = body.offsetWidth > 0 && body.offsetWidth < DESC_HIDE_WIDTH;
   new ResizeObserver(([entry]) => {
     const narrow = entry.contentRect.width < DESC_HIDE_WIDTH;
