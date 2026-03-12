@@ -243,6 +243,8 @@ test.describe('Row heights — BOM comparison mode', () => {
         partKey: el.dataset.partKey,
       }));
       console.log('First BOM row (narrow):', firstBomRow);
+      // BOM rows should not wrap excessively — max ~40px (single line + padding + possible alt badge)
+      expect(firstBomRow.height).toBeLessThanOrEqual(40);
     }
     await logRowHeights(page, 'bom-remaining-narrow');
   });
