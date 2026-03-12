@@ -65,6 +65,9 @@ export default [
         invPartKey: "readonly",
         rawRowAggKey: "readonly",
 
+        // ── bom-row-data.js ──
+        bomRowDisplayData: "readonly",
+
         // ── matching.js ──
         VALUE_TOLERANCE: "readonly",
         MPN_PREFIX_MIN_LEN: "readonly",
