@@ -823,29 +823,14 @@ class InventoryApi:
     def get_digikey_login_status(self) -> dict[str, bool]:
         """Check whether user is logged into Digikey.
 
-        Checks pending cookies (from CDP login flow) or the hidden window's
-        session cookies if the window exists.
+        Uses the fastest available check: pending cookies from CDP, cached
+        sync result from the poll thread, or the hidden webview as last resort.
         """
-        # Check pending cookies from CDP login (window not created yet)
         if self._dk_pending_cookies:
             return {"logged_in": self._check_dk_cookies_logged_in(self._dk_pending_cookies)}
-        if self._dk_window is None:
-            return {"logged_in": False}
-        try:
-            result = self._dk_window.evaluate_js(
-                "(function() {"
-                "  try {"
-                "    var xhr = new XMLHttpRequest();"
-                "    xhr.open('HEAD', '/MyDigiKey', false);"
-                "    xhr.send();"
-                "    var url = xhr.responseURL || '';"
-                "    return url.indexOf('Login') === -1 && url.indexOf('login') === -1;"
-                "  } catch(e) { return false; }"
-                "})()"
-            )
-            return {"logged_in": bool(result)}
-        except (RuntimeError, AttributeError):
-            return {"logged_in": False}
+        if self._dk_sync_result.get("logged_in"):
+            return {"logged_in": True}
+        return {"logged_in": False}
 
     def logout_digikey(self) -> dict[str, str]:
         """Log out of Digikey and clear the product cache."""
