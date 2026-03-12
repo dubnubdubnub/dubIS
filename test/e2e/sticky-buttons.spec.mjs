@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { addMockSetup, waitForInventoryRows, loadBom } from './helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -12,54 +13,10 @@ const BOM_CSV = fs.readFileSync(
   path.join(__dirname, 'fixtures', 'bom.csv'), 'utf8'
 );
 
-function addMockSetup(page) {
-  return page.addInitScript((inventory) => {
-    window.pywebview = {
-      api: {
-        load_inventory: async () => inventory,
-        rebuild_inventory: async () => inventory,
-        adjust_part: async () => inventory,
-        update_part_price: async () => inventory,
-        load_preferences: async () => ({ thresholds: {} }),
-        save_preferences: async () => true,
-        check_digikey_session: async () => ({ logged_in: false }),
-        start_digikey_login: async () => null,
-        sync_digikey_cookies: async () => ({ logged_in: false }),
-        logout_digikey: async () => null,
-        import_csv: async () => inventory,
-        remove_last_adjustments: async () => inventory,
-      },
-    };
-  }, MOCK_INVENTORY);
-}
-
-async function waitForInventoryRows(page) {
-  await page.waitForSelector('.inv-part-row', { timeout: 10_000 });
-}
-
-async function loadBom(page, bomCsv) {
-  await page.evaluate((csv) => {
-    const result = processBOM(csv, 'test-bom.csv');
-    if (!result) throw new Error('processBOM returned null');
-    const { aggregated, bomHeaders, bomCols } = result;
-    const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches);
-    App.bomResults = results;
-    App.bomHeaders = bomHeaders;
-    App.bomCols = bomCols;
-    App.bomFileName = 'test-bom.csv';
-    const rows = results.map(r => ({
-      ...r,
-      effectiveQty: r.bom.qty,
-      effectiveStatus: r.status,
-    }));
-    EventBus.emit(Events.BOM_LOADED, { rows, fileName: 'test-bom.csv', multiplier: 1 });
-  }, bomCsv);
-}
-
 test.describe('Sticky button column — BOM comparison mode', () => {
 
   test('button column stays within viewport when table scrolls horizontally', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     // Narrow viewport so the BOM table overflows horizontally
     await page.setViewportSize({ width: 1100, height: 700 });
     await page.goto('/index.html');
@@ -88,7 +45,7 @@ test.describe('Sticky button column — BOM comparison mode', () => {
   });
 
   test('button column header is sticky', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1100, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -109,7 +66,7 @@ test.describe('Sticky button column — BOM comparison mode', () => {
   });
 
   test('button cell background matches row tint (not transparent)', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1100, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -138,7 +95,7 @@ test.describe('Sticky button column — BOM comparison mode', () => {
   });
 
   test('buttons remain visible after scrolling table horizontally', async ({ page }) => {
-    await addMockSetup(page);
+    await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1100, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
