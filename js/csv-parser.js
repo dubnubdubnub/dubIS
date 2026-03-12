@@ -1,7 +1,7 @@
 /* csv-parser.js — RFC 4180-compliant CSV parser and column detection */
 
 // ── Parse CSV (handles quoted fields with commas/newlines) ──
-function parseCSV(text) {
+export function parseCSV(text) {
   // Auto-detect delimiter from first line
   const firstLine = text.split(/\r?\n/)[0];
   const tabCount = (firstLine.match(/\t/g) || []).length;
@@ -48,7 +48,7 @@ function parseCSV(text) {
 }
 
 // ── Auto-detect BOM columns ──
-function detectBOMColumns(headers) {
+export function detectBOMColumns(headers) {
   const cols = { lcsc: -1, mpn: -1, qty: -1, ref: -1, desc: -1, value: -1, footprint: -1, dnp: -1 };
   const lower = headers.map(h => h.toLowerCase());
   lower.forEach((h, i) => {
@@ -67,20 +67,20 @@ function detectBOMColumns(headers) {
 }
 
 // ── Extract LCSC part number from a value string ──
-function extractLCSC(s) {
+export function extractLCSC(s) {
   const m = s.match(/\b(C\d{4,})\b/i);
   return m ? m[1].toUpperCase() : null;
 }
 
 // ── Check if a DNP column value indicates "Do Not Place" ──
-function isDnp(val) {
+export function isDnp(val) {
   const v = (val || "").trim().toLowerCase();
   return v === "dnp" || v === "1" || v === "yes" || v === "true"
       || v === "excluded from bom" || v === "excluded" || v === "exclude";
 }
 
 // ── Extract LCSC + MPN from a raw BOM row using detected column indices ──
-function extractPartIds(row, cols) {
+export function extractPartIds(row, cols) {
   let lcsc = cols.lcsc !== -1 ? (row[cols.lcsc] || "").trim() : "";
   let mpn  = cols.mpn  !== -1 ? (row[cols.mpn]  || "").trim() : "";
   if (!lcsc && mpn) {
@@ -91,7 +91,7 @@ function extractPartIds(row, cols) {
 }
 
 // ── Generate RFC 4180 CSV from headers + rows ──
-function generateCSV(headers, rows) {
+export function generateCSV(headers, rows) {
   function escapeField(val) {
     const s = val == null ? "" : String(val);
     if (s.indexOf(",") !== -1 || s.indexOf('"') !== -1 || s.indexOf("\n") !== -1) {
@@ -107,7 +107,7 @@ function generateCSV(headers, rows) {
 }
 
 // ── Aggregate raw BOM rows into a Map keyed by part+DNP ──
-function aggregateBomRows(rawRows, headers, cols) {
+export function aggregateBomRows(rawRows, headers, cols) {
   const aggregated = new Map();
   const warnings = [];
 
@@ -148,7 +148,7 @@ function aggregateBomRows(rawRows, headers, cols) {
 }
 
 // ── Process BOM text into aggregated parts map + raw rows + warnings ──
-function processBOM(text, fileName) {
+export function processBOM(text, fileName) {
   const lines = parseCSV(text);
   if (lines.length < 2) return null;
   const headers = lines[0];

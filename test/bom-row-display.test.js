@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadGlobals } from './helpers/load-globals.js';
-
-const g = loadGlobals();
-const bomRowDisplayData = g.bomRowDisplayData;
+import { bomRowDisplayData } from '../js/bom-row-data.js';
 
 // ── Test helpers ──
 
