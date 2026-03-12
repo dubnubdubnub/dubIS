@@ -130,7 +130,6 @@ class InventoryApi:
         prefix = m.group(2) or ""
         return value * {"n": 1e-9, "u": 1e-6, "\u00b5": 1e-6, "m": 1e-3, "": 1}[prefix]
 
-    @staticmethod
     # Each rule: first match wins.  Within a rule, keywords in the same field
     # are OR'd; different fields (desc + mfr) are AND'd.  exclude_desc vetoes.
     CATEGORY_RULES: list[dict[str, Any]] = [
