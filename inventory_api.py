@@ -640,6 +640,7 @@ class InventoryApi:
             return None
 
         product = self._normalize_digikey_result(result, part_number)
+        product["_debug"] = result
         self._digikey_cache[part_number] = product
         return product
 
