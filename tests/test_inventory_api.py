@@ -161,7 +161,7 @@ class TestCategorize:
 
     def test_switching_regulator_not_switch(self):
         row = {"Description": "Switching Regulator IC", "Manufacture Part Number": ""}
-        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators"
+        assert InventoryApi.categorize(row) == "ICs - Power / Voltage Regulators > Switchers"
 
     def test_tactile_switch(self):
         row = {"Description": "Tactile switch 6x6mm", "Manufacture Part Number": ""}
