@@ -549,7 +549,7 @@ class InventoryApi:
         import struct
 
         # 1. Get a page target's WebSocket URL (cookies need page context)
-        conn = http.client.HTTPConnection("localhost", port, timeout=3)
+        conn = http.client.HTTPConnection("localhost", port, timeout=2)
         conn.request("GET", "/json")
         targets = json.loads(conn.getresponse().read())
         conn.close()
@@ -567,7 +567,7 @@ class InventoryApi:
         ws_path = "/" + page["webSocketDebuggerUrl"].split("/", 3)[3]
 
         # 2. WebSocket handshake
-        sock = socket.create_connection(("localhost", port), timeout=5)
+        sock = socket.create_connection(("localhost", port), timeout=2)
         ws_key = base64.b64encode(os.urandom(16)).decode()
         sock.sendall(
             f"GET {ws_path} HTTP/1.1\r\n"
