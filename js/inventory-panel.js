@@ -125,6 +125,7 @@
 
     const icon = (st === "short" && r.coveredByAlts) ? "~+" : (STATUS_ICONS[st] || "\u2014");
     const dispLcsc = (r.inv ? r.inv.lcsc : "") || r.bom.lcsc || "";
+    const dispDigikey = (r.inv ? r.inv.digikey : "") || "";
     const dispMpn = (r.inv ? r.inv.mpn : "") || r.bom.mpn || "";
     const invQty = r.inv ? r.inv.qty : "\u2014";
     const invDesc = r.inv ? (r.inv.description || r.inv.mpn) : (r.bom.desc || r.bom.value || "not in inventory");
@@ -163,7 +164,7 @@
     tr.innerHTML = `
       <td class="refs-cell" title="${escHtml(refsStr)}">${colorizeRefs(refsStr)}</td>
       <td class="status">${icon}</td>
-      <td class="mono"${dispLcsc && /^C\d{4,}$/i.test(dispLcsc) ? ' data-lcsc="' + escHtml(dispLcsc) + '"' : ''}>${escHtml(dispLcsc)}</td>
+      <td class="mono">${dispLcsc ? '<span' + (/^C\d{4,}$/i.test(dispLcsc) ? ' data-lcsc="' + escHtml(dispLcsc) + '"' : '') + '>' + escHtml(dispLcsc) + '</span>' : ''}${dispLcsc && dispDigikey ? '<br>' : ''}${dispDigikey ? '<span data-digikey="' + escHtml(dispDigikey) + '" style="color:#cc6600">' + escHtml(dispDigikey) + '</span>' : ''}</td>
       <td class="mono" title="${escHtml(dispMpn)}">${escHtml(dispMpn)}</td>
       <td class="${qtyClass}" style="text-align:right;font-weight:600">${r.effectiveQty}</td>
       <td class="inv-qty-cell ${qtyClass}" style="text-align:right;font-weight:600">${haveHtml}</td>
@@ -255,7 +256,7 @@
     table.innerHTML = `<thead><tr>
       <th class="refs-col">Designators</th>
       <th style="width:24px"></th>
-      <th style="width:90px">LCSC</th>
+      <th style="width:90px">Part #</th>
       <th style="width:140px">MPN</th>
       <th style="width:50px">Need</th>
       <th style="width:50px">Have</th>
@@ -297,10 +298,16 @@
       const altTr = document.createElement("tr");
       altTr.className = "alt-row";
       altTr.dataset.altFor = partKey;
+      var altLcsc = alt.lcsc || '';
+      var altDigikey = alt.digikey || '';
+      var altPartHtml = '';
+      if (altLcsc) altPartHtml += '<span' + (/^C\d{4,}$/i.test(altLcsc) ? ' data-lcsc="' + escHtml(altLcsc) + '"' : '') + '>' + escHtml(altLcsc) + '</span>';
+      if (altLcsc && altDigikey) altPartHtml += '<br>';
+      if (altDigikey) altPartHtml += '<span data-digikey="' + escHtml(altDigikey) + '" style="color:#cc6600">' + escHtml(altDigikey) + '</span>';
       altTr.innerHTML =
         '<td></td>' +
         '<td></td>' +
-        '<td class="mono"' + (alt.lcsc && /^C\d{4,}$/i.test(alt.lcsc) ? ' data-lcsc="' + escHtml(alt.lcsc) + '"' : '') + '>' + escHtml(alt.lcsc || '') + '</td>' +
+        '<td class="mono">' + altPartHtml + '</td>' +
         '<td class="mono" title="' + escHtml(alt.mpn || '') + '">' + escHtml(alt.mpn || '') + '</td>' +
         '<td></td>' +
         '<td style="text-align:right;font-weight:600">' + alt.qty + '</td>' +
@@ -350,7 +357,6 @@
         const row = document.createElement("div");
         row.className = "inv-part-row";
 
-        const displayId = item.lcsc || item.digikey || "";
         const displayMpn = item.mpn || "";
         const displayDesc = item.description || "";
 
@@ -361,8 +367,15 @@
         const isSource = App.links.linkingMode && App.links.linkingInvItem === item;
         const linkBtnStr = bomData ? `<button class="link-btn${isSource ? ' active' : ''}" title="Link to missing BOM row">Link</button>` : '';
         const valueStr = stockValue > 0 ? "$" + stockValue.toFixed(2) : "\u2014";
+
+        let partIdsHtml = '<span class="part-ids">';
+        if (item.lcsc) partIdsHtml += '<span class="part-id-lcsc" data-lcsc="' + escHtml(item.lcsc) + '">' + escHtml(item.lcsc) + '</span>';
+        if (item.digikey) partIdsHtml += '<span class="part-id-digikey" data-digikey="' + escHtml(item.digikey) + '">' + escHtml(item.digikey) + '</span>';
+        if (!item.lcsc && !item.digikey) partIdsHtml += '<span></span>';
+        partIdsHtml += '</span>';
+
         row.innerHTML = `
-          <span class="part-id"${displayId && /^C\d{4,}$/i.test(displayId) ? ' data-lcsc="' + escHtml(displayId) + '"' : ''}>${escHtml(displayId)}</span>
+          ${partIdsHtml}
           <span class="part-mpn" title="${escHtml(displayMpn)}">${escHtml(displayMpn)}</span>
           <span class="part-value">${valueStr}</span>
           <span class="part-qty" style="color:${qtyColor}">${showPriceWarn ? '<button class="price-warn-btn" title="No price data — click to set">\u26A0</button>' : ''}${item.qty}</span>
