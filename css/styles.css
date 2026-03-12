@@ -724,8 +724,15 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 }
 .import-preview .row-delete:hover { color: var(--color-red); }
 
-/* ── Adjust Button ────────────────────────────────────── */
-td.btn-group { white-space: nowrap; text-align: right; }
+/* ── Button Column (sticky-right so always visible on horizontal scroll) */
+td.btn-group, th.btn-group-hdr {
+  position: sticky; right: 0; z-index: 1;
+  background: var(--bg-base);
+  white-space: nowrap; text-align: right;
+}
+th.btn-group-hdr { z-index: 3; background: var(--bg-surface); }
+tbody tr:hover td.btn-group { background: var(--bg-hover) !important; }
+tr.alt-row td.btn-group { background: var(--bg-surface); }
 td.btn-group button + button { margin-left: 6px; }
 
 .adj-btn {
