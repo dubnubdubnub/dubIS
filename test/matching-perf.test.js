@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { loadGlobals } from './helpers/load-globals.js';
-
-const g = loadGlobals();
+import { matchBOM } from '../js/matching.js';
+import { bomKey } from '../js/part-keys.js';
 
 // ── Synthetic data generators ──
 
@@ -105,7 +104,7 @@ function generateBOM(count, inventory) {
 
 function bomMap(entries) {
   const m = new Map();
-  entries.forEach(e => m.set(g.bomKey(e) || ('row-' + m.size), e));
+  entries.forEach(e => m.set(bomKey(e) || ('row-' + m.size), e));
   return m;
 }
 
@@ -118,7 +117,7 @@ describe('matchBOM performance', () => {
     const bom = bomMap(bomEntries);
 
     const start = performance.now();
-    const results = g.matchBOM(bom, inventory, null, null);
+    const results = matchBOM(bom, inventory, null, null);
     const elapsed = performance.now() - start;
 
     expect(results).toHaveLength(150);
@@ -131,7 +130,7 @@ describe('matchBOM performance', () => {
     const bom = bomMap(bomEntries);
 
     const start = performance.now();
-    const results = g.matchBOM(bom, inventory, null, null);
+    const results = matchBOM(bom, inventory, null, null);
     const elapsed = performance.now() - start;
 
     expect(results).toHaveLength(300);
@@ -144,7 +143,7 @@ describe('matchBOM performance', () => {
     const bom = bomMap(bomEntries);
 
     const start = performance.now();
-    const results = g.matchBOM(bom, inventory, null, null);
+    const results = matchBOM(bom, inventory, null, null);
     const elapsed = performance.now() - start;
 
     expect(results).toHaveLength(500);
@@ -158,7 +157,7 @@ describe('matchBOM correctness at scale', () => {
   const inventory = generateInventory(500);
   const bomEntries = generateBOM(150, inventory);
   const bom = bomMap(bomEntries);
-  const results = g.matchBOM(bom, inventory, null, null);
+  const results = matchBOM(bom, inventory, null, null);
 
   it('every result has bom, inv, status, and matchType', () => {
     results.forEach(r => {
@@ -233,14 +232,14 @@ describe('matchBOM scaling', () => {
     const bomLarge = makeExactBom(largeInv, 100);
 
     // Warm up
-    g.matchBOM(bomSmall, smallInv, null, null);
+    matchBOM(bomSmall, smallInv, null, null);
 
     const t1Start = performance.now();
-    g.matchBOM(bomSmall, smallInv, null, null);
+    matchBOM(bomSmall, smallInv, null, null);
     const t1 = performance.now() - t1Start;
 
     const t2Start = performance.now();
-    g.matchBOM(bomLarge, largeInv, null, null);
+    matchBOM(bomLarge, largeInv, null, null);
     const t2 = performance.now() - t2Start;
 
     // 4x inventory but same BOM size — with hash lookups, should be < 4x slower
@@ -262,7 +261,7 @@ describe('matchBOM with manual links at scale', () => {
     const manualLinks = [];
     for (let i = missingStart; i < 150; i++) {
       const entry = bomEntries[i];
-      const bk = g.bomKey(entry);
+      const bk = bomKey(entry);
       if (bk) {
         // Link to a random inventory item
         const targetInv = inventory[i % inventory.length];
@@ -270,7 +269,7 @@ describe('matchBOM with manual links at scale', () => {
       }
     }
 
-    const results = g.matchBOM(bom, inventory, manualLinks, null);
+    const results = matchBOM(bom, inventory, manualLinks, null);
     const manualResults = results.filter(r => r.matchType === 'manual');
 
     // At least some manual links should have resolved
