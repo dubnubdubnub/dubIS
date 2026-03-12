@@ -996,10 +996,10 @@ tr.row-teal td.status { color: var(--color-teal); }
 }
 .swap-btn:hover { border-color: var(--color-teal); color: var(--color-teal); background: #2dd4bf26; }
 
-/* ── LCSC Preview Tooltip ────────────────────────────── */
-[data-lcsc] { cursor: pointer; }
+/* ── Part Preview Tooltip ─────────────────────────────── */
+[data-lcsc], [data-digikey] { cursor: pointer; }
 
-.lcsc-preview {
+.part-preview {
   position: fixed;
   z-index: 500;
   width: 360px;
@@ -1007,9 +1007,9 @@ tr.row-teal td.status { color: var(--color-teal); }
   overflow-y: auto;
   pointer-events: auto;
 }
-.lcsc-preview.hidden { display: none; }
+.part-preview.hidden { display: none; }
 
-.lcsc-preview-card {
+.part-preview-card {
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
@@ -1019,20 +1019,20 @@ tr.row-teal td.status { color: var(--color-teal); }
   overflow: hidden;
 }
 
-.lcsc-preview-img {
+.part-preview-img {
   background: #f5f5f5;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 12px;
 }
-.lcsc-preview-img img {
+.part-preview-img img {
   max-height: 120px;
   max-width: 100%;
   object-fit: contain;
 }
 
-.lcsc-preview-title {
+.part-preview-title {
   font-size: 14px;
   font-weight: 600;
   color: #1f2328;
@@ -1040,40 +1040,40 @@ tr.row-teal td.status { color: var(--color-teal); }
   line-height: 1.3;
 }
 
-.lcsc-preview-info {
+.part-preview-info {
   width: 100%;
   border-collapse: collapse;
   margin: 4px 0;
 }
-.lcsc-preview-info td {
+.part-preview-info td {
   padding: 3px 12px;
   font-size: 12px;
   color: #1f2328;
   border-bottom: 1px solid #f0f0f0;
   vertical-align: top;
 }
-.lcsc-preview-info td.label {
+.part-preview-info td.label {
   color: #656d76;
   font-weight: 600;
   white-space: nowrap;
   width: 100px;
 }
 
-.lcsc-preview-stock {
+.part-preview-stock {
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 600;
   text-align: center;
 }
-.lcsc-preview-stock.in-stock { background: #e6f7e9; color: #1a7f37; }
-.lcsc-preview-stock.no-stock { background: #fce8e8; color: #d1242f; }
+.part-preview-stock.in-stock { background: #e6f7e9; color: #1a7f37; }
+.part-preview-stock.no-stock { background: #fce8e8; color: #d1242f; }
 
-.lcsc-preview-prices {
+.part-preview-prices {
   width: 100%;
   border-collapse: collapse;
   margin: 0;
 }
-.lcsc-preview-prices th {
+.part-preview-prices th {
   background: #f6f8fa;
   padding: 4px 12px;
   font-size: 11px;
@@ -1085,7 +1085,7 @@ tr.row-teal td.status { color: var(--color-teal); }
   letter-spacing: 0;
   position: static;
 }
-.lcsc-preview-prices td {
+.part-preview-prices td {
   padding: 3px 12px;
   font-size: 12px;
   color: #1f2328;
@@ -1093,21 +1093,21 @@ tr.row-teal td.status { color: var(--color-teal); }
   font-family: "SFMono-Regular", Consolas, monospace;
 }
 
-.lcsc-preview-desc {
+.part-preview-desc {
   padding: 0 12px 6px;
   font-size: 11px;
   color: #656d76;
   line-height: 1.4;
 }
 
-.lcsc-preview-attrs {
+.part-preview-attrs {
   padding: 6px 12px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   border-top: 1px solid #f0f0f0;
 }
-.lcsc-preview-attr {
+.part-preview-attr {
   font-size: 11px;
   color: #656d76;
   background: #f6f8fa;
@@ -1115,15 +1115,15 @@ tr.row-teal td.status { color: var(--color-teal); }
   padding: 2px 8px;
   white-space: nowrap;
 }
-.lcsc-preview-attr strong { color: #1f2328; font-weight: 600; }
+.part-preview-attr strong { color: #1f2328; font-weight: 600; }
 
-.lcsc-preview-actions {
+.part-preview-actions {
   display: flex;
   border-top: 1px solid #f0f0f0;
 }
-.lcsc-preview-actions .lcsc-preview-link { flex: 1; }
+.part-preview-actions .part-preview-link { flex: 1; }
 
-.lcsc-preview-link {
+.part-preview-link {
   display: block;
   padding: 8px 12px;
   text-align: center;
@@ -1133,12 +1133,21 @@ tr.row-teal td.status { color: var(--color-teal); }
   text-decoration: none;
   transition: background 0.15s;
 }
-.lcsc-preview-link:hover { background: #f0f6ff; }
+.part-preview-link:hover { background: #f0f6ff; }
 
-.lcsc-preview-loading, .lcsc-preview-error {
+.part-preview-loading, .part-preview-error {
   padding: 24px 12px;
   text-align: center;
   color: #656d76;
   font-size: 13px;
 }
-.lcsc-preview-error { color: #d1242f; }
+.part-preview-error { color: #d1242f; }
+
+/* Provider accent borders */
+.part-preview-card.provider-lcsc { border-top: 3px solid #0066cc; }
+.part-preview-card.provider-digikey { border-top: 3px solid #cc0000; }
+
+/* ── Dual Part ID Display ─────────────────────────────── */
+.inv-part-row .part-ids { width: 100px; flex-shrink: 0; display: flex; flex-direction: column; gap: 1px; }
+.part-id-lcsc { font-family: Consolas, monospace; font-size: 11px; color: var(--color-blue); cursor: pointer; }
+.part-id-digikey { font-family: Consolas, monospace; font-size: 11px; color: #cc6600; cursor: pointer; }
