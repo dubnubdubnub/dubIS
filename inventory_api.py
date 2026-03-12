@@ -625,7 +625,14 @@ class InventoryApi:
             try:
                 cookie_mgr = self._get_dk_cookie_manager()
                 if cookie_mgr is not None:
-                    cookie_mgr.DeleteAllCookies()
+                    import System
+                    from webview.platforms.winforms import BrowserView
+
+                    uid = self._dk_window.uid
+                    instance = BrowserView.instances[uid]
+                    instance.browser.form.Invoke(
+                        System.Action(lambda: cookie_mgr.DeleteAllCookies())
+                    )
                 self._dk_loaded.clear()
                 self._dk_window.load_url(
                     "https://www.digikey.com/MyDigiKey/Logout"
