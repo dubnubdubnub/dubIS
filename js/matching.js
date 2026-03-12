@@ -1,21 +1,23 @@
 /* matching.js — 5-step BOM matching engine (ported from build_compare.py) */
 
+import { bomKey } from './part-keys.js';
+
 // ── Constants ──
-const VALUE_TOLERANCE = 1e-3;          // 0.1% relative error
-const MPN_PREFIX_MIN_LEN = 6;
-const MPN_FUZZY_MIN_LEN = 8;
-const MPN_FUZZY_MIN_RATIO = 0.7;      // 70% of shorter string
+export const VALUE_TOLERANCE = 1e-3;          // 0.1% relative error
+export const MPN_PREFIX_MIN_LEN = 6;
+export const MPN_FUZZY_MIN_LEN = 8;
+export const MPN_FUZZY_MIN_RATIO = 0.7;      // 70% of shorter string
 
 // ── Value parsing for possible matches ──
 
-function getMult(c) {
+export function getMult(c) {
   const m = {p:1e-12, n:1e-9, u:1e-6, U:1e-6, m:1e-3, R:1, k:1e3, K:1e3, M:1e6, G:1e9};
   if (m[c] != null) return m[c];
   if (c === '\u00b5' || c === '\u03bc') return 1e-6;
   return null;
 }
 
-function parseEEValue(str) {
+export function parseEEValue(str) {
   if (!str) return null;
   str = str.split(/[\/\u00b1%]/)[0].trim();
   str = str.replace(/[FH\u03a9\u2126]+$/i, '').replace(/ohm$/i, '').trim();
@@ -26,7 +28,7 @@ function parseEEValue(str) {
   return null;
 }
 
-function extractValueFromDesc(desc) {
+export function extractValueFromDesc(desc) {
   if (!desc) return null;
   const m = desc.match(/(\d+\.?\d*)\s*([pnumkMG\u00b5\u03bc])?\s*(F|\u03a9|\u2126|H)/i);
   if (!m) return null;
@@ -37,7 +39,7 @@ function extractValueFromDesc(desc) {
 
 // ── Extract BOM value (tries value then desc, both parseEE and extractFromDesc) ──
 
-function extractBomValue(bom) {
+export function extractBomValue(bom) {
   let val = parseEEValue(bom.value);
   if (val == null) val = extractValueFromDesc(bom.value);
   if (val == null) val = parseEEValue(bom.desc);
@@ -45,13 +47,13 @@ function extractBomValue(bom) {
   return val;
 }
 
-function componentTypeFromRefs(refs) {
+export function componentTypeFromRefs(refs) {
   if (!refs) return null;
   const ch = refs.trim().charAt(0).toUpperCase();
   return 'CRL'.includes(ch) ? ch : null;
 }
 
-function componentTypeFromSection(section) {
+export function componentTypeFromSection(section) {
   if (!section) return null;
   if (/Capacitor/i.test(section)) return 'C';
   if (/Resistor/i.test(section)) return 'R';
@@ -62,18 +64,18 @@ function componentTypeFromSection(section) {
 // ── Validate fuzzy/prefix matches for passive components ──
 // Priority: package, value, name — reject if package or value mismatches.
 
-function isPassiveSection(section) {
+export function isPassiveSection(section) {
   return /Resistor|Capacitor|Inductor/i.test(section || "");
 }
 
-function packagesCompatible(bom, invItem) {
+export function packagesCompatible(bom, invItem) {
   const bomPkg = (bom.footprint || "").toUpperCase();
   const invPkg = (invItem.package || "").toUpperCase();
   if (!bomPkg || !invPkg) return true;
   return bomPkg.includes(invPkg) || invPkg.includes(bomPkg);
 }
 
-function valuesCompatible(bom, invItem) {
+export function valuesCompatible(bom, invItem) {
   const bomVal = extractBomValue(bom);
   const invVal = extractValueFromDesc(invItem.description);
   if (bomVal == null || invVal == null) return true;
@@ -82,21 +84,21 @@ function valuesCompatible(bom, invItem) {
   return Math.abs(bomVal - invVal) / Math.max(Math.abs(bomVal), Math.abs(invVal)) <= VALUE_TOLERANCE;
 }
 
-function isFuzzyMatchValid(bom, invItem) {
+export function isFuzzyMatchValid(bom, invItem) {
   if (!isPassiveSection(invItem.section)) return true;
   return packagesCompatible(bom, invItem) && valuesCompatible(bom, invItem);
 }
 
 // ── Normalize float to stable string key (avoids IEEE 754 mismatch) ──
 
-function valueKey(type, val) {
+export function valueKey(type, val) {
   if (val === 0) return type + ":0";
   return type + ":" + val.toPrecision(6);
 }
 
 // ── Build lookup maps from inventory ──
 
-function buildLookupMaps(inventory) {
+export function buildLookupMaps(inventory) {
   const invByLCSC = {};
   const invByMPN = {};
   const invByValue = {};
@@ -119,7 +121,7 @@ function buildLookupMaps(inventory) {
 
 // ── Find value match (possible match) ──
 
-function findValueMatch(bom, inventory, invByValue) {
+export function findValueMatch(bom, inventory, invByValue) {
   const bomVal = extractBomValue(bom);
   if (bomVal == null) return null;
 
@@ -155,7 +157,7 @@ function findValueMatch(bom, inventory, invByValue) {
 
 // ── Find alternatives (same type + value, different part) ──
 
-function findAlternatives(bom, primaryInv, invByValue) {
+export function findAlternatives(bom, primaryInv, invByValue) {
   if (!primaryInv) return [];
   let bomType = componentTypeFromRefs(bom.refs);
   if (!bomType) bomType = componentTypeFromSection(primaryInv.section);
@@ -169,7 +171,7 @@ function findAlternatives(bom, primaryInv, invByValue) {
 
 // ── 5-step BOM matching ──
 
-function matchBOM(aggregated, inventory, manualLinks, confirmedMatches) {
+export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches) {
   const maps = buildLookupMaps(inventory);
   const { invByLCSC, invByMPN, invByValue } = maps;
   const results = [];
