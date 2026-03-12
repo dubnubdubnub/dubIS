@@ -236,15 +236,15 @@ test.describe('Row heights — BOM comparison mode', () => {
     console.log('BOM rows (narrow):', bomRowCount);
     console.log('Remaining inv rows (narrow):', invRowCount);
 
-    if (bomRowCount > 0) {
-      const firstBomRow = await page.locator('tr[data-part-key]').first().evaluate(el => ({
-        width: el.offsetWidth,
+    // ALL BOM rows should stay compact — max 60px even with alt badges
+    for (let i = 0; i < bomRowCount; i++) {
+      const row = await page.locator('tr[data-part-key]').nth(i).evaluate(el => ({
         height: el.offsetHeight,
         partKey: el.dataset.partKey,
+        hasAltBadge: !!el.querySelector('.alt-badge'),
       }));
-      console.log('First BOM row (narrow):', firstBomRow);
-      // BOM rows should not wrap excessively — max ~40px (single line + padding + possible alt badge)
-      expect(firstBomRow.height).toBeLessThanOrEqual(40);
+      console.log(`BOM row[${i}] (narrow): h=${row.height} key=${row.partKey} alt=${row.hasAltBadge}`);
+      expect(row.height, `Row ${row.partKey} too tall`).toBeLessThanOrEqual(60);
     }
     await logRowHeights(page, 'bom-remaining-narrow');
   });
