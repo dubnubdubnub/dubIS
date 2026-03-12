@@ -308,6 +308,10 @@ tbody tr:hover { background: var(--bg-hover) !important; }
 
 /* ── Selectable Text in Matched BOM Table ──────────────── */
 #inventory-body .table-wrap tbody td { user-select: text; -webkit-user-select: text; }
+/* Prevent BOM table from squeezing columns below their defined widths.
+   Column sum: 140 refs + 24 status + 110 part + 140 mpn + 50 need + 50 have + 78 match + ~100 btns = ~692px
+   Plus description gets whatever is left. Horizontal scroll kicks in via .table-wrap overflow-x. */
+#inventory-body .table-wrap table { min-width: 700px; }
 
 /* ── Status Column ─────────────────────────────────────── */
 .status { font-weight: 700; text-align: center; width: 24px; font-size: 14px; }
