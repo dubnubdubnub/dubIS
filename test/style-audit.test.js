@@ -36,15 +36,14 @@ function propertyValue(ruleText, prop) {
   return m ? m[1].trim() : null;
 }
 
-describe('Description auto-hide via container query', () => {
-  it('#inventory-body has container-type: inline-size', () => {
-    expect(css).toMatch(/#inventory-body\s*\{[^}]*container-type:\s*inline-size/);
+describe('Description auto-hide when panel is narrow', () => {
+  it('CSS hides .part-desc when #inventory-body has .narrow-panel', () => {
+    expect(css).toMatch(/#inventory-body\.narrow-panel\s+\.inv-part-row\s+\.part-desc\s*\{[^}]*display:\s*none/);
   });
 
-  it('@container rule hides .part-desc when panel is narrow', () => {
-    // Must have a @container rule that sets display: none on .part-desc
-    expect(css).toMatch(/@container\s+inv-body\s*\([^)]*max-width/);
-    expect(css).toMatch(/@container\s+inv-body\b[\s\S]*?\.part-desc\s*\{[^}]*display:\s*none/);
+  it('JS sets up ResizeObserver to toggle narrow-panel class', () => {
+    expect(invPanelJs).toContain('narrow-panel');
+    expect(invPanelJs).toContain('ResizeObserver');
   });
 });
 
