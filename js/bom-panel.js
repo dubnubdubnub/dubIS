@@ -411,6 +411,27 @@
             td.dataset.lcsc = cellVal;
           }
         }
+        if (ci === bomCols.ref) {
+          const display = document.createElement("div");
+          display.className = "refs-cell";
+          display.innerHTML = colorizeRefs(inp.value);
+          display.title = inp.value;
+          display.addEventListener("click", (e) => {
+            e.stopPropagation();
+            display.style.display = "none";
+            inp.style.display = "";
+            inp.focus();
+            inp.select();
+          });
+          inp.style.display = "none";
+          inp.addEventListener("blur", () => {
+            display.innerHTML = colorizeRefs(inp.value);
+            display.title = inp.value;
+            display.style.display = "";
+            inp.style.display = "none";
+          });
+          td.appendChild(display);
+        }
         td.appendChild(inp);
         tr.appendChild(td);
       });

@@ -65,6 +65,9 @@ export default [
         bomAggKey: "readonly",
         invPartKey: "readonly",
         rawRowAggKey: "readonly",
+        REF_COLOR_MAP: "readonly",
+        refColorClass: "readonly",
+        colorizeRefs: "readonly",
 
         // ── bom-row-data.js ──
         bomRowDisplayData: "readonly",

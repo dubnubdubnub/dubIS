@@ -51,3 +51,31 @@ function rawRowAggKey(row, cols) {
   const base = lcsc || mpn.toUpperCase();
   return (cols.dnp !== -1 && isDnp(row[cols.dnp])) ? base + ":DNP" : base;
 }
+
+// ── Designator color coding (shared by bom-panel.js and inventory-panel.js) ──
+
+const REF_COLOR_MAP = {
+  R: "ref-r", RM: "ref-r",
+  C: "ref-c",
+  Y: "ref-osc", X: "ref-osc",
+  U: "ref-ic", IC: "ref-ic", Q: "ref-ic",
+  L: "ref-l",
+  D: "ref-d", LED: "ref-d",
+};
+
+function refColorClass(ref) {
+  const m = ref.trim().match(/^([A-Za-z]+)/);
+  if (!m) return "";
+  return REF_COLOR_MAP[m[1].toUpperCase()] || "";
+}
+
+function colorizeRefs(refsStr) {
+  if (!refsStr) return "";
+  return refsStr.split(/,\s*/).map(function (ref) {
+    var cls = refColorClass(ref);
+    var escaped = escHtml(ref);
+    return cls
+      ? '<span class="' + cls + '" data-ref="' + escaped + '">' + escaped + '</span>'
+      : '<span data-ref="' + escaped + '">' + escaped + '</span>';
+  }).join(", ");
+}
