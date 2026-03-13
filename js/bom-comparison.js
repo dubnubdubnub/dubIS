@@ -244,6 +244,34 @@ export function renderBomComparison(body, searchInput) {
   tableWrap.appendChild(table);
   body.appendChild(tableWrap);
 
+  // Sticky horizontal scrollbar — stays at bottom of viewport while BOM table is visible
+  const stickyScroll = document.createElement("div");
+  stickyScroll.className = "sticky-scrollbar";
+  const stickyInner = document.createElement("div");
+  stickyInner.style.height = "1px";
+  stickyScroll.appendChild(stickyInner);
+  body.appendChild(stickyScroll);
+
+  function syncWidths() {
+    stickyInner.style.width = table.scrollWidth + "px";
+  }
+  syncWidths();
+  new ResizeObserver(syncWidths).observe(table);
+
+  let syncing = false;
+  stickyScroll.addEventListener("scroll", () => {
+    if (syncing) return;
+    syncing = true;
+    tableWrap.scrollLeft = stickyScroll.scrollLeft;
+    syncing = false;
+  });
+  tableWrap.addEventListener("scroll", () => {
+    if (syncing) return;
+    syncing = true;
+    stickyScroll.scrollLeft = tableWrap.scrollLeft;
+    syncing = false;
+  });
+
   // Return matched inv keys so caller can render remaining inventory
   const matchedInvKeys = new Set();
   rows.forEach(r => {
