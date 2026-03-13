@@ -1,0 +1,100 @@
+<openpnp-machine>
+   <machine class="org.openpnp.machine.reference.ReferenceMachine" speed="1.0" auto-tool-select="true">
+      <axes>
+         <axis class="org.openpnp.machine.reference.axis.ReferenceControllerAxis" id="AX1" name="x" type="X" driver-id="DRV1" letter="X" limit-rotation="false" wrap-around-rotation="false" invert-linear-rotational="false">
+            <home-coordinate value="0.0" units="Millimeters"/>
+            <feedrate-per-second value="500.0" units="Millimeters"/>
+            <acceleration-per-second-2 value="2000.0" units="Millimeters"/>
+            <jerk-per-second-3 value="10000.0" units="Millimeters"/>
+         </axis>
+         <axis class="org.openpnp.machine.reference.axis.ReferenceControllerAxis" id="AX2" name="y" type="Y" driver-id="DRV1" letter="Y" limit-rotation="false" wrap-around-rotation="false" invert-linear-rotational="false">
+            <home-coordinate value="0.0" units="Millimeters"/>
+            <feedrate-per-second value="500.0" units="Millimeters"/>
+            <acceleration-per-second-2 value="2000.0" units="Millimeters"/>
+            <jerk-per-second-3 value="10000.0" units="Millimeters"/>
+         </axis>
+         <axis class="org.openpnp.machine.reference.axis.ReferenceControllerAxis" id="AX3" name="z" type="Z" driver-id="DRV1" letter="Z" limit-rotation="false" wrap-around-rotation="false" invert-linear-rotational="false">
+            <home-coordinate value="0.0" units="Millimeters"/>
+            <feedrate-per-second value="500.0" units="Millimeters"/>
+            <acceleration-per-second-2 value="2000.0" units="Millimeters"/>
+            <jerk-per-second-3 value="10000.0" units="Millimeters"/>
+         </axis>
+         <axis class="org.openpnp.machine.reference.axis.ReferenceControllerAxis" id="AX4" name="rotation" type="Rotation" driver-id="DRV1" letter="A" limit-rotation="false" wrap-around-rotation="false" invert-linear-rotational="false">
+            <home-coordinate value="0.0" units="Millimeters"/>
+            <feedrate-per-second value="500.0" units="Millimeters"/>
+            <acceleration-per-second-2 value="2000.0" units="Millimeters"/>
+            <jerk-per-second-3 value="10000.0" units="Millimeters"/>
+         </axis>
+      </axes>
+      <heads>
+         <head class="org.openpnp.machine.reference.ReferenceHead" id="H1" name="H1">
+            <nozzles>
+               <nozzle class="org.openpnp.machine.reference.ReferenceNozzle" id="N1" name="N1"
+                  pick-dwell-milliseconds="0" place-dwell-milliseconds="0"
+                  current-nozzle-tip-id="NT1" changer-enabled="false"
+                  safe-z="true">
+                  <nozzle-axes>
+                     <axis id="AX1"/>
+                     <axis id="AX2"/>
+                     <axis id="AX3"/>
+                     <axis id="AX4"/>
+                  </nozzle-axes>
+                  <head-offsets units="Millimeters" x="0.0" y="0.0" z="0.0" rotation="0.0"/>
+                  <compatible-nozzle-tip-ids class="java.util.ArrayList">
+                     <string>NT1</string>
+                  </compatible-nozzle-tip-ids>
+               </nozzle>
+            </nozzles>
+            <cameras>
+               <camera class="org.openpnp.machine.reference.camera.ImageCamera" id="C1" name="Top"
+                  looking="Down" width="640" height="480" fps="0"
+                  settle-method="FixedTime" settle-time-ms="0">
+                  <units-per-pixel units="Millimeters" x="0.04233" y="0.04233" z="0.0" rotation="0.0"/>
+                  <head-offsets units="Millimeters" x="0.0" y="0.0" z="0.0" rotation="0.0"/>
+                  <source-uri>classpath://samples/pnp-test/pnp-test.png</source-uri>
+                  <camera-axes>
+                     <axis id="AX1"/>
+                     <axis id="AX2"/>
+                     <axis id="AX3"/>
+                  </camera-axes>
+               </camera>
+            </cameras>
+         </head>
+      </heads>
+      <cameras>
+         <camera class="org.openpnp.machine.reference.camera.SimulatedUpCamera" id="C2" name="Bottom"
+            looking="Up" width="640" height="480" fps="0"
+            settle-method="FixedTime" settle-time-ms="0">
+            <units-per-pixel units="Millimeters" x="0.04233" y="0.04233" z="0.0" rotation="0.0"/>
+            <head-offsets units="Millimeters" x="0.0" y="0.0" z="0.0" rotation="0.0"/>
+         </camera>
+      </cameras>
+      <feeders>
+         <feeder class="org.openpnp.machine.reference.feeder.ReferenceStripFeeder" id="F1" name="R100k-feeder" enabled="true" part-id="R100k">
+            <location units="Millimeters" x="10.0" y="-20.0" z="0.0" rotation="0.0"/>
+            <tape-type>WhitePaper</tape-type>
+         </feeder>
+         <feeder class="org.openpnp.machine.reference.feeder.ReferenceStripFeeder" id="F2" name="C100nF-feeder" enabled="true" part-id="C100nF">
+            <location units="Millimeters" x="20.0" y="-20.0" z="0.0" rotation="0.0"/>
+            <tape-type>WhitePaper</tape-type>
+         </feeder>
+         <feeder class="org.openpnp.machine.reference.feeder.ReferenceStripFeeder" id="F3" name="SMD_RES_100k-feeder" enabled="true" part-id="SMD_RES_100k">
+            <location units="Millimeters" x="30.0" y="-20.0" z="0.0" rotation="0.0"/>
+            <tape-type>WhitePaper</tape-type>
+         </feeder>
+      </feeders>
+      <nozzle-tips>
+         <nozzle-tip class="org.openpnp.machine.reference.ReferenceNozzleTip" id="NT1" name="NT1" allow-incompatible="true">
+            <changer-start-location units="Millimeters" x="0.0" y="0.0" z="0.0" rotation="0.0"/>
+            <changer-mid-location units="Millimeters" x="0.0" y="0.0" z="0.0" rotation="0.0"/>
+            <changer-end-location units="Millimeters" x="0.0" y="0.0" z="0.0" rotation="0.0"/>
+         </nozzle-tip>
+      </nozzle-tips>
+      <part-alignments>
+         <part-alignment class="org.openpnp.machine.reference.vision.ReferenceBottomVision" id="BV1" enabled="false" pre-rotate="false"/>
+      </part-alignments>
+      <drivers>
+         <driver class="org.openpnp.machine.reference.driver.NullDriver" id="DRV1" feed-rate-mm-per-minute="50000.0"/>
+      </drivers>
+   </machine>
+</openpnp-machine>
