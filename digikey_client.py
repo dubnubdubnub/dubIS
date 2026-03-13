@@ -66,9 +66,9 @@ class DigikeyClient:
         if self._pending_cookies:
             try:
                 self._inject_cookies_to_window(self._pending_cookies)
-                print(f"[DK] injected {len(self._pending_cookies)} pending cookies into dk window", flush=True)
+                logger.debug("Injected %d pending cookies into dk window", len(self._pending_cookies))
             except Exception as exc:
-                print(f"[DK] pending cookie injection failed: {exc}", flush=True)
+                logger.warning("Pending cookie injection failed: %s", exc)
             self._pending_cookies = None
 
     @staticmethod
@@ -122,7 +122,7 @@ class DigikeyClient:
             with open(self._cookies_file, "w", encoding="utf-8") as f:
                 json.dump(cookies, f)
         except Exception as exc:
-            print(f"[DK] failed to save cookies: {exc}", flush=True)
+            logger.warning("Failed to save cookies: %s", exc)
 
     def _load_cookies(self) -> list[dict] | None:
         """Load persisted Digikey cookies from disk."""
@@ -133,8 +133,10 @@ class DigikeyClient:
                 cookies = json.load(f)
             if cookies and self._check_cookies_logged_in(cookies):
                 return cookies
-        except (FileNotFoundError, json.JSONDecodeError):
-            pass
+        except FileNotFoundError:
+            logger.debug("No saved cookies file found")
+        except json.JSONDecodeError as exc:
+            logger.warning("Corrupt cookies file: %s", exc)
         return None
 
     def _poll_loop(self, port: int) -> None:
@@ -156,14 +158,14 @@ class DigikeyClient:
                     f"cdp(port={port}): {len(cdp_cookies)} digikey cookies "
                     f"(of {len(all_cdp)} total)"
                 )
-                print(f"[DK] poll #{attempt}: {len(cdp_cookies)} digikey cookies", flush=True)
+                logger.debug("Poll #%d: %d digikey cookies", attempt, len(cdp_cookies))
 
                 if cdp_cookies and self._check_cookies_logged_in(cdp_cookies):
                     # Logged in — store and persist cookies
                     self._set_logged_in(cdp_cookies)
                     cookie_names = [c["name"] for c in cdp_cookies[:20]]
                     self._sync_result["debug"] = debug_log + [f"names={cookie_names}"]
-                    print(f"[DK] poll #{attempt}: logged in!", flush=True)
+                    logger.debug("Poll #%d: logged in!", attempt)
                     return  # done
 
             except ConnectionRefusedError:
@@ -175,7 +177,7 @@ class DigikeyClient:
                     "cookies_injected": 0,
                     "debug": debug_log,
                 }
-                print(f"[DK] poll #{attempt}: connection refused", flush=True)
+                logger.debug("Poll #%d: connection refused", attempt)
                 return  # stop polling — browser was already running
 
             except Exception as exc:
@@ -187,7 +189,7 @@ class DigikeyClient:
                     "cookies_injected": 0,
                     "debug": debug_log,
                 }
-                print(f"[DK] poll #{attempt}: {type(exc).__name__}: {exc}", flush=True)
+                logger.debug("Poll #%d: %s: %s", attempt, type(exc).__name__, exc)
 
             # Wait 3s before next attempt, but check stop flag
             if self._poll_stop.wait(timeout=3):
@@ -522,8 +524,8 @@ class DigikeyClient:
         saved = self._load_cookies()
         if saved:
             self._set_logged_in(saved)
-            print(f"[DK] startup: loaded saved session ({len(saved)} cookies)", flush=True)
-            return {"logged_in": True}
+            logger.debug("Startup: loaded saved session (%d cookies)", len(saved))
+            return {"logged_in": True, "message": "Loaded saved session"}
 
         # 2. Try headless browser CDP
         import random
@@ -532,7 +534,8 @@ class DigikeyClient:
 
         exe = self._find_default_browser_exe()
         if not exe:
-            return {"logged_in": False}
+            logger.debug("Startup: no browser found for session check")
+            return {"logged_in": False, "message": "No browser found"}
 
         port = random.randint(19200, 19299)
         proc = subprocess.Popen(
@@ -546,13 +549,13 @@ class DigikeyClient:
             dk_cookies = [c for c in cookies if "digikey.com" in c.get("domain", "")]
             if dk_cookies and self._check_cookies_logged_in(dk_cookies):
                 self._set_logged_in(dk_cookies)
-                print(f"[DK] startup: found browser session ({len(dk_cookies)} cookies)", flush=True)
-                return {"logged_in": True}
-            print(f"[DK] startup: no existing session ({len(dk_cookies)} digikey cookies)", flush=True)
-            return {"logged_in": False}
+                logger.debug("Startup: found browser session (%d cookies)", len(dk_cookies))
+                return {"logged_in": True, "message": "Found browser session"}
+            logger.debug("Startup: no existing session (%d digikey cookies)", len(dk_cookies))
+            return {"logged_in": False, "message": "No existing session"}
         except Exception as exc:
-            print(f"[DK] startup: session check failed: {exc}", flush=True)
-            return {"logged_in": False}
+            logger.debug("Startup: session check failed: %s", exc)
+            return {"logged_in": False, "message": f"Session check failed: {exc}"}
         finally:
             try:
                 proc.terminate()
@@ -572,7 +575,7 @@ class DigikeyClient:
 
         url = "https://www.digikey.com/MyDigiKey/Login"
         exe = self._find_default_browser_exe()
-        print(f"[DK] login: browser exe={exe}", flush=True)
+        logger.debug("Login: browser exe=%s", exe)
         if not exe:
             import webbrowser
             webbrowser.open(url)
@@ -583,10 +586,10 @@ class DigikeyClient:
                 "logged_in": False,
                 "cookies_injected": 0,
             }
-            return {"status": "opened", "cdp": False}
+            return {"status": "opened", "cdp": False, "message": "Browser opened (no CDP)"}
 
         port = random.randint(19200, 19299)
-        print(f"[DK] login: launching with CDP port {port}", flush=True)
+        logger.debug("Login: launching with CDP port %d", port)
         subprocess.Popen(
             [exe, f"--remote-debugging-port={port}", url],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -604,8 +607,8 @@ class DigikeyClient:
         thread = threading.Thread(target=self._poll_loop, args=(port,), daemon=True)
         thread.start()
 
-        print("[DK] login: browser launched, poll thread started", flush=True)
-        return {"status": "opened", "cdp": True, "port": port}
+        logger.debug("Login: browser launched, poll thread started")
+        return {"status": "opened", "cdp": True, "port": port, "message": "Browser opened — waiting for login"}
 
     def sync_cookies(self) -> dict[str, Any]:
         """Return the latest cookie sync status from the background poll thread.
