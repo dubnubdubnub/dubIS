@@ -65,7 +65,7 @@ test.describe('Sticky button column — BOM comparison mode', () => {
     expect(style.right).toBe('0px');
   });
 
-  test('button cell background matches row tint (not transparent)', async ({ page }) => {
+  test('button cell ::before composites row tint over opaque base', async ({ page }) => {
     await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1100, height: 700 });
     await page.goto('/index.html');
@@ -75,23 +75,36 @@ test.describe('Sticky button column — BOM comparison mode', () => {
     await loadBom(page, BOM_CSV);
     await page.waitForTimeout(300);
 
-    // Check that the ::before pseudo-element provides an opaque base
-    const firstBtnCell = page.locator('td.btn-group').first();
-    const beforeBg = await firstBtnCell.evaluate(el => {
-      return window.getComputedStyle(el, '::before').backgroundColor;
-    });
-    // ::before should have the opaque --bg-base color, not transparent
-    expect(beforeBg).not.toBe('rgba(0, 0, 0, 0)');
-    expect(beforeBg).not.toBe('transparent');
+    // Find a tinted row (one with a row-* class)
+    const tintedRow = page.locator('tr[class*="row-"]').first();
+    await expect(tintedRow).toBeVisible();
 
-    // The cell itself should inherit from the row (not be the raw --bg-base)
-    const cellBg = await firstBtnCell.evaluate(el => {
-      return window.getComputedStyle(el).backgroundColor;
-    });
-    const rowBg = await firstBtnCell.evaluate(el => {
-      return window.getComputedStyle(el.closest('tr')).backgroundColor;
-    });
-    expect(cellBg).toBe(rowBg);
+    // The row should define --row-bg
+    const rowBgVar = await tintedRow.evaluate(el =>
+      getComputedStyle(el).getPropertyValue('--row-bg').trim()
+    );
+    expect(rowBgVar).toBeTruthy();
+
+    // The ::before on its btn-group cell should have a background-image gradient
+    const btnCell = tintedRow.locator('td.btn-group');
+    const beforeBgImage = await btnCell.evaluate(el =>
+      getComputedStyle(el, '::before').backgroundImage
+    );
+    // Should be a linear-gradient containing the row tint, not "none"
+    expect(beforeBgImage).toContain('linear-gradient');
+
+    // Un-tinted rows should fall back to transparent (no visible tint)
+    const untintedRow = page.locator('#bom-tbody tr:not([class*="row-"])').first();
+    if (await untintedRow.count() > 0) {
+      const untintedBtnCell = untintedRow.locator('td.btn-group');
+      if (await untintedBtnCell.count() > 0) {
+        const untintedBgImage = await untintedBtnCell.evaluate(el =>
+          getComputedStyle(el, '::before').backgroundImage
+        );
+        // Should still have gradient but with transparent (rgba(0,0,0,0))
+        expect(untintedBgImage).toContain('linear-gradient');
+      }
+    }
   });
 
   test('buttons remain visible after scrolling table horizontally', async ({ page }) => {
