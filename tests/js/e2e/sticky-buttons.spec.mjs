@@ -221,7 +221,8 @@ test.describe('Sticky button column — BOM + PO mode', () => {
     await loadBom(page, BOM_CSV);
     await page.waitForTimeout(300);
 
-    const tintedRow = page.locator('tr[class*="row-"]').first();
+    // Scope to inventory panel BOM table — import staging rows also have row-* classes
+    const tintedRow = page.locator('#inventory-body tr[class*="row-"]').first();
     await expect(tintedRow).toBeVisible();
 
     const rowBgVar = await tintedRow.evaluate(el =>
