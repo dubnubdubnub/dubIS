@@ -173,13 +173,17 @@ def run_test():
             env=env,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             cwd=openpnp_user_config,
+            start_new_session=True,
         )
 
         # Wait for OpenPnP to finish (it exits via Startup.py after job completes)
         try:
             openpnp_proc.wait(timeout=TIMEOUT_SECONDS)
         except subprocess.TimeoutExpired:
-            openpnp_proc.kill()
+            # Kill entire process group so orphaned Java processes don't linger
+            import signal
+            os.killpg(openpnp_proc.pid, signal.SIGKILL)
+            openpnp_proc.wait()
             failures.append("OpenPnP timed out")
 
         openpnp_output = openpnp_proc.stdout.read().decode(errors="replace")
