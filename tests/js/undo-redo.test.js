@@ -1,19 +1,19 @@
 import { describe, it, expect, vi } from 'vitest';
 
 // Mock DOM-dependent modules before importing the modules under test
-vi.mock('../js/ui-helpers.js', () => ({
+vi.mock('../../js/ui-helpers.js', () => ({
   showToast: vi.fn(),
   escHtml: vi.fn(s => s || ''),
   Modal: vi.fn(),
 }));
 
-vi.mock('../js/constants.js', () => ({
+vi.mock('../../js/constants.js', () => ({
   SECTION_ORDER: [],
   FIELDNAMES: [],
 }));
 
-import { UndoRedo } from '../js/undo-redo.js';
-import { App, snapshotLinks } from '../js/store.js';
+import { UndoRedo } from '../../js/undo-redo.js';
+import { App, snapshotLinks } from '../../js/store.js';
 
 describe('UndoRedo.popLast', () => {
   it('returns the most recent entry and removes it', () => {

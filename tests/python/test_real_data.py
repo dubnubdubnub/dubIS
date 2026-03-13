@@ -12,7 +12,7 @@ import pytest
 
 from inventory_api import InventoryApi
 
-FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
+FIXTURES = os.path.join(os.path.dirname(__file__), "..", "fixtures")
 
 
 @pytest.fixture

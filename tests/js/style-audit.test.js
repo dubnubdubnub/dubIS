@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, '..');
+const ROOT = join(__dirname, '..', '..');
 
 const css = readFileSync(join(ROOT, 'css/styles.css'), 'utf-8');
 const invPanelJs = readFileSync(join(ROOT, 'js/inventory-panel.js'), 'utf-8');
