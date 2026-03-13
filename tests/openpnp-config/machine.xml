@@ -60,15 +60,15 @@
          </camera>
       </cameras>
       <feeders>
-         <feeder class="org.openpnp.machine.reference.feeder.ReferenceStripFeeder" id="F1" name="R100k-feeder" enabled="true" part-id="R100k">
+         <feeder class="org.openpnp.machine.reference.feeder.ReferenceStripFeeder" id="F1" name="R100k-feeder" enabled="true" feed-count="0" part-id="R100k">
             <location units="Millimeters" x="10.0" y="-20.0" z="0.0" rotation="0.0"/>
             <tape-type>WhitePaper</tape-type>
          </feeder>
-         <feeder class="org.openpnp.machine.reference.feeder.ReferenceStripFeeder" id="F2" name="C100nF-feeder" enabled="true" part-id="C100nF">
+         <feeder class="org.openpnp.machine.reference.feeder.ReferenceStripFeeder" id="F2" name="C100nF-feeder" enabled="true" feed-count="0" part-id="C100nF">
             <location units="Millimeters" x="20.0" y="-20.0" z="0.0" rotation="0.0"/>
             <tape-type>WhitePaper</tape-type>
          </feeder>
-         <feeder class="org.openpnp.machine.reference.feeder.ReferenceStripFeeder" id="F3" name="SMD_RES_100k-feeder" enabled="true" part-id="SMD_RES_100k">
+         <feeder class="org.openpnp.machine.reference.feeder.ReferenceStripFeeder" id="F3" name="SMD_RES_100k-feeder" enabled="true" feed-count="0" part-id="SMD_RES_100k">
             <location units="Millimeters" x="30.0" y="-20.0" z="0.0" rotation="0.0"/>
             <tape-type>WhitePaper</tape-type>
          </feeder>
