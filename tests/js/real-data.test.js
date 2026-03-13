@@ -3,9 +3,9 @@
  * Exercises the full pipeline: parseCSV → detectBOMColumns → aggregateBomRows → matchBOM.
  */
 import { describe, it, expect } from 'vitest';
-import { matchBOM } from '../js/matching.js';
-import { processBOM } from '../js/csv-parser.js';
-import { bomKey } from '../js/part-keys.js';
+import { matchBOM } from '../../js/matching.js';
+import { processBOM } from '../../js/csv-parser.js';
+import { bomKey } from '../../js/part-keys.js';
 import { readFixture, readFixtureBytes, readFixtureJSON, loadInventory } from './helpers/load-fixtures.js';
 
 // ── Load real data once ──

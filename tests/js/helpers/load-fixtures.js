@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const FIXTURES = join(__dirname, '..', 'fixtures');
+const FIXTURES = join(__dirname, '..', '..', 'fixtures');
 
 function readFixture(name) {
   return readFileSync(join(FIXTURES, name), 'utf-8');

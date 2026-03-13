@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bomRowDisplayData } from '../js/bom-row-data.js';
+import { bomRowDisplayData } from '../../js/bom-row-data.js';
 
 // ── Test helpers ──
 
