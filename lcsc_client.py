@@ -95,6 +95,7 @@ class LcscClient:
             "subcategory": subcat_name,
             "attributes": attributes,
             "provider": "lcsc",
+            "_debug": result_data,
         }
 
         self._cache[product_code] = product

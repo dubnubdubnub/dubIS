@@ -63,7 +63,7 @@ class InventoryApi:
     FLAT_SECTION_ORDER = _FLAT_SECTION_ORDER
     SECTION_HIERARCHY = _SECTION_HIERARCHY
 
-    def __init__(self) -> None:
+    def __init__(self, *, debug: bool = False) -> None:
         self.base_dir: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
         self.input_csv: str = os.path.join(self.base_dir, "purchase_ledger.csv")
         self.output_csv: str = os.path.join(self.base_dir, "inventory.csv")
@@ -72,6 +72,7 @@ class InventoryApi:
         self._force_close: bool = False
         self._closing: bool = False
         self._bom_dirty: bool = False
+        self._debug: bool = debug
         self._lcsc = LcscClient()
         self._digikey = DigikeyClient(
             cookies_file=os.path.join(self.base_dir, "digikey_cookies.json"),
@@ -301,11 +302,17 @@ class InventoryApi:
 
     def fetch_lcsc_product(self, product_code: str) -> dict[str, Any] | None:
         """Delegate to LcscClient."""
-        return self._lcsc.fetch_product(product_code)
+        result = self._lcsc.fetch_product(product_code)
+        if result and not self._debug:
+            result.pop("_debug", None)
+        return result
 
     def fetch_digikey_product(self, part_number: str) -> dict[str, Any] | None:
         """Delegate to DigikeyClient."""
-        return self._digikey.fetch_product(part_number)
+        result = self._digikey.fetch_product(part_number)
+        if result and not self._debug:
+            result.pop("_debug", None)
+        return result
 
     def check_digikey_session(self) -> dict[str, Any]:
         """Delegate to DigikeyClient."""
