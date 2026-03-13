@@ -651,35 +651,49 @@ test.describe('Panel body scrollability', () => {
 
 test.describe('Inventory row elements at narrow widths', () => {
 
-  test('adjust button always visible in inventory rows', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
-    await page.setViewportSize({ width: 1024, height: 700 });
-    await page.goto('/index.html');
-    await waitForInventoryRows(page);
+  /**
+   * Check that Adjust buttons are not clipped by the panel body's overflow.
+   * The panel body has overflow-x: hidden, so buttons that extend past it
+   * are invisible even though they exist in the DOM.
+   */
+  function checkAdjustButtonsNotClipped(viewportWidth) {
+    return async ({ page }) => {
+      await addMockSetup(page, MOCK_INVENTORY);
+      await page.setViewportSize({ width: viewportWidth, height: 700 });
+      await page.goto('/index.html');
+      await waitForInventoryRows(page);
 
-    const result = await page.evaluate(() => {
-      const rows = document.querySelectorAll('.inv-part-row');
-      const issues = [];
-      const checked = Math.min(rows.length, 10);
-      for (let i = 0; i < checked; i++) {
-        const btn = rows[i].querySelector('.adj-btn');
-        if (!btn) { issues.push(`row ${i}: no adj-btn`); continue; }
-        if (btn.offsetWidth === 0 || btn.offsetHeight === 0) {
-          issues.push(`row ${i}: adj-btn has zero dimensions`);
+      const result = await page.evaluate(() => {
+        const panelBody = document.getElementById('inventory-body');
+        if (!panelBody) return { checked: 0, issues: ['panel body not found'] };
+        const bodyRect = panelBody.getBoundingClientRect();
+        const rows = panelBody.querySelectorAll('.inv-part-row');
+        const issues = [];
+        const checked = Math.min(rows.length, 10);
+        for (let i = 0; i < checked; i++) {
+          const btn = rows[i].querySelector('.adj-btn');
+          if (!btn) { issues.push(`row ${i}: no adj-btn`); continue; }
+          if (btn.offsetWidth === 0 || btn.offsetHeight === 0) {
+            issues.push(`row ${i}: adj-btn has zero dimensions`);
+            continue;
+          }
+          const btnRect = btn.getBoundingClientRect();
+          // Button must be within the panel body's visible bounds
+          if (btnRect.right > bodyRect.right + 1) {
+            issues.push(`row ${i}: adj-btn clipped by panel (btn.right=${Math.round(btnRect.right)}, panel.right=${Math.round(bodyRect.right)})`);
+          }
         }
-        const rowRect = rows[i].getBoundingClientRect();
-        const btnRect = btn.getBoundingClientRect();
-        if (btnRect.right > rowRect.right + 1) {
-          issues.push(`row ${i}: adj-btn overflows row by ${Math.round(btnRect.right - rowRect.right)}px`);
-        }
-      }
-      return { checked, issues };
-    });
+        return { checked, panelWidth: Math.round(bodyRect.width), issues };
+      });
 
-    console.log(`Checked ${result.checked} rows, issues: ${result.issues.length}`);
-    result.issues.forEach(i => console.log('  ' + i));
-    expect(result.issues.length, result.issues.join('; ')).toBe(0);
-  });
+      console.log(`Viewport ${viewportWidth}px — panel width: ${result.panelWidth}px, checked ${result.checked} rows, issues: ${result.issues.length}`);
+      result.issues.forEach(i => console.log('  ' + i));
+      expect(result.issues.length, result.issues.join('; ')).toBe(0);
+    };
+  }
+
+  test('adjust buttons not clipped at 1024px viewport', checkAdjustButtonsNotClipped(1024));
+  test('adjust buttons not clipped at 900px viewport', checkAdjustButtonsNotClipped(900));
 
   test('part-id, mpn, qty visible in narrow inventory rows', async ({ page }) => {
     await addMockSetup(page, MOCK_INVENTORY);
