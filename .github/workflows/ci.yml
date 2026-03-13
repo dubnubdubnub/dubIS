@@ -39,5 +39,5 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements-dev.txt
-      - run: ruff check inventory_api.py app.py digikey_client.py lcsc_client.py
-      - run: pytest tests/ -v
+      - run: ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py
+      - run: pytest tests/python/ -v

@@ -11,8 +11,8 @@ import {
   findValueMatch,
   findAlternatives,
   matchBOM,
-} from '../js/matching.js';
-import { bomKey } from '../js/part-keys.js';
+} from '../../js/matching.js';
+import { bomKey } from '../../js/part-keys.js';
 
 // ── getMult ──
 

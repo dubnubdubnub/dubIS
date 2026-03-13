@@ -8,7 +8,7 @@ import {
   generateCSV,
   aggregateBomRows,
   processBOM,
-} from '../js/csv-parser.js';
+} from '../../js/csv-parser.js';
 
 describe('parseCSV', () => {
   it('parses simple comma-delimited CSV', () => {
