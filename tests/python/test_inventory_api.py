@@ -46,7 +46,7 @@ class TestSharedConstants:
     def test_section_order_loaded_from_json(self):
         """SECTION_ORDER should match data/constants.json (mixed format)."""
         constants_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             "data", "constants.json",
         )
         with open(constants_path, encoding="utf-8") as f:
@@ -81,7 +81,7 @@ class TestSharedConstants:
     def test_fieldnames_loaded_from_json(self):
         """FIELDNAMES should match data/constants.json."""
         constants_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             "data", "constants.json",
         )
         with open(constants_path, encoding="utf-8") as f:
