@@ -30,14 +30,9 @@
          <head class="org.openpnp.machine.reference.ReferenceHead" id="H1" name="H1">
             <nozzles>
                <nozzle class="org.openpnp.machine.reference.ReferenceNozzle" id="N1" name="N1"
+                  axis-X-id="AX1" axis-Y-id="AX2" axis-Z-id="AX3" axis-rotation-id="AX4"
                   pick-dwell-milliseconds="0" place-dwell-milliseconds="0"
                   current-nozzle-tip-id="NT1" changer-enabled="false">
-                  <nozzle-axes>
-                     <axis id="AX1"/>
-                     <axis id="AX2"/>
-                     <axis id="AX3"/>
-                     <axis id="AX4"/>
-                  </nozzle-axes>
                   <head-offsets units="Millimeters" x="0.0" y="0.0" z="0.0" rotation="0.0"/>
                   <compatible-nozzle-tip-ids class="java.util.ArrayList">
                      <string>NT1</string>
@@ -46,16 +41,12 @@
             </nozzles>
             <cameras>
                <camera class="org.openpnp.machine.reference.camera.ImageCamera" id="C1" name="Top"
+                  axis-X-id="AX1" axis-Y-id="AX2" axis-Z-id="AX3"
                   looking="Down" width="640" height="480" fps="0"
                   settle-method="FixedTime" settle-time-ms="0">
                   <units-per-pixel units="Millimeters" x="0.04233" y="0.04233" z="0.0" rotation="0.0"/>
                   <head-offsets units="Millimeters" x="0.0" y="0.0" z="0.0" rotation="0.0"/>
                   <source-uri>classpath://samples/pnp-test/pnp-test.png</source-uri>
-                  <camera-axes>
-                     <axis id="AX1"/>
-                     <axis id="AX2"/>
-                     <axis id="AX3"/>
-                  </camera-axes>
                </camera>
             </cameras>
          </head>
