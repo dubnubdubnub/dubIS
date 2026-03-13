@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { matchBOM } from '../js/matching.js';
-import { bomKey } from '../js/part-keys.js';
+import { matchBOM } from '../../js/matching.js';
+import { bomKey } from '../../js/part-keys.js';
 
 // ── Synthetic data generators ──
 

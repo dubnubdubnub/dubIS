@@ -7,3 +7,12 @@ data/*.json
 !data/constants.json
 node_modules/
 .claude/
+.pytest_cache/
+.ruff_cache/
+*.xlsx
+data/*.png
+!data/dubIS.png
+!data/digikey-icon.png
+data/*.ico
+!data/dubIS.ico
+!data/lcsc-icon.ico
