@@ -1,0 +1,23 @@
+<openpnp-board name="test-board.board.xml" version="1.1">
+   <dimensions units="Millimeters" x="50.0" y="30.0" z="0.0" rotation="0.0"/>
+   <placements>
+      <placement version="1.1" id="R1" side="Top" part-id="R100k" type="Place">
+         <location units="Millimeters" x="10.0" y="10.0" z="0.0" rotation="0.0"/>
+      </placement>
+      <placement version="1.1" id="R2" side="Top" part-id="R100k" type="Place">
+         <location units="Millimeters" x="15.0" y="10.0" z="0.0" rotation="0.0"/>
+      </placement>
+      <placement version="1.1" id="R3" side="Top" part-id="R100k" type="Place">
+         <location units="Millimeters" x="20.0" y="10.0" z="0.0" rotation="0.0"/>
+      </placement>
+      <placement version="1.1" id="C1" side="Top" part-id="C100nF" type="Place">
+         <location units="Millimeters" x="10.0" y="20.0" z="0.0" rotation="0.0"/>
+      </placement>
+      <placement version="1.1" id="C2" side="Top" part-id="C100nF" type="Place">
+         <location units="Millimeters" x="15.0" y="20.0" z="0.0" rotation="0.0"/>
+      </placement>
+      <placement version="1.1" id="R4" side="Top" part-id="SMD_RES_100k" type="Place">
+         <location units="Millimeters" x="25.0" y="10.0" z="0.0" rotation="0.0"/>
+      </placement>
+   </placements>
+</openpnp-board>

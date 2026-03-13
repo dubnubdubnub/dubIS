@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +80,12 @@ class PnPHandler(BaseHTTPRequestHandler):
             self._send_json(400, {"ok": False, "error": f"Bad JSON: {exc}"})
             return
 
-        part_id = body.get("part_id", "").strip()
-        qty = int(body.get("qty", 1))
+        try:
+            part_id = body.get("part_id", "").strip()
+            qty = int(body.get("qty", 1))
+        except (ValueError, TypeError, AttributeError) as exc:
+            self._send_json(400, {"ok": False, "error": f"Bad request: {exc}"})
+            return
         if not part_id:
             self._send_json(400, {"ok": False, "error": "part_id is required"})
             return
@@ -105,7 +109,7 @@ class PnPHandler(BaseHTTPRequestHandler):
 
         # Perform the adjustment
         try:
-            fresh = api.adjust_part("remove", part_key, qty, f"OpenPnP placement")
+            fresh = api.adjust_part("remove", part_key, qty, "OpenPnP placement")
         except Exception as exc:
             logger.error("PnP consume adjust_part failed: %s", exc)
             self._send_json(500, {"ok": False, "error": str(exc)})

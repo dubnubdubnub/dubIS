@@ -1,0 +1,5 @@
+<openpnp-parts>
+   <part id="R100k" height-units="Millimeters" height="0.5" package-id="R0402" speed="1.0" pick-retry-count="0"/>
+   <part id="C100nF" height-units="Millimeters" height="0.5" package-id="R0402" speed="1.0" pick-retry-count="0"/>
+   <part id="SMD_RES_100k" height-units="Millimeters" height="0.5" package-id="R0402" speed="1.0" pick-retry-count="0"/>
+</openpnp-parts>
