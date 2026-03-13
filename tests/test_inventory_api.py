@@ -430,8 +430,8 @@ class TestImportPurchases:
         assert "C200000" in lcscs
 
     def test_empty_rows_error(self, api):
-        result = api.import_purchases([])
-        assert result == {"error": "No rows to import"}
+        with pytest.raises(ValueError, match="No rows to import"):
+            api.import_purchases([])
 
     def test_json_string_input(self, api):
         rows_json = json.dumps([_make_part(lcsc="C100000", qty=5)])
@@ -459,8 +459,8 @@ class TestAdjustPart:
         assert part["qty"] == 42
 
     def test_unknown_type_error(self, api):
-        result = api.adjust_part("delete", "C100000", 1)
-        assert "error" in result
+        with pytest.raises(ValueError, match="Unknown adjustment type"):
+            api.adjust_part("delete", "C100000", 1)
 
     def test_negative_quantity_raises(self, api):
         with pytest.raises(ValueError, match="non-negative"):
@@ -493,8 +493,8 @@ class TestUpdatePartPrice:
         assert isinstance(result, list)
 
     def test_no_ledger_error(self, api):
-        result = api.update_part_price("C100000", unit_price=0.01)
-        assert result == {"error": "No purchase ledger found"}
+        with pytest.raises(ValueError, match="No purchase ledger found"):
+            api.update_part_price("C100000", unit_price=0.01)
 
 
 class TestDetectColumns:

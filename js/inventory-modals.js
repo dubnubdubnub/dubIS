@@ -45,7 +45,7 @@ export function openAdjustModal(item) {
 }
 
 document.getElementById("adj-apply").addEventListener("click", async () => {
-  if (!currentPart) return;
+  if (!currentPart) { AppLog.warn("No part selected for adjustment"); return; }
   const pk = invPartKey(currentPart);
   const type = adjType.value;
   const qty = parseInt(adjQty.value, 10) || 0;
@@ -139,7 +139,7 @@ export function openPriceModal(item) {
 }
 
 document.getElementById("price-apply").addEventListener("click", async () => {
-  if (!pricePart) return;
+  if (!pricePart) { AppLog.warn("No part selected for price update"); return; }
   const pk = invPartKey(pricePart);
   const rawUp = parseFloat(priceUnitInput.value);
   const up = isNaN(rawUp) ? null : rawUp;

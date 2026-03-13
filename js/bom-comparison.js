@@ -260,7 +260,7 @@ export function renderBomComparison(body, searchInput) {
 function confirmMatch(bomRow) {
   const bk = bomKey(bomRow.bom);
   const ipk = invPartKey(bomRow.inv);
-  if (!bk || !ipk) return;
+  if (!bk || !ipk) { AppLog.warn("Cannot confirm: missing part key"); return; }
   UndoRedo.save("links", snapshotLinks());
   App.links.confirmMatch(bk, ipk);
   AppLog.info("Confirmed: " + bk + " → " + ipk);
@@ -269,7 +269,7 @@ function confirmMatch(bomRow) {
 
 function unconfirmMatch(bomRow) {
   const bk = bomKey(bomRow.bom);
-  if (!bk) return;
+  if (!bk) { AppLog.warn("Cannot unconfirm: missing BOM key"); return; }
   UndoRedo.save("links", snapshotLinks());
   App.links.unconfirmMatch(bk);
   AppLog.info("Unconfirmed: " + bk);
@@ -279,7 +279,7 @@ function unconfirmMatch(bomRow) {
 function confirmAltMatch(bomRow, altInvItem) {
   const bk = bomKey(bomRow.bom);
   const ipk = invPartKey(altInvItem);
-  if (!bk || !ipk) return;
+  if (!bk || !ipk) { AppLog.warn("Cannot confirm alt: missing part key"); return; }
   UndoRedo.save("links", snapshotLinks());
   App.links.confirmMatch(bk, ipk);
   AppLog.info("Confirmed alt: " + bk + " → " + ipk);

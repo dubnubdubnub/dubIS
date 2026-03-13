@@ -705,6 +705,8 @@ EventBus.on(Events.INVENTORY_LOADED, async () => {
   if (result && result.content) {
     loadBomText(result.content, result.name, result.links || null);
     AppLog.info("Auto-loaded last BOM: " + result.name);
+  } else if (lastFile) {
+    AppLog.warn("Could not auto-load last BOM: " + lastFile);
   }
 });
 

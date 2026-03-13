@@ -144,6 +144,7 @@ async function initApp() {
     loadInventory();
     api("check_digikey_session").then(function (r) {
       if (r && r.logged_in) AppLog.info("Digikey: existing session found");
+      else if (r && r.message) AppLog.info("DK: " + r.message);
     });
   } else {
     window.addEventListener("pywebviewready", async () => {
@@ -151,6 +152,7 @@ async function initApp() {
       loadInventory();
       api("check_digikey_session").then(function (r) {
         if (r && r.logged_in) AppLog.info("Digikey: existing session found");
+        else if (r && r.message) AppLog.info("DK: " + r.message);
       });
     });
   }
