@@ -45,6 +45,7 @@ jobs:
   pnp-e2e:
     name: PnP End-to-End Test
     runs-on: [self-hosted, pnp-testbox]
+    timeout-minutes: 5
     env:
       OPENPNP_BIN: /usr/local/bin/openpnp.sh
     steps:
