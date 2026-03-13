@@ -198,8 +198,8 @@ function createPartRow(item, sectionKey) {
     '<span class="part-value">' + valueStr + '</span>' +
     '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data — click to set">⚠</button>' : '') + item.qty + '</span>' +
     (hideDescs ? '' : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
-    '<button class="adj-btn" title="Adjust qty">Adjust</button>' +
-    linkBtnStr;
+    '<span class="part-actions"><button class="adj-btn" title="Adjust qty">Adjust</button>' +
+    linkBtnStr + '</span>';
 
   if (isSource) row.classList.add("linking-source");
 
