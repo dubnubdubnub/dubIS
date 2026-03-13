@@ -101,6 +101,7 @@ export function openPreferencesModal() {
       dkStatus.style.color = "var(--text-muted)";
       dkLoginBtn.classList.remove("hidden");
       dkLogoutBtn.classList.add("hidden");
+      if (result && result.message) AppLog.info("DK: " + result.message);
     }
   });
 

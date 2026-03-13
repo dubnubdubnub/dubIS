@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """dubIS — desktop app entry point."""
 
+import logging
 import os
 import sys
+
+logger = logging.getLogger(__name__)
 
 # Ensure the app directory is on the path
 if getattr(sys, 'frozen', False):
@@ -56,8 +59,9 @@ def main():
         # Unsaved changes — show the confirmation modal
         try:
             window.evaluate_js("closeModal.open()")
-        except Exception:
-            os._exit(0)  # Can't show modal — allow close as fallback
+        except Exception as exc:
+            logger.warning("Could not show close modal: %s", exc)
+            os._exit(0)
         return False
 
     window.events.closing += on_closing

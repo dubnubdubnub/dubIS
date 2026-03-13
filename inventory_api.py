@@ -89,6 +89,14 @@ class InventoryApi:
             return default
 
     @staticmethod
+    def _parse_price(value: Any, default: float = 0.0) -> float:
+        """Parse a price string to float, tolerating commas and dollar signs."""
+        try:
+            return float(str(value).replace(",", "").replace("$", "") or "0")
+        except (ValueError, TypeError):
+            return default
+
+    @staticmethod
     def _ensure_parsed(value: str | Any) -> Any:
         """Parse JSON string if needed, otherwise return as-is."""
         return json.loads(value) if isinstance(value, str) else value
@@ -155,14 +163,14 @@ class InventoryApi:
             if not pn:
                 continue
             qty = self._parse_qty(r.get("Quantity"))
-            ext = float(r["Ext.Price($)"]) if r.get("Ext.Price($)") else 0.0
+            ext = self._parse_price(r.get("Ext.Price($)"))
             if pn in merged:
                 prev_qty = self._parse_qty(merged[pn]["Quantity"])
                 merged[pn]["Quantity"] = str(prev_qty + qty)
-                new_ext = float(merged[pn]["Ext.Price($)"] or "0") + ext
+                new_ext = self._parse_price(merged[pn]["Ext.Price($)"]) + ext
                 merged[pn]["Ext.Price($)"] = f"{new_ext:.2f}"
-                old_up = float(merged[pn]["Unit Price($)"] or "0")
-                new_up = float(r["Unit Price($)"]) if r.get("Unit Price($)") else 0.0
+                old_up = self._parse_price(merged[pn]["Unit Price($)"])
+                new_up = self._parse_price(r.get("Unit Price($)"))
                 if new_up > 0 and new_up < old_up:
                     merged[pn]["Unit Price($)"] = r["Unit Price($)"]
             else:
@@ -277,8 +285,8 @@ class InventoryApi:
                     "package": (row.get("Package") or "").strip(),
                     "description": (row.get("Description") or "").strip(),
                     "qty": self._parse_qty(row.get("Quantity")),
-                    "unit_price": float((row.get("Unit Price($)") or "0").replace(",", "") or "0"),
-                    "ext_price": float((row.get("Ext.Price($)") or "0").replace(",", "") or "0"),
+                    "unit_price": self._parse_price(row.get("Unit Price($)")),
+                    "ext_price": self._parse_price(row.get("Ext.Price($)")),
                 })
         return rows
 
@@ -341,7 +349,7 @@ class InventoryApi:
         return self._rebuild()
 
     def adjust_part(self, adj_type: str, part_key: str, quantity: int | str,
-                    note: str = "") -> list[dict[str, Any]] | dict[str, str]:
+                    note: str = "") -> list[dict[str, Any]]:
         """Set/add/remove adjustment. Returns fresh inventory."""
         if not part_key or not str(part_key).strip():
             raise ValueError("part_key must not be empty")
@@ -355,7 +363,7 @@ class InventoryApi:
         elif adj_type == "set":
             record_qty = quantity
         else:
-            return {"error": f"Unknown adjustment type: {adj_type}"}
+            raise ValueError(f"Unknown adjustment type: {adj_type}")
         self._append_adjustment(adj_type, part_key, record_qty, note=note)
         return self._rebuild()
 
@@ -423,11 +431,11 @@ class InventoryApi:
         """Remove the last `count` rows from adjustments.csv and rebuild inventory."""
         return self._truncate_csv(self.adjustments_csv, int(count), "adjustments")
 
-    def import_purchases(self, rows_json: str | list[dict[str, str]]) -> list[dict[str, Any]] | dict[str, str]:
+    def import_purchases(self, rows_json: str | list[dict[str, str]]) -> list[dict[str, Any]]:
         """Append purchase rows to purchase_ledger.csv. Returns fresh inventory."""
         rows = self._ensure_parsed(rows_json)
         if not rows:
-            return {"error": "No rows to import"}
+            raise ValueError("No rows to import")
 
         # Read existing fieldnames or use defaults
         if os.path.exists(self.input_csv):
@@ -450,7 +458,7 @@ class InventoryApi:
         return self._rebuild()
 
     def update_part_price(self, part_key: str, unit_price: float | None = None,
-                          ext_price: float | None = None) -> list[dict[str, Any]] | dict[str, str]:
+                          ext_price: float | None = None) -> list[dict[str, Any]]:
         """Update unit price and ext price for a part in purchase_ledger.csv.
         Auto-calculates the missing price field if only one is provided.
         Returns fresh inventory after rebuild.
@@ -461,7 +469,7 @@ class InventoryApi:
             ext_price = float(ext_price)
 
         if not os.path.exists(self.input_csv):
-            return {"error": "No purchase ledger found"}
+            raise ValueError("No purchase ledger found")
 
         with open(self.input_csv, newline="", encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
