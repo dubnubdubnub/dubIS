@@ -6,6 +6,7 @@ import csv
 import json
 import logging
 import os
+import threading
 from datetime import datetime
 from typing import Any
 
@@ -73,6 +74,7 @@ class InventoryApi:
         self._closing: bool = False
         self._bom_dirty: bool = False
         self._debug: bool = debug
+        self._lock: threading.Lock = threading.Lock()
         self._lcsc = LcscClient()
         self._digikey = DigikeyClient(
             cookies_file=os.path.join(self.base_dir, "digikey_cookies.json"),
@@ -364,8 +366,9 @@ class InventoryApi:
             record_qty = quantity
         else:
             raise ValueError(f"Unknown adjustment type: {adj_type}")
-        self._append_adjustment(adj_type, part_key, record_qty, note=note)
-        return self._rebuild()
+        with self._lock:
+            self._append_adjustment(adj_type, part_key, record_qty, note=note)
+            return self._rebuild()
 
     def consume_bom(self, matches_json: str | list[dict[str, Any]],
                     board_qty: int | str, bom_name: str,
@@ -393,8 +396,9 @@ class InventoryApi:
                 "board_qty": board_qty,
                 "note": note or f"consumed {board_qty}x {bom_name}",
             })
-        self._append_csv_rows(self.adjustments_csv, self.ADJ_FIELDNAMES, adj_rows)
-        return self._rebuild()
+        with self._lock:
+            self._append_csv_rows(self.adjustments_csv, self.ADJ_FIELDNAMES, adj_rows)
+            return self._rebuild()
 
     def _truncate_csv(self, csv_path: str, count: int, label: str) -> list[dict[str, Any]]:
         """Remove the last *count* rows from a CSV and rebuild inventory."""
@@ -416,12 +420,13 @@ class InventoryApi:
 
         rows = rows[:-count]
 
-        with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(rows)
+        with self._lock:
+            with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
 
-        return self._rebuild()
+            return self._rebuild()
 
     def remove_last_purchases(self, count: int | str) -> list[dict[str, Any]]:
         """Remove the last `count` rows from purchase_ledger.csv and rebuild inventory."""
@@ -446,16 +451,17 @@ class InventoryApi:
             fieldnames = list(self.FIELDNAMES)
 
         # Append new rows
-        write_header = not os.path.exists(self.input_csv) or os.path.getsize(self.input_csv) == 0
-        with open(self.input_csv, "a", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            if write_header:
-                writer.writeheader()
-            for row in rows:
-                inv_row = {fn: row.get(fn, "") for fn in fieldnames}
-                writer.writerow(inv_row)
+        with self._lock:
+            write_header = not os.path.exists(self.input_csv) or os.path.getsize(self.input_csv) == 0
+            with open(self.input_csv, "a", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                if write_header:
+                    writer.writeheader()
+                for row in rows:
+                    inv_row = {fn: row.get(fn, "") for fn in fieldnames}
+                    writer.writerow(inv_row)
 
-        return self._rebuild()
+            return self._rebuild()
 
     def update_part_price(self, part_key: str, unit_price: float | None = None,
                           ext_price: float | None = None) -> list[dict[str, Any]]:
@@ -505,12 +511,13 @@ class InventoryApi:
                 new_row["Ext.Price($)"] = f"{ext_price:.2f}"
             rows.append(new_row)
 
-        with open(self.input_csv, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(rows)
+        with self._lock:
+            with open(self.input_csv, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
 
-        return self._rebuild()
+            return self._rebuild()
 
     def detect_columns(self, headers_json: str | list[str]) -> dict[str, str]:
         """Auto-detect column mapping for purchase CSV import.
