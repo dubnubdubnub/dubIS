@@ -43,6 +43,13 @@ document.getElementById("close-save").addEventListener("click", () => {
 // Expose to Python's evaluate_js("closeModal.open()")
 window.closeModal = closeModal;
 
+// ── PnP consumption handler (called by pnp_server.py via evaluate_js) ──
+window._pnpConsume = function (freshInventory, detail) {
+  onInventoryUpdated(freshInventory);
+  AppLog.info("PnP: consumed " + detail.qty + "x " + detail.part_key + " (new_qty=" + detail.new_qty + ")");
+  showToast("PnP: -" + detail.qty + " " + detail.part_key);
+};
+
 // ── Cross-panel designator hover highlighting ──────────
 var highlightedRef = null;
 document.addEventListener("mouseover", function (e) {

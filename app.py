@@ -24,6 +24,7 @@ if sys.platform == "win32":
 
 import webview
 from inventory_api import InventoryApi
+from pnp_server import start_pnp_server
 
 
 def set_icon():
@@ -66,7 +67,11 @@ def main():
 
     window.events.closing += on_closing
     window.events.closed += lambda: os._exit(0)
-    start_kwargs = {"func": set_icon, "debug": debug}
+    def on_ready():
+        set_icon()
+        start_pnp_server(api, window)
+
+    start_kwargs = {"func": on_ready, "debug": debug}
     if sys.platform != "win32" and os.path.isfile(PNG_ICON_PATH):
         start_kwargs["icon"] = PNG_ICON_PATH
     webview.start(**start_kwargs)

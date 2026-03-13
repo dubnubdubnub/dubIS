@@ -39,5 +39,17 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements-dev.txt
-      - run: ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py
+      - run: ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py pnp_server.py
       - run: pytest tests/python/ -v
+
+  pnp-e2e:
+    name: PnP End-to-End Test
+    runs-on: [self-hosted, pnp-testbox]
+    env:
+      OPENPNP_BIN: /usr/local/bin/openpnp.sh
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python dependencies
+        run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
+      - name: Run PnP E2E tests
+        run: ~/dubis-venv/bin/python tests/pnp-e2e/run_test.py

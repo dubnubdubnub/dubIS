@@ -5,6 +5,7 @@ __pycache__/
 data/*.csv
 data/*.json
 !data/constants.json
+!data/pnp_part_map.json
 node_modules/
 .claude/
 .pytest_cache/
