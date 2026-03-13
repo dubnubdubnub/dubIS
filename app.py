@@ -37,7 +37,8 @@ def set_icon():
 
 
 def main():
-    api = InventoryApi()
+    debug = "--debug" in sys.argv
+    api = InventoryApi(debug=debug)
     window = webview.create_window(
         "dubIS",
         url=os.path.join(APP_DIR, "index.html"),
@@ -61,7 +62,7 @@ def main():
 
     window.events.closing += on_closing
     window.events.closed += lambda: os._exit(0)
-    start_kwargs = {"func": set_icon, "debug": "--debug" in sys.argv}
+    start_kwargs = {"func": set_icon, "debug": debug}
     if sys.platform != "win32" and os.path.isfile(PNG_ICON_PATH):
         start_kwargs["icon"] = PNG_ICON_PATH
     webview.start(**start_kwargs)
