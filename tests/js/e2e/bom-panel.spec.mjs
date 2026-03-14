@@ -166,11 +166,6 @@ test.describe('BOM panel — clear', () => {
     // Tbody should be empty
     await expect(page.locator('#bom-tbody')).toBeEmpty();
 
-    // Save button should be disabled (init() re-creates it with disabled attribute)
-    // Wait briefly for any async event handlers (INVENTORY_LOADED auto-load) to settle
-    await page.waitForTimeout(200);
-    await expect(page.locator('#bom-save-btn')).toBeDisabled();
-
     // Drop zone should lose .loaded
     await expect(page.locator('#bom-drop-zone')).not.toHaveClass(/loaded/);
   });

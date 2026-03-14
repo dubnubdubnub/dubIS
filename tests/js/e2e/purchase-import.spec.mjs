@@ -111,14 +111,15 @@ test.describe('Purchase import — staging table editing', () => {
 
     await loadPurchaseOrder(page, PO_CSV_PATH);
 
-    const firstInput = page.locator('#import-mapper .import-preview tbody tr:first-child td input').first();
-    await firstInput.scrollIntoViewIfNeeded();
-    await firstInput.click();
-    await firstInput.fill('NEW_VALUE');
-    await firstInput.press('Tab');
+    // Use third row to avoid sticky staging-toolbar intercepting clicks on first row
+    const cellInput = page.locator('#import-mapper .import-preview tbody tr:nth-child(3) td input').first();
+    await cellInput.scrollIntoViewIfNeeded();
+    await cellInput.click();
+    await cellInput.fill('NEW_VALUE');
+    await cellInput.press('Tab');
 
     // The input value should persist (re-query since Tab may re-render)
-    const updatedInput = page.locator('#import-mapper .import-preview tbody tr:first-child td input').first();
+    const updatedInput = page.locator('#import-mapper .import-preview tbody tr:nth-child(3) td input').first();
     await expect(updatedInput).toHaveValue('NEW_VALUE');
   });
 
@@ -132,8 +133,8 @@ test.describe('Purchase import — staging table editing', () => {
     const rowsBefore = await page.locator('#import-mapper .import-preview tbody tr').count();
     expect(rowsBefore).toBe(5);
 
-    // Scroll the delete button into view first — sticky toolbar can intercept clicks
-    const deleteBtn = page.locator('#import-mapper .import-preview tbody tr:first-child .row-delete');
+    // Use third row to avoid sticky staging-toolbar intercepting clicks on first row
+    const deleteBtn = page.locator('#import-mapper .import-preview tbody tr:nth-child(3) .row-delete');
     await deleteBtn.scrollIntoViewIfNeeded();
     await deleteBtn.click();
 
@@ -149,19 +150,20 @@ test.describe('Purchase import — staging table editing', () => {
 
     await loadPurchaseOrder(page, PO_CSV_PATH);
 
-    // Clear all part ID fields in the first row to force a warning
+    // Clear all part ID fields in the third row to force a warning
+    // Use third row to avoid sticky staging-toolbar intercepting clicks on first row
     // Column indices 0, 1, 2 are part ID fields (Digikey, LCSC, MPN)
     for (const colIdx of [0, 1, 2]) {
-      const input = page.locator(`#import-mapper .import-preview tbody tr:first-child td input[data-col="${colIdx}"]`);
+      const input = page.locator(`#import-mapper .import-preview tbody tr:nth-child(3) td input[data-col="${colIdx}"]`);
       await input.scrollIntoViewIfNeeded();
       await input.click();
       await input.fill('');
       await input.press('Tab');
     }
 
-    // First row should now have .row-warn
-    const firstRow = page.locator('#import-mapper .import-preview tbody tr').first();
-    await expect(firstRow).toHaveClass(/row-warn/);
+    // Third row should now have .row-warn
+    const targetRow = page.locator('#import-mapper .import-preview tbody tr:nth-child(3)');
+    await expect(targetRow).toHaveClass(/row-warn/);
   });
 });
 
