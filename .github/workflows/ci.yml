@@ -78,3 +78,16 @@ jobs:
         run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
       - name: Run PnP E2E tests
         run: ~/dubis-venv/bin/python tests/pnp-e2e/run_test.py
+
+  pnp-e2e-macos:
+    name: PnP End-to-End Test (macOS)
+    runs-on: [self-hosted, m4-air]
+    timeout-minutes: 5
+    env:
+      OPENPNP_BIN: /usr/local/bin/openpnp.sh
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python dependencies
+        run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
+      - name: Run PnP E2E tests
+        run: ~/dubis-venv/bin/python tests/pnp-e2e/run_test.py

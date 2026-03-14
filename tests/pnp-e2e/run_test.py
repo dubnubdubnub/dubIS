@@ -1,12 +1,15 @@
 """PnP E2E test orchestrator.
 
-Runs on a self-hosted runner (ux430) with OpenPnP installed natively.
-Starts headless dubIS, launches OpenPnP via xvfb-run with a null driver,
-and verifies that placement events correctly decrement inventory.
+Runs on self-hosted runners (ux430 Linux, m4-air macOS) with OpenPnP installed.
+Starts headless dubIS, launches OpenPnP with a null driver, and verifies that
+placement events correctly decrement inventory.
+
+On Linux: uses Xvfb for headless display, xdotool to dismiss dialogs.
+On macOS: uses the native display (always-on), osascript to dismiss dialogs.
 
 Requirements on the host:
   - OpenPnP installed (openpnp.sh on PATH or OPENPNP_BIN env var)
-  - xvfb-run (apt install xvfb)
+  - Linux: Xvfb, xdotool (apt install xvfb xdotool)
   - Python 3.12+ with dubIS dependencies (pip install -r requirements-dev.txt)
 """
 
@@ -162,17 +165,22 @@ def run_test():
         with open(jython_script, "w") as f:
             f.write(content)
 
-        # Start Xvfb on a known display so we can target xdotool at it
-        xvfb_display = ":42"
-        xvfb_proc = subprocess.Popen(
-            ["Xvfb", xvfb_display, "-screen", "0", "1024x768x24", "-nolisten", "tcp"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
-        time.sleep(1)
+        # Start Xvfb on Linux for headless display; macOS uses native display
+        xvfb_proc = None
+        if sys.platform == "linux":
+            xvfb_display = ":42"
+            xvfb_proc = subprocess.Popen(
+                ["Xvfb", xvfb_display, "-screen", "0", "1024x768x24", "-nolisten", "tcp"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            time.sleep(1)
+        else:
+            xvfb_display = None
 
         env = os.environ.copy()
         env["OPENPNP_TEST_JOB"] = os.path.abspath(job_path)
-        env["DISPLAY"] = xvfb_display
+        if xvfb_display:
+            env["DISPLAY"] = xvfb_display
 
         print(f"[e2e] Launching OpenPnP: {openpnp_bin} (display={xvfb_display})")
         openpnp_proc = subprocess.Popen(
@@ -184,25 +192,41 @@ def run_test():
         )
 
         # OpenPnP 2.4 shows a first-run dialog that blocks the EDT.
-        # Dismiss it by sending Enter key via xdotool after a delay.
+        # Dismiss it by sending Enter key after a delay.
+        # Linux: xdotool, macOS: osascript
         def dismiss_dialog():
             time.sleep(8)
-            dismiss_env = os.environ.copy()
-            dismiss_env["DISPLAY"] = xvfb_display
-            for _ in range(5):
-                try:
-                    subprocess.run(
-                        ["xdotool", "key", "Return"],
-                        env=dismiss_env, timeout=5,
-                        capture_output=True,
-                    )
-                except FileNotFoundError:
-                    print("[e2e] WARN: xdotool not found, cannot dismiss dialog")
-                    break
-                except Exception:
-                    pass
-                time.sleep(1)
-            print(f"[e2e] Sent Enter keys to dismiss OpenPnP dialog (display={xvfb_display})")
+            if sys.platform == "linux":
+                dismiss_env = os.environ.copy()
+                dismiss_env["DISPLAY"] = xvfb_display
+                for _ in range(5):
+                    try:
+                        subprocess.run(
+                            ["xdotool", "key", "Return"],
+                            env=dismiss_env, timeout=5,
+                            capture_output=True,
+                        )
+                    except FileNotFoundError:
+                        print("[e2e] WARN: xdotool not found, cannot dismiss dialog")
+                        break
+                    except Exception:
+                        pass
+                    time.sleep(1)
+            else:
+                for _ in range(5):
+                    try:
+                        subprocess.run(
+                            ["osascript", "-e",
+                             'tell application "System Events" to keystroke return'],
+                            timeout=5, capture_output=True,
+                        )
+                    except FileNotFoundError:
+                        print("[e2e] WARN: osascript not found, cannot dismiss dialog")
+                        break
+                    except Exception:
+                        pass
+                    time.sleep(1)
+            print("[e2e] Sent Enter keys to dismiss OpenPnP dialog")
 
         import threading
         dialog_thread = threading.Thread(target=dismiss_dialog, daemon=True)
@@ -288,12 +312,9 @@ def run_test():
             dubis_proc.terminate()
             dubis_proc.wait(timeout=10)
         # Kill Xvfb if it was started
-        try:
-            if xvfb_proc.poll() is None:
-                xvfb_proc.terminate()
-                xvfb_proc.wait(timeout=5)
-        except NameError:
-            pass
+        if xvfb_proc is not None and xvfb_proc.poll() is None:
+            xvfb_proc.terminate()
+            xvfb_proc.wait(timeout=5)
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
     # ── Report ──
