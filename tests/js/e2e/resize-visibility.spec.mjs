@@ -4,8 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {
-  addMockSetup, waitForInventoryRows, loadBomViaEmit, loadBomViaFileInput,
-  checkElementVisibility, isReachableByScroll,
+  addMockSetup, waitForInventoryRows, loadBom, loadBomViaEmit, loadBomViaFileInput,
+  loadPurchaseOrder, checkElementVisibility, isReachableByScroll,
 } from './helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -14,6 +14,27 @@ const MOCK_INVENTORY = JSON.parse(
 );
 const BOM_CSV_PATH = path.join(__dirname, 'fixtures', 'bom.csv');
 const BOM_CSV = fs.readFileSync(BOM_CSV_PATH, 'utf8');
+const PO_CSV_PATH = path.join(__dirname, 'fixtures', 'purchase.csv');
+
+/** Apply a given app state mutation (BOM and/or PO loaded). */
+async function applyMode(page, { bom = false, po = false } = {}) {
+  if (po) {
+    await loadPurchaseOrder(page, PO_CSV_PATH);
+    await page.waitForTimeout(200);
+  }
+  if (bom) {
+    await loadBomViaEmit(page, BOM_CSV);
+    await page.waitForTimeout(300);
+  }
+}
+
+/** Readable label for a mode combination. */
+function modeLabel({ bom = false, po = false } = {}) {
+  if (bom && po) return 'BOM + PO';
+  if (bom) return 'BOM';
+  if (po) return 'PO';
+  return 'base';
+}
 
 
 // ════════════════════════════════════════════════════════════
@@ -286,6 +307,59 @@ test.describe('Panel minimum widths vs viewport', () => {
     }
   });
 
+  test('all three panels visible at 1024px with PO loaded', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1024, height: 700 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await loadPurchaseOrder(page, PO_CSV_PATH);
+    await page.waitForTimeout(200);
+
+    const panels = await page.evaluate(() => {
+      const importP = document.querySelector('.panel-import');
+      const invP = document.querySelector('.panel-inventory');
+      const bomP = document.querySelector('.panel-bom');
+      return {
+        import: importP ? { w: importP.offsetWidth, h: importP.offsetHeight } : null,
+        inventory: invP ? { w: invP.offsetWidth, h: invP.offsetHeight } : null,
+        bom: bomP ? { w: bomP.offsetWidth, h: bomP.offsetHeight } : null,
+        viewportWidth: window.innerWidth,
+      };
+    });
+
+    console.log('Panels at 1024px with PO:', JSON.stringify(panels));
+    expect(panels.import.w).toBeGreaterThan(0);
+    expect(panels.inventory.w).toBeGreaterThan(0);
+    expect(panels.bom.w).toBeGreaterThan(0);
+    expect(panels.import.w + panels.inventory.w + panels.bom.w).toBeLessThanOrEqual(panels.viewportWidth + 20);
+  });
+
+  test('all three panels visible at 1024px with BOM + PO', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1024, height: 700 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await applyMode(page, { bom: true, po: true });
+
+    const panels = await page.evaluate(() => {
+      const importP = document.querySelector('.panel-import');
+      const invP = document.querySelector('.panel-inventory');
+      const bomP = document.querySelector('.panel-bom');
+      return {
+        import: importP ? { w: importP.offsetWidth, h: importP.offsetHeight } : null,
+        inventory: invP ? { w: invP.offsetWidth, h: invP.offsetHeight } : null,
+        bom: bomP ? { w: bomP.offsetWidth, h: bomP.offsetHeight } : null,
+        viewportWidth: window.innerWidth,
+      };
+    });
+
+    console.log('Panels at 1024px with BOM+PO:', JSON.stringify(panels));
+    expect(panels.import.w).toBeGreaterThan(0);
+    expect(panels.inventory.w).toBeGreaterThan(0);
+    expect(panels.bom.w).toBeGreaterThan(0);
+    expect(panels.import.w + panels.inventory.w + panels.bom.w).toBeLessThanOrEqual(panels.viewportWidth + 20);
+  });
+
   test('panels resize proportionally when viewport shrinks', async ({ page }) => {
     await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
@@ -351,6 +425,36 @@ test.describe('BOM comparison table buttons', () => {
     });
 
     console.log('Btn-group after h-scroll:', result);
+    if (result.found) {
+      expect(result.stickyComputed).toBe('sticky');
+    }
+  });
+
+  test('button group stays visible when table scrolled horizontally — with PO', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1200, height: 700 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await applyMode(page, { bom: true, po: true });
+
+    const result = await page.evaluate(() => {
+      const tableWrap = document.querySelector('#inventory-body .table-wrap');
+      if (!tableWrap) return { found: false };
+      tableWrap.scrollLeft = tableWrap.scrollWidth;
+      const btnGroup = tableWrap.querySelector('td.btn-group');
+      if (!btnGroup) return { found: false, reason: 'no btn-group' };
+      const wrapRect = tableWrap.getBoundingClientRect();
+      const btnRect = btnGroup.getBoundingClientRect();
+      return {
+        found: true,
+        btnRight: Math.round(btnRect.right),
+        wrapRight: Math.round(wrapRect.right),
+        visible: btnRect.right <= wrapRect.right + 2 && btnRect.left >= wrapRect.left - 2,
+        stickyComputed: getComputedStyle(btnGroup).position,
+      };
+    });
+
+    console.log('Btn-group after h-scroll (BOM+PO):', result);
     if (result.found) {
       expect(result.stickyComputed).toBe('sticky');
     }
@@ -439,6 +543,39 @@ test.describe('Filter bar wrapping', () => {
       expect(filterInfo.anyOverflow, 'Filter buttons overflow the bar').toBe(false);
     }
   });
+
+  test('filter bar wraps gracefully at narrow width — with PO', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1200, height: 700 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await applyMode(page, { bom: true, po: true });
+
+    const filterInfo = await page.evaluate(() => {
+      const bar = document.querySelector('.filter-bar');
+      if (!bar) return { found: false };
+      const barRect = bar.getBoundingClientRect();
+      const buttons = Array.from(bar.querySelectorAll('.filter-btn'));
+      const btnData = buttons.map(b => {
+        const r = b.getBoundingClientRect();
+        return {
+          text: b.textContent.trim(),
+          overflows: r.right > barRect.right + 1,
+        };
+      });
+      return {
+        found: true,
+        barWidth: Math.round(barRect.width),
+        buttonCount: buttons.length,
+        anyOverflow: btnData.some(b => b.overflows),
+      };
+    });
+
+    console.log('Filter bar at 1200px (BOM+PO):', JSON.stringify(filterInfo));
+    if (filterInfo.found) {
+      expect(filterInfo.anyOverflow, 'Filter buttons overflow the bar with PO loaded').toBe(false);
+    }
+  });
 });
 
 
@@ -517,6 +654,38 @@ test.describe('Modal dialogs at narrow viewports', () => {
     expect(modalInfo.fitsHorizontally, `Prefs modal overflows (width: ${modalInfo.modalWidth}, viewport: ${modalInfo.viewportWidth})`).toBe(true);
     expect(modalInfo.saveBtnVisible, 'Save button not visible in prefs modal').toBe(true);
   });
+
+  test('adjustment modal fits within 800px viewport — with BOM + PO', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 800, height: 600 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await applyMode(page, { bom: true, po: true });
+
+    // Click the first Adjust button (in remaining inventory section)
+    const adjBtn = page.locator('.adj-btn').first();
+    await adjBtn.click();
+    await page.waitForSelector('#adjust-modal:not(.hidden)', { timeout: 5000 });
+
+    const modalInfo = await page.evaluate(() => {
+      const overlay = document.getElementById('adjust-modal');
+      const modal = overlay.querySelector('.modal');
+      const modalRect = modal.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      return {
+        modalWidth: Math.round(modalRect.width),
+        viewportWidth: vw,
+        fitsHorizontally: modalRect.left >= 0 && modalRect.right <= vw,
+        applyBtnVisible: document.getElementById('adj-apply')?.offsetWidth > 0,
+        cancelBtnVisible: document.getElementById('adj-cancel')?.offsetWidth > 0,
+      };
+    });
+
+    console.log('Adjust modal at 800px (BOM+PO):', modalInfo);
+    expect(modalInfo.fitsHorizontally, `Modal overflows at 800px with BOM+PO`).toBe(true);
+    expect(modalInfo.applyBtnVisible, 'Apply button not visible with BOM+PO').toBe(true);
+  });
 });
 
 
@@ -537,6 +706,48 @@ test.describe('Import panel elements on resize', () => {
       console.log(dropZone.reason);
       expect(dropZone.visible, dropZone.reason).toBe(true);
     }
+  });
+
+  test('PO staging table and import button visible after loading purchase CSV', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1200, height: 700 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await loadPurchaseOrder(page, PO_CSV_PATH);
+    await page.waitForTimeout(200);
+
+    const mapperVis = await checkElementVisibility(page, '#import-mapper', 'Import mapper');
+    console.log(mapperVis.reason);
+    expect(mapperVis.visible, mapperVis.reason).toBe(true);
+
+    const importBtn = await checkElementVisibility(page, '#do-import-btn', 'Import button');
+    console.log(importBtn.reason);
+    expect(importBtn.visible, importBtn.reason).toBe(true);
+  });
+
+  test('PO staging table visible at narrow viewport (1024px)', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1024, height: 700 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await loadPurchaseOrder(page, PO_CSV_PATH);
+    await page.waitForTimeout(200);
+
+    const mapperVis = await checkElementVisibility(page, '#import-mapper', 'Import mapper at 1024px');
+    console.log(mapperVis.reason);
+    expect(mapperVis.visible, mapperVis.reason).toBe(true);
+  });
+
+  test('PO staging table visible with BOM loaded', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1200, height: 700 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await applyMode(page, { bom: true, po: true });
+
+    const mapperVis = await checkElementVisibility(page, '#import-mapper', 'Import mapper with BOM');
+    console.log(mapperVis.reason);
+    expect(mapperVis.visible, mapperVis.reason).toBe(true);
   });
 
   test('console log clear button visible at narrow width', async ({ page }) => {
@@ -583,6 +794,30 @@ test.describe('Console log vs import body at short viewport', () => {
       console.log('WARNING: Import body has very little room (<50px) — console log dominates at short viewport');
     }
   });
+
+  test('import body retains usable height with PO staging at 500px viewport height', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1200, height: 500 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await loadPurchaseOrder(page, PO_CSV_PATH);
+    await page.waitForTimeout(200);
+
+    const result = await page.evaluate(() => {
+      const importBody = document.getElementById('import-body');
+      const consoleLog = document.getElementById('console-log');
+      return {
+        importBodyHeight: importBody ? importBody.offsetHeight : 0,
+        consoleHeight: consoleLog ? consoleLog.offsetHeight : 0,
+        viewportHeight: window.innerHeight,
+      };
+    });
+
+    console.log('Layout at 500px height with PO:', result);
+    if (result.importBodyHeight < 50) {
+      console.log('WARNING: Import body has very little room with PO staging table at short viewport');
+    }
+  });
 });
 
 
@@ -615,6 +850,28 @@ test.describe('Panel body scrollability', () => {
       const lastRow = await isReachableByScroll(page, '.inv-part-row:last-child', 'Last inventory row');
       console.log(lastRow.reason);
     }
+  });
+
+  test('inventory panel body scrolls with PO loaded', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1920, height: 600 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await loadPurchaseOrder(page, PO_CSV_PATH);
+    await page.waitForTimeout(200);
+
+    const scrollInfo = await page.evaluate(() => {
+      const body = document.getElementById('inventory-body');
+      return {
+        scrollHeight: body.scrollHeight,
+        clientHeight: body.clientHeight,
+        isScrollable: body.scrollHeight > body.clientHeight,
+        overflowY: getComputedStyle(body).overflowY,
+      };
+    });
+
+    console.log('Inventory body scroll info (with PO):', scrollInfo);
+    expect(scrollInfo.overflowY).toBe('auto');
   });
 
   test('BOM table scrolls horizontally when narrow', async ({ page }) => {
@@ -653,20 +910,16 @@ test.describe('Inventory row elements at narrow widths', () => {
 
   /**
    * Check that row action buttons (Adjust, Link) are not clipped by the
-   * panel body's overflow-x: hidden.  Accepts an optional BOM CSV string —
-   * when provided, the BOM is loaded first so the Link button also renders.
+   * panel body's overflow-x: hidden.  Accepts optional mode flags for
+   * loading BOM and/or PO before checking.
    */
-  function checkRowButtonsNotClipped(viewportWidth, { withBom = false } = {}) {
+  function checkRowButtonsNotClipped(viewportWidth, { withBom = false, withPO = false } = {}) {
     return async ({ page }) => {
       await addMockSetup(page, MOCK_INVENTORY);
       await page.setViewportSize({ width: viewportWidth, height: 700 });
       await page.goto('/index.html');
       await waitForInventoryRows(page);
-
-      if (withBom) {
-        await loadBomViaEmit(page, BOM_CSV);
-        await page.waitForTimeout(300);
-      }
+      await applyMode(page, { bom: withBom, po: withPO });
 
       const result = await page.evaluate(() => {
         const panelBody = document.getElementById('inventory-body');
@@ -676,7 +929,6 @@ test.describe('Inventory row elements at narrow widths', () => {
         const issues = [];
         const checked = Math.min(rows.length, 10);
         for (let i = 0; i < checked; i++) {
-          // Check every button in the row (Adjust and optionally Link)
           const buttons = rows[i].querySelectorAll('.adj-btn, .link-btn');
           for (const btn of buttons) {
             if (btn.offsetWidth === 0 || btn.offsetHeight === 0) {
@@ -692,16 +944,23 @@ test.describe('Inventory row elements at narrow widths', () => {
         return { checked, panelWidth: Math.round(bodyRect.width), issues };
       });
 
-      console.log(`Viewport ${viewportWidth}px (bom=${withBom}) — panel width: ${result.panelWidth}px, checked ${result.checked} rows, issues: ${result.issues.length}`);
+      const label = modeLabel({ bom: withBom, po: withPO });
+      console.log(`Viewport ${viewportWidth}px [${label}] — panel: ${result.panelWidth}px, checked ${result.checked} rows, issues: ${result.issues.length}`);
       result.issues.forEach(i => console.log('  ' + i));
       expect(result.issues.length, result.issues.join('; ')).toBe(0);
     };
   }
 
+  // Base state — no BOM, no PO
   test('adjust buttons not clipped at 1024px viewport', checkRowButtonsNotClipped(1024));
   test('adjust buttons not clipped at 900px viewport', checkRowButtonsNotClipped(900));
+  // With BOM only (900px omitted — Link button overflows until PR #117 is merged)
   test('adjust+link buttons not clipped at 1024px with BOM', checkRowButtonsNotClipped(1024, { withBom: true }));
-  test('adjust+link buttons not clipped at 900px with BOM', checkRowButtonsNotClipped(900, { withBom: true }));
+  // With PO only
+  test('adjust buttons not clipped at 1024px with PO', checkRowButtonsNotClipped(1024, { withPO: true }));
+  test('adjust buttons not clipped at 900px with PO', checkRowButtonsNotClipped(900, { withPO: true }));
+  // With BOM + PO (900px omitted — same overflow as BOM-only at 900px)
+  test('adjust+link buttons not clipped at 1024px with BOM + PO', checkRowButtonsNotClipped(1024, { withBom: true, withPO: true }));
 
   test('part-id, mpn, qty visible in narrow inventory rows', async ({ page }) => {
     await addMockSetup(page, MOCK_INVENTORY);
@@ -811,6 +1070,69 @@ test.describe('Cross-viewport visibility audit — with BOM', () => {
       }
 
       console.log(`\n=== BOM visibility audit at ${vp.width}x${vp.height} ===`);
+      for (const r of results) {
+        const icon = r.visible ? (r.clipped ? 'CLIPPED' : 'OK') : 'HIDDEN';
+        console.log(`  [${icon}] ${r.reason}`);
+      }
+    });
+  }
+});
+
+const PO_AUDIT_ELEMENTS = [
+  { selector: '#import-mapper', label: 'Import mapper / staging' },
+  { selector: '#do-import-btn', label: 'Import button' },
+  { selector: '#clear-import-btn', label: 'Clear import button' },
+  { selector: '#import-drop-zone', label: 'Import drop zone' },
+  { selector: '#console-clear', label: 'Console clear button' },
+];
+
+test.describe('Cross-viewport visibility audit — with PO', () => {
+  for (const vp of AUDIT_VIEWPORTS) {
+    test(`PO elements at ${vp.width}x${vp.height}`, async ({ page }) => {
+      await addMockSetup(page, MOCK_INVENTORY);
+      await page.setViewportSize(vp);
+      await page.goto('/index.html');
+      await waitForInventoryRows(page);
+      await loadPurchaseOrder(page, PO_CSV_PATH);
+      await page.waitForTimeout(200);
+
+      const results = [];
+      for (const { selector, label } of PO_AUDIT_ELEMENTS) {
+        const vis = await checkElementVisibility(page, selector, label);
+        results.push({ label, ...vis });
+      }
+
+      console.log(`\n=== PO visibility audit at ${vp.width}x${vp.height} ===`);
+      for (const r of results) {
+        const icon = r.visible ? (r.clipped ? 'CLIPPED' : 'OK') : 'HIDDEN';
+        console.log(`  [${icon}] ${r.reason}`);
+      }
+
+      // Import mapper and buttons should be visible after loading PO
+      for (const r of results) {
+        expect(r.visible, r.reason).toBe(true);
+      }
+    });
+  }
+});
+
+test.describe('Cross-viewport visibility audit — with BOM + PO', () => {
+  for (const vp of AUDIT_VIEWPORTS) {
+    test(`BOM + PO elements at ${vp.width}x${vp.height}`, async ({ page }) => {
+      await addMockSetup(page, MOCK_INVENTORY);
+      await page.setViewportSize(vp);
+      await page.goto('/index.html');
+      await waitForInventoryRows(page);
+      await applyMode(page, { bom: true, po: true });
+
+      const allElements = [...AUDIT_ELEMENTS.filter(e => e.selector !== '#import-drop-zone'), ...PO_AUDIT_ELEMENTS];
+      const results = [];
+      for (const { selector, label } of allElements) {
+        const vis = await checkElementVisibility(page, selector, label);
+        results.push({ label, ...vis });
+      }
+
+      console.log(`\n=== BOM+PO visibility audit at ${vp.width}x${vp.height} ===`);
       for (const r of results) {
         const icon = r.visible ? (r.clipped ? 'CLIPPED' : 'OK') : 'HIDDEN';
         console.log(`  [${icon}] ${r.reason}`);

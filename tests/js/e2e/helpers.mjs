@@ -113,6 +113,16 @@ export async function loadBomViaFileInput(page, csvFilePath) {
 }
 
 /**
+ * Load a purchase order CSV via the import panel file input.
+ * Populates the import panel staging table with parsed rows.
+ */
+export async function loadPurchaseOrder(page, csvFilePath) {
+  const fileInput = page.locator('#import-file-input');
+  await fileInput.setInputFiles(csvFilePath);
+  await page.waitForSelector('#import-mapper:not(.hidden)', { timeout: 10_000 });
+}
+
+/**
  * Check that an element is visible and not clipped outside its parent or viewport.
  * Returns { visible, clipped, reason }.
  */

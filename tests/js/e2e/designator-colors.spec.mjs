@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows, loadBomViaEmit, loadBomViaFileInput } from './helpers.mjs';
+import { addMockSetup, waitForInventoryRows, loadBomViaEmit, loadBomViaFileInput, loadPurchaseOrder } from './helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -11,6 +11,7 @@ const MOCK_INVENTORY = JSON.parse(
 );
 const BOM_CSV_PATH = path.join(__dirname, 'fixtures', 'bom.csv');
 const BOM_CSV = fs.readFileSync(BOM_CSV_PATH, 'utf8');
+const PO_CSV_PATH = path.join(__dirname, 'fixtures', 'purchase.csv');
 
 /** Expected CSS class per designator prefix */
 const EXPECTED_CLASSES = {
@@ -72,6 +73,56 @@ test.describe('Designator colors — inventory panel BOM table', () => {
       const dataRef = await span.getAttribute('data-ref');
       const text = await span.textContent();
       expect(dataRef).toBe(text);
+    }
+  });
+});
+
+test.describe('Designator colors — inventory panel BOM table — with PO', () => {
+
+  test('designators have correct color classes with PO loaded', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1920, height: 900 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await loadPurchaseOrder(page, PO_CSV_PATH);
+    await page.waitForTimeout(200);
+    await loadBomViaEmit(page, BOM_CSV);
+    await page.waitForTimeout(300);
+
+    const refSpans = page.locator('#inventory-body .refs-cell [data-ref]');
+    const count = await refSpans.count();
+    console.log('Colored ref spans in inventory panel (BOM+PO):', count);
+    expect(count).toBeGreaterThan(0);
+
+    for (const [prefix, expectedClass] of Object.entries(EXPECTED_CLASSES)) {
+      const span = refSpans.filter({ hasText: new RegExp('^' + prefix + '\\d') }).first();
+      if (await span.count() > 0) {
+        const cls = await span.getAttribute('class');
+        expect(cls).toContain(expectedClass);
+      }
+    }
+  });
+
+  test('designators have correct color classes at narrow viewport (1200px)', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1200, height: 700 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await page.waitForTimeout(300);
+    await loadBomViaEmit(page, BOM_CSV);
+    await page.waitForTimeout(300);
+
+    const refSpans = page.locator('#inventory-body .refs-cell [data-ref]');
+    const count = await refSpans.count();
+    console.log('Colored ref spans at 1200px:', count);
+    expect(count).toBeGreaterThan(0);
+
+    for (const [prefix, expectedClass] of Object.entries(EXPECTED_CLASSES)) {
+      const span = refSpans.filter({ hasText: new RegExp('^' + prefix + '\\d') }).first();
+      if (await span.count() > 0) {
+        const cls = await span.getAttribute('class');
+        expect(cls).toContain(expectedClass);
+      }
     }
   });
 });
@@ -222,5 +273,53 @@ test.describe('Cross-panel designator hover highlighting', () => {
     const highlightedCount = await page.locator('.ref-highlight').count();
     expect(highlightedCount).toBe(0);
     console.log('Highlights cleared after mouse moved away');
+  });
+});
+
+// ── Cross-panel hover with PO loaded ──
+
+test.describe('Cross-panel designator hover highlighting — with PO', () => {
+
+  test('hover highlighting works with BOM + PO loaded', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1920, height: 900 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await loadPurchaseOrder(page, PO_CSV_PATH);
+    await page.waitForTimeout(200);
+    await loadBomViaFileInput(page, BOM_CSV_PATH);
+    await page.waitForTimeout(300);
+
+    const invRefC1 = page.locator('#inventory-body [data-ref="C1"]').first();
+    const bomRefC1 = page.locator('#bom-tbody [data-ref="C1"]').first();
+
+    await expect(invRefC1).toBeVisible();
+    await expect(bomRefC1).toBeVisible();
+
+    await invRefC1.hover();
+    await expect(invRefC1).toHaveClass(/ref-highlight/);
+    await expect(bomRefC1).toHaveClass(/ref-highlight/);
+    console.log('Hover on inv C1 with PO → both panels highlighted');
+  });
+
+  test('hover highlighting works at narrow viewport (1200px) with BOM', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1200, height: 700 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await page.waitForTimeout(300);
+    await loadBomViaFileInput(page, BOM_CSV_PATH);
+    await page.waitForTimeout(300);
+
+    const invRefC1 = page.locator('#inventory-body [data-ref="C1"]').first();
+    const bomRefC1 = page.locator('#bom-tbody [data-ref="C1"]').first();
+
+    await expect(invRefC1).toBeVisible();
+    await expect(bomRefC1).toBeVisible();
+
+    await invRefC1.hover();
+    await expect(invRefC1).toHaveClass(/ref-highlight/);
+    await expect(bomRefC1).toHaveClass(/ref-highlight/);
+    console.log('Hover at 1200px → both panels highlighted');
   });
 });
