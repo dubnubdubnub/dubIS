@@ -131,7 +131,7 @@ test.describe('Designator colors — inventory panel BOM table — with PO', () 
 
 test.describe('Designator colors — BOM panel staging table', () => {
 
-  test('staging ref column shows colored display divs', async ({ page }) => {
+  test('staging ref column shows colored ref spans', async ({ page }) => {
     await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
@@ -140,14 +140,8 @@ test.describe('Designator colors — BOM panel staging table', () => {
     await loadBomViaFileInput(page, BOM_CSV_PATH);
     await page.waitForTimeout(300);
 
-    // BOM staging table should have .refs-cell display divs with colored ref spans
-    const refsDisplays = page.locator('#bom-tbody .refs-cell');
-    const displayCount = await refsDisplays.count();
-    console.log('refs-cell display divs in BOM staging:', displayCount);
-    expect(displayCount).toBeGreaterThan(0);
-
-    // Check colored spans exist inside the display divs
-    const coloredSpans = page.locator('#bom-tbody .refs-cell [data-ref]');
+    // BOM staging table should have colored ref spans directly in <td> cells
+    const coloredSpans = page.locator('#bom-tbody td [data-ref]');
     const spanCount = await coloredSpans.count();
     console.log('Colored ref spans in BOM staging:', spanCount);
     expect(spanCount).toBeGreaterThan(0);
@@ -163,7 +157,7 @@ test.describe('Designator colors — BOM panel staging table', () => {
     }
   });
 
-  test('clicking refs display reveals input for editing', async ({ page }) => {
+  test('double-clicking ref cell opens grid edit input', async ({ page }) => {
     await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
@@ -172,25 +166,18 @@ test.describe('Designator colors — BOM panel staging table', () => {
     await loadBomViaFileInput(page, BOM_CSV_PATH);
     await page.waitForTimeout(300);
 
-    const firstRefsDisplay = page.locator('#bom-tbody .refs-cell').first();
-    await expect(firstRefsDisplay).toBeVisible();
+    // Find a td with colored ref spans
+    const refTd = page.locator('#bom-tbody td [data-ref]').first().locator('..');
+    await expect(refTd).toBeVisible();
 
-    // The sibling input should be hidden initially
-    const parentTd = firstRefsDisplay.locator('..');
-    const input = parentTd.locator('input');
-    await expect(input).toBeHidden();
+    // Double-click to enter edit mode — floating input should appear
+    await refTd.dblclick();
+    const editInput = page.locator('.bom-table-wrap .grid-edit-input');
+    await expect(editInput).toBeVisible();
 
-    // Click the display div
-    await firstRefsDisplay.click();
-
-    // Now the input should be visible and the display hidden
-    await expect(input).toBeVisible();
-    await expect(firstRefsDisplay).toBeHidden();
-
-    // Blur the input — display should reappear
-    await input.blur();
-    await expect(firstRefsDisplay).toBeVisible();
-    await expect(input).toBeHidden();
+    // Press Escape to cancel
+    await page.keyboard.press('Escape');
+    await expect(editInput).not.toBeVisible();
   });
 });
 
