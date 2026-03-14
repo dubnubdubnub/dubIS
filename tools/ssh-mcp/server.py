@@ -17,7 +17,7 @@ mcp = FastMCP("ssh")
 _clients: dict[str, paramiko.SSHClient] = {}
 _ssh_config: paramiko.SSHConfig | None = None
 
-OPENPNP_BASE_URL = "http://100.96.249.60:8899"
+OPENPNP_BASE_URL = os.environ["OPENPNP_BRIDGE_URL"]
 DEFAULT_TIMEOUT = 30
 
 
@@ -187,7 +187,7 @@ def openpnp_api(method: str, path: str, body: str | None = None) -> str:
     """Call the OpenPnP HTTP bridge running on the PnP machine.
 
     The bridge exposes live machine state, camera frames, parts, feeders, etc.
-    at http://100.96.249.60:8899.
+    URL is configured via OPENPNP_BRIDGE_URL environment variable.
 
     Args:
         method: HTTP method (GET or POST)

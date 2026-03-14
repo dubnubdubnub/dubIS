@@ -156,7 +156,7 @@ def run_test():
         with open(jython_script, "r") as f:
             content = f.read()
         content = content.replace(
-            'DUBIS_URL = "http://100.104.213.113:7890"',
+            'DUBIS_URL = os.environ.get("DUBIS_URL", "http://127.0.0.1:7890")',
             f'DUBIS_URL = "http://127.0.0.1:{DUBIS_PORT}"',
         )
         with open(jython_script, "w") as f:

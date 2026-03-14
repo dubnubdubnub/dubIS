@@ -9,7 +9,7 @@ import os
 import urllib2
 import traceback
 
-DUBIS_URL = "http://100.104.213.113:7890"
+DUBIS_URL = os.environ.get("DUBIS_URL", "http://127.0.0.1:7890")
 QUEUE_PATH = os.path.expanduser("~/.openpnp2/dubis_queue.json")
 TIMEOUT = 3  # seconds
 
