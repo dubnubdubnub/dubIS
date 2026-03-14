@@ -45,10 +45,13 @@ export class GridSelection {
     /** @type {"select" | "edit"} */
     this._mode = "select";
 
-    // Create overlay elements
+    // Create overlay elements (all hidden initially via inline style)
     this._sel = this._mkDiv("grid-sel");
+    this._sel.style.display = "none";
     this._rangeEl = this._mkDiv("grid-range");
+    this._rangeEl.style.display = "none";
     this._fillHandle = this._mkDiv("grid-fill-handle");
+    this._fillHandle.style.display = "none";
     this._input = /** @type {HTMLInputElement} */ (document.createElement("input"));
     this._input.className = "grid-edit-input";
     this._input.style.display = "none";
@@ -57,9 +60,13 @@ export class GridSelection {
     this._magnifier.style.display = "none";
     document.body.appendChild(this._magnifier);
     this._fillPreview = this._mkDiv("grid-fill-preview");
+    this._fillPreview.style.display = "none";
 
-    // Add grid-table class to table
+    // Add grid-table class to table and make wrapper focusable
     this._table.classList.add("grid-table");
+    if (!this._wrapper.hasAttribute("tabindex")) {
+      this._wrapper.setAttribute("tabindex", "-1");
+    }
 
     // Bind handlers (store refs for cleanup)
     this._onPointerDown = this._handlePointerDown.bind(this);

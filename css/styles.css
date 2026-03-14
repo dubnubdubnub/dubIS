@@ -889,7 +889,6 @@ td.btn-group button + button { margin-left: 6px; }
   pointer-events: none;
   z-index: 5;
   box-sizing: border-box;
-  display: none;
 }
 
 .grid-range {
@@ -899,7 +898,6 @@ td.btn-group button + button { margin-left: 6px; }
   pointer-events: none;
   z-index: 4;
   box-sizing: border-box;
-  display: none;
 }
 
 .grid-fill-handle {
@@ -910,7 +908,6 @@ td.btn-group button + button { margin-left: 6px; }
   border: 1px solid var(--bg-surface);
   cursor: crosshair;
   z-index: 6;
-  display: none;
 }
 
 .grid-edit-input {
@@ -946,7 +943,6 @@ td.btn-group button + button { margin-left: 6px; }
   border: 1px dashed var(--color-blue);
   pointer-events: none;
   z-index: 4;
-  display: none;
 }
 
 body.grid-filling { user-select: none; cursor: crosshair; }
