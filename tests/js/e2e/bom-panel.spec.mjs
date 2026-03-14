@@ -57,14 +57,13 @@ test.describe('BOM panel — staging table', () => {
     // Save button should not be dirty initially
     await expect(page.locator('#bom-save-btn')).not.toHaveClass(/dirty/);
 
-    // Edit a visible cell — skip refs column (its input is hidden behind a display div)
-    // Use a visible input (not the refs column which has style="display: none")
-    const visibleInputs = page.locator('#bom-tbody tr:first-child td input:visible');
-    const firstInput = visibleInputs.first();
-    await firstInput.scrollIntoViewIfNeeded();
-    await firstInput.click();
-    await firstInput.fill('EDITED');
-    await firstInput.press('Tab');
+    // Click a data cell (skip delete col 0 and status col 1 — nth(2) is first data col)
+    const cell = page.locator('#bom-tbody tr:first-child td').nth(2);
+    await cell.scrollIntoViewIfNeeded();
+    await cell.click();
+    // Type to enter edit mode (grid: type-to-edit replaces cell content)
+    await page.keyboard.type('EDITED');
+    await page.keyboard.press('Tab');
 
     // Save button should now be dirty
     await expect(page.locator('#bom-save-btn')).toHaveClass(/dirty/);
