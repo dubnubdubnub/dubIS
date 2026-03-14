@@ -10,6 +10,7 @@ import threading
 from datetime import datetime
 from typing import Any
 
+import kicad_openpnp
 from categorize import categorize, parse_capacitance, parse_inductance, parse_resistance
 from digikey_client import DigikeyClient
 from lcsc_client import LcscClient
@@ -684,6 +685,187 @@ class InventoryApi:
             webview.windows[0].destroy()
         except (IndexError, RuntimeError, AttributeError):
             logger.debug("Window already destroyed or unavailable", exc_info=True)
+
+    # ── KiCad + OpenPnP methods (delegated to kicad_openpnp.py) ────────────
+
+    def open_kicad_project_dialog(self) -> dict | None:
+        """Open native folder dialog to select a KiCad project directory."""
+        import webview
+        result = webview.windows[0].create_file_dialog(webview.FileDialog.FOLDER)
+        if result and len(result) > 0:
+            path = result[0]
+            return self.scan_kicad_project(path)
+        return None
+
+    def scan_kicad_project(self, path: str) -> dict:
+        """Scan a KiCad project and register it. Returns project data with parts."""
+        result = kicad_openpnp.scan_kicad_project(path)
+        projects = kicad_openpnp.load_kicad_projects()
+        projects["projects"][path] = {
+            "name": result["name"],
+            "kicad_pro": result["kicad_pro"],
+            "last_scan": result["last_scan"],
+        }
+        kicad_openpnp.save_kicad_projects(projects)
+        return result
+
+    def get_kicad_projects(self) -> dict:
+        """Return registered KiCad projects."""
+        return kicad_openpnp.load_kicad_projects()
+
+    def remove_kicad_project(self, path: str) -> dict:
+        """Remove a KiCad project from the registry."""
+        projects = kicad_openpnp.load_kicad_projects()
+        projects["projects"].pop(path, None)
+        kicad_openpnp.save_kicad_projects(projects)
+        return projects
+
+    def get_part_links(self) -> dict:
+        """Return part links data."""
+        return kicad_openpnp.load_part_links()
+
+    def save_part_link(self, source_id: str, part_key: str) -> dict:
+        """Save a link from a KiCad identifier to an inventory part key."""
+        if not source_id or not part_key:
+            raise ValueError("source_id and part_key must not be empty")
+        data = kicad_openpnp.load_part_links()
+        data["links"][source_id] = part_key
+        kicad_openpnp.save_part_links(data)
+        return data
+
+    def remove_part_link(self, source_id: str) -> dict:
+        """Remove a part link."""
+        data = kicad_openpnp.load_part_links()
+        data["links"].pop(source_id, None)
+        kicad_openpnp.save_part_links(data)
+        return data
+
+    def auto_link_kicad_parts(self, path: str) -> dict:
+        """Auto-link KiCad parts to inventory by matching LCSC numbers and MPNs.
+
+        Returns ``{"linked": count, "links": updated_links_data}``.
+        """
+        result = kicad_openpnp.scan_kicad_project(path)
+        inventory = self._load_organized()
+        link_data = kicad_openpnp.load_part_links()
+
+        inv_by_lcsc: dict[str, str] = {}
+        inv_by_mpn: dict[str, str] = {}
+        for item in inventory:
+            lcsc = item.get("lcsc", "").strip()
+            mpn = item.get("mpn", "").strip()
+            pk = lcsc or mpn
+            if not pk:
+                continue
+            if lcsc:
+                inv_by_lcsc[lcsc.upper()] = pk
+            if mpn:
+                inv_by_mpn[mpn.upper()] = pk
+
+        linked = 0
+        for part in result["parts"]:
+            lcsc = part.get("lcsc", "").strip()
+            mpn = part.get("mpn", "").strip()
+
+            # Already linked?
+            if lcsc and lcsc in link_data["links"]:
+                continue
+            if mpn and mpn in link_data["links"]:
+                continue
+
+            # Try LCSC match
+            if lcsc and lcsc.upper() in inv_by_lcsc:
+                link_data["links"][lcsc] = inv_by_lcsc[lcsc.upper()]
+                linked += 1
+                continue
+
+            # Try MPN match
+            if mpn and mpn.upper() in inv_by_mpn:
+                link_data["links"][mpn] = inv_by_mpn[mpn.upper()]
+                linked += 1
+
+        kicad_openpnp.save_part_links(link_data)
+        return {"linked": linked, "links": link_data}
+
+    def get_openpnp_parts(self) -> dict:
+        """Return OpenPnP parts data."""
+        return kicad_openpnp.load_openpnp_parts()
+
+    def fetch_footprint(self, lcsc_id: str) -> dict:
+        """Fetch footprint from EasyEDA for an LCSC part. Returns footprint dict."""
+        raw = kicad_openpnp.fetch_easyeda_footprint(lcsc_id)
+        if not raw:
+            raise ValueError(f"Could not fetch footprint for {lcsc_id}")
+        package_id = lcsc_id  # use LCSC id as fallback package id
+        return kicad_openpnp.parse_easyeda_footprint(raw, package_id)
+
+    def fetch_kicad_footprint(self, fp_ref: str) -> dict:
+        """Parse a KiCad .kicad_mod footprint from installed libraries."""
+        result = kicad_openpnp.parse_kicad_footprint(fp_ref)
+        if not result:
+            raise ValueError(f"Could not find KiCad footprint: {fp_ref}")
+        return result
+
+    def save_openpnp_part(self, data_json: str | dict) -> dict:
+        """Save OpenPnP metadata for a part.
+
+        Expects ``{part_key, openpnp_id, package_id, height, speed, nozzle_tips, footprint}``.
+        """
+        data = self._ensure_parsed(data_json)
+        part_key = data.get("part_key")
+        if not part_key:
+            raise ValueError("part_key is required")
+
+        openpnp_data = kicad_openpnp.load_openpnp_parts()
+        openpnp_data["parts"][part_key] = {
+            "openpnp_id": data.get("openpnp_id", part_key),
+            "package_id": data.get("package_id", ""),
+            "height": float(data.get("height", 0)),
+            "speed": float(data.get("speed", 1.0)),
+            "nozzle_tips": data.get("nozzle_tips", []),
+            "footprint": data.get("footprint"),
+            "footprint_source": data.get("footprint_source", "manual"),
+            "footprint_fetched": data.get("footprint_fetched", ""),
+        }
+        kicad_openpnp.save_openpnp_parts(openpnp_data)
+        kicad_openpnp.regenerate_pnp_part_map(openpnp_data)
+        return openpnp_data
+
+    def remove_openpnp_part(self, part_key: str) -> dict:
+        """Remove OpenPnP metadata for a part."""
+        openpnp_data = kicad_openpnp.load_openpnp_parts()
+        openpnp_data["parts"].pop(part_key, None)
+        kicad_openpnp.save_openpnp_parts(openpnp_data)
+        kicad_openpnp.regenerate_pnp_part_map(openpnp_data)
+        return openpnp_data
+
+    def sync_openpnp(self) -> dict:
+        """Write packages.xml + parts.xml to OpenPnP config dir, rebuild pnp_part_map."""
+        openpnp_data = kicad_openpnp.load_openpnp_parts()
+        config_path = openpnp_data.get("openpnp_config_path", "")
+        if not config_path or not os.path.isdir(config_path):
+            raise ValueError(
+                f"OpenPnP config path not set or invalid: {config_path!r}. "
+                "Set it via Preferences or set_openpnp_config_path."
+            )
+        pkg_path = kicad_openpnp.generate_openpnp_packages_xml(openpnp_data, config_path)
+        parts_path = kicad_openpnp.generate_openpnp_parts_xml(openpnp_data, config_path)
+        kicad_openpnp.regenerate_pnp_part_map(openpnp_data)
+        return {"packages_xml": pkg_path, "parts_xml": parts_path}
+
+    def set_openpnp_config_path(self, path: str) -> dict:
+        """Set the OpenPnP config directory path."""
+        if not os.path.isdir(path):
+            raise ValueError(f"Not a directory: {path}")
+        openpnp_data = kicad_openpnp.load_openpnp_parts()
+        openpnp_data["openpnp_config_path"] = path
+        kicad_openpnp.save_openpnp_parts(openpnp_data)
+        return openpnp_data
+
+    def detect_kicad_lib_path(self) -> dict:
+        """Auto-detect KiCad footprint library paths on this system."""
+        paths = kicad_openpnp.find_kicad_lib_paths()
+        return {"paths": paths}
 
     @staticmethod
     def _read_text(path: str) -> str:

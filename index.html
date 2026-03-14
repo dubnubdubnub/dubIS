@@ -24,10 +24,14 @@
 </div>
 
 <div class="panels">
-  <!-- Left Panel: Purchase Import -->
+  <!-- Left Panel: Purchase Import / KiCad Projects -->
   <div class="panel panel-import" id="panel-import">
-    <div class="panel-header">Purchase Import</div>
+    <div class="panel-header tab-bar">
+      <button class="tab active" data-tab="import">Purchase Import</button>
+      <button class="tab" data-tab="kicad">KiCad Projects</button>
+    </div>
     <div class="panel-body" id="import-body"></div>
+    <div class="panel-body hidden" id="kicad-body"></div>
     <div id="console-log">
       <div class="console-header">
         <span>Log</span>
@@ -142,6 +146,59 @@
     <div class="modal-actions">
       <button class="btn btn-cancel" id="price-cancel">Cancel</button>
       <button class="btn btn-apply" id="price-apply">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- OpenPnP Part Modal -->
+<div class="modal-overlay hidden" id="openpnp-modal">
+  <div class="modal openpnp-modal-wide">
+    <div class="modal-title" id="openpnp-modal-title">OpenPnP Part</div>
+    <div class="modal-subtitle" id="openpnp-modal-subtitle"></div>
+    <div class="openpnp-modal-grid">
+      <div class="openpnp-modal-fields">
+        <div class="modal-form">
+          <label for="openpnp-package-id">Package ID:</label>
+          <input type="text" id="openpnp-package-id" placeholder="e.g. C0402">
+        </div>
+        <div class="modal-form">
+          <label for="openpnp-part-id">OpenPnP ID:</label>
+          <input type="text" id="openpnp-part-id" placeholder="e.g. C0402-100nF">
+        </div>
+        <div class="modal-form">
+          <label for="openpnp-height">Height (mm):</label>
+          <input type="number" id="openpnp-height" min="0" step="0.01" value="0">
+        </div>
+        <div class="modal-form">
+          <label for="openpnp-speed">Speed:</label>
+          <input type="number" id="openpnp-speed" min="0.1" max="2.0" step="0.1" value="1.0">
+        </div>
+        <div class="modal-form">
+          <label>Nozzle Tips:</label>
+          <div id="openpnp-nozzle-tips" class="openpnp-nozzle-list"></div>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-form" style="justify-content:space-between">
+          <span id="openpnp-fp-status" style="font-size:12px;color:var(--text-muted)">No footprint</span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-cancel" id="openpnp-fetch-kicad" style="padding:4px 10px;font-size:11px">KiCad Lib</button>
+            <button class="btn btn-cancel" id="openpnp-fetch-easyeda" style="padding:4px 10px;font-size:11px">EasyEDA</button>
+          </div>
+        </div>
+      </div>
+      <div class="openpnp-modal-preview">
+        <canvas id="openpnp-fp-canvas" width="200" height="200"></canvas>
+      </div>
+    </div>
+    <div class="modal-divider"></div>
+    <div class="modal-form" style="justify-content:space-between">
+      <span style="font-size:12px;color:var(--text-muted)">Sync writes packages.xml + parts.xml to OpenPnP</span>
+      <button class="btn btn-cancel" id="openpnp-sync" style="padding:4px 14px;font-size:12px">Sync to OpenPnP</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="openpnp-delete" style="margin-right:auto">Delete</button>
+      <button class="btn btn-cancel" id="openpnp-cancel">Cancel</button>
+      <button class="btn btn-apply" id="openpnp-save">Save</button>
     </div>
   </div>
 </div>
