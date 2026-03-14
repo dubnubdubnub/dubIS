@@ -1,3 +1,4 @@
+// @ts-check
 /* matching.js — 5-step BOM matching engine (ported from build_compare.py) */
 
 import { bomKey } from './part-keys.js';
