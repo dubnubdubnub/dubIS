@@ -68,9 +68,13 @@ export class GridSelection {
       this._wrapper.setAttribute("tabindex", "-1");
     }
 
+    // Double-click detection state
+    this._lastClickTime = 0;
+    this._lastClickCell = null;
+    this._dblClickThreshold = 400; // ms
+
     // Bind handlers (store refs for cleanup)
     this._onPointerDown = this._handlePointerDown.bind(this);
-    this._onDblClick = this._handleDblClick.bind(this);
     this._onKeyDown = this._handleKeyDown.bind(this);
     this._onInputBlur = this._commitEdit.bind(this);
     this._onInputKeyDown = this._handleInputKeyDown.bind(this);
@@ -78,7 +82,6 @@ export class GridSelection {
     this._onScroll = this._handleScroll.bind(this);
 
     this._table.addEventListener("pointerdown", this._onPointerDown);
-    this._table.addEventListener("dblclick", this._onDblClick);
     document.addEventListener("keydown", this._onKeyDown);
     this._input.addEventListener("blur", this._onInputBlur);
     this._input.addEventListener("keydown", this._onInputKeyDown);
@@ -102,7 +105,6 @@ export class GridSelection {
 
   destroy() {
     this._table.removeEventListener("pointerdown", this._onPointerDown);
-    this._table.removeEventListener("dblclick", this._onDblClick);
     document.removeEventListener("keydown", this._onKeyDown);
     this._input.removeEventListener("blur", this._onInputBlur);
     this._input.removeEventListener("keydown", this._onInputKeyDown);
@@ -217,6 +219,22 @@ export class GridSelection {
 
     if (this._mode === "edit") this._commitEdit();
 
+    // Detect double-click (pointerdown preventDefault suppresses native dblclick)
+    const now = Date.now();
+    const isDoubleClick = this._lastClickCell &&
+      this._lastClickCell.r === cell.r && this._lastClickCell.c === cell.c &&
+      (now - this._lastClickTime) < this._dblClickThreshold;
+    this._lastClickTime = now;
+    this._lastClickCell = cell;
+
+    if (isDoubleClick) {
+      this._cursor = cell;
+      this._anchor = cell;
+      this._range = { r1: cell.r, c1: cell.c, r2: cell.r, c2: cell.c };
+      this._enterEdit(false);
+      return;
+    }
+
     if (e.shiftKey && this._anchor) {
       // Extend range
       this._cursor = cell;
@@ -253,19 +271,6 @@ export class GridSelection {
 
     this._positionOverlays();
     this._showMagnifier();
-  }
-
-  _handleDblClick(e) {
-    if (this._isDisabled()) return;
-    const td = /** @type {HTMLElement} */ (e.target).closest("td");
-    if (!td) return;
-    const cell = this._cellFromTd(td);
-    if (!cell) return;
-
-    this._cursor = cell;
-    this._anchor = cell;
-    this._range = { r1: cell.r, c1: cell.c, r2: cell.r, c2: cell.c };
-    this._enterEdit(false);
   }
 
   // ── Keyboard ──
