@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "ssh": {
-      "command": "python",
-      "args": ["tools/ssh-mcp/server.py"]
-    }
-  }
-}

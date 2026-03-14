@@ -14,7 +14,7 @@ from javax.imageio import ImageIO
 import json
 import traceback
 
-BIND_IP = "100.96.249.60"  # Tailscale only
+BIND_IP = "0.0.0.0"  # Filtered by OS/Tailscale firewall
 PORT = 8899
 
 
