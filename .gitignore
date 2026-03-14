@@ -8,6 +8,7 @@ data/*.json
 !data/pnp_part_map.json
 node_modules/
 .claude/
+.mcp.json
 .pytest_cache/
 .ruff_cache/
 *.xlsx

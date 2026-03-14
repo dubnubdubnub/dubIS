@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ssh": {
+      "command": "python",
+      "args": ["tools/ssh-mcp/server.py"],
+      "env": {
+        "OPENPNP_BRIDGE_URL": "http://<tailscale-ip>:8899"
+      }
+    }
+  }
+}
