@@ -70,3 +70,51 @@
  * @property {string} [lastImportDir] - Last directory used for purchase import
  * @property {string} [lastBomFile] - Last BOM file path
  */
+
+/**
+ * @typedef {Object} KicadProject
+ * @property {string} name - Board name
+ * @property {string} kicad_pro - .kicad_pro filename
+ * @property {string} last_scan - ISO timestamp of last scan
+ */
+
+/**
+ * @typedef {Object} KicadPart
+ * @property {string} ref - Reference designator (e.g. "R1")
+ * @property {string} value - Component value (e.g. "10k")
+ * @property {string} footprint - Simplified footprint name (e.g. "R_0402")
+ * @property {string} footprint_full - Full KiCad footprint ref (e.g. "Resistor_SMD:R_0402_1005Metric")
+ * @property {string} lcsc - LCSC part number
+ * @property {string} mpn - Manufacturer part number
+ * @property {boolean} dnp - Do Not Place flag
+ */
+
+/**
+ * @typedef {Object} FootprintPad
+ * @property {string} name - Pad name/number
+ * @property {number} x - X position in mm
+ * @property {number} y - Y position in mm
+ * @property {number} width - Pad width in mm
+ * @property {number} height - Pad height in mm
+ * @property {number} rotation - Pad rotation in degrees
+ * @property {number} roundness - 0=rect, 50=oval, 100=circle
+ */
+
+/**
+ * @typedef {Object} FootprintData
+ * @property {number} body_width - Component body width in mm
+ * @property {number} body_height - Component body height in mm
+ * @property {FootprintPad[]} pads - Array of pads
+ */
+
+/**
+ * @typedef {Object} OpenpnpPartMeta
+ * @property {string} openpnp_id - OpenPnP part ID
+ * @property {string} package_id - OpenPnP package ID
+ * @property {number} height - Part height in mm
+ * @property {number} speed - Speed multiplier
+ * @property {string[]} nozzle_tips - Compatible nozzle tip IDs
+ * @property {FootprintData} [footprint] - Footprint data
+ * @property {string} [footprint_source] - "easyeda"|"kicad"|"manual"
+ * @property {string} [footprint_fetched] - ISO timestamp
+ */
