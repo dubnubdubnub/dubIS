@@ -871,7 +871,7 @@ td.btn-group button + button { margin-left: 6px; }
 
 /* ── Grid Selection (Excel-like) ─────────────────────── */
 .grid-table td {
-  border: 1px solid var(--border-default);
+  border: 1px solid #262c34;
   padding: 2px 6px;
   cursor: cell;
   user-select: none;
@@ -879,7 +879,7 @@ td.btn-group button + button { margin-left: 6px; }
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 11px;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   min-height: 22px;
 }
 
