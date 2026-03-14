@@ -57,10 +57,14 @@ test.describe('BOM panel — staging table', () => {
     // Save button should not be dirty initially
     await expect(page.locator('#bom-save-btn')).not.toHaveClass(/dirty/);
 
-    // Edit a cell in the first row
-    const firstInput = page.locator('#bom-tbody tr:first-child td input').first();
+    // Edit a visible cell — skip refs column (its input is hidden behind a display div)
+    // Use a visible input (not the refs column which has style="display: none")
+    const visibleInputs = page.locator('#bom-tbody tr:first-child td input:visible');
+    const firstInput = visibleInputs.first();
+    await firstInput.scrollIntoViewIfNeeded();
+    await firstInput.click();
     await firstInput.fill('EDITED');
-    await firstInput.dispatchEvent('change');
+    await firstInput.press('Tab');
 
     // Save button should now be dirty
     await expect(page.locator('#bom-save-btn')).toHaveClass(/dirty/);
@@ -123,9 +127,11 @@ test.describe('BOM panel — multiplier', () => {
 
     const priceBefore = await page.locator('#bom-price-info').textContent();
 
-    // Change multiplier to 3
-    await page.locator('#bom-qty-mult').fill('3');
-    await page.locator('#bom-qty-mult').dispatchEvent('input');
+    // Change multiplier to 3 — click, clear, type (fires input event naturally)
+    const multInput = page.locator('#bom-qty-mult');
+    await multInput.click();
+    await multInput.fill('3');
+    await multInput.press('Tab');
 
     // Wait for re-render
     await page.waitForTimeout(200);
@@ -160,7 +166,9 @@ test.describe('BOM panel — clear', () => {
     // Tbody should be empty
     await expect(page.locator('#bom-tbody')).toBeEmpty();
 
-    // Save button should be disabled
+    // Save button should be disabled (init() re-creates it with disabled attribute)
+    // Wait briefly for any async event handlers (INVENTORY_LOADED auto-load) to settle
+    await page.waitForTimeout(200);
     await expect(page.locator('#bom-save-btn')).toBeDisabled();
 
     // Drop zone should lose .loaded

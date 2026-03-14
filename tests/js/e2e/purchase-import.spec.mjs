@@ -112,11 +112,14 @@ test.describe('Purchase import — staging table editing', () => {
     await loadPurchaseOrder(page, PO_CSV_PATH);
 
     const firstInput = page.locator('#import-mapper .import-preview tbody tr:first-child td input').first();
+    await firstInput.scrollIntoViewIfNeeded();
+    await firstInput.click();
     await firstInput.fill('NEW_VALUE');
-    await firstInput.dispatchEvent('change');
+    await firstInput.press('Tab');
 
-    // The input value should persist
-    await expect(firstInput).toHaveValue('NEW_VALUE');
+    // The input value should persist (re-query since Tab may re-render)
+    const updatedInput = page.locator('#import-mapper .import-preview tbody tr:first-child td input').first();
+    await expect(updatedInput).toHaveValue('NEW_VALUE');
   });
 
   test('clicking × removes row and staging count decreases', async ({ page }) => {
@@ -129,8 +132,10 @@ test.describe('Purchase import — staging table editing', () => {
     const rowsBefore = await page.locator('#import-mapper .import-preview tbody tr').count();
     expect(rowsBefore).toBe(5);
 
-    // Click the delete button on the first row
-    await page.locator('#import-mapper .import-preview tbody tr:first-child .row-delete').click();
+    // Scroll the delete button into view first — sticky toolbar can intercept clicks
+    const deleteBtn = page.locator('#import-mapper .import-preview tbody tr:first-child .row-delete');
+    await deleteBtn.scrollIntoViewIfNeeded();
+    await deleteBtn.click();
 
     const rowsAfter = await page.locator('#import-mapper .import-preview tbody tr').count();
     expect(rowsAfter).toBe(4);
@@ -148,8 +153,10 @@ test.describe('Purchase import — staging table editing', () => {
     // Column indices 0, 1, 2 are part ID fields (Digikey, LCSC, MPN)
     for (const colIdx of [0, 1, 2]) {
       const input = page.locator(`#import-mapper .import-preview tbody tr:first-child td input[data-col="${colIdx}"]`);
+      await input.scrollIntoViewIfNeeded();
+      await input.click();
       await input.fill('');
-      await input.dispatchEvent('change');
+      await input.press('Tab');
     }
 
     // First row should now have .row-warn

@@ -149,16 +149,13 @@ test.describe('BOM comparison — confirm button', () => {
     if (await confirmBtn.count() === 0) return; // no possible matches
 
     await confirmBtn.click();
-    await page.waitForTimeout(300);
 
     // Toast should be shown
     await expect(page.locator('#toast')).toHaveClass(/show/);
 
-    // After confirm, the button should become "Unconfirm"
-    // (re-render replaces confirm-btn with unconfirm-btn in the same row position)
-    const unconfirmBtn = page.locator('.unconfirm-btn').first();
-    const unconfirmCount = await unconfirmBtn.count();
-    expect(unconfirmCount).toBeGreaterThan(0);
+    // After confirm, re-render changes status → button becomes "Unconfirm"
+    // Wait for the unconfirm button to appear (re-render is async via event chain)
+    await expect(page.locator('.unconfirm-btn').first()).toBeVisible({ timeout: 5000 });
   });
 });
 

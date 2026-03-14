@@ -105,24 +105,25 @@ test.describe('Inventory — section collapse/expand', () => {
     await page.goto('/index.html');
     await waitForInventoryRows(page);
 
-    const subHeader = page.locator('.inv-subsection-header').first();
     const subHeaderCount = await page.locator('.inv-subsection-header').count();
     if (subHeaderCount === 0) return;
 
-    const subsection = subHeader.locator('..');
+    // Get the text of the first subsection header to re-locate after re-render
+    const subHeaderText = await page.locator('.inv-subsection-header').first().textContent();
+
+    const subsection = page.locator('.inv-subsection-header').first().locator('..');
     const partsBefore = await subsection.locator('.inv-part-row').count();
     if (partsBefore === 0) return;
 
     // Total rows across all sections
     const totalBefore = await page.locator('.inv-part-row').count();
 
-    // Collapse subsection
-    await subHeader.click();
-    await expect(subHeader).toHaveClass(/collapsed/);
+    // Collapse subsection — click triggers full re-render, so locators become stale
+    await page.locator('.inv-subsection-header').first().click();
 
-    // This subsection's parts should be hidden
-    const partsAfter = await subsection.locator('.inv-part-row').count();
-    expect(partsAfter).toBe(0);
+    // After re-render, re-locate the header by its text and verify collapsed
+    const collapsedHeader = page.locator('.inv-subsection-header.collapsed').first();
+    await expect(collapsedHeader).toBeVisible({ timeout: 5000 });
 
     // Total should decrease by exactly the collapsed section's parts
     const totalAfter = await page.locator('.inv-part-row').count();

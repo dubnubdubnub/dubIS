@@ -122,8 +122,9 @@ test.describe('Global UX — preferences modal', () => {
     const input = page.locator('.prefs-input').first();
 
     // Change the number input — slider should update
+    await input.click();
     await input.fill('100');
-    await input.dispatchEvent('input');
+    await input.press('Tab');
 
     const sliderVal = await slider.inputValue();
     expect(sliderVal).toBe('100');
