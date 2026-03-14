@@ -5,8 +5,12 @@ import { showToast, escHtml, Modal, setupDropZone, resetDropZoneInput } from './
 import { UndoRedo } from './undo-redo.js';
 import { App, snapshotLinks, loadInventory, onInventoryUpdated, savePreferences } from './store.js';
 import { parseCSV, processBOM, generateCSV } from './csv-parser.js';
+import { GridSelection } from './grid-selection.js';
 
 const body = document.getElementById("import-body");
+
+/** @type {GridSelection | null} */
+let importGrid = null;
 
 // Inventory field names that can be mapped to
 const TARGET_FIELDS = [
@@ -233,7 +237,7 @@ function renderMapper() {
 
   html += '</div>';
 
-  // Editable staging table — ALL rows
+  // Editable staging table — ALL rows (plain text cells, grid handles editing)
   if (parsedRows.length > 0) {
     html += '<div class="staging-toolbar"><h3>Staging (' + parsedRows.length + ' rows)</h3></div>'
           + '<div class="import-preview"><table><thead><tr>';
@@ -248,7 +252,7 @@ function renderMapper() {
       html += `<tr${trClass}>`;
       html += `<td class="row-delete" data-row="${ri}">\u00d7</td>`;
       row.forEach((cell, ci) => {
-        html += `<td><input type="text" value="${escHtml(cell)}" data-row="${ri}" data-col="${ci}"></td>`;
+        html += `<td>${escHtml(cell)}</td>`;
       });
       html += '</tr>';
     });
@@ -289,16 +293,20 @@ function renderMapper() {
     });
   });
 
-  // Attach cell edit listeners
-  mapper.querySelectorAll(".import-preview td input").forEach(inp => {
-    inp.addEventListener("change", () => {
-      const ri = parseInt(inp.dataset.row);
-      const ci = parseInt(inp.dataset.col);
-      UndoRedo.save("import", parsedRows);
-      parsedRows[ri][ci] = inp.value;
-      applyRowClasses();
+  // Instantiate grid selection on the import preview table
+  if (importGrid) { importGrid.destroy(); importGrid = null; }
+  const previewWrap = mapper.querySelector(".import-preview");
+  const previewTable = previewWrap ? previewWrap.querySelector("table") : null;
+  if (previewWrap && previewTable) {
+    importGrid = new GridSelection(/** @type {HTMLElement} */ (previewWrap), /** @type {HTMLTableElement} */ (previewTable), {
+      getCellValue: (r, c) => (parsedRows[r] && parsedRows[r][c] != null) ? parsedRows[r][c] : "",
+      setCellValue: (r, c, v) => { parsedRows[r][c] = v; },
+      onBeforeChange: () => UndoRedo.save("import", parsedRows),
+      onCellChange: () => applyRowClasses(),
+      readOnlyCols: [0],
+      isDisabled: () => false,
     });
-  });
+  }
 
   // Attach row delete listeners
   mapper.querySelectorAll(".import-preview .row-delete").forEach(del => {
@@ -327,6 +335,7 @@ function renderMapper() {
 }
 
 function clearImport() {
+  if (importGrid) { importGrid.destroy(); importGrid = null; }
   parsedHeaders = [];
   parsedRows = [];
   columnMapping = {};
