@@ -162,19 +162,51 @@ def run_test():
         with open(jython_script, "w") as f:
             f.write(content)
 
+        # Start Xvfb on a known display so we can target xdotool at it
+        xvfb_display = ":42"
+        xvfb_proc = subprocess.Popen(
+            ["Xvfb", xvfb_display, "-screen", "0", "1024x768x24", "-nolisten", "tcp"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        time.sleep(1)
+
         env = os.environ.copy()
         env["OPENPNP_TEST_JOB"] = os.path.abspath(job_path)
-        env["DISPLAY"] = ":99"
+        env["DISPLAY"] = xvfb_display
 
-        print(f"[e2e] Launching OpenPnP: xvfb-run {openpnp_bin}")
+        print(f"[e2e] Launching OpenPnP: {openpnp_bin} (display={xvfb_display})")
         openpnp_proc = subprocess.Popen(
-            ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 1024x768x24",
-             openpnp_bin],
+            [openpnp_bin],
             env=env,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             cwd=openpnp_user_config,
             start_new_session=True,
         )
+
+        # OpenPnP 2.4 shows a first-run dialog that blocks the EDT.
+        # Dismiss it by sending Enter key via xdotool after a delay.
+        def dismiss_dialog():
+            time.sleep(8)
+            dismiss_env = os.environ.copy()
+            dismiss_env["DISPLAY"] = xvfb_display
+            for _ in range(5):
+                try:
+                    subprocess.run(
+                        ["xdotool", "key", "Return"],
+                        env=dismiss_env, timeout=5,
+                        capture_output=True,
+                    )
+                except FileNotFoundError:
+                    print("[e2e] WARN: xdotool not found, cannot dismiss dialog")
+                    break
+                except Exception:
+                    pass
+                time.sleep(1)
+            print(f"[e2e] Sent Enter keys to dismiss OpenPnP dialog (display={xvfb_display})")
+
+        import threading
+        dialog_thread = threading.Thread(target=dismiss_dialog, daemon=True)
+        dialog_thread.start()
 
         # Wait for OpenPnP to finish (it exits via Startup.py after job completes)
         try:
@@ -255,6 +287,13 @@ def run_test():
         if dubis_proc.poll() is None:
             dubis_proc.terminate()
             dubis_proc.wait(timeout=10)
+        # Kill Xvfb if it was started
+        try:
+            if xvfb_proc.poll() is None:
+                xvfb_proc.terminate()
+                xvfb_proc.wait(timeout=5)
+        except NameError:
+            pass
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
     # ── Report ──
