@@ -17,6 +17,7 @@ jobs:
           clean: true
       - run: npm install
       - run: npx eslint js/
+      - run: npx tsc --noEmit
       - run: npx vitest run
       - run: npx playwright install chromium
       - run: npx playwright test
@@ -33,6 +34,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: npm install
       - run: npx eslint js/
+      - run: npx tsc --noEmit
       - run: npx vitest run
       - run: npx playwright test
       - uses: actions/upload-artifact@v4

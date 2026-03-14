@@ -1,3 +1,4 @@
+// @ts-check
 /* event-bus.js — Central event system for cross-panel communication */
 
 export const Events = Object.freeze({
