@@ -10,16 +10,15 @@ on:
 jobs:
   js-ubuntu:
     name: JS Lint & Test (Ubuntu)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, pnp-testbox]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          clean: true
       - run: npm install
       - run: npx eslint js/
       - run: npx vitest run
-      - run: npx playwright install chromium --with-deps
+      - run: npx playwright install chromium
       - run: npx playwright test
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -44,15 +43,14 @@ jobs:
 
   python-ubuntu:
     name: Python Lint & Test (Ubuntu)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, pnp-testbox]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - run: pip install -r requirements-dev.txt
-      - run: ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py pnp_server.py
-      - run: pytest tests/python/ -v
+          clean: true
+      - run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
+      - run: ~/dubis-venv/bin/ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py pnp_server.py
+      - run: ~/dubis-venv/bin/pytest tests/python/ -v
 
   python-macos:
     name: Python Lint & Test (macOS)
