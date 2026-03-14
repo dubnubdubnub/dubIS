@@ -1,3 +1,4 @@
+// @ts-check
 /* csv-parser.js — RFC 4180-compliant CSV parser and column detection */
 
 // ── Parse CSV (handles quoted fields with commas/newlines) ──

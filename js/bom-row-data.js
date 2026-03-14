@@ -1,3 +1,4 @@
+// @ts-check
 /* bom-row-data.js — Pure display-data computation for BOM table rows.
    No DOM dependencies. Depends on: bomKey, STATUS_ICONS,
    STATUS_ROW_CLASS (from part-keys.js). */
