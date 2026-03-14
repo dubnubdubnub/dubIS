@@ -688,6 +688,12 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 .col-mapper-row select.mapped { border-color: var(--color-green); color: var(--color-green); }
 
 #import-mapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.import-mapper-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
