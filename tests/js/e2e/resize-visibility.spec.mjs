@@ -652,16 +652,21 @@ test.describe('Panel body scrollability', () => {
 test.describe('Inventory row elements at narrow widths', () => {
 
   /**
-   * Check that Adjust buttons are not clipped by the panel body's overflow.
-   * The panel body has overflow-x: hidden, so buttons that extend past it
-   * are invisible even though they exist in the DOM.
+   * Check that row action buttons (Adjust, Link) are not clipped by the
+   * panel body's overflow-x: hidden.  Accepts an optional BOM CSV string —
+   * when provided, the BOM is loaded first so the Link button also renders.
    */
-  function checkAdjustButtonsNotClipped(viewportWidth) {
+  function checkRowButtonsNotClipped(viewportWidth, { withBom = false } = {}) {
     return async ({ page }) => {
       await addMockSetup(page, MOCK_INVENTORY);
       await page.setViewportSize({ width: viewportWidth, height: 700 });
       await page.goto('/index.html');
       await waitForInventoryRows(page);
+
+      if (withBom) {
+        await loadBomViaEmit(page, BOM_CSV);
+        await page.waitForTimeout(300);
+      }
 
       const result = await page.evaluate(() => {
         const panelBody = document.getElementById('inventory-body');
@@ -671,29 +676,32 @@ test.describe('Inventory row elements at narrow widths', () => {
         const issues = [];
         const checked = Math.min(rows.length, 10);
         for (let i = 0; i < checked; i++) {
-          const btn = rows[i].querySelector('.adj-btn');
-          if (!btn) { issues.push(`row ${i}: no adj-btn`); continue; }
-          if (btn.offsetWidth === 0 || btn.offsetHeight === 0) {
-            issues.push(`row ${i}: adj-btn has zero dimensions`);
-            continue;
-          }
-          const btnRect = btn.getBoundingClientRect();
-          // Button must be within the panel body's visible bounds
-          if (btnRect.right > bodyRect.right + 1) {
-            issues.push(`row ${i}: adj-btn clipped by panel (btn.right=${Math.round(btnRect.right)}, panel.right=${Math.round(bodyRect.right)})`);
+          // Check every button in the row (Adjust and optionally Link)
+          const buttons = rows[i].querySelectorAll('.adj-btn, .link-btn');
+          for (const btn of buttons) {
+            if (btn.offsetWidth === 0 || btn.offsetHeight === 0) {
+              issues.push(`row ${i}: ${btn.className} has zero dimensions`);
+              continue;
+            }
+            const btnRect = btn.getBoundingClientRect();
+            if (btnRect.right > bodyRect.right + 1) {
+              issues.push(`row ${i}: ${btn.className} clipped (btn.right=${Math.round(btnRect.right)}, panel.right=${Math.round(bodyRect.right)})`);
+            }
           }
         }
         return { checked, panelWidth: Math.round(bodyRect.width), issues };
       });
 
-      console.log(`Viewport ${viewportWidth}px — panel width: ${result.panelWidth}px, checked ${result.checked} rows, issues: ${result.issues.length}`);
+      console.log(`Viewport ${viewportWidth}px (bom=${withBom}) — panel width: ${result.panelWidth}px, checked ${result.checked} rows, issues: ${result.issues.length}`);
       result.issues.forEach(i => console.log('  ' + i));
       expect(result.issues.length, result.issues.join('; ')).toBe(0);
     };
   }
 
-  test('adjust buttons not clipped at 1024px viewport', checkAdjustButtonsNotClipped(1024));
-  test('adjust buttons not clipped at 900px viewport', checkAdjustButtonsNotClipped(900));
+  test('adjust buttons not clipped at 1024px viewport', checkRowButtonsNotClipped(1024));
+  test('adjust buttons not clipped at 900px viewport', checkRowButtonsNotClipped(900));
+  test('adjust+link buttons not clipped at 1024px with BOM', checkRowButtonsNotClipped(1024, { withBom: true }));
+  test('adjust+link buttons not clipped at 900px with BOM', checkRowButtonsNotClipped(900, { withBom: true }));
 
   test('part-id, mpn, qty visible in narrow inventory rows', async ({ page }) => {
     await addMockSetup(page, MOCK_INVENTORY);
