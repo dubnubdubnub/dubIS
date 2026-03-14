@@ -318,7 +318,8 @@ test.describe('Row heights — BOM comparison mode', () => {
     console.log('BOM rows (narrow):', bomRowCount);
     console.log('Remaining inv rows (narrow):', invRowCount);
 
-    // ALL BOM rows should stay compact — max 60px even with alt badges
+    // ALL BOM rows should stay compact — max 64px even with alt badges
+    // (macOS renders ~2px taller than Linux due to font metrics)
     for (let i = 0; i < bomRowCount; i++) {
       const row = await page.locator('tr[data-part-key]').nth(i).evaluate(el => ({
         height: el.offsetHeight,
@@ -326,7 +327,7 @@ test.describe('Row heights — BOM comparison mode', () => {
         hasAltBadge: !!el.querySelector('.alt-badge'),
       }));
       console.log(`BOM row[${i}] (narrow): h=${row.height} key=${row.partKey} alt=${row.hasAltBadge}`);
-      expect(row.height, `Row ${row.partKey} too tall`).toBeLessThanOrEqual(60);
+      expect(row.height, `Row ${row.partKey} too tall`).toBeLessThanOrEqual(64);
     }
     await logRowHeights(page, 'bom-remaining-narrow');
   });
