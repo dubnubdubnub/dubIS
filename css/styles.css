@@ -706,12 +706,15 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
   vertical-align: bottom; white-space: nowrap;
   overflow: hidden;
 }
+.import-preview thead { pointer-events: none; }
 .import-preview th .th-label {
+  display: block;
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   text-align: left;
   white-space: nowrap;
   max-height: 100px;
+  overflow: hidden;
 }
 .import-preview td { padding: 3px 6px; }
 
