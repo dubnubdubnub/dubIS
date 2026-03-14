@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows, loadBom } from './helpers.mjs';
+import { addMockSetup, waitForInventoryRows, loadBom, loadPurchaseOrder } from './helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -12,6 +12,7 @@ const MOCK_INVENTORY = JSON.parse(
 const BOM_CSV = fs.readFileSync(
   path.join(__dirname, 'fixtures', 'bom.csv'), 'utf8'
 );
+const PO_CSV_PATH = path.join(__dirname, 'fixtures', 'purchase.csv');
 
 /** Log diagnostic dimensions */
 async function logDimensions(page, label) {
@@ -180,6 +181,93 @@ test.describe('Description auto-hide — normal inventory mode', () => {
   });
 });
 
+// ── PO loaded mode tests ──
+
+test.describe('Description auto-hide — with PO loaded', () => {
+
+  test('narrow viewport (1200px) with PO — descriptions hidden', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1200, height: 700 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await loadPurchaseOrder(page, PO_CSV_PATH);
+    await page.waitForTimeout(300);
+    const dims = await logDimensions(page, 'po-narrow-1200');
+    const descCount = await countDescs(page);
+    console.log('Desc count at 1200px with PO:', descCount);
+    expect(descCount).toBe(0);
+    expect(dims.invBodyWidth).toBeLessThan(680);
+  });
+
+  test('wide viewport (1920px) with PO — descriptions visible', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1920, height: 900 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await loadPurchaseOrder(page, PO_CSV_PATH);
+    await page.waitForTimeout(300);
+    const dims = await logDimensions(page, 'po-wide-1920');
+    const descCount = await countDescs(page);
+    console.log('Desc count at 1920px with PO:', descCount);
+    expect(descCount).toBeGreaterThan(0);
+    expect(dims.invBodyWidth).toBeGreaterThanOrEqual(680);
+  });
+
+  test('resize wide → narrow with PO — descriptions disappear', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1920, height: 900 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await loadPurchaseOrder(page, PO_CSV_PATH);
+    await page.waitForTimeout(300);
+    let descCount = await countDescs(page);
+    expect(descCount).toBeGreaterThan(0);
+
+    await page.setViewportSize({ width: 1200, height: 700 });
+    await page.waitForTimeout(500);
+    descCount = await countDescs(page);
+    console.log('Desc count after resize to narrow with PO:', descCount);
+    expect(descCount).toBe(0);
+  });
+});
+
+// ── BOM + PO mode tests ──
+
+test.describe('Description auto-hide — with BOM + PO', () => {
+
+  test('narrow viewport (1200px) with BOM + PO — descriptions hidden', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1200, height: 700 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await loadPurchaseOrder(page, PO_CSV_PATH);
+    await page.waitForTimeout(200);
+    await loadBom(page, BOM_CSV);
+    await page.waitForTimeout(300);
+    const dims = await logDimensions(page, 'bom-po-narrow-1200');
+    const descCount = await countDescs(page);
+    console.log('Desc count at 1200px with BOM+PO:', descCount);
+    expect(descCount).toBe(0);
+  });
+
+  test('wide viewport (1920px) with BOM + PO — row heights and descs', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1920, height: 900 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await loadPurchaseOrder(page, PO_CSV_PATH);
+    await page.waitForTimeout(200);
+    await loadBom(page, BOM_CSV);
+    await page.waitForTimeout(300);
+    const dims = await logDimensions(page, 'bom-po-wide-1920');
+    await logRowHeights(page, 'bom-po-wide');
+    const bomRowCount = await page.locator('tr[data-part-key]').count();
+    const invRowCount = await page.locator('.inv-part-row').count();
+    console.log('BOM rows (BOM+PO wide):', bomRowCount);
+    console.log('Remaining inv rows (BOM+PO wide):', invRowCount);
+  });
+});
+
 // ── BOM comparison mode tests ──
 
 test.describe('Row heights — BOM comparison mode', () => {
@@ -316,6 +404,46 @@ test.describe('Row height survey — with BOM', () => {
       }
       const invRows = await measureInvRows(page, 5);
       console.log(`Remaining inv rows at ${vp.label}:`, invRows);
+    });
+  }
+});
+
+test.describe('Row height survey — with PO', () => {
+  for (const vp of VIEWPORTS) {
+    test(`PO + inv rows at ${vp.label}`, async ({ page }) => {
+      await addMockSetup(page, MOCK_INVENTORY);
+      await page.setViewportSize(vp);
+      await page.goto('/index.html');
+      await waitForInventoryRows(page);
+      await loadPurchaseOrder(page, PO_CSV_PATH);
+      await page.waitForTimeout(300);
+
+      const dims = await logDimensions(page, `po-${vp.label}`);
+      const invRows = await measureInvRows(page, 5);
+      console.log(`Inv rows with PO at ${vp.label}:`, invRows);
+    });
+  }
+});
+
+test.describe('Row height survey — with BOM + PO', () => {
+  for (const vp of VIEWPORTS) {
+    test(`BOM + PO + inv rows at ${vp.label}`, async ({ page }) => {
+      await addMockSetup(page, MOCK_INVENTORY);
+      await page.setViewportSize(vp);
+      await page.goto('/index.html');
+      await waitForInventoryRows(page);
+      await loadPurchaseOrder(page, PO_CSV_PATH);
+      await page.waitForTimeout(200);
+      await loadBom(page, BOM_CSV);
+      await page.waitForTimeout(300);
+
+      const dims = await logDimensions(page, `bom-po-${vp.label}`);
+      const bomRows = await measureBomRows(page, 5);
+      for (const row of bomRows) {
+        console.log(`BOM row ${row.partKey} (BOM+PO ${vp.label}): h=${row.height} w=${row.width}`);
+      }
+      const invRows = await measureInvRows(page, 5);
+      console.log(`Remaining inv rows (BOM+PO) at ${vp.label}:`, invRows);
     });
   }
 });
