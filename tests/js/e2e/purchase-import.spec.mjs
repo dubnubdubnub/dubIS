@@ -111,15 +111,17 @@ test.describe('Purchase import — staging table editing', () => {
 
     await loadPurchaseOrder(page, PO_CSV_PATH);
 
-    const firstInput = page.locator('#import-mapper .import-preview tbody tr:first-child td input').first();
-    await firstInput.scrollIntoViewIfNeeded();
-    await firstInput.click();
-    await firstInput.fill('NEW_VALUE');
-    await firstInput.press('Tab');
+    // Click first data cell (skip delete col at index 0 — nth(1) is first data col)
+    const cell = page.locator('#import-mapper .import-preview tbody tr:first-child td').nth(1);
+    await cell.scrollIntoViewIfNeeded();
+    await cell.click();
+    // Type to enter edit mode (grid: type-to-edit replaces content)
+    await page.keyboard.type('NEW_VALUE');
+    await page.keyboard.press('Tab');
 
-    // The input value should persist (re-query since Tab may re-render)
-    const updatedInput = page.locator('#import-mapper .import-preview tbody tr:first-child td input').first();
-    await expect(updatedInput).toHaveValue('NEW_VALUE');
+    // The cell text should reflect the new value
+    const updatedCell = page.locator('#import-mapper .import-preview tbody tr:first-child td').nth(1);
+    await expect(updatedCell).toHaveText('NEW_VALUE');
   });
 
   test('clicking × removes row and staging count decreases', async ({ page }) => {
@@ -151,12 +153,13 @@ test.describe('Purchase import — staging table editing', () => {
 
     // Clear all part ID fields in the first row to force a warning
     // Column indices 0, 1, 2 are part ID fields (Digikey, LCSC, MPN)
+    // In the grid, td:nth-child(N+2) maps to data col N (td:nth-child(1) is delete col)
+    // Click each cell to select it, then press Delete to clear (grid select-mode clear)
     for (const colIdx of [0, 1, 2]) {
-      const input = page.locator(`#import-mapper .import-preview tbody tr:first-child td input[data-col="${colIdx}"]`);
-      await input.scrollIntoViewIfNeeded();
-      await input.click();
-      await input.fill('');
-      await input.press('Tab');
+      const cell = page.locator(`#import-mapper .import-preview tbody tr:first-child td`).nth(colIdx + 1);
+      await cell.scrollIntoViewIfNeeded();
+      await cell.click();
+      await page.keyboard.press('Delete');
     }
 
     // First row should now have .row-warn

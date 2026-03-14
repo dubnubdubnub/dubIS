@@ -138,6 +138,8 @@ async function initApp() {
 
   document.addEventListener("keydown", async (e) => {
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    // Let browser handle undo/redo inside grid edit input
+    if (window._activeGrid && window._activeGrid.isEditing()) return;
     if (e.key === "z" && !e.shiftKey && UndoRedo.canUndo()) {
       e.preventDefault();
       await UndoRedo.undo();

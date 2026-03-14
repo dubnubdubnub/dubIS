@@ -699,7 +699,7 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
   overflow-y: auto;
 }
 
-.import-preview {}
+.import-preview { position: relative; overflow: auto; }
 .import-preview table { font-size: 11px; }
 .import-preview th {
   padding: 4px 6px; font-size: 10px;
@@ -718,17 +718,8 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 }
 .import-preview td { padding: 3px 6px; }
 
-.import-preview td input {
-  width: 100%; background: transparent; border: 1px solid transparent;
-  color: var(--text-primary); font-size: 11px; padding: 2px 4px;
-  font-family: inherit; border-radius: 3px;
-}
-.import-preview td input:focus {
-  border-color: var(--color-blue); background: var(--bg-base); outline: none;
-}
-
 .import-preview tr.row-warn { background: #d2992218; }
-.import-preview tr.row-warn td input { color: var(--color-yellow); }
+.import-preview tr.row-warn td { color: var(--color-yellow); }
 .import-preview tr.row-subtotal { background: #484f5815; opacity: 0.6; }
 
 .import-preview .row-delete {
@@ -836,6 +827,7 @@ td.btn-group button + button { margin-left: 6px; }
 #bom-results .multiplier-bar { flex-shrink: 0; }
 
 .bom-table-wrap {
+  position: relative;
   overflow-x: auto;
   overflow-y: auto;
   flex: 1;
@@ -851,19 +843,9 @@ td.btn-group button + button { margin-left: 6px; }
   text-transform: uppercase; letter-spacing: 0.5px;
 }
 
-/* ── BOM Editable Inputs ─────────────────────────────── */
-.bom-table-wrap td input {
-  width: 100%; background: transparent; border: 1px solid transparent;
-  color: var(--text-primary); font-size: 11px; padding: 2px 4px;
-  font-family: inherit; border-radius: 3px;
-}
-.bom-table-wrap td input:focus {
-  border-color: var(--color-blue); background: var(--bg-base); outline: none;
-}
-
 /* ── BOM Row Warning / Subtotal ──────────────────────── */
 .bom-table-wrap tr.row-warn { background: #d2992218; }
-.bom-table-wrap tr.row-warn td input { color: var(--color-yellow); }
+.bom-table-wrap tr.row-warn td { color: var(--color-yellow); }
 .bom-table-wrap tr.row-subtotal { background: #484f5815; opacity: 0.6; }
 
 /* ── BOM Row Delete Button ───────────────────────────── */
@@ -885,6 +867,97 @@ td.btn-group button + button { margin-left: 6px; }
 }
 .bom-table-wrap td a:hover {
   text-decoration: underline;
+}
+
+/* ── Grid Selection (Excel-like) ─────────────────────── */
+.grid-table td {
+  border: 1px solid var(--border-default);
+  padding: 2px 6px;
+  cursor: cell;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--text-primary);
+  min-height: 22px;
+}
+
+.grid-sel {
+  position: absolute;
+  border: 2px solid var(--color-blue);
+  pointer-events: none;
+  z-index: 5;
+  box-sizing: border-box;
+}
+
+.grid-range {
+  position: absolute;
+  background: #58a6ff18;
+  border: 1px solid #58a6ff60;
+  pointer-events: none;
+  z-index: 4;
+  box-sizing: border-box;
+}
+
+.grid-fill-handle {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: var(--color-blue);
+  border: 1px solid var(--bg-surface);
+  cursor: crosshair;
+  z-index: 6;
+}
+
+.grid-edit-input {
+  position: absolute;
+  z-index: 7;
+  border: 2px solid var(--color-blue);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 1px 4px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.grid-magnifier {
+  position: fixed;
+  z-index: 500;
+  background: var(--bg-surface);
+  border: 1px solid var(--color-blue);
+  padding: 6px 10px;
+  font-size: 14px;
+  color: var(--text-primary);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  max-width: 400px;
+  word-break: break-word;
+  pointer-events: none;
+}
+
+.grid-fill-preview {
+  position: absolute;
+  background: #58a6ff10;
+  border: 1px dashed var(--color-blue);
+  pointer-events: none;
+  z-index: 4;
+}
+
+body.grid-filling { user-select: none; cursor: crosshair; }
+
+/* Preserve row coloring on grid tables */
+.grid-table tr.row-warn td { color: var(--color-yellow); }
+.grid-table tr.row-dnp td { color: var(--color-gray-muted); text-decoration: line-through; }
+.grid-table tr.row-subtotal { opacity: 0.6; }
+
+/* readOnly columns keep compact styling, no grid cell border/cursor */
+.grid-table td.row-delete,
+.grid-table td.status {
+  border: none;
+  cursor: default;
+  user-select: none;
 }
 
 /* ── Console Log ──────────────────────────────────────── */
