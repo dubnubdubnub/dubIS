@@ -70,6 +70,10 @@ class PnPHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self.path != "/api/consume":
+            # Drain request body to prevent ConnectionResetError on macOS
+            length = int(self.headers.get("Content-Length", 0))
+            if length:
+                self.rfile.read(length)
             self._send_json(404, {"ok": False, "error": "Not found"})
             return
 
