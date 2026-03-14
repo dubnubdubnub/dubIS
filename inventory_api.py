@@ -66,7 +66,9 @@ class InventoryApi:
     SECTION_HIERARCHY = _SECTION_HIERARCHY
 
     def __init__(self, *, debug: bool = False) -> None:
-        self.base_dir: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+        self.base_dir: str = os.environ.get("DUBIS_DATA_DIR") or os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "data",
+        )
         self.input_csv: str = os.path.join(self.base_dir, "purchase_ledger.csv")
         self.output_csv: str = os.path.join(self.base_dir, "inventory.csv")
         self.adjustments_csv: str = os.path.join(self.base_dir, "adjustments.csv")
