@@ -1,6 +1,9 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests/python"]
+markers = [
+    "slow: marks tests as slow (spawn real GUI app, need display)",
+]
 
 [tool.ruff]
 line-length = 120
