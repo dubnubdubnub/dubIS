@@ -657,7 +657,7 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 .import-section { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 12px; }
 .import-section h3 { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
 
-.col-mapper { margin: 8px 0; flex-shrink: 0; }
+.col-mapper { margin: 8px 0; }
 .col-mapper-row {
   display: flex;
   align-items: center;
@@ -693,22 +693,28 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
   flex: 1;
   min-height: 0;
 }
-
-.import-preview {
+.import-mapper-scroll {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
 }
+
+.import-preview {}
 .import-preview table { font-size: 11px; }
 .import-preview th {
   padding: 4px 6px; font-size: 10px;
   vertical-align: bottom; white-space: nowrap;
+  overflow: hidden;
 }
+.import-preview thead { pointer-events: none; }
 .import-preview th .th-label {
+  display: block;
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   text-align: left;
   white-space: nowrap;
+  max-height: 100px;
+  overflow: hidden;
 }
 .import-preview td { padding: 3px 6px; }
 

@@ -215,7 +215,7 @@ function renderMapper() {
   const mapper = document.getElementById("import-mapper");
   mapper.classList.remove("hidden");
 
-  let html = '<h3>Column Mapping</h3><div class="col-mapper">';
+  let html = '<div class="import-mapper-scroll"><h3>Column Mapping</h3><div class="col-mapper">';
 
   parsedHeaders.forEach((header, i) => {
     const current = columnMapping[i] || "Skip";
@@ -254,6 +254,8 @@ function renderMapper() {
     });
     html += '</tbody></table></div>';
   }
+
+  html += '</div>'; // close .import-mapper-scroll
 
   // Import / Clear buttons
   const warns = countWarnings();
