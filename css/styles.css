@@ -657,7 +657,7 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 .import-section { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 12px; }
 .import-section h3 { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
 
-.col-mapper { margin: 8px 0; flex-shrink: 0; }
+.col-mapper { margin: 8px 0; }
 .col-mapper-row {
   display: flex;
   align-items: center;
@@ -688,27 +688,24 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 .col-mapper-row select.mapped { border-color: var(--color-green); color: var(--color-green); }
 
 #import-mapper {
-  display: flex;
-  flex-direction: column;
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
 }
 
-.import-preview {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
+.import-preview {}
 .import-preview table { font-size: 11px; }
 .import-preview th {
   padding: 4px 6px; font-size: 10px;
   vertical-align: bottom; white-space: nowrap;
+  overflow: hidden;
 }
 .import-preview th .th-label {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   text-align: left;
   white-space: nowrap;
+  max-height: 100px;
 }
 .import-preview td { padding: 3px 6px; }
 
