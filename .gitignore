@@ -6,6 +6,9 @@ data/*.csv
 data/*.json
 !data/constants.json
 !data/pnp_part_map.json
+!data/part_links.json
+!data/openpnp_parts.json
+!data/kicad_projects.json
 node_modules/
 .claude/
 .mcp.json

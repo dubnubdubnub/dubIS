@@ -1303,3 +1303,125 @@ tr.row-teal td.status { color: var(--color-teal); }
 
 /* ── Vendor Icons ─────────────────────────────────────── */
 .vendor-icon { width: 12px; height: 12px; margin-right: 2px; flex-shrink: 0; }
+
+/* ── Tab Bar ──────────────────────────────────────────── */
+.tab-bar { gap: 0; padding: 0; }
+.tab-bar .tab {
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.15s;
+}
+.tab-bar .tab:hover { color: var(--text-secondary); }
+.tab-bar .tab.active {
+  color: var(--color-blue);
+  border-bottom-color: var(--color-blue);
+}
+
+/* ── KiCad Panel ──────────────────────────────────────── */
+#kicad-body { display: flex; flex-direction: column; overflow: hidden; }
+
+.kicad-toolbar {
+  padding: 8px 12px;
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--bg-raised);
+}
+
+.kicad-project-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--bg-raised);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.kicad-project-item:hover { background: var(--bg-hover); }
+.kicad-project-name { font-size: 13px; font-weight: 600; color: var(--text-bright); }
+.kicad-project-path { font-size: 11px; color: var(--text-muted); margin-top: 2px; word-break: break-all; }
+.kicad-project-meta {
+  font-size: 11px; color: var(--text-secondary); margin-top: 4px;
+  display: flex; gap: 8px; align-items: center;
+}
+
+.kicad-project-actions {
+  display: flex; gap: 6px; margin-top: 6px;
+}
+
+.kicad-parts-table {
+  flex: 1; overflow: auto; min-height: 0;
+}
+.kicad-parts-table table { min-width: 500px; }
+
+/* Link status indicators */
+.link-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.link-dot.linked { background: var(--color-green); }
+.link-dot.auto-linkable { background: var(--color-yellow); }
+.link-dot.unlinked { background: var(--color-red); }
+
+.kicad-summary-bar {
+  padding: 6px 12px;
+  display: flex; gap: 8px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--bg-raised);
+  flex-shrink: 0;
+}
+
+.kicad-empty {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ── OpenPnP Badge (inventory rows) ───────────────────── */
+.openpnp-badge {
+  background: var(--bg-raised); border: 1px solid var(--border-default); color: var(--text-secondary);
+  border-radius: 4px; padding: 1px 6px; cursor: pointer;
+  font-size: 10px; line-height: 1.4; white-space: nowrap;
+  flex-shrink: 0; transition: all 0.15s;
+}
+.openpnp-badge:hover { border-color: var(--color-orange); color: var(--color-orange); background: #f0883e26; }
+.openpnp-badge.has-fp { border-color: #3fb95040; color: var(--color-green); background: #3fb95018; }
+.openpnp-badge.has-fp:hover { background: #3fb95030; border-color: var(--color-green); }
+
+/* ── OpenPnP Modal ────────────────────────────────────── */
+.openpnp-modal-wide { min-width: 560px; max-width: 640px; }
+
+.openpnp-modal-grid {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.openpnp-modal-fields { flex: 1; min-width: 0; }
+.openpnp-modal-preview {
+  width: 200px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+
+#openpnp-fp-canvas {
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+}
+
+.openpnp-nozzle-list {
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.openpnp-nozzle-list label {
+  font-size: 12px; color: var(--text-primary);
+  display: flex; align-items: center; gap: 4px;
+  cursor: pointer;
+}
+.openpnp-nozzle-list input[type="checkbox"] { cursor: pointer; }
