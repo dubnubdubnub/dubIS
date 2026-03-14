@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  js:
-    name: JS Lint & Test
+  js-ubuntu:
+    name: JS Lint & Test (Ubuntu)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,15 +24,27 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-ubuntu
           path: test-results/
 
-  python:
-    name: Python Lint & Test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
+  js-macos:
+    name: JS Lint & Test (macOS)
+    runs-on: [self-hosted, m4-air]
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install
+      - run: npx eslint js/
+      - run: npx vitest run
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-macos
+          path: test-results/
+
+  python-ubuntu:
+    name: Python Lint & Test (Ubuntu)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,6 +53,18 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py pnp_server.py
       - run: pytest tests/python/ -v
+
+  python-macos:
+    name: Python Lint & Test (macOS)
+    runs-on: [self-hosted, m4-air]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python dependencies
+        run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
+      - name: Lint
+        run: ~/dubis-venv/bin/ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py pnp_server.py
+      - name: Test
+        run: ~/dubis-venv/bin/pytest tests/python/ -v
 
   pnp-e2e:
     name: PnP End-to-End Test
