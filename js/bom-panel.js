@@ -9,6 +9,7 @@ import { App, snapshotLinks, onInventoryUpdated, savePreferences } from './store
 import { bomKey, invPartKey, countStatuses, bomAggKey, rawRowAggKey, STATUS_ICONS, STATUS_ROW_CLASS, colorizeRefs } from './part-keys.js';
 import { isDnp, extractPartIds, processBOM, aggregateBomRows, generateCSV } from './csv-parser.js';
 import { matchBOM } from './matching.js';
+import { GridSelection } from './grid-selection.js';
 
 const body = document.getElementById("bom-body");
 let lastResults = null;
@@ -19,6 +20,8 @@ let bomRawRows = [];
 let bomHeaders = [];
 let bomCols = {};
 let bomDirty = false;
+/** @type {GridSelection | null} */
+let bomGrid = null;
 
 function updateSaveBtnState() {
   const btn = document.getElementById("bom-save-btn");
@@ -347,6 +350,10 @@ function renderLinkingBanner() {
 }
 
 function renderStagingRows(rows, statusMap, missingKeys) {
+  // Destroy previous grid before rebuilding DOM
+  const savedCursor = bomGrid && bomGrid._cursor ? { ...bomGrid._cursor } : null;
+  if (bomGrid) { bomGrid.destroy(); bomGrid = null; }
+
   const hdrs = bomHeaders;
   let theadHtml = '<tr><th class="row-delete"></th><th style="width:24px"></th>';
   hdrs.forEach(h => { theadHtml += `<th>${escHtml(h)}</th>`; });
@@ -400,52 +407,53 @@ function renderStagingRows(rows, statusMap, missingKeys) {
 
     hdrs.forEach((h, ci) => {
       const td = document.createElement("td");
-      const inp = document.createElement("input");
-      inp.type = "text";
-      inp.value = (row[ci] != null) ? row[ci] : "";
-      inp.addEventListener("change", () => {
-        UndoRedo.save("bom", bomRawRows);
-        bomRawRows[ri][ci] = inp.value;
-        bomDirty = true;
-        App.bomDirty = true;
-        api("set_bom_dirty", true);
-        updateSaveBtnState();
-        AppLog.info("Edited BOM cell [" + (ri + 1) + ", " + ci + "]");
-        reprocessAndRender();
-      });
+      const val = (row[ci] != null) ? row[ci] : "";
       if (ci === bomCols.lcsc) {
-        const cellVal = (row[ci] || "").trim().toUpperCase();
+        const cellVal = (val || "").trim().toUpperCase();
         if (/^C\d{4,}$/.test(cellVal)) {
           td.dataset.lcsc = cellVal;
         }
       }
       if (ci === bomCols.ref) {
-        const display = document.createElement("div");
-        display.className = "refs-cell";
-        display.innerHTML = colorizeRefs(inp.value);
-        display.title = inp.value;
-        display.addEventListener("click", (e) => {
-          e.stopPropagation();
-          display.style.display = "none";
-          inp.style.display = "";
-          inp.focus();
-          inp.select();
-        });
-        inp.style.display = "none";
-        inp.addEventListener("blur", () => {
-          display.innerHTML = colorizeRefs(inp.value);
-          display.title = inp.value;
-          display.style.display = "";
-          inp.style.display = "none";
-        });
-        td.appendChild(display);
+        td.innerHTML = colorizeRefs(val);
+        td.title = val;
+      } else {
+        td.textContent = val;
       }
-      td.appendChild(inp);
       tr.appendChild(td);
     });
 
     tbody.appendChild(tr);
   });
+
+  // Instantiate grid selection
+  const tableWrap = document.querySelector(".bom-table-wrap");
+  const table = tableWrap ? tableWrap.querySelector("table") : null;
+  if (tableWrap && table) {
+    const specialCols = {};
+    if (bomCols.ref >= 0) {
+      specialCols[bomCols.ref] = {
+        render: (td, val) => { td.innerHTML = colorizeRefs(val); td.title = val; },
+      };
+    }
+    bomGrid = new GridSelection(/** @type {HTMLElement} */ (tableWrap), /** @type {HTMLTableElement} */ (table), {
+      getCellValue: (r, c) => (bomRawRows[r] && bomRawRows[r][c] != null) ? bomRawRows[r][c] : "",
+      setCellValue: (r, c, v) => {
+        bomRawRows[r][c] = v;
+        bomDirty = true;
+        App.bomDirty = true;
+        api("set_bom_dirty", true);
+        updateSaveBtnState();
+      },
+      onBeforeChange: () => UndoRedo.save("bom", bomRawRows),
+      onCellChange: () => reprocessAndRender(),
+      readOnlyCols: [0, 1],
+      specialCols,
+      isDisabled: () => App.links.linkingMode,
+    });
+    // Restore cursor position if possible
+    if (savedCursor) bomGrid.restoreSelection(savedCursor.r, savedCursor.c);
+  }
 }
 
 function renderBomPanel(rows) {
@@ -514,6 +522,7 @@ function setupSaveBom() {
 function setupClearBom() {
   body.addEventListener("click", (e) => {
     if (e.target.id !== "bom-clear-btn") return;
+    if (bomGrid) { bomGrid.destroy(); bomGrid = null; }
     lastResults = null;
     lastFileName = "";
     bomRawRows = [];
