@@ -684,7 +684,8 @@ class InventoryApi:
         self._force_close = True
         # Hide window for instant visual feedback, then kill the process.
         # Bypasses destroy() which can deadlock or trigger slow WebView2 cleanup.
-        import sys
+        import sys  # noqa: I001
+
         import webview
         for w in webview.windows:
             try:
