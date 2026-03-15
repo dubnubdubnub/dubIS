@@ -4,7 +4,7 @@ import { EventBus, Events } from './event-bus.js';
 import { api, AppLog } from './api.js';
 import { showToast, Modal } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
-import { App, loadPreferences, loadInventory, loadKicadState, onInventoryUpdated } from './store.js';
+import { App, loadPreferences, loadInventory, onInventoryUpdated } from './store.js';
 import { processBOM } from './csv-parser.js';
 import { matchBOM } from './matching.js';
 import { colorizeRefs, REF_COLOR_MAP } from './part-keys.js';
@@ -17,8 +17,6 @@ import './bom-panel.js';
 import './import-panel.js';
 import './resize-panels.js';
 import './part-preview.js';
-import './kicad-panel.js';
-import './openpnp-modal.js';
 
 // Expose globals for E2E tests and Python's evaluate_js
 window.App = App;
@@ -138,8 +136,6 @@ async function initApp() {
 
   document.addEventListener("keydown", async (e) => {
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
-    // Let browser handle undo/redo inside grid edit input
-    if (window._activeGrid && window._activeGrid.isEditing()) return;
     if (e.key === "z" && !e.shiftKey && UndoRedo.canUndo()) {
       e.preventDefault();
       await UndoRedo.undo();
@@ -153,7 +149,6 @@ async function initApp() {
 
   if (window.pywebview && window.pywebview.api) {
     loadInventory();
-    loadKicadState();
     api("check_digikey_session").then(function (r) {
       if (r && r.logged_in) AppLog.info("Digikey: existing session found");
       else if (r && r.message) AppLog.info("DK: " + r.message);
@@ -162,7 +157,6 @@ async function initApp() {
     window.addEventListener("pywebviewready", async () => {
       await loadPreferences();
       loadInventory();
-      loadKicadState();
       api("check_digikey_session").then(function (r) {
         if (r && r.logged_in) AppLog.info("Digikey: existing session found");
         else if (r && r.message) AppLog.info("DK: " + r.message);

@@ -10,7 +10,6 @@ import threading
 from datetime import datetime
 from typing import Any
 
-import kicad_openpnp
 from categorize import categorize, parse_capacitance, parse_inductance, parse_resistance
 from digikey_client import DigikeyClient
 from lcsc_client import LcscClient
@@ -58,7 +57,7 @@ class InventoryApi:
     FIELDNAMES = _CONSTANTS["FIELDNAMES"]
 
     ADJ_FIELDNAMES = [
-        "timestamp", "type", "lcsc_part", "quantity", "bom_file", "board_qty", "note",
+        "timestamp", "type", "lcsc_part", "quantity", "bom_file", "board_qty", "note", "source",
     ]
 
     SECTION_ORDER = _CONSTANTS["SECTION_ORDER"]
@@ -66,9 +65,7 @@ class InventoryApi:
     SECTION_HIERARCHY = _SECTION_HIERARCHY
 
     def __init__(self, *, debug: bool = False) -> None:
-        self.base_dir: str = os.environ.get("DUBIS_DATA_DIR") or os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "data",
-        )
+        self.base_dir: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
         self.input_csv: str = os.path.join(self.base_dir, "purchase_ledger.csv")
         self.output_csv: str = os.path.join(self.base_dir, "inventory.csv")
         self.adjustments_csv: str = os.path.join(self.base_dir, "adjustments.csv")
@@ -108,14 +105,41 @@ class InventoryApi:
 
     def _append_csv_rows(self, path: str, fieldnames: list[str],
                          rows: list[dict[str, Any]]) -> None:
-        """Append rows to a CSV file, writing header if the file is new."""
-        exists = os.path.exists(path)
-        with open(path, "a", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            if not exists:
+        """Append rows to a CSV file, writing header if the file is new.
+
+        If the file exists with an older header (fewer columns), migrates it
+        to the new schema before appending.
+        """
+        if os.path.exists(path):
+            self._migrate_csv_header(path, fieldnames)
+            with open(path, "a", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                for row in rows:
+                    writer.writerow(row)
+        else:
+            with open(path, "a", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
-            for row in rows:
-                writer.writerow(row)
+                for row in rows:
+                    writer.writerow(row)
+
+    @staticmethod
+    def _migrate_csv_header(path: str, expected_fieldnames: list[str]) -> None:
+        """If a CSV file has an older header, rewrite it with the new schema."""
+        with open(path, newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            existing_fields = reader.fieldnames or []
+            if set(expected_fieldnames) == set(existing_fields):
+                return
+            existing_rows = list(reader)
+
+        # Rewrite with new header, filling missing fields with ""
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=expected_fieldnames)
+            writer.writeheader()
+            for row in existing_rows:
+                migrated = {fn: row.get(fn, "") for fn in expected_fieldnames}
+                writer.writerow(migrated)
 
     @staticmethod
     def fix_double_utf8(text: str) -> str:
@@ -182,6 +206,16 @@ class InventoryApi:
                 r_copy = dict(r)
                 r_copy["Quantity"] = str(qty)
                 merged[pn] = r_copy
+
+        # Derive missing price from the other price field + qty
+        for part in merged.values():
+            up = self._parse_price(part.get("Unit Price($)"))
+            ext = self._parse_price(part.get("Ext.Price($)"))
+            qty = self._parse_qty(part.get("Quantity"))
+            if up == 0.0 and ext > 0 and qty > 0:
+                part["Unit Price($)"] = f"{ext / qty:.4f}"
+            elif ext == 0.0 and up > 0 and qty > 0:
+                part["Ext.Price($)"] = f"{up * qty:.2f}"
 
         return fieldnames, merged
 
@@ -299,7 +333,7 @@ class InventoryApi:
 
     def _append_adjustment(self, adj_type: str, part_key: str, quantity: int,
                            note: str = "", bom_file: str = "",
-                           board_qty: int | str = "") -> None:
+                           board_qty: int | str = "", source: str = "") -> None:
         """Append one row to adjustments.csv."""
         self._append_csv_rows(self.adjustments_csv, self.ADJ_FIELDNAMES, [{
             "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
@@ -309,7 +343,44 @@ class InventoryApi:
             "bom_file": bom_file,
             "board_qty": board_qty,
             "note": note,
+            "source": source,
         }])
+
+    def rollback_source(self, source: str) -> list[dict]:
+        """Remove all adjustments with the given source tag and rebuild.
+
+        Returns the list of removed rows (for logging/verification).
+        """
+        if not source:
+            raise ValueError("source must not be empty")
+        if not os.path.exists(self.adjustments_csv):
+            return []
+
+        with open(self.adjustments_csv, newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames
+            rows = list(reader)
+
+        kept = []
+        removed = []
+        for row in rows:
+            if (row.get("source") or "") == source:
+                removed.append(row)
+            else:
+                kept.append(row)
+
+        if not removed:
+            return []
+
+        with self._lock:
+            with open(self.adjustments_csv, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(kept)
+            self._rebuild()
+
+        logger.info("Rolled back %d adjustment(s) with source=%r", len(removed), source)
+        return removed
 
     # ── Product preview (delegated to client modules) ─────────────────────
 
@@ -354,7 +425,7 @@ class InventoryApi:
         return self._rebuild()
 
     def adjust_part(self, adj_type: str, part_key: str, quantity: int | str,
-                    note: str = "") -> list[dict[str, Any]]:
+                    note: str = "", source: str = "") -> list[dict[str, Any]]:
         """Set/add/remove adjustment. Returns fresh inventory."""
         if not part_key or not str(part_key).strip():
             raise ValueError("part_key must not be empty")
@@ -370,12 +441,12 @@ class InventoryApi:
         else:
             raise ValueError(f"Unknown adjustment type: {adj_type}")
         with self._lock:
-            self._append_adjustment(adj_type, part_key, record_qty, note=note)
+            self._append_adjustment(adj_type, part_key, record_qty, note=note, source=source)
             return self._rebuild()
 
     def consume_bom(self, matches_json: str | list[dict[str, Any]],
                     board_qty: int | str, bom_name: str,
-                    note: str = "") -> list[dict[str, Any]]:
+                    note: str = "", source: str = "") -> list[dict[str, Any]]:
         """Consume matched BOM parts. Returns fresh inventory."""
         matches = self._ensure_parsed(matches_json)
         board_qty = int(board_qty)
@@ -398,6 +469,7 @@ class InventoryApi:
                 "bom_file": bom_name,
                 "board_qty": board_qty,
                 "note": note or f"consumed {board_qty}x {bom_name}",
+                "source": source,
             })
         with self._lock:
             self._append_csv_rows(self.adjustments_csv, self.ADJ_FIELDNAMES, adj_rows)
@@ -677,208 +749,16 @@ class InventoryApi:
         self._bom_dirty = bool(dirty)
 
     def confirm_close(self) -> None:
-        """Terminate the process immediately — user confirmed close."""
+        """Set force-close flag and destroy the window."""
         if self._closing:
             return
         self._closing = True
+        import webview
         self._force_close = True
-        # Hide window for instant visual feedback, then kill the process.
-        # Bypasses destroy() which can deadlock or trigger slow WebView2 cleanup.
-        import sys  # noqa: I001
-
-        import webview
-        for w in webview.windows:
-            try:
-                w.hide()
-            except Exception:
-                pass
-        if sys.platform == "win32":
-            import ctypes
-            ctypes.windll.kernel32.TerminateProcess(
-                ctypes.windll.kernel32.GetCurrentProcess(), 0)
-        else:
-            os._exit(0)
-
-    # ── KiCad + OpenPnP methods (delegated to kicad_openpnp.py) ────────────
-
-    def open_kicad_project_dialog(self) -> dict | None:
-        """Open native folder dialog to select a KiCad project directory."""
-        import webview
-        result = webview.windows[0].create_file_dialog(webview.FileDialog.FOLDER)
-        if result and len(result) > 0:
-            path = result[0]
-            return self.scan_kicad_project(path)
-        return None
-
-    def scan_kicad_project(self, path: str) -> dict:
-        """Scan a KiCad project and register it. Returns project data with parts."""
-        result = kicad_openpnp.scan_kicad_project(path)
-        projects = kicad_openpnp.load_kicad_projects()
-        projects["projects"][path] = {
-            "name": result["name"],
-            "kicad_pro": result["kicad_pro"],
-            "last_scan": result["last_scan"],
-        }
-        kicad_openpnp.save_kicad_projects(projects)
-        return result
-
-    def get_kicad_projects(self) -> dict:
-        """Return registered KiCad projects."""
-        return kicad_openpnp.load_kicad_projects()
-
-    def remove_kicad_project(self, path: str) -> dict:
-        """Remove a KiCad project from the registry."""
-        projects = kicad_openpnp.load_kicad_projects()
-        projects["projects"].pop(path, None)
-        kicad_openpnp.save_kicad_projects(projects)
-        return projects
-
-    def get_part_links(self) -> dict:
-        """Return part links data."""
-        return kicad_openpnp.load_part_links()
-
-    def save_part_link(self, source_id: str, part_key: str) -> dict:
-        """Save a link from a KiCad identifier to an inventory part key."""
-        if not source_id or not part_key:
-            raise ValueError("source_id and part_key must not be empty")
-        data = kicad_openpnp.load_part_links()
-        data["links"][source_id] = part_key
-        kicad_openpnp.save_part_links(data)
-        return data
-
-    def remove_part_link(self, source_id: str) -> dict:
-        """Remove a part link."""
-        data = kicad_openpnp.load_part_links()
-        data["links"].pop(source_id, None)
-        kicad_openpnp.save_part_links(data)
-        return data
-
-    def auto_link_kicad_parts(self, path: str) -> dict:
-        """Auto-link KiCad parts to inventory by matching LCSC numbers and MPNs.
-
-        Returns ``{"linked": count, "links": updated_links_data}``.
-        """
-        result = kicad_openpnp.scan_kicad_project(path)
-        inventory = self._load_organized()
-        link_data = kicad_openpnp.load_part_links()
-
-        inv_by_lcsc: dict[str, str] = {}
-        inv_by_mpn: dict[str, str] = {}
-        for item in inventory:
-            lcsc = item.get("lcsc", "").strip()
-            mpn = item.get("mpn", "").strip()
-            pk = lcsc or mpn
-            if not pk:
-                continue
-            if lcsc:
-                inv_by_lcsc[lcsc.upper()] = pk
-            if mpn:
-                inv_by_mpn[mpn.upper()] = pk
-
-        linked = 0
-        for part in result["parts"]:
-            lcsc = part.get("lcsc", "").strip()
-            mpn = part.get("mpn", "").strip()
-
-            # Already linked?
-            if lcsc and lcsc in link_data["links"]:
-                continue
-            if mpn and mpn in link_data["links"]:
-                continue
-
-            # Try LCSC match
-            if lcsc and lcsc.upper() in inv_by_lcsc:
-                link_data["links"][lcsc] = inv_by_lcsc[lcsc.upper()]
-                linked += 1
-                continue
-
-            # Try MPN match
-            if mpn and mpn.upper() in inv_by_mpn:
-                link_data["links"][mpn] = inv_by_mpn[mpn.upper()]
-                linked += 1
-
-        kicad_openpnp.save_part_links(link_data)
-        return {"linked": linked, "links": link_data}
-
-    def get_openpnp_parts(self) -> dict:
-        """Return OpenPnP parts data."""
-        return kicad_openpnp.load_openpnp_parts()
-
-    def fetch_footprint(self, lcsc_id: str) -> dict:
-        """Fetch footprint from EasyEDA for an LCSC part. Returns footprint dict."""
-        raw = kicad_openpnp.fetch_easyeda_footprint(lcsc_id)
-        if not raw:
-            raise ValueError(f"Could not fetch footprint for {lcsc_id}")
-        package_id = lcsc_id  # use LCSC id as fallback package id
-        return kicad_openpnp.parse_easyeda_footprint(raw, package_id)
-
-    def fetch_kicad_footprint(self, fp_ref: str) -> dict:
-        """Parse a KiCad .kicad_mod footprint from installed libraries."""
-        result = kicad_openpnp.parse_kicad_footprint(fp_ref)
-        if not result:
-            raise ValueError(f"Could not find KiCad footprint: {fp_ref}")
-        return result
-
-    def save_openpnp_part(self, data_json: str | dict) -> dict:
-        """Save OpenPnP metadata for a part.
-
-        Expects ``{part_key, openpnp_id, package_id, height, speed, nozzle_tips, footprint}``.
-        """
-        data = self._ensure_parsed(data_json)
-        part_key = data.get("part_key")
-        if not part_key:
-            raise ValueError("part_key is required")
-
-        openpnp_data = kicad_openpnp.load_openpnp_parts()
-        openpnp_data["parts"][part_key] = {
-            "openpnp_id": data.get("openpnp_id", part_key),
-            "package_id": data.get("package_id", ""),
-            "height": float(data.get("height", 0)),
-            "speed": float(data.get("speed", 1.0)),
-            "nozzle_tips": data.get("nozzle_tips", []),
-            "footprint": data.get("footprint"),
-            "footprint_source": data.get("footprint_source", "manual"),
-            "footprint_fetched": data.get("footprint_fetched", ""),
-        }
-        kicad_openpnp.save_openpnp_parts(openpnp_data)
-        kicad_openpnp.regenerate_pnp_part_map(openpnp_data)
-        return openpnp_data
-
-    def remove_openpnp_part(self, part_key: str) -> dict:
-        """Remove OpenPnP metadata for a part."""
-        openpnp_data = kicad_openpnp.load_openpnp_parts()
-        openpnp_data["parts"].pop(part_key, None)
-        kicad_openpnp.save_openpnp_parts(openpnp_data)
-        kicad_openpnp.regenerate_pnp_part_map(openpnp_data)
-        return openpnp_data
-
-    def sync_openpnp(self) -> dict:
-        """Write packages.xml + parts.xml to OpenPnP config dir, rebuild pnp_part_map."""
-        openpnp_data = kicad_openpnp.load_openpnp_parts()
-        config_path = openpnp_data.get("openpnp_config_path", "")
-        if not config_path or not os.path.isdir(config_path):
-            raise ValueError(
-                f"OpenPnP config path not set or invalid: {config_path!r}. "
-                "Set it via Preferences or set_openpnp_config_path."
-            )
-        pkg_path = kicad_openpnp.generate_openpnp_packages_xml(openpnp_data, config_path)
-        parts_path = kicad_openpnp.generate_openpnp_parts_xml(openpnp_data, config_path)
-        kicad_openpnp.regenerate_pnp_part_map(openpnp_data)
-        return {"packages_xml": pkg_path, "parts_xml": parts_path}
-
-    def set_openpnp_config_path(self, path: str) -> dict:
-        """Set the OpenPnP config directory path."""
-        if not os.path.isdir(path):
-            raise ValueError(f"Not a directory: {path}")
-        openpnp_data = kicad_openpnp.load_openpnp_parts()
-        openpnp_data["openpnp_config_path"] = path
-        kicad_openpnp.save_openpnp_parts(openpnp_data)
-        return openpnp_data
-
-    def detect_kicad_lib_path(self) -> dict:
-        """Auto-detect KiCad footprint library paths on this system."""
-        paths = kicad_openpnp.find_kicad_lib_paths()
-        return {"paths": paths}
+        try:
+            webview.windows[0].destroy()
+        except (IndexError, RuntimeError, AttributeError):
+            logger.debug("Window already destroyed or unavailable", exc_info=True)
 
     @staticmethod
     def _read_text(path: str) -> str:
