@@ -677,16 +677,26 @@ class InventoryApi:
         self._bom_dirty = bool(dirty)
 
     def confirm_close(self) -> None:
-        """Set force-close flag and destroy the window."""
+        """Terminate the process immediately — user confirmed close."""
         if self._closing:
             return
         self._closing = True
-        import webview
         self._force_close = True
-        try:
-            webview.windows[0].destroy()
-        except (IndexError, RuntimeError, AttributeError):
-            logger.debug("Window already destroyed or unavailable", exc_info=True)
+        # Hide window for instant visual feedback, then kill the process.
+        # Bypasses destroy() which can deadlock or trigger slow WebView2 cleanup.
+        import sys
+        import webview
+        for w in webview.windows:
+            try:
+                w.hide()
+            except Exception:
+                pass
+        if sys.platform == "win32":
+            import ctypes
+            ctypes.windll.kernel32.TerminateProcess(
+                ctypes.windll.kernel32.GetCurrentProcess(), 0)
+        else:
+            os._exit(0)
 
     # ── KiCad + OpenPnP methods (delegated to kicad_openpnp.py) ────────────
 
