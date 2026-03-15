@@ -24,7 +24,12 @@ def main():
     parser.add_argument("--data-dir", required=True, help="Directory with CSV fixture data")
     parser.add_argument("--port", type=int, default=7890, help="PnP server port")
     parser.add_argument("--part-map", default=None, help="Path to pnp_part_map.json")
+    parser.add_argument("--test-source", default="", help="Source tag for all adjustments (e.g. test:session-1)")
+    parser.add_argument("--rollback-on-exit", action="store_true", help="Roll back all adjustments with --test-source on shutdown")
     args = parser.parse_args()
+
+    if args.rollback_on_exit and not args.test_source:
+        parser.error("--rollback-on-exit requires --test-source")
 
     data_dir = os.path.abspath(args.data_dir)
 
@@ -47,9 +52,10 @@ def main():
     print(f"[dubis] Inventory rebuilt: {len(inv)} parts")
 
     # Start PnP server with a no-op window
+    source = args.test_source or "openpnp"
     mock_window = types.SimpleNamespace(evaluate_js=lambda code: None)
-    server = start_pnp_server(api, mock_window, port=args.port)
-    print(f"[dubis] PnP server listening on port {args.port}")
+    server = start_pnp_server(api, mock_window, port=args.port, source=source)
+    print(f"[dubis] PnP server listening on port {args.port} (source={source!r})")
 
     # Write a ready marker file so the orchestrator knows we're up
     ready_path = os.path.join(data_dir, ".dubis-ready")
@@ -59,6 +65,9 @@ def main():
     # Block until SIGTERM/SIGINT
     def shutdown(signum, frame):
         print(f"[dubis] Shutting down (signal {signum})")
+        if args.rollback_on_exit and args.test_source:
+            removed = api.rollback_source(args.test_source)
+            print(f"[dubis] Rolled back {len(removed)} test adjustment(s) with source={args.test_source!r}")
         server.shutdown()
         sys.exit(0)
 

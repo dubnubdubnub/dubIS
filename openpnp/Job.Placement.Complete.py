@@ -8,10 +8,16 @@ import json
 import os
 import urllib2
 import traceback
+from java.lang import System as JSystem
 
 DUBIS_URL = os.environ.get("DUBIS_URL", "http://127.0.0.1:7890")
 QUEUE_PATH = os.path.expanduser("~/.openpnp2/dubis_queue.json")
 TIMEOUT = 3  # seconds
+
+# OpenPnP routes print() to log file only. Use System.out for stdout visibility.
+def _log(msg):
+    JSystem.out.println("dubIS: " + msg)
+    JSystem.out.flush()
 
 
 def _load_queue():
@@ -44,13 +50,13 @@ def _post_consume(part_id, qty=1):
         resp = urllib2.urlopen(req, timeout=TIMEOUT)
         body = json.loads(resp.read())
         if body.get("ok"):
-            print("dubIS: consumed %dx %s (new_qty=%s)" % (qty, part_id, body.get("new_qty")))
+            _log("consumed %dx %s (new_qty=%s)" % (qty, part_id, body.get("new_qty")))
             return True
         else:
-            print("dubIS: server error for %s: %s" % (part_id, body.get("error")))
+            _log("server error for %s: %s" % (part_id, body.get("error")))
             return False
     except Exception as e:
-        print("dubIS: connection failed for %s: %s" % (part_id, e))
+        _log("connection failed for %s: %s" % (part_id, e))
         return False
 
 
@@ -70,7 +76,7 @@ def _flush_queue():
         remaining = queue[idx:]
     _save_queue(remaining)
     if queue and not remaining:
-        print("dubIS: flushed %d queued event(s)" % len(queue))
+        _log("flushed %d queued event(s)" % len(queue))
     return remaining
 
 
@@ -89,8 +95,8 @@ try:
         queue = _load_queue()
         queue.append({"part_id": part_id, "qty": 1})
         _save_queue(queue)
-        print("dubIS: queued %s for retry (%d in queue)" % (part_id, len(queue)))
+        _log("queued %s for retry (%d in queue)" % (part_id, len(queue)))
 
 except Exception:
-    print("dubIS script error:")
-    traceback.print_exc()
+    _log("script error:")
+    traceback.print_exc(file=JSystem.out)

@@ -65,9 +65,6 @@ class PnPHandler(BaseHTTPRequestHandler):
             except Exception as exc:
                 logger.error("PnP /api/parts failed: %s", exc)
                 self._send_json(500, {"ok": False, "error": str(exc)})
-        elif self.path == "/api/test/shutdown" and getattr(self.server, "test_mode", False):
-            self._send_json(200, {"ok": True})
-            threading.Thread(target=self.server.api.confirm_close, daemon=True).start()
         else:
             self._send_json(404, {"ok": False, "error": "Not found"})
 
@@ -115,8 +112,9 @@ class PnPHandler(BaseHTTPRequestHandler):
             return
 
         # Perform the adjustment
+        source = getattr(self.server, "source", "openpnp")
         try:
-            fresh = api.adjust_part("remove", part_key, qty, "OpenPnP placement")
+            fresh = api.adjust_part("remove", part_key, qty, "OpenPnP placement", source=source)
         except Exception as exc:
             logger.error("PnP consume adjust_part failed: %s", exc)
             self._send_json(500, {"ok": False, "error": str(exc)})
@@ -149,12 +147,12 @@ class PnPHandler(BaseHTTPRequestHandler):
         })
 
 
-def start_pnp_server(api, window, port=PNP_PORT, test_mode=False):
+def start_pnp_server(api, window, port=PNP_PORT, source="openpnp"):
     """Start the PnP HTTP server in a daemon thread."""
     server = HTTPServer(("0.0.0.0", port), PnPHandler)
     server.api = api
     server.window = window
-    server.test_mode = test_mode
+    server.source = source
 
     thread = threading.Thread(target=server.serve_forever, name="pnp-server", daemon=True)
     thread.start()

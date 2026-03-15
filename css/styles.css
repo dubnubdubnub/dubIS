@@ -657,7 +657,7 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 .import-section { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 12px; }
 .import-section h3 { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
 
-.col-mapper { margin: 8px 0; }
+.col-mapper { margin: 8px 0; flex-shrink: 0; }
 .col-mapper-row {
   display: flex;
   align-items: center;
@@ -693,33 +693,36 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
   flex: 1;
   min-height: 0;
 }
-.import-mapper-scroll {
+
+.import-preview {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: auto;
 }
-
-.import-preview { position: relative; overflow: auto; }
 .import-preview table { font-size: 11px; }
 .import-preview th {
   padding: 4px 6px; font-size: 10px;
   vertical-align: bottom; white-space: nowrap;
-  overflow: hidden;
 }
-.import-preview thead { pointer-events: none; }
 .import-preview th .th-label {
-  display: block;
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   text-align: left;
   white-space: nowrap;
-  max-height: 100px;
-  overflow: hidden;
 }
 .import-preview td { padding: 3px 6px; }
 
+.import-preview td input {
+  width: 100%; background: transparent; border: 1px solid transparent;
+  color: var(--text-primary); font-size: 11px; padding: 2px 4px;
+  font-family: inherit; border-radius: 3px;
+}
+.import-preview td input:focus {
+  border-color: var(--color-blue); background: var(--bg-base); outline: none;
+}
+
 .import-preview tr.row-warn { background: #d2992218; }
-.import-preview tr.row-warn td { color: var(--color-yellow); }
+.import-preview tr.row-warn td input { color: var(--color-yellow); }
 .import-preview tr.row-subtotal { background: #484f5815; opacity: 0.6; }
 
 .import-preview .row-delete {
@@ -827,7 +830,6 @@ td.btn-group button + button { margin-left: 6px; }
 #bom-results .multiplier-bar { flex-shrink: 0; }
 
 .bom-table-wrap {
-  position: relative;
   overflow-x: auto;
   overflow-y: auto;
   flex: 1;
@@ -843,9 +845,19 @@ td.btn-group button + button { margin-left: 6px; }
   text-transform: uppercase; letter-spacing: 0.5px;
 }
 
+/* ── BOM Editable Inputs ─────────────────────────────── */
+.bom-table-wrap td input {
+  width: 100%; background: transparent; border: 1px solid transparent;
+  color: var(--text-primary); font-size: 11px; padding: 2px 4px;
+  font-family: inherit; border-radius: 3px;
+}
+.bom-table-wrap td input:focus {
+  border-color: var(--color-blue); background: var(--bg-base); outline: none;
+}
+
 /* ── BOM Row Warning / Subtotal ──────────────────────── */
 .bom-table-wrap tr.row-warn { background: #d2992218; }
-.bom-table-wrap tr.row-warn td { color: var(--color-yellow); }
+.bom-table-wrap tr.row-warn td input { color: var(--color-yellow); }
 .bom-table-wrap tr.row-subtotal { background: #484f5815; opacity: 0.6; }
 
 /* ── BOM Row Delete Button ───────────────────────────── */
@@ -867,98 +879,6 @@ td.btn-group button + button { margin-left: 6px; }
 }
 .bom-table-wrap td a:hover {
   text-decoration: underline;
-}
-
-/* ── Grid Selection (Excel-like) ─────────────────────── */
-.grid-table td {
-  border: 1px solid #262c34;
-  padding: 2px 6px;
-  cursor: cell;
-  user-select: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 11px;
-  color: var(--text-secondary);
-  min-height: 22px;
-}
-
-.grid-sel {
-  position: absolute;
-  border: 2px solid var(--color-blue);
-  pointer-events: none;
-  z-index: 5;
-  box-sizing: border-box;
-}
-
-.grid-range {
-  position: absolute;
-  background: #58a6ff18;
-  border: 1px solid #58a6ff60;
-  pointer-events: none;
-  z-index: 4;
-  box-sizing: border-box;
-}
-
-.grid-fill-handle {
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  background: var(--color-blue);
-  border: 1px solid var(--bg-surface);
-  cursor: crosshair;
-  z-index: 6;
-}
-
-.grid-edit-input {
-  position: absolute;
-  z-index: 7;
-  border: 2px solid var(--color-blue);
-  background: var(--bg-base);
-  color: var(--text-primary);
-  font-size: 11px;
-  font-family: inherit;
-  padding: 1px 4px;
-  outline: none;
-  box-sizing: border-box;
-}
-
-.grid-magnifier {
-  position: fixed;
-  z-index: 500;
-  background: var(--bg-surface);
-  border: 1px solid var(--color-blue);
-  padding: 6px 10px;
-  font-size: 14px;
-  color: var(--text-primary);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-  max-width: 400px;
-  word-break: break-word;
-  pointer-events: none;
-}
-
-.grid-fill-preview {
-  position: absolute;
-  background: #58a6ff10;
-  border: 1px dashed var(--color-blue);
-  pointer-events: none;
-  z-index: 4;
-}
-
-body.grid-filling { user-select: none; cursor: crosshair; }
-
-/* Preserve row coloring on grid tables */
-.grid-table tr.row-warn td { color: var(--color-yellow); }
-.grid-table tr.row-dnp td { color: var(--color-gray-muted); text-decoration: line-through; }
-.grid-table tr.row-dnp td.row-delete { text-decoration: none; }
-.grid-table tr.row-subtotal { opacity: 0.6; }
-
-/* readOnly columns keep compact styling, no grid cell border/cursor */
-.grid-table td.row-delete,
-.grid-table td.status {
-  border: none;
-  cursor: default;
-  user-select: none;
 }
 
 /* ── Console Log ──────────────────────────────────────── */
@@ -1383,125 +1303,3 @@ tr.row-teal td.status { color: var(--color-teal); }
 
 /* ── Vendor Icons ─────────────────────────────────────── */
 .vendor-icon { width: 12px; height: 12px; margin-right: 2px; flex-shrink: 0; }
-
-/* ── Tab Bar ──────────────────────────────────────────── */
-.tab-bar { gap: 0; padding: 0; }
-.tab-bar .tab {
-  padding: 8px 14px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  transition: all 0.15s;
-}
-.tab-bar .tab:hover { color: var(--text-secondary); }
-.tab-bar .tab.active {
-  color: var(--color-blue);
-  border-bottom-color: var(--color-blue);
-}
-
-/* ── KiCad Panel ──────────────────────────────────────── */
-#kicad-body { display: flex; flex-direction: column; overflow: hidden; }
-
-.kicad-toolbar {
-  padding: 8px 12px;
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--bg-raised);
-}
-
-.kicad-project-item {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--bg-raised);
-  cursor: pointer;
-  transition: background 0.1s;
-}
-.kicad-project-item:hover { background: var(--bg-hover); }
-.kicad-project-name { font-size: 13px; font-weight: 600; color: var(--text-bright); }
-.kicad-project-path { font-size: 11px; color: var(--text-muted); margin-top: 2px; word-break: break-all; }
-.kicad-project-meta {
-  font-size: 11px; color: var(--text-secondary); margin-top: 4px;
-  display: flex; gap: 8px; align-items: center;
-}
-
-.kicad-project-actions {
-  display: flex; gap: 6px; margin-top: 6px;
-}
-
-.kicad-parts-table {
-  flex: 1; overflow: auto; min-height: 0;
-}
-.kicad-parts-table table { min-width: 500px; }
-
-/* Link status indicators */
-.link-dot {
-  display: inline-block;
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  margin-right: 4px;
-  vertical-align: middle;
-}
-.link-dot.linked { background: var(--color-green); }
-.link-dot.auto-linkable { background: var(--color-yellow); }
-.link-dot.unlinked { background: var(--color-red); }
-
-.kicad-summary-bar {
-  padding: 6px 12px;
-  display: flex; gap: 8px; flex-wrap: wrap;
-  border-bottom: 1px solid var(--bg-raised);
-  flex-shrink: 0;
-}
-
-.kicad-empty {
-  padding: 24px 12px;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
-/* ── OpenPnP Badge (inventory rows) ───────────────────── */
-.openpnp-badge {
-  background: var(--bg-raised); border: 1px solid var(--border-default); color: var(--text-secondary);
-  border-radius: 4px; padding: 1px 6px; cursor: pointer;
-  font-size: 10px; line-height: 1.4; white-space: nowrap;
-  flex-shrink: 0; transition: all 0.15s;
-}
-.openpnp-badge:hover { border-color: var(--color-orange); color: var(--color-orange); background: #f0883e26; }
-.openpnp-badge.has-fp { border-color: #3fb95040; color: var(--color-green); background: #3fb95018; }
-.openpnp-badge.has-fp:hover { background: #3fb95030; border-color: var(--color-green); }
-
-/* ── OpenPnP Modal ────────────────────────────────────── */
-.openpnp-modal-wide { min-width: 560px; max-width: 640px; }
-
-.openpnp-modal-grid {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-.openpnp-modal-fields { flex: 1; min-width: 0; }
-.openpnp-modal-preview {
-  width: 200px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-}
-
-#openpnp-fp-canvas {
-  background: var(--bg-base);
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-}
-
-.openpnp-nozzle-list {
-  display: flex; gap: 6px; flex-wrap: wrap;
-}
-.openpnp-nozzle-list label {
-  font-size: 12px; color: var(--text-primary);
-  display: flex; align-items: center; gap: 4px;
-  cursor: pointer;
-}
-.openpnp-nozzle-list input[type="checkbox"] { cursor: pointer; }

@@ -55,19 +55,46 @@ Entry point: `<script type="module" src="js/app-init.js">` in `index.html`.
 
 ## Testing & Linting
 
+### Local (runs in seconds)
+
 ```bash
-# JavaScript
-npm ci
+# JavaScript — Node.js installed on Windows via winget
 npx eslint js/            # lint
-npx tsc --noEmit          # type check (tsconfig.json, @ts-check files only)
-npx vitest run            # unit tests
-npx playwright test       # E2E tests (needs running app)
+npx tsc --noEmit          # type check
+npx vitest run            # unit tests (252 tests, ~1s)
 
 # Python
-pip install -r requirements-dev.txt
 ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py pnp_server.py
-pytest tests/python/ -v
+pytest tests/python/ -v   # unit tests (196 tests, ~30s)
 ```
+
+### CI (via workflow_dispatch for selective runs)
+
+```bash
+# Run all suites
+gh workflow run ci.yml --ref <branch>
+
+# Run only JS, Python, or PnP E2E suites
+gh workflow run ci.yml --ref <branch> -f suite=js
+gh workflow run ci.yml --ref <branch> -f suite=python
+gh workflow run ci.yml --ref <branch> -f suite=pnp-e2e
+gh workflow run ci.yml --ref <branch> -f suite=pnp-cross
+```
+
+### PnP E2E Tests
+
+Same-machine (CI default): `python tests/pnp-e2e/run_test.py`
+Cross-compute: `python tests/pnp-e2e/run_test.py --remote-openpnp ux430`
+
+The `--remote-openpnp` flag starts dubIS locally and launches OpenPnP on a remote
+host via SSH. Uses `~/.ssh/config` for connection settings. Cross-compute tests
+verify the real network path (dubIS ↔ OpenPnP over Tailscale).
+
+### Inventory test safety
+
+Adjustments have a `source` field (`"openpnp"`, `"test:<session_id>"`, etc.).
+The headless test server (`dubis_headless.py --test-source <tag> --rollback-on-exit`)
+tags all test adjustments and rolls them back on shutdown.
 
 ## Branch Workflow (for multi-Claude development)
 

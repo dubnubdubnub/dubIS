@@ -163,16 +163,6 @@ export async function checkElementVisibility(page, selector, label) {
  * Check that an element is not overflowed/clipped by its scrollable ancestor.
  * An element is "reachable" if it can be scrolled into view.
  */
-/**
- * Override detect_columns mock to return actual column mapping.
- * Call AFTER addMockSetup but BEFORE page.goto.
- */
-export function overrideDetectColumns(page, mapping) {
-  return page.addInitScript((m) => {
-    window.pywebview.api.detect_columns = async () => m;
-  }, mapping);
-}
-
 export async function isReachableByScroll(page, selector, label) {
   return page.evaluate(({ sel, lbl }) => {
     const el = document.querySelector(sel);
