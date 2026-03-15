@@ -1,4 +1,4 @@
-timestamp,type,lcsc_part,quantity,bom_file,board_qty,note
+timestamp,type,lcsc_part,quantity,bom_file,board_qty,note,source
 2026-02-28T18:17:07,consume,C440198,-80,lemon-pepper-BOM.csv,8,lemon_pepper_first_build
 2026-02-28T18:17:07,consume,C1567,-16,lemon-pepper-BOM.csv,8,lemon_pepper_first_build
 2026-02-28T18:17:07,consume,C307331,-80,lemon-pepper-BOM.csv,8,lemon_pepper_first_build

@@ -82,13 +82,6 @@ export const App = {
 
   // Preferences (owned by store)
   preferences: { thresholds: {} },
-
-  // KiCad + OpenPnP state (owned by store, loaded via loadKicadState)
-  kicadProjects: {},
-  partLinks: {},
-  openpnpParts: {},
-  openpnpNozzleTips: [],
-  openpnpConfigPath: "",
 };
 
 // Parse mixed SECTION_ORDER into hierarchy + flat list
@@ -174,21 +167,4 @@ export function onInventoryUpdated(freshInventory) {
   App.inventory = freshInventory;
   updateInventoryHeader();
   EventBus.emit(Events.INVENTORY_UPDATED, App.inventory);
-}
-
-// ── KiCad + OpenPnP state loading ──
-
-export async function loadKicadState() {
-  const projects = await api("get_kicad_projects");
-  if (projects && projects.projects) App.kicadProjects = projects.projects;
-
-  const links = await api("get_part_links");
-  if (links && links.links) App.partLinks = links.links;
-
-  const openpnp = await api("get_openpnp_parts");
-  if (openpnp) {
-    App.openpnpParts = openpnp.parts || {};
-    App.openpnpNozzleTips = openpnp.nozzle_tips || [];
-    App.openpnpConfigPath = openpnp.openpnp_config_path || "";
-  }
 }

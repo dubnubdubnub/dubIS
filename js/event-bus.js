@@ -11,9 +11,6 @@ export const Events = Object.freeze({
   LINKING_MODE:      "linking-mode",
   LINKS_CHANGED:     "links-changed",
   SAVE_AND_CLOSE:    "save-and-close",
-  KICAD_PROJECT_LOADED: "kicad-project-loaded",
-  PART_LINKS_CHANGED:   "part-links-changed",
-  OPENPNP_PARTS_CHANGED: "openpnp-parts-changed",
 });
 
 export const EventBus = {
