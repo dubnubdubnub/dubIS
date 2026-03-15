@@ -934,7 +934,12 @@ td.btn-group button + button { margin-left: 6px; }
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
   max-width: 400px;
   word-break: break-word;
-  pointer-events: none;
+  cursor: text;
+}
+.grid-magnifier:focus {
+  outline: none;
+  border-color: var(--color-green);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4), 0 0 0 1px var(--color-green);
 }
 
 .grid-fill-preview {

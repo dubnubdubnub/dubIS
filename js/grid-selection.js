@@ -58,7 +58,14 @@ export class GridSelection {
     this._wrapper.appendChild(this._input);
     this._magnifier = this._mkDiv("grid-magnifier");
     this._magnifier.style.display = "none";
+    this._magnifierEditing = false;
     document.body.appendChild(this._magnifier);
+    this._onMagnifierClick = this._handleMagnifierClick.bind(this);
+    this._onMagnifierBlur = this._handleMagnifierBlur.bind(this);
+    this._onMagnifierKeyDown = this._handleMagnifierKeyDown.bind(this);
+    this._magnifier.addEventListener("pointerdown", this._onMagnifierClick);
+    this._magnifier.addEventListener("blur", this._onMagnifierBlur);
+    this._magnifier.addEventListener("keydown", this._onMagnifierKeyDown);
     this._fillPreview = this._mkDiv("grid-fill-preview");
     this._fillPreview.style.display = "none";
 
@@ -117,6 +124,9 @@ export class GridSelection {
     this._fillHandle.remove();
     this._fillPreview.remove();
     this._input.remove();
+    this._magnifier.removeEventListener("pointerdown", this._onMagnifierClick);
+    this._magnifier.removeEventListener("blur", this._onMagnifierBlur);
+    this._magnifier.removeEventListener("keydown", this._onMagnifierKeyDown);
     this._magnifier.remove();
     this._table.classList.remove("grid-table");
     if (_win._activeGrid === this) _win._activeGrid = null;
@@ -218,6 +228,7 @@ export class GridSelection {
     _win._activeGrid = this;
 
     if (this._mode === "edit") this._commitEdit();
+    if (this._magnifierEditing) this._commitMagnifierEdit();
 
     // Detect double-click (pointerdown preventDefault suppresses native dblclick)
     const now = Date.now();
@@ -728,11 +739,75 @@ export class GridSelection {
   }
 
   _hideMagnifier() {
+    if (this._magnifierEditing) return; // don't hide while user is editing
     this._magnifier.style.display = "none";
+    this._magnifier.contentEditable = "false";
+  }
+
+  _handleMagnifierClick(e) {
+    if (this._magnifierEditing) return; // already editing
+    e.preventDefault();
+    e.stopPropagation();
+    if (!this._cursor) return;
+
+    this._magnifierEditing = true;
+    this._magnifierOriginal = this._cb.getCellValue(this._cursor.r, this._cursor.c);
+    this._magnifier.contentEditable = "true";
+    this._magnifier.focus();
+
+    // Select all text so user can type to replace or click to position cursor
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(this._magnifier);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  _handleMagnifierBlur() {
+    if (!this._magnifierEditing) return;
+    this._commitMagnifierEdit();
+  }
+
+  _handleMagnifierKeyDown(e) {
+    if (!this._magnifierEditing) return;
+    if (e.key === "Enter") {
+      e.preventDefault();
+      this._commitMagnifierEdit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      this._cancelMagnifierEdit();
+    }
+    // Stop propagation so grid keyboard handler doesn't interfere
+    e.stopPropagation();
+  }
+
+  _commitMagnifierEdit() {
+    if (!this._magnifierEditing) return;
+    this._magnifierEditing = false;
+    this._magnifier.contentEditable = "false";
+
+    if (!this._cursor) return;
+    const newVal = this._magnifier.textContent || "";
+    if (newVal !== this._magnifierOriginal) {
+      this._cb.onBeforeChange();
+      this._cb.setCellValue(this._cursor.r, this._cursor.c, newVal);
+      this._updateTd(this._cursor.r, this._cursor.c, newVal);
+      this._cb.onCellChange();
+    }
+    this._magnifier.style.display = "none";
+  }
+
+  _cancelMagnifierEdit() {
+    this._magnifierEditing = false;
+    this._magnifier.contentEditable = "false";
+    this._magnifier.textContent = this._magnifierOriginal;
+    this._magnifier.style.display = "none";
+    this._wrapper.focus();
   }
 
   _handleScroll() {
     if (this._mode === "edit") this._commitEdit();
+    if (this._magnifierEditing) this._commitMagnifierEdit();
     this._positionOverlays();
     this._hideMagnifier();
   }
