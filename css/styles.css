@@ -532,6 +532,11 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 }
 .modal-form select:focus,
 .modal-form input:focus { border-color: var(--color-blue); }
+.modal-wide { min-width: 420px; max-width: 540px; }
+.modal-detail-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 12px; }
+.modal-detail-table td { padding: 2px 6px; vertical-align: top; }
+.modal-detail-table td:first-child { color: var(--text-secondary); white-space: nowrap; width: 90px; }
+.modal-detail-table td:last-child { color: var(--text-bright); word-break: break-word; }
 .modal-divider { border-top: 1px solid var(--border-default); margin: 4px 0 12px; }
 .modal-actions {
   display: flex;
@@ -1103,6 +1108,18 @@ tr.link-target:hover, .inv-part-row.link-target:hover {
   transition: text-shadow 0.15s;
 }
 .price-warn-btn:hover { text-shadow: 0 0 6px var(--color-yellow); }
+
+/* ── No-Distributor Warning ──────────────────────────── */
+.no-dist-warn {
+  color: var(--color-yellow);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+.modal-detail-table .no-dist-warn {
+  font-size: 12px;
+}
 
 /* ── Confirmed (Teal) ────────────────────────────────── */
 tr.row-teal { --row-bg: #2dd4bf10; background: var(--row-bg); }
