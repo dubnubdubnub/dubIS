@@ -2,7 +2,7 @@
    Extracted from inventory-panel.js for focused maintainability. */
 
 import { api, AppLog } from './api.js';
-import { showToast, Modal, linkPriceInputs } from './ui-helpers.js';
+import { showToast, Modal, linkPriceInputs, escHtml } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
 import { onInventoryUpdated } from './store.js';
 import { invPartKey } from './part-keys.js';
@@ -13,8 +13,7 @@ let lastPriceMeta = null;
 
 // ── Adjustment Modal ──
 const modalTitle = document.getElementById("modal-title");
-const modalSubtitle = document.getElementById("modal-subtitle");
-const modalQty = document.getElementById("modal-current-qty");
+const modalDetailTable = document.getElementById("modal-detail-table");
 const adjType = document.getElementById("adj-type");
 const adjQty = document.getElementById("adj-qty");
 const adjNote = document.getElementById("adj-note");
@@ -31,9 +30,25 @@ linkPriceInputs(adjUnitPrice, adjExtPrice, () => currentPart ? currentPart.qty :
 export function openAdjustModal(item) {
   currentPart = item;
   const pk = invPartKey(item);
-  modalTitle.textContent = pk + (item.mpn && item.lcsc ? " — " + item.mpn : "");
-  modalSubtitle.textContent = item.description || item.package || "";
-  modalQty.textContent = "Current qty: " + item.qty;
+  modalTitle.textContent = "Adjust — " + pk;
+
+  // Build detail rows for all part fields
+  var rows = [];
+  if (item.lcsc) rows.push(["LCSC", escHtml(item.lcsc)]);
+  if (item.digikey) rows.push(["Digikey", escHtml(item.digikey)]);
+  if (!item.lcsc && !item.digikey) rows.push(["Distributor", '<span class="no-dist-warn">\u26A0 NO DISTRIBUTOR PN</span>']);
+  if (item.mpn) rows.push(["MPN", escHtml(item.mpn)]);
+  if (item.manufacturer) rows.push(["Manufacturer", escHtml(item.manufacturer)]);
+  if (item.package) rows.push(["Package", escHtml(item.package)]);
+  if (item.description) rows.push(["Description", escHtml(item.description)]);
+  if (item.section) rows.push(["Section", escHtml(item.section)]);
+  rows.push(["Qty", escHtml(String(item.qty))]);
+  if (item.unit_price > 0) rows.push(["Unit Price", "$" + escHtml(item.unit_price.toFixed(2))]);
+  if (item.ext_price > 0) rows.push(["Ext. Price", "$" + escHtml(item.ext_price.toFixed(2))]);
+  modalDetailTable.innerHTML = rows.map(function (r) {
+    return "<tr><td>" + escHtml(r[0]) + "</td><td>" + r[1] + "</td></tr>";
+  }).join("");
+
   adjType.value = "set";
   adjQty.value = item.qty;
   adjNote.value = "";
