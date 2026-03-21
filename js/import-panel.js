@@ -26,6 +26,30 @@ const TARGET_FIELDS = [
 
 const PART_ID_FIELDS = ["LCSC Part Number", "Digikey Part Number", "Manufacture Part Number"];
 
+const PO_TEMPLATES = {
+  generic: {
+    label: "Generic",
+    headers: [
+      "Manufacture Part Number", "Manufacturer", "Description",
+      "Package", "Quantity", "Unit Price($)",
+    ],
+  },
+  lcsc: {
+    label: "LCSC",
+    headers: [
+      "LCSC Part Number", "Manufacture Part Number", "Manufacturer",
+      "Description", "Package", "Quantity", "Unit Price($)",
+    ],
+  },
+  digikey: {
+    label: "DigiKey",
+    headers: [
+      "Digikey Part Number", "Manufacture Part Number", "Manufacturer",
+      "Description", "Package", "Quantity", "Unit Price($)",
+    ],
+  },
+};
+
 let parsedHeaders = [];
 let parsedRows = [];
 let columnMapping = {}; // source index -> target field name
@@ -100,10 +124,19 @@ function init() {
         <div class="hint">LCSC orders, cart exports, packing lists, DigiKey</div>
         <input type="file" id="import-file-input" accept=".csv,.tsv,.txt">
       </div>
+      <div class="new-po-row" id="new-po-row">
+        <span class="new-po-label">or create blank PO:</span>
+        ${Object.entries(PO_TEMPLATES).map(([key, t]) =>
+          `<button class="new-po-btn" data-template="${key}">${t.label}</button>`
+        ).join("")}
+      </div>
       <div id="import-mapper" class="hidden"></div>
     </div>
   `;
   setupDropZone("import-drop-zone", "import-file-input", browseImportFile, handleImportFile);
+  document.querySelectorAll("#new-po-row .new-po-btn").forEach(btn => {
+    btn.addEventListener("click", () => createNewPO(btn.dataset.template));
+  });
 }
 
 async function browseImportFile() {
@@ -120,6 +153,46 @@ function handleImportFile(file) {
   const reader = new FileReader();
   reader.onload = () => loadImportText(reader.result, file.name);
   reader.readAsText(file);
+}
+
+async function createNewPO(templateKey = "generic") {
+  const template = PO_TEMPLATES[templateKey] || PO_TEMPLATES.generic;
+  const headers = template.headers;
+  const csvContent = generateCSV(headers, []);
+
+  const result = await api("save_file_dialog", csvContent, "purchase_order.csv", App.preferences.lastImportDir || null);
+  if (!result || !result.path) return;
+
+  // Save directory preference
+  const dir = result.path.replace(/[\\/][^\\/]+$/, "");
+  if (dir) {
+    App.preferences.lastImportDir = dir;
+    savePreferences();
+  }
+
+  const fileName = result.path.replace(/^.*[\\/]/, "");
+
+  // Load template into staging
+  parsedHeaders = [...headers];
+  parsedRows = [headers.map(() => "")];
+  importFileName = fileName;
+  lastImportMeta = null;
+
+  // Direct column mapping (headers match target fields exactly)
+  columnMapping = {};
+  headers.forEach((h, i) => { columnMapping[i] = h; });
+
+  const zone = document.getElementById("import-drop-zone");
+  zone.innerHTML = `<p>${escHtml(fileName)}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
+    <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`;
+  zone.classList.add("loaded");
+  resetDropZoneInput("import-file-input", handleImportFile);
+
+  const newPoRow = document.getElementById("new-po-row");
+  if (newPoRow) newPoRow.classList.add("hidden");
+
+  AppLog.info("Created blank PO template: " + fileName);
+  renderMapper();
 }
 
 async function loadImportText(text, fileName) {
@@ -150,6 +223,9 @@ async function loadImportText(text, fileName) {
     <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`;
   zone.classList.add("loaded");
   resetDropZoneInput("import-file-input", handleImportFile);
+
+  const newPoRow = document.getElementById("new-po-row");
+  if (newPoRow) newPoRow.classList.add("hidden");
 
   AppLog.info("Loaded " + parsedRows.length + " rows from " + fileName);
   renderMapper();
@@ -235,7 +311,8 @@ function renderMapper() {
 
   // Editable staging table — ALL rows
   if (parsedRows.length > 0) {
-    html += '<div class="staging-toolbar"><h3>Staging (' + parsedRows.length + ' rows)</h3></div>'
+    html += '<div class="staging-toolbar"><h3>Staging (' + parsedRows.length + ' rows)</h3>'
+          + '<button class="add-row-btn" id="add-staging-row">+ Add Row</button></div>'
           + '<div class="import-preview"><table><thead><tr>';
     html += '<th class="row-delete"></th>';
     parsedHeaders.forEach((h, i) => {
@@ -310,6 +387,16 @@ function renderMapper() {
       }
     });
   });
+
+  // Attach add-row button listener
+  const addRowBtn = document.getElementById("add-staging-row");
+  if (addRowBtn) {
+    addRowBtn.addEventListener("click", () => {
+      UndoRedo.save("import", parsedRows);
+      parsedRows.push(parsedHeaders.map(() => ""));
+      renderMapper();
+    });
+  }
 
   // Attach import button listener
   const importBtn = document.getElementById("do-import-btn");
