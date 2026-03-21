@@ -189,7 +189,7 @@ function createPartRow(item, sectionKey) {
   var partIdsHtml = '<span class="part-ids">';
   if (item.lcsc) partIdsHtml += '<span class="part-id-lcsc" data-lcsc="' + escHtml(item.lcsc) + '"><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(item.lcsc) + '</span>';
   if (item.digikey) partIdsHtml += '<span class="part-id-digikey" data-digikey="' + escHtml(item.digikey) + '"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(item.digikey) + '</span>';
-  if (!item.lcsc && !item.digikey) partIdsHtml += '<span></span>';
+  if (!item.lcsc && !item.digikey) partIdsHtml += '<span class="no-dist-warn" title="No distributor part number">⚠ NO DIST. PN</span>';
   partIdsHtml += '</span>';
 
   row.innerHTML =
