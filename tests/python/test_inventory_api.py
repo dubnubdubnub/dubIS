@@ -107,6 +107,10 @@ class TestCategorize:
         row = {"Description": "MLCC Capacitor 10uF", "Package": "0805", "Manufacture Part Number": ""}
         assert categorize(row) == "Passives - Capacitors > MLCC"
 
+    def test_capacitor_ceramic_is_mlcc(self):
+        row = {"Description": "100nF ±10% 50V Ceramic Capacitor X7R 0402", "Package": "0402", "Manufacture Part Number": ""}
+        assert categorize(row) == "Passives - Capacitors > MLCC"
+
     def test_capacitor_aluminum_polymer(self):
         row = {"Description": "Aluminum Electrolytic Capacitor 100uF 25V", "Package": "", "Manufacture Part Number": ""}
         assert categorize(row) == "Passives - Capacitors > Aluminum Polymer"
