@@ -74,9 +74,9 @@ class TestSharedConstants:
         # Find capacitors entry
         cap = next(h for h in hier if h["name"] == "Passives - Capacitors")
         assert cap["children"] == ["MLCC", "Aluminum Polymer", "Tantalum"]
-        # Flat entry has no children
+        # Resistors entry has children
         res = next(h for h in hier if h["name"] == "Passives - Resistors")
-        assert res["children"] is None
+        assert res["children"] == ["Chip Resistors", "Variable / Trimmers"]
 
     def test_fieldnames_loaded_from_json(self):
         """FIELDNAMES should match data/constants.json."""
@@ -90,8 +90,25 @@ class TestSharedConstants:
 
 
 class TestCategorize:
-    def test_resistor_by_description(self):
-        row = {"Description": "Resistor 10k\u03a9 \u00b11%", "Package": "0402", "Manufacture Part Number": ""}
+    def test_resistor_chip_by_description(self):
+        row = {"Description": "Resistor 10kΩ ±1%", "Package": "0402", "Manufacture Part Number": ""}
+        assert categorize(row) == "Passives - Resistors > Chip Resistors"
+
+    def test_resistor_chip_by_ohm(self):
+        row = {"Description": "RES 1.5K OHM 1% 1/16W 0402", "Package": "0402", "Manufacture Part Number": ""}
+        assert categorize(row) == "Passives - Resistors > Chip Resistors"
+
+    def test_resistor_trimmer(self):
+        row = {"Description": "TRIMMER 10 OHM 0.75W PC PIN SIDE", "Manufacture Part Number": "3006P-1-100LF", "Manufacturer": "Bourns Inc."}
+        assert categorize(row) == "Passives - Resistors > Variable / Trimmers"
+
+    def test_resistor_potentiometer(self):
+        row = {"Description": "Potentiometer 10kΩ Linear", "Manufacture Part Number": ""}
+        assert categorize(row) == "Passives - Resistors > Variable / Trimmers"
+
+    def test_resistor_by_manufacturer_no_subcategory(self):
+        """Resistor matched by manufacturer alone without subcategory keywords stays at parent."""
+        row = {"Description": "Chip component", "Manufacture Part Number": "", "Manufacturer": "UNI-ROYAL"}
         assert categorize(row) == "Passives - Resistors"
 
     def test_capacitor_by_description(self):
@@ -188,13 +205,9 @@ class TestCategorize:
         row = {"Description": "IC chip", "Manufacture Part Number": "DRV8353"}
         assert categorize(row) == "ICs - Motor Drivers"
 
-    def test_resistor_by_manufacturer(self):
-        row = {"Description": "Chip component", "Manufacture Part Number": "", "Manufacturer": "UNI-ROYAL"}
-        assert categorize(row) == "Passives - Resistors"
-
     def test_resistor_by_mfr_and_desc(self):
-        row = {"Description": "100m\u03c9 shunt", "Manufacture Part Number": "", "Manufacturer": "TA-I Tech"}
-        assert categorize(row) == "Passives - Resistors"
+        row = {"Description": "100mω shunt", "Manufacture Part Number": "", "Manufacturer": "TA-I Tech"}
+        assert categorize(row) == "Passives - Resistors > Chip Resistors"
 
     def test_voltage_reference_by_mpn(self):
         row = {"Description": "Voltage ref IC", "Manufacture Part Number": "REF3033"}
