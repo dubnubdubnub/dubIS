@@ -550,7 +550,8 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
   box-sizing: border-box;
 }
 .modal-field-input:focus { border-color: var(--color-blue); }
-.modal-field-input::placeholder { color: var(--color-yellow); opacity: 0.7; }
+.modal-field-input.modal-field-warn { border-color: var(--color-yellow); }
+.modal-field-input.modal-field-warn:focus { border-color: var(--color-blue); }
 .modal-divider { border-top: 1px solid var(--border-default); margin: 4px 0 12px; }
 .modal-actions {
   display: flex;
