@@ -156,9 +156,15 @@ def launch_openpnp(host: str, openpnp_bin: str = "/usr/local/bin/openpnp.sh",
             print("[remote] WARN: Xvfb startup timed out")
         env_parts.append(f"DISPLAY={display}")
 
-    env_str = " ".join(env_parts) + " " if env_parts else ""
-    cmd = f"{env_str}{openpnp_bin}"
-    print(f"[remote] Launching: {cmd}")
+    if platform == "darwin":
+        # macOS SSH sessions can't access WindowServer (Java gets HeadlessException).
+        # Launch via a temporary launchd job in the user's GUI domain instead.
+        cmd = _build_macos_gui_launch_cmd(openpnp_bin, env_parts, timeout)
+    else:
+        env_str = " ".join(env_parts) + " " if env_parts else ""
+        cmd = f"{env_str}{openpnp_bin}"
+
+    print(f"[remote] Launching on {platform}: {cmd[:200]}")
 
     transport = client.get_transport()
     channel = transport.open_session()
@@ -166,6 +172,96 @@ def launch_openpnp(host: str, openpnp_bin: str = "/usr/local/bin/openpnp.sh",
     channel.exec_command(cmd)
 
     return client, channel
+
+
+_LAUNCHD_LABEL = "org.openpnp.e2e-test"
+
+
+def _build_macos_gui_launch_cmd(openpnp_bin: str, env_parts: list[str],
+                                timeout: int) -> str:
+    """Build a shell command that launches OpenPnP via launchd in the GUI domain.
+
+    macOS SSH sessions don't have WindowServer access, so Java AWT throws
+    HeadlessException.  By submitting a temporary launchd job to gui/<uid>,
+    the process inherits the logged-in user's Aqua session.
+
+    The returned command is meant to be run over SSH.  It:
+      1. Writes a wrapper script and plist to /tmp
+      2. Bootstraps the job into the GUI domain
+      3. Polls for completion (exit-code sentinel file)
+      4. Streams stdout/stderr back through the SSH channel
+      5. Cleans up the launchd job
+    """
+    # Build the wrapper script content
+    wrapper_lines = ["#!/bin/bash"]
+    for ep in env_parts:
+        wrapper_lines.append(f"export {ep}")
+    wrapper_lines.append(f"{openpnp_bin}")
+    wrapper_lines.append("echo $? > /tmp/openpnp-e2e-exit")
+    wrapper_body = "\n".join(wrapper_lines)
+
+    plist_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \
+"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{_LAUNCHD_LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/tmp/openpnp-e2e-wrapper.sh</string>
+    </array>
+    <key>StandardOutPath</key>
+    <string>/tmp/openpnp-e2e-out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/openpnp-e2e-err.log</string>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>"""
+
+    # Shell script that sets up, runs, waits, and streams output
+    return f"""set -e
+# Write wrapper script
+cat > /tmp/openpnp-e2e-wrapper.sh << 'WRAPPER_EOF'
+{wrapper_body}
+WRAPPER_EOF
+chmod +x /tmp/openpnp-e2e-wrapper.sh
+
+# Write plist
+cat > /tmp/openpnp-e2e.plist << 'PLIST_EOF'
+{plist_xml}
+PLIST_EOF
+
+# Clean up any previous run
+rm -f /tmp/openpnp-e2e-exit /tmp/openpnp-e2e-out.log /tmp/openpnp-e2e-err.log
+launchctl bootout gui/$(id -u)/{_LAUNCHD_LABEL} 2>/dev/null || true
+
+# Bootstrap the job into the GUI domain (runs immediately due to RunAtLoad)
+launchctl bootstrap gui/$(id -u) /tmp/openpnp-e2e.plist
+
+# Poll for completion (wrapper writes exit code to sentinel file)
+ELAPSED=0
+while [ ! -f /tmp/openpnp-e2e-exit ] && [ $ELAPSED -lt {timeout} ]; do
+    sleep 1
+    ELAPSED=$((ELAPSED + 1))
+done
+
+# Stream output
+cat /tmp/openpnp-e2e-out.log 2>/dev/null || true
+cat /tmp/openpnp-e2e-err.log >&2 2>/dev/null || true
+
+# Clean up launchd job
+launchctl bootout gui/$(id -u)/{_LAUNCHD_LABEL} 2>/dev/null || true
+
+# Exit with OpenPnP's exit code (or 1 if timed out)
+if [ -f /tmp/openpnp-e2e-exit ]; then
+    exit $(cat /tmp/openpnp-e2e-exit)
+else
+    echo "TIMEOUT: OpenPnP did not finish within {timeout}s" >&2
+    exit 1
+fi"""
 
 
 def wait_for_exit(channel: paramiko.Channel, timeout: int = DEFAULT_TIMEOUT) -> tuple[int, str]:
@@ -248,8 +344,15 @@ def cleanup(host: str, backup_dir: str | None):
     """Restore original OpenPnP config and kill test processes on the remote host."""
     client = _get_client(host)
     try:
-        # Kill Xvfb started by the test
+        # Kill Xvfb started by the test (Linux)
         client.exec_command("pkill -9 -f 'Xvfb :42' 2>/dev/null; true", timeout=10)
+        # Clean up launchd job if it exists (macOS)
+        client.exec_command(
+            f"launchctl bootout gui/$(id -u)/{_LAUNCHD_LABEL} 2>/dev/null; "
+            "rm -f /tmp/openpnp-e2e-wrapper.sh /tmp/openpnp-e2e.plist "
+            "/tmp/openpnp-e2e-exit /tmp/openpnp-e2e-out.log /tmp/openpnp-e2e-err.log; true",
+            timeout=10,
+        )
         if backup_dir:
             remote_openpnp = backup_dir.replace("-backup-e2e", "")
             _sftp_exec(client, f"rm -rf {remote_openpnp} && mv {backup_dir} {remote_openpnp}")
