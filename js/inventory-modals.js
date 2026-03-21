@@ -27,27 +27,44 @@ const adjModal = Modal("adjust-modal", {
 });
 linkPriceInputs(adjUnitPrice, adjExtPrice, () => currentPart ? currentPart.qty : 0);
 
+// Editable fields: JS key → display label
+const EDITABLE_FIELDS = [
+  ["lcsc", "LCSC"],
+  ["digikey", "Digikey"],
+  ["mpn", "MPN"],
+  ["manufacturer", "Manufacturer"],
+  ["package", "Package"],
+  ["description", "Description"],
+];
+
+function buildFieldInput(key, value, placeholder) {
+  return '<input type="text" class="modal-field-input" data-field="' + key + '" value="' + escHtml(value) + '" placeholder="' + escHtml(placeholder) + '">';
+}
+
 export function openAdjustModal(item) {
   currentPart = item;
   const pk = invPartKey(item);
   modalTitle.textContent = "Adjust — " + pk;
 
-  // Build detail rows for all part fields
-  var rows = [];
-  if (item.lcsc) rows.push(["LCSC", escHtml(item.lcsc)]);
-  if (item.digikey) rows.push(["Digikey", escHtml(item.digikey)]);
-  if (!item.lcsc && !item.digikey) rows.push(["Distributor", '<span class="no-dist-warn">\u26A0 NO DISTRIBUTOR PN</span>']);
-  if (item.mpn) rows.push(["MPN", escHtml(item.mpn)]);
-  if (item.manufacturer) rows.push(["Manufacturer", escHtml(item.manufacturer)]);
-  if (item.package) rows.push(["Package", escHtml(item.package)]);
-  if (item.description) rows.push(["Description", escHtml(item.description)]);
-  if (item.section) rows.push(["Section", escHtml(item.section)]);
-  rows.push(["Qty", escHtml(String(item.qty))]);
-  if (item.unit_price > 0) rows.push(["Unit Price", "$" + escHtml(item.unit_price.toFixed(2))]);
-  if (item.ext_price > 0) rows.push(["Ext. Price", "$" + escHtml(item.ext_price.toFixed(2))]);
-  modalDetailTable.innerHTML = rows.map(function (r) {
-    return "<tr><td>" + escHtml(r[0]) + "</td><td>" + r[1] + "</td></tr>";
-  }).join("");
+  // Build detail rows — editable fields get inputs, read-only fields are plain text
+  var html = "";
+  for (var i = 0; i < EDITABLE_FIELDS.length; i++) {
+    var key = EDITABLE_FIELDS[i][0];
+    var label = EDITABLE_FIELDS[i][1];
+    var value = item[key] || "";
+    var warn = (key === "lcsc" && !item.lcsc && !item.digikey);
+    html += "<tr><td>" + escHtml(label) + "</td><td>" + buildFieldInput(key, value, warn ? "\u26A0 NO DISTRIBUTOR PN" : "") + "</td></tr>";
+    // After Digikey row, show warning spanning both rows if no distributor PN
+    if (key === "digikey" && !item.lcsc && !item.digikey) {
+      html += '<tr><td></td><td><span class="no-dist-warn">\u26A0 NO DISTRIBUTOR PN</span></td></tr>';
+    }
+  }
+  // Read-only rows
+  if (item.section) html += "<tr><td>Section</td><td>" + escHtml(item.section) + "</td></tr>";
+  html += "<tr><td>Qty</td><td>" + item.qty + "</td></tr>";
+  if (item.unit_price > 0) html += "<tr><td>Unit Price</td><td>$" + escHtml(item.unit_price.toFixed(2)) + "</td></tr>";
+  if (item.ext_price > 0) html += "<tr><td>Ext. Price</td><td>$" + escHtml(item.ext_price.toFixed(2)) + "</td></tr>";
+  modalDetailTable.innerHTML = html;
 
   adjType.value = "set";
   adjQty.value = item.qty;
@@ -57,6 +74,19 @@ export function openAdjustModal(item) {
   adjModal.open();
   adjQty.focus();
   adjQty.select();
+}
+
+/** Collect changed fields from the detail table inputs. */
+function getChangedFields() {
+  var changed = {};
+  var inputs = modalDetailTable.querySelectorAll(".modal-field-input");
+  for (var i = 0; i < inputs.length; i++) {
+    var key = inputs[i].dataset.field;
+    var newVal = inputs[i].value.trim();
+    var origVal = (currentPart[key] || "").trim();
+    if (newVal !== origVal) changed[key] = newVal;
+  }
+  return changed;
 }
 
 document.getElementById("adj-apply").addEventListener("click", async () => {
@@ -73,6 +103,10 @@ document.getElementById("adj-apply").addEventListener("click", async () => {
   const origEp = currentPart.ext_price || 0;
   const priceChanged = (!isNaN(newUp) && newUp !== origUp) || (!isNaN(newEp) && newEp !== origEp);
 
+  // Check if metadata fields changed
+  const changedFields = getChangedFields();
+  const fieldsChanged = Object.keys(changedFields).length > 0;
+
   // Save undo state
   UndoRedo.save("adjust", {
     _undoType: "adjust",
@@ -87,12 +121,23 @@ document.getElementById("adj-apply").addEventListener("click", async () => {
     newEp: priceChanged ? (!isNaN(newEp) ? newEp : null) : null,
   });
 
+  var result;
+
+  // Apply metadata field updates first
+  if (fieldsChanged) {
+    result = await api("update_part_fields", pk, changedFields);
+    if (!result) {
+      AppLog.warn("Field update failed for " + pk);
+    }
+  }
+
   // Apply qty adjustment
   const qtyResult = await api("adjust_part", type, pk, qty, note);
   if (!qtyResult) {
     UndoRedo.popLast();
     return;
   }
+  result = qtyResult;
 
   // Apply price update if changed
   if (priceChanged) {
@@ -102,14 +147,14 @@ document.getElementById("adj-apply").addEventListener("click", async () => {
     if (!priceResult) {
       AppLog.warn("Qty adjusted, but price update failed for " + pk);
       UndoRedo._undo[UndoRedo._undo.length - 1].data.priceChanged = false;
-      onInventoryUpdated(qtyResult);
+      onInventoryUpdated(result);
       adjModal.close();
       return;
     }
-    onInventoryUpdated(priceResult);
-  } else {
-    onInventoryUpdated(qtyResult);
+    result = priceResult;
   }
+
+  onInventoryUpdated(result);
 
   lastAdjustMeta = {
     partKey: pk, adjType: type, qty: qty, note: note,
@@ -119,12 +164,15 @@ document.getElementById("adj-apply").addEventListener("click", async () => {
     newEp: priceChanged ? (!isNaN(newEp) ? newEp : null) : null,
   };
   adjModal.close();
-  showToast("Adjusted " + pk);
+  var toastMsg = "Adjusted " + pk;
+  if (fieldsChanged) toastMsg += " (fields updated)";
+  showToast(toastMsg);
 });
 
 document.addEventListener("keydown", (e) => {
   if (adjModal.el.classList.contains("hidden")) return;
-  if (e.key === "Enter" && document.activeElement !== adjNote) {
+  if (e.key === "Enter" && document.activeElement !== adjNote &&
+      !(document.activeElement && document.activeElement.classList.contains("modal-field-input"))) {
     document.getElementById("adj-apply").click();
   }
 });

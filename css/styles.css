@@ -537,6 +537,20 @@ tr.alt-row:hover { background: var(--bg-hover) !important; }
 .modal-detail-table td { padding: 2px 6px; vertical-align: top; }
 .modal-detail-table td:first-child { color: var(--text-secondary); white-space: nowrap; width: 90px; }
 .modal-detail-table td:last-child { color: var(--text-bright); word-break: break-word; }
+.modal-field-input {
+  width: 100%;
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  color: var(--text-bright);
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+.modal-field-input:focus { border-color: var(--color-blue); }
+.modal-field-input::placeholder { color: var(--color-yellow); opacity: 0.7; }
 .modal-divider { border-top: 1px solid var(--border-default); margin: 4px 0 12px; }
 .modal-actions {
   display: flex;
@@ -1111,14 +1125,22 @@ tr.link-target:hover, .inv-part-row.link-target:hover {
 
 /* ── No-Distributor Warning ──────────────────────────── */
 .no-dist-warn {
+  background: none;
+  border: none;
   color: var(--color-yellow);
+  cursor: pointer;
   font-size: 10px;
   font-weight: 600;
   white-space: nowrap;
   opacity: 0.85;
+  padding: 0;
+  line-height: 1;
+  transition: text-shadow 0.15s;
 }
+.no-dist-warn:hover { text-shadow: 0 0 6px var(--color-yellow); }
 .modal-detail-table .no-dist-warn {
   font-size: 12px;
+  cursor: default;
 }
 
 /* ── Confirmed (Teal) ────────────────────────────────── */
