@@ -84,7 +84,7 @@ test.describe('Sticky button column — BOM comparison mode', () => {
     const rowBgVar = await tintedRow.evaluate(el =>
       getComputedStyle(el).getPropertyValue('--row-bg').trim()
     );
-    expect(rowBgVar).toBeTruthy();
+    expect(rowBgVar, '--row-bg should be set to a non-empty color value').not.toBe('');
 
     // The ::before on its btn-group cell should have a background-image gradient
     const btnCell = tintedRow.locator('td.btn-group');
@@ -95,16 +95,19 @@ test.describe('Sticky button column — BOM comparison mode', () => {
     expect(beforeBgImage).toContain('linear-gradient');
 
     // Un-tinted rows should fall back to transparent (no visible tint)
-    const untintedRow = page.locator('#bom-tbody tr:not([class*="row-"])').first();
-    if (await untintedRow.count() > 0) {
-      const untintedBtnCell = untintedRow.locator('td.btn-group');
-      if (await untintedBtnCell.count() > 0) {
-        const untintedBgImage = await untintedBtnCell.evaluate(el =>
-          getComputedStyle(el, '::before').backgroundImage
-        );
-        // Should still have gradient but with transparent (rgba(0,0,0,0))
-        expect(untintedBgImage).toContain('linear-gradient');
-      }
+    const untintedRowCount = await page.locator('#bom-tbody tr:not([class*="row-"])').count();
+    if (untintedRowCount > 0) {
+      // Only check gradient on un-tinted rows if mock data produces any
+      const untintedBtnCell = page.locator('#bom-tbody tr:not([class*="row-"])').first().locator('td.btn-group');
+      await expect(untintedBtnCell, 'Un-tinted row should have a btn-group cell').toHaveCount(1);
+      const untintedBgImage = await untintedBtnCell.evaluate(el =>
+        getComputedStyle(el, '::before').backgroundImage
+      );
+      // Should still have gradient but with transparent (rgba(0,0,0,0))
+      expect(untintedBgImage).toContain('linear-gradient');
+    } else {
+      // All BOM rows are tinted (all matched) — this is valid with the current mock data
+      console.log('No un-tinted BOM rows found — all rows matched (expected with current mock data)');
     }
   });
 
@@ -228,7 +231,7 @@ test.describe('Sticky button column — BOM + PO mode', () => {
     const rowBgVar = await tintedRow.evaluate(el =>
       getComputedStyle(el).getPropertyValue('--row-bg').trim()
     );
-    expect(rowBgVar).toBeTruthy();
+    expect(rowBgVar, '--row-bg should be set to a non-empty color value (with PO)').not.toBe('');
 
     const btnCell = tintedRow.locator('td.btn-group');
     const beforeBgImage = await btnCell.evaluate(el =>

@@ -491,6 +491,7 @@ class TestUpdatePartPrice:
         result = api.update_part_price("C999999", unit_price=0.01)
         # Should not error — creates a new row
         assert isinstance(result, list)
+        assert any(r["lcsc"] == "C999999" for r in result), "New part C999999 should appear in result"
 
     def test_no_ledger_error(self, api):
         with pytest.raises(ValueError, match="No purchase ledger found"):
