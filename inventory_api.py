@@ -594,6 +594,57 @@ class InventoryApi:
 
             return self._rebuild()
 
+    # Map JS field names to CSV column names
+    _FIELD_TO_COL = {
+        "lcsc": "LCSC Part Number",
+        "digikey": "Digikey Part Number",
+        "mpn": "Manufacture Part Number",
+        "manufacturer": "Manufacturer",
+        "package": "Package",
+        "description": "Description",
+    }
+
+    def update_part_fields(self, part_key: str,
+                           fields_json: str | dict[str, str]) -> list[dict[str, Any]]:
+        """Update metadata fields for a part in purchase_ledger.csv.
+
+        ``fields_json`` maps JS field names (lcsc, digikey, mpn, manufacturer,
+        package, description) to new string values.  Only supplied fields are
+        written; omitted fields are left untouched.  Returns fresh inventory.
+        """
+        fields = self._ensure_parsed(fields_json)
+        if not fields:
+            raise ValueError("No fields to update")
+
+        if not os.path.exists(self.input_csv):
+            raise ValueError("No purchase ledger found")
+
+        with open(self.input_csv, newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames
+            rows = list(reader)
+
+        found = False
+        for row in rows:
+            pk = self.get_part_key(row)
+            if pk == part_key:
+                for js_name, value in fields.items():
+                    col = self._FIELD_TO_COL.get(js_name)
+                    if col and col in fieldnames:
+                        row[col] = value
+                found = True
+
+        if not found:
+            raise ValueError(f"Part {part_key!r} not found in purchase ledger")
+
+        with self._lock:
+            with open(self.input_csv, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
+
+            return self._rebuild()
+
     def detect_columns(self, headers_json: str | list[str]) -> dict[str, str]:
         """Auto-detect column mapping for purchase CSV import.
         Returns dict of {source_column_index: target_inventory_field}.
