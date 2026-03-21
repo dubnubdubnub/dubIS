@@ -196,10 +196,9 @@ describe('microspora BOM custom with links', () => {
     // Manual link: BOM has C2765186 (USB-C connector), linked to C2760486 in inventory
     const results = matchBOM(result.aggregated, inventory, links.manualLinks, links.confirmedMatches);
     const usbC = results.find(r => bomKey(r.bom) === 'C2765186');
-    if (usbC) {
-      expect(usbC.matchType).toBe('manual');
-      expect(usbC.inv.lcsc).toBe('C2760486');
-    }
+    expect(usbC, 'C2765186 should be present in BOM match results').toBeDefined();
+    expect(usbC.matchType).toBe('manual');
+    expect(usbC.inv.lcsc).toBe('C2760486');
   });
 
   it('match count improves with links vs without', () => {

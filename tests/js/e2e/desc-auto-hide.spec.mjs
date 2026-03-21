@@ -289,16 +289,16 @@ test.describe('Row heights — BOM comparison mode', () => {
     console.log('BOM rows (tr[data-part-key]):', bomRowCount);
     console.log('Remaining inv rows (.inv-part-row):', invRowCount);
 
-    // Log first BOM table row height
-    if (bomRowCount > 0) {
-      const firstBomRow = await page.locator('tr[data-part-key]').first().evaluate(el => ({
-        width: el.offsetWidth,
-        height: el.offsetHeight,
-        partKey: el.dataset.partKey,
-      }));
-      console.log('First BOM row (wide):', firstBomRow);
-    }
-    // Log remaining inventory row heights
+    expect(bomRowCount, 'BOM should produce rows after loading').toBeGreaterThan(0);
+
+    const firstBomRow = await page.locator('tr[data-part-key]').first().evaluate(el => ({
+      width: el.offsetWidth,
+      height: el.offsetHeight,
+      partKey: el.dataset.partKey,
+    }));
+    console.log('First BOM row (wide):', firstBomRow);
+    expect(firstBomRow.height, 'BOM row should have reasonable height at wide viewport').toBeLessThanOrEqual(64);
+
     await logRowHeights(page, 'bom-remaining-wide');
   });
 
@@ -379,6 +379,10 @@ test.describe('Row height survey — without BOM', () => {
       const dims = await logDimensions(page, `inv-${vp.label}`);
       const invRows = await measureInvRows(page, 5);
       console.log(`Inv rows at ${vp.label}:`, invRows);
+      expect(invRows.length, `Should have inventory rows at ${vp.label}`).toBeGreaterThan(0);
+      for (const row of invRows) {
+        expect(row.height, `Inv row too tall at ${vp.label}`).toBeLessThanOrEqual(64);
+      }
     });
   }
 });
@@ -397,8 +401,10 @@ test.describe('Row height survey — with BOM', () => {
 
       const dims = await logDimensions(page, `bom-${vp.label}`);
       const bomRows = await measureBomRows(page, 5);
+      expect(bomRows.length, `Should have BOM rows at ${vp.label}`).toBeGreaterThan(0);
       for (const row of bomRows) {
         console.log(`BOM row ${row.partKey} (${vp.label}): h=${row.height} w=${row.width}`);
+        expect(row.height, `BOM row ${row.partKey} too tall at ${vp.label}`).toBeLessThanOrEqual(64);
         for (const c of row.cells) {
           if (c.h > 30) console.log(`  TALL cell[${c.idx}] h=${c.h} cls="${c.cls}" text="${c.text}"`);
         }
@@ -422,6 +428,10 @@ test.describe('Row height survey — with PO', () => {
       const dims = await logDimensions(page, `po-${vp.label}`);
       const invRows = await measureInvRows(page, 5);
       console.log(`Inv rows with PO at ${vp.label}:`, invRows);
+      expect(invRows.length, `Should have inventory rows with PO at ${vp.label}`).toBeGreaterThan(0);
+      for (const row of invRows) {
+        expect(row.height, `Inv row too tall with PO at ${vp.label}`).toBeLessThanOrEqual(64);
+      }
     });
   }
 });

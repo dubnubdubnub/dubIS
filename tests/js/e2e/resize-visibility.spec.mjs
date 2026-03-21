@@ -217,10 +217,7 @@ test.describe('BOM multiplier bar buttons on resize', () => {
     });
 
     console.log('Multiplier bar overflow at 1200px:', overflow.reason);
-    // Log finding — this is expected to overflow at narrow widths
-    if (overflow.overflowing) {
-      console.log('WARNING: BOM action buttons overflow their container at 1200px viewport');
-    }
+    expect(overflow.overflowing, `BOM action buttons should not overflow at 1200px: ${overflow.reason}`).toBe(false);
   });
 
   test('BOM action buttons reachable by scroll at narrow viewport', async ({ page }) => {
@@ -302,9 +299,12 @@ test.describe('Panel minimum widths vs viewport', () => {
 
     console.log('Panels at 800px:', JSON.stringify(result));
     console.log(`Container: ${result.containerWidth}px, scroll content: ${result.scrollWidth}px`);
-    if (result.overflowing) {
-      console.log('WARNING: Panel min-widths (930px) exceed 800px viewport — content is clipped or overflows');
-    }
+    // Panel min-widths (930px total) exceed 800px viewport — overflow is expected
+    expect(result.overflowing, 'Panel min-widths should exceed 800px viewport').toBe(true);
+    // But each panel should still render with non-zero width
+    expect(result.importW, 'Import panel should have width').toBeGreaterThan(0);
+    expect(result.invW, 'Inventory panel should have width').toBeGreaterThan(0);
+    expect(result.bomW, 'BOM panel should have width').toBeGreaterThan(0);
   });
 
   test('all three panels visible at 1024px with PO loaded', async ({ page }) => {
@@ -425,9 +425,8 @@ test.describe('BOM comparison table buttons', () => {
     });
 
     console.log('Btn-group after h-scroll:', result);
-    if (result.found) {
-      expect(result.stickyComputed).toBe('sticky');
-    }
+    expect(result.found, 'btn-group element should exist after h-scroll').toBe(true);
+    expect(result.stickyComputed).toBe('sticky');
   });
 
   test('button group stays visible when table scrolled horizontally — with PO', async ({ page }) => {
@@ -455,9 +454,8 @@ test.describe('BOM comparison table buttons', () => {
     });
 
     console.log('Btn-group after h-scroll (BOM+PO):', result);
-    if (result.found) {
-      expect(result.stickyComputed).toBe('sticky');
-    }
+    expect(result.found, 'btn-group element should exist after h-scroll (BOM+PO)').toBe(true);
+    expect(result.stickyComputed).toBe('sticky');
   });
 
   test('Adjust/Confirm/Link buttons visible in first BOM row at narrow width', async ({ page }) => {
@@ -487,11 +485,11 @@ test.describe('BOM comparison table buttons', () => {
     });
 
     console.log('First BOM row buttons:', btns);
-    if (btns.found && btns.count > 0) {
-      for (const btn of btns.buttons) {
-        expect(btn.width, `Button "${btn.text}" has zero width`).toBeGreaterThan(0);
-        expect(btn.height, `Button "${btn.text}" has zero height`).toBeGreaterThan(0);
-      }
+    expect(btns.found, 'First BOM row should exist').toBe(true);
+    expect(btns.count, 'First BOM row should have buttons').toBeGreaterThan(0);
+    for (const btn of btns.buttons) {
+      expect(btn.width, `Button "${btn.text}" has zero width`).toBeGreaterThan(0);
+      expect(btn.height, `Button "${btn.text}" has zero height`).toBeGreaterThan(0);
     }
   });
 });
@@ -789,10 +787,8 @@ test.describe('Console log vs import body at short viewport', () => {
 
     console.log('Layout at 500px height:', result);
     console.log(`Import body: ${result.importBodyHeight}px, Console: ${result.consoleHeight}px`);
-    // Check that console doesn't consume all space
-    if (result.importBodyHeight < 50) {
-      console.log('WARNING: Import body has very little room (<50px) — console log dominates at short viewport');
-    }
+    // Import body must retain usable height — console log must not consume all space
+    expect(result.importBodyHeight, 'Import body should have usable height at 500px viewport').toBeGreaterThanOrEqual(50);
   });
 
   test('import body retains usable height with PO staging at 500px viewport height', async ({ page }) => {
@@ -814,9 +810,7 @@ test.describe('Console log vs import body at short viewport', () => {
     });
 
     console.log('Layout at 500px height with PO:', result);
-    if (result.importBodyHeight < 50) {
-      console.log('WARNING: Import body has very little room with PO staging table at short viewport');
-    }
+    expect(result.importBodyHeight, 'Import body should have usable height with PO at 500px viewport').toBeGreaterThanOrEqual(50);
   });
 });
 
@@ -986,10 +980,9 @@ test.describe('Inventory row elements at narrow widths', () => {
     });
 
     console.log('First row element sizes at 1024px:', result.parts);
-    if (result.found) {
-      for (const [cls, info] of Object.entries(result.parts)) {
-        expect(info.visible, `${cls} not visible`).toBe(true);
-      }
+    expect(result.found, 'First inventory row should exist').toBe(true);
+    for (const [cls, info] of Object.entries(result.parts)) {
+      expect(info.visible, `${cls} not visible`).toBe(true);
     }
   });
 });
