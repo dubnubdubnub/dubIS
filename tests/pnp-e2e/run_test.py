@@ -108,7 +108,19 @@ def _check_display():
         return True  # xvfb-run will handle this
 
     if sys.platform == "darwin":
-        # Check if we can connect to the WindowServer
+        # Fast check: is WindowServer running? Works on all macOS versions,
+        # no PyObjC needed (Homebrew Python doesn't ship AppKit).
+        try:
+            result = subprocess.run(
+                ["pgrep", "-x", "WindowServer"],
+                capture_output=True, timeout=5,
+            )
+            if result.returncode == 0:
+                return True
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+
+        # Deeper check: can we connect to WindowServer via AppKit?
         try:
             result = subprocess.run(
                 ["python3", "-c",
@@ -120,9 +132,10 @@ def _check_display():
         except (FileNotFoundError, subprocess.TimeoutExpired):
             pass
 
-        # Fallback: check if /tmp/com.apple.launchd*/Render exists (WindowServer socket)
+        # Fallback: WindowServer socket (Render on older macOS, Listeners on Sequoia+)
         import glob as globmod
-        ws_sockets = globmod.glob("/tmp/com.apple.launchd*/Render")
+        ws_sockets = (globmod.glob("/tmp/com.apple.launchd*/Render")
+                      + globmod.glob("/tmp/com.apple.launchd*/Listeners"))
         if ws_sockets:
             return True
 
