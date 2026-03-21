@@ -103,7 +103,7 @@ SUBCATEGORY_RULES: dict[str, list[dict[str, Any]]] = {
         {"subcategory": "SMD", "desc": ["surface mount", "header"]},
     ],
     "Passives - Capacitors": [
-        {"subcategory": "MLCC", "desc": ["mlcc", "cap cer"]},
+        {"subcategory": "MLCC", "desc": ["mlcc", "cap cer", "ceramic"]},
         {"subcategory": "Aluminum Polymer", "desc": ["aluminum", "polymer", "electrolytic"]},
         {"subcategory": "Tantalum", "desc": ["tantalum"]},
     ],
