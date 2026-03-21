@@ -46,11 +46,10 @@ test.describe('Designator colors — inventory panel BOM table', () => {
     // Check a sample of designators have the right color classes
     for (const [prefix, expectedClass] of Object.entries(EXPECTED_CLASSES)) {
       const span = refSpans.filter({ hasText: new RegExp('^' + prefix + '\\d') }).first();
-      if (await span.count() > 0) {
-        const cls = await span.getAttribute('class');
-        console.log(`${prefix}* span class: "${cls}" (expected: "${expectedClass}")`);
-        expect(cls).toContain(expectedClass);
-      }
+      expect(await span.count(), `No span found for prefix ${prefix}`).toBeGreaterThan(0);
+      const cls = await span.getAttribute('class');
+      console.log(`${prefix}* span class: "${cls}" (expected: "${expectedClass}")`);
+      expect(cls).toContain(expectedClass);
     }
   });
 
@@ -96,10 +95,9 @@ test.describe('Designator colors — inventory panel BOM table — with PO', () 
 
     for (const [prefix, expectedClass] of Object.entries(EXPECTED_CLASSES)) {
       const span = refSpans.filter({ hasText: new RegExp('^' + prefix + '\\d') }).first();
-      if (await span.count() > 0) {
-        const cls = await span.getAttribute('class');
-        expect(cls).toContain(expectedClass);
-      }
+      expect(await span.count(), `No span found for prefix ${prefix} (BOM+PO)`).toBeGreaterThan(0);
+      const cls = await span.getAttribute('class');
+      expect(cls).toContain(expectedClass);
     }
   });
 
@@ -119,10 +117,9 @@ test.describe('Designator colors — inventory panel BOM table — with PO', () 
 
     for (const [prefix, expectedClass] of Object.entries(EXPECTED_CLASSES)) {
       const span = refSpans.filter({ hasText: new RegExp('^' + prefix + '\\d') }).first();
-      if (await span.count() > 0) {
-        const cls = await span.getAttribute('class');
-        expect(cls).toContain(expectedClass);
-      }
+      expect(await span.count(), `No span found for prefix ${prefix} (1200px)`).toBeGreaterThan(0);
+      const cls = await span.getAttribute('class');
+      expect(cls).toContain(expectedClass);
     }
   });
 });
@@ -155,11 +152,10 @@ test.describe('Designator colors — BOM panel staging table', () => {
     // Verify some have the right color classes
     for (const [prefix, expectedClass] of Object.entries(EXPECTED_CLASSES)) {
       const span = coloredSpans.filter({ hasText: new RegExp('^' + prefix + '\\d') }).first();
-      if (await span.count() > 0) {
-        const cls = await span.getAttribute('class');
-        console.log(`BOM staging ${prefix}* class: "${cls}" (expected: "${expectedClass}")`);
-        expect(cls).toContain(expectedClass);
-      }
+      expect(await span.count(), `No span found for prefix ${prefix} (BOM staging)`).toBeGreaterThan(0);
+      const cls = await span.getAttribute('class');
+      console.log(`BOM staging ${prefix}* class: "${cls}" (expected: "${expectedClass}")`);
+      expect(cls).toContain(expectedClass);
     }
   });
 

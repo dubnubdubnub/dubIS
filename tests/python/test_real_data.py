@@ -34,12 +34,15 @@ def real_api(tmp_path):
 class TestRealPipelineRebuild:
     def test_rebuild_produces_parts(self, real_api):
         inv = real_api.rebuild_inventory()
-        assert len(inv) > 100
+        assert len(inv) >= 130, f"Expected >= 130 parts from real data, got {len(inv)}"
 
     def test_every_part_has_section_and_id(self, real_api):
         inv = real_api.rebuild_inventory()
+        valid_sections = InventoryApi.FLAT_SECTION_ORDER
         for item in inv:
-            assert item["section"], f"Missing section: {item}"
+            assert item["section"] in valid_sections, (
+                f"Invalid section {item['section']!r} for {item}"
+            )
             assert item["lcsc"] or item["mpn"] or item["digikey"], (
                 f"No part ID: {item}"
             )

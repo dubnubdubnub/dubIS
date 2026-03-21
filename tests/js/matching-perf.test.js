@@ -195,17 +195,16 @@ describe('matchBOM correctness at scale', () => {
 
   it('alternatives are found for passive value matches', () => {
     const valueMatches = results.filter(r => r.matchType === 'value');
+    expect(valueMatches.length, 'Should have value matches with real data').toBeGreaterThan(0);
     // Some value matches should have alternatives (multiple caps/resistors with same value)
     const withAlts = valueMatches.filter(r => r.alts && r.alts.length > 0);
-    // Not all will have alts, but with 500 inventory items and repeated values, some should
-    if (valueMatches.length > 0) {
-      // At least verify alternatives don't include the primary match
-      withAlts.forEach(r => {
-        r.alts.forEach(alt => {
-          expect(alt).not.toBe(r.inv);
-        });
+    expect(withAlts.length, 'Some value matches should have alternatives').toBeGreaterThan(0);
+    // Verify alternatives don't include the primary match
+    withAlts.forEach(r => {
+      r.alts.forEach(alt => {
+        expect(alt).not.toBe(r.inv);
       });
-    }
+    });
   });
 });
 
