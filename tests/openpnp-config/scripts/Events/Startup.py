@@ -7,14 +7,19 @@
 #
 # IMPORTANT: The next() loop runs on the EDT. Job.Placement.Complete events
 # are fired synchronously during next() calls, so event scripts execute
-# inline. The background thread's wait_and_exit() gives time for any
-# async HTTP calls from event scripts before calling System.exit(0).
+# inline (including their HTTP calls to dubIS). invokeAndWait ensures the
+# background thread blocks until the job finishes before calling System.exit.
 
 from java.io import File
 from java.lang import Runnable, System
 from javax.swing import SwingUtilities
 import time
 import traceback
+
+
+# Set by run_job() so delayed_start() can verify the job actually ran.
+_job_ran = False
+_job_steps = 0
 
 
 def log(msg):
@@ -42,6 +47,7 @@ def dismiss_welcome_dialog():
 
 def run_job():
     """Load and run the job on the EDT using direct processor API."""
+    global _job_ran, _job_steps
     try:
         dismiss_welcome_dialog()
 
@@ -88,6 +94,8 @@ def run_job():
             if not has_more:
                 break
 
+        _job_steps = step_count
+        _job_ran = True
         log("Job complete: %d steps" % step_count)
 
     except Exception as e:
@@ -110,11 +118,20 @@ def delayed_start():
     time.sleep(10)
     dismiss_welcome_dialog()
     time.sleep(1)
-    log("Starting job on EDT...")
-    SwingUtilities.invokeLater(JobRunner())
-    # Wait for event scripts (HTTP calls to dubIS) to complete
-    log("Waiting 10s for event processing...")
-    time.sleep(10)
+
+    # invokeAndWait blocks until run_job() finishes on the EDT.
+    # Previously invokeLater was used, which caused a race: System.exit(0)
+    # could fire before the EDT picked up the job, producing 0 decreases.
+    log("Starting job on EDT (invokeAndWait)...")
+    SwingUtilities.invokeAndWait(JobRunner())
+    log("Job finished on EDT (ran=%s, steps=%d)" % (_job_ran, _job_steps))
+
+    if not _job_ran:
+        log("ERROR: Job did not run — exiting with code 1")
+        System.exit(1)
+
+    # Brief grace period for any async cleanup
+    time.sleep(2)
     log("Exiting with code 0")
     System.exit(0)
 
