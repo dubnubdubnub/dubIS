@@ -93,6 +93,14 @@ CATEGORY_RULES: list[dict[str, Any]] = [
 ]
 
 SUBCATEGORY_RULES: dict[str, list[dict[str, Any]]] = {
+    "Passives - Resistors": [
+        {"subcategory": "Variable / Trimmers", "desc": [
+            "trimmer", "potentiometer", "trimpot", "variable resistor",
+        ]},
+        {"subcategory": "Chip Resistors", "desc": [
+            "resistor", "\u03c9", "\u03a9", "\u2126", "ohm",
+        ]},
+    ],
     "Connectors": [
         {"subcategory": "High Speed", "desc": [
             "usb-c", "usb type-c", "board to board", "ipex", "hdmi", "dvi",
