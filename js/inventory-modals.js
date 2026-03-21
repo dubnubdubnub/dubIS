@@ -37,8 +37,8 @@ const EDITABLE_FIELDS = [
   ["description", "Description"],
 ];
 
-function buildFieldInput(key, value, placeholder) {
-  return '<input type="text" class="modal-field-input" data-field="' + key + '" value="' + escHtml(value) + '" placeholder="' + escHtml(placeholder) + '">';
+function buildFieldInput(key, value, placeholder, extraClass) {
+  return '<input type="text" class="modal-field-input' + (extraClass || "") + '" data-field="' + key + '" value="' + escHtml(value) + '" placeholder="' + escHtml(placeholder) + '">';
 }
 
 export function openAdjustModal(item) {
@@ -53,10 +53,12 @@ export function openAdjustModal(item) {
     var key = EDITABLE_FIELDS[i][0];
     var label = EDITABLE_FIELDS[i][1];
     var value = item[key] || "";
-    html += "<tr><td>" + escHtml(label) + "</td><td>" + buildFieldInput(key, value, "") + "</td></tr>";
-  }
-  if (noDist) {
-    html += '<tr><td></td><td><span class="no-dist-warn">\u26A0 NO DISTRIBUTOR PN</span></td></tr>';
+    var warnClass = noDist && (key === "lcsc" || key === "digikey") ? " modal-field-warn" : "";
+    html += "<tr><td>" + escHtml(label) + "</td><td>" + buildFieldInput(key, value, "", warnClass) + "</td></tr>";
+    // Show hint after the Digikey row
+    if (key === "digikey" && noDist) {
+      html += '<tr><td></td><td><span class="no-dist-warn">\u26A0 Enter an LCSC or Digikey PN</span></td></tr>';
+    }
   }
   // Read-only rows
   if (item.section) html += "<tr><td>Section</td><td>" + escHtml(item.section) + "</td></tr>";
