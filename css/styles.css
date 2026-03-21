@@ -318,7 +318,7 @@ tbody tr:hover { background: var(--bg-hover) !important; }
 /* Prevent BOM table from squeezing columns below their defined widths.
    Column sum: 140 refs + 24 status + 110 part + 140 mpn + 50 need + 50 have + 78 match + ~100 btns = ~692px
    Plus description gets whatever is left. Horizontal scroll kicks in via .table-wrap overflow-x. */
-#inventory-body .table-wrap table { min-width: 700px; }
+#inventory-body .table-wrap table { min-width: 700px; border-collapse: separate; border-spacing: 0; }
 /* Truncate description in BOM comparison rows to prevent tall rows at narrow widths */
 #inventory-body .table-wrap td.desc-cell {
   white-space: nowrap;
@@ -752,7 +752,7 @@ th.btn-group-hdr {
 td.btn-group button + button { margin-left: 6px; }
 
 .adj-btn {
-  background: var(--bg-raised); border: 1px solid var(--border-default); color: var(--text-secondary);
+  background: transparent; border: 1px solid var(--border-default); color: var(--text-secondary);
   border-radius: 4px; padding: 1px 6px; cursor: pointer;
   font-size: 10px; line-height: 1.4; white-space: nowrap;
   flex-shrink: 0; transition: all 0.15s;
@@ -935,7 +935,7 @@ body.resizing-v { user-select: none; cursor: row-resize; }
 
 /* ── Link Button ──────────────────────────────────────── */
 .link-btn {
-  background: var(--bg-raised); border: 1px solid var(--border-default); color: var(--text-secondary);
+  background: transparent; border: 1px solid var(--border-default); color: var(--text-secondary);
   border-radius: 4px; padding: 1px 6px; cursor: pointer;
   font-size: 10px; line-height: 1.4; white-space: nowrap;
   flex-shrink: 0; transition: all 0.15s;
@@ -1092,7 +1092,7 @@ tr.row-teal td.status { color: var(--color-teal); }
 .chip.teal { background: #2dd4bf20; color: var(--color-teal); border: 1px solid #2dd4bf40; }
 
 .confirm-btn, .unconfirm-btn {
-  background: var(--bg-raised); border: 1px solid var(--border-default); color: var(--text-secondary);
+  background: transparent; border: 1px solid var(--border-default); color: var(--text-secondary);
   border-radius: 4px; padding: 1px 6px; cursor: pointer;
   font-size: 10px; line-height: 1.4; white-space: nowrap;
   flex-shrink: 0; transition: all 0.15s;
@@ -1100,7 +1100,7 @@ tr.row-teal td.status { color: var(--color-teal); }
 .confirm-btn:hover, .unconfirm-btn:hover { border-color: var(--color-teal); color: var(--color-teal); background: #2dd4bf26; }
 
 .swap-btn {
-  background: var(--bg-raised); border: 1px solid var(--border-default); color: var(--text-secondary);
+  background: transparent; border: 1px solid var(--border-default); color: var(--text-secondary);
   border-radius: 4px; padding: 1px 6px; cursor: pointer;
   font-size: 10px; line-height: 1.4; white-space: nowrap;
   flex-shrink: 0; transition: all 0.15s;

@@ -36,6 +36,15 @@ function lockWidths(widths) {
   panels[2].style.flex = 'none';
 }
 
+function unlockToFlex() {
+  const widths = snapshotWidths();
+  const total = widths.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < panels.length; i++) {
+    panels[i].style.width = '';
+    panels[i].style.flex = (widths[i] / total) + ' 0 0px';
+  }
+}
+
 function initHDrag(handle, leftIdx) {
   const rightIdx = leftIdx + 1;
 
@@ -76,6 +85,7 @@ function initHDrag(handle, leftIdx) {
       document.body.classList.remove('resizing');
       handle.removeEventListener('pointermove', onMove);
       handle.removeEventListener('pointerup', onUp);
+      unlockToFlex();
     }
 
     handle.addEventListener('pointermove', onMove);
