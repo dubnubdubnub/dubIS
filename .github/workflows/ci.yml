@@ -113,8 +113,6 @@ jobs:
 
   pnp-e2e-macos:
     name: PnP End-to-End Test (macOS)
-    # Requires GUI session (LaunchAgent, not LaunchDaemon) — may fail on headless runners
-    continue-on-error: true
     if: >-
       github.event_name != 'workflow_dispatch' ||
       github.event.inputs.suite == 'all' ||
@@ -132,15 +130,11 @@ jobs:
 
   pnp-e2e-cross-ux430-to-mac:
     name: PnP E2E Cross-Compute (ux430 → m4-air)
-    # Depends on same-machine tests to avoid concurrent ~/.openpnp2 access
     needs: [pnp-e2e, pnp-e2e-macos]
-    # May fail if remote host lacks GUI session (e.g. m4-air HeadlessException)
-    continue-on-error: true
     if: >-
-      always() && !cancelled() &&
-      (github.event_name != 'workflow_dispatch' ||
+      github.event_name != 'workflow_dispatch' ||
       github.event.inputs.suite == 'all' ||
-      github.event.inputs.suite == 'pnp-cross')
+      github.event.inputs.suite == 'pnp-cross'
     runs-on: [self-hosted, pnp-testbox]
     timeout-minutes: 5
     env:
@@ -154,15 +148,11 @@ jobs:
 
   pnp-e2e-cross-mac-to-ux430:
     name: PnP E2E Cross-Compute (m4-air → ux430)
-    # Depends on same-machine tests to avoid concurrent ~/.openpnp2 access
     needs: [pnp-e2e, pnp-e2e-macos]
-    # May fail if runner or remote host lacks proper display access
-    continue-on-error: true
     if: >-
-      always() && !cancelled() &&
-      (github.event_name != 'workflow_dispatch' ||
+      github.event_name != 'workflow_dispatch' ||
       github.event.inputs.suite == 'all' ||
-      github.event.inputs.suite == 'pnp-cross')
+      github.event.inputs.suite == 'pnp-cross'
     runs-on: [self-hosted, m4-air]
     timeout-minutes: 5
     env:
