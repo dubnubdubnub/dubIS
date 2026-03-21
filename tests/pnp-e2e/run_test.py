@@ -58,7 +58,8 @@ def _http_get(url):
         return resp.status, json.loads(resp.read())
     except urllib.error.HTTPError as e:
         return e.code, json.loads(e.read())
-    except Exception:
+    except Exception as exc:
+        print(f"[e2e] HTTP GET {url} failed: {exc}")
         return None, None
 
 
@@ -70,7 +71,8 @@ def _http_post(url, data):
         return resp.status, json.loads(resp.read())
     except urllib.error.HTTPError as e:
         return e.code, json.loads(e.read())
-    except Exception:
+    except Exception as exc:
+        print(f"[e2e] HTTP POST {url} failed: {exc}")
         return None, None
 
 
@@ -646,12 +648,15 @@ def run_test(remote_openpnp=None):
 
         for lcsc_part, expected_decrease in EXPECTED_DECREASES.items():
             if lcsc_part not in before or lcsc_part not in after:
-                print(f"[e2e] WARN: {lcsc_part} not found in inventory, skipping")
+                failures.append(
+                    f"{lcsc_part}: not found in inventory snapshot "
+                    f"(before={lcsc_part in before}, after={lcsc_part in after})"
+                )
                 continue
             actual_decrease = before[lcsc_part] - after[lcsc_part]
-            if actual_decrease < expected_decrease:
+            if actual_decrease != expected_decrease:
                 failures.append(
-                    f"{lcsc_part}: expected decrease >= {expected_decrease}, "
+                    f"{lcsc_part}: expected decrease of {expected_decrease}, "
                     f"got {actual_decrease} (before={before[lcsc_part]}, after={after[lcsc_part]})"
                 )
             else:
@@ -800,10 +805,13 @@ def _test_offline_queue(base_url, dubis_proc, tmp_dir, test_source, failures):
 
     # Check queue file
     queue_path = os.path.expanduser("~/.openpnp2/dubis_queue.json")
-    if os.path.exists(queue_path):
+    queue_existed = os.path.exists(queue_path)
+    queue_count = 0
+    if queue_existed:
         with open(queue_path) as f:
             queue = json.load(f)
-        print(f"[e2e] INFO: Queue file has {len(queue)} entries")
+        queue_count = len(queue)
+        print(f"[e2e] INFO: Queue file has {queue_count} entries")
     else:
         print("[e2e] INFO: No queue file (all events delivered successfully)")
 
@@ -824,6 +832,17 @@ def _test_offline_queue(base_url, dubis_proc, tmp_dir, test_source, failures):
         status, body = _http_get(f"{base_url}/api/health")
         if status != 200 or not body or not body.get("ok"):
             failures.append("Health check failed after restart")
+        # Verify queue was flushed after restart
+        elif queue_existed and queue_count > 0:
+            if os.path.exists(queue_path):
+                with open(queue_path) as f:
+                    remaining = json.load(f)
+                if len(remaining) > 0:
+                    failures.append(f"Queue not flushed after restart: {len(remaining)} entries remain")
+                else:
+                    print("[e2e] PASS: Queue flushed after restart (file empty)")
+            else:
+                print("[e2e] PASS: Queue file removed after restart (all events replayed)")
     else:
         failures.append("dubIS failed to restart after queue test")
 
