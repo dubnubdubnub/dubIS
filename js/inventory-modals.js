@@ -48,16 +48,15 @@ export function openAdjustModal(item) {
 
   // Build detail rows — editable fields get inputs, read-only fields are plain text
   var html = "";
+  var noDist = !item.lcsc && !item.digikey;
   for (var i = 0; i < EDITABLE_FIELDS.length; i++) {
     var key = EDITABLE_FIELDS[i][0];
     var label = EDITABLE_FIELDS[i][1];
     var value = item[key] || "";
-    var warn = (key === "lcsc" && !item.lcsc && !item.digikey);
-    html += "<tr><td>" + escHtml(label) + "</td><td>" + buildFieldInput(key, value, warn ? "\u26A0 NO DISTRIBUTOR PN" : "") + "</td></tr>";
-    // After Digikey row, show warning spanning both rows if no distributor PN
-    if (key === "digikey" && !item.lcsc && !item.digikey) {
-      html += '<tr><td></td><td><span class="no-dist-warn">\u26A0 NO DISTRIBUTOR PN</span></td></tr>';
-    }
+    html += "<tr><td>" + escHtml(label) + "</td><td>" + buildFieldInput(key, value, "") + "</td></tr>";
+  }
+  if (noDist) {
+    html += '<tr><td></td><td><span class="no-dist-warn">\u26A0 NO DISTRIBUTOR PN</span></td></tr>';
   }
   // Read-only rows
   if (item.section) html += "<tr><td>Section</td><td>" + escHtml(item.section) + "</td></tr>";
