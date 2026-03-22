@@ -13,7 +13,8 @@
     "ICs - Interface", "ICs - ESD Protection", "Mechanical & Hardware", "Other"
   ],
   "FIELDNAMES": [
-    "Digikey Part Number", "LCSC Part Number", "Manufacture Part Number",
+    "Digikey Part Number", "LCSC Part Number", "Pololu Part Number",
+    "Manufacture Part Number",
     "Manufacturer", "Customer NO.", "Package", "Description", "RoHS",
     "Quantity", "Unit Price($)", "Ext.Price($)",
     "Estimated lead time (business days)", "Date Code / Lot No."

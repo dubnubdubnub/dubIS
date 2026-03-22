@@ -13,6 +13,7 @@ const TARGET_FIELDS = [
   "Skip",
   "LCSC Part Number",
   "Digikey Part Number",
+  "Pololu Part Number",
   "Manufacture Part Number",
   "Manufacturer",
   "Quantity",
@@ -24,7 +25,7 @@ const TARGET_FIELDS = [
   "Customer NO.",
 ];
 
-const PART_ID_FIELDS = ["LCSC Part Number", "Digikey Part Number", "Manufacture Part Number"];
+const PART_ID_FIELDS = ["LCSC Part Number", "Digikey Part Number", "Pololu Part Number", "Manufacture Part Number"];
 
 const PO_TEMPLATES = {
   generic: {
@@ -45,6 +46,13 @@ const PO_TEMPLATES = {
     label: "DigiKey",
     headers: [
       "Digikey Part Number", "Manufacture Part Number", "Manufacturer",
+      "Description", "Package", "Quantity", "Unit Price($)",
+    ],
+  },
+  pololu: {
+    label: "Pololu",
+    headers: [
+      "Pololu Part Number", "Manufacture Part Number", "Manufacturer",
       "Description", "Package", "Quantity", "Unit Price($)",
     ],
   },
@@ -121,7 +129,7 @@ function init() {
     <div class="import-section">
       <div class="drop-zone" id="import-drop-zone">
         <p>Drop a purchase CSV here</p>
-        <div class="hint">LCSC orders, cart exports, packing lists, DigiKey</div>
+        <div class="hint">LCSC orders, cart exports, packing lists, DigiKey, Pololu</div>
         <input type="file" id="import-file-input" accept=".csv,.tsv,.txt">
       </div>
       <div class="new-po-row" id="new-po-row">
