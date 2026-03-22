@@ -1,5 +1,5 @@
-/* part-preview.js — Hover tooltip for LCSC and Digikey part numbers.
-   Shows product details fetched from APIs on hover over [data-lcsc] or [data-digikey] elements. */
+/* part-preview.js — Hover tooltip for LCSC, Digikey, and Pololu part numbers.
+   Shows product details fetched from APIs on hover over [data-lcsc], [data-digikey], or [data-pololu] elements. */
 
 import { api, AppLog } from './api.js';
 import { showToast, escHtml } from './ui-helpers.js';
@@ -8,8 +8,8 @@ var HOVER_DELAY_MS = 300;
 var HIDE_DELAY_MS = 150;
 var LCSC_PART_REGEX = /^C\d{4,}$/i;
 
-// JS-side cache: { lcsc: { code -> data|null }, digikey: { code -> data|null } }
-var cache = { lcsc: {}, digikey: {} };
+// JS-side cache: { lcsc: { code -> data|null }, digikey: { code -> data|null }, pololu: { sku -> data|null } }
+var cache = { lcsc: {}, digikey: {}, pololu: {} };
 
 // Current state
 var currentCode = null;
@@ -33,7 +33,7 @@ tooltip.addEventListener("mouseleave", function () {
 // ── Event delegation ──
 
 document.addEventListener("mouseover", function (e) {
-  var trigger = e.target.closest("[data-lcsc], [data-digikey]");
+  var trigger = e.target.closest("[data-lcsc], [data-digikey], [data-pololu]");
   if (!trigger) return;
 
   var provider, code;
@@ -41,9 +41,13 @@ document.addEventListener("mouseover", function (e) {
     provider = "lcsc";
     code = (trigger.dataset.lcsc || "").trim().toUpperCase();
     if (!LCSC_PART_REGEX.test(code)) return;
-  } else {
+  } else if (trigger.dataset.digikey) {
     provider = "digikey";
     code = (trigger.dataset.digikey || "").trim();
+    if (!code) return;
+  } else {
+    provider = "pololu";
+    code = (trigger.dataset.pololu || "").trim();
     if (!code) return;
   }
 
@@ -56,7 +60,7 @@ document.addEventListener("mouseover", function (e) {
 });
 
 document.addEventListener("mouseout", function (e) {
-  var trigger = e.target.closest("[data-lcsc], [data-digikey]");
+  var trigger = e.target.closest("[data-lcsc], [data-digikey], [data-pololu]");
   if (!trigger) return;
   clearTimeout(showTimer);
   scheduleHide();
@@ -108,7 +112,7 @@ async function showTooltip(code, provider, triggerEl) {
 
 async function fetchProduct(code, provider) {
   if (code in cache[provider]) return cache[provider][code];
-  var method = provider === "lcsc" ? "fetch_lcsc_product" : "fetch_digikey_product";
+  var method = provider === "lcsc" ? "fetch_lcsc_product" : provider === "digikey" ? "fetch_digikey_product" : "fetch_pololu_product";
   try {
     var data = await api(method, code);
     cache[provider][code] = data || null;
@@ -174,7 +178,7 @@ function renderTooltip(data, provider) {
   if (data.manufacturer) html += infoRow("Manufacturer", data.manufacturer);
   if (data.mpn) html += infoRow("Mfr. Part #", data.mpn);
 
-  var partLabel = provider === "lcsc" ? "LCSC Part #" : "Digikey Part #";
+  var partLabel = provider === "lcsc" ? "LCSC Part #" : provider === "digikey" ? "Digikey Part #" : "Pololu SKU";
   html += infoRow(partLabel, data.productCode);
 
   if (data.package) html += infoRow("Package", data.package);
@@ -214,8 +218,8 @@ function renderTooltip(data, provider) {
   if (data.pdfUrl) {
     html += '<a class="part-preview-link" href="' + escHtml(data.pdfUrl) + '" target="_blank">Datasheet (PDF)</a>';
   }
-  var pageUrl = data.lcscUrl || data.digikeyUrl || "";
-  var pageName = provider === "lcsc" ? "LCSC" : "Digikey";
+  var pageUrl = data.lcscUrl || data.digikeyUrl || data.pololuUrl || "";
+  var pageName = provider === "lcsc" ? "LCSC" : provider === "digikey" ? "Digikey" : "Pololu";
   if (pageUrl) {
     html += '<a class="part-preview-link" href="' + escHtml(pageUrl) + '" target="_blank">View on ' + pageName + ' &rarr;</a>';
   }

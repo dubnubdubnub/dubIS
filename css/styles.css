@@ -1170,7 +1170,7 @@ tr.row-teal td.status { color: var(--color-teal); }
 .swap-btn:hover { border-color: var(--color-teal); color: var(--color-teal); background: #2dd4bf26; }
 
 /* ── Part Preview Tooltip ─────────────────────────────── */
-[data-lcsc], [data-digikey] { cursor: pointer; display: inline-flex; align-items: center; }
+[data-lcsc], [data-digikey], [data-pololu] { cursor: pointer; display: inline-flex; align-items: center; }
 
 .part-preview {
   position: fixed;
@@ -1319,6 +1319,7 @@ tr.row-teal td.status { color: var(--color-teal); }
 /* Provider accent borders */
 .part-preview-card.provider-lcsc { border-top: 3px solid #0066cc; }
 .part-preview-card.provider-digikey { border-top: 3px solid #cc0000; }
+.part-preview-card.provider-pololu { border-top: 3px solid #9b1b30; }
 
 .part-preview-debug { border-top: 1px solid #f0f0f0; }
 .part-preview-debug-bar {
@@ -1360,8 +1361,10 @@ tr.row-teal td.status { color: var(--color-teal); }
 .inv-part-row .part-ids { width: 100px; min-width: 40px; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
 .part-id-lcsc { font-family: Consolas, monospace; font-size: 11px; color: var(--color-blue); cursor: pointer; }
 .part-id-digikey { font-family: Consolas, monospace; font-size: 11px; color: #cc6600; cursor: pointer; }
+.part-id-pololu { font-family: Consolas, monospace; font-size: 11px; color: #9b1b30; cursor: pointer; }
 .inv-part-row .part-id-lcsc,
-.inv-part-row .part-id-digikey { overflow: hidden; white-space: nowrap; max-width: 100%; }
+.inv-part-row .part-id-digikey,
+.inv-part-row .part-id-pololu { overflow: hidden; white-space: nowrap; max-width: 100%; }
 
 /* ── Vendor Icons ─────────────────────────────────────── */
 .vendor-icon { width: 12px; height: 12px; margin-right: 2px; flex-shrink: 0; }
