@@ -9,6 +9,7 @@
  * @property {string} lcsc - LCSC part number (e.g. "C123456")
  * @property {string} mpn - Manufacturer part number
  * @property {string} digikey - Digikey part number
+ * @property {string} pololu - Pololu SKU number
  * @property {string} manufacturer - Manufacturer name
  * @property {string} package - Package/footprint (e.g. "0402")
  * @property {string} description - Part description

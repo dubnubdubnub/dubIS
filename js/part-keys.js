@@ -45,7 +45,7 @@ export function bomAggKey(bom) {
 export function invPartKey(item) {
   var lcsc = item.lcsc || "";
   if (lcsc && /^C/i.test(lcsc)) return lcsc;
-  return item.mpn || item.digikey || "";
+  return item.mpn || item.digikey || item.pololu || "";
 }
 
 export function rawRowAggKey(row, cols) {
