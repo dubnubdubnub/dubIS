@@ -52,23 +52,24 @@ class PololuClient:
     @staticmethod
     def _parse_product_page(page_html: str, sku: str, url: str) -> dict[str, Any] | None:
         """Parse a Pololu product page and extract product details."""
-        # Try to extract JSON-LD structured data first
-        jsonld_match = re.search(
-            r'<script\s+type="application/ld\+json"[^>]*>(.*?)</script>',
-            page_html, re.DOTALL,
-        )
+        # Try to extract JSON-LD structured data (Pololu uses single-quoted attributes)
         jsonld = None
-        if jsonld_match:
+        for jsonld_match in re.finditer(
+            r"""<script[^>]*type=['"]application/ld\+json['"][^>]*>(.*?)</script>""",
+            page_html, re.DOTALL,
+        ):
             try:
-                jsonld = json.loads(jsonld_match.group(1))
-                # Handle array of JSON-LD objects
-                if isinstance(jsonld, list):
-                    jsonld = next(
-                        (j for j in jsonld if isinstance(j, dict) and j.get("@type") == "Product"),
+                candidate = json.loads(jsonld_match.group(1))
+                if isinstance(candidate, list):
+                    candidate = next(
+                        (j for j in candidate if isinstance(j, dict) and j.get("@type") == "Product"),
                         None,
                     )
+                if isinstance(candidate, dict) and candidate.get("@type") == "Product":
+                    jsonld = candidate
+                    break
             except json.JSONDecodeError:
-                jsonld = None
+                continue
 
         # Extract title from JSON-LD or HTML
         title = ""
@@ -122,17 +123,17 @@ class PololuClient:
                         except (ValueError, TypeError):
                             pass
 
-        # Extract volume pricing from page HTML
-        # Pololu shows pricing tiers like "5+ $4.13" in a table
-        price_matches = re.findall(
-            r'(\d+)\+[^$]*\$(\d+\.?\d*)', page_html,
+        # Extract volume pricing from page HTML.
+        # Pololu renders price tiers as <tr><td>QTY</td><td>PRICE</td></tr>
+        price_rows = re.findall(
+            r"<tr>\s*<td>\s*(\d+)\s*</td>\s*<td[^>]*>\s*(\d+\.?\d*)\s*</td>\s*</tr>",
+            page_html,
         )
-        for qty_str, price_str in price_matches:
+        for qty_str, price_str in price_rows:
             try:
                 qty = int(qty_str)
                 price = float(price_str)
-                # Avoid duplicating qty=1 tier
-                if not any(p["qty"] == qty for p in prices):
+                if qty > 0 and price > 0 and not any(p["qty"] == qty for p in prices):
                     prices.append({"qty": qty, "price": price})
             except (ValueError, TypeError):
                 pass
@@ -151,8 +152,12 @@ class PololuClient:
                 if "InStock" in avail:
                     stock = 1
 
-        # Try to get actual stock count from page
-        stock_match = re.search(r'(\d[\d,]*)\s+in\s+stock', page_html, re.IGNORECASE)
+        # Try to get actual stock count from data attribute or text
+        stock_match = re.search(
+            r"""data-available-stock=['"](\d+)['"]""", page_html,
+        )
+        if not stock_match:
+            stock_match = re.search(r'(\d[\d,]*)\s+in\s+stock', page_html, re.IGNORECASE)
         if stock_match:
             try:
                 stock = int(stock_match.group(1).replace(",", ""))
@@ -171,7 +176,7 @@ class PololuClient:
         # Extract MPN from JSON-LD
         mpn = ""
         if jsonld:
-            mpn = jsonld.get("mpn", "") or jsonld.get("sku", sku)
+            mpn = str(jsonld.get("mpn", "") or jsonld.get("sku", "") or sku)
 
         # Extract category from breadcrumbs
         category = ""
