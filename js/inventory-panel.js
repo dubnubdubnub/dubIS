@@ -189,7 +189,8 @@ function createPartRow(item, sectionKey) {
   var partIdsHtml = '<span class="part-ids">';
   if (item.lcsc) partIdsHtml += '<span class="part-id-lcsc" data-lcsc="' + escHtml(item.lcsc) + '"><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(item.lcsc) + '</span>';
   if (item.digikey) partIdsHtml += '<span class="part-id-digikey" data-digikey="' + escHtml(item.digikey) + '"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(item.digikey) + '</span>';
-  if (!item.lcsc && !item.digikey) partIdsHtml += '<button class="no-dist-warn" title="No distributor PN — click to add">⚠ NO DIST. PN</button>';
+  if (item.pololu) partIdsHtml += '<span class="part-id-pololu" data-pololu="' + escHtml(item.pololu) + '"><img class="vendor-icon" src="data/pololu-icon.svg">' + escHtml(item.pololu) + '</span>';
+  if (!item.lcsc && !item.digikey && !item.pololu) partIdsHtml += '<button class="no-dist-warn" title="No distributor PN — click to add">⚠ NO DIST. PN</button>';
   partIdsHtml += '</span>';
 
   row.innerHTML =
@@ -279,7 +280,7 @@ function renderRemainingNormalSections(otherParts, query) {
 function filterByQuery(parts, query) {
   if (!query) return parts;
   return parts.filter(item => {
-    const text = [item.lcsc, item.mpn, item.description, item.manufacturer, item.package, item.digikey]
+    const text = [item.lcsc, item.mpn, item.description, item.manufacturer, item.package, item.digikey, item.pololu]
       .join(" ").toLowerCase();
     return text.includes(query);
   });

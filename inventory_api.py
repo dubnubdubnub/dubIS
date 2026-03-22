@@ -13,6 +13,7 @@ from typing import Any
 from categorize import categorize, parse_capacitance, parse_inductance, parse_resistance
 from digikey_client import DigikeyClient
 from lcsc_client import LcscClient
+from pololu_client import PololuClient
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,7 @@ class InventoryApi:
         self._digikey = DigikeyClient(
             cookies_file=os.path.join(self.base_dir, "digikey_cookies.json"),
         )
+        self._pololu = PololuClient()
 
     # ── Utility methods (ported from organize_inventory.py) ──────────────
 
@@ -153,7 +155,7 @@ class InventoryApi:
 
     @staticmethod
     def get_part_key(row: dict[str, str]) -> str:
-        """Return best unique identifier: LCSC (C-prefixed) > MPN > Digikey PN."""
+        """Return best unique identifier: LCSC (C-prefixed) > MPN > Digikey PN > Pololu PN."""
         lcsc = (row.get("LCSC Part Number") or "").strip()
         if lcsc and lcsc.upper().startswith("C"):
             return lcsc
@@ -163,6 +165,9 @@ class InventoryApi:
         dk = (row.get("Digikey Part Number") or "").strip()
         if dk:
             return dk
+        pololu = (row.get("Pololu Part Number") or "").strip()
+        if pololu:
+            return pololu
         return ""
 
     # ── Core pipeline ────────────────────────────────────────────────────
@@ -313,13 +318,16 @@ class InventoryApi:
                 mpn = (row.get("Manufacture Part Number") or "").strip()
                 if section.startswith("=") or lcsc.startswith("="):
                     continue
-                if not lcsc and not mpn:
+                pololu = (row.get("Pololu Part Number") or "").strip()
+                digikey = (row.get("Digikey Part Number") or "").strip()
+                if not lcsc and not mpn and not digikey and not pololu:
                     continue
                 rows.append({
                     "section": section,
                     "lcsc": lcsc,
                     "mpn": mpn,
-                    "digikey": (row.get("Digikey Part Number") or "").strip(),
+                    "digikey": digikey,
+                    "pololu": pololu,
                     "manufacturer": (row.get("Manufacturer") or "").strip(),
                     "package": (row.get("Package") or "").strip(),
                     "description": (row.get("Description") or "").strip(),
@@ -394,6 +402,13 @@ class InventoryApi:
     def fetch_digikey_product(self, part_number: str) -> dict[str, Any] | None:
         """Delegate to DigikeyClient."""
         result = self._digikey.fetch_product(part_number)
+        if result and not self._debug:
+            result.pop("_debug", None)
+        return result
+
+    def fetch_pololu_product(self, sku: str) -> dict[str, Any] | None:
+        """Delegate to PololuClient."""
+        result = self._pololu.fetch_product(sku)
         if result and not self._debug:
             result.pop("_debug", None)
         return result
@@ -598,6 +613,7 @@ class InventoryApi:
     _FIELD_TO_COL = {
         "lcsc": "LCSC Part Number",
         "digikey": "Digikey Part Number",
+        "pololu": "Pololu Part Number",
         "mpn": "Manufacture Part Number",
         "manufacturer": "Manufacturer",
         "package": "Package",
@@ -659,6 +675,8 @@ class InventoryApi:
                 candidates.setdefault("LCSC Part Number", []).append(i)
             if "digikey" in h or "digi-key" in h:
                 candidates.setdefault("Digikey Part Number", []).append(i)
+            if "pololu" in h:
+                candidates.setdefault("Pololu Part Number", []).append(i)
             if h == "mpn" or ("manufactur" in h and "part" in h) or ("mfr" in h and "part" in h):
                 candidates.setdefault("Manufacture Part Number", []).append(i)
             if ("manufacturer" in h or h.startswith("mfr")) and "part" not in h:
@@ -685,7 +703,8 @@ class InventoryApi:
         mapping: dict[str, str] = {}
         used_indices: set[int] = set()
         target_order = [
-            "LCSC Part Number", "Digikey Part Number", "Manufacture Part Number",
+            "LCSC Part Number", "Digikey Part Number", "Pololu Part Number",
+            "Manufacture Part Number",
             "Manufacturer", "Quantity", "Description", "Package",
             "Unit Price($)", "Ext.Price($)", "RoHS", "Customer NO.",
         ]
