@@ -7,8 +7,9 @@
  * Inject pywebview mock API + inventory data before any app scripts run.
  * Includes the union of all API methods used across E2E tests.
  */
-export function addMockSetup(page, inventory) {
-  return page.addInitScript((inv) => {
+export function addMockSetup(page, inventory, options = {}) {
+  return page.addInitScript(({ inv, opts }) => {
+    const productMocks = opts.productMocks || {};
     window.pywebview = {
       api: {
         load_inventory: async () => inv,
@@ -33,9 +34,14 @@ export function addMockSetup(page, inventory) {
         load_file: async () => null,
         confirm_close: async () => null,
         consume_bom: async () => inv,
+        fetch_lcsc_product: async (code) => productMocks[`lcsc:${code}`] || null,
+        fetch_digikey_product: async (pn) => productMocks[`digikey:${pn}`] || null,
+        fetch_pololu_product: async (sku) => productMocks[`pololu:${sku}`] || null,
+        fetch_mouser_product: async (pn) => productMocks[`mouser:${pn}`] || null,
+        update_part_fields: async () => inv,
       },
     };
-  }, inventory);
+  }, { inv: inventory, opts: options });
 }
 
 /** Wait for inventory rows to appear in the DOM. */
