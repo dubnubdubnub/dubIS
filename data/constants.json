@@ -10,7 +10,7 @@
     { "name": "ICs - Power / Voltage Regulators", "children": ["Load Switches", "Switchers", "LDOs"] },
     "ICs - Voltage References",
     "ICs - Sensors", "ICs - Amplifiers", "ICs - Motor Drivers",
-    "ICs - Interface", "ICs - ESD Protection", "Mechanical & Hardware", "Other"
+    "ICs - USB", "ICs - Interface", "ICs - ESD Protection", "Mechanical & Hardware", "Other"
   ],
   "FIELDNAMES": [
     "Digikey Part Number", "LCSC Part Number", "Pololu Part Number",
