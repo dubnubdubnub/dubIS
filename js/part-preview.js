@@ -87,9 +87,21 @@ document.addEventListener("mouseout", function (e) {
 function hasSelectionInTooltip() {
   var sel = window.getSelection();
   if (!sel || sel.isCollapsed || !sel.rangeCount) return false;
-  var range = sel.getRangeAt(0);
-  return tooltip.contains(range.startContainer);
+  // Use anchorNode/focusNode (drag endpoints) instead of range.startContainer
+  // (DOM order) — dragging from tooltip outward creates a backward range whose
+  // startContainer is outside the tooltip.
+  return tooltip.contains(sel.anchorNode) || tooltip.contains(sel.focusNode);
 }
+
+// Re-evaluate hide when the user clears a selection (e.g. clicks elsewhere)
+// while the mouse is already outside the tooltip.
+document.addEventListener("selectionchange", function () {
+  if (tooltip.classList.contains("hidden")) return;
+  if (mouseDownInTooltip) return;
+  if (hasSelectionInTooltip()) return;
+  if (tooltip.matches(":hover")) return;
+  scheduleHide();
+});
 
 function scheduleHide() {
   if (mouseDownInTooltip || hasSelectionInTooltip()) return;
