@@ -849,7 +849,10 @@ class InventoryApi:
                          default_dir: str | None = None) -> dict[str, Any] | None:
         """Open native file dialog, return {name, content, directory, path} or None."""
         import webview
-        kwargs = {"file_types": ("CSV/Excel Files (*.csv;*.tsv;*.txt;*.xls)",)}
+        kwargs = {"file_types": (
+            "CSV Files (*.csv)", "TSV Files (*.tsv)",
+            "Text Files (*.txt)", "Excel Files (*.xls)",
+        )}
         if default_dir and os.path.isdir(default_dir):
             kwargs["directory"] = default_dir
         result = webview.windows[0].create_file_dialog(
