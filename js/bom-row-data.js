@@ -38,6 +38,7 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
   var dispLcsc = (hasInv ? r.inv.lcsc : "") || r.bom.lcsc || "";
   var dispDigikey = (hasInv ? r.inv.digikey : "") || "";
   var dispPololu = (hasInv ? r.inv.pololu : "") || "";
+  var dispMouser = (hasInv ? r.inv.mouser : "") || "";
   var dispMpn = (hasInv ? r.inv.mpn : "") || r.bom.mpn || "";
   var invQty = hasInv ? r.inv.qty : "\u2014";
   var invDesc = hasInv
@@ -114,6 +115,7 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
     dispLcsc: dispLcsc,
     dispDigikey: dispDigikey,
     dispPololu: dispPololu,
+    dispMouser: dispMouser,
     dispMpn: dispMpn,
     effectiveQty: r.effectiveQty,
     invQty: invQty,
