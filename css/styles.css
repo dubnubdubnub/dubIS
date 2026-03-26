@@ -1190,6 +1190,9 @@ tr.row-teal td.status { color: var(--color-teal); }
   font-size: 12px;
   color: #1f2328;
   overflow: hidden;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: default;
 }
 
 .part-preview-img {
