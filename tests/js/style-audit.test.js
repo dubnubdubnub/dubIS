@@ -10,7 +10,13 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..', '..');
 
-const css = readFileSync(join(ROOT, 'css/styles.css'), 'utf-8');
+const CSS_FILES = [
+  'css/variables.css', 'css/layout.css', 'css/buttons.css', 'css/tables.css',
+  'css/modals.css', 'css/panels/import.css', 'css/panels/inventory.css',
+  'css/panels/bom.css', 'css/components/toast.css', 'css/components/tooltip.css',
+  'css/components/badges.css', 'css/components/console.css', 'css/components/linking.css',
+];
+const css = CSS_FILES.map(f => readFileSync(join(ROOT, f), 'utf-8')).join('\n');
 const invPanelJs = readFileSync(join(ROOT, 'js/inventory-panel.js'), 'utf-8');
 
 /**

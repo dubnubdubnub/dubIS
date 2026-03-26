@@ -1,0 +1,155 @@
+/* ── Modal ─────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal-overlay.hidden { display: none; }
+
+.modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  padding: 20px 24px;
+  min-width: 360px;
+  max-width: 480px;
+}
+.modal-title { font-size: 15px; font-weight: 600; color: var(--text-bright); margin-bottom: 4px; }
+.modal-subtitle { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; word-break: break-word; }
+.modal-qty { font-size: 13px; color: var(--text-primary); margin-bottom: 12px; }
+.modal-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.modal-form label { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+.modal-form select,
+.modal-form input[type="number"],
+.modal-form input[type="text"] {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-base);
+  color: var(--text-bright);
+  font-size: 13px;
+  outline: none;
+  flex: 1;
+}
+.modal-form select:focus,
+.modal-form input:focus { border-color: var(--color-blue); }
+.modal-wide { min-width: 420px; max-width: 540px; }
+.modal-detail-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 12px; }
+.modal-detail-table td { padding: 2px 6px; vertical-align: top; }
+.modal-detail-table td:first-child { color: var(--text-secondary); white-space: nowrap; width: 90px; }
+.modal-detail-table td:last-child { color: var(--text-bright); word-break: break-word; }
+.modal-field-input {
+  width: 100%;
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  color: var(--text-bright);
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+.modal-field-input:focus { border-color: var(--color-blue); }
+.modal-field-input.modal-field-warn { border-color: var(--color-yellow); }
+.modal-field-input.modal-field-warn:focus { border-color: var(--color-blue); }
+.modal-divider { border-top: 1px solid var(--border-default); margin: 4px 0 12px; }
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ── No-Distributor Warning (modal context) ──────────── */
+.modal-detail-table .no-dist-warn {
+  font-size: 12px;
+  cursor: default;
+}
+
+/* ── Preferences Modal ────────────────────────────────── */
+.prefs-modal-wide { min-width: 420px; max-width: 520px; max-height: 80vh; display: flex; flex-direction: column; }
+.prefs-sliders {
+  overflow-y: auto;
+  max-height: 50vh;
+  margin-bottom: 8px;
+  padding-right: 4px;
+}
+.prefs-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+.prefs-label {
+  width: 180px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prefs-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: var(--border-default);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+.prefs-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-blue);
+  cursor: pointer;
+  border: none;
+}
+.prefs-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-blue);
+  cursor: pointer;
+  border: none;
+}
+.prefs-value-wrap {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-green);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  display: flex;
+  align-items: center;
+}
+.prefs-input {
+  width: 48px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  color: var(--color-green);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  padding: 2px 4px;
+  text-align: right;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.prefs-input::-webkit-inner-spin-button,
+.prefs-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.prefs-input:focus { border-color: var(--color-blue); }

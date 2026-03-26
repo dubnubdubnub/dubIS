@@ -1,0 +1,191 @@
+/* ── Part Preview Tooltip ─────────────────────────────── */
+[data-lcsc], [data-digikey], [data-pololu], [data-mouser] { cursor: pointer; display: inline-flex; align-items: center; }
+
+.part-preview {
+  position: fixed;
+  z-index: 500;
+  width: 360px;
+  max-height: 480px;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+.part-preview.hidden { display: none; }
+
+.part-preview-card {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  color: #1f2328;
+  overflow: hidden;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: default;
+}
+
+.part-preview-img {
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+.part-preview-img img {
+  max-height: 120px;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.part-preview-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2328;
+  padding: 10px 12px 4px;
+  line-height: 1.3;
+}
+
+.part-preview-info {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 4px 0;
+}
+.part-preview-info td {
+  padding: 3px 12px;
+  font-size: 12px;
+  color: #1f2328;
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: top;
+}
+.part-preview-info td.label {
+  color: #656d76;
+  font-weight: 600;
+  white-space: nowrap;
+  width: 100px;
+}
+
+.part-preview-stock {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+.part-preview-stock.in-stock { background: #e6f7e9; color: #1a7f37; }
+.part-preview-stock.no-stock { background: #fce8e8; color: #d1242f; }
+
+.part-preview-prices {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+}
+.part-preview-prices th {
+  background: #f6f8fa;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #656d76;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+  text-transform: none;
+  letter-spacing: 0;
+  position: static;
+}
+.part-preview-prices td {
+  padding: 3px 12px;
+  font-size: 12px;
+  color: #1f2328;
+  border-bottom: 1px solid #f0f0f0;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.part-preview-desc {
+  padding: 0 12px 6px;
+  font-size: 11px;
+  color: #656d76;
+  line-height: 1.4;
+}
+
+.part-preview-attrs {
+  padding: 6px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-top: 1px solid #f0f0f0;
+}
+.part-preview-attr {
+  font-size: 11px;
+  color: #656d76;
+  background: #f6f8fa;
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.part-preview-attr strong { color: #1f2328; font-weight: 600; }
+
+.part-preview-actions {
+  display: flex;
+  border-top: 1px solid #f0f0f0;
+}
+.part-preview-actions .part-preview-link { flex: 1; }
+
+.part-preview-link {
+  display: block;
+  padding: 8px 12px;
+  text-align: center;
+  color: #0969da;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.part-preview-link:hover { background: #f0f6ff; }
+
+.part-preview-loading, .part-preview-error {
+  padding: 24px 12px;
+  text-align: center;
+  color: #656d76;
+  font-size: 13px;
+}
+.part-preview-error { color: #d1242f; }
+
+/* Provider accent borders */
+.part-preview-card.provider-lcsc { border-top: 3px solid #1166dd; }
+.part-preview-card.provider-digikey { border-top: 3px solid #ee2821; }
+.part-preview-card.provider-pololu { border-top: 3px solid #1e2f94; }
+.part-preview-card.provider-mouser { border-top: 3px solid #004A99; }
+
+.part-preview-debug { border-top: 1px solid #f0f0f0; }
+.part-preview-debug-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+}
+.part-preview-debug-toggle,
+.part-preview-copy-btn {
+  font-size: 10px;
+  padding: 2px 8px;
+  border: 1px solid #d0d0d0;
+  border-radius: 3px;
+  background: #f6f8fa;
+  color: #656d76;
+  cursor: pointer;
+  font-weight: 600;
+}
+.part-preview-debug-toggle:hover,
+.part-preview-copy-btn:hover { background: #e8ecf0; }
+.part-preview-debug-json {
+  max-height: 200px;
+  overflow: auto;
+  font-size: 10px;
+  background: #1a1a1a;
+  color: #ccc;
+  padding: 6px;
+  margin: 0 8px 8px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.part-preview-debug-json.hidden { display: none; }

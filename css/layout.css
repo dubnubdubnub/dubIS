@@ -1,0 +1,132 @@
+/* ── Reset & Body ─────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ────────────────────────────────────────────── */
+.header {
+  padding: 10px 24px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.header-left, .header-right { flex: 1; display: flex; align-items: center; gap: 12px; }
+.header-right { justify-content: flex-end; }
+.header-center { display: flex; align-items: center; gap: 6px; }
+.inv-count { font-size: 12px; color: var(--text-muted); }
+.inv-total-value { font-size: 12px; color: var(--color-green); font-weight: 600; font-family: "SFMono-Regular", Consolas, monospace; }
+
+/* ── Three-Panel Layout ────────────────────────────────── */
+.panels {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.panel-header {
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0;
+}
+
+/* ── Drop Zone ─────────────────────────────────────────── */
+.drop-zone {
+  border: 2px dashed var(--border-default);
+  border-radius: 8px;
+  padding: 24px 12px;
+  text-align: center;
+  margin: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--color-blue);
+  background: var(--bg-hover);
+  color: var(--color-blue);
+}
+.drop-zone input[type="file"] { display: none; }
+.drop-zone p { font-size: 13px; }
+.drop-zone .hint { font-size: 11px; margin-top: 6px; color: var(--text-muted); }
+.drop-zone.loaded p { color: var(--color-green); }
+
+/* ── Hidden Utility ───────────────────────────────────── */
+.hidden { display: none; }
+
+/* ── Scrollbar ─────────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-base); }
+::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Resize Handles ──────────────────────────────────── */
+.resize-handle-h {
+  width: 5px; cursor: col-resize; background: transparent;
+  flex-shrink: 0; position: relative; z-index: 10;
+}
+.resize-handle-h::after {
+  content: ""; position: absolute; top: 0; bottom: 0;
+  left: 2px; width: 1px; background: var(--border-default);
+}
+.resize-handle-h:hover::after,
+.resize-handle-h.active::after {
+  background: var(--color-blue); width: 3px; left: 1px;
+}
+
+.resize-handle-v {
+  height: 5px; cursor: row-resize; background: transparent;
+  flex-shrink: 0; position: relative; z-index: 10;
+}
+.resize-handle-v::after {
+  content: ""; position: absolute; left: 0; right: 0;
+  top: 2px; height: 1px; background: var(--border-default);
+}
+.resize-handle-v:hover::after,
+.resize-handle-v.active::after {
+  background: var(--color-blue); height: 3px; top: 1px;
+}
+
+body.resizing   { user-select: none; cursor: col-resize; }
+body.resizing-v { user-select: none; cursor: row-resize; }
+
+/* ── Text Utilities ───────────────────────────────────── */
+.muted { color: var(--text-muted); }
+.mono {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 11px;
+}
