@@ -304,7 +304,7 @@ tbody td {
 tbody td.inv-qty-cell { overflow: visible; z-index: 1; }
 tbody td.inv-qty-cell:has(.alt-badge) { padding-bottom: 26px; }
 tbody tr { transition: background 0.1s; }
-tbody tr:hover { background: var(--bg-hover) !important; }
+tbody tr:hover:not(.part-preview-info tr, .part-preview-prices tr) { background: var(--bg-hover) !important; }
 
 /* ── Selectable Text in Matched BOM Table ──────────────── */
 #inventory-body .table-wrap { overflow-x: scroll; scrollbar-width: none; }
