@@ -41,6 +41,23 @@ class TestGetPartKey:
         row = {"LCSC Part Number": "X999", "Manufacture Part Number": "MPN1", "Digikey Part Number": ""}
         assert InventoryApi.get_part_key(row) == "MPN1"
 
+    def test_mouser_lowest_priority(self):
+        """Mouser PN is used only when no LCSC/MPN/DK/Pololu."""
+        row = {
+            "LCSC Part Number": "", "Manufacture Part Number": "",
+            "Digikey Part Number": "", "Pololu Part Number": "",
+            "Mouser Part Number": "736-FGG0B305CLAD52",
+        }
+        assert InventoryApi.get_part_key(row) == "736-FGG0B305CLAD52"
+
+    def test_mouser_not_used_if_pololu_present(self):
+        row = {
+            "LCSC Part Number": "", "Manufacture Part Number": "",
+            "Digikey Part Number": "", "Pololu Part Number": "1992",
+            "Mouser Part Number": "736-FGG0B305CLAD52",
+        }
+        assert InventoryApi.get_part_key(row) == "1992"
+
 
 class TestSharedConstants:
     def test_section_order_loaded_from_json(self):
@@ -530,6 +547,19 @@ class TestDetectColumns:
         assert mapping.get("0") == "LCSC Part Number"
         assert mapping.get("1") == "Quantity"
 
+    def test_mouser_headers(self, api):
+        """Mouser cart XLS headers are detected correctly."""
+        headers = ["", "Mouser #", "Mfr. #", "Manufacturer", "Customer #",
+                    "Description", "RoHS", "Lifecycle", "Order Qty.",
+                    "Price (USD)", "Ext.: (USD)"]
+        mapping = api.detect_columns(headers)
+        assert mapping.get("1") == "Mouser Part Number"
+        assert mapping.get("2") == "Manufacture Part Number"
+        assert mapping.get("3") == "Manufacturer"
+        assert mapping.get("8") == "Quantity"
+        assert mapping.get("9") == "Unit Price($)"
+        assert mapping.get("10") == "Ext.Price($)"
+
     def test_no_match(self, api):
         headers = ["foo", "bar", "baz"]
         mapping = api.detect_columns(headers)
@@ -703,3 +733,19 @@ class TestFullPipeline:
         # 4. Rebuild
         inv2 = api.rebuild_inventory()
         assert len(inv2) == 2
+
+
+class TestConvertXls:
+    def test_mouser_cart_xls(self, api):
+        """Convert real Mouser cart XLS file to CSV."""
+        xls_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "data", "Cart_Mar25_0912PM.xls",
+        )
+        if not os.path.exists(xls_path):
+            pytest.skip("Mouser XLS test file not available")
+        result = api.convert_xls_to_csv(xls_path)
+        assert result is not None
+        assert result["row_count"] >= 1
+        assert any("mouser" in h.lower() for h in result["headers"])
+        assert result["csv_text"]  # non-empty

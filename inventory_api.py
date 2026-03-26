@@ -13,6 +13,7 @@ from typing import Any
 from categorize import categorize, parse_capacitance, parse_inductance, parse_resistance
 from digikey_client import DigikeyClient
 from lcsc_client import LcscClient
+from mouser_client import MouserClient
 from pololu_client import PololuClient
 
 logger = logging.getLogger(__name__)
@@ -81,6 +82,7 @@ class InventoryApi:
             cookies_file=os.path.join(self.base_dir, "digikey_cookies.json"),
         )
         self._pololu = PololuClient()
+        self._mouser = MouserClient()
 
     # ── Utility methods (ported from organize_inventory.py) ──────────────
 
@@ -155,7 +157,7 @@ class InventoryApi:
 
     @staticmethod
     def get_part_key(row: dict[str, str]) -> str:
-        """Return best unique identifier: LCSC (C-prefixed) > MPN > Digikey PN > Pololu PN."""
+        """Return best unique identifier: LCSC (C-prefixed) > MPN > Digikey PN > Pololu PN > Mouser PN."""
         lcsc = (row.get("LCSC Part Number") or "").strip()
         if lcsc and lcsc.upper().startswith("C"):
             return lcsc
@@ -168,6 +170,9 @@ class InventoryApi:
         pololu = (row.get("Pololu Part Number") or "").strip()
         if pololu:
             return pololu
+        mouser = (row.get("Mouser Part Number") or "").strip()
+        if mouser:
+            return mouser
         return ""
 
     # ── Core pipeline ────────────────────────────────────────────────────
@@ -320,7 +325,8 @@ class InventoryApi:
                     continue
                 pololu = (row.get("Pololu Part Number") or "").strip()
                 digikey = (row.get("Digikey Part Number") or "").strip()
-                if not lcsc and not mpn and not digikey and not pololu:
+                mouser = (row.get("Mouser Part Number") or "").strip()
+                if not lcsc and not mpn and not digikey and not pololu and not mouser:
                     continue
                 rows.append({
                     "section": section,
@@ -328,6 +334,7 @@ class InventoryApi:
                     "mpn": mpn,
                     "digikey": digikey,
                     "pololu": pololu,
+                    "mouser": mouser,
                     "manufacturer": (row.get("Manufacturer") or "").strip(),
                     "package": (row.get("Package") or "").strip(),
                     "description": (row.get("Description") or "").strip(),
@@ -409,6 +416,13 @@ class InventoryApi:
     def fetch_pololu_product(self, sku: str) -> dict[str, Any] | None:
         """Delegate to PololuClient."""
         result = self._pololu.fetch_product(sku)
+        if result and not self._debug:
+            result.pop("_debug", None)
+        return result
+
+    def fetch_mouser_product(self, part_number: str) -> dict[str, Any] | None:
+        """Delegate to MouserClient."""
+        result = self._mouser.fetch_product(part_number)
         if result and not self._debug:
             result.pop("_debug", None)
         return result
@@ -614,6 +628,7 @@ class InventoryApi:
         "lcsc": "LCSC Part Number",
         "digikey": "Digikey Part Number",
         "pololu": "Pololu Part Number",
+        "mouser": "Mouser Part Number",
         "mpn": "Manufacture Part Number",
         "manufacturer": "Manufacturer",
         "package": "Package",
@@ -677,22 +692,24 @@ class InventoryApi:
                 candidates.setdefault("Digikey Part Number", []).append(i)
             if "pololu" in h:
                 candidates.setdefault("Pololu Part Number", []).append(i)
-            if h == "mpn" or ("manufactur" in h and "part" in h) or ("mfr" in h and "part" in h):
+            if "mouser" in h:
+                candidates.setdefault("Mouser Part Number", []).append(i)
+            if h == "mpn" or ("manufactur" in h and "part" in h) or ("mfr" in h and ("part" in h or "#" in h)):
                 candidates.setdefault("Manufacture Part Number", []).append(i)
-            if ("manufacturer" in h or h.startswith("mfr")) and "part" not in h:
+            if ("manufacturer" in h or h.startswith("mfr")) and "part" not in h and "#" not in h:
                 candidates.setdefault("Manufacturer", []).append(i)
             # Prefer "shipped" quantity over "ordered" over generic
             if "shipped" in h:
                 candidates.setdefault("Quantity", []).insert(0, i)
-            elif "quantity" in h or h.startswith("qty"):
+            elif "quantity" in h or "qty" in h:
                 candidates.setdefault("Quantity", []).append(i)
             if "description" in h:
                 candidates.setdefault("Description", []).append(i)
             if "package" in h:
                 candidates.setdefault("Package", []).append(i)
-            if "unit price" in h:
+            if "unit price" in h or ("price" in h and "ext" not in h):
                 candidates.setdefault("Unit Price($)", []).append(i)
-            if ("ext" in h and "price" in h) or "extended price" in h:
+            if ("ext" in h and ("price" in h or "usd" in h)) or "extended price" in h:
                 candidates.setdefault("Ext.Price($)", []).append(i)
             if "rohs" in h:
                 candidates.setdefault("RoHS", []).append(i)
@@ -704,7 +721,7 @@ class InventoryApi:
         used_indices: set[int] = set()
         target_order = [
             "LCSC Part Number", "Digikey Part Number", "Pololu Part Number",
-            "Manufacture Part Number",
+            "Mouser Part Number", "Manufacture Part Number",
             "Manufacturer", "Quantity", "Description", "Package",
             "Unit Price($)", "Ext.Price($)", "RoHS", "Customer NO.",
         ]
@@ -764,11 +781,75 @@ class InventoryApi:
             return {"path": path}
         return None
 
+    def convert_xls_to_csv(self, path: str) -> dict[str, Any] | None:
+        """Convert a binary XLS file to CSV text for the import panel.
+
+        Finds the header row automatically, extracts data rows, and
+        returns {csv_text, headers, row_count}.
+        """
+        import io
+
+        import xlrd
+
+        wb = xlrd.open_workbook(path)
+        sh = wb.sheet_by_index(0)
+
+        # Find the header row: look for a row containing a recognisable header keyword
+        header_row_idx = None
+        for i in range(min(20, sh.nrows)):
+            row_vals = [str(sh.cell_value(i, j)).strip() for j in range(sh.ncols)]
+            lower_vals = [v.lower() for v in row_vals]
+            if any("mouser" in v or "mfr" in v or "digikey" in v or "lcsc" in v
+                   for v in lower_vals):
+                header_row_idx = i
+                break
+
+        if header_row_idx is None:
+            # Fallback: first row with >3 non-empty cells
+            for i in range(sh.nrows):
+                row_vals = [str(sh.cell_value(i, j)).strip() for j in range(sh.ncols)]
+                if sum(1 for v in row_vals if v) > 3:
+                    header_row_idx = i
+                    break
+
+        if header_row_idx is None:
+            return None
+
+        headers = [str(sh.cell_value(header_row_idx, j)).strip() for j in range(sh.ncols)]
+
+        # Extract data rows (skip blanks and footer rows)
+        rows = []
+        for i in range(header_row_idx + 1, sh.nrows):
+            row_vals = [str(sh.cell_value(i, j)).strip() for j in range(sh.ncols)]
+            # Clean up float formatting from xlrd (e.g. "10.0" -> "10")
+            for k, v in enumerate(row_vals):
+                if v.endswith(".0") and v[:-2].isdigit():
+                    row_vals[k] = v[:-2]
+            joined = "".join(row_vals)
+            if not joined:
+                continue
+            # Skip footer/summary rows
+            if any(kw in joined.lower() for kw in
+                   ("submitting", "prices are", "merchandise", "shipping charge")):
+                continue
+            # Skip rows where the likely part-number column is empty
+            if len(row_vals) > 1 and not row_vals[1]:
+                continue
+            rows.append(row_vals)
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(headers)
+        for row in rows:
+            writer.writerow(row)
+
+        return {"csv_text": output.getvalue(), "headers": headers, "row_count": len(rows)}
+
     def open_file_dialog(self, title: str = "Select CSV file",
                          default_dir: str | None = None) -> dict[str, Any] | None:
         """Open native file dialog, return {name, content, directory, path} or None."""
         import webview
-        kwargs = {"file_types": ("CSV Files (*.csv)",)}
+        kwargs = {"file_types": ("CSV/Excel Files (*.csv;*.tsv;*.txt;*.xls)",)}
         if default_dir and os.path.isdir(default_dir):
             kwargs["directory"] = default_dir
         result = webview.windows[0].create_file_dialog(
@@ -777,9 +858,15 @@ class InventoryApi:
         )
         if result and len(result) > 0:
             path = result[0]
+            # Handle XLS files by converting to CSV
+            if path.lower().endswith(".xls"):
+                xls_data = self.convert_xls_to_csv(path)
+                content = xls_data["csv_text"] if xls_data else ""
+            else:
+                content = self._read_text(path)
             resp = {
                 "name": os.path.basename(path),
-                "content": self._read_text(path),
+                "content": content,
                 "directory": os.path.dirname(path),
                 "path": path,
             }

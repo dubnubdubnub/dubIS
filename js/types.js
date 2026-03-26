@@ -10,6 +10,7 @@
  * @property {string} mpn - Manufacturer part number
  * @property {string} digikey - Digikey part number
  * @property {string} pololu - Pololu SKU number
+ * @property {string} mouser - Mouser part number
  * @property {string} manufacturer - Manufacturer name
  * @property {string} package - Package/footprint (e.g. "0402")
  * @property {string} description - Part description
