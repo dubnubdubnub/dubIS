@@ -90,3 +90,23 @@ describe('Description line-clamp contract', () => {
     expect(propertyValue(rule, 'overflow')).toBe('hidden');
   });
 });
+
+describe('Part preview tooltip text selection contract', () => {
+  it('.part-preview-card has user-select: text', () => {
+    const rule = cssRule('.part-preview-card');
+    expect(rule).not.toBeNull();
+    expect(propertyValue(rule, 'user-select')).toBe('text');
+  });
+
+  it('.part-preview-card has -webkit-user-select: text', () => {
+    const rule = cssRule('.part-preview-card');
+    expect(rule).not.toBeNull();
+    expect(propertyValue(rule, '-webkit-user-select')).toBe('text');
+  });
+
+  it('.part-preview has pointer-events: auto', () => {
+    const rule = cssRule('.part-preview');
+    expect(rule).not.toBeNull();
+    expect(propertyValue(rule, 'pointer-events')).toBe('auto');
+  });
+});
