@@ -14,6 +14,7 @@ const TARGET_FIELDS = [
   "LCSC Part Number",
   "Digikey Part Number",
   "Pololu Part Number",
+  "Mouser Part Number",
   "Manufacture Part Number",
   "Manufacturer",
   "Quantity",
@@ -25,7 +26,7 @@ const TARGET_FIELDS = [
   "Customer NO.",
 ];
 
-const PART_ID_FIELDS = ["LCSC Part Number", "Digikey Part Number", "Pololu Part Number", "Manufacture Part Number"];
+const PART_ID_FIELDS = ["LCSC Part Number", "Digikey Part Number", "Pololu Part Number", "Mouser Part Number", "Manufacture Part Number"];
 
 const PO_TEMPLATES = {
   generic: {
@@ -53,6 +54,13 @@ const PO_TEMPLATES = {
     label: "Pololu",
     headers: [
       "Pololu Part Number", "Manufacture Part Number", "Manufacturer",
+      "Description", "Package", "Quantity", "Unit Price($)",
+    ],
+  },
+  mouser: {
+    label: "Mouser",
+    headers: [
+      "Mouser Part Number", "Manufacture Part Number", "Manufacturer",
       "Description", "Package", "Quantity", "Unit Price($)",
     ],
   },
@@ -129,8 +137,8 @@ function init() {
     <div class="import-section">
       <div class="drop-zone" id="import-drop-zone">
         <p>Drop a purchase CSV here</p>
-        <div class="hint">LCSC orders, cart exports, packing lists, DigiKey, Pololu</div>
-        <input type="file" id="import-file-input" accept=".csv,.tsv,.txt">
+        <div class="hint">LCSC orders, cart exports, packing lists, DigiKey, Pololu, Mouser</div>
+        <input type="file" id="import-file-input" accept=".csv,.tsv,.txt,.xls">
       </div>
       <div class="new-po-row" id="new-po-row">
         <span class="new-po-label">or create blank PO:</span>
@@ -158,6 +166,10 @@ async function browseImportFile() {
 }
 
 function handleImportFile(file) {
+  if (/\.xlsx?$/i.test(file.name)) {
+    showToast("XLS files: use the file browser (click the drop zone) instead of drag-drop");
+    return;
+  }
   const reader = new FileReader();
   reader.onload = () => loadImportText(reader.result, file.name);
   reader.readAsText(file);

@@ -1,4 +1,4 @@
-"""Tests for LcscClient and DigikeyClient."""
+"""Tests for LcscClient, DigikeyClient, PololuClient, and MouserClient."""
 
 import json
 
@@ -6,6 +6,7 @@ import pytest
 
 from lcsc_client import LcscClient
 from digikey_client import DigikeyClient
+from mouser_client import MouserClient
 from pololu_client import PololuClient
 
 
@@ -527,6 +528,7 @@ class TestInventoryApiDelegation:
         assert isinstance(api._lcsc, LcscClient)
         assert isinstance(api._digikey, DigikeyClient)
         assert isinstance(api._pololu, PololuClient)
+        assert isinstance(api._mouser, MouserClient)
 
     def test_digikey_cookies_file_configured(self):
         from inventory_api import InventoryApi
@@ -571,3 +573,149 @@ class TestInventoryApiDelegation:
         cached = {"productCode": "1992", "provider": "pololu"}
         api._pololu._cache["1992"] = cached
         assert api.fetch_pololu_product("1992") is cached
+
+    def test_fetch_mouser_delegates(self):
+        from inventory_api import InventoryApi
+        api = InventoryApi()
+        cached = {"productCode": "736-FGG0B305CLAD52", "provider": "mouser"}
+        api._mouser._cache["736-FGG0B305CLAD52"] = cached
+        assert api.fetch_mouser_product("736-FGG0B305CLAD52") is cached
+
+
+class TestMouserClient:
+    def test_invalid_empty_raises(self):
+        client = MouserClient()
+        with pytest.raises(ValueError, match="Invalid Mouser part number"):
+            client.fetch_product("")
+
+    def test_invalid_too_long_raises(self):
+        client = MouserClient()
+        with pytest.raises(ValueError, match="Invalid Mouser part number"):
+            client.fetch_product("x" * 61)
+
+    def test_valid_part_number_accepted(self):
+        """Valid Mouser PNs pass validation (will fail at network)."""
+        client = MouserClient()
+        import urllib.request
+        original = urllib.request.urlopen
+
+        def fake_urlopen(*args, **kwargs):
+            raise TimeoutError("mocked")
+
+        urllib.request.urlopen = fake_urlopen
+        try:
+            result = client.fetch_product("736-FGG0B305CLAD52")
+            assert result is None
+        finally:
+            urllib.request.urlopen = original
+
+    def test_caching(self):
+        """Second call returns cached result without network."""
+        client = MouserClient()
+        import urllib.request
+        original = urllib.request.urlopen
+        call_count = [0]
+
+        def fake_urlopen(*args, **kwargs):
+            call_count[0] += 1
+            raise TimeoutError("mocked")
+
+        urllib.request.urlopen = fake_urlopen
+        try:
+            client.fetch_product("736-FGG0B305CLAD52")
+            client.fetch_product("736-FGG0B305CLAD52")
+            assert call_count[0] == 1
+        finally:
+            urllib.request.urlopen = original
+
+    def test_successful_parse_all_tooltip_fields(self):
+        """Verify all fields used by renderTooltip() are populated correctly.
+
+        The part-preview tooltip renders: productCode, title, description,
+        imageUrl, manufacturer, mpn, package, category, subcategory,
+        attributes, stock, prices, pdfUrl, mouserUrl, provider.
+        """
+        client = MouserClient()
+        import urllib.request
+        original = urllib.request.urlopen
+
+        mock_html = """
+        <html>
+        <head>
+            <meta name="description" content="Circular Push Pull Connectors LEMO 0B series">
+            <meta property="og:image" content="https://www.mouser.com/images/lemo/lrg/FGG0B305.jpg">
+            <script type="application/ld+json">
+            {
+                "@type": "Product",
+                "name": "FGG.0B.305.CLAD52 Circular Push Pull Connector",
+                "sku": "736-FGG0B305CLAD52",
+                "mpn": "FGG.0B.305.CLAD52",
+                "brand": {"name": "LEMO"},
+                "image": "https://www.mouser.com/images/lemo/lrg/FGG0B305.jpg",
+                "description": "Circular Push Pull Connectors LEMO 0B series 5-pos",
+                "offers": {"price": "37.55", "availability": "https://schema.org/InStock"}
+            }
+            </script>
+        </head>
+        <body>
+            <h1>FGG.0B.305.CLAD52 Circular Push Pull Connector</h1>
+            <a class="breadcrumb-item" href="#">Connectors</a>
+            <a class="breadcrumb-item" href="#">Circular</a>
+            <div>500 In Stock</div>
+            <div>10+ $35.00  25+ $33.50</div>
+            <table>
+                <tr><th>Contact Gender</th><td>Plug</td></tr>
+                <tr><th>Number of Contacts</th><td>5</td></tr>
+            </table>
+            <a href="https://www.mouser.com/datasheet/FGG0B305.pdf">Datasheet</a>
+        </body>
+        </html>
+        """.encode()
+
+        class FakeResp:
+            def read(self):
+                return mock_html
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                pass
+
+        urllib.request.urlopen = lambda *a, **kw: FakeResp()
+        try:
+            product = client.fetch_product("736-FGG0B305CLAD52")
+            assert product is not None
+
+            # -- Every field the tooltip renders --
+            assert product["productCode"] == "736-FGG0B305CLAD52"
+            assert "Connector" in product["title"]
+            assert product["title"]  # non-empty
+            assert product["description"]  # non-empty
+            assert product["imageUrl"].startswith("https://")
+            assert product["manufacturer"] == "LEMO"
+            assert product["mpn"] == "FGG.0B.305.CLAD52"
+            assert isinstance(product["package"], str)  # may be empty for connectors
+            assert product["category"]  # non-empty
+            assert isinstance(product["subcategory"], str)
+            assert len(product["attributes"]) >= 1
+            for attr in product["attributes"]:
+                assert "name" in attr and "value" in attr
+            assert isinstance(product["stock"], int)
+            assert product["stock"] > 0
+            assert len(product["prices"]) >= 1
+            for p in product["prices"]:
+                assert isinstance(p["qty"], int)
+                assert isinstance(p["price"], float)
+            assert isinstance(product["pdfUrl"], str)
+            assert product["mouserUrl"] == "https://www.mouser.com/ProductDetail/736-FGG0B305CLAD52"
+            assert product["provider"] == "mouser"
+        finally:
+            urllib.request.urlopen = original
+
+    def test_parse_empty_page_returns_none(self):
+        """Empty page with no title returns None."""
+        result = MouserClient._parse_product_page(
+            "<html><body></body></html>",
+            "NOPE",
+            "https://www.mouser.com/ProductDetail/NOPE",
+        )
+        assert result is None
