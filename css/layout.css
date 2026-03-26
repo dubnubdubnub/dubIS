@@ -86,7 +86,7 @@ body {
 .drop-zone.loaded p { color: var(--color-green); }
 
 /* ── Hidden Utility ───────────────────────────────────── */
-.hidden { display: none; }
+.hidden { display: none !important; }
 
 /* ── Scrollbar ─────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
