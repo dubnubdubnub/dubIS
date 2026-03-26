@@ -16,6 +16,7 @@ var currentCode = null;
 var currentProvider = null;
 var showTimer = null;
 var hideTimer = null;
+var mouseDownInTooltip = false;
 
 // ── Tooltip element ──
 
@@ -27,7 +28,20 @@ tooltip.addEventListener("mouseenter", function () {
   clearTimeout(hideTimer);
 });
 tooltip.addEventListener("mouseleave", function () {
-  scheduleHide();
+  if (!mouseDownInTooltip) scheduleHide();
+});
+tooltip.addEventListener("mousedown", function () {
+  mouseDownInTooltip = true;
+});
+document.addEventListener("mouseup", function () {
+  if (mouseDownInTooltip) {
+    mouseDownInTooltip = false;
+    // If mouse is outside the tooltip after releasing, schedule hide
+    // (unless there's a text selection inside the tooltip)
+    if (!tooltip.matches(":hover") && !hasSelectionInTooltip()) {
+      scheduleHide();
+    }
+  }
 });
 
 // ── Event delegation ──
@@ -70,7 +84,15 @@ document.addEventListener("mouseout", function (e) {
   scheduleHide();
 });
 
+function hasSelectionInTooltip() {
+  var sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return false;
+  var range = sel.getRangeAt(0);
+  return tooltip.contains(range.startContainer);
+}
+
 function scheduleHide() {
+  if (mouseDownInTooltip || hasSelectionInTooltip()) return;
   clearTimeout(hideTimer);
   hideTimer = setTimeout(function () {
     tooltip.classList.add("hidden");
