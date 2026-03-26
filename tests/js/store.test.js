@@ -20,7 +20,12 @@ vi.mock('../../js/api.js', () => ({
   AppLog: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), clear: vi.fn() },
 }));
 
-import { App, getThreshold, setThreshold } from '../../js/store.js';
+import {
+  App, store, getThreshold, setThreshold, snapshotLinks,
+  setInventory, setBomResults, addManualLink, confirmMatch,
+  setLinkingMode, clearLinks,
+} from '../../js/store.js';
+import { EventBus, Events } from '../../js/event-bus.js';
 
 describe('App.links', () => {
   beforeEach(() => {
@@ -191,5 +196,144 @@ describe('setThreshold', () => {
   it('sets threshold value', () => {
     setThreshold('Resistors', 75);
     expect(App.preferences.thresholds.Resistors).toBe(75);
+  });
+});
+
+// ── New store/setter API tests ────────────────────────────
+
+describe('store (read-only getters)', () => {
+  beforeEach(() => {
+    App.inventory = [];
+    App.bomResults = null;
+    clearLinks();
+  });
+
+  it('store.inventory returns what setInventory() set', () => {
+    const items = [{ lcsc: 'C1', qty: 10 }];
+    setInventory(items);
+    expect(store.inventory).toBe(items);
+  });
+
+  it('store.bomResults returns what setBomResults() set', () => {
+    const results = [{ bom: {}, inv: null }];
+    setBomResults(results);
+    expect(store.bomResults).toBe(results);
+  });
+
+  it('store.SECTION_HIERARCHY matches App.SECTION_HIERARCHY', () => {
+    expect(store.SECTION_HIERARCHY).toEqual(App.SECTION_HIERARCHY);
+  });
+
+  it('store.FLAT_SECTIONS matches App.FLAT_SECTIONS', () => {
+    expect(store.FLAT_SECTIONS).toEqual(App.FLAT_SECTIONS);
+  });
+});
+
+describe('event emissions from setters', () => {
+  beforeEach(() => {
+    clearLinks();
+    vi.restoreAllMocks();
+  });
+
+  it('addManualLink() emits LINKS_CHANGED', () => {
+    const spy = vi.fn();
+    EventBus.on(Events.LINKS_CHANGED, spy);
+    addManualLink('BK1', 'IPK1');
+    expect(spy).toHaveBeenCalledTimes(1);
+    EventBus.off(Events.LINKS_CHANGED, spy);
+  });
+
+  it('confirmMatch() emits CONFIRMED_CHANGED', () => {
+    const spy = vi.fn();
+    EventBus.on(Events.CONFIRMED_CHANGED, spy);
+    confirmMatch('BK1', 'IPK1');
+    expect(spy).toHaveBeenCalledTimes(1);
+    EventBus.off(Events.CONFIRMED_CHANGED, spy);
+  });
+
+  it('setLinkingMode() emits LINKING_MODE with correct payload', () => {
+    const spy = vi.fn();
+    EventBus.on(Events.LINKING_MODE, spy);
+    const invItem = { lcsc: 'C999' };
+    setLinkingMode(true, invItem);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith({ active: true, invItem });
+    EventBus.off(Events.LINKING_MODE, spy);
+  });
+});
+
+describe('snapshotLinks', () => {
+  beforeEach(() => {
+    clearLinks();
+  });
+
+  it('returns a deep copy (mutating it does not affect store)', () => {
+    addManualLink('BK1', 'IPK1');
+    const snap = snapshotLinks();
+    snap.manualLinks.push({ bomKey: 'extra', invPartKey: 'extra' });
+    expect(store.links.manualLinks).toHaveLength(1);
+    expect(App.links.manualLinks).toHaveLength(1);
+  });
+});
+
+describe('App proxy backward compatibility', () => {
+  beforeEach(() => {
+    App.inventory = [];
+    App.bomResults = null;
+    App.preferences = { thresholds: {} };
+    clearLinks();
+  });
+
+  it('App.bomResults = x updates store.bomResults', () => {
+    const results = [{ bom: {}, inv: null }];
+    App.bomResults = results;
+    expect(store.bomResults).toBe(results);
+  });
+
+  it('App.links.addManualLink(bk, ipk) works', () => {
+    App.links.addManualLink('BK1', 'IPK1');
+    expect(App.links.manualLinks).toEqual([{ bomKey: 'BK1', invPartKey: 'IPK1' }]);
+    expect(store.links.manualLinks).toEqual([{ bomKey: 'BK1', invPartKey: 'IPK1' }]);
+  });
+
+  it('App.links.manualLinks returns the array', () => {
+    addManualLink('X', 'Y');
+    expect(App.links.manualLinks).toEqual([{ bomKey: 'X', invPartKey: 'Y' }]);
+  });
+
+  it('App.links.manualLinks setter works (undo/redo path)', () => {
+    addManualLink('A', 'B');
+    App.links.manualLinks = [{ bomKey: 'C', invPartKey: 'D' }];
+    expect(App.links.manualLinks).toEqual([{ bomKey: 'C', invPartKey: 'D' }]);
+    expect(store.links.manualLinks).toEqual([{ bomKey: 'C', invPartKey: 'D' }]);
+  });
+
+  it('App.links.confirmedMatches setter works (undo/redo path)', () => {
+    App.links.confirmedMatches = [{ bomKey: 'E', invPartKey: 'F' }];
+    expect(App.links.confirmedMatches).toEqual([{ bomKey: 'E', invPartKey: 'F' }]);
+  });
+
+  it('App.inventory reads correctly', () => {
+    const items = [{ lcsc: 'C1', qty: 5 }];
+    setInventory(items);
+    expect(App.inventory).toBe(items);
+  });
+
+  it('App.inventory setter updates store', () => {
+    const items = [{ lcsc: 'C2', qty: 3 }];
+    App.inventory = items;
+    expect(store.inventory).toBe(items);
+  });
+
+  it('App.preferences.thresholds is accessible and mutable', () => {
+    App.preferences.thresholds = { Resistors: 42 };
+    expect(App.preferences.thresholds.Resistors).toBe(42);
+    expect(store.preferences.thresholds.Resistors).toBe(42);
+  });
+
+  it('App.preferences direct property assignment works (e.g. lastBomDir)', () => {
+    App.preferences.lastBomDir = '/some/path';
+    expect(App.preferences.lastBomDir).toBe('/some/path');
+    expect(store.preferences.lastBomDir).toBe('/some/path');
   });
 });
