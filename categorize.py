@@ -66,6 +66,7 @@ CATEGORY_RULES: list[dict[str, Any]] = [
     {"category": "ICs - ESD Protection", "desc": ["esd"]},
     # Discrete
     {"category": "Discrete Semiconductors", "desc": ["transistor", "bjt", "mosfet"]},
+    {"category": "Discrete Semiconductors", "mpn": ["ao3"]},
     # Power (includes load/power switch ICs)
     {"category": "ICs - Power / Voltage Regulators", "desc": [
         "voltage regulator", "buck", "ldo", "linear voltage", "switching regulator",
@@ -86,6 +87,9 @@ CATEGORY_RULES: list[dict[str, Any]] = [
     # Sensors (position / angle)
     {"category": "ICs - Sensors", "desc": ["position", "angle"]},
     {"category": "ICs - Sensors", "mpn": ["mt6835"]},
+    # USB
+    {"category": "ICs - USB", "desc": ["port ctlr usb", "usb hub"]},
+    {"category": "ICs - USB", "mpn": ["usb57", "husb238", "utc2000"]},
     # MCU
     {"category": "ICs - Microcontrollers", "desc": ["microcontroller", "mcu"]},
     # Mechanical
@@ -116,7 +120,7 @@ SUBCATEGORY_RULES: dict[str, list[dict[str, Any]]] = {
         {"subcategory": "Tantalum", "desc": ["tantalum"]},
     ],
     "Discrete Semiconductors": [
-        {"subcategory": "MOSFETs", "desc": ["mosfet"]},
+        {"subcategory": "MOSFETs", "desc": ["mosfet"], "mpn": ["ao3"]},
     ],
     "ICs - Power / Voltage Regulators": [
         {"subcategory": "Load Switches", "desc": ["load switch", "pwr switch", "power switch"]},

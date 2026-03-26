@@ -1190,6 +1190,9 @@ tr.row-teal td.status { color: var(--color-teal); }
   font-size: 12px;
   color: #1f2328;
   overflow: hidden;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: default;
 }
 
 .part-preview-img {
@@ -1317,9 +1320,9 @@ tr.row-teal td.status { color: var(--color-teal); }
 .part-preview-error { color: #d1242f; }
 
 /* Provider accent borders */
-.part-preview-card.provider-lcsc { border-top: 3px solid #0066cc; }
-.part-preview-card.provider-digikey { border-top: 3px solid #cc0000; }
-.part-preview-card.provider-pololu { border-top: 3px solid #9b1b30; }
+.part-preview-card.provider-lcsc { border-top: 3px solid #1166dd; }
+.part-preview-card.provider-digikey { border-top: 3px solid #ee2821; }
+.part-preview-card.provider-pololu { border-top: 3px solid #1e2f94; }
 .part-preview-card.provider-mouser { border-top: 3px solid #004A99; }
 
 .part-preview-debug { border-top: 1px solid #f0f0f0; }
@@ -1360,9 +1363,9 @@ tr.row-teal td.status { color: var(--color-teal); }
 
 /* ── Dual Part ID Display ─────────────────────────────── */
 .inv-part-row .part-ids { width: 100px; min-width: 40px; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
-.part-id-lcsc { font-family: Consolas, monospace; font-size: 11px; color: var(--color-blue); cursor: pointer; }
-.part-id-digikey { font-family: Consolas, monospace; font-size: 11px; color: #cc6600; cursor: pointer; }
-.part-id-pololu { font-family: Consolas, monospace; font-size: 11px; color: #9b1b30; cursor: pointer; }
+.part-id-lcsc { font-family: Consolas, monospace; font-size: 11px; color: #1166dd; cursor: pointer; }
+.part-id-digikey { font-family: Consolas, monospace; font-size: 11px; color: #ee2821; cursor: pointer; }
+.part-id-pololu { font-family: Consolas, monospace; font-size: 11px; color: #1e2f94; cursor: pointer; }
 .part-id-mouser { font-family: Consolas, monospace; font-size: 11px; color: #004A99; cursor: pointer; }
 .inv-part-row .part-id-lcsc,
 .inv-part-row .part-id-digikey,

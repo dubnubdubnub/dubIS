@@ -97,6 +97,7 @@ class TestRealPipelineRebuild:
         assert "Passives - Capacitors > Tantalum" in sections
         assert "Discrete Semiconductors > MOSFETs" in sections
         assert "ICs - Power / Voltage Regulators > Switchers" in sections
+        assert "ICs - USB" in sections
 
     def test_categorization_snapshot(self, real_api):
         """Every part must categorize identically to the known-good snapshot."""
@@ -112,7 +113,7 @@ class TestRealPipelineRebuild:
             "C127692": "Passives - Resistors > Chip Resistors", "C12891": "Passives - Capacitors > MLCC",
             "C134082": "Connectors > High Speed", "C136657": "Connectors > SMD",
             "C14289": "ICs - Power / Voltage Regulators > LDOs", "C14996": "Diodes",
-            "C15127": "Other", "C1518208": "Passives - Capacitors > MLCC",
+            "C15127": "Discrete Semiconductors > MOSFETs", "C1518208": "Passives - Capacitors > MLCC",
             "C1538": "Passives - Capacitors > MLCC", "C1554": "Passives - Capacitors > MLCC",
             "C1555": "Passives - Capacitors > MLCC", "C1567": "Passives - Capacitors > MLCC",
             "C15742": "ICs - Microcontrollers", "C15850": "Passives - Capacitors > MLCC",
@@ -163,8 +164,8 @@ class TestRealPipelineRebuild:
             "C5942077": "ICs - Power / Voltage Regulators > Switchers",
             "C602034": "Passives - Inductors",
             "C6119795": "Passives - Capacitors > MLCC", "C6305267": "Connectors > High Speed",
-            "C633619": "Other", "C7437027": "ICs - Microcontrollers",
-            "C7471904": "Other", "C76947": "Passives - Capacitors > MLCC",
+            "C633619": "ICs - USB", "C7437027": "ICs - Microcontrollers",
+            "C7471904": "ICs - USB", "C76947": "Passives - Capacitors > MLCC",
             "C85960": "Passives - Capacitors > MLCC", "C86295": "Passives - Capacitors > MLCC",
             "C879894": "Passives - Capacitors > Tantalum", "C88982": "Passives - Resistors > Chip Resistors",
             "C9002": "Crystals & Oscillators",
@@ -184,7 +185,7 @@ class TestRealPipelineRebuild:
             "TCAN1044AEVDRQ1": "ICs - Interface",
             "TPD2EUSB30DRTR": "Diodes",
             "UCS2114-1-V/LX": "ICs - Power / Voltage Regulators > Load Switches",
-            "UTC2000-I/MG": "Other",
+            "UTC2000-I/MG": "ICs - USB",
         }
         for key, section in expected.items():
             assert actual.get(key) == section, f"{key}: expected {section}, got {actual.get(key)}"
