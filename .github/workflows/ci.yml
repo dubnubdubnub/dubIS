@@ -75,7 +75,9 @@ jobs:
         with:
           clean: true
       - run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
-      - run: ~/dubis-venv/bin/ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py pnp_server.py
+      - run: ~/dubis-venv/bin/ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py pnp_server.py mouser_client.py
+      - name: Verify generated test fixtures are up to date
+        run: ~/dubis-venv/bin/python scripts/generate-test-fixtures.py --check
       - run: ~/dubis-venv/bin/pytest tests/python/ -v
 
   python-macos:
@@ -90,7 +92,9 @@ jobs:
       - name: Install Python dependencies
         run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
       - name: Lint
-        run: ~/dubis-venv/bin/ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py pnp_server.py
+        run: ~/dubis-venv/bin/ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py pnp_server.py mouser_client.py
+      - name: Verify generated test fixtures are up to date
+        run: ~/dubis-venv/bin/python scripts/generate-test-fixtures.py --check
       - name: Test
         run: ~/dubis-venv/bin/pytest tests/python/ -v
 

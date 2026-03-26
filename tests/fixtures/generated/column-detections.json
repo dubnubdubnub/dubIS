@@ -1,0 +1,96 @@
+{
+  "Designator*,Quantity*,Manufacturer Part Number*,Value,Procurement Type,Exclude from BOM,Exclude from Board": {
+    "2": "Manufacture Part Number",
+    "1": "Quantity"
+  },
+  "Index,DigiKey Part #,Manufacturer Part Number,Manufacturer,Description,Customer Reference,Quantity,Backorder,Unit Price,Extended Price": {
+    "1": "Digikey Part Number",
+    "2": "Manufacture Part Number",
+    "3": "Manufacturer",
+    "6": "Quantity",
+    "4": "Description",
+    "8": "Unit Price($)",
+    "9": "Ext.Price($)",
+    "5": "Customer NO."
+  },
+  "LCSC Part Number,Manufacture Part Number,Manufacturer,Customer NO.,Package,Description,RoHS,Quantity,Unit Price($),Ext.Price($)": {
+    "0": "LCSC Part Number",
+    "1": "Manufacture Part Number",
+    "2": "Manufacturer",
+    "7": "Quantity",
+    "5": "Description",
+    "4": "Package",
+    "8": "Unit Price($)",
+    "9": "Ext.Price($)",
+    "6": "RoHS",
+    "3": "Customer NO."
+  },
+  "Mouser #,Mfr. #,Manufacturer,Customer #,Description,RoHS,Lifecycle,Order Qty.,Price (USD),Ext.: (USD)": {
+    "0": "Mouser Part Number",
+    "1": "Manufacture Part Number",
+    "2": "Manufacturer",
+    "7": "Quantity",
+    "4": "Description",
+    "8": "Unit Price($)",
+    "9": "Ext.Price($)",
+    "5": "RoHS",
+    "3": "Customer NO."
+  },
+  "Pololu Part Number,Manufacture Part Number,Manufacturer,Description,Package,Quantity,Unit Price($)": {
+    "0": "Pololu Part Number",
+    "1": "Manufacture Part Number",
+    "2": "Manufacturer",
+    "5": "Quantity",
+    "3": "Description",
+    "4": "Package",
+    "6": "Unit Price($)"
+  },
+  "Digikey Part Number,LCSC Part Number,Manufacture Part Number,Manufacturer,Customer NO.,Package,Description,RoHS,Quantity,Unit Price($),Ext.Price($)": {
+    "1": "LCSC Part Number",
+    "0": "Digikey Part Number",
+    "2": "Manufacture Part Number",
+    "3": "Manufacturer",
+    "8": "Quantity",
+    "6": "Description",
+    "5": "Package",
+    "9": "Unit Price($)",
+    "10": "Ext.Price($)",
+    "7": "RoHS",
+    "4": "Customer NO."
+  },
+  "timestamp,type,lcsc_part,quantity,bom_file,board_qty,note,source": {
+    "2": "LCSC Part Number",
+    "3": "Quantity"
+  },
+  "Section,Digikey Part Number,LCSC Part Number,Manufacture Part Number,Manufacturer,Customer NO.,Package,Description,RoHS,Quantity,Unit Price($),Ext.Price($),Estimated lead time (business days),Date Code / Lot No.": {
+    "2": "LCSC Part Number",
+    "1": "Digikey Part Number",
+    "3": "Manufacture Part Number",
+    "4": "Manufacturer",
+    "9": "Quantity",
+    "7": "Description",
+    "6": "Package",
+    "10": "Unit Price($)",
+    "11": "Ext.Price($)",
+    "8": "RoHS",
+    "5": "Customer NO."
+  },
+  "No.,Quantity,Comment,Designator,Footprint,Value,Manufacturer Part,Manufacturer,Supplier Part,Supplier": {
+    "6": "Manufacture Part Number",
+    "7": "Manufacturer",
+    "1": "Quantity"
+  },
+  "Digikey Part Number,LCSC Part Number,Manufacture Part Number,Manufacturer,Customer NO.,Package,Description,RoHS,Quantity,Unit Price($),Ext.Price($),Estimated lead time (business days),Date Code / Lot No.": {
+    "1": "LCSC Part Number",
+    "0": "Digikey Part Number",
+    "2": "Manufacture Part Number",
+    "3": "Manufacturer",
+    "8": "Quantity",
+    "6": "Description",
+    "5": "Package",
+    "9": "Unit Price($)",
+    "10": "Ext.Price($)",
+    "7": "RoHS",
+    "4": "Customer NO."
+  }
+}
