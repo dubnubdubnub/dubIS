@@ -551,5 +551,3 @@ export function init() {
     }
   });
 }
-
-init();

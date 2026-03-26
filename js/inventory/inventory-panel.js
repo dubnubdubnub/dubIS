@@ -44,7 +44,7 @@ var rowMap = new Map();    // partKey -> r, rebuilt each render
 var DESC_HIDE_WIDTH = 680;
 var hideDescs = true;
 
-function init() {
+export function init() {
   // ── ResizeObserver for description hiding ──
   new ResizeObserver(function (entries) {
     var narrow = entries[0].contentRect.width < DESC_HIDE_WIDTH;
@@ -499,7 +499,3 @@ function confirmAltMatch(bomRow, altInvItem) {
   AppLog.info("Confirmed alt: " + bk + " \u2192 " + ipk);
   showToast("Confirmed " + bk + " \u2192 " + ipk);
 }
-
-// ── Initialize and auto-run ──
-
-init();

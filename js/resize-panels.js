@@ -1,27 +1,11 @@
 /* Drag-to-resize panels — self-contained, no dependencies */
 'use strict';
 
-const panels = [
-  document.getElementById('panel-import'),
-  document.getElementById('panel-inventory'),
-  document.getElementById('panel-bom')
-];
 const PANEL_MIN_WIDTHS = [240, 300, 380];  // [import, inventory, bom]
 const CONSOLE_MIN_HEIGHT = 100;
 
-const panelsContainer = document.querySelector('.panels');
-const consoleLog = document.getElementById('console-log');
-
-/* ── Horizontal handles (between panels) ─────────────── */
-function createHHandle(leftIdx) {
-  const h = document.createElement('div');
-  h.className = 'resize-handle-h';
-  panels[leftIdx].after(h);
-  return h;
-}
-
-const hHandle1 = createHHandle(0);
-const hHandle2 = createHHandle(1);
+let panels;
+let consoleLog;
 
 function snapshotWidths() {
   return panels.map(p => p.getBoundingClientRect().width);
@@ -93,45 +77,65 @@ function initHDrag(handle, leftIdx) {
   });
 }
 
-initHDrag(hHandle1, 0);
-initHDrag(hHandle2, 1);
+/* ── Horizontal handles (between panels) ─────────────── */
+function createHHandle(leftIdx) {
+  const h = document.createElement('div');
+  h.className = 'resize-handle-h';
+  panels[leftIdx].after(h);
+  return h;
+}
 
-/* ── Vertical handle (above console log) ─────────────── */
-const vHandle = document.createElement('div');
-vHandle.className = 'resize-handle-v';
-consoleLog.before(vHandle);
+export function init() {
+  panels = [
+    document.getElementById('panel-import'),
+    document.getElementById('panel-inventory'),
+    document.getElementById('panel-bom')
+  ];
+  consoleLog = document.getElementById('console-log');
 
-vHandle.addEventListener('pointerdown', function (e) {
-  e.preventDefault();
-  vHandle.setPointerCapture(e.pointerId);
+  const hHandle1 = createHHandle(0);
+  const hHandle2 = createHHandle(1);
 
-  const startY = e.clientY;
-  const startH = consoleLog.getBoundingClientRect().height;
-  const panelH = panels[0].getBoundingClientRect().height;
-  const headerH = panels[0].querySelector('.panel-header').getBoundingClientRect().height;
-  const importBody = document.getElementById('import-body');
-  const dropZone = importBody ? importBody.querySelector('.drop-zone') : null;
-  const reservedH = headerH + (dropZone ? dropZone.getBoundingClientRect().height + 48 : 120);
-  const maxH = panelH - reservedH;
+  initHDrag(hHandle1, 0);
+  initHDrag(hHandle2, 1);
 
-  vHandle.classList.add('active');
-  document.body.classList.add('resizing-v');
+  /* ── Vertical handle (above console log) ─────────────── */
+  const vHandle = document.createElement('div');
+  vHandle.className = 'resize-handle-v';
+  consoleLog.before(vHandle);
 
-  function onMove(ev) {
-    const dy = startY - ev.clientY;
-    let newH = startH + dy;
-    if (newH < CONSOLE_MIN_HEIGHT) newH = CONSOLE_MIN_HEIGHT;
-    if (newH > maxH) newH = maxH;
-    consoleLog.style.height = newH + 'px';
-  }
+  vHandle.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    vHandle.setPointerCapture(e.pointerId);
 
-  function onUp() {
-    vHandle.classList.remove('active');
-    document.body.classList.remove('resizing-v');
-    vHandle.removeEventListener('pointermove', onMove);
-    vHandle.removeEventListener('pointerup', onUp);
-  }
+    const startY = e.clientY;
+    const startH = consoleLog.getBoundingClientRect().height;
+    const panelH = panels[0].getBoundingClientRect().height;
+    const headerH = panels[0].querySelector('.panel-header').getBoundingClientRect().height;
+    const importBody = document.getElementById('import-body');
+    const dropZone = importBody ? importBody.querySelector('.drop-zone') : null;
+    const reservedH = headerH + (dropZone ? dropZone.getBoundingClientRect().height + 48 : 120);
+    const maxH = panelH - reservedH;
 
-  vHandle.addEventListener('pointermove', onMove);
-  vHandle.addEventListener('pointerup', onUp);
-});
+    vHandle.classList.add('active');
+    document.body.classList.add('resizing-v');
+
+    function onMove(ev) {
+      const dy = startY - ev.clientY;
+      let newH = startH + dy;
+      if (newH < CONSOLE_MIN_HEIGHT) newH = CONSOLE_MIN_HEIGHT;
+      if (newH > maxH) newH = maxH;
+      consoleLog.style.height = newH + 'px';
+    }
+
+    function onUp() {
+      vHandle.classList.remove('active');
+      document.body.classList.remove('resizing-v');
+      vHandle.removeEventListener('pointermove', onMove);
+      vHandle.removeEventListener('pointerup', onUp);
+    }
+
+    vHandle.addEventListener('pointermove', onMove);
+    vHandle.addEventListener('pointerup', onUp);
+  });
+}
