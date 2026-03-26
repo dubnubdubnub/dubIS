@@ -32,6 +32,7 @@ const EDITABLE_FIELDS = [
   ["lcsc", "LCSC"],
   ["digikey", "Digikey"],
   ["pololu", "Pololu"],
+  ["mouser", "Mouser"],
   ["mpn", "MPN"],
   ["manufacturer", "Manufacturer"],
   ["package", "Package"],
@@ -49,16 +50,16 @@ export function openAdjustModal(item) {
 
   // Build detail rows — editable fields get inputs, read-only fields are plain text
   var html = "";
-  var noDist = !item.lcsc && !item.digikey && !item.pololu;
+  var noDist = !item.lcsc && !item.digikey && !item.pololu && !item.mouser;
   for (var i = 0; i < EDITABLE_FIELDS.length; i++) {
     var key = EDITABLE_FIELDS[i][0];
     var label = EDITABLE_FIELDS[i][1];
     var value = item[key] || "";
-    var warnClass = noDist && (key === "lcsc" || key === "digikey" || key === "pololu") ? " modal-field-warn" : "";
+    var warnClass = noDist && (key === "lcsc" || key === "digikey" || key === "pololu" || key === "mouser") ? " modal-field-warn" : "";
     html += "<tr><td>" + escHtml(label) + "</td><td>" + buildFieldInput(key, value, "", warnClass) + "</td></tr>";
-    // Show hint after the Pololu row
-    if (key === "pololu" && noDist) {
-      html += '<tr><td></td><td><span class="no-dist-warn">\u26A0 Enter an LCSC, Digikey, or Pololu PN</span></td></tr>';
+    // Show hint after the Mouser row
+    if (key === "mouser" && noDist) {
+      html += '<tr><td></td><td><span class="no-dist-warn">\u26A0 Enter an LCSC, Digikey, Pololu, or Mouser PN</span></td></tr>';
     }
   }
   // Read-only rows

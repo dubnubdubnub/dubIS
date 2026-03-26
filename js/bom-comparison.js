@@ -98,7 +98,7 @@ function createBomRowElement(d) {
   tr.innerHTML = `
     <td class="refs-cell" title="${escHtml(d.refs)}">${colorizeRefs(d.refs)}</td>
     <td class="status">${d.icon}</td>
-    <td class="mono">${d.dispLcsc ? '<span' + (/^C\d{4,}$/i.test(d.dispLcsc) ? ' data-lcsc="' + escHtml(d.dispLcsc) + '"' : '') + '><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(d.dispLcsc) + '</span>' : ''}${d.dispLcsc && d.dispDigikey ? '<br>' : ''}${d.dispDigikey ? '<span data-digikey="' + escHtml(d.dispDigikey) + '" style="color:#ee2821"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(d.dispDigikey) + '</span>' : ''}${(d.dispLcsc || d.dispDigikey) && d.dispPololu ? '<br>' : ''}${d.dispPololu ? '<span data-pololu="' + escHtml(d.dispPololu) + '" style="color:#1e2f94"><img class="vendor-icon" src="data/pololu-icon.svg">' + escHtml(d.dispPololu) + '</span>' : ''}</td>
+    <td class="mono">${d.dispLcsc ? '<span' + (/^C\d{4,}$/i.test(d.dispLcsc) ? ' data-lcsc="' + escHtml(d.dispLcsc) + '"' : '') + '><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(d.dispLcsc) + '</span>' : ''}${d.dispLcsc && d.dispDigikey ? '<br>' : ''}${d.dispDigikey ? '<span data-digikey="' + escHtml(d.dispDigikey) + '" style="color:#ee2821"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(d.dispDigikey) + '</span>' : ''}${(d.dispLcsc || d.dispDigikey) && d.dispPololu ? '<br>' : ''}${d.dispPololu ? '<span data-pololu="' + escHtml(d.dispPololu) + '" style="color:#1e2f94"><img class="vendor-icon" src="data/pololu-icon.svg">' + escHtml(d.dispPololu) + '</span>' : ''}${(d.dispLcsc || d.dispDigikey || d.dispPololu) && d.dispMouser ? '<br>' : ''}${d.dispMouser ? '<span data-mouser="' + escHtml(d.dispMouser) + '" style="color:#004A99"><img class="vendor-icon" src="data/mouser-icon.svg">' + escHtml(d.dispMouser) + '</span>' : ''}</td>
     <td class="mono" title="${escHtml(d.dispMpn)}">${escHtml(d.dispMpn)}</td>
     <td class="${d.qtyClass}" style="text-align:right;font-weight:600">${d.effectiveQty}</td>
     <td class="inv-qty-cell ${d.qtyClass}" style="text-align:right;font-weight:600">${haveHtml}</td>
@@ -121,12 +121,15 @@ function renderAltRows(tbody, alts, partKey) {
     var altLcsc = alt.lcsc || '';
     var altDigikey = alt.digikey || '';
     var altPololu = alt.pololu || '';
+    var altMouser = alt.mouser || '';
     var altPartHtml = '';
     if (altLcsc) altPartHtml += '<span' + (/^C\d{4,}$/i.test(altLcsc) ? ' data-lcsc="' + escHtml(altLcsc) + '"' : '') + '><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(altLcsc) + '</span>';
     if (altLcsc && altDigikey) altPartHtml += '<br>';
     if (altDigikey) altPartHtml += '<span data-digikey="' + escHtml(altDigikey) + '" style="color:#ee2821"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(altDigikey) + '</span>';
     if ((altLcsc || altDigikey) && altPololu) altPartHtml += '<br>';
     if (altPololu) altPartHtml += '<span data-pololu="' + escHtml(altPololu) + '" style="color:#1e2f94"><img class="vendor-icon" src="data/pololu-icon.svg">' + escHtml(altPololu) + '</span>';
+    if ((altLcsc || altDigikey || altPololu) && altMouser) altPartHtml += '<br>';
+    if (altMouser) altPartHtml += '<span data-mouser="' + escHtml(altMouser) + '" style="color:#004A99"><img class="vendor-icon" src="data/mouser-icon.svg">' + escHtml(altMouser) + '</span>';
     altTr.innerHTML =
       '<td></td>' +
       '<td></td>' +

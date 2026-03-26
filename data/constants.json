@@ -13,7 +13,7 @@
     "ICs - USB", "ICs - Interface", "ICs - ESD Protection", "Mechanical & Hardware", "Other"
   ],
   "FIELDNAMES": [
-    "Digikey Part Number", "LCSC Part Number", "Pololu Part Number",
+    "Digikey Part Number", "LCSC Part Number", "Pololu Part Number", "Mouser Part Number",
     "Manufacture Part Number",
     "Manufacturer", "Customer NO.", "Package", "Description", "RoHS",
     "Quantity", "Unit Price($)", "Ext.Price($)",
