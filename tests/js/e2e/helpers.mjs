@@ -26,7 +26,42 @@ export function addMockSetup(page, inventory, options = {}) {
         import_csv: async () => inv,
         remove_last_adjustments: async () => inv,
         set_bom_dirty: async () => null,
-        detect_columns: async () => ({}),
+        detect_columns: async (headersJson) => {
+          const headers = typeof headersJson === 'string' ? JSON.parse(headersJson) : headersJson;
+          const lower = headers.map(h => h.toLowerCase().trim());
+          const candidates = {};
+          const add = (target, i) => { (candidates[target] = candidates[target] || []).push(i); };
+          lower.forEach((h, i) => {
+            if (h.includes('lcsc')) add('LCSC Part Number', i);
+            if (h.includes('digikey') || h.includes('digi-key')) add('Digikey Part Number', i);
+            if (h.includes('pololu')) add('Pololu Part Number', i);
+            if (h.includes('mouser')) add('Mouser Part Number', i);
+            if (h === 'mpn' || (h.includes('manufactur') && h.includes('part')) || (h.includes('mfr') && (h.includes('part') || h.includes('#')))) add('Manufacture Part Number', i);
+            if ((h.includes('manufacturer') || h.startsWith('mfr')) && !h.includes('part') && !h.includes('#')) add('Manufacturer', i);
+            if (h.includes('shipped')) { (candidates['Quantity'] = candidates['Quantity'] || []).unshift(i); }
+            else if (h.includes('quantity') || h.includes('qty')) add('Quantity', i);
+            if (h.includes('description')) add('Description', i);
+            if (h.includes('package')) add('Package', i);
+            if (h.includes('unit price') || (h.includes('price') && !h.includes('ext'))) add('Unit Price($)', i);
+            if ((h.includes('ext') && (h.includes('price') || h.includes('usd'))) || h.includes('extended price')) add('Ext.Price($)', i);
+            if (h.includes('rohs')) add('RoHS', i);
+            if (h.includes('customer')) add('Customer NO.', i);
+          });
+          const mapping = {};
+          const used = new Set();
+          const order = [
+            'LCSC Part Number', 'Digikey Part Number', 'Pololu Part Number',
+            'Mouser Part Number', 'Manufacture Part Number',
+            'Manufacturer', 'Quantity', 'Description', 'Package',
+            'Unit Price($)', 'Ext.Price($)', 'RoHS', 'Customer NO.',
+          ];
+          for (const target of order) {
+            for (const idx of (candidates[target] || [])) {
+              if (!used.has(idx)) { mapping[String(idx)] = target; used.add(idx); break; }
+            }
+          }
+          return mapping;
+        },
         import_purchases: async () => inv,
         remove_last_purchases: async () => inv,
         open_file_dialog: async () => null,
