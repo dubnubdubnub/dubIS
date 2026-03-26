@@ -1,0 +1,111 @@
+/* ── BOM Panel ─────────────────────────────────────────── */
+.panel-bom { width: 40%; min-width: 380px; }
+
+/* ── Summary / BOM Name ───────────────────────────────── */
+.summary {
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.bom-name { color: var(--text-bright); font-weight: 600; font-size: 13px; }
+
+/* ── Multiplier Bar ────────────────────────────────────── */
+.multiplier-bar {
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--bg-raised);
+}
+.bom-price-info {
+  font-size: 12px; font-weight: 600; color: var(--color-green);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  margin-left: auto;
+}
+.multiplier-bar label { font-size: 12px; color: var(--text-secondary); }
+.multiplier-bar input[type="number"] {
+  width: 56px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-base);
+  color: var(--text-bright);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+.multiplier-bar input[type="number"]:focus { outline: none; border-color: var(--color-blue); }
+
+/* Fixed toolbar: drop-zone, summary, multiplier stay pinned; only table scrolls */
+#bom-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#bom-body .drop-zone { flex-shrink: 0; }
+
+#bom-results {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+#bom-results .summary { flex-shrink: 0; }
+#bom-results .multiplier-bar { flex-shrink: 0; }
+
+.bom-table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── BOM Staging Toolbar ─────────────────────────────── */
+.bom-staging-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 12px; border-bottom: 1px solid var(--bg-raised); flex-shrink: 0;
+}
+.bom-staging-toolbar h3 {
+  font-size: 12px; color: var(--text-secondary); margin: 0;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+/* ── BOM Editable Inputs ─────────────────────────────── */
+.bom-table-wrap td input {
+  width: 100%; background: transparent; border: 1px solid transparent;
+  color: var(--text-primary); font-size: 11px; padding: 2px 4px;
+  font-family: inherit; border-radius: 3px;
+}
+.bom-table-wrap td input:focus {
+  border-color: var(--color-blue); background: var(--bg-base); outline: none;
+}
+
+/* ── BOM Row Warning / Subtotal ──────────────────────── */
+.bom-table-wrap tr.row-warn { background: #d2992218; }
+.bom-table-wrap tr.row-warn td input { color: var(--color-yellow); }
+.bom-table-wrap tr.row-subtotal { background: #484f5815; opacity: 0.6; }
+
+/* ── BOM Row Delete Button ───────────────────────────── */
+.bom-table-wrap .row-delete {
+  width: 20px; cursor: pointer; text-align: center;
+  color: var(--text-muted); font-size: 13px; padding: 0;
+}
+.bom-table-wrap .row-delete:hover { color: var(--color-red); }
+
+.bom-table-wrap td.mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bom-table-wrap td a {
+  color: var(--color-blue);
+  text-decoration: none;
+  word-break: break-all;
+}
+.bom-table-wrap td a:hover {
+  text-decoration: underline;
+}

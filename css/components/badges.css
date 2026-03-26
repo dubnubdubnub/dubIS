@@ -1,0 +1,16 @@
+/* ── Chips / Badges ────────────────────────────────────── */
+.chip {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+}
+.chip.green { background: #23863620; color: var(--color-green); border: 1px solid #23863640; }
+.chip.yellow { background: #d2992220; color: var(--color-yellow); border: 1px solid #d2992240; }
+.chip.red { background: #f8514920; color: var(--color-red); border: 1px solid #f8514940; }
+.chip.blue { background: #58a6ff20; color: var(--color-blue); border: 1px solid #58a6ff40; }
+.chip.orange { background: #f0883e20; color: var(--color-orange); border: 1px solid #f0883e40; }
+.chip.pink { background: #db61a220; color: var(--color-pink); border: 1px solid #db61a240; }
+.chip.grey { background: #484f5820; color: var(--color-gray-muted); border: 1px solid #484f5840; }
+.chip.teal { background: #2dd4bf20; color: var(--color-teal); border: 1px solid #2dd4bf40; }

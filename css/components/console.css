@@ -1,0 +1,21 @@
+/* ── Console Log ──────────────────────────────────────── */
+#console-log {
+  flex-shrink: 0; height: 120px; min-height: 100px;
+  display: flex;
+  flex-direction: column; background: var(--bg-base);
+}
+.console-header { padding: 4px 10px; font-size: 11px; font-weight: 600;
+  color: var(--text-secondary); text-transform: uppercase; background: var(--bg-surface);
+  border-bottom: 1px solid var(--bg-raised); display: flex;
+  justify-content: space-between; align-items: center; flex-shrink: 0; }
+.console-header button { background: none; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 14px; padding: 0 4px; }
+.console-header button:hover { color: var(--text-primary); }
+.console-entries { flex: 1; overflow-y: auto; padding: 4px 0;
+  font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px;
+  user-select: text; -webkit-user-select: text; }
+.console-entry { padding: 1px 10px; line-height: 1.5; }
+.console-time { color: var(--text-muted); margin-right: 6px; }
+.console-info { color: var(--text-secondary); }
+.console-warn { color: var(--color-yellow); }
+.console-error { color: var(--color-red); }

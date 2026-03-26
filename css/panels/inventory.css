@@ -1,0 +1,124 @@
+/* ── Inventory Panel ───────────────────────────────────── */
+.panel-inventory { flex: 1; min-width: 300px; }
+
+/* ── Search Input ──────────────────────────────────────── */
+.search-input {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-base);
+  color: var(--text-bright);
+  font-size: 12px;
+  width: 180px;
+  outline: none;
+}
+.search-input:focus { border-color: var(--color-blue); }
+
+/* ── Inventory Sections ──────────────────────────────── */
+.inv-section {
+  border-bottom: 1px solid var(--bg-raised);
+}
+.inv-section-header {
+  padding: 6px 12px;
+  background: var(--bg-surface);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  user-select: none;
+}
+.inv-section-header:hover { background: var(--bg-hover); color: var(--text-primary); }
+.inv-section-header .chevron {
+  display: inline-block;
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+.inv-section-header.collapsed .chevron { transform: rotate(-90deg); }
+.inv-section-count { color: var(--text-muted); font-weight: 400; }
+
+/* ── Parent Header (categories with subcategories) ──── */
+.inv-parent-header {
+  padding: 6px 12px;
+  background: var(--bg-surface);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  user-select: none;
+  border-bottom: 1px solid var(--border-default);
+}
+.inv-parent-header:hover { background: var(--bg-hover); }
+.inv-parent-header .chevron {
+  display: inline-block;
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+.inv-parent-header.collapsed .chevron { transform: rotate(-90deg); }
+
+/* ── Subsection (indented subcategory) ──────────────── */
+.inv-subsection { padding-left: 12px; }
+.inv-subsection-header {
+  padding: 4px 12px;
+  background: var(--bg-base);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  position: sticky;
+  top: 29px;
+  z-index: 3;
+  user-select: none;
+}
+.inv-subsection-header:hover { background: var(--bg-hover); color: var(--text-primary); }
+.inv-subsection-header .chevron {
+  display: inline-block;
+  font-size: 9px;
+  transition: transform 0.15s;
+}
+.inv-subsection-header.collapsed .chevron { transform: rotate(-90deg); }
+
+/* ── Part Rows ────────────────────────────────────────── */
+.inv-part-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 4px 12px 4px 24px;
+  font-size: 12px;
+  gap: 8px;
+  border-bottom: 1px solid var(--bg-hover);
+  transition: background 0.1s;
+  user-select: text;
+}
+.inv-part-row:hover { background: var(--bg-hover); }
+.inv-part-row .part-id { width: 90px; flex-shrink: 0; font-family: Consolas, monospace; font-size: 11px; color: var(--color-blue); }
+.inv-part-row .part-mpn { width: 160px; min-width: 40px; font-family: Consolas, monospace; font-size: 11px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-part-row .part-value { width: 70px; min-width: 20px; text-align: right; font-size: 11px; font-family: Consolas, monospace; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-part-row .part-qty { width: 60px; min-width: 30px; text-align: right; font-weight: 600; }
+.inv-part-row .part-desc { flex: 1; min-width: 0; overflow: hidden; }
+.inv-part-row .part-actions { flex-shrink: 0; margin-left: auto; display: flex; gap: 4px; align-items: center; }
+.part-desc-inner { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; color: var(--text-secondary); width: 100%; }
+
+/* ── Dual Part ID Display ─────────────────────────────── */
+.inv-part-row .part-ids { width: 100px; min-width: 40px; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+.part-id-lcsc { font-family: Consolas, monospace; font-size: 11px; color: #1166dd; cursor: pointer; }
+.part-id-digikey { font-family: Consolas, monospace; font-size: 11px; color: #ee2821; cursor: pointer; }
+.part-id-pololu { font-family: Consolas, monospace; font-size: 11px; color: #1e2f94; cursor: pointer; }
+.part-id-mouser { font-family: Consolas, monospace; font-size: 11px; color: #004A99; cursor: pointer; }
+.inv-part-row .part-id-lcsc,
+.inv-part-row .part-id-digikey,
+.inv-part-row .part-id-pololu,
+.inv-part-row .part-id-mouser { overflow: hidden; white-space: nowrap; max-width: 100%; }
