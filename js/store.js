@@ -1,92 +1,28 @@
-/* store.js — Global application state */
+/* store.js --- Centralized state management with getter/setter pairs.
+   Backward-compatible: the `App` proxy preserves the old read/write API
+   so every existing module continues to work unchanged. */
 
 import { EventBus, Events } from './event-bus.js';
 import { SECTION_ORDER } from './constants.js';
 import { api, AppLog } from './api.js';
 
-export const App = {
-  // Data (owned by store, set via API)
-  inventory: [],
+// ── Private state slices ──────────────────────────────────
+let inventory = [];
+let bomResults = null;
+let bomFileName = "";
+let bomHeaders = [];
+let bomCols = {};
+let bomDirty = false;
+let preferences = { thresholds: {} };
+let manualLinks = [];
+let confirmedMatches = [];
+let linkingActive = false;
+let linkingInvItem = null;
+let linkingBomRow = null;
 
-  // BOM state (owned by bom-panel)
-  bomResults: null,
-  bomFileName: "",
-  bomHeaders: [],
-  bomCols: {},
-  bomDirty: false,
+// ── Derived constants (computed once from SECTION_ORDER) ──
 
-  // Linking state (central mutation API)
-  links: {
-    manualLinks: [],
-    confirmedMatches: [],
-    linkingMode: false,
-    linkingInvItem: null,
-    linkingBomRow: null,
-
-    addManualLink(bk, ipk) {
-      this.manualLinks.push({ bomKey: bk, invPartKey: ipk });
-      EventBus.emit(Events.LINKS_CHANGED);
-    },
-    confirmMatch(bk, ipk) {
-      this.confirmedMatches = this.confirmedMatches.filter(c => c.bomKey !== bk);
-      this.confirmedMatches.push({ bomKey: bk, invPartKey: ipk });
-      EventBus.emit(Events.CONFIRMED_CHANGED);
-    },
-    unconfirmMatch(bk) {
-      this.confirmedMatches = this.confirmedMatches.filter(c => c.bomKey !== bk);
-      EventBus.emit(Events.CONFIRMED_CHANGED);
-    },
-    setLinkingMode(active, invItem) {
-      this.linkingMode = active;
-      this.linkingInvItem = active ? invItem : null;
-      this.linkingBomRow = null;
-      EventBus.emit(Events.LINKING_MODE, { active, invItem: this.linkingInvItem });
-    },
-    setReverseLinkingMode(active, bomRow) {
-      this.linkingMode = active;
-      this.linkingBomRow = active ? bomRow : null;
-      this.linkingInvItem = null;
-      EventBus.emit(Events.LINKING_MODE, { active, bomRow: this.linkingBomRow });
-    },
-    loadFromSaved(savedLinks) {
-      if (Array.isArray(savedLinks)) {
-        this.manualLinks = savedLinks;
-        this.confirmedMatches = [];
-      } else if (savedLinks && typeof savedLinks === "object") {
-        this.manualLinks = Array.isArray(savedLinks.manualLinks) ? savedLinks.manualLinks : [];
-        this.confirmedMatches = Array.isArray(savedLinks.confirmedMatches) ? savedLinks.confirmedMatches : [];
-      } else {
-        this.manualLinks = [];
-        this.confirmedMatches = [];
-      }
-      this.linkingMode = false;
-      this.linkingInvItem = null;
-      this.linkingBomRow = null;
-    },
-    clearAll() {
-      this.manualLinks = [];
-      this.confirmedMatches = [];
-      this.linkingMode = false;
-      this.linkingInvItem = null;
-      this.linkingBomRow = null;
-    },
-    hasLinks() {
-      return this.manualLinks.length > 0 || this.confirmedMatches.length > 0;
-    },
-  },
-
-  // Configuration (read-only, from data/constants.json)
-  SECTION_ORDER,
-  SECTION_HIERARCHY: [],   // [{name, children: [...] | null}]
-  FLAT_SECTIONS: [],       // flat list of all section strings
-
-  // Preferences (owned by store)
-  preferences: { thresholds: {} },
-};
-
-// Parse mixed SECTION_ORDER into hierarchy + flat list
-(function parseSectionOrder() {
-  const raw = App.SECTION_ORDER;
+function parseSectionOrder(raw) {
   const hierarchy = [];
   const flat = [];
   for (let i = 0; i < raw.length; i++) {
@@ -102,69 +38,235 @@ export const App = {
       }
     }
   }
-  App.SECTION_HIERARCHY = hierarchy;
-  App.FLAT_SECTIONS = flat;
-})();
+  return { hierarchy, flat };
+}
+
+const _parsed = parseSectionOrder(SECTION_ORDER);
+const SECTION_HIERARCHY = _parsed.hierarchy;
+const FLAT_SECTIONS = _parsed.flat;
+
+// ── Read-only store (new API — modules can migrate to this) ──
+
+export const store = {
+  get inventory() { return inventory; },
+  get bomResults() { return bomResults; },
+  get bomFileName() { return bomFileName; },
+  get bomHeaders() { return bomHeaders; },
+  get bomCols() { return bomCols; },
+  get bomDirty() { return bomDirty; },
+  get preferences() { return preferences; },
+  get links() {
+    return {
+      get manualLinks() { return manualLinks; },
+      get confirmedMatches() { return confirmedMatches; },
+      get linkingMode() { return linkingActive; },
+      get linkingInvItem() { return linkingInvItem; },
+      get linkingBomRow() { return linkingBomRow; },
+    };
+  },
+  SECTION_ORDER,
+  SECTION_HIERARCHY,
+  FLAT_SECTIONS,
+};
+
+// ── Setters (new API) ─────────────────────────────────────
+
+export function setInventory(items) { inventory = items; }
+// NOTE: setInventory does NOT emit events --- callers (loadInventory, onInventoryUpdated) handle that
+
+export function setBomResults(results) { bomResults = results; }
+
+export function setBomMeta({ fileName, headers, cols } = {}) {
+  if (fileName !== undefined) bomFileName = fileName;
+  if (headers !== undefined) bomHeaders = headers;
+  if (cols !== undefined) bomCols = cols;
+}
+
+export function setBomDirty(dirty) { bomDirty = dirty; }
+
+export function setPreferences(prefs) { preferences = { ...preferences, ...prefs }; }
+
+// ── Link setters ──────────────────────────────────────────
+
+export function addManualLink(bk, ipk) {
+  manualLinks.push({ bomKey: bk, invPartKey: ipk });
+  EventBus.emit(Events.LINKS_CHANGED);
+}
+
+export function confirmMatch(bk, ipk) {
+  confirmedMatches = confirmedMatches.filter(c => c.bomKey !== bk);
+  confirmedMatches.push({ bomKey: bk, invPartKey: ipk });
+  EventBus.emit(Events.CONFIRMED_CHANGED);
+}
+
+export function unconfirmMatch(bk) {
+  confirmedMatches = confirmedMatches.filter(c => c.bomKey !== bk);
+  EventBus.emit(Events.CONFIRMED_CHANGED);
+}
+
+export function setLinkingMode(active, invItem) {
+  linkingActive = active;
+  linkingInvItem = active ? invItem : null;
+  linkingBomRow = null;
+  EventBus.emit(Events.LINKING_MODE, { active, invItem: linkingInvItem });
+}
+
+export function setReverseLinkingMode(active, bomRow) {
+  linkingActive = active;
+  linkingBomRow = active ? bomRow : null;
+  linkingInvItem = null;
+  EventBus.emit(Events.LINKING_MODE, { active, bomRow: linkingBomRow });
+}
+
+export function loadLinks(savedLinks) {
+  if (Array.isArray(savedLinks)) {
+    manualLinks = savedLinks;
+    confirmedMatches = [];
+  } else if (savedLinks && typeof savedLinks === "object") {
+    manualLinks = Array.isArray(savedLinks.manualLinks) ? savedLinks.manualLinks : [];
+    confirmedMatches = Array.isArray(savedLinks.confirmedMatches) ? savedLinks.confirmedMatches : [];
+  } else {
+    manualLinks = [];
+    confirmedMatches = [];
+  }
+  linkingActive = false;
+  linkingInvItem = null;
+  linkingBomRow = null;
+}
+
+export function clearLinks() {
+  manualLinks = [];
+  confirmedMatches = [];
+  linkingActive = false;
+  linkingInvItem = null;
+  linkingBomRow = null;
+}
+
+export function hasLinks() {
+  return manualLinks.length > 0 || confirmedMatches.length > 0;
+}
+
+// ── App backward-compatibility proxy ──────────────────────
+//
+// The `App.links` sub-object is heavily used --- it exposes both
+// properties (manualLinks, linkingMode, ...) and methods (addManualLink,
+// setLinkingMode, ...).  Property setters are needed for the undo/redo
+// handler in app-init.js (lines 111--112).
+
+const _linksProxy = {
+  get manualLinks() { return manualLinks; },
+  set manualLinks(v) { manualLinks = v; },
+  get confirmedMatches() { return confirmedMatches; },
+  set confirmedMatches(v) { confirmedMatches = v; },
+  get linkingMode() { return linkingActive; },
+  get linkingInvItem() { return linkingInvItem; },
+  get linkingBomRow() { return linkingBomRow; },
+
+  addManualLink(bk, ipk) { addManualLink(bk, ipk); },
+  confirmMatch(bk, ipk) { confirmMatch(bk, ipk); },
+  unconfirmMatch(bk) { unconfirmMatch(bk); },
+  setLinkingMode(active, invItem) { setLinkingMode(active, invItem); },
+  setReverseLinkingMode(active, bomRow) { setReverseLinkingMode(active, bomRow); },
+  loadFromSaved(savedLinks) { loadLinks(savedLinks); },
+  clearAll() { clearLinks(); },
+  hasLinks() { return hasLinks(); },
+};
+
+export const App = new Proxy(
+  {
+    links: _linksProxy,
+    SECTION_ORDER,
+    SECTION_HIERARCHY,
+    FLAT_SECTIONS,
+  },
+  {
+    get(target, prop) {
+      // Direct properties on target (links, constants)
+      if (prop in target) return target[prop];
+      // Map to private state getters
+      if (prop === 'inventory') return inventory;
+      if (prop === 'bomResults') return bomResults;
+      if (prop === 'bomFileName') return bomFileName;
+      if (prop === 'bomHeaders') return bomHeaders;
+      if (prop === 'bomCols') return bomCols;
+      if (prop === 'bomDirty') return bomDirty;
+      if (prop === 'preferences') return preferences;
+      return undefined;
+    },
+    set(target, prop, value) {
+      if (prop === 'inventory') { inventory = value; return true; }
+      if (prop === 'bomResults') { bomResults = value; return true; }
+      if (prop === 'bomFileName') { bomFileName = value; return true; }
+      if (prop === 'bomHeaders') { bomHeaders = value; return true; }
+      if (prop === 'bomCols') { bomCols = value; return true; }
+      if (prop === 'bomDirty') { bomDirty = value; return true; }
+      if (prop === 'preferences') { preferences = value; return true; }
+      return true;
+    },
+  }
+);
+
+// ── snapshotLinks (existing API, unchanged behavior) ──────
 
 export function snapshotLinks() {
   return {
-    manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
-    confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
+    manualLinks: JSON.parse(JSON.stringify(manualLinks)),
+    confirmedMatches: JSON.parse(JSON.stringify(confirmedMatches)),
   };
 }
 
-// ── Preferences ──
+// ── Preferences ───────────────────────────────────────────
 
 export async function loadPreferences() {
   const stored = await api("load_preferences");
   if (stored && typeof stored === "object") {
-    if (stored.thresholds) App.preferences.thresholds = stored.thresholds;
-    if (stored.lastBomDir) App.preferences.lastBomDir = stored.lastBomDir;
-    if (stored.lastImportDir) App.preferences.lastImportDir = stored.lastImportDir;
-    if (stored.lastBomFile) App.preferences.lastBomFile = stored.lastBomFile;
+    if (stored.thresholds) preferences.thresholds = stored.thresholds;
+    if (stored.lastBomDir) preferences.lastBomDir = stored.lastBomDir;
+    if (stored.lastImportDir) preferences.lastImportDir = stored.lastImportDir;
+    if (stored.lastBomFile) preferences.lastBomFile = stored.lastBomFile;
   }
 }
 
 export async function savePreferences() {
-  await api("save_preferences", JSON.stringify(App.preferences));
+  await api("save_preferences", JSON.stringify(preferences));
 }
 
 export function getThreshold(section) {
-  if (section in App.preferences.thresholds) return App.preferences.thresholds[section];
-  // Fallback: compound "Parent > Sub" → try parent threshold
+  if (section in preferences.thresholds) return preferences.thresholds[section];
+  // Fallback: compound "Parent > Sub" -> try parent threshold
   const sep = section.indexOf(" > ");
   if (sep !== -1) {
     const parent = section.substring(0, sep);
-    if (parent in App.preferences.thresholds) return App.preferences.thresholds[parent];
+    if (parent in preferences.thresholds) return preferences.thresholds[parent];
   }
   return 50;
 }
 
 export function setThreshold(section, value) {
-  App.preferences.thresholds[section] = value;
+  preferences.thresholds[section] = value;
   savePreferences();
   EventBus.emit(Events.PREFS_CHANGED);
 }
 
-// ── Inventory loading ──
+// ── Inventory loading ─────────────────────────────────────
 
 export function updateInventoryHeader() {
-  document.getElementById("inv-count").textContent = App.inventory.length + " parts";
-  const total = App.inventory.reduce((sum, item) => sum + item.qty * (item.unit_price || 0), 0);
+  document.getElementById("inv-count").textContent = inventory.length + " parts";
+  const total = inventory.reduce((sum, item) => sum + item.qty * (item.unit_price || 0), 0);
   document.getElementById("inv-total-value").textContent = "$" + total.toFixed(2);
 }
 
 export async function loadInventory() {
   const fresh = await api("rebuild_inventory");
   if (!fresh) return;
-  App.inventory = fresh;
+  inventory = fresh;
   updateInventoryHeader();
-  EventBus.emit(Events.INVENTORY_LOADED, App.inventory);
-  AppLog.info("Loaded inventory: " + App.inventory.length + " parts");
+  EventBus.emit(Events.INVENTORY_LOADED, inventory);
+  AppLog.info("Loaded inventory: " + inventory.length + " parts");
 }
 
 export function onInventoryUpdated(freshInventory) {
-  App.inventory = freshInventory;
+  inventory = freshInventory;
   updateInventoryHeader();
-  EventBus.emit(Events.INVENTORY_UPDATED, App.inventory);
+  EventBus.emit(Events.INVENTORY_UPDATED, inventory);
 }
