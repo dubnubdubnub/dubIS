@@ -331,6 +331,3 @@ async function doImport() {
   columnMapping = {};
   init();
 }
-
-// Self-initialise for backward compatibility
-init();

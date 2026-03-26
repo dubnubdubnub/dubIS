@@ -10,13 +10,13 @@ import { matchBOM } from './matching.js';
 import { colorizeRefs, REF_COLOR_MAP } from './part-keys.js';
 import { openPreferencesModal, applyPreferences, wireDigikeyButtons } from './preferences-modal.js';
 
-// Side-effect imports: each panel self-initialises on import
-import './inventory-modals.js';
-import './inventory-panel.js';
-import './bom-panel.js';
-import './import-panel.js';
-import './resize-panels.js';
-import './part-preview.js';
+// Explicit panel imports (no side effects until init() is called)
+import { init as initInventoryModals } from './inventory-modals.js';
+import { init as initInventoryPanel } from './inventory/inventory-panel.js';
+import { init as initBomPanel } from './bom/bom-panel.js';
+import { init as initImportPanel } from './import/import-panel.js';
+import { init as initResizePanels } from './resize-panels.js';
+import { init as initPartPreview } from './part-preview.js';
 
 // Expose globals for E2E tests and Python's evaluate_js
 window.App = App;
@@ -27,57 +27,65 @@ window.matchBOM = matchBOM;
 window.colorizeRefs = colorizeRefs;
 window.REF_COLOR_MAP = REF_COLOR_MAP;
 
-// ── Close confirmation modal ────────────────────────────
-const closeModal = Modal("close-modal", { cancelId: "close-cancel" });
-
-document.getElementById("close-discard").addEventListener("click", () => {
-  closeModal.close();
-  api("confirm_close");
-});
-
-document.getElementById("close-save").addEventListener("click", () => {
-  closeModal.close();
-  EventBus.emit(Events.SAVE_AND_CLOSE);
-});
-
-// Expose to Python's evaluate_js("closeModal.open()")
-window.closeModal = closeModal;
-
-// ── PnP consumption handler (called by pnp_server.py via evaluate_js) ──
-window._pnpConsume = function (freshInventory, detail) {
-  onInventoryUpdated(freshInventory);
-  AppLog.info("PnP: consumed " + detail.qty + "x " + detail.part_key + " (new_qty=" + detail.new_qty + ")");
-  showToast("PnP: -" + detail.qty + " " + detail.part_key);
-};
-
-// ── Cross-panel designator hover highlighting ──────────
-var highlightedRef = null;
-document.addEventListener("mouseover", function (e) {
-  var target = e.target.closest("[data-ref]");
-  var ref = target ? target.dataset.ref : null;
-  if (ref === highlightedRef) return;
-  if (highlightedRef) {
-    document.querySelectorAll(".ref-highlight").forEach(function (el) {
-      el.classList.remove("ref-highlight");
-    });
-  }
-  highlightedRef = ref;
-  if (ref) {
-    document.querySelectorAll('[data-ref="' + CSS.escape(ref) + '"]').forEach(function (el) {
-      el.classList.add("ref-highlight");
-    });
-  }
-});
-
-// ── Prevent accidental file navigation ─────────────────
-document.addEventListener("dragover", e => e.preventDefault());
-document.addEventListener("drop", e => e.preventDefault());
-
 // ── Init on pywebview ready ────────────────────────────
 async function initApp() {
   if (window.pywebview && window.pywebview.api) {
     await loadPreferences();
   }
+
+  // Initialize panels (explicit, no side-effect imports)
+  initResizePanels();
+  initInventoryModals();
+  initInventoryPanel();
+  initBomPanel();
+  initImportPanel();
+  initPartPreview();
+
+  // ── Close confirmation modal ────────────────────────────
+  const closeModal = Modal("close-modal", { cancelId: "close-cancel" });
+
+  document.getElementById("close-discard").addEventListener("click", () => {
+    closeModal.close();
+    api("confirm_close");
+  });
+
+  document.getElementById("close-save").addEventListener("click", () => {
+    closeModal.close();
+    EventBus.emit(Events.SAVE_AND_CLOSE);
+  });
+
+  // Expose to Python's evaluate_js("closeModal.open()")
+  window.closeModal = closeModal;
+
+  // ── PnP consumption handler (called by pnp_server.py via evaluate_js) ──
+  window._pnpConsume = function (freshInventory, detail) {
+    onInventoryUpdated(freshInventory);
+    AppLog.info("PnP: consumed " + detail.qty + "x " + detail.part_key + " (new_qty=" + detail.new_qty + ")");
+    showToast("PnP: -" + detail.qty + " " + detail.part_key);
+  };
+
+  // ── Cross-panel designator hover highlighting ──────────
+  var highlightedRef = null;
+  document.addEventListener("mouseover", function (e) {
+    var target = e.target.closest("[data-ref]");
+    var ref = target ? target.dataset.ref : null;
+    if (ref === highlightedRef) return;
+    if (highlightedRef) {
+      document.querySelectorAll(".ref-highlight").forEach(function (el) {
+        el.classList.remove("ref-highlight");
+      });
+    }
+    highlightedRef = ref;
+    if (ref) {
+      document.querySelectorAll('[data-ref="' + CSS.escape(ref) + '"]').forEach(function (el) {
+        el.classList.add("ref-highlight");
+      });
+    }
+  });
+
+  // ── Prevent accidental file navigation ─────────────────
+  document.addEventListener("dragover", e => e.preventDefault());
+  document.addEventListener("drop", e => e.preventDefault());
 
   const clearBtn = document.getElementById("console-clear");
   if (clearBtn) clearBtn.addEventListener("click", () => AppLog.clear());
