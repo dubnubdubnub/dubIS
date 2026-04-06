@@ -5,7 +5,7 @@ import { EventBus, Events } from '../event-bus.js';
 import { api, AppLog } from '../api.js';
 import { showToast, escHtml, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { App, onInventoryUpdated, savePreferences } from '../store.js';
+import { App, store, setBomDirty, setBomResults, setBomMeta, onInventoryUpdated, savePreferences } from '../store.js';
 import { bomAggKey } from '../part-keys.js';
 import { generateCSV } from '../csv-parser.js';
 import { computeRows, prepareConsumption } from './bom-logic.js';
@@ -39,13 +39,13 @@ export function setupEvents(handlers) {
         manualLinks: App.links.manualLinks,
         confirmedMatches: App.links.confirmedMatches,
       }) : null;
-      const result = await api("save_file_dialog", csvText, state.lastFileName || "bom.csv", App.preferences.lastBomDir || null, linksJson);
+      const result = await api("save_file_dialog", csvText, state.lastFileName || "bom.csv", store.preferences.lastBomDir || null, linksJson);
       if (result && result.path) {
         state.bomDirty = false;
-        App.bomDirty = false;
+        setBomDirty(false);
         api("set_bom_dirty", false);
         updateSaveBtnState();
-        App.preferences.lastBomFile = result.path;
+        store.preferences.lastBomFile = result.path;
         savePreferences();
         showToast("Saved BOM to " + result.path);
         AppLog.info("Saved BOM: " + result.path);
@@ -62,11 +62,11 @@ export function setupEvents(handlers) {
       state.bomHeaders = [];
       state.bomCols = {};
       state.bomDirty = false;
-      App.bomDirty = false;
+      setBomDirty(false);
       api("set_bom_dirty", false);
-      App.bomResults = null;
-      App.bomFileName = "";
-      App.preferences.lastBomFile = null;
+      setBomResults(null);
+      setBomMeta({ fileName: "" });
+      store.preferences.lastBomFile = null;
       savePreferences();
       document.getElementById("bom-results").classList.add("hidden");
       document.getElementById("bom-thead").innerHTML = "";
@@ -152,7 +152,7 @@ export function setupEvents(handlers) {
       UndoRedo.save("bom", state.bomRawRows);
       state.bomRawRows.splice(ri, 1);
       state.bomDirty = true;
-      App.bomDirty = true;
+      setBomDirty(true);
       api("set_bom_dirty", true);
       updateSaveBtnState();
       AppLog.info("Deleted BOM row " + (ri + 1));
@@ -197,7 +197,7 @@ export function setupEvents(handlers) {
       UndoRedo.save("bom", state.bomRawRows);
       state.bomRawRows[ri][ci] = e.target.value;
       state.bomDirty = true;
-      App.bomDirty = true;
+      setBomDirty(true);
       api("set_bom_dirty", true);
       updateSaveBtnState();
       AppLog.info("Edited BOM cell [" + (ri + 1) + ", " + ci + "]");
@@ -285,19 +285,19 @@ export function setupEvents(handlers) {
       manualLinks: App.links.manualLinks,
       confirmedMatches: App.links.confirmedMatches,
     }) : null;
-    const result = await api("save_file_dialog", csvText, state.lastFileName || "bom.csv", App.preferences.lastBomDir || null, linksJson);
+    const result = await api("save_file_dialog", csvText, state.lastFileName || "bom.csv", store.preferences.lastBomDir || null, linksJson);
     if (result && result.path) {
       state.bomDirty = false;
-      App.bomDirty = false;
+      setBomDirty(false);
       api("set_bom_dirty", false);
-      App.preferences.lastBomFile = result.path;
+      store.preferences.lastBomFile = result.path;
       await savePreferences();
     }
     api("confirm_close");
   });
 
   EventBus.on(Events.INVENTORY_LOADED, async () => {
-    const lastFile = App.preferences.lastBomFile;
+    const lastFile = store.preferences.lastBomFile;
     if (!lastFile) return;
     const result = await api("load_file", lastFile);
     if (result && result.content) {

@@ -5,7 +5,7 @@
 import { AppLog } from '../api.js';
 import { showToast, escHtml } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { App, snapshotLinks, getThreshold } from '../store.js';
+import { App, store, snapshotLinks, getThreshold } from '../store.js';
 import { bomKey, invPartKey, countStatuses } from '../part-keys.js';
 import { openAdjustModal, openPriceModal } from '../inventory-modals.js';
 import { openCreate as openGenericCreate, openEdit as openGenericEdit } from '../generic-parts-modal.js';
@@ -31,10 +31,10 @@ import {
 import state from './inv-state.js';
 import { setupEvents } from './inv-events.js';
 
-// ── Section hierarchy (read once from App) ──
+// ── Section hierarchy (read once from store) ──
 
-var SECTION_HIERARCHY = App.SECTION_HIERARCHY;
-var FLAT_SECTIONS = App.FLAT_SECTIONS;
+var SECTION_HIERARCHY = store.SECTION_HIERARCHY;
+var FLAT_SECTIONS = store.FLAT_SECTIONS;
 
 // ── Init ──
 
@@ -79,7 +79,7 @@ function render() {
 
 function renderNormalInventory() {
   var query = (state.searchInput.value || "").toLowerCase();
-  var sections = groupBySection(App.inventory);
+  var sections = groupBySection(store.inventory);
 
   for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
     var entry = SECTION_HIERARCHY[i];
@@ -221,8 +221,8 @@ function createPartRow(item, sectionKey) {
 
 function renderRemainingInventory(matchedInvKeys, query) {
   var otherParts = {};
-  for (var i = 0; i < App.inventory.length; i++) {
-    var item = App.inventory[i];
+  for (var i = 0; i < store.inventory.length; i++) {
+    var item = store.inventory[i];
     var pk = invPartKey(item).toUpperCase();
     if (matchedInvKeys.has(pk)) continue;
     var sec = item.section || "Other";

@@ -5,7 +5,7 @@ import { EventBus, Events } from '../event-bus.js';
 import { api, AppLog } from '../api.js';
 import { showToast, Modal, setupDropZone, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { App, snapshotLinks, savePreferences } from '../store.js';
+import { App, store, setBomResults, setBomMeta, snapshotLinks, savePreferences } from '../store.js';
 import { bomKey, invPartKey, countStatuses, rawRowAggKey } from '../part-keys.js';
 import { processBOM, aggregateBomRows } from '../csv-parser.js';
 import { matchBOM } from '../matching.js';
@@ -27,11 +27,10 @@ function aggregateFromRawRows() {
 
 function reprocessAndRender() {
   const aggregated = aggregateFromRawRows();
-  const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches, App.genericParts);
+  const results = matchBOM(aggregated, store.inventory, App.links.manualLinks, App.links.confirmedMatches, App.genericParts);
   state.lastResults = results;
-  App.bomResults = results;
-  App.bomHeaders = state.bomHeaders;
-  App.bomCols = state.bomCols;
+  setBomResults(results);
+  setBomMeta({ headers: state.bomHeaders, cols: state.bomCols });
   emitBomData();
 }
 
@@ -119,13 +118,13 @@ function renderBomPanel(rows) {
 // -- Drop Zone --
 
 async function browseBomFile() {
-  const result = await api("open_file_dialog", "Select BOM CSV", App.preferences.lastBomDir || null);
+  const result = await api("open_file_dialog", "Select BOM CSV", store.preferences.lastBomDir || null);
   if (!result || !result.content) return;
   if (result.directory) {
-    App.preferences.lastBomDir = result.directory;
+    store.preferences.lastBomDir = result.directory;
   }
   if (result.path) {
-    App.preferences.lastBomFile = result.path;
+    store.preferences.lastBomFile = result.path;
   }
   savePreferences();
   loadBomText(result.content, result.name, result.links || null);
@@ -169,8 +168,7 @@ function loadBomText(text, fileName, savedLinks) {
   state.bomCols = cols;
   state.bomRawRows = rawRows.map(r => r.slice()); // shallow copy each row
 
-  App.bomHeaders = headers;
-  App.bomCols = cols;
+  setBomMeta({ headers, cols });
   App.links.loadFromSaved(savedLinks);
 
   // Log warnings
@@ -179,11 +177,11 @@ function loadBomText(text, fileName, savedLinks) {
   });
 
   // Match
-  const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches, App.genericParts);
+  const results = matchBOM(aggregated, store.inventory, App.links.manualLinks, App.links.confirmedMatches, App.genericParts);
   state.lastResults = results;
   state.lastFileName = fileName;
-  App.bomResults = results;
-  App.bomFileName = fileName;
+  setBomResults(results);
+  setBomMeta({ fileName });
 
   // Log summary
   const matched = results.filter(r => r.inv).length;
