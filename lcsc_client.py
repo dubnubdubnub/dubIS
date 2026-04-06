@@ -9,11 +9,15 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from base_client import BaseProductClient
+
 logger = logging.getLogger(__name__)
 
 
-class LcscClient:
+class LcscClient(BaseProductClient):
     """Fetches and caches LCSC product details by product code."""
+
+    provider = "lcsc"
 
     def __init__(self) -> None:
         self._cache: dict[str, dict[str, Any] | None] = {}

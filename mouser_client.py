@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from base_client import BaseProductClient
 from html_product_parser import (
     extract_attributes,
     extract_description,
@@ -23,8 +24,10 @@ from html_product_parser import (
 logger = logging.getLogger(__name__)
 
 
-class MouserClient:
+class MouserClient(BaseProductClient):
     """Fetches and caches Mouser product details by part number."""
+
+    provider = "mouser"
 
     def __init__(self) -> None:
         self._cache: dict[str, dict[str, Any] | None] = {}
