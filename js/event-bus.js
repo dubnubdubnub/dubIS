@@ -11,6 +11,7 @@ export const Events = Object.freeze({
   LINKING_MODE:      "linking-mode",
   LINKS_CHANGED:     "links-changed",
   SAVE_AND_CLOSE:    "save-and-close",
+  GENERIC_PARTS_LOADED: "generic-parts-loaded",
 });
 
 export const EventBus = {

@@ -2,7 +2,7 @@
    Shows product details fetched from APIs on hover over [data-lcsc], [data-digikey], [data-pololu], or [data-mouser] elements. */
 
 import { api, AppLog } from './api.js';
-import { showToast, escHtml } from './ui-helpers.js';
+import { escHtml } from './ui-helpers.js';
 
 var HOVER_DELAY_MS = 300;
 var HIDE_DELAY_MS = 150;
@@ -147,6 +147,20 @@ async function showTooltip(code, provider, triggerEl) {
   renderTooltip(data, provider);
   // Re-position after render (content may have changed height)
   positionTooltip(triggerEl);
+
+  // Record price observation (fire-and-forget)
+  if (data.prices && data.prices.length > 0) {
+    api("record_fetched_prices", code, provider, data.prices).catch(function () { /* ignore */ });
+  }
+
+  // Fetch and display price history (fire-and-forget)
+  api("get_price_summary", code).then(function (summary) {
+    if (currentCode !== code || currentProvider !== provider) return;
+    if (summary && Object.keys(summary).length > 0) {
+      appendPriceHistory(summary);
+      positionTooltip(triggerEl);
+    }
+  }).catch(function () { /* ignore */ });
 }
 
 // ── Fetch with cache ──
@@ -302,6 +316,25 @@ function renderTooltip(data, provider) {
       }
     });
   }
+}
+
+function appendPriceHistory(summary) {
+  var card = tooltip.querySelector(".part-preview-card");
+  if (!card) return;
+  var html = '<div class="part-preview-history"><div class="part-preview-history-title">Price History</div>';
+  html += '<table class="part-preview-prices"><thead><tr><th>Source</th><th>Latest</th><th>Avg</th><th>#</th></tr></thead><tbody>';
+  for (var dist in summary) {
+    var s = summary[dist];
+    html += '<tr><td>' + escHtml(dist) + '</td>' +
+      '<td>$' + Number(s.latest_unit_price || 0).toFixed(4) + '</td>' +
+      '<td>$' + Number(s.avg_unit_price || 0).toFixed(4) + '</td>' +
+      '<td>' + (s.price_count || 0) + '</td></tr>';
+  }
+  html += '</tbody></table></div>';
+  // Insert before debug section if present, otherwise append
+  var debug = card.querySelector(".part-preview-debug");
+  if (debug) debug.insertAdjacentHTML("beforebegin", html);
+  else card.insertAdjacentHTML("beforeend", html);
 }
 
 function infoRow(label, value) {

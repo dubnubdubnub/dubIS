@@ -171,6 +171,38 @@
   </div>
 </div>
 
+<!-- Generic Part Modal -->
+<div class="modal-overlay hidden" id="generic-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title" id="generic-modal-title">Create Generic Part</div>
+    <div class="modal-subtitle" id="generic-modal-subtitle"></div>
+    <div class="modal-form">
+      <label for="gp-name">Name:</label>
+      <input type="text" id="gp-name" placeholder="e.g. 100nF 0402 MLCC">
+    </div>
+    <div class="modal-form">
+      <label for="gp-type">Type:</label>
+      <select id="gp-type">
+        <option value="capacitor">Capacitor</option>
+        <option value="resistor">Resistor</option>
+        <option value="inductor">Inductor</option>
+        <option value="ic">IC</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="modal-divider"></div>
+    <div class="modal-subtitle"><strong>Matching Spec</strong></div>
+    <div id="gp-spec-fields"></div>
+    <div class="modal-divider"></div>
+    <div class="modal-subtitle"><strong>Auto-matched Members</strong> <span id="gp-member-count" class="muted"></span></div>
+    <div id="gp-members-preview"></div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="gp-cancel">Cancel</button>
+      <button class="btn btn-apply" id="gp-save">Create</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
