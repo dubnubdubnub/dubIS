@@ -411,7 +411,7 @@ function handleBomTableClick(e) {
       var memberParentKey = tr.dataset.memberFor;
       if (btn.classList.contains("use-member-btn")) {
         // Confirm match with this specific member
-        var memberR = rowMap.get(memberParentKey);
+        var memberR = state.rowMap.get(memberParentKey);
         if (memberR) {
           UndoRedo.save("links", snapshotLinks());
           App.links.confirmMatch(bomKey(memberR.bom), memberPartId);
