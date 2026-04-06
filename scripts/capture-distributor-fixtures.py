@@ -17,7 +17,7 @@ from __future__ import annotations
 import csv
 import json
 import os
-import re  # noqa: F401  # used in Task 2 Digikey capture
+import re
 import sys
 import time
 import urllib.error
@@ -194,6 +194,116 @@ def capture_lcsc(parts: list[str]) -> dict:
     return {"parts": results, "errors": errors}
 
 
+def _load_digikey_cookies() -> str | None:
+    """Load Digikey cookies from data/digikey_cookies.json and build a Cookie header string.
+
+    Returns:
+        "name=value; name=value; ..." on success
+        None if the file doesn't exist, JSON is corrupt, or no cookies are present
+    """
+    if not os.path.exists(COOKIES_FILE):
+        return None
+    try:
+        with open(COOKIES_FILE, encoding="utf-8") as f:
+            cookies: list[dict] = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not cookies:
+        return None
+    pairs = [f"{c['name']}={c['value']}" for c in cookies if c.get("name") and c.get("value")]
+    return "; ".join(pairs) if pairs else None
+
+
+def _extract_nextdata(html: str) -> dict | None:
+    """Extract and parse __NEXT_DATA__ JSON from a Digikey HTML page.
+
+    Returns:
+        {"_source": "nextdata", "_props": pageProps}  on success
+        None if the tag is missing or JSON is invalid
+    """
+    match = re.search(r'<script\s+id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
+    if not match:
+        return None
+    try:
+        nd = json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return None
+    page_props = nd.get("props", {}).get("pageProps")
+    if page_props is None:
+        return None
+    return {"_source": "nextdata", "_props": page_props}
+
+
+def fetch_digikey_http(mpn: str, cookie_header: str) -> dict:
+    """Fetch raw Digikey search page for an MPN via HTTP and extract __NEXT_DATA__.
+
+    Args:
+        mpn:           Manufacturer part number to search for
+        cookie_header: Pre-built "name=value; ..." Cookie header string
+
+    Returns:
+        {"raw": extracted_nextdata, "raw_html": html, "source": "http"}  on success
+        {"error": "message"}                                               on failure
+    """
+    from urllib.parse import quote
+
+    url = f"https://www.digikey.com/en/products/result?keywords={quote(mpn, safe='')}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Cookie": cookie_header,
+    }
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            html = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.URLError as exc:
+        return {"error": f"network error: {exc}"}
+    except TimeoutError:
+        return {"error": "timeout"}
+
+    extracted = _extract_nextdata(html)
+    if extracted is None:
+        return {"error": "no __NEXT_DATA__ found in response"}
+
+    return {"raw": extracted, "raw_html": html, "source": "http"}
+
+
+def capture_digikey(parts: list[str]) -> dict:
+    """Fetch Digikey data for each part via HTTP, print progress, return collected results.
+
+    Returns:
+        {
+            "capture_method": "http",
+            "parts":  {mpn: {"raw": ..., "raw_html": ..., "source": "http"}, ...},
+            "errors": {mpn: "error message", ...},
+        }
+    """
+    cookie_header = _load_digikey_cookies()
+    if cookie_header is None:
+        msg = (
+            f"no Digikey cookies found at {os.path.relpath(COOKIES_FILE, PROJECT_ROOT)} — "
+            "log into Digikey via the app first"
+        )
+        return {"capture_method": "http", "parts": {}, "errors": {"_auth": msg}}
+
+    results: dict[str, dict] = {}
+    errors: dict[str, str] = {}
+
+    for i, mpn in enumerate(parts, 1):
+        print(f"  Digikey [{i}/{len(parts)}] {mpn} ... ", end="", flush=True)
+        data = fetch_digikey_http(mpn, cookie_header)
+        if "error" in data:
+            print(f"ERROR: {data['error']}")
+            errors[mpn] = data["error"]
+        else:
+            print("OK")
+            results[mpn] = data
+        if i < len(parts):
+            time.sleep(2)
+
+    return {"capture_method": "http", "parts": results, "errors": errors}
+
+
 def write_json(path: str, data: object) -> None:
     """Write JSON with consistent formatting and a trailing newline."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -251,7 +361,12 @@ def main() -> None:
         print(f"  Done: {ok} OK, {err} errors")
 
     if not lcsc_only:
-        print("Digikey capture not yet implemented — skipping.")
+        dk_parts = DIGIKEY_HARDCODED + get_dynamic_digikey_parts()
+        print(f"Capturing {len(dk_parts)} Digikey parts...")
+        output["digikey"] = capture_digikey(dk_parts)
+        dk_ok = len(output["digikey"]["parts"])
+        dk_err = len(output["digikey"]["errors"])
+        print(f"  Done: {dk_ok} OK, {dk_err} errors")
 
     write_json(FIXTURE_PATH, output)
     print(f"\nFixtures written to {os.path.relpath(FIXTURE_PATH, PROJECT_ROOT)}")
