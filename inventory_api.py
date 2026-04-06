@@ -6,10 +6,12 @@ import csv
 import json
 import logging
 import os
+import sqlite3
 import threading
 from datetime import datetime
 from typing import Any
 
+import cache_db
 import csv_io
 import file_dialogs
 import inventory_ops
@@ -75,6 +77,8 @@ class InventoryApi:
         self.output_csv: str = os.path.join(self.base_dir, "inventory.csv")
         self.adjustments_csv: str = os.path.join(self.base_dir, "adjustments.csv")
         self.prefs_json: str = os.path.join(self.base_dir, "preferences.json")
+        self.cache_db_path = os.path.join(self.base_dir, "cache.db")
+        self._cache_conn: sqlite3.Connection | None = None
         self._force_close: bool = False
         self._closing: bool = False
         self._bom_dirty: bool = False
@@ -86,6 +90,13 @@ class InventoryApi:
         )
         self._pololu = PololuClient()
         self._mouser = MouserClient()
+
+    def _get_cache(self) -> sqlite3.Connection:
+        """Get or create the cache database connection."""
+        if self._cache_conn is None:
+            self._cache_conn = cache_db.connect(self.cache_db_path)
+            cache_db.create_schema(self._cache_conn)
+        return self._cache_conn
 
     # ── Static utility delegates ─────────────────────────────────────────
 
@@ -141,13 +152,28 @@ class InventoryApi:
         inventory_ops.write_organized(categorized, self.output_csv, fieldnames, self.FLAT_SECTION_ORDER)
 
     def _rebuild(self) -> list[dict[str, Any]]:
-        return inventory_ops.rebuild(
-            self.input_csv, self.adjustments_csv, self.output_csv,
-            self.FIELDNAMES, self.FLAT_SECTION_ORDER,
+        """Full rebuild: replay all events into cache, return fresh inventory."""
+        conn = self._get_cache()
+        file_fieldnames, merged = inventory_ops.read_and_merge(
+            self.input_csv, self.FIELDNAMES,
         )
+        inventory_ops.apply_adjustments(merged, self.adjustments_csv, file_fieldnames)
+        categorized = inventory_ops.categorize_and_sort(list(merged.values()))
+        cache_db.populate_full(conn, merged, categorized)
+        purchase_lines = cache_db.count_csv_data_lines(self.input_csv)
+        adj_lines = cache_db.count_csv_data_lines(self.adjustments_csv)
+        cache_db.write_checkpoint(conn, purchase_lines=purchase_lines,
+                                  adjustment_lines=adj_lines)
+        return cache_db.query_inventory(conn)
 
     def _load_organized(self) -> list[dict[str, Any]]:
-        return inventory_ops.load_organized(self.output_csv)
+        """Load current inventory from cache."""
+        conn = self._get_cache()
+        result = cache_db.query_inventory(conn)
+        if not result:
+            # Cache empty — populate from CSVs
+            return self._rebuild()
+        return result
 
     def _append_adjustment(self, adj_type: str, part_key: str, quantity: int,
                            note: str = "", bom_file: str = "",
@@ -169,7 +195,15 @@ class InventoryApi:
         return removed
 
     def rebuild_inventory(self) -> list[dict[str, Any]]:
-        """Force full rebuild of inventory.csv from purchase_ledger + adjustments."""
+        """Rebuild inventory. Uses catch-up if cache exists, full rebuild otherwise."""
+        conn = self._get_cache()
+        cp = cache_db.read_checkpoint(conn)
+        if cp["purchase_lines"] > 0 or cp["adjustment_lines"] > 0:
+            # Cache exists — try catch-up
+            cache_db.catch_up(conn, self.input_csv, self.adjustments_csv,
+                              self.ADJ_FIELDNAMES)
+            return cache_db.query_inventory(conn)
+        # No checkpoint — full rebuild
         return self._rebuild()
 
     def adjust_part(self, adj_type: str, part_key: str, quantity: int | str,
@@ -190,7 +224,23 @@ class InventoryApi:
             raise ValueError(f"Unknown adjustment type: {adj_type}")
         with self._lock:
             self._append_adjustment(adj_type, part_key, record_qty, note=note, source=source)
-            return self._rebuild()
+            conn = self._get_cache()
+            # Check if part exists in cache
+            exists = conn.execute(
+                "SELECT 1 FROM stock WHERE part_id = ?", (part_key,)
+            ).fetchone()
+            if not exists:
+                # Part not in cache (e.g., "set" on a brand new part) — full rebuild
+                return self._rebuild()
+            if adj_type == "set":
+                cache_db.set_stock_quantity(conn, part_key, max(0, record_qty))
+            else:  # add, remove
+                cache_db.apply_stock_delta(conn, part_key, record_qty)
+            adj_lines = cache_db.count_csv_data_lines(self.adjustments_csv)
+            cp = cache_db.read_checkpoint(conn)
+            cache_db.write_checkpoint(conn, purchase_lines=cp["purchase_lines"],
+                                      adjustment_lines=adj_lines)
+            return cache_db.query_inventory(conn)
 
     def consume_bom(self, matches_json: str | list[dict[str, Any]],
                     board_qty: int | str, bom_name: str,
@@ -221,7 +271,23 @@ class InventoryApi:
             })
         with self._lock:
             csv_io.append_csv_rows(self.adjustments_csv, self.ADJ_FIELDNAMES, adj_rows)
-            return self._rebuild()
+            conn = self._get_cache()
+            affected_parts = []
+            for row in adj_rows:
+                pn = row["lcsc_part"]
+                delta = int(row["quantity"])
+                cache_db.apply_stock_delta(conn, pn, delta)
+                affected_parts.append(pn)
+            adj_lines = cache_db.count_csv_data_lines(self.adjustments_csv)
+            cp = cache_db.read_checkpoint(conn)
+            cache_db.write_checkpoint(conn, purchase_lines=cp["purchase_lines"],
+                                      adjustment_lines=adj_lines)
+            # Spot-check verification on affected parts
+            cache_db.verify_parts(
+                conn, affected_parts, self.input_csv, self.adjustments_csv,
+                self.FIELDNAMES, fix=True,
+            )
+            return cache_db.query_inventory(conn)
 
     def _truncate_csv(self, csv_path: str, count: int, label: str) -> list[dict[str, Any]]:
         """Remove the last *count* rows from a CSV and rebuild inventory."""
