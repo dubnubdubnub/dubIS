@@ -1,5 +1,7 @@
 """Tests for cache_db SQLite cache layer."""
 
+import csv
+import os
 import sqlite3
 
 import pytest
@@ -256,3 +258,127 @@ class TestIncrementalOps:
         stock = db.execute("SELECT * FROM stock WHERE part_id='C1525'").fetchone()
         assert abs(stock["unit_price"] - 0.01) < 0.0001
         assert abs(stock["ext_price"] - 2.00) < 0.01
+
+
+class TestCheckpoint:
+    def test_write_and_read_checkpoint(self, db):
+        cache_db.write_checkpoint(db, purchase_lines=10, adjustment_lines=5)
+        cp = cache_db.read_checkpoint(db)
+        assert cp["purchase_lines"] == 10
+        assert cp["adjustment_lines"] == 5
+
+    def test_read_checkpoint_missing_returns_zeros(self, db):
+        cp = cache_db.read_checkpoint(db)
+        assert cp["purchase_lines"] == 0
+        assert cp["adjustment_lines"] == 0
+
+    def test_update_checkpoint(self, db):
+        cache_db.write_checkpoint(db, purchase_lines=10, adjustment_lines=5)
+        cache_db.write_checkpoint(db, purchase_lines=20, adjustment_lines=12)
+        cp = cache_db.read_checkpoint(db)
+        assert cp["purchase_lines"] == 20
+        assert cp["adjustment_lines"] == 12
+
+
+class TestCountLines:
+    def test_count_csv_lines(self, tmp_path):
+        csv_path = str(tmp_path / "test.csv")
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["a", "b"])  # header
+            writer.writerow(["1", "2"])
+            writer.writerow(["3", "4"])
+        assert cache_db.count_csv_data_lines(csv_path) == 2
+
+    def test_count_csv_lines_empty(self, tmp_path):
+        csv_path = str(tmp_path / "test.csv")
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["a", "b"])  # header only
+        assert cache_db.count_csv_data_lines(csv_path) == 0
+
+    def test_count_csv_lines_missing_file(self, tmp_path):
+        csv_path = str(tmp_path / "nonexistent.csv")
+        assert cache_db.count_csv_data_lines(csv_path) == 0
+
+
+class TestCatchUp:
+    def _write_adjustments(self, path, adj_fieldnames, rows):
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=adj_fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+
+    def test_catch_up_replays_new_adjustments(self, db, tmp_path):
+        # Populate cache with a part
+        merged = TestPopulate._make_merged(self)
+        categorized = TestPopulate._make_categorized(self, merged)
+        cache_db.populate_full(db, merged, categorized)
+        cache_db.write_checkpoint(db, purchase_lines=2, adjustment_lines=0)
+
+        # Write adjustments file with 2 rows
+        adj_path = str(tmp_path / "adjustments.csv")
+        adj_fields = ["timestamp", "type", "lcsc_part", "quantity",
+                       "bom_file", "board_qty", "note", "source"]
+        self._write_adjustments(adj_path, adj_fields, [
+            {"timestamp": "2026-01-01T00:00:00", "type": "remove",
+             "lcsc_part": "C1525", "quantity": "-10",
+             "bom_file": "", "board_qty": "", "note": "", "source": ""},
+            {"timestamp": "2026-01-01T00:01:00", "type": "remove",
+             "lcsc_part": "C1525", "quantity": "-20",
+             "bom_file": "", "board_qty": "", "note": "", "source": ""},
+        ])
+
+        # Catch up — should apply both new adjustment rows
+        purchase_path = str(tmp_path / "purchase_ledger.csv")
+        cache_db.catch_up(db, purchase_path, adj_path, adj_fields)
+        qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
+        assert qty == 170  # 200 - 10 - 20
+
+    def test_catch_up_skips_already_processed(self, db, tmp_path):
+        merged = TestPopulate._make_merged(self)
+        categorized = TestPopulate._make_categorized(self, merged)
+        cache_db.populate_full(db, merged, categorized)
+        # Mark 1 adjustment as already processed
+        cache_db.write_checkpoint(db, purchase_lines=2, adjustment_lines=1)
+
+        adj_path = str(tmp_path / "adjustments.csv")
+        adj_fields = ["timestamp", "type", "lcsc_part", "quantity",
+                       "bom_file", "board_qty", "note", "source"]
+        self._write_adjustments(adj_path, adj_fields, [
+            {"timestamp": "2026-01-01T00:00:00", "type": "remove",
+             "lcsc_part": "C1525", "quantity": "-10",
+             "bom_file": "", "board_qty": "", "note": "", "source": ""},
+            {"timestamp": "2026-01-01T00:01:00", "type": "remove",
+             "lcsc_part": "C1525", "quantity": "-20",
+             "bom_file": "", "board_qty": "", "note": "", "source": ""},
+        ])
+
+        cache_db.catch_up(db, purchase_path=str(tmp_path / "purchase_ledger.csv"),
+                          adjustments_path=adj_path, adj_fieldnames=adj_fields)
+        qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
+        # Only row 2 applied (row 1 was already processed)
+        assert qty == 180  # 200 - 20
+
+    def test_catch_up_noop_when_current(self, db, tmp_path):
+        merged = TestPopulate._make_merged(self)
+        categorized = TestPopulate._make_categorized(self, merged)
+        cache_db.populate_full(db, merged, categorized)
+        cache_db.write_checkpoint(db, purchase_lines=2, adjustment_lines=2)
+
+        adj_path = str(tmp_path / "adjustments.csv")
+        adj_fields = ["timestamp", "type", "lcsc_part", "quantity",
+                       "bom_file", "board_qty", "note", "source"]
+        self._write_adjustments(adj_path, adj_fields, [
+            {"timestamp": "2026-01-01T00:00:00", "type": "remove",
+             "lcsc_part": "C1525", "quantity": "-10",
+             "bom_file": "", "board_qty": "", "note": "", "source": ""},
+            {"timestamp": "2026-01-01T00:01:00", "type": "remove",
+             "lcsc_part": "C1525", "quantity": "-20",
+             "bom_file": "", "board_qty": "", "note": "", "source": ""},
+        ])
+
+        cache_db.catch_up(db, purchase_path=str(tmp_path / "purchase_ledger.csv"),
+                          adjustments_path=adj_path, adj_fieldnames=adj_fields)
+        qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
+        assert qty == 200  # unchanged

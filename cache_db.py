@@ -7,6 +7,9 @@ and adjustments.csv on next startup.
 
 from __future__ import annotations
 
+import csv
+import logging
+import os
 import sqlite3
 from typing import Any
 
@@ -14,6 +17,8 @@ from inventory_ops import get_part_key, sort_key_for_section
 from price_ops import parse_price, parse_qty
 
 SCHEMA_VERSION = "1"
+
+logger = logging.getLogger(__name__)
 
 
 def connect(db_path: str) -> sqlite3.Connection:
@@ -191,6 +196,85 @@ def update_stock_price(
         (unit_price, ext_price, part_id),
     )
     conn.commit()
+
+
+def write_checkpoint(
+    conn: sqlite3.Connection,
+    purchase_lines: int,
+    adjustment_lines: int,
+) -> None:
+    """Record how many CSV data lines the cache has processed."""
+    conn.execute(
+        "INSERT OR REPLACE INTO cache_meta (key, value) VALUES ('purchase_lines', ?)",
+        (str(purchase_lines),),
+    )
+    conn.execute(
+        "INSERT OR REPLACE INTO cache_meta (key, value) VALUES ('adjustment_lines', ?)",
+        (str(adjustment_lines),),
+    )
+    conn.commit()
+
+
+def read_checkpoint(conn: sqlite3.Connection) -> dict[str, int]:
+    """Read the checkpoint. Returns zeros if no checkpoint exists."""
+    result = {"purchase_lines": 0, "adjustment_lines": 0}
+    for key in ("purchase_lines", "adjustment_lines"):
+        row = conn.execute(
+            "SELECT value FROM cache_meta WHERE key = ?", (key,)
+        ).fetchone()
+        if row:
+            result[key] = int(row[0])
+    return result
+
+
+def count_csv_data_lines(csv_path: str) -> int:
+    """Count data lines in a CSV (excludes header). Returns 0 if file missing."""
+    if not os.path.exists(csv_path):
+        return 0
+    with open(csv_path, newline="", encoding="utf-8-sig") as f:
+        reader = csv.reader(f)
+        try:
+            next(reader)  # skip header
+        except StopIteration:
+            return 0
+        return sum(1 for _ in reader)
+
+
+def catch_up(
+    conn: sqlite3.Connection,
+    purchase_path: str,
+    adjustments_path: str,
+    adj_fieldnames: list[str],
+) -> None:
+    """Replay only events added since the last checkpoint."""
+    cp = read_checkpoint(conn)
+
+    # Catch up on new adjustments
+    adj_total = count_csv_data_lines(adjustments_path)
+    adj_seen = cp["adjustment_lines"]
+    if adj_total > adj_seen and os.path.exists(adjustments_path):
+        with open(adjustments_path, newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            for i, row in enumerate(reader):
+                if i < adj_seen:
+                    continue  # skip already-processed rows
+                adj_type = (row.get("type") or "").strip()
+                pn = (row.get("lcsc_part") or "").strip()
+                if not pn or not adj_type:
+                    continue
+                try:
+                    qty = int(float(row.get("quantity", "0")))
+                except ValueError:
+                    continue
+                if adj_type == "set":
+                    set_stock_quantity(conn, pn, max(0, qty))
+                elif adj_type in ("consume", "add", "remove"):
+                    apply_stock_delta(conn, pn, qty)
+        logger.info("Cache catch-up: replayed %d new adjustments", adj_total - adj_seen)
+
+    # Update checkpoint
+    purchase_total = count_csv_data_lines(purchase_path)
+    write_checkpoint(conn, purchase_lines=purchase_total, adjustment_lines=adj_total)
 
 
 def query_inventory(conn: sqlite3.Connection) -> list[dict[str, Any]]:
