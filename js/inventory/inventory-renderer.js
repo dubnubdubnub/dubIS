@@ -48,6 +48,25 @@ export function renderSubSectionHeader(displayName, collapsed, count) {
  * @param {number} options.threshold - stock value threshold
  * @returns {string}
  */
+/**
+ * Find the generic part group that a given part belongs to.
+ * @param {string} partKey
+ * @param {Array} genericParts
+ * @returns {{ generic_part_id: string, name: string } | null}
+ */
+function findGenericGroup(partKey, genericParts) {
+  if (!genericParts || !partKey) return null;
+  var pk = partKey.toUpperCase();
+  for (var i = 0; i < genericParts.length; i++) {
+    var gp = genericParts[i];
+    if (!gp.members) continue;
+    for (var j = 0; j < gp.members.length; j++) {
+      if (gp.members[j].part_id.toUpperCase() === pk) return gp;
+    }
+  }
+  return null;
+}
+
 export function renderPartRowHtml(item, options) {
   var displayMpn = item.mpn || "";
   var displayDesc = item.description || "";
@@ -57,6 +76,13 @@ export function renderPartRowHtml(item, options) {
   var showPriceWarn = item.qty > 0 && !(item.unit_price > 0);
 
   var linkBtnStr = options.isBomMode ? '<button class="link-btn' + (options.isLinkSource ? ' active' : '') + '" title="Link to missing BOM row">Link</button>' : '';
+  var groupBtnStr = '';
+  if (options.genericParts) {
+    var gp = findGenericGroup(invPartKey(item), options.genericParts);
+    if (gp) {
+      groupBtnStr = '<button class="generic-group-badge" data-generic-id="' + escHtml(gp.generic_part_id) + '" title="' + escHtml(gp.name) + '">\u25C6 ' + escHtml(gp.name) + '</button>';
+    }
+  }
   var valueStr = stockValue > 0 ? "$" + stockValue.toFixed(2) : "\u2014";
 
   var partIdsHtml = '<span class="part-ids">';
@@ -73,7 +99,7 @@ export function renderPartRowHtml(item, options) {
     '<span class="part-value">' + valueStr + '</span>' +
     '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data \u2014 click to set">\u26A0</button>' : '') + item.qty + '</span>' +
     (options.hideDescs ? '' : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
-    '<span class="part-actions"><button class="adj-btn" title="Adjust qty">Adjust</button>' +
+    '<span class="part-actions">' + groupBtnStr + '<button class="adj-btn" title="Adjust qty">Adjust</button>' +
     linkBtnStr + '</span>';
 
   return html;
@@ -99,6 +125,10 @@ export function createBomRowElement(d) {
     var expandedCls = d.altBadge.expanded ? " expanded" : "";
     haveHtml += '<br><span class="alt-badge' + coveredCls + expandedCls + '" data-part-key="' + escHtml(d.partKey) + '"><span class="chevron">\u25B8</span>+' + d.altBadge.altQty + ' (' + d.altBadge.badgeText + ')</span>';
   }
+  if (d.memberBadge) {
+    var mbExpandedCls = d.memberBadge.expanded ? " expanded" : "";
+    haveHtml += '<br><span class="member-badge' + mbExpandedCls + '" data-part-key="' + escHtml(d.partKey) + '"><span class="chevron">\u25B8</span>' + d.memberBadge.memberCount + ' members</span>';
+  }
 
   var adjBtnHtml = d.showAdjust ? '<button class="adj-btn" title="Adjust qty">Adjust</button>' : '';
   var confirmBtnHtml = d.showConfirm
@@ -109,6 +139,9 @@ export function createBomRowElement(d) {
   var linkBtnHtml = d.showLink
     ? '<button class="link-btn' + (d.linkActive ? ' active' : '') + '" title="' + (d.hasInv ? 'Link to missing BOM row' : 'Link to inventory part') + '">Link</button>'
     : '';
+  var createGenericHtml = d.showCreateGeneric
+    ? '<button class="create-generic-btn" title="Create generic part group" data-bom-value="' + escHtml(d.bomValue) + '" data-bom-pkg="' + escHtml(d.bomFootprint) + '" data-bom-refs="' + escHtml(d.bomRefs) + '">Group</button>'
+    : '';
 
   tr.innerHTML =
     '<td class="refs-cell" title="' + escHtml(d.refs) + '">' + colorizeRefs(d.refs) + '</td>' +
@@ -117,9 +150,9 @@ export function createBomRowElement(d) {
     '<td class="mono" title="' + escHtml(d.dispMpn) + '">' + escHtml(d.dispMpn) + '</td>' +
     '<td class="' + d.qtyClass + '" style="text-align:right;font-weight:600">' + d.effectiveQty + '</td>' +
     '<td class="inv-qty-cell ' + d.qtyClass + '" style="text-align:right;font-weight:600">' + haveHtml + '</td>' +
-    '<td class="desc-cell' + (d.isMissing ? ' muted' : '') + '" title="' + escHtml(d.invDesc) + '">' + escHtml(d.invDesc) + '</td>' +
+    '<td class="desc-cell' + (d.isMissing ? ' muted' : '') + '" title="' + escHtml(d.invDesc) + '">' + escHtml(d.invDesc) + (d.genericPartName ? '<span class="generic-via">via ' + escHtml(d.genericPartName) + '</span>' : '') + '</td>' +
     '<td class="mono" style="text-align:center">' + d.matchLabel + '</td>' +
-    '<td class="btn-group">' + confirmBtnHtml + adjBtnHtml + linkBtnHtml + '</td>';
+    '<td class="btn-group">' + confirmBtnHtml + adjBtnHtml + linkBtnHtml + createGenericHtml + '</td>';
 
   return tr;
 }
@@ -167,6 +200,73 @@ export function renderAltRows(alts, partKey) {
   return rows;
 }
 
+// ── Generic member rows builder ──
+
+/**
+ * Build member rows for a generic part group.
+ * @param {Array<Object>} members - generic part members [{part_id, preferred, quantity}]
+ * @param {string} partKey - parent BOM part key
+ * @param {string} resolvedPartId - the currently resolved member part_id
+ * @param {string} groupName - generic part name
+ * @param {Array} inventory - full inventory for lookups
+ * @returns {Array<HTMLTableRowElement>}
+ */
+export function renderMemberRows(members, partKey, resolvedPartId, groupName, inventory) {
+  var rows = [];
+  // Header row
+  var headerTr = document.createElement("tr");
+  headerTr.className = "member-header-row";
+  headerTr.innerHTML = '<td colspan="9" class="member-header-cell">\u25C6 Generic group: ' + escHtml(groupName) + '</td>';
+  rows.push(headerTr);
+
+  // Build inventory lookup
+  var invMap = {};
+  for (var i = 0; i < inventory.length; i++) {
+    var item = inventory[i];
+    if (item.lcsc) invMap[item.lcsc.toUpperCase()] = item;
+    if (item.mpn) invMap[item.mpn.toUpperCase()] = item;
+  }
+
+  // Sort: preferred first, then by quantity descending
+  var sorted = members.slice().sort(function(a, b) {
+    if (a.preferred !== b.preferred) return b.preferred - a.preferred;
+    return b.quantity - a.quantity;
+  });
+
+  for (var j = 0; j < sorted.length; j++) {
+    var m = sorted[j];
+    var inv = invMap[m.part_id.toUpperCase()];
+    var tr = document.createElement("tr");
+    tr.className = "member-row";
+    tr.dataset.memberFor = partKey;
+    tr.dataset.memberPartId = m.part_id;
+    var prefBadge = m.preferred ? '<span class="preferred-badge">\u2605</span> ' : '';
+    var isCurrent = inv && invPartKey(inv) === resolvedPartId;
+    var actionHtml = isCurrent
+      ? '<span class="current-label">Current</span>'
+      : '<button class="use-member-btn" title="Use this member">Use</button>';
+    var mLcsc = inv ? (inv.lcsc || '') : m.part_id;
+    var mMpn = inv ? (inv.mpn || '') : '';
+    var mDesc = inv ? (inv.description || '') : '';
+    var mQty = m.quantity;
+    var qtyColor = mQty > 0 ? 'color:var(--color-green)' : 'color:var(--text-muted)';
+    var partHtml = '';
+    if (mLcsc) partHtml += '<span' + (/^C\d{4,}$/i.test(mLcsc) ? ' data-lcsc="' + escHtml(mLcsc) + '"' : '') + '>' + escHtml(mLcsc) + '</span>';
+    tr.innerHTML =
+      '<td></td>' +
+      '<td>' + prefBadge + '</td>' +
+      '<td class="mono">' + partHtml + '</td>' +
+      '<td class="mono" title="' + escHtml(mMpn) + '">' + escHtml(mMpn) + '</td>' +
+      '<td></td>' +
+      '<td style="text-align:right;font-weight:600;' + qtyColor + '">' + mQty + '</td>' +
+      '<td class="desc-cell" title="' + escHtml(mDesc) + '">' + escHtml(mDesc) + '</td>' +
+      '<td></td>' +
+      '<td class="btn-group">' + actionHtml + '<button class="adj-btn" title="Adjust qty">Adjust</button></td>';
+    rows.push(tr);
+  }
+  return rows;
+}
+
 // ── Filter bar HTML ──
 
 /**
@@ -179,6 +279,7 @@ export function renderFilterBarHtml(c, activeFilter) {
   return '<button class="filter-btn' + (activeFilter === "all" ? " active" : "") + '" data-filter="all">All (' + c.total + ')</button>' +
     (c.manual > 0 ? '<button class="filter-btn' + (activeFilter === "manual" ? " active" : "") + '" data-filter="manual">Manual (' + c.manual + ')</button>' : '') +
     (c.confirmed > 0 ? '<button class="filter-btn' + (activeFilter === "confirmed" ? " active" : "") + '" data-filter="confirmed">Confirmed (' + c.confirmed + ')</button>' : '') +
+    (c.generic > 0 ? '<button class="filter-btn' + (activeFilter === "generic" ? " active" : "") + '" data-filter="generic">Generic (' + c.generic + ')</button>' : '') +
     '<button class="filter-btn' + (activeFilter === "ok" ? " active" : "") + '" data-filter="ok">In Stock (' + c.ok + ')</button>' +
     '<button class="filter-btn' + (activeFilter === "short" ? " active" : "") + '" data-filter="short">Short (' + c.short + ')</button>' +
     '<button class="filter-btn' + (activeFilter === "possible" ? " active" : "") + '" data-filter="possible">Possible (' + c.possible + ')</button>' +
