@@ -78,6 +78,7 @@ class InventoryApi:
         self.adjustments_csv: str = os.path.join(self.base_dir, "adjustments.csv")
         self.prefs_json: str = os.path.join(self.base_dir, "preferences.json")
         self.cache_db_path = os.path.join(self.base_dir, "cache.db")
+        self.events_dir: str = os.path.join(self.base_dir, "events")
         self._cache_conn: sqlite3.Connection | None = None
         self._force_close: bool = False
         self._closing: bool = False
@@ -128,6 +129,37 @@ class InventoryApi:
     def _migrate_csv_header(path: str, expected_fieldnames: list[str]) -> None:
         return csv_io.migrate_csv_header(path, expected_fieldnames)
 
+    @staticmethod
+    def _infer_distributor(row: dict[str, str]) -> str:
+        """Infer distributor from which part number fields are populated."""
+        if (row.get("LCSC Part Number") or "").strip():
+            return "lcsc"
+        if (row.get("Digikey Part Number") or "").strip():
+            return "digikey"
+        if (row.get("Mouser Part Number") or "").strip():
+            return "mouser"
+        if (row.get("Pololu Part Number") or "").strip():
+            return "pololu"
+        return "unknown"
+
+    def _infer_distributor_for_key(self, part_key: str) -> str:
+        """Infer distributor from a part key string."""
+        if part_key.upper().startswith("C") and part_key[1:].isdigit():
+            return "lcsc"
+        conn = self._get_cache()
+        row = conn.execute(
+            "SELECT digikey, pololu, mouser FROM parts WHERE part_id = ?",
+            (part_key,),
+        ).fetchone()
+        if row:
+            if row["digikey"]:
+                return "digikey"
+            if row["pololu"]:
+                return "pololu"
+            if row["mouser"]:
+                return "mouser"
+        return "unknown"
+
     # Map JS field names to CSV column names (delegate to inventory_ops)
     _FIELD_TO_COL = inventory_ops._FIELD_TO_COL
 
@@ -160,6 +192,9 @@ class InventoryApi:
         adj_lines = cache_db.count_csv_data_lines(self.adjustments_csv)
         cache_db.write_checkpoint(conn, purchase_lines=purchase_lines,
                                   adjustment_lines=adj_lines)
+        import price_history
+        if os.path.exists(self.events_dir):
+            price_history.populate_prices_cache(conn, self.events_dir)
         return cache_db.query_inventory(conn)
 
     def _load_organized(self) -> list[dict[str, Any]]:
@@ -179,6 +214,28 @@ class InventoryApi:
             adj_type, part_key, quantity,
             note=note, bom_file=bom_file, board_qty=board_qty, source=source,
         )
+
+    def _record_import_prices(self, rows: list[dict[str, str]]) -> None:
+        """Extract and record price observations from imported purchase rows."""
+        import price_history
+        os.makedirs(self.events_dir, exist_ok=True)
+        observations = []
+        for row in rows:
+            part_key = inventory_ops.get_part_key(row)
+            if not part_key:
+                continue
+            up = price_ops.parse_price(row.get("Unit Price($)"))
+            if up <= 0:
+                continue
+            distributor = self._infer_distributor(row)
+            observations.append({
+                "part_id": part_key,
+                "distributor": distributor,
+                "unit_price": up,
+                "source": "import",
+            })
+        if observations:
+            price_history.record_observations(self.events_dir, observations)
 
     # ── Public API methods (called from JS via pywebview) ────────────────
 
@@ -340,6 +397,7 @@ class InventoryApi:
                     inv_row = {fn: row.get(fn, "") for fn in fieldnames}
                     writer.writerow(inv_row)
 
+            self._record_import_prices(rows)
             return self._rebuild()
 
     def update_part_price(self, part_key: str, unit_price: float | None = None,
@@ -395,6 +453,17 @@ class InventoryApi:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(rows)
+
+            # Record price observation
+            import price_history
+            os.makedirs(self.events_dir, exist_ok=True)
+            if unit_price is not None and unit_price > 0:
+                price_history.record_observations(self.events_dir, [{
+                    "part_id": part_key,
+                    "distributor": self._infer_distributor_for_key(part_key),
+                    "unit_price": unit_price,
+                    "source": "manual",
+                }])
 
             return self._rebuild()
 
@@ -472,6 +541,52 @@ class InventoryApi:
     def load_file(self, path: str) -> dict[str, Any] | None:
         """Load a file by path, return {name, content, directory, path, links?} or None."""
         return file_dialogs.load_file(path)
+
+    # ── Price history API ─────────────────────────────────────────────────
+
+    def record_fetched_prices(self, part_key: str, distributor: str,
+                               price_tiers: list[dict[str, Any]]) -> None:
+        """Record prices fetched from a distributor API/scraper."""
+        import price_history
+        os.makedirs(self.events_dir, exist_ok=True)
+        observations = []
+        for tier in price_tiers:
+            price = float(tier.get("price", 0))
+            if price <= 0:
+                continue
+            observations.append({
+                "part_id": part_key,
+                "distributor": distributor,
+                "unit_price": price,
+                "source": "live_fetch",
+                "moq": tier.get("qty", ""),
+            })
+        if observations:
+            price_history.record_observations(self.events_dir, observations)
+            conn = self._get_cache()
+            price_history.populate_prices_cache(conn, self.events_dir)
+
+    def get_price_summary(self, part_key: str) -> dict[str, dict[str, Any]]:
+        """Get aggregated pricing per distributor for a part."""
+        import price_history
+        conn = self._get_cache()
+        if not conn.execute("SELECT 1 FROM prices LIMIT 1").fetchone():
+            if os.path.exists(self.events_dir):
+                price_history.populate_prices_cache(conn, self.events_dir)
+        rows = conn.execute(
+            "SELECT * FROM prices WHERE part_id = ?", (part_key,)
+        ).fetchall()
+        result = {}
+        for row in rows:
+            result[row["distributor"]] = {
+                "latest_unit_price": row["latest_unit_price"],
+                "avg_unit_price": row["avg_unit_price"],
+                "price_count": row["price_count"],
+                "last_observed": row["last_observed"],
+                "moq": row["moq"],
+                "source": row["source"],
+            }
+        return result
 
     # ── Product preview (delegated to client modules) ─────────────────────
 

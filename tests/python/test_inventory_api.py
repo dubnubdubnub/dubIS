@@ -17,6 +17,7 @@ def api(tmp_path):
     inst.output_csv = str(tmp_path / "inventory.csv")
     inst.adjustments_csv = str(tmp_path / "adjustments.csv")
     inst.prefs_json = str(tmp_path / "preferences.json")
+    inst.events_dir = str(tmp_path / "events")
     data_dir = tmp_path / "data"
     data_dir.mkdir(exist_ok=True)
     inst.cache_db_path = str(data_dir / "cache.db")
@@ -752,3 +753,133 @@ class TestConvertXls:
         assert result["row_count"] >= 1
         assert any("mouser" in h.lower() for h in result["headers"])
         assert result["csv_text"]  # non-empty
+
+
+class TestInferDistributor:
+    def test_lcsc(self):
+        row = {"LCSC Part Number": "C1525", "Digikey Part Number": "", "Mouser Part Number": "", "Pololu Part Number": ""}
+        assert InventoryApi._infer_distributor(row) == "lcsc"
+
+    def test_digikey(self):
+        row = {"LCSC Part Number": "", "Digikey Part Number": "DK-123", "Mouser Part Number": "", "Pololu Part Number": ""}
+        assert InventoryApi._infer_distributor(row) == "digikey"
+
+    def test_mouser(self):
+        row = {"LCSC Part Number": "", "Digikey Part Number": "", "Mouser Part Number": "M-123", "Pololu Part Number": ""}
+        assert InventoryApi._infer_distributor(row) == "mouser"
+
+    def test_pololu(self):
+        row = {"LCSC Part Number": "", "Digikey Part Number": "", "Mouser Part Number": "", "Pololu Part Number": "1992"}
+        assert InventoryApi._infer_distributor(row) == "pololu"
+
+    def test_unknown(self):
+        row = {"LCSC Part Number": "", "Digikey Part Number": "", "Mouser Part Number": "", "Pololu Part Number": ""}
+        assert InventoryApi._infer_distributor(row) == "unknown"
+
+
+class TestPriceHistoryOnImport:
+    def test_import_records_price_observations(self, api, tmp_path):
+        import csv as csv_mod
+        rows = [
+            {"LCSC Part Number": "C1525", "Manufacture Part Number": "",
+             "Digikey Part Number": "", "Pololu Part Number": "",
+             "Mouser Part Number": "",
+             "Manufacturer": "", "Quantity": "100",
+             "Unit Price($)": "0.0074", "Ext.Price($)": "0.74",
+             "Description": "", "Package": "", "RoHS": "",
+             "Customer NO.": "", "Estimated lead time (business days)": "",
+             "Date Code / Lot No.": ""},
+        ]
+        api.import_purchases(rows)
+        events_dir = os.path.join(api.base_dir, "events")
+        obs_path = os.path.join(events_dir, "price_observations.csv")
+        assert os.path.exists(obs_path)
+        with open(obs_path, newline="", encoding="utf-8") as f:
+            obs = list(csv_mod.DictReader(f))
+        assert len(obs) == 1
+        assert obs[0]["part_id"] == "C1525"
+        assert obs[0]["distributor"] == "lcsc"
+        assert float(obs[0]["unit_price"]) == pytest.approx(0.0074)
+        assert obs[0]["source"] == "import"
+
+
+class TestPriceHistoryOnManualEdit:
+    def _setup_part(self, api):
+        api.import_purchases([{
+            "LCSC Part Number": "C1525", "Manufacture Part Number": "",
+            "Digikey Part Number": "", "Pololu Part Number": "",
+            "Mouser Part Number": "",
+            "Manufacturer": "", "Quantity": "100",
+            "Unit Price($)": "0.0074", "Ext.Price($)": "0.74",
+            "Description": "", "Package": "", "RoHS": "",
+            "Customer NO.": "", "Estimated lead time (business days)": "",
+            "Date Code / Lot No.": "",
+        }])
+
+    def test_price_update_records_observation(self, api, tmp_path):
+        import csv as csv_mod
+        self._setup_part(api)
+        api.update_part_price("C1525", unit_price=0.01)
+        events_dir = os.path.join(api.base_dir, "events")
+        obs_path = os.path.join(events_dir, "price_observations.csv")
+        with open(obs_path, newline="", encoding="utf-8") as f:
+            obs = list(csv_mod.DictReader(f))
+        manual = [o for o in obs if o["source"] == "manual"]
+        assert len(manual) == 1
+        assert manual[0]["part_id"] == "C1525"
+        assert float(manual[0]["unit_price"]) == pytest.approx(0.01)
+
+
+class TestRecordFetchedPrices:
+    def _setup_part(self, api):
+        api.import_purchases([{
+            "LCSC Part Number": "C1525", "Manufacture Part Number": "",
+            "Digikey Part Number": "", "Pololu Part Number": "",
+            "Mouser Part Number": "",
+            "Manufacturer": "", "Quantity": "100",
+            "Unit Price($)": "0.0074", "Ext.Price($)": "0.74",
+            "Description": "", "Package": "", "RoHS": "",
+            "Customer NO.": "", "Estimated lead time (business days)": "",
+            "Date Code / Lot No.": "",
+        }])
+
+    def test_record_fetched_prices(self, api):
+        self._setup_part(api)
+        api.record_fetched_prices("C1525", "lcsc", [
+            {"qty": 1, "price": 0.0080},
+            {"qty": 10, "price": 0.0070},
+        ])
+        summary = api.get_price_summary("C1525")
+        assert "lcsc" in summary
+        assert summary["lcsc"]["latest_unit_price"] == pytest.approx(0.0070)
+        assert summary["lcsc"]["price_count"] >= 2
+
+    def test_get_price_summary_empty(self, api):
+        summary = api.get_price_summary("NONEXISTENT")
+        assert summary == {}
+
+    def test_get_price_summary_multiple_distributors(self, api):
+        self._setup_part(api)
+        api.record_fetched_prices("C1525", "digikey", [
+            {"qty": 1, "price": 0.012},
+        ])
+        summary = api.get_price_summary("C1525")
+        assert "lcsc" in summary
+        assert "digikey" in summary
+
+
+class TestPricesCacheOnRebuild:
+    def test_rebuild_populates_prices_cache(self, api):
+        api.import_purchases([{
+            "LCSC Part Number": "C1525", "Manufacture Part Number": "",
+            "Digikey Part Number": "", "Pololu Part Number": "",
+            "Mouser Part Number": "",
+            "Manufacturer": "", "Quantity": "100",
+            "Unit Price($)": "0.0074", "Ext.Price($)": "0.74",
+            "Description": "", "Package": "", "RoHS": "",
+            "Customer NO.": "", "Estimated lead time (business days)": "",
+            "Date Code / Lot No.": "",
+        }])
+        summary = api.get_price_summary("C1525")
+        assert "lcsc" in summary
+        assert summary["lcsc"]["latest_unit_price"] == pytest.approx(0.0074)

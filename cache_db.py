@@ -83,6 +83,7 @@ def populate_full(
     categorized: dict[str, list[dict[str, str]]],
 ) -> None:
     """Full population from merge + categorize results. Clears existing data."""
+    conn.execute("DELETE FROM prices")
     conn.execute("DELETE FROM stock")
     conn.execute("DELETE FROM parts")
 
