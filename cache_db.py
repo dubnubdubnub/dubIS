@@ -16,7 +16,7 @@ from typing import Any
 from inventory_ops import apply_adjustments, get_part_key, read_and_merge, sort_key_for_section
 from price_ops import parse_price, parse_qty
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def connect(db_path: str) -> sqlite3.Connection:
 
 
 def create_schema(conn: sqlite3.Connection) -> None:
-    """Create cache tables if they don't exist."""
+    """Create cache tables if they don't exist. Migrates from older versions."""
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS cache_meta (
             key   TEXT PRIMARY KEY,
@@ -57,6 +57,17 @@ def create_schema(conn: sqlite3.Connection) -> None:
             quantity    INTEGER NOT NULL DEFAULT 0,
             unit_price  REAL NOT NULL DEFAULT 0.0,
             ext_price   REAL NOT NULL DEFAULT 0.0
+        );
+        CREATE TABLE IF NOT EXISTS prices (
+            part_id            TEXT NOT NULL REFERENCES parts(part_id),
+            distributor        TEXT NOT NULL,
+            latest_unit_price  REAL,
+            avg_unit_price     REAL,
+            price_count        INTEGER NOT NULL DEFAULT 0,
+            last_observed      TEXT,
+            moq                INTEGER,
+            source             TEXT,
+            PRIMARY KEY (part_id, distributor)
         );
     """)
     conn.execute(

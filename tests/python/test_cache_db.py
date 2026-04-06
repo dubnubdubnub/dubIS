@@ -31,7 +31,7 @@ class TestSchema:
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
         assert row is not None
-        assert row[0] == "1"
+        assert row[0] == "2"
 
     def test_foreign_key_enforced(self, db):
         with pytest.raises(sqlite3.IntegrityError):
@@ -467,6 +467,58 @@ class TestVerify:
         assert len(mismatches) == 1
         qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
         assert qty == 200
+
+
+class TestSchemaMigration:
+    def test_fresh_schema_has_prices_table(self, db):
+        tables = {r[0] for r in db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}
+        assert "prices" in tables
+
+    def test_schema_version_is_2(self, db):
+        row = db.execute(
+            "SELECT value FROM cache_meta WHERE key='schema_version'"
+        ).fetchone()
+        assert row[0] == "2"
+
+    def test_prices_table_columns(self, db):
+        db.execute("INSERT INTO parts (part_id) VALUES ('C1525')")
+        db.execute(
+            """INSERT INTO prices (part_id, distributor, latest_unit_price,
+               avg_unit_price, price_count, last_observed)
+               VALUES ('C1525', 'lcsc', 0.0074, 0.0074, 1, '2026-01-01T00:00:00')"""
+        )
+        db.commit()
+        row = db.execute("SELECT * FROM prices WHERE part_id='C1525'").fetchone()
+        assert row["distributor"] == "lcsc"
+        assert row["price_count"] == 1
+
+    def test_v1_to_v2_migration(self, tmp_path):
+        """Opening a v1 database should auto-migrate to v2."""
+        import cache_db as cdb
+        db_path = str(tmp_path / "old.db")
+        conn = cdb.connect(db_path)
+        conn.executescript("""
+            CREATE TABLE cache_meta (key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE parts (part_id TEXT PRIMARY KEY);
+            CREATE TABLE stock (part_id TEXT PRIMARY KEY REFERENCES parts(part_id),
+                                quantity INTEGER DEFAULT 0,
+                                unit_price REAL DEFAULT 0.0,
+                                ext_price REAL DEFAULT 0.0);
+        """)
+        conn.execute("INSERT INTO cache_meta VALUES ('schema_version', '1')")
+        conn.commit()
+        cdb.create_schema(conn)
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}
+        assert "prices" in tables
+        version = conn.execute(
+            "SELECT value FROM cache_meta WHERE key='schema_version'"
+        ).fetchone()[0]
+        assert version == "2"
+        conn.close()
 
 
 class TestIntegration:
