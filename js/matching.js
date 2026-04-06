@@ -172,7 +172,7 @@ export function findAlternatives(bom, primaryInv, invByValue) {
 
 // ── 5-step BOM matching ──
 
-export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches) {
+export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, genericParts) {
   const maps = buildLookupMaps(inventory);
   const { invByLCSC, invByMPN, invByValue } = maps;
   const results = [];
@@ -192,6 +192,7 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches) {
   aggregated.forEach((bom, key) => {
     let inv = null;
     let matchType = "none";
+    let genericPartId = null;
     const bk = bomKey(bom);
 
     // 0. Manual link override (use clean bomKey, not the :DNP-suffixed map key)
@@ -253,7 +254,50 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches) {
       }
       if (bestItem) { inv = bestItem; matchType = "fuzzy"; }
     }
-    // 5. Value match (possible match)
+    // 5.5. Generic part resolution (before value match — more specific than a raw value match)
+    if (!inv && genericParts && genericParts.length > 0) {
+      const bomVal = extractBomValue(bom);
+      const bomType = componentTypeFromRefs(bom.refs);
+      const bomPkg = (bom.footprint || "").toUpperCase();
+
+      for (const gp of genericParts) {
+        // Check type compatibility
+        const gpType = gp.part_type === "capacitor" ? "C"
+                     : gp.part_type === "resistor" ? "R"
+                     : gp.part_type === "inductor" ? "L" : null;
+        if (bomType && gpType && bomType !== gpType) continue;
+
+        // Check value from spec
+        const specVal = parseEEValue(gp.spec.value) ?? extractValueFromDesc(gp.spec.value);
+        if (specVal == null || bomVal == null) continue;
+        if (specVal !== 0 && bomVal !== 0) {
+          if (Math.abs(specVal - bomVal) / Math.max(Math.abs(specVal), Math.abs(bomVal)) > VALUE_TOLERANCE) continue;
+        } else if (specVal !== bomVal) continue;
+
+        // Check package from spec
+        const gpPkg = (gp.spec.package || "").toUpperCase();
+        if (bomPkg && gpPkg && !bomPkg.includes(gpPkg) && !gpPkg.includes(bomPkg)) continue;
+
+        // Match found — resolve to best member
+        if (gp.members && gp.members.length > 0) {
+          // Sort: preferred first, then by quantity descending
+          const sorted = [...gp.members].sort((a, b) => {
+            if (a.preferred !== b.preferred) return b.preferred - a.preferred;
+            return b.quantity - a.quantity;
+          });
+          const bestId = sorted[0].part_id;
+          const found = invByLCSC[bestId.toUpperCase()] || invByMPN[bestId.toUpperCase()];
+          if (found) {
+            inv = found;
+            matchType = "generic";
+            genericPartId = gp.generic_part_id;
+            break;
+          }
+        }
+      }
+    }
+
+    // 5. Value match (possible match — fallback when no generic part matched)
     if (!inv) {
       inv = findValueMatch(bom, inventory, invByValue);
       if (inv) matchType = "value";
@@ -272,7 +316,7 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches) {
 
     const alts = findAlternatives(bom, inv, invByValue);
 
-    results.push({ bom, inv, status, matchType, alts });
+    results.push({ bom, inv, status, matchType, alts, genericPartId: genericPartId || null });
   });
 
   return results;
