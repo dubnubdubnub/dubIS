@@ -8,6 +8,7 @@ and adjustments.csv on next startup.
 from __future__ import annotations
 
 import sqlite3
+from typing import Any
 
 from inventory_ops import get_part_key, sort_key_for_section
 from price_ops import parse_price, parse_qty
@@ -107,3 +108,36 @@ def populate_full(
                 ),
             )
     conn.commit()
+
+
+def query_inventory(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Query cache in the same format as inventory_ops.load_organized().
+
+    Returns list of dicts with keys: section, lcsc, mpn, digikey, pololu,
+    mouser, manufacturer, package, description, qty, unit_price, ext_price.
+    """
+    rows = conn.execute("""
+        SELECT p.section, p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser,
+               p.manufacturer, p.package, p.description,
+               s.quantity, s.unit_price, s.ext_price
+        FROM parts p
+        JOIN stock s USING (part_id)
+        ORDER BY p.section, p.sort_key NULLS LAST
+    """).fetchall()
+    return [
+        {
+            "section": row["section"],
+            "lcsc": row["lcsc"],
+            "mpn": row["mpn"],
+            "digikey": row["digikey"],
+            "pololu": row["pololu"],
+            "mouser": row["mouser"],
+            "manufacturer": row["manufacturer"],
+            "package": row["package"],
+            "description": row["description"],
+            "qty": row["quantity"],
+            "unit_price": row["unit_price"],
+            "ext_price": row["ext_price"],
+        }
+        for row in rows
+    ]
