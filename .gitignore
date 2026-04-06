@@ -19,4 +19,5 @@ data/*.ico
 !data/dubIS.ico
 !data/lcsc-icon.ico
 data/*.db
+data/events/*.csv
 data_backup
