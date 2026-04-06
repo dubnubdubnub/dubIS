@@ -382,3 +382,53 @@ class TestCatchUp:
                           adjustments_path=adj_path, adj_fieldnames=adj_fields)
         qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
         assert qty == 200  # unchanged
+
+
+class TestVerify:
+    def _populate_and_write_csvs(self, db, tmp_path):
+        """Populate cache and write matching CSVs."""
+        merged = TestPopulate._make_merged(self)
+        categorized = TestPopulate._make_categorized(self, merged)
+        cache_db.populate_full(db, merged, categorized)
+
+        from inventory_api import InventoryApi
+        fieldnames = InventoryApi.FIELDNAMES
+        purchase_path = str(tmp_path / "purchase_ledger.csv")
+        with open(purchase_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in merged.values():
+                writer.writerow({fn: row.get(fn, "") for fn in fieldnames})
+
+        adj_path = str(tmp_path / "adjustments.csv")
+        return purchase_path, adj_path, fieldnames
+
+    def test_verify_consistent_cache(self, db, tmp_path):
+        purchase_path, adj_path, fieldnames = self._populate_and_write_csvs(db, tmp_path)
+        mismatches = cache_db.verify_parts(
+            db, ["C1525", "C2875244"], purchase_path, adj_path, fieldnames,
+        )
+        assert mismatches == []
+
+    def test_verify_detects_mismatch(self, db, tmp_path):
+        purchase_path, adj_path, fieldnames = self._populate_and_write_csvs(db, tmp_path)
+        db.execute("UPDATE stock SET quantity = 999 WHERE part_id = 'C1525'")
+        db.commit()
+        mismatches = cache_db.verify_parts(
+            db, ["C1525"], purchase_path, adj_path, fieldnames,
+        )
+        assert len(mismatches) == 1
+        assert mismatches[0]["part_id"] == "C1525"
+        assert mismatches[0]["cache_qty"] == 999
+        assert mismatches[0]["expected_qty"] == 200
+
+    def test_verify_fixes_mismatch_when_requested(self, db, tmp_path):
+        purchase_path, adj_path, fieldnames = self._populate_and_write_csvs(db, tmp_path)
+        db.execute("UPDATE stock SET quantity = 999 WHERE part_id = 'C1525'")
+        db.commit()
+        mismatches = cache_db.verify_parts(
+            db, ["C1525"], purchase_path, adj_path, fieldnames, fix=True,
+        )
+        assert len(mismatches) == 1
+        qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
+        assert qty == 200

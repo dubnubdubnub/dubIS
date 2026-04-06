@@ -13,7 +13,7 @@ import os
 import sqlite3
 from typing import Any
 
-from inventory_ops import get_part_key, sort_key_for_section
+from inventory_ops import get_part_key, read_and_merge, apply_adjustments, sort_key_for_section
 from price_ops import parse_price, parse_qty
 
 SCHEMA_VERSION = "1"
@@ -275,6 +275,52 @@ def catch_up(
     # Update checkpoint
     purchase_total = count_csv_data_lines(purchase_path)
     write_checkpoint(conn, purchase_lines=purchase_total, adjustment_lines=adj_total)
+
+
+def verify_parts(
+    conn: sqlite3.Connection,
+    part_ids: list[str],
+    purchase_path: str,
+    adjustments_path: str,
+    fieldnames: list[str],
+    fix: bool = False,
+) -> list[dict[str, Any]]:
+    """Spot-check: replay events for specific parts and compare to cache.
+
+    Returns list of mismatches: [{"part_id", "cache_qty", "expected_qty"}].
+    If fix=True, corrects cache for any mismatched parts.
+    """
+    _, merged = read_and_merge(purchase_path, fieldnames)
+    apply_adjustments(merged, adjustments_path, fieldnames)
+
+    mismatches = []
+    for pid in part_ids:
+        cache_row = conn.execute(
+            "SELECT quantity FROM stock WHERE part_id = ?", (pid,)
+        ).fetchone()
+        cache_qty = cache_row["quantity"] if cache_row else 0
+
+        expected_qty = parse_qty(merged[pid]["Quantity"]) if pid in merged else 0
+
+        if cache_qty != expected_qty:
+            mismatches.append({
+                "part_id": pid,
+                "cache_qty": cache_qty,
+                "expected_qty": expected_qty,
+            })
+            if fix:
+                conn.execute(
+                    "UPDATE stock SET quantity = ? WHERE part_id = ?",
+                    (expected_qty, pid),
+                )
+                logger.warning(
+                    "Cache mismatch fixed: %s was %d, expected %d",
+                    pid, cache_qty, expected_qty,
+                )
+
+    if fix and mismatches:
+        conn.commit()
+    return mismatches
 
 
 def query_inventory(conn: sqlite3.Connection) -> list[dict[str, Any]]:
