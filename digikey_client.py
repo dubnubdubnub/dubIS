@@ -1,4 +1,4 @@
-"""Digikey product-fetching client — extracted from inventory_api.py."""
+"""Digikey product-fetching client — session management and public API."""
 
 from __future__ import annotations
 
@@ -8,6 +8,9 @@ import os
 import threading
 from typing import Any
 from urllib.parse import quote
+
+from digikey_cdp import cdp_get_cookies
+from digikey_normalizer import normalize_result
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +155,7 @@ class DigikeyClient:
 
             debug_log = []
             try:
-                all_cdp = self._cdp_get_cookies(port)
+                all_cdp = cdp_get_cookies(port)
                 cdp_cookies = [c for c in all_cdp if "digikey.com" in c.get("domain", "")]
                 debug_log.append(
                     f"cdp(port={port}): {len(cdp_cookies)} digikey cookies "
@@ -202,96 +205,6 @@ class DigikeyClient:
             "logged_in": False,
             "cookies_injected": 0,
         }
-
-    @staticmethod
-    def _cdp_get_cookies(port: int) -> list[dict]:
-        """Read digikey.com cookies via Chrome DevTools Protocol.
-
-        Implements a minimal WebSocket client (no external deps) to send a
-        single CDP command and read the response.
-        """
-        import base64
-        import http.client
-        import socket
-        import struct
-
-        # 1. Get a page target's WebSocket URL (cookies need page context)
-        conn = http.client.HTTPConnection("localhost", port, timeout=2)
-        conn.request("GET", "/json")
-        targets = json.loads(conn.getresponse().read())
-        conn.close()
-        # Prefer a digikey tab; fall back to any page target
-        page = None
-        for t in targets:
-            if t.get("type") == "page":
-                if page is None:
-                    page = t
-                if "digikey" in t.get("url", "").lower():
-                    page = t
-                    break
-        if not page or "webSocketDebuggerUrl" not in page:
-            raise RuntimeError(f"No page target found ({len(targets)} targets)")
-        ws_path = "/" + page["webSocketDebuggerUrl"].split("/", 3)[3]
-
-        # 2. WebSocket handshake
-        sock = socket.create_connection(("localhost", port), timeout=2)
-        ws_key = base64.b64encode(os.urandom(16)).decode()
-        sock.sendall(
-            f"GET {ws_path} HTTP/1.1\r\n"
-            f"Host: localhost:{port}\r\n"
-            f"Upgrade: websocket\r\nConnection: Upgrade\r\n"
-            f"Sec-WebSocket-Key: {ws_key}\r\n"
-            f"Sec-WebSocket-Version: 13\r\n\r\n".encode()
-        )
-        buf = b""
-        while b"\r\n\r\n" not in buf:
-            buf += sock.recv(4096)
-        if b"101" not in buf.split(b"\r\n")[0]:
-            sock.close()
-            raise RuntimeError("WebSocket upgrade failed")
-
-        # 3. Send Network.getAllCookies on the page target
-        cmd = json.dumps({
-            "id": 1,
-            "method": "Network.getAllCookies",
-        }).encode()
-        mask = os.urandom(4)
-        hdr = bytes([0x81])  # FIN + text opcode
-        if len(cmd) < 126:
-            hdr += bytes([0x80 | len(cmd)])
-        else:
-            hdr += bytes([0x80 | 126]) + struct.pack(">H", len(cmd))
-        hdr += mask
-        sock.sendall(hdr + bytes(b ^ mask[i % 4] for i, b in enumerate(cmd)))
-
-        # 4. Read frames until we get our response (id=1)
-        def _recv(n):
-            d = b""
-            while len(d) < n:
-                c = sock.recv(n - len(d))
-                if not c:
-                    raise RuntimeError("CDP connection closed")
-                d += c
-            return d
-
-        try:
-            for _ in range(50):  # safety limit
-                h = _recv(2)
-                plen = h[1] & 0x7F
-                if plen == 126:
-                    plen = struct.unpack(">H", _recv(2))[0]
-                elif plen == 127:
-                    plen = struct.unpack(">Q", _recv(8))[0]
-                payload = _recv(plen)
-                try:
-                    msg = json.loads(payload)
-                    if msg.get("id") == 1:
-                        return msg.get("result", {}).get("cookies", [])
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    continue
-        finally:
-            sock.close()
-        raise RuntimeError("No CDP response received")
 
     def _inject_cookies_to_window(self, cookies: list[dict]) -> int:
         """Inject cookie dicts into the WebView2 session via CookieManager.
@@ -345,172 +258,10 @@ class DigikeyClient:
             raise RuntimeError(result["error"])
         return result["injected"]
 
-    @staticmethod
-    def _normalize_result(
-        raw: dict[str, Any], part_number: str
-    ) -> dict[str, Any]:
-        """Normalize scraped Digikey data to the same shape as LCSC product."""
-        # JSON-LD Product schema
-        if raw.get("@type") == "Product":
-            offers = raw.get("offers") or {}
-            if isinstance(offers, list):
-                offers = offers[0] if offers else {}
-            price_val: float = 0
-            try:
-                price_val = float(
-                    offers.get("price") or offers.get("lowPrice") or 0
-                )
-            except (ValueError, TypeError):
-                pass
+    # ── Backward-compatible shims (delegate to extracted modules) ────────
 
-            brand = raw.get("brand") or {}
-            image = raw.get("image", "")
-            if isinstance(image, list):
-                image = image[0] if image else ""
-
-            return {
-                "productCode": raw.get("sku") or part_number,
-                "title": raw.get("name", ""),
-                "manufacturer": (
-                    brand.get("name", "")
-                    if isinstance(brand, dict)
-                    else str(brand)
-                ),
-                "mpn": raw.get("mpn", "") or raw.get("sku", ""),
-                "package": "",
-                "description": raw.get("description", ""),
-                "stock": raw.get("_stock") or (
-                    1 if "InStock" in str(
-                        offers.get("availability", "")
-                    ) else 0
-                ),
-                "prices": (
-                    [{"qty": 1, "price": price_val}] if price_val else []
-                ),
-                "imageUrl": image,
-                "pdfUrl": "",
-                "digikeyUrl": raw.get("url", ""),
-                "attributes": [],
-                "provider": "digikey",
-            }
-
-        # Next.js SSR data — extract from envelope.data structure
-        if raw.get("_source") == "nextdata":
-            props = raw.get("_props") or {}
-            envelope = props.get("envelope") or {}
-            data = envelope.get("data") or {}
-            overview = data.get("productOverview") or {}
-            pq = data.get("priceQuantity") or {}
-            pa = data.get("productAttributes") or {}
-            media = data.get("carouselMedia") or []
-            crumbs = data.get("breadcrumb") or []
-
-            # Stock
-            stock = 0
-            try:
-                stock = int(
-                    str(pq.get("qtyAvailable", "0")).replace(",", "")
-                )
-            except (ValueError, TypeError):
-                pass
-
-            # Prices — use first pricing option (smallest MOQ packaging)
-            prices: list[dict[str, int | float]] = []
-            pricing_list = pq.get("pricing") or []
-            if pricing_list:
-                tiers = pricing_list[0].get("mergedPricingTiers") or []
-                for t in tiers:
-                    try:
-                        qty = int(
-                            str(t.get("brkQty", "0")).replace(",", "")
-                        )
-                        price = float(
-                            str(t.get("unitPrice", "0"))
-                            .replace("$", "")
-                            .replace(",", "")
-                        )
-                        prices.append({"qty": qty, "price": price})
-                    except (ValueError, TypeError):
-                        continue
-
-            # Image — first Image type in carousel
-            image_url = ""
-            for m in media:
-                if m.get("type") == "Image":
-                    image_url = (
-                        m.get("displayUrl") or m.get("smallPhoto") or ""
-                    )
-                    break
-            if image_url.startswith("//"):
-                image_url = "https:" + image_url
-
-            # Package and attributes from attribute list
-            package = ""
-            attrs_out: list[dict[str, str]] = []
-            skip_ids = {"-1", "-4", "-5", "1989", "-7"}
-            for attr in pa.get("attributes") or []:
-                vals = attr.get("values") or []
-                val = vals[0].get("value", "") if vals else ""
-                if attr.get("label") == "Package / Case":
-                    package = val
-                attr_id = str(attr.get("id", ""))
-                if attr_id not in skip_ids and val and val != "-":
-                    attrs_out.append(
-                        {"name": attr.get("label", ""), "value": val}
-                    )
-
-            # Category from categories list
-            cats = pa.get("categories") or []
-            category = cats[-1]["label"] if cats else ""
-            subcategory = cats[-2]["label"] if len(cats) >= 2 else ""
-
-            # Digikey URL from last breadcrumb
-            dk_url = ""
-            if crumbs:
-                dk_url = crumbs[-1].get("url", "")
-                if dk_url and not dk_url.startswith("http"):
-                    dk_url = "https://www.digikey.com" + dk_url
-
-            return {
-                "productCode": (
-                    overview.get("rolledUpProductNumber") or part_number
-                ),
-                "title": overview.get("title") or "",
-                "manufacturer": overview.get("manufacturer") or "",
-                "mpn": overview.get("manufacturerProductNumber") or "",
-                "package": package,
-                "description": (
-                    overview.get("detailedDescription")
-                    or overview.get("description")
-                    or ""
-                ),
-                "stock": stock,
-                "prices": prices,
-                "imageUrl": image_url,
-                "pdfUrl": overview.get("datasheetUrl") or "",
-                "digikeyUrl": dk_url,
-                "category": category,
-                "subcategory": subcategory,
-                "attributes": attrs_out,
-                "provider": "digikey",
-            }
-
-        # Unknown format — return empty shell
-        return {
-            "productCode": part_number,
-            "title": "",
-            "manufacturer": "",
-            "mpn": "",
-            "package": "",
-            "description": "",
-            "stock": 0,
-            "prices": [],
-            "imageUrl": "",
-            "pdfUrl": "",
-            "digikeyUrl": "",
-            "attributes": [],
-            "provider": "digikey",
-        }
+    _normalize_result = staticmethod(normalize_result)
+    _cdp_get_cookies = staticmethod(cdp_get_cookies)
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -545,7 +296,7 @@ class DigikeyClient:
         try:
             # Give headless browser a moment to start
             time.sleep(1.5)
-            cookies = self._cdp_get_cookies(port)
+            cookies = cdp_get_cookies(port)
             dk_cookies = [c for c in cookies if "digikey.com" in c.get("domain", "")]
             if dk_cookies and self._check_cookies_logged_in(dk_cookies):
                 self._set_logged_in(dk_cookies)
@@ -757,7 +508,7 @@ class DigikeyClient:
             self._cache[part_number] = None
             return None
 
-        product = self._normalize_result(result, part_number)
+        product = normalize_result(result, part_number)
         product["_debug"] = result
         self._cache[part_number] = product
         return product
