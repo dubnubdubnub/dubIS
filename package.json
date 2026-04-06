@@ -9,12 +9,14 @@
     "lint:fix": "eslint js/ --fix"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.1",
     "@playwright/test": "^1.50.0",
     "eslint": "^9.0.0",
     "globals": "^15.0.0",
     "jsdom": "^28.1.0",
     "serve": "^14.0.0",
     "typescript": "^5.9.3",
-    "vitest": "^3.0.0"
+    "vitest": "^3.0.0",
+    "wcag-contrast": "^3.0.0"
   }
 }
