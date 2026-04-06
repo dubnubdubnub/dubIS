@@ -51,6 +51,7 @@ Entry point: `<script type="module" src="js/app-init.js">` in `index.html`.
 - **Panels communicate**: via `EventBus.emit(Events.X)` / `EventBus.on(Events.X)`
 - **`App` object** in `store.js` owns global state; properties declared upfront with ownership comments
 - **Error policy**: prefer `AppLog.warn`/`AppLog.error` over silent catches. Throw errors rather than silently failing.
+- **Test policy**: never use `pytest.skip`, `pytest.importorskip`, or `@pytest.mark.skip` to hide missing dependencies — add them to `requirements-dev.txt` instead. Tests must run, not be skipped.
 - **Window globals**: `window.closeModal` exposed for Python's `evaluate_js` (set in app-init.js)
 
 ## Testing & Linting
@@ -61,24 +62,43 @@ Entry point: `<script type="module" src="js/app-init.js">` in `index.html`.
 # JavaScript — Node.js installed on Windows via winget
 npx eslint js/            # lint
 npx tsc --noEmit          # type check
-npx vitest run            # unit tests (252 tests, ~1s)
+npx vitest run            # unit tests (~1s)
 
 # Python
-ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py pnp_server.py
-pytest tests/python/ -v   # unit tests (196 tests, ~30s)
+ruff check .              # lint all Python files
+pytest tests/python/ -v   # unit tests (~30s)
 ```
+
+### CI commit-message tags
+
+Control which CI tiers run by adding a tag to your commit message:
+
+    fix(api): handle empty CSV
+
+    [ci: python]
+
+| Tag | What runs | Wall clock |
+|-----|-----------|------------|
+| `[ci: all]` or no tag | Everything (safe default) | ~3 min |
+| `[ci: lint]` | ESLint + tsc + ruff only (no tests) | ~8s |
+| `[ci: js]` | Full JS: lint + types + vitest core + Playwright E2E | ~55s |
+| `[ci: python]` | Full Python: ruff + fixture check + pytest | ~17s |
+| `[ci: pnp-e2e]` | PnP same-machine E2E (both runners) | ~28s |
+| `[ci: pnp-cross]` | PnP cross-compute E2E (depends on pnp-e2e) | ~56s |
+| `[ci: quality]` | Visual/a11y: contrast, style-audit, accessibility E2E (warns, never blocks) | ~49s |
+
+When unsure, omit the tag — all suites run. Use `[ci: lint]` only for docs/comments/CLAUDE.md changes.
 
 ### CI (via workflow_dispatch for selective runs)
 
 ```bash
-# Run all suites
-gh workflow run ci.yml --ref <branch>
-
-# Run only JS, Python, or PnP E2E suites
+gh workflow run ci.yml --ref <branch>                          # all suites
+gh workflow run ci.yml --ref <branch> -f suite=lint            # lint only, no tests
 gh workflow run ci.yml --ref <branch> -f suite=js
 gh workflow run ci.yml --ref <branch> -f suite=python
 gh workflow run ci.yml --ref <branch> -f suite=pnp-e2e
 gh workflow run ci.yml --ref <branch> -f suite=pnp-cross
+gh workflow run ci.yml --ref <branch> -f suite=quality
 ```
 
 ### PnP E2E Tests
@@ -104,4 +124,12 @@ tags all test adjustments and rolls them back on shutdown.
 - **Each Claude instance** works in a separate git worktree
 - **Coordination**: via GitHub Issues (labels: `feature`, `refactor`)
 - **Before creating a PR**: ensure lint, type check, and tests pass (see Testing & Linting section above)
-- **Always use a new branch for new work**: Once a PR is merged, its branch is dead — CI does not run on merged PRs. Before starting new work, check if your current branch's PR was already merged (`gh pr list --head <branch>`). If so, create a fresh branch from `origin/main` (`git fetch origin main && git checkout -b claude/<new-scope> origin/main`). Never push new commits to a branch whose PR was already merged.
+- **Push via `scripts/push-pr.sh`**: Always use this script to push and create PRs. It automatically detects if your branch's PR was already merged and creates a new branch if needed.
+  ```bash
+  bash scripts/push-pr.sh                          # PR title = last commit subject
+  bash scripts/push-pr.sh --title "fix: the thing" # explicit title
+  bash scripts/push-pr.sh --body "Fixes #123"      # explicit body
+  ```
+  If you forget and push to a merged branch directly, CI will fail with an error telling you to use this script.
+- **Verify your worktree matches your task**: Before starting work, check that your current worktree/branch is relevant to the task at hand. If you're on an unrelated branch (e.g., leftover from a previous task), create a new worktree and branch for your current work instead of reusing it.
+- **PR your work and watch CI**: When your work is complete, push your branch and create a PR. Then monitor CI (`gh pr checks <number>`) — if any checks fail, diagnose and fix the issues, push again, and keep iterating until all checks pass and the PR is ready to merge. Do not abandon a PR with failing CI.
