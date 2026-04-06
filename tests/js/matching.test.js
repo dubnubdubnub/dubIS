@@ -377,3 +377,64 @@ describe('matchBOM', () => {
     expect(results[0].inv).toBe(inv[0]);
   });
 });
+
+describe("matchBOM with generic parts", () => {
+  // genericParts: array of {generic_part_id, part_type, spec, strictness, members: [{part_id, preferred, quantity}]}
+  const inventory = [
+    { lcsc: "C1525", mpn: "CL05B104KO5NNNC", section: "Passives - Capacitors > MLCC",
+      description: "100nF 16V 0402 Capacitor MLCC", package: "0402", qty: 200, unit_price: 0.007 },
+    { lcsc: "C9999", mpn: "CL05B104KA5NNNC", section: "Passives - Capacitors > MLCC",
+      description: "100nF 25V 0402 Capacitor MLCC", package: "0402", qty: 50, unit_price: 0.006 },
+  ];
+  const genericParts = [{
+    generic_part_id: "cap_100nf_0402",
+    part_type: "capacitor",
+    spec: { value: "100nF", package: "0402" },
+    strictness: { required: ["value", "package"] },
+    members: [
+      { part_id: "C1525", preferred: 0, quantity: 200 },
+      { part_id: "C9999", preferred: 0, quantity: 50 },
+    ],
+  }];
+
+  it("resolves BOM row without MPN to generic part", () => {
+    const aggregated = new Map();
+    aggregated.set("100nF:0402", {
+      lcsc: "", mpn: "", qty: 10, refs: "C1 C2",
+      desc: "Cap 100nF", value: "100nF", footprint: "0402",
+    });
+    const results = matchBOM(aggregated, inventory, [], [], genericParts);
+    const r = results[0];
+    expect(r.matchType).toBe("generic");
+    expect(r.inv.lcsc).toBe("C1525"); // best by stock
+    expect(r.genericPartId).toBe("cap_100nf_0402");
+  });
+
+  it("preferred member wins in generic resolution", () => {
+    const gps = [{
+      ...genericParts[0],
+      members: [
+        { part_id: "C1525", preferred: 0, quantity: 200 },
+        { part_id: "C9999", preferred: 1, quantity: 50 },
+      ],
+    }];
+    const aggregated = new Map();
+    aggregated.set("100nF:0402", {
+      lcsc: "", mpn: "", qty: 10, refs: "C1",
+      desc: "Cap 100nF", value: "100nF", footprint: "0402",
+    });
+    const results = matchBOM(aggregated, inventory, [], [], gps);
+    expect(results[0].inv.lcsc).toBe("C9999"); // preferred
+  });
+
+  it("falls through to value match when no generic matches", () => {
+    const aggregated = new Map();
+    aggregated.set("4.7uF:0805", {
+      lcsc: "", mpn: "", qty: 10, refs: "C1",
+      desc: "Cap 4.7\u00b5F", value: "4.7\u00b5F", footprint: "0805",
+    });
+    const results = matchBOM(aggregated, inventory, [], [], genericParts);
+    // No generic for 4.7µF 0805, falls through to value match or missing
+    expect(results[0].matchType).not.toBe("generic");
+  });
+});
