@@ -868,6 +868,87 @@ class TestRecordFetchedPrices:
         assert "digikey" in summary
 
 
+class TestPricesFKResolution:
+    """Test that distributor-specific PNs resolve to inventory part_ids."""
+
+    def _setup_part_with_digikey(self, api):
+        api.import_purchases([{
+            "LCSC Part Number": "C1525", "Manufacture Part Number": "DRV8316C",
+            "Digikey Part Number": "296-DRV8316CRRGFRCT-ND",
+            "Pololu Part Number": "", "Mouser Part Number": "",
+            "Manufacturer": "TI", "Quantity": "10",
+            "Unit Price($)": "2.50", "Ext.Price($)": "25.00",
+            "Description": "Motor driver", "Package": "QFN",
+            "RoHS": "Yes", "Customer NO.": "",
+            "Estimated lead time (business days)": "",
+            "Date Code / Lot No.": "",
+        }])
+
+    def test_record_fetched_prices_with_digikey_pn(self, api):
+        """record_fetched_prices resolves Digikey PN to inventory part_id."""
+        self._setup_part_with_digikey(api)
+        # Pass the Digikey PN, not the inventory part_id (C1525)
+        api.record_fetched_prices("296-DRV8316CRRGFRCT-ND", "digikey", [
+            {"qty": 1, "price": 2.80},
+        ])
+        # Should be queryable by either key
+        summary = api.get_price_summary("C1525")
+        assert "digikey" in summary
+        assert summary["digikey"]["latest_unit_price"] == pytest.approx(2.80)
+
+    def test_get_price_summary_with_digikey_pn(self, api):
+        """get_price_summary resolves Digikey PN to inventory part_id."""
+        self._setup_part_with_digikey(api)
+        api.record_fetched_prices("C1525", "digikey", [
+            {"qty": 1, "price": 2.80},
+        ])
+        # Query using the Digikey PN
+        summary = api.get_price_summary("296-DRV8316CRRGFRCT-ND")
+        assert "digikey" in summary
+
+    def test_record_fetched_prices_with_mpn(self, api):
+        """record_fetched_prices resolves MPN to inventory part_id."""
+        self._setup_part_with_digikey(api)
+        api.record_fetched_prices("DRV8316C", "mouser", [
+            {"qty": 1, "price": 2.70},
+        ])
+        summary = api.get_price_summary("C1525")
+        assert "mouser" in summary
+
+    def test_record_fetched_prices_unknown_part_skipped(self, api):
+        """record_fetched_prices silently skips unknown part keys."""
+        self._setup_part_with_digikey(api)
+        api.record_fetched_prices("TOTALLY-UNKNOWN-PN", "digikey", [
+            {"qty": 1, "price": 1.00},
+        ])
+        # No crash, no data written
+        summary = api.get_price_summary("C1525")
+        assert "digikey" not in summary
+
+    def test_populate_prices_cache_resolves_distributor_pn(self, api):
+        """populate_prices_cache resolves distributor PNs in historical data."""
+        import price_history
+        self._setup_part_with_digikey(api)
+        # Write observation with Digikey PN directly to the log
+        events_dir = os.path.join(api.base_dir, "events")
+        os.makedirs(events_dir, exist_ok=True)
+        price_history.record_observations(events_dir, [{
+            "part_id": "296-DRV8316CRRGFRCT-ND",
+            "distributor": "digikey",
+            "unit_price": 2.80,
+            "source": "live_fetch",
+        }])
+        # Rebuild cache — should resolve the Digikey PN
+        conn = api._get_cache()
+        price_history.populate_prices_cache(conn, events_dir)
+        rows = conn.execute(
+            "SELECT * FROM prices WHERE part_id = ? AND distributor = ?",
+            ("C1525", "digikey"),
+        ).fetchall()
+        assert len(rows) == 1
+        assert rows[0]["latest_unit_price"] == pytest.approx(2.80)
+
+
 class TestPricesCacheOnRebuild:
     def test_rebuild_populates_prices_cache(self, api):
         api.import_purchases([{
