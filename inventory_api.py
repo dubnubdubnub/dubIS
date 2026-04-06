@@ -6,10 +6,12 @@ import csv
 import json
 import logging
 import os
+import sqlite3
 import threading
 from datetime import datetime
 from typing import Any
 
+import cache_db
 import csv_io
 import file_dialogs
 import inventory_ops
@@ -72,9 +74,12 @@ class InventoryApi:
     def __init__(self, *, debug: bool = False) -> None:
         self.base_dir: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
         self.input_csv: str = os.path.join(self.base_dir, "purchase_ledger.csv")
-        self.output_csv: str = os.path.join(self.base_dir, "inventory.csv")
+        self.output_csv: str = os.path.join(self.base_dir, "inventory.csv")  # legacy, no longer written
         self.adjustments_csv: str = os.path.join(self.base_dir, "adjustments.csv")
         self.prefs_json: str = os.path.join(self.base_dir, "preferences.json")
+        self.cache_db_path = os.path.join(self.base_dir, "cache.db")
+        self.events_dir: str = os.path.join(self.base_dir, "events")
+        self._cache_conn: sqlite3.Connection | None = None
         self._force_close: bool = False
         self._closing: bool = False
         self._bom_dirty: bool = False
@@ -86,6 +91,13 @@ class InventoryApi:
         )
         self._pololu = PololuClient()
         self._mouser = MouserClient()
+
+    def _get_cache(self) -> sqlite3.Connection:
+        """Get or create the cache database connection."""
+        if self._cache_conn is None:
+            self._cache_conn = cache_db.connect(self.cache_db_path)
+            cache_db.create_schema(self._cache_conn)
+        return self._cache_conn
 
     # ── Static utility delegates ─────────────────────────────────────────
 
@@ -117,6 +129,37 @@ class InventoryApi:
     def _migrate_csv_header(path: str, expected_fieldnames: list[str]) -> None:
         return csv_io.migrate_csv_header(path, expected_fieldnames)
 
+    @staticmethod
+    def _infer_distributor(row: dict[str, str]) -> str:
+        """Infer distributor from which part number fields are populated."""
+        if (row.get("LCSC Part Number") or "").strip():
+            return "lcsc"
+        if (row.get("Digikey Part Number") or "").strip():
+            return "digikey"
+        if (row.get("Mouser Part Number") or "").strip():
+            return "mouser"
+        if (row.get("Pololu Part Number") or "").strip():
+            return "pololu"
+        return "unknown"
+
+    def _infer_distributor_for_key(self, part_key: str) -> str:
+        """Infer distributor from a part key string."""
+        if part_key.upper().startswith("C") and part_key[1:].isdigit():
+            return "lcsc"
+        conn = self._get_cache()
+        row = conn.execute(
+            "SELECT digikey, pololu, mouser FROM parts WHERE part_id = ?",
+            (part_key,),
+        ).fetchone()
+        if row:
+            if row["digikey"]:
+                return "digikey"
+            if row["pololu"]:
+                return "pololu"
+            if row["mouser"]:
+                return "mouser"
+        return "unknown"
+
     # Map JS field names to CSV column names (delegate to inventory_ops)
     _FIELD_TO_COL = inventory_ops._FIELD_TO_COL
 
@@ -136,18 +179,32 @@ class InventoryApi:
     def _categorize_and_sort(self, parts: list[dict[str, str]]) -> dict[str, list[dict[str, str]]]:
         return inventory_ops.categorize_and_sort(parts)
 
-    def _write_organized(self, categorized: dict[str, list[dict[str, str]]],
-                         fieldnames: list[str]) -> None:
-        inventory_ops.write_organized(categorized, self.output_csv, fieldnames, self.FLAT_SECTION_ORDER)
-
     def _rebuild(self) -> list[dict[str, Any]]:
-        return inventory_ops.rebuild(
-            self.input_csv, self.adjustments_csv, self.output_csv,
-            self.FIELDNAMES, self.FLAT_SECTION_ORDER,
+        """Full rebuild: replay all events into cache, return fresh inventory."""
+        conn = self._get_cache()
+        file_fieldnames, merged = inventory_ops.read_and_merge(
+            self.input_csv, self.FIELDNAMES,
         )
+        inventory_ops.apply_adjustments(merged, self.adjustments_csv, file_fieldnames)
+        categorized = inventory_ops.categorize_and_sort(list(merged.values()))
+        cache_db.populate_full(conn, merged, categorized)
+        purchase_lines = cache_db.count_csv_data_lines(self.input_csv)
+        adj_lines = cache_db.count_csv_data_lines(self.adjustments_csv)
+        cache_db.write_checkpoint(conn, purchase_lines=purchase_lines,
+                                  adjustment_lines=adj_lines)
+        import price_history
+        if os.path.exists(self.events_dir):
+            price_history.populate_prices_cache(conn, self.events_dir)
+        return cache_db.query_inventory(conn)
 
     def _load_organized(self) -> list[dict[str, Any]]:
-        return inventory_ops.load_organized(self.output_csv)
+        """Load current inventory from cache."""
+        conn = self._get_cache()
+        result = cache_db.query_inventory(conn)
+        if not result:
+            # Cache empty — populate from CSVs
+            return self._rebuild()
+        return result
 
     def _append_adjustment(self, adj_type: str, part_key: str, quantity: int,
                            note: str = "", bom_file: str = "",
@@ -157,6 +214,28 @@ class InventoryApi:
             adj_type, part_key, quantity,
             note=note, bom_file=bom_file, board_qty=board_qty, source=source,
         )
+
+    def _record_import_prices(self, rows: list[dict[str, str]]) -> None:
+        """Extract and record price observations from imported purchase rows."""
+        import price_history
+        os.makedirs(self.events_dir, exist_ok=True)
+        observations = []
+        for row in rows:
+            part_key = inventory_ops.get_part_key(row)
+            if not part_key:
+                continue
+            up = price_ops.parse_price(row.get("Unit Price($)"))
+            if up <= 0:
+                continue
+            distributor = self._infer_distributor(row)
+            observations.append({
+                "part_id": part_key,
+                "distributor": distributor,
+                "unit_price": up,
+                "source": "import",
+            })
+        if observations:
+            price_history.record_observations(self.events_dir, observations)
 
     # ── Public API methods (called from JS via pywebview) ────────────────
 
@@ -169,7 +248,16 @@ class InventoryApi:
         return removed
 
     def rebuild_inventory(self) -> list[dict[str, Any]]:
-        """Force full rebuild of inventory.csv from purchase_ledger + adjustments."""
+        """Rebuild inventory. Uses catch-up if cache exists, full rebuild otherwise."""
+        conn = self._get_cache()
+        cp = cache_db.read_checkpoint(conn)
+        has_cache = conn.execute("SELECT 1 FROM parts LIMIT 1").fetchone() is not None
+        if has_cache and (cp["purchase_lines"] > 0 or cp["adjustment_lines"] > 0):
+            # Cache exists — try catch-up (returns False if purchase ledger changed)
+            if cache_db.catch_up(conn, self.input_csv, self.adjustments_csv,
+                                 self.ADJ_FIELDNAMES):
+                return cache_db.query_inventory(conn)
+        # No cache, no checkpoint, or catch-up declined — full rebuild
         return self._rebuild()
 
     def adjust_part(self, adj_type: str, part_key: str, quantity: int | str,
@@ -190,7 +278,23 @@ class InventoryApi:
             raise ValueError(f"Unknown adjustment type: {adj_type}")
         with self._lock:
             self._append_adjustment(adj_type, part_key, record_qty, note=note, source=source)
-            return self._rebuild()
+            conn = self._get_cache()
+            # Check if part exists in cache
+            exists = conn.execute(
+                "SELECT 1 FROM stock WHERE part_id = ?", (part_key,)
+            ).fetchone()
+            if not exists:
+                # Part not in cache (e.g., "set" on a brand new part) — full rebuild
+                return self._rebuild()
+            if adj_type == "set":
+                cache_db.set_stock_quantity(conn, part_key, max(0, record_qty))
+            else:  # add, remove
+                cache_db.apply_stock_delta(conn, part_key, record_qty)
+            adj_lines = cache_db.count_csv_data_lines(self.adjustments_csv)
+            cp = cache_db.read_checkpoint(conn)
+            cache_db.write_checkpoint(conn, purchase_lines=cp["purchase_lines"],
+                                      adjustment_lines=adj_lines)
+            return cache_db.query_inventory(conn)
 
     def consume_bom(self, matches_json: str | list[dict[str, Any]],
                     board_qty: int | str, bom_name: str,
@@ -221,7 +325,32 @@ class InventoryApi:
             })
         with self._lock:
             csv_io.append_csv_rows(self.adjustments_csv, self.ADJ_FIELDNAMES, adj_rows)
-            return self._rebuild()
+            conn = self._get_cache()
+            affected_parts = [row["lcsc_part"] for row in adj_rows]
+            # Check if all affected parts are already in the cache
+            all_cached = all(
+                conn.execute(
+                    "SELECT 1 FROM stock WHERE part_id = ?", (pn,)
+                ).fetchone()
+                for pn in affected_parts
+            )
+            if not all_cached:
+                # Cache empty or stale — full rebuild includes the new adjustments
+                return self._rebuild()
+            for row in adj_rows:
+                pn = row["lcsc_part"]
+                delta = int(row["quantity"])
+                cache_db.apply_stock_delta(conn, pn, delta)
+            adj_lines = cache_db.count_csv_data_lines(self.adjustments_csv)
+            cp = cache_db.read_checkpoint(conn)
+            cache_db.write_checkpoint(conn, purchase_lines=cp["purchase_lines"],
+                                      adjustment_lines=adj_lines)
+            # Spot-check verification on affected parts
+            cache_db.verify_parts(
+                conn, affected_parts, self.input_csv, self.adjustments_csv,
+                self.FIELDNAMES, fix=True,
+            )
+            return cache_db.query_inventory(conn)
 
     def _truncate_csv(self, csv_path: str, count: int, label: str) -> list[dict[str, Any]]:
         """Remove the last *count* rows from a CSV and rebuild inventory."""
@@ -268,6 +397,7 @@ class InventoryApi:
                     inv_row = {fn: row.get(fn, "") for fn in fieldnames}
                     writer.writerow(inv_row)
 
+            self._record_import_prices(rows)
             return self._rebuild()
 
     def update_part_price(self, part_key: str, unit_price: float | None = None,
@@ -323,6 +453,17 @@ class InventoryApi:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(rows)
+
+            # Record price observation
+            import price_history
+            os.makedirs(self.events_dir, exist_ok=True)
+            if unit_price is not None and unit_price > 0:
+                price_history.record_observations(self.events_dir, [{
+                    "part_id": part_key,
+                    "distributor": self._infer_distributor_for_key(part_key),
+                    "unit_price": unit_price,
+                    "source": "manual",
+                }])
 
             return self._rebuild()
 
@@ -401,6 +542,52 @@ class InventoryApi:
         """Load a file by path, return {name, content, directory, path, links?} or None."""
         return file_dialogs.load_file(path)
 
+    # ── Price history API ─────────────────────────────────────────────────
+
+    def record_fetched_prices(self, part_key: str, distributor: str,
+                               price_tiers: list[dict[str, Any]]) -> None:
+        """Record prices fetched from a distributor API/scraper."""
+        import price_history
+        os.makedirs(self.events_dir, exist_ok=True)
+        observations = []
+        for tier in price_tiers:
+            price = float(tier.get("price", 0))
+            if price <= 0:
+                continue
+            observations.append({
+                "part_id": part_key,
+                "distributor": distributor,
+                "unit_price": price,
+                "source": "live_fetch",
+                "moq": tier.get("qty", ""),
+            })
+        if observations:
+            price_history.record_observations(self.events_dir, observations)
+            conn = self._get_cache()
+            price_history.populate_prices_cache(conn, self.events_dir)
+
+    def get_price_summary(self, part_key: str) -> dict[str, dict[str, Any]]:
+        """Get aggregated pricing per distributor for a part."""
+        import price_history
+        conn = self._get_cache()
+        if not conn.execute("SELECT 1 FROM prices LIMIT 1").fetchone():
+            if os.path.exists(self.events_dir):
+                price_history.populate_prices_cache(conn, self.events_dir)
+        rows = conn.execute(
+            "SELECT * FROM prices WHERE part_id = ?", (part_key,)
+        ).fetchall()
+        result = {}
+        for row in rows:
+            result[row["distributor"]] = {
+                "latest_unit_price": row["latest_unit_price"],
+                "avg_unit_price": row["avg_unit_price"],
+                "price_count": row["price_count"],
+                "last_observed": row["last_observed"],
+                "moq": row["moq"],
+                "source": row["source"],
+            }
+        return result
+
     # ── Product preview (delegated to client modules) ─────────────────────
 
     def fetch_lcsc_product(self, product_code: str) -> dict[str, Any] | None:
@@ -450,6 +637,58 @@ class InventoryApi:
     def logout_digikey(self) -> dict[str, str]:
         """Delegate to DigikeyClient."""
         return self._digikey.logout()
+
+    # ── Generic parts ────────────────────────────────────────────────────
+
+    def create_generic_part(self, name: str, part_type: str,
+                             spec_json: str, strictness_json: str) -> dict[str, Any]:
+        """Create a generic part with auto-matching."""
+        import generic_parts
+        spec = json.loads(spec_json) if isinstance(spec_json, str) else spec_json
+        strictness = json.loads(strictness_json) if isinstance(strictness_json, str) else strictness_json
+        conn = self._get_cache()
+        os.makedirs(self.events_dir, exist_ok=True)
+        gp = generic_parts.create_generic_part(conn, self.events_dir, name, part_type, spec, strictness)
+        # Fetch members
+        members = conn.execute(
+            """SELECT gm.part_id, gm.source, gm.preferred, s.quantity
+               FROM generic_part_members gm
+               JOIN stock s USING (part_id)
+               WHERE gm.generic_part_id = ?""",
+            (gp["generic_part_id"],),
+        ).fetchall()
+        gp["members"] = [dict(m) for m in members]
+        return gp
+
+    def resolve_bom_spec(self, part_type: str, value: float,
+                          package: str) -> dict[str, Any] | None:
+        """Resolve a BOM spec to a generic part and its best real part."""
+        import generic_parts
+        conn = self._get_cache()
+        return generic_parts.resolve_bom_spec(conn, part_type, float(value), package)
+
+    def list_generic_parts(self) -> list[dict[str, Any]]:
+        """List all generic parts with their members."""
+        conn = self._get_cache()
+        gps = conn.execute("SELECT * FROM generic_parts").fetchall()
+        result = []
+        for gp in gps:
+            members = conn.execute(
+                """SELECT gm.part_id, gm.source, gm.preferred, s.quantity
+                   FROM generic_part_members gm
+                   JOIN stock s USING (part_id)
+                   WHERE gm.generic_part_id = ?""",
+                (gp["generic_part_id"],),
+            ).fetchall()
+            result.append({
+                "generic_part_id": gp["generic_part_id"],
+                "name": gp["name"],
+                "part_type": gp["part_type"],
+                "spec": json.loads(gp["spec_json"]),
+                "strictness": json.loads(gp["strictness_json"]),
+                "members": [dict(m) for m in members],
+            })
+        return result
 
     # ── Window lifecycle ─────────────────────────────────────────────────
 
