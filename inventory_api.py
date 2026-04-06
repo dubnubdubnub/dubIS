@@ -690,6 +690,85 @@ class InventoryApi:
             })
         return result
 
+    def add_generic_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
+        """Add a real part to a generic group."""
+        import generic_parts
+        conn = self._get_cache()
+        os.makedirs(self.events_dir, exist_ok=True)
+        generic_parts.add_member(conn, self.events_dir, generic_part_id, part_id)
+        return self._fetch_generic_members(conn, generic_part_id)
+
+    def remove_generic_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
+        """Remove a real part from a generic group."""
+        import generic_parts
+        conn = self._get_cache()
+        os.makedirs(self.events_dir, exist_ok=True)
+        generic_parts.remove_member(conn, self.events_dir, generic_part_id, part_id)
+        return self._fetch_generic_members(conn, generic_part_id)
+
+    def set_preferred_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
+        """Set a member as the preferred part in a generic group."""
+        import generic_parts
+        conn = self._get_cache()
+        os.makedirs(self.events_dir, exist_ok=True)
+        generic_parts.set_preferred(conn, self.events_dir, generic_part_id, part_id)
+        return self._fetch_generic_members(conn, generic_part_id)
+
+    def update_generic_part(self, generic_part_id: str, name: str,
+                             spec_json: str, strictness_json: str) -> dict[str, Any]:
+        """Update a generic part's spec and re-run auto-matching."""
+        import generic_parts
+        spec = json.loads(spec_json) if isinstance(spec_json, str) else spec_json
+        strictness = json.loads(strictness_json) if isinstance(strictness_json, str) else strictness_json
+        conn = self._get_cache()
+        os.makedirs(self.events_dir, exist_ok=True)
+        conn.execute(
+            "UPDATE generic_parts SET name=?, spec_json=?, strictness_json=? WHERE generic_part_id=?",
+            (name, json.dumps(spec), json.dumps(strictness), generic_part_id),
+        )
+        # Re-run auto-matching: remove auto members, re-add
+        conn.execute(
+            "DELETE FROM generic_part_members WHERE generic_part_id=? AND source='auto'",
+            (generic_part_id,),
+        )
+        conn.commit()
+        generic_parts._auto_match(conn, self.events_dir, generic_part_id, spec, strictness)
+        members = self._fetch_generic_members(conn, generic_part_id)
+        return {
+            "generic_part_id": generic_part_id,
+            "name": name,
+            "part_type": conn.execute(
+                "SELECT part_type FROM generic_parts WHERE generic_part_id=?",
+                (generic_part_id,),
+            ).fetchone()["part_type"],
+            "spec": spec,
+            "strictness": strictness,
+            "members": members,
+        }
+
+    def extract_spec(self, part_key: str) -> dict[str, Any]:
+        """Extract component spec from a part's description/metadata."""
+        import spec_extractor
+        conn = self._get_cache()
+        row = conn.execute(
+            "SELECT description, package FROM parts WHERE part_id=?",
+            (part_key,),
+        ).fetchone()
+        if not row:
+            return {}
+        return spec_extractor.extract_spec(row["description"] or "", row["package"] or "")
+
+    def _fetch_generic_members(self, conn, generic_part_id: str) -> list[dict[str, Any]]:
+        """Fetch members for a generic part with stock quantities."""
+        members = conn.execute(
+            """SELECT gm.part_id, gm.source, gm.preferred, s.quantity
+               FROM generic_part_members gm
+               JOIN stock s USING (part_id)
+               WHERE gm.generic_part_id = ?""",
+            (generic_part_id,),
+        ).fetchall()
+        return [dict(m) for m in members]
+
     # ── Window lifecycle ─────────────────────────────────────────────────
 
     def set_bom_dirty(self, dirty) -> None:

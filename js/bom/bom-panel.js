@@ -37,7 +37,7 @@ function aggregateFromRawRows() {
 
 function reprocessAndRender() {
   const aggregated = aggregateFromRawRows();
-  const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches);
+  const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches, App.genericParts);
   lastResults = results;
   App.bomResults = results;
   App.bomHeaders = bomHeaders;
@@ -189,7 +189,7 @@ function loadBomText(text, fileName, savedLinks) {
   });
 
   // Match
-  const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches);
+  const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches, App.genericParts);
   lastResults = results;
   lastFileName = fileName;
   App.bomResults = results;
