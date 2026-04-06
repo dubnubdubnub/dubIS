@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import csv
+import logging
 import os
 from datetime import datetime
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 OBSERVATIONS_FILE = "price_observations.csv"
 FIELDNAMES = ["timestamp", "part_id", "distributor", "unit_price", "currency",
@@ -52,10 +55,31 @@ def read_observations(
     return rows
 
 
+def _build_part_id_resolver(conn: Any) -> tuple[set[str], dict[str, str]]:
+    """Build lookup structures for resolving distributor PNs to part_ids."""
+    known: set[str] = set()
+    dist_to_pid: dict[str, str] = {}
+    try:
+        for row in conn.execute(
+            "SELECT part_id, lcsc, mpn, digikey, pololu, mouser FROM parts"
+        ):
+            pid = row["part_id"]
+            known.add(pid)
+            for col in ("lcsc", "mpn", "digikey", "pololu", "mouser"):
+                val = (row[col] or "").strip()
+                if val and val != pid:
+                    dist_to_pid[val] = pid
+    except Exception:
+        pass  # parts table may not be populated yet
+    return known, dist_to_pid
+
+
 def populate_prices_cache(conn: Any, events_dir: str) -> None:
     """Rebuild the prices cache table from all price observations."""
     conn.execute("DELETE FROM prices")
     observations = read_observations(events_dir)
+
+    known_pids, dist_to_pid = _build_part_id_resolver(conn)
 
     agg: dict[tuple[str, str], dict] = {}
     for obs in observations:
@@ -63,6 +87,14 @@ def populate_prices_cache(conn: Any, events_dir: str) -> None:
         dist = obs.get("distributor", "").strip()
         if not pid or not dist:
             continue
+        # Resolve distributor PN to inventory part_id
+        if known_pids and pid not in known_pids:
+            resolved = dist_to_pid.get(pid)
+            if resolved:
+                pid = resolved
+            else:
+                logger.warning("populate_prices_cache: skipping unknown part_id %r", pid)
+                continue
         try:
             price = float(obs["unit_price"])
         except (ValueError, TypeError):
