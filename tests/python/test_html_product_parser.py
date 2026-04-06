@@ -1,7 +1,5 @@
 """Tests for html_product_parser shared utilities."""
 
-import pytest
-
 from html_product_parser import (
     extract_attributes,
     extract_description,
