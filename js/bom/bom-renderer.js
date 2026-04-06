@@ -154,6 +154,7 @@ export function renderStagingRow(row, ri, bomCols, headers, status, isLinkTarget
 
   // Data cells
   headers.forEach((h, ci) => {
+    // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
     const val = (row[ci] != null) ? row[ci] : "";
     let lcscAttr = "";
     if (ci === bomCols.lcsc) {
