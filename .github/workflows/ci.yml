@@ -8,13 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       suite:
-        description: "Which suite to run (all, smoke, js, python, pnp-e2e, pnp-cross, quality)"
+        description: "Which suite to run (all, lint, js, python, pnp-e2e, pnp-cross, quality)"
         required: false
         default: "all"
         type: choice
         options:
           - all
-          - smoke
+          - lint
           - js
           - python
           - pnp-e2e
@@ -71,13 +71,13 @@ jobs:
             exit 1
           fi
 
-  # ── Tier 1: Critical (lint + unit tests) ─────────────────────────────
+  # ── JS: lint + type-check + unit tests + E2E ─────────────────────────
   js-ubuntu:
     name: JS Lint & Test (Ubuntu)
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
-      contains(fromJSON('["all","js","smoke"]'), needs.parse-tags.outputs.tier)
+      contains(fromJSON('["all","js","lint"]'), needs.parse-tags.outputs.tier)
     runs-on: [self-hosted, pnp-testbox]
     steps:
       - uses: actions/checkout@v4
@@ -86,7 +86,9 @@ jobs:
       - run: npm install
       - run: npx eslint js/
       - run: npx tsc --noEmit
-      - run: npx vitest run --project core
+      - name: Unit tests
+        if: contains(fromJSON('["all","js"]'), needs.parse-tags.outputs.tier)
+        run: npx vitest run --project core
       - name: Install Playwright browsers
         if: contains(fromJSON('["all","js"]'), needs.parse-tags.outputs.tier)
         run: npx playwright install chromium
@@ -104,14 +106,16 @@ jobs:
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
-      contains(fromJSON('["all","js","smoke"]'), needs.parse-tags.outputs.tier)
+      contains(fromJSON('["all","js","lint"]'), needs.parse-tags.outputs.tier)
     runs-on: [self-hosted, m4-air]
     steps:
       - uses: actions/checkout@v4
       - run: npm install
       - run: npx eslint js/
       - run: npx tsc --noEmit
-      - run: npx vitest run --project core
+      - name: Unit tests
+        if: contains(fromJSON('["all","js"]'), needs.parse-tags.outputs.tier)
+        run: npx vitest run --project core
       - name: Playwright E2E
         if: contains(fromJSON('["all","js"]'), needs.parse-tags.outputs.tier)
         run: npx playwright test --project functional
@@ -121,12 +125,13 @@ jobs:
           name: playwright-report-macos
           path: test-results/
 
+  # ── Python: lint + unit tests ─────────────────────────────────────────
   python-ubuntu:
     name: Python Lint & Test (Ubuntu)
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
-      contains(fromJSON('["all","python","smoke"]'), needs.parse-tags.outputs.tier)
+      contains(fromJSON('["all","python","lint"]'), needs.parse-tags.outputs.tier)
     runs-on: [self-hosted, pnp-testbox]
     steps:
       - uses: actions/checkout@v4
@@ -135,15 +140,18 @@ jobs:
       - run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
       - run: ~/dubis-venv/bin/ruff check .
       - name: Verify generated test fixtures are up to date
+        if: contains(fromJSON('["all","python"]'), needs.parse-tags.outputs.tier)
         run: ~/dubis-venv/bin/python scripts/generate-test-fixtures.py --check
-      - run: ~/dubis-venv/bin/pytest tests/python/ -v
+      - name: Unit tests
+        if: contains(fromJSON('["all","python"]'), needs.parse-tags.outputs.tier)
+        run: ~/dubis-venv/bin/pytest tests/python/ -v
 
   python-macos:
     name: Python Lint & Test (macOS)
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
-      contains(fromJSON('["all","python","smoke"]'), needs.parse-tags.outputs.tier)
+      contains(fromJSON('["all","python","lint"]'), needs.parse-tags.outputs.tier)
     runs-on: [self-hosted, m4-air]
     steps:
       - uses: actions/checkout@v4
@@ -152,8 +160,10 @@ jobs:
       - name: Lint
         run: ~/dubis-venv/bin/ruff check .
       - name: Verify generated test fixtures are up to date
+        if: contains(fromJSON('["all","python"]'), needs.parse-tags.outputs.tier)
         run: ~/dubis-venv/bin/python scripts/generate-test-fixtures.py --check
-      - name: Test
+      - name: Unit tests
+        if: contains(fromJSON('["all","python"]'), needs.parse-tags.outputs.tier)
         run: ~/dubis-venv/bin/pytest tests/python/ -v
 
   # ── Tier 2: Functional (E2E tests) ──────────────────────────────────
