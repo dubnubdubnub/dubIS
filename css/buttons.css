@@ -1,0 +1,197 @@
+/* ── Preferences Button ───────────────────────────────── */
+.prefs-btn {
+  padding: 3px 12px;
+  border-radius: 6px;
+  border: 1px solid #1f6feb40;
+  background: #1f6feb20;
+  color: var(--color-blue);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.prefs-btn:hover { background: #1f6feb40; border-color: var(--color-blue); }
+
+/* ── Header Buttons ───────────────────────────────────── */
+.header-btn {
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+.header-btn:hover:not(:disabled) { border-color: var(--color-blue); color: var(--text-primary); }
+.header-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* ── Rebuild Button ────────────────────────────────────── */
+.rebuild-btn {
+  padding: 3px 12px;
+  border-radius: 6px;
+  border: 1px solid #1f6feb40;
+  background: #1f6feb20;
+  color: var(--color-blue);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.rebuild-btn:hover { background: #1f6feb40; border-color: var(--color-blue); }
+
+/* ── Save BOM Button ──────────────────────────────────── */
+.save-bom-btn {
+  padding: 3px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.save-bom-btn:hover:not(:disabled) { border-color: var(--text-muted); color: var(--text-primary); }
+.save-bom-btn:disabled { opacity: 0.4; cursor: default; }
+.save-bom-btn.dirty { border-color: #d2992240; background: #d2992220; color: var(--color-yellow); }
+.save-bom-btn.dirty:hover { background: #d2992240; border-color: var(--color-yellow); }
+
+/* ── Consume Button ────────────────────────────────────── */
+.consume-btn {
+  padding: 3px 12px;
+  border-radius: 6px;
+  border: 1px solid #f0883e40;
+  background: #f0883e20;
+  color: var(--color-orange);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.consume-btn:hover { background: #f0883e40; border-color: var(--color-orange); }
+.consume-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Clear BOM Button ─────────────────────────────────── */
+.clear-bom-btn {
+  padding: 3px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.clear-bom-btn:hover { border-color: var(--color-red); color: var(--color-red); background: #f8514920; }
+.clear-bom-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Generic .btn (used in modals and elsewhere) ─────── */
+.btn {
+  padding: 6px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-cancel { background: var(--bg-raised); color: var(--text-primary); }
+.btn-cancel:hover { border-color: var(--text-muted); }
+.btn-apply { background: var(--color-green-dark); border-color: var(--color-green); color: #fff; }
+.btn-apply:hover { background: #2ea043; }
+.btn-danger { background: var(--color-red-dark); border-color: var(--color-red); color: #fff; }
+.btn-danger:hover { background: var(--color-red); }
+
+/* ── Filter Buttons ────────────────────────────────────── */
+.filter-bar {
+  padding: 6px 12px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--bg-raised);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg-surface);
+}
+.filter-btn {
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+.filter-btn:hover { border-color: var(--color-blue); color: var(--text-primary); }
+.filter-btn.active { background: #388bfd26; border-color: var(--color-blue); color: var(--color-blue); }
+
+/* ── Adjustment Button ─────────────────────────────────── */
+.adj-btn {
+  background: transparent; border: 1px solid var(--border-default); color: var(--text-secondary);
+  border-radius: 4px; padding: 1px 6px; cursor: pointer;
+  font-size: 10px; line-height: 1.4; white-space: nowrap;
+  flex-shrink: 0; transition: all 0.15s;
+}
+.adj-btn:hover { border-color: var(--color-blue); color: var(--color-blue); background: #388bfd26; }
+
+/* ── Link Button ──────────────────────────────────────── */
+.link-btn {
+  background: transparent; border: 1px solid var(--border-default); color: var(--text-secondary);
+  border-radius: 4px; padding: 1px 6px; cursor: pointer;
+  font-size: 10px; line-height: 1.4; white-space: nowrap;
+  flex-shrink: 0; transition: all 0.15s;
+}
+.link-btn:hover { border-color: var(--color-purple); color: var(--color-purple); background: #a371f726; }
+.link-btn.active { border-color: var(--color-purple); color: var(--color-purple); background: #a371f730; box-shadow: 0 0 4px #a371f740; }
+
+/* ── Confirm / Unconfirm / Swap Buttons ───────────────── */
+.confirm-btn, .unconfirm-btn {
+  background: transparent; border: 1px solid var(--border-default); color: var(--text-secondary);
+  border-radius: 4px; padding: 1px 6px; cursor: pointer;
+  font-size: 10px; line-height: 1.4; white-space: nowrap;
+  flex-shrink: 0; transition: all 0.15s;
+}
+.confirm-btn:hover, .unconfirm-btn:hover { border-color: var(--color-teal); color: var(--color-teal); background: #2dd4bf26; }
+
+.swap-btn {
+  background: transparent; border: 1px solid var(--border-default); color: var(--text-secondary);
+  border-radius: 4px; padding: 1px 6px; cursor: pointer;
+  font-size: 10px; line-height: 1.4; white-space: nowrap;
+  flex-shrink: 0; transition: all 0.15s;
+}
+.swap-btn:hover { border-color: var(--color-teal); color: var(--color-teal); background: #2dd4bf26; }
+
+/* ── Price Warning Button ─────────────────────────────── */
+.price-warn-btn {
+  background: none;
+  border: none;
+  color: var(--color-yellow);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+  margin-right: 2px;
+  line-height: 1;
+  vertical-align: middle;
+  transition: text-shadow 0.15s;
+}
+.price-warn-btn:hover { text-shadow: 0 0 6px var(--color-yellow); }
+
+/* ── No-Distributor Warning ──────────────────────────── */
+.no-dist-warn {
+  background: none;
+  border: none;
+  color: var(--color-yellow);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0.85;
+  padding: 0;
+  line-height: 1;
+  transition: text-shadow 0.15s;
+}
+.no-dist-warn:hover { text-shadow: 0 0 6px var(--color-yellow); }

@@ -18,3 +18,4 @@ data/*.png
 data/*.ico
 !data/dubIS.ico
 !data/lcsc-icon.ico
+data_backup

@@ -1,0 +1,49 @@
+/* BOM Inventory Manager — Dark Theme
+   Base colors ported from build_compare.py */
+
+:root {
+  /* Semantic status colors */
+  --color-green: #3fb950;
+  --color-green-dark: #238636;
+  --color-red: #f85149;
+  --color-red-dark: #da3633;
+  --color-yellow: #d29922;
+  --color-orange: #f0883e;
+  --color-blue: #58a6ff;
+  --color-blue-dark: #1f6feb;
+  --color-pink: #f778ba;
+  --color-pink-dark: #db61a2;
+  --color-teal: #2dd4bf;
+  --color-teal-dark: #1a9985;
+  --color-purple: #a371f7;
+  --color-purple-light: #d2a8ff;
+  --color-gray-muted: #636c76;
+
+  /* Background tones (darkest → lightest) */
+  --bg-base: #0d1117;
+  --bg-surface: #161b22;
+  --bg-hover: #1c2333;
+  --bg-raised: #21262d;
+  --border-default: #30363d;
+
+  /* Text tones */
+  --text-muted: #484f58;
+  --text-secondary: #8b949e;
+  --text-primary: #c9d1d9;
+  --text-bright: #e6edf3;
+
+  /* Overlay */
+  --overlay-bg: rgba(0, 0, 0, 0.6);
+}
+
+/* Opacity variants derive from base colors — change base vars above to update.
+   These use hex+alpha (e.g. #3fb95020) and are left as raw hex since
+   CSS color-mix() support varies across webview runtimes.
+   Base mappings:
+     #238636xx → --color-green-dark    #3fb950xx → --color-green
+     #f85149xx → --color-red           #d29922xx → --color-yellow
+     #f0883exx → --color-orange        #58a6ffxx → --color-blue
+     #1f6febxx → --color-blue-dark     #db61a2xx → --color-pink-dark
+     #484f58xx → --text-muted          #2dd4bfxx → --color-teal
+     #a371f7xx → --color-purple        #388bfdxx ≈ --color-blue-dark
+*/

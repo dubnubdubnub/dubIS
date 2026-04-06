@@ -1,0 +1,174 @@
+/* ── Tables (shared) ───────────────────────────────────── */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  table-layout: fixed;
+}
+thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-surface);
+  border-bottom: 2px solid var(--border-default);
+  padding: 6px 8px;
+  text-align: left;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  z-index: 2;
+}
+tbody td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--bg-raised);
+  vertical-align: top;
+  word-break: break-word;
+  overflow: hidden;
+  position: relative;
+}
+tbody td.inv-qty-cell { overflow: visible; z-index: 1; }
+tbody td.inv-qty-cell:has(.alt-badge) { padding-bottom: 26px; }
+tbody tr { transition: background 0.1s; }
+tbody tr:hover:not(.part-preview-info tr, .part-preview-prices tr) { background: var(--bg-hover) !important; }
+
+/* ── Selectable Text in Matched BOM Table ──────────────── */
+#inventory-body .table-wrap { overflow-x: scroll; scrollbar-width: none; }
+#inventory-body .table-wrap::-webkit-scrollbar { display: none; }
+.sticky-scrollbar {
+  position: sticky; bottom: 0; z-index: 2;
+  overflow-x: auto; overflow-y: hidden;
+  background: var(--bg-base);
+}
+#inventory-body .table-wrap tbody td { user-select: text; -webkit-user-select: text; }
+/* Prevent BOM table from squeezing columns below their defined widths.
+   Column sum: 140 refs + 24 status + 110 part + 140 mpn + 50 need + 50 have + 78 match + ~100 btns = ~692px
+   Plus description gets whatever is left. Horizontal scroll kicks in via .table-wrap overflow-x. */
+#inventory-body .table-wrap table { min-width: 700px; border-collapse: separate; border-spacing: 0; }
+/* Truncate description in BOM comparison rows to prevent tall rows at narrow widths */
+#inventory-body .table-wrap td.desc-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 1px; /* forces td to respect overflow in table-layout:fixed */
+}
+
+/* ── Status Column ─────────────────────────────────────── */
+.status { font-weight: 700; text-align: center; width: 24px; font-size: 14px; }
+
+/* ── Designators Column ───────────────────────────────── */
+.refs-col { width: 140px; }
+.refs-cell {
+  font-size: 11px;
+  color: var(--text-secondary);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ref-r  { color: var(--color-red); }
+.ref-c  { color: var(--color-blue); }
+.ref-osc { color: var(--color-yellow); }
+.ref-ic { color: var(--color-pink); }
+.ref-l  { color: var(--color-green); }
+.ref-d  { color: var(--color-orange); }
+[data-ref] { cursor: default; }
+.ref-highlight { background: #ffe600; color: #000 !important; border-radius: 2px; font-size: 1.25em; font-weight: 700; }
+
+/* Colored refs display in BOM staging table */
+#bom-tbody .refs-cell { cursor: text; }
+
+/* ── Row Color Coding ──────────────────────────────────── */
+tr.row-green   { --row-bg: #23863610; background: var(--row-bg); }
+tr.row-yellow  { --row-bg: #d2992210; background: var(--row-bg); }
+tr.row-red     { --row-bg: #f8514910; background: var(--row-bg); }
+tr.row-orange  { --row-bg: #f0883e10; background: var(--row-bg); }
+tr.row-pink    { --row-bg: #db61a218; background: var(--row-bg); }
+
+tr.row-green td.status { color: var(--color-green); }
+tr.row-yellow td.status { color: var(--color-yellow); }
+tr.row-red td.status { color: var(--color-red); }
+tr.row-orange td.status { color: var(--color-orange); }
+tr.row-pink td.status { color: var(--color-pink); }
+
+tr.row-pink-short { --row-bg: #db61a218; background: var(--row-bg); border-left: 3px solid var(--color-yellow); }
+tr.row-pink-short td.status { color: var(--color-pink); }
+
+tr.row-teal-short { --row-bg: #2dd4bf10; background: var(--row-bg); border-left: 3px solid var(--color-yellow); }
+tr.row-teal-short td.status { color: var(--color-teal); }
+
+tr.row-dnp { --row-bg: #484f5810; background: var(--row-bg); }
+tr.row-dnp td.status { color: var(--color-gray-muted); }
+tr.row-dnp td { color: var(--color-gray-muted); text-decoration: line-through; }
+tr.row-dnp td.row-delete { text-decoration: none; }
+tr.row-dnp td input { color: var(--color-gray-muted); text-decoration: line-through; }
+
+tr.row-yellow-covered { --row-bg: #23863620; background: var(--row-bg); border-left: 3px solid var(--color-green); }
+tr.row-yellow-covered td.status { color: var(--color-green); }
+
+/* ── Confirmed (Teal) ────────────────────────────────── */
+tr.row-teal { --row-bg: #2dd4bf10; background: var(--row-bg); }
+tr.row-teal td.status { color: var(--color-teal); }
+
+/* ── Qty Comparison ────────────────────────────────────── */
+.qty-ok { color: var(--color-green); }
+.qty-short { color: var(--color-yellow); }
+.qty-miss { color: var(--color-red); }
+.qty-possible { color: var(--color-orange); }
+.qty-manual { color: var(--color-pink); }
+.qty-manual-short { color: var(--color-pink-dark); }
+.qty-dnp { color: var(--color-gray-muted); }
+.qty-confirmed { color: var(--color-teal); }
+.qty-confirmed-short { color: var(--color-teal-dark); }
+
+/* ── Alternatives ──────────────────────────────────────── */
+.alt-badge {
+  position: absolute;
+  bottom: 5px;
+  right: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-blue);
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 2px 7px;
+  border-radius: 12px;
+  background: #58a6ff18;
+  border: 1px solid #58a6ff40;
+  transition: all 0.15s;
+}
+.alt-badge:hover { background: #58a6ff30; border-color: var(--color-blue); }
+.alt-badge.covered { color: var(--color-green); background: #3fb95018; border-color: #3fb95040; }
+.alt-badge.covered:hover { background: #3fb95030; border-color: var(--color-green); }
+.alt-badge .chevron { display: inline-block; font-size: 9px; margin-right: 2px; transition: transform 0.15s; }
+.alt-badge.expanded .chevron { transform: rotate(90deg); }
+
+tr.alt-row { background: var(--bg-surface); }
+tr.alt-row td { font-size: 11px; color: var(--text-secondary); padding: 3px 8px; border-bottom: 1px solid var(--bg-hover); }
+tr.alt-row td:first-child { border-left: 2px solid #58a6ff40; }
+tr.alt-row:hover { background: var(--bg-hover) !important; }
+
+/* ── Button Column (sticky-right so always visible on horizontal scroll) ──
+   ::before provides an opaque base; background:inherit picks up the row tint */
+td.btn-group {
+  position: sticky; right: 0; z-index: 1;
+  background: inherit;
+  white-space: nowrap; text-align: right;
+}
+td.btn-group::before {
+  content: ''; position: absolute; inset: 0;
+  background-color: var(--bg-base);
+  background-image: linear-gradient(var(--row-bg, transparent), var(--row-bg, transparent));
+  z-index: -1;
+}
+th.btn-group-hdr {
+  position: sticky; right: 0; z-index: 3;
+  background: var(--bg-surface);
+  white-space: nowrap; text-align: right;
+}
+td.btn-group button + button { margin-left: 6px; }
+
+/* ── Vendor Icons ─────────────────────────────────────── */
+.vendor-icon { width: 12px; height: 12px; margin-right: 2px; flex-shrink: 0; }
