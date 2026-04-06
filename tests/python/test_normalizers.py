@@ -40,6 +40,8 @@ if os.path.exists(FIXTURE_PATH):
 
     # ── Digikey normalizer tests ──
 
+    import re as _re
+
     from digikey_client import DigikeyClient
 
     _dk_parts = _FIXTURES.get("digikey", {}).get("parts", {})
@@ -142,3 +144,94 @@ if os.path.exists(FIXTURE_PATH):
             assert product["stock"] >= 0
             assert isinstance(product["manufacturer"], str) and product["manufacturer"]
             assert isinstance(product["attributes"], list)
+
+    # ── Digikey extraction layer tests ──
+
+    _dk_html_parts = [mpn for mpn, entry in _dk_parts.items() if "raw_html" in entry]
+
+    class TestDigikeyExtraction:
+        """Test HTML regex extraction and __NEXT_DATA__ parsing against captured HTML."""
+
+        @pytest.fixture(params=_dk_html_parts, ids=_dk_html_parts)
+        def dk_html_part(self, request):
+            mpn = request.param
+            entry = _dk_parts[mpn]
+            return mpn, entry
+
+        def test_nextdata_regex_finds_match(self, dk_html_part):
+            _mpn, entry = dk_html_part
+            html = entry["raw_html"]
+            match = _re.search(
+                r'<script\s+id="__NEXT_DATA__"[^>]*>(.*?)</script>',
+                html,
+                _re.DOTALL,
+            )
+            assert match is not None
+
+        def test_nextdata_parses_as_json(self, dk_html_part):
+            _mpn, entry = dk_html_part
+            html = entry["raw_html"]
+            match = _re.search(
+                r'<script\s+id="__NEXT_DATA__"[^>]*>(.*?)</script>',
+                html,
+                _re.DOTALL,
+            )
+            assert match is not None
+            parsed = json.loads(match.group(1))
+            assert isinstance(parsed, dict)
+            assert "props" in parsed
+
+        def test_nextdata_has_envelope(self, dk_html_part):
+            _mpn, entry = dk_html_part
+            html = entry["raw_html"]
+            match = _re.search(
+                r'<script\s+id="__NEXT_DATA__"[^>]*>(.*?)</script>',
+                html,
+                _re.DOTALL,
+            )
+            assert match is not None
+            parsed = json.loads(match.group(1))
+            page_props = parsed["props"]["pageProps"]
+            assert "productOverview" in page_props["envelope"]["data"]
+
+        def test_extraction_roundtrip(self, dk_html_part):
+            mpn, entry = dk_html_part
+            if entry.get("source") == "webview":
+                return
+            html = entry["raw_html"]
+            match = _re.search(
+                r'<script\s+id="__NEXT_DATA__"[^>]*>(.*?)</script>',
+                html,
+                _re.DOTALL,
+            )
+            assert match is not None
+            parsed = json.loads(match.group(1))
+            page_props = parsed["props"]["pageProps"]
+            extracted = {"_source": "nextdata", "_props": page_props}
+            assert extracted == entry["raw"]
+
+    # ── LCSC extraction layer tests ──
+
+    _lcsc_response_parts = [pn for pn, entry in _lcsc_parts.items() if "raw_response" in entry]
+
+    class TestLcscExtraction:
+        """Test LCSC API envelope parsing against captured responses."""
+
+        @pytest.fixture(params=_lcsc_response_parts, ids=_lcsc_response_parts)
+        def lcsc_response_part(self, request):
+            pn = request.param
+            entry = _lcsc_parts[pn]
+            return pn, entry
+
+        def test_response_has_result(self, lcsc_response_part):
+            _pn, entry = lcsc_response_part
+            raw_response = entry["raw_response"]
+            assert isinstance(raw_response, dict)
+            assert "result" in raw_response
+            assert isinstance(raw_response["result"], dict)
+            assert raw_response["result"]
+
+        def test_extraction_roundtrip(self, lcsc_response_part):
+            _pn, entry = lcsc_response_part
+            raw_response = entry["raw_response"]
+            assert raw_response["result"] == entry["raw"]
