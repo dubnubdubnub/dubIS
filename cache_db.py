@@ -245,9 +245,20 @@ def catch_up(
     purchase_path: str,
     adjustments_path: str,
     adj_fieldnames: list[str],
-) -> None:
-    """Replay only events added since the last checkpoint."""
+) -> bool:
+    """Replay only events added since the last checkpoint.
+
+    Returns True if catch-up succeeded, False if a full rebuild is needed
+    (e.g., purchase ledger changed — new parts require recategorization).
+    """
     cp = read_checkpoint(conn)
+
+    # If purchase ledger changed, catch-up can't handle it — need full rebuild
+    purchase_total = count_csv_data_lines(purchase_path)
+    if purchase_total != cp["purchase_lines"]:
+        logger.info("Purchase ledger changed (%d -> %d lines), full rebuild needed",
+                     cp["purchase_lines"], purchase_total)
+        return False
 
     # Catch up on new adjustments
     adj_total = count_csv_data_lines(adjustments_path)
@@ -273,8 +284,8 @@ def catch_up(
         logger.info("Cache catch-up: replayed %d new adjustments", adj_total - adj_seen)
 
     # Update checkpoint
-    purchase_total = count_csv_data_lines(purchase_path)
     write_checkpoint(conn, purchase_lines=purchase_total, adjustment_lines=adj_total)
+    return True
 
 
 def verify_parts(

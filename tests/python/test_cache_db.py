@@ -303,24 +303,35 @@ class TestCountLines:
 
 
 class TestCatchUp:
-    def _write_adjustments(self, path, adj_fieldnames, rows):
+    def _write_csv(self, path, fieldnames, rows):
         with open(path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=adj_fieldnames)
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows)
+
+    def _write_purchase_ledger(self, path, merged):
+        """Write a purchase ledger CSV matching the merged dict (2 data rows)."""
+        from inventory_api import InventoryApi
+        fieldnames = InventoryApi.FIELDNAMES
+        self._write_csv(path, fieldnames,
+            [{fn: row.get(fn, "") for fn in fieldnames} for row in merged.values()])
 
     def test_catch_up_replays_new_adjustments(self, db, tmp_path):
         # Populate cache with a part
         merged = TestPopulate._make_merged(self)
         categorized = TestPopulate._make_categorized(self, merged)
         cache_db.populate_full(db, merged, categorized)
+
+        # Write purchase ledger with 2 rows to match checkpoint
+        purchase_path = str(tmp_path / "purchase_ledger.csv")
+        self._write_purchase_ledger(purchase_path, merged)
         cache_db.write_checkpoint(db, purchase_lines=2, adjustment_lines=0)
 
         # Write adjustments file with 2 rows
         adj_path = str(tmp_path / "adjustments.csv")
         adj_fields = ["timestamp", "type", "lcsc_part", "quantity",
                        "bom_file", "board_qty", "note", "source"]
-        self._write_adjustments(adj_path, adj_fields, [
+        self._write_csv(adj_path, adj_fields, [
             {"timestamp": "2026-01-01T00:00:00", "type": "remove",
              "lcsc_part": "C1525", "quantity": "-10",
              "bom_file": "", "board_qty": "", "note": "", "source": ""},
@@ -330,8 +341,8 @@ class TestCatchUp:
         ])
 
         # Catch up — should apply both new adjustment rows
-        purchase_path = str(tmp_path / "purchase_ledger.csv")
-        cache_db.catch_up(db, purchase_path, adj_path, adj_fields)
+        result = cache_db.catch_up(db, purchase_path, adj_path, adj_fields)
+        assert result is True
         qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
         assert qty == 170  # 200 - 10 - 20
 
@@ -339,13 +350,16 @@ class TestCatchUp:
         merged = TestPopulate._make_merged(self)
         categorized = TestPopulate._make_categorized(self, merged)
         cache_db.populate_full(db, merged, categorized)
+
+        purchase_path = str(tmp_path / "purchase_ledger.csv")
+        self._write_purchase_ledger(purchase_path, merged)
         # Mark 1 adjustment as already processed
         cache_db.write_checkpoint(db, purchase_lines=2, adjustment_lines=1)
 
         adj_path = str(tmp_path / "adjustments.csv")
         adj_fields = ["timestamp", "type", "lcsc_part", "quantity",
                        "bom_file", "board_qty", "note", "source"]
-        self._write_adjustments(adj_path, adj_fields, [
+        self._write_csv(adj_path, adj_fields, [
             {"timestamp": "2026-01-01T00:00:00", "type": "remove",
              "lcsc_part": "C1525", "quantity": "-10",
              "bom_file": "", "board_qty": "", "note": "", "source": ""},
@@ -354,22 +368,43 @@ class TestCatchUp:
              "bom_file": "", "board_qty": "", "note": "", "source": ""},
         ])
 
-        cache_db.catch_up(db, purchase_path=str(tmp_path / "purchase_ledger.csv"),
-                          adjustments_path=adj_path, adj_fieldnames=adj_fields)
+        result = cache_db.catch_up(db, purchase_path=purchase_path,
+                                   adjustments_path=adj_path, adj_fieldnames=adj_fields)
+        assert result is True
         qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
         # Only row 2 applied (row 1 was already processed)
         assert qty == 180  # 200 - 20
+
+    def test_catch_up_returns_false_on_purchase_change(self, db, tmp_path):
+        """catch_up returns False when purchase ledger has new rows."""
+        merged = TestPopulate._make_merged(self)
+        categorized = TestPopulate._make_categorized(self, merged)
+        cache_db.populate_full(db, merged, categorized)
+        # Checkpoint says 1 purchase line, but we'll write 2
+        cache_db.write_checkpoint(db, purchase_lines=1, adjustment_lines=0)
+
+        purchase_path = str(tmp_path / "purchase_ledger.csv")
+        self._write_purchase_ledger(purchase_path, merged)  # 2 data rows
+        adj_path = str(tmp_path / "adjustments.csv")
+        adj_fields = ["timestamp", "type", "lcsc_part", "quantity",
+                       "bom_file", "board_qty", "note", "source"]
+
+        result = cache_db.catch_up(db, purchase_path, adj_path, adj_fields)
+        assert result is False  # signals full rebuild needed
 
     def test_catch_up_noop_when_current(self, db, tmp_path):
         merged = TestPopulate._make_merged(self)
         categorized = TestPopulate._make_categorized(self, merged)
         cache_db.populate_full(db, merged, categorized)
+
+        purchase_path = str(tmp_path / "purchase_ledger.csv")
+        self._write_purchase_ledger(purchase_path, merged)
         cache_db.write_checkpoint(db, purchase_lines=2, adjustment_lines=2)
 
         adj_path = str(tmp_path / "adjustments.csv")
         adj_fields = ["timestamp", "type", "lcsc_part", "quantity",
                        "bom_file", "board_qty", "note", "source"]
-        self._write_adjustments(adj_path, adj_fields, [
+        self._write_csv(adj_path, adj_fields, [
             {"timestamp": "2026-01-01T00:00:00", "type": "remove",
              "lcsc_part": "C1525", "quantity": "-10",
              "bom_file": "", "board_qty": "", "note": "", "source": ""},
