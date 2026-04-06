@@ -134,7 +134,8 @@ def _parse_spec_value(value_str: str) -> float | None:
     if val != float("inf"):
         return val
     # Try as resistance
-    val = parse_resistance(value_str + " \u03a9" if "\u03a9" not in value_str and "ohm" not in value_str.lower() else value_str)
+    needs_suffix = "\u03a9" not in value_str and "ohm" not in value_str.lower()
+    val = parse_resistance(value_str + " \u03a9" if needs_suffix else value_str)
     if val != float("inf"):
         return val
     # Try as inductance
