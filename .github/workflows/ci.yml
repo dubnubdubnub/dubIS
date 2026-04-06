@@ -8,24 +8,70 @@ on:
   workflow_dispatch:
     inputs:
       suite:
-        description: "Which suite to run (all, js, python, pnp-e2e, pnp-cross)"
+        description: "Which suite to run (all, smoke, js, python, pnp-e2e, pnp-cross, quality)"
         required: false
         default: "all"
         type: choice
         options:
           - all
+          - smoke
           - js
           - python
           - pnp-e2e
           - pnp-cross
+          - quality
 
 jobs:
+  # ── Tier routing ─────────────────────────────────────────────────────
+  parse-tags:
+    name: Parse CI tier
+    runs-on: ubuntu-latest
+    outputs:
+      tier: ${{ steps.parse.outputs.tier }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - id: parse
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tier=${{ github.event.inputs.suite }}" >> "$GITHUB_OUTPUT"
+          else
+            MSG=$(git log -1 --pretty=%B)
+            TAG=$(echo "$MSG" | grep -oP '\[ci:\s*\K[a-z-]+(?=\])' || echo "all")
+            echo "tier=$TAG" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Resolved tier: $(grep tier "$GITHUB_OUTPUT" | tail -1)"
+
+  guard:
+    name: Branch guard
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check for already-merged PR on this branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          MERGED=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --head "${{ github.head_ref }}" \
+            --state merged \
+            --json number,url \
+            --jq '.[0].url // empty')
+          if [[ -n "$MERGED" ]]; then
+            echo "::error::This branch already has a merged PR: $MERGED"
+            echo "::error::Create a new branch from origin/main instead."
+            echo "::error::Use: bash scripts/push-pr.sh (it handles this automatically)"
+            exit 1
+          fi
+
+  # ── Tier 1: Critical (lint + unit tests) ─────────────────────────────
   js-ubuntu:
     name: JS Lint & Test (Ubuntu)
+    needs: [parse-tags, guard]
     if: >-
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.suite == 'all' ||
-      github.event.inputs.suite == 'js'
+      always() && !failure() &&
+      contains(fromJSON('["all","js","smoke"]'), needs.parse-tags.outputs.tier)
     runs-on: [self-hosted, pnp-testbox]
     steps:
       - uses: actions/checkout@v4
@@ -34,9 +80,13 @@ jobs:
       - run: npm install
       - run: npx eslint js/
       - run: npx tsc --noEmit
-      - run: npx vitest run
-      - run: npx playwright install chromium
-      - run: npx playwright test
+      - run: npx vitest run --project core
+      - name: Install Playwright browsers
+        if: contains(fromJSON('["all","js"]'), needs.parse-tags.outputs.tier)
+        run: npx playwright install chromium
+      - name: Playwright E2E
+        if: contains(fromJSON('["all","js"]'), needs.parse-tags.outputs.tier)
+        run: npx playwright test --project functional
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -45,18 +95,20 @@ jobs:
 
   js-macos:
     name: JS Lint & Test (macOS)
+    needs: [parse-tags, guard]
     if: >-
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.suite == 'all' ||
-      github.event.inputs.suite == 'js'
+      always() && !failure() &&
+      contains(fromJSON('["all","js","smoke"]'), needs.parse-tags.outputs.tier)
     runs-on: [self-hosted, m4-air]
     steps:
       - uses: actions/checkout@v4
       - run: npm install
       - run: npx eslint js/
       - run: npx tsc --noEmit
-      - run: npx vitest run
-      - run: npx playwright test
+      - run: npx vitest run --project core
+      - name: Playwright E2E
+        if: contains(fromJSON('["all","js"]'), needs.parse-tags.outputs.tier)
+        run: npx playwright test --project functional
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -65,45 +117,46 @@ jobs:
 
   python-ubuntu:
     name: Python Lint & Test (Ubuntu)
+    needs: [parse-tags, guard]
     if: >-
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.suite == 'all' ||
-      github.event.inputs.suite == 'python'
+      always() && !failure() &&
+      contains(fromJSON('["all","python","smoke"]'), needs.parse-tags.outputs.tier)
     runs-on: [self-hosted, pnp-testbox]
     steps:
       - uses: actions/checkout@v4
         with:
           clean: true
       - run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
-      - run: ~/dubis-venv/bin/ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py pnp_server.py mouser_client.py
+      - run: ~/dubis-venv/bin/ruff check .
       - name: Verify generated test fixtures are up to date
         run: ~/dubis-venv/bin/python scripts/generate-test-fixtures.py --check
       - run: ~/dubis-venv/bin/pytest tests/python/ -v
 
   python-macos:
     name: Python Lint & Test (macOS)
+    needs: [parse-tags, guard]
     if: >-
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.suite == 'all' ||
-      github.event.inputs.suite == 'python'
+      always() && !failure() &&
+      contains(fromJSON('["all","python","smoke"]'), needs.parse-tags.outputs.tier)
     runs-on: [self-hosted, m4-air]
     steps:
       - uses: actions/checkout@v4
       - name: Install Python dependencies
         run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
       - name: Lint
-        run: ~/dubis-venv/bin/ruff check inventory_api.py app.py digikey_client.py lcsc_client.py categorize.py pnp_server.py mouser_client.py
+        run: ~/dubis-venv/bin/ruff check .
       - name: Verify generated test fixtures are up to date
         run: ~/dubis-venv/bin/python scripts/generate-test-fixtures.py --check
       - name: Test
         run: ~/dubis-venv/bin/pytest tests/python/ -v
 
+  # ── Tier 2: Functional (E2E tests) ──────────────────────────────────
   pnp-e2e:
     name: PnP End-to-End Test
+    needs: [parse-tags, guard]
     if: >-
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.suite == 'all' ||
-      github.event.inputs.suite == 'pnp-e2e'
+      always() && !failure() &&
+      contains(fromJSON('["all","pnp-e2e","pnp-cross"]'), needs.parse-tags.outputs.tier)
     runs-on: [self-hosted, pnp-testbox]
     timeout-minutes: 5
     env:
@@ -117,10 +170,10 @@ jobs:
 
   pnp-e2e-macos:
     name: PnP End-to-End Test (macOS)
+    needs: [parse-tags, guard]
     if: >-
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.suite == 'all' ||
-      github.event.inputs.suite == 'pnp-e2e'
+      always() && !failure() &&
+      contains(fromJSON('["all","pnp-e2e","pnp-cross"]'), needs.parse-tags.outputs.tier)
     runs-on: [self-hosted, m4-air]
     timeout-minutes: 5
     env:
@@ -133,12 +186,11 @@ jobs:
         run: ~/dubis-venv/bin/python tests/pnp-e2e/run_test.py
 
   pnp-e2e-cross-ux430-to-mac:
-    name: PnP E2E Cross-Compute (ux430 → m4-air)
-    needs: [pnp-e2e, pnp-e2e-macos]
+    name: PnP E2E Cross-Compute (ux430 -> m4-air)
+    needs: [parse-tags, guard, pnp-e2e, pnp-e2e-macos]
     if: >-
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.suite == 'all' ||
-      github.event.inputs.suite == 'pnp-cross'
+      always() && !failure() &&
+      contains(fromJSON('["all","pnp-cross"]'), needs.parse-tags.outputs.tier)
     runs-on: [self-hosted, pnp-testbox]
     timeout-minutes: 5
     env:
@@ -151,12 +203,11 @@ jobs:
         run: ~/dubis-venv/bin/python tests/pnp-e2e/run_test.py --remote-openpnp m4-air
 
   pnp-e2e-cross-mac-to-ux430:
-    name: PnP E2E Cross-Compute (m4-air → ux430)
-    needs: [pnp-e2e, pnp-e2e-macos]
+    name: PnP E2E Cross-Compute (m4-air -> ux430)
+    needs: [parse-tags, guard, pnp-e2e, pnp-e2e-macos]
     if: >-
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.suite == 'all' ||
-      github.event.inputs.suite == 'pnp-cross'
+      always() && !failure() &&
+      contains(fromJSON('["all","pnp-cross"]'), needs.parse-tags.outputs.tier)
     runs-on: [self-hosted, m4-air]
     timeout-minutes: 5
     env:
@@ -167,3 +218,27 @@ jobs:
         run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
       - name: Run cross-compute PnP E2E
         run: ~/dubis-venv/bin/python tests/pnp-e2e/run_test.py --remote-openpnp ux430
+
+  # ── Tier 3: Quality (non-blocking) ──────────────────────────────────
+  quality:
+    name: Quality Tests (non-blocking)
+    needs: [parse-tags, guard]
+    if: >-
+      always() && !failure() &&
+      contains(fromJSON('["all","quality"]'), needs.parse-tags.outputs.tier)
+    runs-on: [self-hosted, pnp-testbox]
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+      - run: npm install
+      - name: Quality unit tests (contrast, style-audit, ui-helpers)
+        run: npx vitest run --project quality
+      - name: Quality E2E (accessibility, resize-visibility)
+        run: npx playwright test --project quality
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: quality-report
+          path: test-results/
