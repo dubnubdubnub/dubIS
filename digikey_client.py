@@ -11,6 +11,7 @@ from urllib.parse import quote
 
 from digikey_cdp import cdp_get_cookies
 from digikey_normalizer import normalize_result
+from dubis_errors import DistributorError, DistributorTimeout
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +185,9 @@ class DigikeyClient:
                 return  # stop polling — browser was already running
 
             except Exception as exc:
+                # Broad catch intentional: CDP polling may raise a variety of
+                # network/JSON errors (e.g. json.JSONDecodeError, http.client
+                # errors). We log and retry rather than abort the poll loop.
                 debug_log.append(f"cdp(port={port}): {type(exc).__name__}: {exc}")
                 self._sync_result = {
                     "status": "waiting",
@@ -304,7 +308,7 @@ class DigikeyClient:
                 return {"logged_in": True, "message": "Found browser session"}
             logger.debug("Startup: no existing session (%d digikey cookies)", len(dk_cookies))
             return {"logged_in": False, "message": "No existing session"}
-        except Exception as exc:
+        except (OSError, TimeoutError) as exc:
             logger.debug("Startup: session check failed: %s", exc)
             return {"logged_in": False, "message": f"Session check failed: {exc}"}
         finally:
@@ -498,7 +502,20 @@ class DigikeyClient:
                     type(result).__name__,
                     list(result.keys()) if isinstance(result, dict) else "N/A",
                 )
-            except Exception as exc:
+            except TimeoutError as exc:
+                logger.error("DK fetch: timed out for %s: %s", part_number, exc)
+                raise DistributorTimeout(
+                    f"Digikey fetch timed out for {part_number!r}",
+                    provider="digikey",
+                    part_number=part_number,
+                ) from exc
+            except OSError as exc:
+                logger.error("DK fetch: OS error for %s: %s", part_number, exc)
+                raise DistributorError(
+                    f"Digikey fetch OS error for {part_number!r}: {exc}",
+                    provider="digikey",
+                ) from exc
+            except RuntimeError as exc:
                 logger.error("DK fetch: evaluate_js failed for %s: %s", part_number, exc)
                 self._cache[part_number] = None
                 return None
