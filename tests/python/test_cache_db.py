@@ -132,3 +132,46 @@ class TestPopulate:
         small_cat = categorize_and_sort(list(small.values()))
         cache_db.populate_full(db, small, small_cat)
         assert db.execute("SELECT count(*) FROM parts").fetchone()[0] == 1
+
+
+class TestQuery:
+    def _populate(self, db):
+        merged = TestPopulate._make_merged(self)
+        categorized = TestPopulate._make_categorized(self, merged)
+        cache_db.populate_full(db, merged, categorized)
+
+    def test_returns_list_of_dicts(self, db):
+        self._populate(db)
+        result = cache_db.query_inventory(db)
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert isinstance(result[0], dict)
+
+    def test_dict_keys_match_load_organized(self, db):
+        self._populate(db)
+        result = cache_db.query_inventory(db)
+        expected_keys = {
+            "section", "lcsc", "mpn", "digikey", "pololu", "mouser",
+            "manufacturer", "package", "description",
+            "qty", "unit_price", "ext_price",
+        }
+        assert set(result[0].keys()) == expected_keys
+
+    def test_values_correct(self, db):
+        self._populate(db)
+        result = cache_db.query_inventory(db)
+        cap = next(r for r in result if r["lcsc"] == "C1525")
+        assert cap["qty"] == 200
+        assert abs(cap["unit_price"] - 0.0074) < 0.0001
+        assert cap["mpn"] == "CL05B104KO5NNNC"
+        assert "Capacitor" in cap["section"]
+
+    def test_ordered_by_section_then_sort_key(self, db):
+        self._populate(db)
+        result = cache_db.query_inventory(db)
+        sections = [r["section"] for r in result]
+        assert all(s for s in sections)
+
+    def test_empty_db_returns_empty_list(self, db):
+        result = cache_db.query_inventory(db)
+        assert result == []
