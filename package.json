@@ -4,7 +4,10 @@
   "private": true,
   "scripts": {
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:core": "vitest run --project core",
+    "test:quality": "vitest run --project quality",
+    "test:e2e": "playwright test --project functional",
+    "test:e2e:quality": "playwright test --project quality",
     "lint": "eslint js/",
     "lint:fix": "eslint js/ --fix"
   },
