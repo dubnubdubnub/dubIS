@@ -112,6 +112,12 @@ tr.row-yellow-covered td.status { color: var(--color-green); }
 tr.row-teal { --row-bg: #2dd4bf10; background: var(--row-bg); }
 tr.row-teal td.status { color: var(--color-teal); }
 
+/* ── Generic (Purple) ────────────────────────────────── */
+tr.row-purple { --row-bg: #a371f718; background: var(--row-bg); }
+tr.row-purple td.status { color: var(--color-purple); }
+tr.row-purple-short { --row-bg: #a371f715; background: var(--row-bg); border-left: 3px solid var(--color-yellow); }
+tr.row-purple-short td.status { color: var(--color-purple); }
+
 /* ── Numeric alignment — tabular figures keep columns aligned ── */
 [class^="qty-"], [class*=" qty-"],
 td.inv-qty-cell,
@@ -131,6 +137,8 @@ td.inv-qty-cell,
 .qty-dnp { color: var(--color-gray-muted); }
 .qty-confirmed { color: var(--color-teal); }
 .qty-confirmed-short { color: var(--color-teal-dark); }
+.qty-generic { color: var(--color-purple-light); }
+.qty-generic-short { color: var(--color-purple); }
 
 /* ── Alternatives ──────────────────────────────────────── */
 .alt-badge {
@@ -158,6 +166,56 @@ tr.alt-row { background: var(--bg-surface); }
 tr.alt-row td { font-size: 11px; color: var(--text-secondary); padding: 3px 8px; border-bottom: 1px solid var(--bg-hover); }
 tr.alt-row td:first-child { border-left: 2px solid #58a6ff40; }
 tr.alt-row:hover { background: var(--bg-hover) !important; }
+
+/* ── Generic Members ──────────────────────────────────── */
+.member-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-purple-light);
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 2px 7px;
+  border-radius: 12px;
+  background: #a371f718;
+  border: 1px solid #a371f740;
+  transition: all 0.15s;
+}
+.member-badge:hover { background: #a371f730; border-color: var(--color-purple); }
+.member-badge .chevron { display: inline-block; font-size: 9px; margin-right: 2px; transition: transform 0.15s; }
+.member-badge.expanded .chevron { transform: rotate(90deg); }
+
+tr.member-header-row { background: #a371f710; }
+tr.member-header-row td { font-size: 11px; font-weight: 600; color: var(--color-purple-light); padding: 4px 8px; border-bottom: 1px solid var(--bg-hover); }
+
+tr.member-row { background: #a371f70a; }
+tr.member-row td { font-size: 11px; color: var(--text-secondary); padding: 3px 8px; border-bottom: 1px solid var(--bg-hover); }
+tr.member-row td:first-child { border-left: 2px solid #a371f740; }
+tr.member-row:hover { background: var(--bg-hover) !important; }
+.preferred-badge { color: var(--color-yellow); font-size: 11px; }
+.current-label { color: var(--text-muted); font-size: 11px; font-style: italic; }
+.generic-via { display: block; font-size: 11px; color: var(--color-purple-light); opacity: 0.7; }
+
+.create-generic-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--color-purple);
+  background: transparent;
+  color: var(--color-purple-light);
+  cursor: pointer;
+}
+.create-generic-btn:hover { background: #a371f730; }
+
+.use-member-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--color-purple);
+  background: transparent;
+  color: var(--color-purple-light);
+  cursor: pointer;
+}
+.use-member-btn:hover { background: #a371f730; }
 
 /* ── Button Column (sticky-right so always visible on horizontal scroll) ──
    ::before provides an opaque base; background:inherit picks up the row tint */

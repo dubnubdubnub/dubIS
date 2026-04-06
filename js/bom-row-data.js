@@ -5,7 +5,7 @@
 
 import { bomKey, STATUS_ICONS, STATUS_ROW_CLASS } from './part-keys.js';
 
-export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState) {
+export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState, expandedMembers) {
   var st = r.effectiveStatus;
 
   // ── Filter by status ──
@@ -13,7 +13,8 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
     var matchesFilter =
       (activeFilter === "manual" && st === "manual-short") ||
       (activeFilter === "confirmed" && st === "confirmed-short") ||
-      (activeFilter === "short" && (st === "manual-short" || st === "confirmed-short"));
+      (activeFilter === "generic" && st === "generic-short") ||
+      (activeFilter === "short" && (st === "manual-short" || st === "confirmed-short" || st === "generic-short"));
     if (!matchesFilter) return null;
   }
 
@@ -52,6 +53,7 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
     : r.matchType === "value" ? "Value"
     : r.matchType === "manual" ? "Manual"
     : r.matchType === "confirmed" ? "Confirmed"
+    : r.matchType === "generic" ? "Generic"
     : "\u2014";
 
   // ── Quantity CSS class ──
@@ -60,6 +62,8 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
     : st === "manual-short" ? "qty-manual-short"
     : st === "confirmed" ? "qty-confirmed"
     : st === "confirmed-short" ? "qty-confirmed-short"
+    : st === "generic" ? "qty-generic"
+    : st === "generic-short" ? "qty-generic-short"
     : st === "ok" ? "qty-ok"
     : st === "short" ? (r.coveredByAlts ? "qty-ok" : "qty-short")
     : st === "possible" ? "qty-possible"
@@ -84,6 +88,20 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
       expanded: expandedAlts.has(partKey),
     };
   }
+
+  // ── Generic member badge ──
+  var memberBadge = null;
+  var genericPartName = r.genericPartName || null;
+  if (r.matchType === "generic" && r.genericMembers && r.genericMembers.length > 1) {
+    memberBadge = {
+      groupName: r.genericPartName,
+      memberCount: r.genericMembers.length,
+      expanded: expandedMembers ? expandedMembers.has(partKey) : false,
+    };
+  }
+
+  // ── Generic part creation eligibility ──
+  var showCreateGeneric = (st === "missing" || st === "possible") && !hasInv && !!(r.bom.value || r.bom.footprint);
 
   // ── Button visibility ──
   var showConfirm = st === "possible" && hasInv;
@@ -134,6 +152,14 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
     isReverseLinkingSource: isReverseLinkingSource,
     isReverseTarget: isReverseTarget,
     showAlts: !!(r.alts && r.alts.length > 0 && expandedAlts.has(partKey)),
+    showMembers: !!(memberBadge && memberBadge.expanded),
+    memberBadge: memberBadge,
+    genericPartName: genericPartName,
+    genericMembers: r.genericMembers || null,
+    showCreateGeneric: showCreateGeneric,
+    bomValue: r.bom.value || "",
+    bomFootprint: r.bom.footprint || "",
+    bomRefs: r.bom.refs || "",
     hasInv: hasInv,
   };
 }

@@ -193,6 +193,8 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, g
     let inv = null;
     let matchType = "none";
     let genericPartId = null;
+    let genericPartName = null;
+    let genericMembers = null;
     const bk = bomKey(bom);
 
     // 0. Manual link override (use clean bomKey, not the :DNP-suffixed map key)
@@ -291,6 +293,8 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, g
             inv = found;
             matchType = "generic";
             genericPartId = gp.generic_part_id;
+            genericPartName = gp.name;
+            genericMembers = gp.members;
             break;
           }
         }
@@ -316,7 +320,7 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, g
 
     const alts = findAlternatives(bom, inv, invByValue);
 
-    results.push({ bom, inv, status, matchType, alts, genericPartId: genericPartId || null });
+    results.push({ bom, inv, status, matchType, alts, genericPartId: genericPartId || null, genericPartName: genericPartName || null, genericMembers: genericMembers || null });
   });
 
   return results;

@@ -69,6 +69,8 @@ export function computeRows(results, multiplier, links) {
       status = r.bom.qty * mult > r.inv.qty ? "manual-short" : "manual";
     } else if (r.matchType === "confirmed") {
       status = r.bom.qty * mult > r.inv.qty ? "confirmed-short" : "confirmed";
+    } else if (r.matchType === "generic") {
+      status = r.bom.qty * mult > r.inv.qty ? "generic-short" : "generic";
     } else if (r.bom.qty * mult <= r.inv.qty) {
       status = "ok";
     } else {
@@ -106,7 +108,7 @@ export function buildLinkableKeys(rows, linkingMode) {
   const missingKeys = new Set();
   if (linkingMode) {
     rows.forEach(r => {
-      if (r.effectiveStatus === "missing" || r.effectiveStatus === "possible" || r.effectiveStatus === "short" || r.effectiveStatus === "manual-short" || r.effectiveStatus === "confirmed-short") {
+      if (r.effectiveStatus === "missing" || r.effectiveStatus === "possible" || r.effectiveStatus === "short" || r.effectiveStatus === "manual-short" || r.effectiveStatus === "confirmed-short" || r.effectiveStatus === "generic-short") {
         const bsk = bomAggKey(r.bom);
         if (bsk) missingKeys.add(bsk);
       }

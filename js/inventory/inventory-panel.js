@@ -9,6 +9,7 @@ import { UndoRedo } from '../undo-redo.js';
 import { App, snapshotLinks, getThreshold } from '../store.js';
 import { bomKey, invPartKey, countStatuses } from '../part-keys.js';
 import { openAdjustModal, openPriceModal } from '../inventory-modals.js';
+import { openCreate as openGenericCreate, openEdit as openGenericEdit } from '../generic-parts-modal.js';
 
 import {
   groupBySection,
@@ -23,6 +24,7 @@ import {
   renderPartRowHtml,
   createBomRowElement,
   renderAltRows,
+  renderMemberRows,
   renderFilterBarHtml,
   renderBomTableHeader,
 } from './inventory-renderer.js';
@@ -38,6 +40,7 @@ var collapsedSections = new Set();
 var bomData = null;        // { rows, fileName, multiplier }
 var activeFilter = "all";
 var expandedAlts = new Set();
+var expandedMembers = new Set();
 var rowMap = new Map();    // partKey -> r, rebuilt each render
 
 // Hide descriptions when panel is too narrow for readable text
@@ -77,6 +80,7 @@ export function init() {
     bomData = null;
     activeFilter = "all";
     expandedAlts = new Set();
+    expandedMembers = new Set();
     App.links.clearAll();
     render();
   });
@@ -219,6 +223,7 @@ function createPartRow(item, sectionKey) {
     isReverseTarget: false,
     sectionKey: sectionKey,
     threshold: getThreshold(sectionKey),
+    genericParts: App.genericParts,
   });
   row.innerHTML = html;
 
@@ -252,6 +257,13 @@ function createPartRow(item, sectionKey) {
     linkBtnEl.addEventListener("click", function (e) {
       e.stopPropagation();
       App.links.setLinkingMode(true, item);
+    });
+  }
+  var gpBadge = row.querySelector(".generic-group-badge");
+  if (gpBadge) {
+    gpBadge.addEventListener("click", function (e) {
+      e.stopPropagation();
+      openGenericEdit(gpBadge.dataset.genericId);
     });
   }
 
@@ -359,13 +371,20 @@ function renderBomComparison() {
   var tbody = document.createElement("tbody");
   for (var i = 0; i < sortedRows.length; i++) {
     var r = sortedRows[i];
-    var d = bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState);
+    var d = bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState, expandedMembers);
     if (!d) continue;
     tbody.appendChild(createBomRowElement(d));
     if (d.showAlts) {
       var altElements = renderAltRows(r.alts, d.partKey);
       for (var j = 0; j < altElements.length; j++) {
         tbody.appendChild(altElements[j]);
+      }
+    }
+    if (d.showMembers && d.genericMembers) {
+      var resolvedId = r.inv ? invPartKey(r.inv) : "";
+      var memberElements = renderMemberRows(d.genericMembers, d.partKey, resolvedId, d.genericPartName || "", App.inventory);
+      for (var m = 0; m < memberElements.length; m++) {
+        tbody.appendChild(memberElements[m]);
       }
     }
   }
@@ -422,11 +441,49 @@ function handleBomTableClick(e) {
     return;
   }
 
+  // Member badge toggle
+  var memberBadge = e.target.closest(".member-badge");
+  if (memberBadge) {
+    e.stopPropagation();
+    var mpk = memberBadge.dataset.partKey;
+    if (expandedMembers.has(mpk)) expandedMembers.delete(mpk);
+    else expandedMembers.add(mpk);
+    render();
+    return;
+  }
+
   // Button clicks (both main rows and alt rows)
   var btn = e.target.closest("button");
   if (btn) {
     e.stopPropagation();
     var tr = btn.closest("tr");
+
+    // Member row buttons
+    if (tr.classList.contains("member-row")) {
+      var memberPartId = tr.dataset.memberPartId;
+      var memberParentKey = tr.dataset.memberFor;
+      if (btn.classList.contains("use-member-btn")) {
+        // Confirm match with this specific member
+        var memberR = rowMap.get(memberParentKey);
+        if (memberR) {
+          UndoRedo.save("links", snapshotLinks());
+          App.links.confirmMatch(bomKey(memberR.bom), memberPartId);
+          AppLog.info("Generic member selected: " + memberParentKey + " \u2192 " + memberPartId);
+          showToast("Confirmed " + memberParentKey + " \u2192 " + memberPartId);
+          expandedMembers.delete(memberParentKey);
+        }
+      } else if (btn.classList.contains("adj-btn")) {
+        // Find the inventory item for this member
+        for (var mi = 0; mi < App.inventory.length; mi++) {
+          var mItem = App.inventory[mi];
+          if (invPartKey(mItem) === memberPartId || (mItem.lcsc && mItem.lcsc.toUpperCase() === memberPartId.toUpperCase()) || (mItem.mpn && mItem.mpn.toUpperCase() === memberPartId.toUpperCase())) {
+            openAdjustModal(mItem);
+            break;
+          }
+        }
+      }
+      return;
+    }
 
     // Alt row buttons
     if (tr.classList.contains("alt-row")) {
@@ -446,6 +503,16 @@ function handleBomTableClick(e) {
     var rowPk = tr.dataset.partKey;
     var r = rowMap.get(rowPk);
     if (!r) return;
+    if (btn.classList.contains("create-generic-btn")) {
+      var typeMap = { C: "capacitor", R: "resistor", L: "inductor" };
+      var refChar = (btn.dataset.bomRefs || "").trim().charAt(0).toUpperCase();
+      openGenericCreate(null, {
+        type: typeMap[refChar] || undefined,
+        value: btn.dataset.bomValue || undefined,
+        package: btn.dataset.bomPkg || undefined,
+      });
+      return;
+    }
     if (btn.classList.contains("confirm-btn")) confirmMatch(r);
     else if (btn.classList.contains("unconfirm-btn")) unconfirmMatch(r);
     else if (btn.classList.contains("adj-btn")) openAdjustModal(r.inv);

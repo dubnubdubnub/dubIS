@@ -16,6 +16,7 @@ let bomDirty = false;
 let preferences = { thresholds: {} };
 let manualLinks = [];
 let confirmedMatches = [];
+let genericParts = [];
 let linkingActive = false;
 let linkingInvItem = null;
 let linkingBomRow = null;
@@ -175,6 +176,7 @@ const _linksProxy = {
 export const App = new Proxy(
   {
     links: _linksProxy,
+    genericParts: /** @type {any[]} */ ([]),
     SECTION_ORDER,
     SECTION_HIERARCHY,
     FLAT_SECTIONS,
@@ -185,6 +187,7 @@ export const App = new Proxy(
       if (prop in target) return target[prop];
       // Map to private state getters
       if (prop === 'inventory') return inventory;
+      if (prop === 'genericParts') return genericParts;
       if (prop === 'bomResults') return bomResults;
       if (prop === 'bomFileName') return bomFileName;
       if (prop === 'bomHeaders') return bomHeaders;
@@ -195,6 +198,7 @@ export const App = new Proxy(
     },
     set(target, prop, value) {
       if (prop === 'inventory') { inventory = value; return true; }
+      if (prop === 'genericParts') { genericParts = value; return true; }
       if (prop === 'bomResults') { bomResults = value; return true; }
       if (prop === 'bomFileName') { bomFileName = value; return true; }
       if (prop === 'bomHeaders') { bomHeaders = value; return true; }
@@ -263,6 +267,18 @@ export async function loadInventory() {
   updateInventoryHeader();
   EventBus.emit(Events.INVENTORY_LOADED, inventory);
   AppLog.info("Loaded inventory: " + inventory.length + " parts");
+  // Load generic parts for BOM matching
+  try {
+    const gps = await api("list_generic_parts");
+    genericParts = Array.isArray(gps) ? gps : [];
+    EventBus.emit(Events.GENERIC_PARTS_LOADED, genericParts);
+    if (genericParts.length > 0) {
+      AppLog.info("Loaded " + genericParts.length + " generic parts");
+    }
+  } catch (e) {
+    AppLog.warn("Failed to load generic parts: " + e);
+    genericParts = [];
+  }
 }
 
 export function onInventoryUpdated(freshInventory) {
