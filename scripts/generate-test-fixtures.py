@@ -21,6 +21,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
 from inventory_api import InventoryApi  # noqa: E402
+from inventory_ops import load_organized  # noqa: E402
 
 FIXTURES_DIR = os.path.join(PROJECT_ROOT, "tests", "fixtures")
 GENERATED_DIR = os.path.join(FIXTURES_DIR, "generated")
@@ -31,12 +32,10 @@ DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 def generate_inventory() -> list[dict]:
     """Generate inventory.json from tests/fixtures/inventory.csv.
 
-    Uses InventoryApi._load_organized() to produce the exact same
-    JSON shape the frontend receives from load_inventory().
+    Uses inventory_ops.load_organized() directly to parse the fixture CSV
+    into the same JSON shape the frontend receives from load_inventory().
     """
-    api = InventoryApi()
-    api.output_csv = os.path.join(FIXTURES_DIR, "inventory.csv")
-    return api._load_organized()
+    return load_organized(os.path.join(FIXTURES_DIR, "inventory.csv"))
 
 
 def generate_column_detections() -> dict[str, dict[str, str]]:
