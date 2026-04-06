@@ -31,11 +31,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          # PR events checkout a merge commit; fetch enough to read the branch head
+          fetch-depth: 2
       - id: parse
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "tier=${{ github.event.inputs.suite }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # PR checkout is a merge commit — read the actual branch head
+            MSG=$(git log -1 --pretty=%B "${{ github.event.pull_request.head.sha }}")
+            TAG=$(echo "$MSG" | grep -oP '\[ci:\s*\K[a-z-]+(?=\])' || echo "all")
+            echo "tier=$TAG" >> "$GITHUB_OUTPUT"
           else
             MSG=$(git log -1 --pretty=%B)
             TAG=$(echo "$MSG" | grep -oP '\[ci:\s*\K[a-z-]+(?=\])' || echo "all")
