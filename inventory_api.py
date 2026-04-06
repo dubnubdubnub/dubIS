@@ -74,7 +74,7 @@ class InventoryApi:
     def __init__(self, *, debug: bool = False) -> None:
         self.base_dir: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
         self.input_csv: str = os.path.join(self.base_dir, "purchase_ledger.csv")
-        self.output_csv: str = os.path.join(self.base_dir, "inventory.csv")
+        self.output_csv: str = os.path.join(self.base_dir, "inventory.csv")  # legacy, no longer written
         self.adjustments_csv: str = os.path.join(self.base_dir, "adjustments.csv")
         self.prefs_json: str = os.path.join(self.base_dir, "preferences.json")
         self.cache_db_path = os.path.join(self.base_dir, "cache.db")
@@ -147,10 +147,6 @@ class InventoryApi:
     def _categorize_and_sort(self, parts: list[dict[str, str]]) -> dict[str, list[dict[str, str]]]:
         return inventory_ops.categorize_and_sort(parts)
 
-    def _write_organized(self, categorized: dict[str, list[dict[str, str]]],
-                         fieldnames: list[str]) -> None:
-        inventory_ops.write_organized(categorized, self.output_csv, fieldnames, self.FLAT_SECTION_ORDER)
-
     def _rebuild(self) -> list[dict[str, Any]]:
         """Full rebuild: replay all events into cache, return fresh inventory."""
         conn = self._get_cache()
@@ -198,12 +194,13 @@ class InventoryApi:
         """Rebuild inventory. Uses catch-up if cache exists, full rebuild otherwise."""
         conn = self._get_cache()
         cp = cache_db.read_checkpoint(conn)
-        if cp["purchase_lines"] > 0 or cp["adjustment_lines"] > 0:
-            # Cache exists — try catch-up
-            cache_db.catch_up(conn, self.input_csv, self.adjustments_csv,
-                              self.ADJ_FIELDNAMES)
-            return cache_db.query_inventory(conn)
-        # No checkpoint — full rebuild
+        has_cache = conn.execute("SELECT 1 FROM parts LIMIT 1").fetchone() is not None
+        if has_cache and (cp["purchase_lines"] > 0 or cp["adjustment_lines"] > 0):
+            # Cache exists — try catch-up (returns False if purchase ledger changed)
+            if cache_db.catch_up(conn, self.input_csv, self.adjustments_csv,
+                                 self.ADJ_FIELDNAMES):
+                return cache_db.query_inventory(conn)
+        # No cache, no checkpoint, or catch-up declined — full rebuild
         return self._rebuild()
 
     def adjust_part(self, adj_type: str, part_key: str, quantity: int | str,
