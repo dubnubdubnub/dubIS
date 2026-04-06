@@ -52,6 +52,9 @@ def api(tmp_path):
     inst.output_csv = str(tmp_path / "inventory.csv")
     inst.adjustments_csv = str(tmp_path / "adjustments.csv")
     inst.prefs_json = str(tmp_path / "preferences.json")
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)
+    inst.cache_db_path = str(data_dir / "cache.db")
     return inst
 
 

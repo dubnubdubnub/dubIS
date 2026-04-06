@@ -272,12 +272,21 @@ class InventoryApi:
         with self._lock:
             csv_io.append_csv_rows(self.adjustments_csv, self.ADJ_FIELDNAMES, adj_rows)
             conn = self._get_cache()
-            affected_parts = []
+            affected_parts = [row["lcsc_part"] for row in adj_rows]
+            # Check if all affected parts are already in the cache
+            all_cached = all(
+                conn.execute(
+                    "SELECT 1 FROM stock WHERE part_id = ?", (pn,)
+                ).fetchone()
+                for pn in affected_parts
+            )
+            if not all_cached:
+                # Cache empty or stale — full rebuild includes the new adjustments
+                return self._rebuild()
             for row in adj_rows:
                 pn = row["lcsc_part"]
                 delta = int(row["quantity"])
                 cache_db.apply_stock_delta(conn, pn, delta)
-                affected_parts.append(pn)
             adj_lines = cache_db.count_csv_data_lines(self.adjustments_csv)
             cp = cache_db.read_checkpoint(conn)
             cache_db.write_checkpoint(conn, purchase_lines=cp["purchase_lines"],
