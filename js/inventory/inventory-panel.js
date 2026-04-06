@@ -278,11 +278,7 @@ function renderRemainingNormalSections(otherParts, query) {
   var hasAny = FLAT_SECTIONS.some(function (s) { return !!otherParts[s]; });
   if (hasAny) {
     var divider = document.createElement("div");
-    divider.className = "inv-section-header";
-    divider.style.borderTop = "2px solid #30363d";
-    divider.style.marginTop = "4px";
-    divider.style.color = "#484f58";
-    divider.style.cursor = "default";
+    divider.className = "inv-section-header inv-other-divider";
     divider.textContent = "Other Inventory";
     body.appendChild(divider);
 

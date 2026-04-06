@@ -112,6 +112,15 @@ tr.row-yellow-covered td.status { color: var(--color-green); }
 tr.row-teal { --row-bg: #2dd4bf10; background: var(--row-bg); }
 tr.row-teal td.status { color: var(--color-teal); }
 
+/* ── Numeric alignment — tabular figures keep columns aligned ── */
+[class^="qty-"], [class*=" qty-"],
+td.inv-qty-cell,
+.part-qty,
+.inv-total-value,
+.part-preview-prices td {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
 /* ── Qty Comparison ────────────────────────────────────── */
 .qty-ok { color: var(--color-green); }
 .qty-short { color: var(--color-yellow); }
