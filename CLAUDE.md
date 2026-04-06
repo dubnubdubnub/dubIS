@@ -77,23 +77,23 @@ Control which CI tiers run by adding a tag to your commit message:
 
     [ci: python]
 
-| Tag | What runs |
-|-----|-----------|
-| `[ci: all]` or no tag | Everything (safe default) |
-| `[ci: smoke]` | Lint + type-check + core unit tests (JS + Python). Fast. |
-| `[ci: js]` | JS lint + type-check + vitest core + Playwright functional E2E |
-| `[ci: python]` | Python ruff + fixture check + pytest |
-| `[ci: pnp-e2e]` | PnP same-machine E2E (both runners) |
-| `[ci: pnp-cross]` | PnP cross-compute E2E (depends on pnp-e2e passing) |
-| `[ci: quality]` | Visual/a11y tests: contrast, style-audit, ui-helpers, accessibility E2E, resize-visibility E2E (warns, never blocks) |
+| Tag | What runs | Wall clock |
+|-----|-----------|------------|
+| `[ci: all]` or no tag | Everything (safe default) | ~3 min |
+| `[ci: lint]` | ESLint + tsc + ruff only (no tests) | ~8s |
+| `[ci: js]` | Full JS: lint + types + vitest core + Playwright E2E | ~55s |
+| `[ci: python]` | Full Python: ruff + fixture check + pytest | ~17s |
+| `[ci: pnp-e2e]` | PnP same-machine E2E (both runners) | ~28s |
+| `[ci: pnp-cross]` | PnP cross-compute E2E (depends on pnp-e2e) | ~56s |
+| `[ci: quality]` | Visual/a11y: contrast, style-audit, accessibility E2E (warns, never blocks) | ~49s |
 
-When unsure, omit the tag — all suites run. Use `[ci: smoke]` for fast iteration.
+When unsure, omit the tag — all suites run. Use `[ci: lint]` only for docs/comments/CLAUDE.md changes.
 
 ### CI (via workflow_dispatch for selective runs)
 
 ```bash
 gh workflow run ci.yml --ref <branch>                          # all suites
-gh workflow run ci.yml --ref <branch> -f suite=smoke           # lint + unit only
+gh workflow run ci.yml --ref <branch> -f suite=lint            # lint only, no tests
 gh workflow run ci.yml --ref <branch> -f suite=js
 gh workflow run ci.yml --ref <branch> -f suite=python
 gh workflow run ci.yml --ref <branch> -f suite=pnp-e2e
