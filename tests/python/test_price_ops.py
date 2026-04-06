@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from price_ops import ensure_parsed, parse_price, parse_qty
+from price_ops import derive_missing_price, ensure_parsed, parse_price, parse_qty
 
 
 class TestParseQty:
@@ -144,3 +144,35 @@ class TestEnsureParsed:
     def test_parses_json_boolean_string(self):
         assert ensure_parsed("true") is True
         assert ensure_parsed("false") is False
+
+
+class TestDeriveMissingPrice:
+    def test_derive_ext_from_unit_and_qty(self):
+        unit, ext = derive_missing_price(2.50, None, 10)
+        assert unit == 2.50
+        assert ext == 25.00
+
+    def test_derive_unit_from_ext_and_qty(self):
+        unit, ext = derive_missing_price(None, 25.00, 10)
+        assert unit == 2.50
+        assert ext == 25.00
+
+    def test_both_provided_returns_unchanged(self):
+        unit, ext = derive_missing_price(3.00, 30.00, 10)
+        assert unit == 3.00
+        assert ext == 30.00
+
+    def test_neither_provided_returns_nones(self):
+        unit, ext = derive_missing_price(None, None, 10)
+        assert unit is None
+        assert ext is None
+
+    def test_zero_qty_does_not_divide(self):
+        unit, ext = derive_missing_price(None, 25.00, 0)
+        assert unit is None
+        assert ext == 25.00
+
+    def test_zero_unit_price_returns_unchanged(self):
+        unit, ext = derive_missing_price(0.0, None, 10)
+        assert unit == 0.0
+        assert ext is None

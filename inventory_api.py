@@ -424,10 +424,7 @@ class InventoryApi:
             pk = inventory_ops.get_part_key(row)
             if pk == part_key:
                 qty = price_ops.parse_qty(row.get("Quantity"))
-                if unit_price is not None and ext_price is None and qty > 0:
-                    ext_price = unit_price * qty
-                elif ext_price is not None and unit_price is None and qty > 0:
-                    unit_price = ext_price / qty
+                unit_price, ext_price = price_ops.derive_missing_price(unit_price, ext_price, qty)
                 if unit_price is not None:
                     row["Unit Price($)"] = f"{unit_price:.4f}"
                 if ext_price is not None:
