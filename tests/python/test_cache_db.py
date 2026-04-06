@@ -31,7 +31,7 @@ class TestSchema:
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
         assert row is not None
-        assert row[0] == "2"
+        assert row[0] == "3"
 
     def test_foreign_key_enforced(self, db):
         with pytest.raises(sqlite3.IntegrityError):
@@ -469,6 +469,84 @@ class TestVerify:
         assert qty == 200
 
 
+class TestSchemaV3:
+    def test_fresh_schema_has_generic_parts_tables(self, db):
+        tables = {r[0] for r in db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}
+        assert "generic_parts" in tables
+        assert "generic_part_members" in tables
+
+    def test_schema_version_is_3(self, db):
+        row = db.execute(
+            "SELECT value FROM cache_meta WHERE key='schema_version'"
+        ).fetchone()
+        assert row[0] == "3"
+
+    def test_generic_parts_columns(self, db):
+        db.execute(
+            """INSERT INTO generic_parts (generic_part_id, name, part_type, spec_json, strictness_json)
+               VALUES ('gp_100nf_0402', '100nF 0402 MLCC', 'capacitor',
+                       '{"value":"100nF","package":"0402"}',
+                       '{"required":["value","package"]}')"""
+        )
+        db.commit()
+        row = db.execute("SELECT * FROM generic_parts WHERE generic_part_id='gp_100nf_0402'").fetchone()
+        assert row["name"] == "100nF 0402 MLCC"
+        assert row["part_type"] == "capacitor"
+
+    def test_generic_part_members_with_foreign_keys(self, db):
+        db.execute("INSERT INTO parts (part_id, lcsc) VALUES ('C1525', 'C1525')")
+        db.execute(
+            """INSERT INTO generic_parts (generic_part_id, name, part_type, spec_json, strictness_json)
+               VALUES ('gp1', 'Test', 'capacitor', '{}', '{}')"""
+        )
+        db.execute(
+            """INSERT INTO generic_part_members (generic_part_id, part_id, source)
+               VALUES ('gp1', 'C1525', 'auto')"""
+        )
+        db.commit()
+        row = db.execute("SELECT * FROM generic_part_members").fetchone()
+        assert row["source"] == "auto"
+        assert row["preferred"] == 0
+
+    def test_v2_to_v3_migration(self, tmp_path):
+        import cache_db as cdb
+        db_path = str(tmp_path / "v2.db")
+        conn = cdb.connect(db_path)
+        # Create v2 schema manually (has prices but no generic_parts)
+        conn.executescript("""
+            CREATE TABLE cache_meta (key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE parts (part_id TEXT PRIMARY KEY);
+            CREATE TABLE stock (part_id TEXT PRIMARY KEY REFERENCES parts(part_id),
+                                quantity INTEGER DEFAULT 0,
+                                unit_price REAL DEFAULT 0.0,
+                                ext_price REAL DEFAULT 0.0);
+            CREATE TABLE prices (part_id TEXT NOT NULL REFERENCES parts(part_id),
+                                 distributor TEXT NOT NULL,
+                                 latest_unit_price REAL,
+                                 avg_unit_price REAL,
+                                 price_count INTEGER DEFAULT 0,
+                                 last_observed TEXT,
+                                 moq INTEGER,
+                                 source TEXT,
+                                 PRIMARY KEY (part_id, distributor));
+        """)
+        conn.execute("INSERT INTO cache_meta VALUES ('schema_version', '2')")
+        conn.commit()
+        cdb.create_schema(conn)
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}
+        assert "generic_parts" in tables
+        assert "generic_part_members" in tables
+        version = conn.execute(
+            "SELECT value FROM cache_meta WHERE key='schema_version'"
+        ).fetchone()[0]
+        assert version == "3"
+        conn.close()
+
+
 class TestSchemaMigration:
     def test_fresh_schema_has_prices_table(self, db):
         tables = {r[0] for r in db.execute(
@@ -476,11 +554,11 @@ class TestSchemaMigration:
         ).fetchall()}
         assert "prices" in tables
 
-    def test_schema_version_is_2(self, db):
+    def test_schema_version_is_3(self, db):
         row = db.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
-        assert row[0] == "2"
+        assert row[0] == "3"
 
     def test_prices_table_columns(self, db):
         db.execute("INSERT INTO parts (part_id) VALUES ('C1525')")
@@ -494,8 +572,8 @@ class TestSchemaMigration:
         assert row["distributor"] == "lcsc"
         assert row["price_count"] == 1
 
-    def test_v1_to_v2_migration(self, tmp_path):
-        """Opening a v1 database should auto-migrate to v2."""
+    def test_v1_to_v3_migration(self, tmp_path):
+        """Opening a v1 database should auto-migrate to v3."""
         import cache_db as cdb
         db_path = str(tmp_path / "old.db")
         conn = cdb.connect(db_path)
@@ -514,10 +592,12 @@ class TestSchemaMigration:
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()}
         assert "prices" in tables
+        assert "generic_parts" in tables
+        assert "generic_part_members" in tables
         version = conn.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()[0]
-        assert version == "2"
+        assert version == "3"
         conn.close()
 
 
