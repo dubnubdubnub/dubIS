@@ -13,7 +13,7 @@ import os
 import sqlite3
 from typing import Any
 
-from inventory_ops import get_part_key, read_and_merge, apply_adjustments, sort_key_for_section
+from inventory_ops import apply_adjustments, get_part_key, read_and_merge, sort_key_for_section
 from price_ops import parse_price, parse_qty
 
 SCHEMA_VERSION = "1"
