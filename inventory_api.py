@@ -544,10 +544,31 @@ class InventoryApi:
 
     # ── Price history API ─────────────────────────────────────────────────
 
+    def _resolve_part_key(self, key: str) -> str | None:
+        """Resolve a distributor-specific PN to the inventory part_id.
+
+        Checks for a direct match first, then searches distributor columns
+        (lcsc, mpn, digikey, pololu, mouser) in the parts table.
+        """
+        conn = self._get_cache()
+        if conn.execute("SELECT 1 FROM parts WHERE part_id = ?", (key,)).fetchone():
+            return key
+        for col in ("lcsc", "mpn", "digikey", "pololu", "mouser"):
+            row = conn.execute(
+                f"SELECT part_id FROM parts WHERE {col} = ?", (key,)
+            ).fetchone()
+            if row:
+                return row["part_id"]
+        return None
+
     def record_fetched_prices(self, part_key: str, distributor: str,
                                price_tiers: list[dict[str, Any]]) -> None:
         """Record prices fetched from a distributor API/scraper."""
         import price_history
+        resolved_key = self._resolve_part_key(part_key)
+        if not resolved_key:
+            logger.warning("record_fetched_prices: no inventory part for %r", part_key)
+            return
         os.makedirs(self.events_dir, exist_ok=True)
         observations = []
         for tier in price_tiers:
@@ -555,7 +576,7 @@ class InventoryApi:
             if price <= 0:
                 continue
             observations.append({
-                "part_id": part_key,
+                "part_id": resolved_key,
                 "distributor": distributor,
                 "unit_price": price,
                 "source": "live_fetch",
@@ -569,12 +590,13 @@ class InventoryApi:
     def get_price_summary(self, part_key: str) -> dict[str, dict[str, Any]]:
         """Get aggregated pricing per distributor for a part."""
         import price_history
+        resolved_key = self._resolve_part_key(part_key) or part_key
         conn = self._get_cache()
         if not conn.execute("SELECT 1 FROM prices LIMIT 1").fetchone():
             if os.path.exists(self.events_dir):
                 price_history.populate_prices_cache(conn, self.events_dir)
         rows = conn.execute(
-            "SELECT * FROM prices WHERE part_id = ?", (part_key,)
+            "SELECT * FROM prices WHERE part_id = ?", (resolved_key,)
         ).fetchall()
         result = {}
         for row in rows:
