@@ -149,10 +149,10 @@
 .part-preview-error { color: #d1242f; }
 
 /* Provider accent borders */
-.part-preview-card.provider-lcsc { border-top: 3px solid #1166dd; }
-.part-preview-card.provider-digikey { border-top: 3px solid #ee2821; }
-.part-preview-card.provider-pololu { border-top: 3px solid #1e2f94; }
-.part-preview-card.provider-mouser { border-top: 3px solid #004A99; }
+.part-preview-card.provider-lcsc { border-top: 3px solid var(--vendor-lcsc); }
+.part-preview-card.provider-digikey { border-top: 3px solid var(--vendor-digikey); }
+.part-preview-card.provider-pololu { border-top: 3px solid var(--vendor-pololu); }
+.part-preview-card.provider-mouser { border-top: 3px solid var(--vendor-mouser); }
 
 .part-preview-debug { border-top: 1px solid #f0f0f0; }
 .part-preview-debug-bar {

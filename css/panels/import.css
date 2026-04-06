@@ -42,7 +42,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: Consolas, monospace;
+  font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 11px;
 }
 .col-mapper-row .arrow { color: var(--text-muted); flex-shrink: 0; }
