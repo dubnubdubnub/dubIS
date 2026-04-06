@@ -432,3 +432,61 @@ class TestVerify:
         assert len(mismatches) == 1
         qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
         assert qty == 200
+
+
+class TestIntegration:
+    """Verify cache output matches legacy load_organized() output."""
+
+    def _build_purchase_ledger(self, path, fieldnames, rows):
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+
+    def test_cache_matches_legacy_rebuild(self, db, tmp_path):
+        """Full pipeline via cache must produce same output as legacy pipeline."""
+        from inventory_api import InventoryApi
+        import inventory_ops
+
+        fieldnames = InventoryApi.FIELDNAMES
+        purchase_path = str(tmp_path / "purchase_ledger.csv")
+        adj_path = str(tmp_path / "adjustments.csv")
+        output_path = str(tmp_path / "inventory.csv")
+
+        merged = TestPopulate._make_merged(self)
+        self._build_purchase_ledger(purchase_path, fieldnames,
+            [{fn: row.get(fn, "") for fn in fieldnames} for row in merged.values()])
+
+        # Write adjustments
+        adj_fields = InventoryApi.ADJ_FIELDNAMES
+        with open(adj_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=adj_fields)
+            writer.writeheader()
+            writer.writerow({
+                "timestamp": "2026-01-01T00:00:00", "type": "remove",
+                "lcsc_part": "C1525", "quantity": "-50",
+                "bom_file": "", "board_qty": "", "note": "", "source": "",
+            })
+
+        # Legacy pipeline
+        legacy = inventory_ops.rebuild(
+            purchase_path, adj_path, output_path,
+            fieldnames, InventoryApi.FLAT_SECTION_ORDER,
+        )
+
+        # Cache pipeline
+        file_fn, merged_dict = inventory_ops.read_and_merge(purchase_path, fieldnames)
+        inventory_ops.apply_adjustments(merged_dict, adj_path, file_fn)
+        categorized = inventory_ops.categorize_and_sort(list(merged_dict.values()))
+        cache_db.populate_full(db, merged_dict, categorized)
+        cached = cache_db.query_inventory(db)
+
+        # Compare: same parts, same quantities, same sections
+        assert len(cached) == len(legacy)
+        legacy_by_key = {(r["lcsc"] or r["mpn"]): r for r in legacy}
+        cached_by_key = {(r["lcsc"] or r["mpn"]): r for r in cached}
+        assert set(legacy_by_key.keys()) == set(cached_by_key.keys())
+        for key in legacy_by_key:
+            assert cached_by_key[key]["qty"] == legacy_by_key[key]["qty"], f"qty mismatch for {key}"
+            assert cached_by_key[key]["section"] == legacy_by_key[key]["section"], f"section mismatch for {key}"
+            assert abs(cached_by_key[key]["unit_price"] - legacy_by_key[key]["unit_price"]) < 0.001, f"price mismatch for {key}"
