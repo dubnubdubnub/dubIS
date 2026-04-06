@@ -4,6 +4,8 @@ testpaths = ["tests/python"]
 
 [tool.ruff]
 line-length = 120
+include = ["*.py"]
+exclude = ["tools/", "openpnp/", "tests/", "node_modules/", ".claude/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
