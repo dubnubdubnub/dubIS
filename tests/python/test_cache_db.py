@@ -175,3 +175,84 @@ class TestQuery:
     def test_empty_db_returns_empty_list(self, db):
         result = cache_db.query_inventory(db)
         assert result == []
+
+
+class TestIncrementalOps:
+    def _populate(self, db):
+        merged = TestPopulate._make_merged(self)
+        categorized = TestPopulate._make_categorized(self, merged)
+        cache_db.populate_full(db, merged, categorized)
+
+    def test_apply_stock_delta_decrease(self, db):
+        self._populate(db)
+        cache_db.apply_stock_delta(db, "C1525", -50)
+        qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
+        assert qty == 150
+
+    def test_apply_stock_delta_increase(self, db):
+        self._populate(db)
+        cache_db.apply_stock_delta(db, "C1525", 30)
+        qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
+        assert qty == 230
+
+    def test_apply_stock_delta_floors_at_zero(self, db):
+        self._populate(db)
+        cache_db.apply_stock_delta(db, "C1525", -9999)
+        qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
+        assert qty == 0
+
+    def test_set_stock_quantity(self, db):
+        self._populate(db)
+        cache_db.set_stock_quantity(db, "C1525", 42)
+        qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
+        assert qty == 42
+
+    def test_upsert_part_new(self, db):
+        cache_db.upsert_part(db, "C999999", {
+            "LCSC Part Number": "C999999",
+            "Manufacture Part Number": "NEW-PART",
+            "Digikey Part Number": "",
+            "Pololu Part Number": "",
+            "Mouser Part Number": "",
+            "Manufacturer": "TestCorp",
+            "Description": "Test part",
+            "Package": "0805",
+            "Quantity": "50",
+            "Unit Price($)": "0.10",
+            "Ext.Price($)": "5.00",
+            "RoHS": "",
+            "Date Code / Lot No.": "",
+        }, section="Other")
+        part = db.execute("SELECT * FROM parts WHERE part_id='C999999'").fetchone()
+        assert part["mpn"] == "NEW-PART"
+        stock = db.execute("SELECT * FROM stock WHERE part_id='C999999'").fetchone()
+        assert stock["quantity"] == 50
+
+    def test_upsert_part_existing_updates(self, db):
+        self._populate(db)
+        cache_db.upsert_part(db, "C1525", {
+            "LCSC Part Number": "C1525",
+            "Manufacture Part Number": "CL05B104KO5NNNC",
+            "Digikey Part Number": "",
+            "Pololu Part Number": "",
+            "Mouser Part Number": "",
+            "Manufacturer": "Samsung Updated",
+            "Description": "100nF 16V 0402 Capacitor MLCC",
+            "Package": "0402",
+            "Quantity": "300",
+            "Unit Price($)": "0.005",
+            "Ext.Price($)": "1.50",
+            "RoHS": "Yes",
+            "Date Code / Lot No.": "",
+        }, section="Passives - Capacitors")
+        part = db.execute("SELECT * FROM parts WHERE part_id='C1525'").fetchone()
+        assert part["manufacturer"] == "Samsung Updated"
+        stock = db.execute("SELECT * FROM stock WHERE part_id='C1525'").fetchone()
+        assert stock["quantity"] == 300
+
+    def test_update_stock_price(self, db):
+        self._populate(db)
+        cache_db.update_stock_price(db, "C1525", unit_price=0.01, ext_price=2.00)
+        stock = db.execute("SELECT * FROM stock WHERE part_id='C1525'").fetchone()
+        assert abs(stock["unit_price"] - 0.01) < 0.0001
+        assert abs(stock["ext_price"] - 2.00) < 0.01

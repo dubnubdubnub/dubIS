@@ -110,6 +110,89 @@ def populate_full(
     conn.commit()
 
 
+def apply_stock_delta(conn: sqlite3.Connection, part_id: str, delta: int) -> None:
+    """Adjust stock quantity by delta. Floors at zero."""
+    conn.execute(
+        "UPDATE stock SET quantity = MAX(0, quantity + ?) WHERE part_id = ?",
+        (delta, part_id),
+    )
+    conn.commit()
+
+
+def set_stock_quantity(conn: sqlite3.Connection, part_id: str, quantity: int) -> None:
+    """Set stock quantity to an absolute value."""
+    conn.execute(
+        "UPDATE stock SET quantity = MAX(0, ?) WHERE part_id = ?",
+        (quantity, part_id),
+    )
+    conn.commit()
+
+
+def upsert_part(
+    conn: sqlite3.Connection,
+    part_id: str,
+    row: dict[str, str],
+    section: str = "",
+) -> None:
+    """Insert or update a part and its stock from a CSV-column-named dict."""
+    sk = sort_key_for_section(section, (row.get("Description") or "").strip())
+    conn.execute(
+        """INSERT INTO parts
+           (part_id, lcsc, mpn, digikey, pololu, mouser,
+            manufacturer, description, package, rohs, section, sort_key, date_code)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+           ON CONFLICT(part_id) DO UPDATE SET
+            lcsc=excluded.lcsc, mpn=excluded.mpn, digikey=excluded.digikey,
+            pololu=excluded.pololu, mouser=excluded.mouser,
+            manufacturer=excluded.manufacturer, description=excluded.description,
+            package=excluded.package, rohs=excluded.rohs, section=excluded.section,
+            sort_key=excluded.sort_key, date_code=excluded.date_code""",
+        (
+            part_id,
+            (row.get("LCSC Part Number") or "").strip(),
+            (row.get("Manufacture Part Number") or "").strip(),
+            (row.get("Digikey Part Number") or "").strip(),
+            (row.get("Pololu Part Number") or "").strip(),
+            (row.get("Mouser Part Number") or "").strip(),
+            (row.get("Manufacturer") or "").strip(),
+            (row.get("Description") or "").strip(),
+            (row.get("Package") or "").strip(),
+            (row.get("RoHS") or "").strip(),
+            section,
+            sk,
+            (row.get("Date Code / Lot No.") or "").strip(),
+        ),
+    )
+    conn.execute(
+        """INSERT INTO stock (part_id, quantity, unit_price, ext_price)
+           VALUES (?,?,?,?)
+           ON CONFLICT(part_id) DO UPDATE SET
+            quantity=excluded.quantity, unit_price=excluded.unit_price,
+            ext_price=excluded.ext_price""",
+        (
+            part_id,
+            parse_qty(row.get("Quantity")),
+            parse_price(row.get("Unit Price($)")),
+            parse_price(row.get("Ext.Price($)")),
+        ),
+    )
+    conn.commit()
+
+
+def update_stock_price(
+    conn: sqlite3.Connection,
+    part_id: str,
+    unit_price: float,
+    ext_price: float,
+) -> None:
+    """Update price fields for a part's stock entry."""
+    conn.execute(
+        "UPDATE stock SET unit_price = ?, ext_price = ? WHERE part_id = ?",
+        (unit_price, ext_price, part_id),
+    )
+    conn.commit()
+
+
 def query_inventory(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """Query cache in the same format as inventory_ops.load_organized().
 
