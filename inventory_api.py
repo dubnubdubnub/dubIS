@@ -16,10 +16,7 @@ import csv_io
 import file_dialogs
 import inventory_ops
 import price_ops
-from digikey_client import DigikeyClient
-from lcsc_client import LcscClient
-from mouser_client import MouserClient
-from pololu_client import PololuClient
+from distributor_manager import DistributorManager
 
 logger = logging.getLogger(__name__)
 
@@ -85,12 +82,7 @@ class InventoryApi:
         self._bom_dirty: bool = False
         self._debug: bool = debug
         self._lock: threading.Lock = threading.Lock()
-        self._lcsc = LcscClient()
-        self._digikey = DigikeyClient(
-            cookies_file=os.path.join(self.base_dir, "digikey_cookies.json"),
-        )
-        self._pololu = PololuClient()
-        self._mouser = MouserClient()
+        self._distributors = DistributorManager(self.base_dir, self._get_cache)
 
     def _get_cache(self) -> sqlite3.Connection:
         """Get or create the cache database connection."""
@@ -132,33 +124,29 @@ class InventoryApi:
     @staticmethod
     def _infer_distributor(row: dict[str, str]) -> str:
         """Infer distributor from which part number fields are populated."""
-        if (row.get("LCSC Part Number") or "").strip():
-            return "lcsc"
-        if (row.get("Digikey Part Number") or "").strip():
-            return "digikey"
-        if (row.get("Mouser Part Number") or "").strip():
-            return "mouser"
-        if (row.get("Pololu Part Number") or "").strip():
-            return "pololu"
-        return "unknown"
+        return DistributorManager.infer_distributor(row)
 
     def _infer_distributor_for_key(self, part_key: str) -> str:
         """Infer distributor from a part key string."""
-        if part_key.upper().startswith("C") and part_key[1:].isdigit():
-            return "lcsc"
-        conn = self._get_cache()
-        row = conn.execute(
-            "SELECT digikey, pololu, mouser FROM parts WHERE part_id = ?",
-            (part_key,),
-        ).fetchone()
-        if row:
-            if row["digikey"]:
-                return "digikey"
-            if row["pololu"]:
-                return "pololu"
-            if row["mouser"]:
-                return "mouser"
-        return "unknown"
+        return self._distributors.infer_distributor_for_key(part_key)
+
+    # ── Compatibility shims (tests + legacy callers) ──────────────────────
+
+    @property
+    def _lcsc(self):
+        return self._distributors._lcsc
+
+    @property
+    def _digikey(self):
+        return self._distributors._digikey
+
+    @property
+    def _pololu(self):
+        return self._distributors._pololu
+
+    @property
+    def _mouser(self):
+        return self._distributors._mouser
 
     # Map JS field names to CSV column names (delegate to inventory_ops)
     _FIELD_TO_COL = inventory_ops._FIELD_TO_COL
@@ -621,51 +609,51 @@ class InventoryApi:
 
     def fetch_lcsc_product(self, product_code: str) -> dict[str, Any] | None:
         """Delegate to LcscClient."""
-        result = self._lcsc.fetch_product(product_code)
+        result = self._distributors._lcsc.fetch_product(product_code)
         if result and not self._debug:
             result.pop("_debug", None)
         return result
 
     def fetch_digikey_product(self, part_number: str) -> dict[str, Any] | None:
         """Delegate to DigikeyClient."""
-        result = self._digikey.fetch_product(part_number)
+        result = self._distributors._digikey.fetch_product(part_number)
         if result and not self._debug:
             result.pop("_debug", None)
         return result
 
     def fetch_pololu_product(self, sku: str) -> dict[str, Any] | None:
         """Delegate to PololuClient."""
-        result = self._pololu.fetch_product(sku)
+        result = self._distributors._pololu.fetch_product(sku)
         if result and not self._debug:
             result.pop("_debug", None)
         return result
 
     def fetch_mouser_product(self, part_number: str) -> dict[str, Any] | None:
         """Delegate to MouserClient."""
-        result = self._mouser.fetch_product(part_number)
+        result = self._distributors._mouser.fetch_product(part_number)
         if result and not self._debug:
             result.pop("_debug", None)
         return result
 
     def check_digikey_session(self) -> dict[str, Any]:
-        """Delegate to DigikeyClient."""
-        return self._digikey.check_session()
+        """Delegate to DistributorManager."""
+        return self._distributors.check_digikey_session()
 
     def start_digikey_login(self) -> dict[str, Any]:
-        """Delegate to DigikeyClient."""
-        return self._digikey.start_login()
+        """Delegate to DistributorManager."""
+        return self._distributors.start_digikey_login()
 
     def sync_digikey_cookies(self) -> dict[str, Any]:
-        """Delegate to DigikeyClient."""
-        return self._digikey.sync_cookies()
+        """Delegate to DistributorManager."""
+        return self._distributors.sync_digikey_cookies()
 
     def get_digikey_login_status(self) -> dict[str, bool]:
-        """Delegate to DigikeyClient."""
-        return self._digikey.get_login_status()
+        """Delegate to DistributorManager."""
+        return self._distributors.get_digikey_login_status()
 
     def logout_digikey(self) -> dict[str, str]:
-        """Delegate to DigikeyClient."""
-        return self._digikey.logout()
+        """Delegate to DistributorManager."""
+        return self._distributors.logout_digikey()
 
     # ── Generic parts ────────────────────────────────────────────────────
 
