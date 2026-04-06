@@ -18,71 +18,7 @@ var showTimer = null;
 var hideTimer = null;
 var mouseDownInTooltip = false;
 
-// ── Tooltip element ──
-
-var tooltip = document.createElement("div");
-tooltip.className = "part-preview hidden";
-document.body.appendChild(tooltip);
-
-tooltip.addEventListener("mouseenter", function () {
-  clearTimeout(hideTimer);
-});
-tooltip.addEventListener("mouseleave", function () {
-  if (!mouseDownInTooltip) scheduleHide();
-});
-tooltip.addEventListener("mousedown", function () {
-  mouseDownInTooltip = true;
-});
-document.addEventListener("mouseup", function () {
-  if (mouseDownInTooltip) {
-    mouseDownInTooltip = false;
-    // If mouse is outside the tooltip after releasing, schedule hide
-    // (unless there's a text selection inside the tooltip)
-    if (!tooltip.matches(":hover") && !hasSelectionInTooltip()) {
-      scheduleHide();
-    }
-  }
-});
-
-// ── Event delegation ──
-
-document.addEventListener("mouseover", function (e) {
-  var trigger = e.target.closest("[data-lcsc], [data-digikey], [data-pololu], [data-mouser]");
-  if (!trigger) return;
-
-  var provider, code;
-  if (trigger.dataset.lcsc) {
-    provider = "lcsc";
-    code = (trigger.dataset.lcsc || "").trim().toUpperCase();
-    if (!LCSC_PART_REGEX.test(code)) return;
-  } else if (trigger.dataset.digikey) {
-    provider = "digikey";
-    code = (trigger.dataset.digikey || "").trim();
-    if (!code) return;
-  } else if (trigger.dataset.pololu) {
-    provider = "pololu";
-    code = (trigger.dataset.pololu || "").trim();
-    if (!code) return;
-  } else {
-    provider = "mouser";
-    code = (trigger.dataset.mouser || "").trim();
-    if (!code) return;
-  }
-
-  clearTimeout(hideTimer);
-  clearTimeout(showTimer);
-
-  showTimer = setTimeout(function () {
-    showTooltip(code, provider, trigger);
-  }, HOVER_DELAY_MS);
-});
-
-document.addEventListener("mouseout", function (e) {
-  var trigger = e.target.closest("[data-lcsc], [data-digikey], [data-pololu], [data-mouser]");
-  if (!trigger) return;
-  clearTimeout(showTimer);
-  scheduleHide();
-});
+var tooltip = null;
 
 function hasSelectionInTooltip() {
   var sel = window.getSelection();
@@ -93,15 +29,82 @@ function hasSelectionInTooltip() {
   return tooltip.contains(sel.anchorNode) || tooltip.contains(sel.focusNode);
 }
 
-// Re-evaluate hide when the user clears a selection (e.g. clicks elsewhere)
-// while the mouse is already outside the tooltip.
-document.addEventListener("selectionchange", function () {
-  if (tooltip.classList.contains("hidden")) return;
-  if (mouseDownInTooltip) return;
-  if (hasSelectionInTooltip()) return;
-  if (tooltip.matches(":hover")) return;
-  scheduleHide();
-});
+export function init() {
+  // ── Tooltip element ──
+  tooltip = document.createElement("div");
+  tooltip.className = "part-preview hidden";
+  document.body.appendChild(tooltip);
+
+  tooltip.addEventListener("mouseenter", function () {
+    clearTimeout(hideTimer);
+  });
+  tooltip.addEventListener("mouseleave", function () {
+    if (!mouseDownInTooltip) scheduleHide();
+  });
+  tooltip.addEventListener("mousedown", function () {
+    mouseDownInTooltip = true;
+  });
+  document.addEventListener("mouseup", function () {
+    if (mouseDownInTooltip) {
+      mouseDownInTooltip = false;
+      // If mouse is outside the tooltip after releasing, schedule hide
+      // (unless there's a text selection inside the tooltip)
+      if (!tooltip.matches(":hover") && !hasSelectionInTooltip()) {
+        scheduleHide();
+      }
+    }
+  });
+
+  // ── Event delegation ──
+
+  document.addEventListener("mouseover", function (e) {
+    var trigger = e.target.closest("[data-lcsc], [data-digikey], [data-pololu], [data-mouser]");
+    if (!trigger) return;
+
+    var provider, code;
+    if (trigger.dataset.lcsc) {
+      provider = "lcsc";
+      code = (trigger.dataset.lcsc || "").trim().toUpperCase();
+      if (!LCSC_PART_REGEX.test(code)) return;
+    } else if (trigger.dataset.digikey) {
+      provider = "digikey";
+      code = (trigger.dataset.digikey || "").trim();
+      if (!code) return;
+    } else if (trigger.dataset.pololu) {
+      provider = "pololu";
+      code = (trigger.dataset.pololu || "").trim();
+      if (!code) return;
+    } else {
+      provider = "mouser";
+      code = (trigger.dataset.mouser || "").trim();
+      if (!code) return;
+    }
+
+    clearTimeout(hideTimer);
+    clearTimeout(showTimer);
+
+    showTimer = setTimeout(function () {
+      showTooltip(code, provider, trigger);
+    }, HOVER_DELAY_MS);
+  });
+
+  document.addEventListener("mouseout", function (e) {
+    var trigger = e.target.closest("[data-lcsc], [data-digikey], [data-pololu], [data-mouser]");
+    if (!trigger) return;
+    clearTimeout(showTimer);
+    scheduleHide();
+  });
+
+  // Re-evaluate hide when the user clears a selection (e.g. clicks elsewhere)
+  // while the mouse is already outside the tooltip.
+  document.addEventListener("selectionchange", function () {
+    if (tooltip.classList.contains("hidden")) return;
+    if (mouseDownInTooltip) return;
+    if (hasSelectionInTooltip()) return;
+    if (tooltip.matches(":hover")) return;
+    scheduleHide();
+  });
+}
 
 function scheduleHide() {
   if (mouseDownInTooltip || hasSelectionInTooltip()) return;

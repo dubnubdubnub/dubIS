@@ -1,70 +1,14 @@
-/* import-panel.js — Left panel: purchase CSV import with editable staging table */
+/* import/import-panel.js — Thin wiring: DOM events, API calls, undo/redo */
 
-import { api, AppLog } from './api.js';
-import { showToast, escHtml, Modal, setupDropZone, resetDropZoneInput } from './ui-helpers.js';
-import { UndoRedo } from './undo-redo.js';
-import { App, snapshotLinks, loadInventory, onInventoryUpdated, savePreferences } from './store.js';
-import { parseCSV, processBOM, generateCSV } from './csv-parser.js';
+import { api, AppLog } from '../api.js';
+import { showToast, escHtml, setupDropZone, resetDropZoneInput } from '../ui-helpers.js';
+import { UndoRedo } from '../undo-redo.js';
+import { App, onInventoryUpdated, savePreferences } from '../store.js';
+import { parseCSV, generateCSV } from '../csv-parser.js';
+import { TARGET_FIELDS, PO_TEMPLATES, classifyRow, countWarnings, transformImportRows } from './import-logic.js';
+import { renderDropZone, renderMapper as renderMapperHtml } from './import-renderer.js';
 
 const body = document.getElementById("import-body");
-
-// Inventory field names that can be mapped to
-const TARGET_FIELDS = [
-  "Skip",
-  "LCSC Part Number",
-  "Digikey Part Number",
-  "Pololu Part Number",
-  "Mouser Part Number",
-  "Manufacture Part Number",
-  "Manufacturer",
-  "Quantity",
-  "Description",
-  "Package",
-  "Unit Price($)",
-  "Ext.Price($)",
-  "RoHS",
-  "Customer NO.",
-];
-
-const PART_ID_FIELDS = ["LCSC Part Number", "Digikey Part Number", "Pololu Part Number", "Mouser Part Number", "Manufacture Part Number"];
-
-const PO_TEMPLATES = {
-  generic: {
-    label: "Generic",
-    headers: [
-      "Manufacture Part Number", "Manufacturer", "Description",
-      "Package", "Quantity", "Unit Price($)",
-    ],
-  },
-  lcsc: {
-    label: "LCSC",
-    headers: [
-      "LCSC Part Number", "Manufacture Part Number", "Manufacturer",
-      "Description", "Package", "Quantity", "Unit Price($)",
-    ],
-  },
-  digikey: {
-    label: "DigiKey",
-    headers: [
-      "Digikey Part Number", "Manufacture Part Number", "Manufacturer",
-      "Description", "Package", "Quantity", "Unit Price($)",
-    ],
-  },
-  pololu: {
-    label: "Pololu",
-    headers: [
-      "Pololu Part Number", "Manufacture Part Number", "Manufacturer",
-      "Description", "Package", "Quantity", "Unit Price($)",
-    ],
-  },
-  mouser: {
-    label: "Mouser",
-    headers: [
-      "Mouser Part Number", "Manufacture Part Number", "Manufacturer",
-      "Description", "Package", "Quantity", "Unit Price($)",
-    ],
-  },
-};
 
 let parsedHeaders = [];
 let parsedRows = [];
@@ -132,23 +76,8 @@ UndoRedo.register("import", async (action, data) => {
   }
 });
 
-function init() {
-  body.innerHTML = `
-    <div class="import-section">
-      <div class="drop-zone" id="import-drop-zone">
-        <p>Drop a purchase CSV here</p>
-        <div class="hint">LCSC orders, cart exports, packing lists, DigiKey, Pololu, Mouser</div>
-        <input type="file" id="import-file-input" accept=".csv,.tsv,.txt,.xls">
-      </div>
-      <div class="new-po-row" id="new-po-row">
-        <span class="new-po-label">or create blank PO:</span>
-        ${Object.entries(PO_TEMPLATES).map(([key, t]) =>
-          `<button class="new-po-btn" data-template="${key}">${t.label}</button>`
-        ).join("")}
-      </div>
-      <div id="import-mapper" class="hidden"></div>
-    </div>
-  `;
+export function init() {
+  body.innerHTML = renderDropZone(PO_TEMPLATES);
   setupDropZone("import-drop-zone", "import-file-input", browseImportFile, handleImportFile);
   document.querySelectorAll("#new-po-row .new-po-btn").forEach(btn => {
     btn.addEventListener("click", () => createNewPO(btn.dataset.template));
@@ -227,8 +156,6 @@ async function loadImportText(text, fileName) {
   importFileName = fileName;
   lastImportMeta = null;
 
-  // No subtotal filtering — all rows kept for user review
-
   // Auto-detect columns via Python API
   const detected = await api("detect_columns", JSON.stringify(parsedHeaders));
   columnMapping = {};
@@ -251,39 +178,6 @@ async function loadImportText(text, fileName) {
   renderMapper();
 }
 
-// --- Row validation ---
-function classifyRow(row) {
-  const joined = row.join("").toLowerCase();
-  if (joined.includes("subtotal") || joined.includes("total:")) return "subtotal";
-
-  // Check part ID: any column mapped to a part ID field has a value
-  const hasPart = PART_ID_FIELDS.some(f => {
-    const colIdx = Object.keys(columnMapping).find(k => columnMapping[k] === f);
-    return colIdx !== undefined && (row[parseInt(colIdx)] || "").trim() !== "";
-  });
-
-  // Check quantity
-  const qtyField = Object.keys(columnMapping).find(k => columnMapping[k] === "Quantity");
-  let qtyOk = true;
-  if (qtyField !== undefined) {
-    const raw = (row[parseInt(qtyField)] || "").replace(/,/g, "").replace(/"/g, "").trim();
-    const parsed = parseInt(raw, 10);
-    if (isNaN(parsed) || parsed <= 0) qtyOk = false;
-  }
-
-  if (!hasPart || !qtyOk) return "warn";
-  return "ok";
-}
-
-function countWarnings() {
-  let warns = 0;
-  parsedRows.forEach(row => {
-    const cls = classifyRow(row);
-    if (cls === "warn" || cls === "subtotal") warns++;
-  });
-  return warns;
-}
-
 // --- Apply validation classes to table rows (without full re-render) ---
 function applyRowClasses() {
   const tbody = document.querySelector("#import-mapper .import-preview tbody");
@@ -291,7 +185,7 @@ function applyRowClasses() {
   const trs = tbody.querySelectorAll("tr");
   trs.forEach((tr, i) => {
     if (i >= parsedRows.length) return;
-    const cls = classifyRow(parsedRows[i]);
+    const cls = classifyRow(parsedRows[i], columnMapping);
     tr.classList.remove("row-warn", "row-subtotal");
     if (cls === "warn") tr.classList.add("row-warn");
     else if (cls === "subtotal") tr.classList.add("row-subtotal");
@@ -302,7 +196,7 @@ function applyRowClasses() {
 function updateImportButton() {
   const btn = document.getElementById("do-import-btn");
   if (!btn) return;
-  const warns = countWarnings();
+  const warns = countWarnings(parsedRows, columnMapping);
   const warnText = warns > 0 ? " (" + warns + " warnings)" : "";
   btn.textContent = "Import " + parsedRows.length + " rows" + warnText;
 }
@@ -311,59 +205,7 @@ function renderMapper() {
   const mapper = document.getElementById("import-mapper");
   mapper.classList.remove("hidden");
 
-  let html = '<h3>Column Mapping</h3><div class="col-mapper">';
-
-  parsedHeaders.forEach((header, i) => {
-    const current = columnMapping[i] || "Skip";
-    const isMapped = current !== "Skip";
-    html += `
-      <div class="col-mapper-row">
-        <span class="source-col" title="${escHtml(header)}">${escHtml(header)}</span>
-        <span class="arrow">\u2192</span>
-        <select class="col-map-select${isMapped ? ' mapped' : ''}" data-col="${i}">
-          ${TARGET_FIELDS.map(f => `<option value="${f}"${f === current ? ' selected' : ''}>${f}</option>`).join("")}
-        </select>
-      </div>
-    `;
-  });
-
-  html += '</div>';
-
-  // Editable staging table — ALL rows
-  if (parsedRows.length > 0) {
-    html += '<div class="staging-toolbar"><h3>Staging (' + parsedRows.length + ' rows)</h3>'
-          + '<button class="add-row-btn" id="add-staging-row">+ Add Row</button></div>'
-          + '<div class="import-preview"><table><thead><tr>';
-    html += '<th class="row-delete"></th>';
-    parsedHeaders.forEach((h, i) => {
-      html += `<th><span class="th-label">${escHtml(h)}</span></th>`;
-    });
-    html += '</tr></thead><tbody>';
-    parsedRows.forEach((row, ri) => {
-      const cls = classifyRow(row);
-      const trClass = cls === "warn" ? " class=\"row-warn\"" : cls === "subtotal" ? " class=\"row-subtotal\"" : "";
-      html += `<tr${trClass}>`;
-      html += `<td class="row-delete" data-row="${ri}">\u00d7</td>`;
-      row.forEach((cell, ci) => {
-        html += `<td><input type="text" value="${escHtml(cell)}" data-row="${ri}" data-col="${ci}"></td>`;
-      });
-      html += '</tr>';
-    });
-    html += '</tbody></table></div>';
-  }
-
-  // Import / Clear buttons
-  const warns = countWarnings();
-  const warnText = warns > 0 ? " (" + warns + " warnings)" : "";
-  html += `
-    <div class="import-btn-row">
-      <button class="clear-import-btn" id="clear-import-btn" title="Clear import">✕</button>
-      <button class="import-btn" id="do-import-btn">
-        Import ${parsedRows.length} rows${warnText}
-      </button>
-    </div>
-  `;
-
+  const html = renderMapperHtml(parsedHeaders, parsedRows, columnMapping, TARGET_FIELDS, importFileName);
   mapper.innerHTML = html;
 
   // Attach select change listeners
@@ -445,31 +287,8 @@ async function doImport() {
   const btn = document.getElementById("do-import-btn");
   if (btn) btn.disabled = true;
 
-  // Transform ALL remaining rows — no silent filtering
-  const invRows = [];
-  parsedRows.forEach(row => {
-    const invRow = {};
-    for (const [colIdx, targetField] of Object.entries(columnMapping)) {
-      if (targetField === "Skip") continue;
-      let val = (row[parseInt(colIdx)] || "").trim();
-
-      // Clean up values
-      if (targetField === "Quantity") {
-        val = val.replace(/,/g, "").replace(/"/g, "");
-        const parsed = parseInt(val, 10);
-        val = isNaN(parsed) ? "0" : String(parsed);
-      }
-      if (targetField === "Unit Price($)" || targetField === "Ext.Price($)") {
-        val = val.replace(/[$,]/g, "");
-        const parsed = parseFloat(val);
-        val = isNaN(parsed) ? "" : parsed.toFixed(2);
-      }
-
-      invRow[targetField] = val;
-    }
-
-    invRows.push(invRow);
-  });
+  // Transform ALL remaining rows
+  const invRows = transformImportRows(parsedRows, columnMapping, TARGET_FIELDS);
 
   if (invRows.length === 0) {
     showToast("No rows to import");
@@ -512,5 +331,3 @@ async function doImport() {
   columnMapping = {};
   init();
 }
-
-init();

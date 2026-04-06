@@ -1,0 +1,45 @@
+/* ── Linking Mode — Source Highlight ──────────────────── */
+.linking-source {
+  outline: 2px solid var(--color-purple) !important;
+  outline-offset: -2px;
+  background: #a371f715 !important;
+}
+
+/* ── Linking Mode — Target Rows ───────────────────────── */
+tr.link-target, .inv-part-row.link-target {
+  outline: 2px dashed var(--color-purple);
+  outline-offset: -2px;
+  cursor: pointer;
+  animation: link-pulse 1.5s ease-in-out infinite;
+}
+tr.link-target:hover, .inv-part-row.link-target:hover {
+  outline-style: solid;
+  background: #a371f730 !important;
+  animation: none;
+}
+
+@keyframes link-pulse {
+  0%, 100% { background: #a371f708; }
+  50% { background: #a371f718; }
+}
+
+/* ── Linking Banner ──────────────────────────────────── */
+.linking-banner {
+  padding: 8px 12px;
+  background: #a371f718;
+  border-bottom: 2px solid var(--color-purple);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-purple-light);
+  flex-shrink: 0;
+}
+.linking-banner strong { color: var(--text-bright); }
+.linking-banner .cancel-link-btn {
+  background: var(--bg-raised); border: 1px solid #a371f740; color: var(--color-purple);
+  border-radius: 4px; padding: 2px 10px; cursor: pointer;
+  font-size: 11px; font-weight: 600; transition: all 0.15s;
+}
+.linking-banner .cancel-link-btn:hover { background: #a371f730; border-color: var(--color-purple); }
