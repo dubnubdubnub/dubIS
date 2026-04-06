@@ -51,6 +51,7 @@ Entry point: `<script type="module" src="js/app-init.js">` in `index.html`.
 - **Panels communicate**: via `EventBus.emit(Events.X)` / `EventBus.on(Events.X)`
 - **`App` object** in `store.js` owns global state; properties declared upfront with ownership comments
 - **Error policy**: prefer `AppLog.warn`/`AppLog.error` over silent catches. Throw errors rather than silently failing.
+- **Test policy**: never use `pytest.skip`, `pytest.importorskip`, or `@pytest.mark.skip` to hide missing dependencies — add them to `requirements-dev.txt` instead. Tests must run, not be skipped.
 - **Window globals**: `window.closeModal` exposed for Python's `evaluate_js` (set in app-init.js)
 
 ## Testing & Linting
