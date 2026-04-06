@@ -638,6 +638,58 @@ class InventoryApi:
         """Delegate to DigikeyClient."""
         return self._digikey.logout()
 
+    # ── Generic parts ────────────────────────────────────────────────────
+
+    def create_generic_part(self, name: str, part_type: str,
+                             spec_json: str, strictness_json: str) -> dict[str, Any]:
+        """Create a generic part with auto-matching."""
+        import generic_parts
+        spec = json.loads(spec_json) if isinstance(spec_json, str) else spec_json
+        strictness = json.loads(strictness_json) if isinstance(strictness_json, str) else strictness_json
+        conn = self._get_cache()
+        os.makedirs(self.events_dir, exist_ok=True)
+        gp = generic_parts.create_generic_part(conn, self.events_dir, name, part_type, spec, strictness)
+        # Fetch members
+        members = conn.execute(
+            """SELECT gm.part_id, gm.source, gm.preferred, s.quantity
+               FROM generic_part_members gm
+               JOIN stock s USING (part_id)
+               WHERE gm.generic_part_id = ?""",
+            (gp["generic_part_id"],),
+        ).fetchall()
+        gp["members"] = [dict(m) for m in members]
+        return gp
+
+    def resolve_bom_spec(self, part_type: str, value: float,
+                          package: str) -> dict[str, Any] | None:
+        """Resolve a BOM spec to a generic part and its best real part."""
+        import generic_parts
+        conn = self._get_cache()
+        return generic_parts.resolve_bom_spec(conn, part_type, float(value), package)
+
+    def list_generic_parts(self) -> list[dict[str, Any]]:
+        """List all generic parts with their members."""
+        conn = self._get_cache()
+        gps = conn.execute("SELECT * FROM generic_parts").fetchall()
+        result = []
+        for gp in gps:
+            members = conn.execute(
+                """SELECT gm.part_id, gm.source, gm.preferred, s.quantity
+                   FROM generic_part_members gm
+                   JOIN stock s USING (part_id)
+                   WHERE gm.generic_part_id = ?""",
+                (gp["generic_part_id"],),
+            ).fetchall()
+            result.append({
+                "generic_part_id": gp["generic_part_id"],
+                "name": gp["name"],
+                "part_type": gp["part_type"],
+                "spec": json.loads(gp["spec_json"]),
+                "strictness": json.loads(gp["strictness_json"]),
+                "members": [dict(m) for m in members],
+            })
+        return result
+
     # ── Window lifecycle ─────────────────────────────────────────────────
 
     def set_bom_dirty(self, dirty) -> None:
