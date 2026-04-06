@@ -25,6 +25,8 @@ def real_api(tmp_path):
     inst.adjustments_csv = str(tmp_path / "adjustments.csv")
     inst.prefs_json = str(tmp_path / "preferences.json")
 
+    inst.cache_db_path = str(tmp_path / "cache.db")
+
     # Copy real fixtures into tmp_path
     shutil.copy(os.path.join(FIXTURES, "purchase_ledger.csv"), inst.input_csv)
     shutil.copy(os.path.join(FIXTURES, "adjustments.csv"), inst.adjustments_csv)

@@ -129,6 +129,17 @@ def apply_adjustments(merged: dict[str, dict[str, str]],
             merged[pn]["Quantity"] = str(new_qty)
 
 
+def sort_key_for_section(section: str, description: str) -> float | None:
+    """Return numeric sort key for a part within its section, or None."""
+    if "Resistor" in section:
+        return parse_resistance(description)
+    elif "Capacitor" in section:
+        return parse_capacitance(description)
+    elif "Inductor" in section:
+        return parse_inductance(description)
+    return None
+
+
 def categorize_and_sort(parts: list[dict[str, str]],
                         flat_section_order: list[str] | None = None) -> dict[str, list[dict[str, str]]]:
     """Categorize parts and sort within sections."""
