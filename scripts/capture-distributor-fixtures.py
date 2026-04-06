@@ -292,6 +292,11 @@ def capture_digikey(parts: list[str]) -> dict:
     for i, mpn in enumerate(parts, 1):
         print(f"  Digikey [{i}/{len(parts)}] {mpn} ... ", end="", flush=True)
         data = fetch_digikey_http(mpn, cookie_header)
+        # Retry once on 403 (Cloudflare rate limit) with longer backoff
+        if "error" in data and "403" in data["error"]:
+            print("403, retrying in 10s... ", end="", flush=True)
+            time.sleep(10)
+            data = fetch_digikey_http(mpn, cookie_header)
         if "error" in data:
             print(f"ERROR: {data['error']}")
             errors[mpn] = data["error"]
@@ -299,7 +304,7 @@ def capture_digikey(parts: list[str]) -> dict:
             print("OK")
             results[mpn] = data
         if i < len(parts):
-            time.sleep(2)
+            time.sleep(5)  # 5s between requests to avoid Cloudflare rate limiting
 
     return {"capture_method": "http", "parts": results, "errors": errors}
 
