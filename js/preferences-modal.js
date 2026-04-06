@@ -157,12 +157,12 @@ export function wireDigikeyButtons() {
         } else if (result && result.status === "browser_running") {
           stopDkPolling();
           dkStatus.textContent = result.message;
-          dkStatus.style.color = "var(--color-red, #e74c3c)";
+          dkStatus.style.color = "var(--color-red)";
           dkLoginBtn.classList.remove("hidden");
         } else if (result && result.status === "error") {
           stopDkPolling();
           dkStatus.textContent = result.message;
-          dkStatus.style.color = "var(--color-red, #e74c3c)";
+          dkStatus.style.color = "var(--color-red)";
           dkLoginBtn.classList.remove("hidden");
           AppLog.warn("DK: " + result.message);
         } else {
