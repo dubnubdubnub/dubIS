@@ -551,14 +551,19 @@ class InventoryApi:
         (lcsc, mpn, digikey, pololu, mouser) in the parts table.
         """
         conn = self._get_cache()
-        if conn.execute("SELECT 1 FROM parts WHERE part_id = ?", (key,)).fetchone():
+        try:
+            if conn.execute("SELECT 1 FROM parts WHERE part_id = ?", (key,)).fetchone():
+                return key
+            for col in ("lcsc", "mpn", "digikey", "pololu", "mouser"):
+                row = conn.execute(
+                    f"SELECT part_id FROM parts WHERE {col} = ?", (key,)
+                ).fetchone()
+                if row:
+                    return row["part_id"]
+        except (sqlite3.OperationalError, sqlite3.InterfaceError):
+            # Connection may be busy from a concurrent populate_prices_cache
+            logger.debug("_resolve_part_key: cache busy, falling back to raw key")
             return key
-        for col in ("lcsc", "mpn", "digikey", "pololu", "mouser"):
-            row = conn.execute(
-                f"SELECT part_id FROM parts WHERE {col} = ?", (key,)
-            ).fetchone()
-            if row:
-                return row["part_id"]
         return None
 
     def record_fetched_prices(self, part_key: str, distributor: str,
@@ -592,12 +597,17 @@ class InventoryApi:
         import price_history
         resolved_key = self._resolve_part_key(part_key) or part_key
         conn = self._get_cache()
-        if not conn.execute("SELECT 1 FROM prices LIMIT 1").fetchone():
-            if os.path.exists(self.events_dir):
-                price_history.populate_prices_cache(conn, self.events_dir)
-        rows = conn.execute(
-            "SELECT * FROM prices WHERE part_id = ?", (resolved_key,)
-        ).fetchall()
+        try:
+            if not conn.execute("SELECT 1 FROM prices LIMIT 1").fetchone():
+                if os.path.exists(self.events_dir):
+                    price_history.populate_prices_cache(conn, self.events_dir)
+            rows = conn.execute(
+                "SELECT * FROM prices WHERE part_id = ?", (resolved_key,)
+            ).fetchall()
+        except (sqlite3.OperationalError, sqlite3.InterfaceError):
+            # Cache busy from concurrent record_fetched_prices rebuild
+            logger.debug("get_price_summary: cache busy for %r", part_key)
+            return {}
         result = {}
         for row in rows:
             result[row["distributor"]] = {
