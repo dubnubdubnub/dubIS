@@ -23,11 +23,11 @@
 
 <div class="header">
   <div class="header-left">
-    <button class="prefs-btn" id="prefs-btn">Preferences</button>
+    <button class="btn-md prefs-btn" id="prefs-btn">Preferences</button>
   </div>
   <div class="header-center">
-    <button class="header-btn" id="global-undo" title="Undo" disabled>&#x21A9;</button>
-    <button class="header-btn" id="global-redo" title="Redo" disabled>&#x21AA;</button>
+    <button class="btn-md header-btn" id="global-undo" title="Undo" disabled>&#x21A9;</button>
+    <button class="btn-md header-btn" id="global-redo" title="Redo" disabled>&#x21AA;</button>
   </div>
   <div class="header-right">
     <span class="inv-count" id="inv-count"></span>
@@ -53,7 +53,7 @@
   <div class="panel panel-inventory" id="panel-inventory">
     <div class="panel-header">
       Inventory
-      <button class="rebuild-btn" id="rebuild-inv" title="Rebuild Inventory">Rebuild Inventory</button>
+      <button class="btn-md rebuild-btn" id="rebuild-inv" title="Rebuild Inventory">Rebuild Inventory</button>
       <button class="clear-filters-btn" id="clear-dist-filter" disabled>Clear Filters</button>
       <div class="dist-filter-bar" id="dist-filter-bar">
         <button class="dist-filter-btn" data-distributor="lcsc">LCSC</button>
@@ -102,8 +102,8 @@
       <input type="number" id="adj-ext-price" min="0" step="0.01" placeholder="—">
     </div>
     <div class="modal-actions">
-      <button class="btn btn-cancel" id="adj-cancel">Cancel</button>
-      <button class="btn btn-apply" id="adj-apply">Apply</button>
+      <button class="btn-lg btn btn-cancel" id="adj-cancel">Cancel</button>
+      <button class="btn-lg btn btn-apply" id="adj-apply">Apply</button>
     </div>
   </div>
 </div>
@@ -118,8 +118,8 @@
       <input type="text" id="consume-note" placeholder="Build batch note (optional)">
     </div>
     <div class="modal-actions">
-      <button class="btn btn-cancel" id="consume-cancel">Cancel</button>
-      <button class="btn btn-apply" id="consume-confirm">Consume</button>
+      <button class="btn-lg btn btn-cancel" id="consume-cancel">Cancel</button>
+      <button class="btn-lg btn btn-apply" id="consume-confirm">Consume</button>
     </div>
   </div>
 </div>
@@ -135,13 +135,13 @@
     <div class="modal-form" style="justify-content:space-between">
       <span id="dk-status" style="font-size:12px;color:var(--text-muted)"></span>
       <div style="display:flex;gap:6px">
-        <button class="btn btn-apply" id="dk-login" style="padding:4px 14px;font-size:12px">Login to Digikey</button>
-        <button class="btn btn-cancel hidden" id="dk-logout" style="padding:4px 14px;font-size:12px">Logout</button>
+        <button class="btn-lg btn btn-apply" id="dk-login" style="padding:4px 14px;font-size:12px">Login to Digikey</button>
+        <button class="btn-lg btn btn-cancel hidden" id="dk-logout" style="padding:4px 14px;font-size:12px">Logout</button>
       </div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-cancel" id="prefs-cancel">Cancel</button>
-      <button class="btn btn-apply" id="prefs-save">Save</button>
+      <button class="btn-lg btn btn-cancel" id="prefs-cancel">Cancel</button>
+      <button class="btn-lg btn btn-apply" id="prefs-save">Save</button>
     </div>
   </div>
 </div>
@@ -160,8 +160,8 @@
       <input type="number" id="price-ext" min="0" step="0.01">
     </div>
     <div class="modal-actions">
-      <button class="btn btn-cancel" id="price-cancel">Cancel</button>
-      <button class="btn btn-apply" id="price-apply">Save</button>
+      <button class="btn-lg btn btn-cancel" id="price-cancel">Cancel</button>
+      <button class="btn-lg btn btn-apply" id="price-apply">Save</button>
     </div>
   </div>
 </div>
@@ -172,9 +172,9 @@
     <div class="modal-title">Unsaved Changes</div>
     <div class="modal-subtitle">Your BOM has unsaved changes. What would you like to do?</div>
     <div class="modal-actions">
-      <button class="btn btn-cancel" id="close-cancel">Cancel</button>
-      <button class="btn btn-danger" id="close-discard">Discard &amp; Close</button>
-      <button class="btn btn-apply" id="close-save">Save &amp; Close</button>
+      <button class="btn-lg btn btn-cancel" id="close-cancel">Cancel</button>
+      <button class="btn-lg btn btn-danger" id="close-discard">Discard &amp; Close</button>
+      <button class="btn-lg btn btn-apply" id="close-save">Save &amp; Close</button>
     </div>
   </div>
 </div>

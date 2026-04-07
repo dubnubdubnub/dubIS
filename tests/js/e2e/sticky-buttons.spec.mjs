@@ -141,6 +141,58 @@ test.describe('Sticky button column — BOM comparison mode', () => {
   });
 });
 
+test.describe('BOM table buttons not clipped by panel overflow', () => {
+
+  /**
+   * Verify individual buttons inside td.btn-group cells are not clipped.
+   * The existing cell-level tests above check the td position, but with
+   * table-layout:fixed the cell can be correctly positioned while its
+   * content (buttons) gets clipped by overflow:hidden if the column is
+   * too narrow. This catches that scenario.
+   */
+  for (const vp of [
+    { width: 1100, height: 700, label: '1100×700' },
+    { width: 2016, height: 1244, label: '2016×1244' },
+  ]) {
+    test(`BOM table buttons not clipped at ${vp.label}`, async ({ page }) => {
+      await addMockSetup(page, MOCK_INVENTORY);
+      await page.setViewportSize(vp);
+      await page.goto('/index.html');
+      await waitForInventoryRows(page);
+      await page.waitForTimeout(300);
+      await loadBom(page, BOM_CSV);
+      await page.waitForTimeout(300);
+
+      const result = await page.evaluate(() => {
+        const panelBody = document.getElementById('inventory-body');
+        if (!panelBody) return { checked: 0, issues: ['panel body not found'] };
+        const bodyRect = panelBody.getBoundingClientRect();
+        const rows = panelBody.querySelectorAll('tr[data-part-key]');
+        const issues = [];
+        const checked = Math.min(rows.length, 10);
+        for (let i = 0; i < checked; i++) {
+          const buttons = rows[i].querySelectorAll('td.btn-group button');
+          for (const btn of buttons) {
+            if (btn.offsetWidth === 0 || btn.offsetHeight === 0) {
+              issues.push(`row ${i}: ${btn.className} has zero dimensions`);
+              continue;
+            }
+            const btnRect = btn.getBoundingClientRect();
+            if (btnRect.right > bodyRect.right + 1) {
+              issues.push(`row ${i}: ${btn.className} "${btn.textContent.trim()}" clipped right (btn.right=${Math.round(btnRect.right)}, panel.right=${Math.round(bodyRect.right)})`);
+            }
+          }
+        }
+        return { checked, panelWidth: Math.round(bodyRect.width), issues };
+      });
+
+      console.log(`BOM btn-group at ${vp.label}: panel=${result.panelWidth}px, checked=${result.checked}, issues=${result.issues.length}`);
+      result.issues.forEach(i => console.log('  ' + i));
+      expect(result.issues.length, result.issues.join('; ')).toBe(0);
+    });
+  }
+});
+
 test.describe('Sticky button column — BOM + PO mode', () => {
 
   test('button column stays within viewport with PO loaded', async ({ page }) => {
