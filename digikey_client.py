@@ -9,6 +9,7 @@ import threading
 from typing import Any
 from urllib.parse import quote
 
+from base_client import BaseProductClient
 from digikey_cdp import cdp_get_cookies
 from digikey_normalizer import normalize_result
 from dubis_errors import DistributorError, DistributorTimeout
@@ -16,11 +17,13 @@ from dubis_errors import DistributorError, DistributorTimeout
 logger = logging.getLogger(__name__)
 
 
-class DigikeyClient:
+class DigikeyClient(BaseProductClient):
     """Manages Digikey browser session, cookie sync, and product scraping."""
 
+    provider = "digikey"
+
     def __init__(self, cookies_file: str | None = None) -> None:
-        self._cache: dict[str, dict[str, Any] | None] = {}
+        super().__init__()
         self._window = None
         self._loaded = threading.Event()
         self._lock = threading.Lock()
@@ -421,24 +424,23 @@ class DigikeyClient:
                 )
             except (RuntimeError, AttributeError, ImportError) as exc:
                 logger.warning("Digikey logout failed: %s", exc)
-        self._cache.clear()
+        self.clear_cache()
         return {"status": "ok"}
 
-    def fetch_product(self, part_number: str) -> dict[str, Any] | None:
+    def _fetch_raw(self, part_number: str) -> dict[str, Any] | None:
         """Fetch Digikey product details by navigating the hidden browser window.
 
         Navigates to the Digikey search page for *part_number*, waits for the
         page to load, then extracts structured product data (JSON-LD or
         Next.js SSR data) from the rendered DOM.
 
-        Results (including ``None``) are cached for the session.
+        Raises ValueError for empty part numbers.
+        Raises DistributorTimeout / DistributorError for propagating errors.
+        Returns None on soft failures (page load timeout, evaluate_js RuntimeError).
         """
         part_number = str(part_number).strip()
         if not part_number:
             raise ValueError("Part number must not be empty")
-
-        if part_number in self._cache:
-            return self._cache[part_number]
 
         with self._lock:
             self._ensure_window()
@@ -452,7 +454,6 @@ class DigikeyClient:
             self._window.load_url(search_url)
             if not self._loaded.wait(timeout=15):
                 logger.warning("DK fetch: page load timed out for %s", part_number)
-                self._cache[part_number] = None
                 return None
 
             try:
@@ -517,15 +518,12 @@ class DigikeyClient:
                 ) from exc
             except RuntimeError as exc:
                 logger.error("DK fetch: evaluate_js failed for %s: %s", part_number, exc)
-                self._cache[part_number] = None
                 return None
 
         if not result or not isinstance(result, dict):
             logger.debug("DK fetch: no product data for %s", part_number)
-            self._cache[part_number] = None
             return None
 
         product = normalize_result(result, part_number)
         product["_debug"] = result
-        self._cache[part_number] = product
         return product
