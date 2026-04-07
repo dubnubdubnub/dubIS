@@ -45,48 +45,6 @@ export function filterByQuery(parts, query) {
   });
 }
 
-// ── Distributor inference ──
-
-/**
- * Infer which distributor a part comes from based on populated PN fields.
- * Priority: lcsc > digikey > mouser > pololu > other.
- * @param {Object} item - inventory item
- * @returns {"lcsc"|"digikey"|"mouser"|"pololu"|"other"}
- */
-export function inferDistributor(item) {
-  if (item.lcsc) return "lcsc";
-  if (item.digikey) return "digikey";
-  if (item.mouser) return "mouser";
-  if (item.pololu) return "pololu";
-  return "other";
-}
-
-/**
- * Count inventory items per distributor.
- * @param {Array<Object>} inventory
- * @returns {{lcsc: number, digikey: number, mouser: number, pololu: number, other: number}}
- */
-export function countByDistributor(inventory) {
-  var counts = { lcsc: 0, digikey: 0, mouser: 0, pololu: 0, other: 0 };
-  for (var i = 0; i < inventory.length; i++) {
-    counts[inferDistributor(inventory[i])]++;
-  }
-  return counts;
-}
-
-/**
- * Filter parts by distributor. Returns all parts when filter is null.
- * @param {Array<Object>} parts
- * @param {string|null} distributor - "lcsc", "digikey", "mouser", "pololu", "other", or null
- * @returns {Array<Object>}
- */
-export function filterByDistributor(parts, distributor) {
-  if (!distributor) return parts;
-  return parts.filter(function (item) {
-    return inferDistributor(item) === distributor;
-  });
-}
-
 // ── Collapsed state ──
 
 /**

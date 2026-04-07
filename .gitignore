@@ -22,4 +22,3 @@ data/*.db
 data/events/*.csv
 data_backup
 docs/superpowers/
-.superpowers/

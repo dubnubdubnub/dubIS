@@ -7,9 +7,6 @@ import {
   sortBomRows,
   buildRowMap,
   BOM_STATUS_SORT_ORDER,
-  inferDistributor,
-  countByDistributor,
-  filterByDistributor,
 } from '../../js/inventory/inventory-logic.js';
 
 // ── groupBySection tests ──
@@ -194,105 +191,5 @@ describe('buildRowMap', () => {
     expect(map.size).toBe(2);
     expect(map.get('C12345')).toBe(rows[0]);
     expect(map.get('ATMEGA328')).toBe(rows[1]);
-  });
-});
-
-// ── inferDistributor tests ──
-
-describe('inferDistributor', () => {
-  it('returns "lcsc" when lcsc field is populated', () => {
-    expect(inferDistributor({ lcsc: 'C12345', digikey: 'DK1' })).toBe('lcsc');
-  });
-
-  it('returns "digikey" when only digikey is populated', () => {
-    expect(inferDistributor({ lcsc: '', digikey: 'DK1', mouser: '', pololu: '' })).toBe('digikey');
-  });
-
-  it('returns "mouser" when only mouser is populated', () => {
-    expect(inferDistributor({ mouser: 'MSR1' })).toBe('mouser');
-  });
-
-  it('returns "pololu" when only pololu is populated', () => {
-    expect(inferDistributor({ pololu: 'POL1' })).toBe('pololu');
-  });
-
-  it('returns "other" when no distributor PN is populated', () => {
-    expect(inferDistributor({ lcsc: '', digikey: '', mouser: '', pololu: '' })).toBe('other');
-  });
-
-  it('returns "other" when all fields are undefined', () => {
-    expect(inferDistributor({})).toBe('other');
-  });
-
-  it('respects priority order: lcsc > digikey > mouser > pololu', () => {
-    expect(inferDistributor({ lcsc: 'C1', digikey: 'DK1', mouser: 'M1', pololu: 'P1' })).toBe('lcsc');
-    expect(inferDistributor({ lcsc: '', digikey: 'DK1', mouser: 'M1', pololu: 'P1' })).toBe('digikey');
-    expect(inferDistributor({ lcsc: '', digikey: '', mouser: 'M1', pololu: 'P1' })).toBe('mouser');
-  });
-});
-
-// ── countByDistributor tests ──
-
-describe('countByDistributor', () => {
-  var inventory = [
-    { lcsc: 'C1' },
-    { lcsc: 'C2' },
-    { digikey: 'DK1' },
-    { mouser: 'M1' },
-    { pololu: 'P1' },
-    { pololu: 'P2' },
-    {},
-  ];
-
-  it('counts parts per distributor', () => {
-    var counts = countByDistributor(inventory);
-    expect(counts.lcsc).toBe(2);
-    expect(counts.digikey).toBe(1);
-    expect(counts.mouser).toBe(1);
-    expect(counts.pololu).toBe(2);
-    expect(counts.other).toBe(1);
-  });
-
-  it('returns all zeros for empty inventory', () => {
-    var counts = countByDistributor([]);
-    expect(counts.lcsc).toBe(0);
-    expect(counts.digikey).toBe(0);
-    expect(counts.mouser).toBe(0);
-    expect(counts.pololu).toBe(0);
-    expect(counts.other).toBe(0);
-  });
-});
-
-// ── filterByDistributor tests ──
-
-describe('filterByDistributor', () => {
-  var parts = [
-    { lcsc: 'C1', mpn: 'R1' },
-    { digikey: 'DK1', mpn: 'R2' },
-    { mouser: 'M1', mpn: 'R3' },
-    { pololu: 'P1', mpn: 'R4' },
-    { mpn: 'R5' },
-  ];
-
-  it('returns all parts when filter is null', () => {
-    expect(filterByDistributor(parts, null)).toHaveLength(5);
-  });
-
-  it('filters to lcsc parts only', () => {
-    var result = filterByDistributor(parts, 'lcsc');
-    expect(result).toHaveLength(1);
-    expect(result[0].mpn).toBe('R1');
-  });
-
-  it('filters to digikey parts only', () => {
-    var result = filterByDistributor(parts, 'digikey');
-    expect(result).toHaveLength(1);
-    expect(result[0].mpn).toBe('R2');
-  });
-
-  it('filters to other parts only', () => {
-    var result = filterByDistributor(parts, 'other');
-    expect(result).toHaveLength(1);
-    expect(result[0].mpn).toBe('R5');
   });
 });
