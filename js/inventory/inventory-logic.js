@@ -5,6 +5,14 @@
 
 import { bomKey, invPartKey } from '../part-keys.js';
 
+// ── Dimension fields by part type (for filter chips) ──
+
+var DIMENSION_FIELDS = {
+  capacitor: ["dielectric", "tolerance", "voltage"],
+  resistor: ["tolerance", "power"],
+  inductor: ["tolerance", "current"],
+};
+
 // ── Re-export bomRowDisplayData (moved from bom-row-data.js) ──
 
 export { bomRowDisplayData } from '../bom-row-data.js';
@@ -107,4 +115,149 @@ export function buildRowMap(sortedRows) {
     map.set(bomKey(sortedRows[i].bom), sortedRows[i]);
   }
   return map;
+}
+
+// ── Generic part grouping ──
+
+/**
+ * Match an inventory item to a generic part member by checking all distributor IDs.
+ * @param {Object} item - inventory item
+ * @param {Map<string, string>} memberToGroup - map from uppercase part_id to generic_part_id
+ * @returns {string|null} generic_part_id or null
+ */
+function matchItemToGroup(item, memberToGroup) {
+  var ids = [item.lcsc, item.mpn, item.digikey, item.pololu, item.mouser];
+  for (var i = 0; i < ids.length; i++) {
+    if (ids[i]) {
+      var gpId = memberToGroup.get(ids[i].toUpperCase());
+      if (gpId) return gpId;
+    }
+  }
+  return null;
+}
+
+/**
+ * Group parts by their generic part membership.
+ * @param {Array<Object>} parts - inventory items in this section
+ * @param {Array<Object>} genericParts - from App.genericParts (has .members array)
+ * @returns {{ groups: Array<{ gp: Object, parts: Array<Object> }>, ungrouped: Array<Object> }}
+ */
+export function groupPartsByGeneric(parts, genericParts) {
+  // Build a map from part_id (uppercase) -> generic_part_id
+  var memberToGroup = new Map();
+  var gpById = {};
+  for (var i = 0; i < genericParts.length; i++) {
+    var gp = genericParts[i];
+    gpById[gp.generic_part_id] = gp;
+    if (!gp.members) continue;
+    for (var j = 0; j < gp.members.length; j++) {
+      memberToGroup.set(gp.members[j].part_id.toUpperCase(), gp.generic_part_id);
+    }
+  }
+
+  // Group inventory items; track which items are claimed
+  var groupMap = {};  // generic_part_id -> Array<Object>
+  var claimed = new Set();
+  var ungrouped = [];
+
+  for (var k = 0; k < parts.length; k++) {
+    var item = parts[k];
+    var gpId = matchItemToGroup(item, memberToGroup);
+    if (gpId && !claimed.has(k)) {
+      claimed.add(k);
+      if (!groupMap[gpId]) groupMap[gpId] = [];
+      groupMap[gpId].push(item);
+    }
+  }
+
+  // Collect ungrouped items
+  for (var m = 0; m < parts.length; m++) {
+    if (!claimed.has(m)) {
+      ungrouped.push(parts[m]);
+    }
+  }
+
+  // Build groups array, sorted by position of first member in original parts array
+  var groupEntries = [];
+  var gpIds = Object.keys(groupMap);
+  for (var n = 0; n < gpIds.length; n++) {
+    var id = gpIds[n];
+    // Find the first index of any member in the original parts array
+    var firstIdx = parts.length;
+    for (var p = 0; p < parts.length; p++) {
+      if (matchItemToGroup(parts[p], memberToGroup) === id) {
+        firstIdx = p;
+        break;
+      }
+    }
+    groupEntries.push({ gp: gpById[id], parts: groupMap[id], firstIdx: firstIdx });
+  }
+  groupEntries.sort(function (a, b) { return a.firstIdx - b.firstIdx; });
+
+  var groups = [];
+  for (var q = 0; q < groupEntries.length; q++) {
+    groups.push({ gp: groupEntries[q].gp, parts: groupEntries[q].parts });
+  }
+
+  return { groups: groups, ungrouped: ungrouped };
+}
+
+// ── Filter chip dimensions ──
+
+/**
+ * Compute filter chip dimensions from generic part members' specs.
+ * Returns dimensions where members have 2+ distinct values.
+ * @param {Array<Object>} members - gp.members array (each has .spec)
+ * @param {string} partType - "capacitor", "resistor", "inductor"
+ * @returns {Array<{ field: string, values: Array<string> }>}
+ */
+export function computeFilterDimensions(members, partType) {
+  var fields = DIMENSION_FIELDS[partType];
+  if (!fields) return [];
+
+  var dimensions = [];
+  for (var i = 0; i < fields.length; i++) {
+    var field = fields[i];
+    var valueSet = {};
+    for (var j = 0; j < members.length; j++) {
+      var spec = members[j].spec;
+      if (!spec) continue;
+      var raw = spec[field];
+      if (raw === undefined || raw === null || raw === "") continue;
+      var display = String(raw);
+      if (field === "voltage") display = display + "V";
+      valueSet[display] = true;
+    }
+    var values = Object.keys(valueSet);
+    if (values.length >= 2) {
+      dimensions.push({ field: field, values: values });
+    }
+  }
+  return dimensions;
+}
+
+/**
+ * Filter members by active chip selections (AND across dimensions).
+ * @param {Array<Object>} members - gp.members with .spec
+ * @param {Object} activeFilters - { field: displayValue, ... }
+ * @returns {Array<Object>} filtered members
+ */
+export function filterMembersByChips(members, activeFilters) {
+  if (!activeFilters) return members;
+  var filterKeys = Object.keys(activeFilters);
+  if (filterKeys.length === 0) return members;
+
+  return members.filter(function (m) {
+    if (!m.spec) return false;
+    for (var i = 0; i < filterKeys.length; i++) {
+      var field = filterKeys[i];
+      var expected = activeFilters[field];
+      var raw = m.spec[field];
+      if (raw === undefined || raw === null || raw === "") return false;
+      var display = String(raw);
+      if (field === "voltage") display = display + "V";
+      if (display !== expected) return false;
+    }
+    return true;
+  });
 }

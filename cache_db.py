@@ -16,7 +16,7 @@ from typing import Any
 from inventory_ops import apply_adjustments, get_part_key, read_and_merge, sort_key_for_section
 from price_ops import parse_price, parse_qty
 
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "4"
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,8 @@ def create_schema(conn: sqlite3.Connection) -> None:
             name             TEXT NOT NULL,
             part_type        TEXT NOT NULL,
             spec_json        TEXT NOT NULL DEFAULT '{}',
-            strictness_json  TEXT NOT NULL DEFAULT '{}'
+            strictness_json  TEXT NOT NULL DEFAULT '{}',
+            source           TEXT NOT NULL DEFAULT 'manual'
         );
         CREATE TABLE IF NOT EXISTS generic_part_members (
             generic_part_id  TEXT NOT NULL REFERENCES generic_parts(generic_part_id),

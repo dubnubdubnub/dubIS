@@ -183,6 +183,9 @@ class InventoryApi:
         import price_history
         if os.path.exists(self.events_dir):
             price_history.populate_prices_cache(conn, self.events_dir)
+        import generic_parts
+        os.makedirs(self.events_dir, exist_ok=True)
+        generic_parts.auto_generate_passive_groups(conn, self.events_dir)
         return cache_db.query_inventory(conn)
 
     def _load_organized(self) -> list[dict[str, Any]]:
@@ -685,27 +688,10 @@ class InventoryApi:
         return generic_parts.resolve_bom_spec(conn, part_type, float(value), package)
 
     def list_generic_parts(self) -> list[dict[str, Any]]:
-        """List all generic parts with their members."""
+        """List all generic parts with their members and extracted member specs."""
+        import generic_parts
         conn = self._get_cache()
-        gps = conn.execute("SELECT * FROM generic_parts").fetchall()
-        result = []
-        for gp in gps:
-            members = conn.execute(
-                """SELECT gm.part_id, gm.source, gm.preferred, s.quantity
-                   FROM generic_part_members gm
-                   JOIN stock s USING (part_id)
-                   WHERE gm.generic_part_id = ?""",
-                (gp["generic_part_id"],),
-            ).fetchall()
-            result.append({
-                "generic_part_id": gp["generic_part_id"],
-                "name": gp["name"],
-                "part_type": gp["part_type"],
-                "spec": json.loads(gp["spec_json"]),
-                "strictness": json.loads(gp["strictness_json"]),
-                "members": [dict(m) for m in members],
-            })
-        return result
+        return generic_parts.list_generic_parts_with_member_specs(conn)
 
     def add_generic_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
         """Add a real part to a generic group."""
