@@ -13,6 +13,7 @@ export const MPN_FUZZY_MIN_RATIO = 0.7;      // 70% of shorter string
 
 export function getMult(c) {
   const m = {p:1e-12, n:1e-9, u:1e-6, U:1e-6, m:1e-3, R:1, k:1e3, K:1e3, M:1e6, G:1e9};
+  // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
   if (m[c] != null) return m[c];
   if (c === '\u00b5' || c === '\u03bc') return 1e-6;
   return null;
@@ -23,8 +24,10 @@ export function parseEEValue(str) {
   str = str.split(/[\/\u00b1%]/)[0].trim();
   str = str.replace(/[FH\u03a9\u2126]+$/i, '').replace(/ohm$/i, '').trim();
   let m = str.match(/^(\d+\.?\d*)([pnumkMGR\u00b5\u03bc])(\d+)$/);
+  // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
   if (m) { const mul = getMult(m[2]); return mul != null ? parseFloat(m[1]+'.'+m[3]) * mul : null; }
   m = str.match(/^(\d+\.?\d*)\s*([pnumkMGR\u00b5\u03bc])$/);
+  // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
   if (m) { const mul = getMult(m[2]); return mul != null ? parseFloat(m[1]) * mul : null; }
   return null;
 }
@@ -42,8 +45,11 @@ export function extractValueFromDesc(desc) {
 
 export function extractBomValue(bom) {
   let val = parseEEValue(bom.value);
+  // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
   if (val == null) val = extractValueFromDesc(bom.value);
+  // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
   if (val == null) val = parseEEValue(bom.desc);
+  // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
   if (val == null) val = extractValueFromDesc(bom.desc);
   return val;
 }
@@ -79,6 +85,7 @@ export function packagesCompatible(bom, invItem) {
 export function valuesCompatible(bom, invItem) {
   const bomVal = extractBomValue(bom);
   const invVal = extractValueFromDesc(invItem.description);
+  // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
   if (bomVal == null || invVal == null) return true;
   if (bomVal === 0 && invVal === 0) return true;
   if (bomVal === 0 || invVal === 0) return false;
@@ -111,6 +118,7 @@ export function buildLookupMaps(inventory) {
     const type = componentTypeFromSection(item.section);
     if (!type) return;
     const val = extractValueFromDesc(item.description);
+    // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
     if (val == null) return;
     const key = valueKey(type, val);
     if (!invByValue[key]) invByValue[key] = [];
@@ -124,6 +132,7 @@ export function buildLookupMaps(inventory) {
 
 export function findValueMatch(bom, inventory, invByValue) {
   const bomVal = extractBomValue(bom);
+  // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
   if (bomVal == null) return null;
 
   const bomType = componentTypeFromRefs(bom.refs);
@@ -146,6 +155,7 @@ export function findValueMatch(bom, inventory, invByValue) {
     for (let i = 0; i < candidates.length; i++) {
       const item = candidates[i];
       const invVal = extractValueFromDesc(item.description);
+      // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
       if (invVal == null) continue;
       if (bomVal === 0 && invVal === 0) { /* match */ }
       else if (bomVal === 0 || invVal === 0) continue;
@@ -164,6 +174,7 @@ export function findAlternatives(bom, primaryInv, invByValue) {
   if (!bomType) bomType = componentTypeFromSection(primaryInv.section);
   if (!bomType) return [];
   const val = extractValueFromDesc(primaryInv.description);
+  // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
   if (val == null) return [];
   const key = valueKey(bomType, val);
   const candidates = invByValue[key] || [];
@@ -271,6 +282,7 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, g
 
         // Check value from spec
         const specVal = parseEEValue(gp.spec.value) ?? extractValueFromDesc(gp.spec.value);
+        // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
         if (specVal == null || bomVal == null) continue;
         if (specVal !== 0 && bomVal !== 0) {
           if (Math.abs(specVal - bomVal) / Math.max(Math.abs(specVal), Math.abs(bomVal)) > VALUE_TOLERANCE) continue;

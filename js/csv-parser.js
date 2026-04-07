@@ -83,7 +83,7 @@ export function isDnp(val) {
 // ── Extract LCSC + MPN from a raw BOM row using detected column indices ──
 export function extractPartIds(row, cols) {
   let lcsc = cols.lcsc !== -1 ? (row[cols.lcsc] || "").trim() : "";
-  let mpn  = cols.mpn  !== -1 ? (row[cols.mpn]  || "").trim() : "";
+  const mpn  = cols.mpn  !== -1 ? (row[cols.mpn]  || "").trim() : "";
   if (!lcsc && mpn) {
     const extracted = extractLCSC(mpn);
     if (extracted) lcsc = extracted;
@@ -94,6 +94,7 @@ export function extractPartIds(row, cols) {
 // ── Generate RFC 4180 CSV from headers + rows ──
 export function generateCSV(headers, rows) {
   function escapeField(val) {
+    // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
     const s = val == null ? "" : String(val);
     if (s.indexOf(",") !== -1 || s.indexOf('"') !== -1 || s.indexOf("\n") !== -1) {
       return '"' + s.replace(/"/g, '""') + '"';
@@ -114,7 +115,7 @@ export function aggregateBomRows(rawRows, headers, cols) {
 
   rawRows.forEach((row, ri) => {
     const { lcsc, mpn } = extractPartIds(row, cols);
-    let rawQty = cols.qty !== -1 ? parseInt(row[cols.qty], 10) : NaN;
+    const rawQty = cols.qty !== -1 ? parseInt(row[cols.qty], 10) : NaN;
     let qty;
     if (isNaN(rawQty) || rawQty <= 0) {
       if (cols.qty !== -1 && (row[cols.qty] || "").trim() !== "")
@@ -122,11 +123,11 @@ export function aggregateBomRows(rawRows, headers, cols) {
       qty = 1;
     } else { qty = rawQty; }
 
-    let ref       = cols.ref       !== -1 ? (row[cols.ref]       || "").trim() : "";
-    let desc      = cols.desc      !== -1 ? (row[cols.desc]      || "").trim() : "";
-    let value     = cols.value     !== -1 ? (row[cols.value]     || "").trim() : "";
-    let footprint = cols.footprint !== -1 ? (row[cols.footprint] || "").trim() : "";
-    let dnp = cols.dnp !== -1 && isDnp(row[cols.dnp]);
+    const ref       = cols.ref       !== -1 ? (row[cols.ref]       || "").trim() : "";
+    const desc      = cols.desc      !== -1 ? (row[cols.desc]      || "").trim() : "";
+    const value     = cols.value     !== -1 ? (row[cols.value]     || "").trim() : "";
+    const footprint = cols.footprint !== -1 ? (row[cols.footprint] || "").trim() : "";
+    const dnp = cols.dnp !== -1 && isDnp(row[cols.dnp]);
 
     const rawCols = {};
     headers.forEach((h, i) => { rawCols[h] = (row[i] || "").trim(); });

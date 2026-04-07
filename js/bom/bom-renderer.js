@@ -20,9 +20,9 @@ export function renderDropZone() {
       <div class="multiplier-bar" id="bom-multiplier-bar">
         <label for="bom-qty-mult">Board qty:</label>
         <input type="number" id="bom-qty-mult" value="1" min="1" step="1">
-        <button class="save-bom-btn" id="bom-save-btn" disabled>Save BOM</button>
-        <button class="consume-btn" id="bom-consume-btn" disabled>Consume from inventory</button>
-        <button class="clear-bom-btn" id="bom-clear-btn" disabled>Clear BOM</button>
+        <button class="btn-md save-bom-btn" id="bom-save-btn" disabled>Save BOM</button>
+        <button class="btn-md consume-btn" id="bom-consume-btn" disabled>Consume from inventory</button>
+        <button class="btn-md clear-bom-btn" id="bom-clear-btn" disabled>Clear BOM</button>
         <span class="bom-price-info" id="bom-price-info"></span>
       </div>
       <div class="bom-staging-toolbar" id="bom-staging-toolbar">
@@ -154,6 +154,7 @@ export function renderStagingRow(row, ri, bomCols, headers, status, isLinkTarget
 
   // Data cells
   headers.forEach((h, ci) => {
+    // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
     const val = (row[ci] != null) ? row[ci] : "";
     let lcscAttr = "";
     if (ci === bomCols.lcsc) {

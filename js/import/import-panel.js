@@ -3,7 +3,7 @@
 import { api, AppLog } from '../api.js';
 import { showToast, escHtml, setupDropZone, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { App, onInventoryUpdated, savePreferences } from '../store.js';
+import { store, onInventoryUpdated, savePreferences } from '../store.js';
 import { parseCSV, generateCSV } from '../csv-parser.js';
 import { TARGET_FIELDS, PO_TEMPLATES, classifyRow, countWarnings, transformImportRows } from './import-logic.js';
 import { renderDropZone, renderMapper as renderMapperHtml } from './import-renderer.js';
@@ -85,10 +85,10 @@ export function init() {
 }
 
 async function browseImportFile() {
-  const result = await api("open_file_dialog", "Select Purchase CSV", App.preferences.lastImportDir || null);
+  const result = await api("open_file_dialog", "Select Purchase CSV", store.preferences.lastImportDir || null);
   if (!result || !result.content) return;
   if (result.directory) {
-    App.preferences.lastImportDir = result.directory;
+    store.preferences.lastImportDir = result.directory;
     savePreferences();
   }
   loadImportText(result.content, result.name);
@@ -109,13 +109,13 @@ async function createNewPO(templateKey = "generic") {
   const headers = template.headers;
   const csvContent = generateCSV(headers, []);
 
-  const result = await api("save_file_dialog", csvContent, "purchase_order.csv", App.preferences.lastImportDir || null);
+  const result = await api("save_file_dialog", csvContent, "purchase_order.csv", store.preferences.lastImportDir || null);
   if (!result || !result.path) return;
 
   // Save directory preference
   const dir = result.path.replace(/[\\/][^\\/]+$/, "");
   if (dir) {
-    App.preferences.lastImportDir = dir;
+    store.preferences.lastImportDir = dir;
     savePreferences();
   }
 

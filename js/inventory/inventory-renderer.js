@@ -75,7 +75,7 @@ export function renderPartRowHtml(item, options) {
   var qtyColor = stockValueColor(stockValue, options.threshold);
   var showPriceWarn = item.qty > 0 && !(item.unit_price > 0);
 
-  var linkBtnStr = options.isBomMode ? '<button class="link-btn' + (options.isLinkSource ? ' active' : '') + '" title="Link to missing BOM row">Link</button>' : '';
+  var linkBtnStr = options.isBomMode ? '<button class="btn-sm link-btn' + (options.isLinkSource ? ' active' : '') + '" title="Link to missing BOM row">Link</button>' : '';
   var groupBtnStr = '';
   if (options.genericParts) {
     var gp = findGenericGroup(invPartKey(item), options.genericParts);
@@ -99,7 +99,7 @@ export function renderPartRowHtml(item, options) {
     '<span class="part-value">' + valueStr + '</span>' +
     '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data \u2014 click to set">\u26A0</button>' : '') + item.qty + '</span>' +
     (options.hideDescs ? '' : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
-    '<span class="part-actions">' + groupBtnStr + '<button class="adj-btn" title="Adjust qty">Adjust</button>' +
+    '<span class="part-actions">' + groupBtnStr + '<button class="btn-sm adj-btn" title="Adjust qty">Adjust</button>' +
     linkBtnStr + '</span>';
 
   return html;
@@ -130,14 +130,14 @@ export function createBomRowElement(d) {
     haveHtml += '<br><span class="member-badge' + mbExpandedCls + '" data-part-key="' + escHtml(d.partKey) + '"><span class="chevron">\u25B8</span>' + d.memberBadge.memberCount + ' members</span>';
   }
 
-  var adjBtnHtml = d.showAdjust ? '<button class="adj-btn" title="Adjust qty">Adjust</button>' : '';
+  var adjBtnHtml = d.showAdjust ? '<button class="btn-sm adj-btn" title="Adjust qty">Adjust</button>' : '';
   var confirmBtnHtml = d.showConfirm
-    ? '<button class="confirm-btn" title="Confirm this match">Confirm</button>'
+    ? '<button class="btn-sm confirm-btn" title="Confirm this match">Confirm</button>'
     : d.showUnconfirm
-      ? '<button class="unconfirm-btn" title="Revert to possible match">Unconfirm</button>'
+      ? '<button class="btn-sm unconfirm-btn" title="Revert to possible match">Unconfirm</button>'
       : '';
   var linkBtnHtml = d.showLink
-    ? '<button class="link-btn' + (d.linkActive ? ' active' : '') + '" title="' + (d.hasInv ? 'Link to missing BOM row' : 'Link to inventory part') + '">Link</button>'
+    ? '<button class="btn-sm link-btn' + (d.linkActive ? ' active' : '') + '" title="' + (d.hasInv ? 'Link to missing BOM row' : 'Link to inventory part') + '">Link</button>'
     : '';
   var createGenericHtml = d.showCreateGeneric
     ? '<button class="create-generic-btn" title="Create generic part group" data-bom-value="' + escHtml(d.bomValue) + '" data-bom-pkg="' + escHtml(d.bomFootprint) + '" data-bom-refs="' + escHtml(d.bomRefs) + '">Group</button>'
@@ -194,7 +194,7 @@ export function renderAltRows(alts, partKey) {
       '<td style="text-align:right;font-weight:600">' + alt.qty + '</td>' +
       '<td class="desc-cell" title="' + escHtml(alt.description) + ' ' + escHtml(alt.package) + '">' + escHtml(alt.description) + ' <span class="muted">' + escHtml(alt.package) + '</span></td>' +
       '<td></td>' +
-      '<td class="btn-group"><button class="swap-btn" title="Use this alt as the selected part">Swap</button><button class="adj-btn" title="Adjust qty">Adjust</button></td>';
+      '<td class="btn-group"><button class="btn-sm swap-btn" title="Use this alt as the selected part">Swap</button><button class="btn-sm adj-btn" title="Adjust qty">Adjust</button></td>';
     rows.push(altTr);
   }
   return rows;
@@ -276,15 +276,15 @@ export function renderMemberRows(members, partKey, resolvedPartId, groupName, in
  * @returns {string}
  */
 export function renderFilterBarHtml(c, activeFilter) {
-  return '<button class="filter-btn' + (activeFilter === "all" ? " active" : "") + '" data-filter="all">All (' + c.total + ')</button>' +
-    (c.manual > 0 ? '<button class="filter-btn' + (activeFilter === "manual" ? " active" : "") + '" data-filter="manual">Manual (' + c.manual + ')</button>' : '') +
-    (c.confirmed > 0 ? '<button class="filter-btn' + (activeFilter === "confirmed" ? " active" : "") + '" data-filter="confirmed">Confirmed (' + c.confirmed + ')</button>' : '') +
-    (c.generic > 0 ? '<button class="filter-btn' + (activeFilter === "generic" ? " active" : "") + '" data-filter="generic">Generic (' + c.generic + ')</button>' : '') +
-    '<button class="filter-btn' + (activeFilter === "ok" ? " active" : "") + '" data-filter="ok">In Stock (' + c.ok + ')</button>' +
-    '<button class="filter-btn' + (activeFilter === "short" ? " active" : "") + '" data-filter="short">Short (' + c.short + ')</button>' +
-    '<button class="filter-btn' + (activeFilter === "possible" ? " active" : "") + '" data-filter="possible">Possible (' + c.possible + ')</button>' +
-    '<button class="filter-btn' + (activeFilter === "missing" ? " active" : "") + '" data-filter="missing">Missing (' + c.missing + ')</button>' +
-    (c.dnp > 0 ? '<button class="filter-btn' + (activeFilter === "dnp" ? " active" : "") + '" data-filter="dnp">DNP (' + c.dnp + ')</button>' : '');
+  return '<button class="btn-md filter-btn' + (activeFilter === "all" ? " active" : "") + '" data-filter="all">All (' + c.total + ')</button>' +
+    (c.manual > 0 ? '<button class="btn-md filter-btn' + (activeFilter === "manual" ? " active" : "") + '" data-filter="manual">Manual (' + c.manual + ')</button>' : '') +
+    (c.confirmed > 0 ? '<button class="btn-md filter-btn' + (activeFilter === "confirmed" ? " active" : "") + '" data-filter="confirmed">Confirmed (' + c.confirmed + ')</button>' : '') +
+    (c.generic > 0 ? '<button class="btn-md filter-btn' + (activeFilter === "generic" ? " active" : "") + '" data-filter="generic">Generic (' + c.generic + ')</button>' : '') +
+    '<button class="btn-md filter-btn' + (activeFilter === "ok" ? " active" : "") + '" data-filter="ok">In Stock (' + c.ok + ')</button>' +
+    '<button class="btn-md filter-btn' + (activeFilter === "short" ? " active" : "") + '" data-filter="short">Short (' + c.short + ')</button>' +
+    '<button class="btn-md filter-btn' + (activeFilter === "possible" ? " active" : "") + '" data-filter="possible">Possible (' + c.possible + ')</button>' +
+    '<button class="btn-md filter-btn' + (activeFilter === "missing" ? " active" : "") + '" data-filter="missing">Missing (' + c.missing + ')</button>' +
+    (c.dnp > 0 ? '<button class="btn-md filter-btn' + (activeFilter === "dnp" ? " active" : "") + '" data-filter="dnp">DNP (' + c.dnp + ')</button>' : '');
 }
 
 // ── BOM comparison table header ──
