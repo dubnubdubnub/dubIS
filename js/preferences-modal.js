@@ -4,7 +4,7 @@
 import { api, AppLog } from './api.js';
 import { showToast, escHtml, Modal } from './ui-helpers.js';
 import { EventBus, Events } from './event-bus.js';
-import { App, getThreshold, savePreferences } from './store.js';
+import { store, getThreshold, savePreferences } from './store.js';
 
 var PREFS_MAX_THRESHOLD = 200;
 var PREFS_MIN_THRESHOLD = 5;
@@ -73,7 +73,7 @@ export function openPreferencesModal() {
   const container = document.getElementById("prefs-sliders");
   container.innerHTML = "";
 
-  App.SECTION_HIERARCHY.forEach(entry => {
+  store.SECTION_HIERARCHY.forEach(entry => {
     // Parent slider (always shown)
     container.appendChild(_createPrefsSliderRow(entry.name, false));
     // Subcategory sliders (indented)
@@ -118,7 +118,7 @@ export function applyPreferences() {
   rows.forEach(row => {
     const section = row.querySelector(".prefs-slider").dataset.section;
     const val = parseInt(row.querySelector(".prefs-input").value, 10);
-    App.preferences.thresholds[section] = isNaN(val) || val < 0 ? 0 : val;
+    store.preferences.thresholds[section] = isNaN(val) || val < 0 ? 0 : val;
   });
 
   savePreferences();

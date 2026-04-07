@@ -1,6 +1,6 @@
 /* store.js --- Centralized state management with getter/setter pairs.
-   Backward-compatible: the `App` proxy preserves the old read/write API
-   so every existing module continues to work unchanged. */
+   Panels import `store` (read-only getters) and setter functions directly.
+   `App` is a plain read-only object kept for Python evaluate_js + App.links. */
 
 import { EventBus, Events } from './event-bus.js';
 import { SECTION_ORDER } from './constants.js';
@@ -147,12 +147,10 @@ export function hasLinks() {
   return manualLinks.length > 0 || confirmedMatches.length > 0;
 }
 
-// ── App backward-compatibility proxy ──────────────────────
+// ── App object (read-only, for Python evaluate_js + window.App) ──
 //
-// The `App.links` sub-object is heavily used --- it exposes both
-// properties (manualLinks, linkingMode, ...) and methods (addManualLink,
-// setLinkingMode, ...).  Property setters are needed for the undo/redo
-// handler in app-init.js (lines 111--112).
+// Panels use `store` getters and setter functions directly.
+// App is kept for Python interop (evaluate_js) and `App.links`.
 
 const _linksProxy = {
   get manualLinks() { return manualLinks; },
@@ -173,42 +171,21 @@ const _linksProxy = {
   hasLinks() { return hasLinks(); },
 };
 
-export const App = new Proxy(
-  {
-    links: _linksProxy,
-    genericParts: /** @type {any[]} */ ([]),
-    SECTION_ORDER,
-    SECTION_HIERARCHY,
-    FLAT_SECTIONS,
-  },
-  {
-    get(target, prop) {
-      // Direct properties on target (links, constants)
-      if (prop in target) return target[prop];
-      // Map to private state getters
-      if (prop === 'inventory') return inventory;
-      if (prop === 'genericParts') return genericParts;
-      if (prop === 'bomResults') return bomResults;
-      if (prop === 'bomFileName') return bomFileName;
-      if (prop === 'bomHeaders') return bomHeaders;
-      if (prop === 'bomCols') return bomCols;
-      if (prop === 'bomDirty') return bomDirty;
-      if (prop === 'preferences') return preferences;
-      return undefined;
-    },
-    set(target, prop, value) {
-      if (prop === 'inventory') { inventory = value; return true; }
-      if (prop === 'genericParts') { genericParts = value; return true; }
-      if (prop === 'bomResults') { bomResults = value; return true; }
-      if (prop === 'bomFileName') { bomFileName = value; return true; }
-      if (prop === 'bomHeaders') { bomHeaders = value; return true; }
-      if (prop === 'bomCols') { bomCols = value; return true; }
-      if (prop === 'bomDirty') { bomDirty = value; return true; }
-      if (prop === 'preferences') { preferences = value; return true; }
-      return true;
-    },
-  }
-);
+export const App = {
+  get inventory() { return inventory; },
+  get bomResults() { return bomResults; },
+  get bomFileName() { return bomFileName; },
+  get bomHeaders() { return bomHeaders; },
+  get bomCols() { return bomCols; },
+  get bomDirty() { return bomDirty; },
+  get preferences() { return preferences; },
+  get genericParts() { return genericParts; },
+  set genericParts(v) { genericParts = v; },
+  links: _linksProxy,
+  SECTION_ORDER,
+  SECTION_HIERARCHY,
+  FLAT_SECTIONS,
+};
 
 // ── snapshotLinks (existing API, unchanged behavior) ──────
 

@@ -22,7 +22,8 @@ vi.mock('../../js/api.js', () => ({
 
 import {
   App, store, getThreshold, setThreshold, snapshotLinks,
-  setInventory, setBomResults, addManualLink, confirmMatch,
+  setInventory, setBomResults, setBomDirty, setBomMeta, setPreferences,
+  addManualLink, confirmMatch,
   setLinkingMode, clearLinks,
 } from '../../js/store.js';
 import { EventBus, Events } from '../../js/event-bus.js';
@@ -172,7 +173,7 @@ describe('SECTION_ORDER parsing', () => {
 
 describe('getThreshold', () => {
   beforeEach(() => {
-    App.preferences.thresholds = { Resistors: 100, Capacitors: 200 };
+    store.preferences.thresholds = { Resistors: 100, Capacitors: 200 };
   });
 
   it('returns threshold for direct section', () => {
@@ -190,12 +191,12 @@ describe('getThreshold', () => {
 
 describe('setThreshold', () => {
   beforeEach(() => {
-    App.preferences.thresholds = {};
+    store.preferences.thresholds = {};
   });
 
   it('sets threshold value', () => {
     setThreshold('Resistors', 75);
-    expect(App.preferences.thresholds.Resistors).toBe(75);
+    expect(store.preferences.thresholds.Resistors).toBe(75);
   });
 });
 
@@ -203,8 +204,8 @@ describe('setThreshold', () => {
 
 describe('store (read-only getters)', () => {
   beforeEach(() => {
-    App.inventory = [];
-    App.bomResults = null;
+    setInventory([]);
+    setBomResults(null);
     clearLinks();
   });
 
@@ -276,17 +277,18 @@ describe('snapshotLinks', () => {
   });
 });
 
-describe('App proxy backward compatibility', () => {
+describe('App read-only object', () => {
   beforeEach(() => {
-    App.inventory = [];
-    App.bomResults = null;
-    App.preferences = { thresholds: {} };
+    setInventory([]);
+    setBomResults(null);
+    setPreferences({ thresholds: {} });
     clearLinks();
   });
 
-  it('App.bomResults = x updates store.bomResults', () => {
+  it('App.bomResults reflects setBomResults()', () => {
     const results = [{ bom: {}, inv: null }];
-    App.bomResults = results;
+    setBomResults(results);
+    expect(App.bomResults).toBe(results);
     expect(store.bomResults).toBe(results);
   });
 
@@ -319,20 +321,18 @@ describe('App proxy backward compatibility', () => {
     expect(App.inventory).toBe(items);
   });
 
-  it('App.inventory setter updates store', () => {
-    const items = [{ lcsc: 'C2', qty: 3 }];
-    App.inventory = items;
-    expect(store.inventory).toBe(items);
+  it('App is read-only (setters throw)', () => {
+    expect(() => { App.inventory = []; }).toThrow();
   });
 
-  it('App.preferences.thresholds is accessible and mutable', () => {
-    App.preferences.thresholds = { Resistors: 42 };
+  it('App.preferences.thresholds is accessible and mutable via store', () => {
+    store.preferences.thresholds = { Resistors: 42 };
     expect(App.preferences.thresholds.Resistors).toBe(42);
     expect(store.preferences.thresholds.Resistors).toBe(42);
   });
 
-  it('App.preferences direct property assignment works (e.g. lastBomDir)', () => {
-    App.preferences.lastBomDir = '/some/path';
+  it('App.preferences direct property mutation works', () => {
+    store.preferences.lastBomDir = '/some/path';
     expect(App.preferences.lastBomDir).toBe('/some/path');
     expect(store.preferences.lastBomDir).toBe('/some/path');
   });
