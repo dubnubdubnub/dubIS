@@ -230,3 +230,24 @@ class TestAutoGeneratePassiveGroups:
         generic_parts.auto_generate_passive_groups(db, events_dir)
         count2 = db.execute("SELECT COUNT(*) as c FROM generic_parts WHERE source='auto'").fetchone()["c"]
         assert count1 == count2
+
+
+class TestListGenericPartsWithSpecs:
+    def test_list_includes_source(self, db, events_dir):
+        _seed_parts(db)
+        generic_parts.auto_generate_passive_groups(db, events_dir)
+        gps = generic_parts.list_generic_parts_with_member_specs(db)
+        assert len(gps) >= 1
+        assert all("source" in gp for gp in gps)
+        assert all(gp["source"] == "auto" for gp in gps)
+
+    def test_list_includes_member_specs(self, db, events_dir):
+        _seed_parts(db)
+        generic_parts.auto_generate_passive_groups(db, events_dir)
+        gps = generic_parts.list_generic_parts_with_member_specs(db)
+        gp = next(g for g in gps if "100nF" in g["name"])
+        assert len(gp["members"]) >= 2
+        # Each member should have extracted spec fields
+        for m in gp["members"]:
+            assert "spec" in m
+            assert "type" in m["spec"]

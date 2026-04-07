@@ -243,6 +243,54 @@ def auto_generate_passive_groups(conn: Any, events_dir: str) -> list[dict[str, A
     return created
 
 
+def list_generic_parts_with_member_specs(conn: Any) -> list[dict[str, Any]]:
+    """List all generic parts with their members, each member including extracted spec fields.
+
+    Returns a list of dicts with keys:
+        generic_part_id, name, part_type, spec, strictness, source, members
+
+    Each member dict has keys:
+        part_id, source, preferred, quantity, description, package, spec
+    """
+    gps = conn.execute("SELECT * FROM generic_parts").fetchall()
+    result = []
+    for gp in gps:
+        members_rows = conn.execute(
+            """SELECT gm.part_id, gm.source, gm.preferred, s.quantity,
+                      p.description, p.package
+               FROM generic_part_members gm
+               JOIN stock s USING (part_id)
+               JOIN parts p USING (part_id)
+               WHERE gm.generic_part_id = ?""",
+            (gp["generic_part_id"],),
+        ).fetchall()
+        members = []
+        for m in members_rows:
+            member_spec = spec_extractor.extract_spec(
+                description=m["description"],
+                package=m["package"],
+            )
+            members.append({
+                "part_id": m["part_id"],
+                "source": m["source"],
+                "preferred": m["preferred"],
+                "quantity": m["quantity"],
+                "description": m["description"],
+                "package": m["package"],
+                "spec": member_spec,
+            })
+        result.append({
+            "generic_part_id": gp["generic_part_id"],
+            "name": gp["name"],
+            "part_type": gp["part_type"],
+            "spec": json.loads(gp["spec_json"]),
+            "strictness": json.loads(gp["strictness_json"]),
+            "source": gp["source"],
+            "members": members,
+        })
+    return result
+
+
 def resolve_bom_spec(
     conn: Any,
     part_type: str,
