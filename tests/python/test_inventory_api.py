@@ -9,21 +9,6 @@ from categorize import categorize, parse_capacitance, parse_resistance
 from inventory_api import InventoryApi
 
 
-@pytest.fixture
-def api(tmp_path):
-    inst = InventoryApi()
-    inst.base_dir = str(tmp_path)
-    inst.input_csv = str(tmp_path / "purchase_ledger.csv")
-    inst.output_csv = str(tmp_path / "inventory.csv")
-    inst.adjustments_csv = str(tmp_path / "adjustments.csv")
-    inst.prefs_json = str(tmp_path / "preferences.json")
-    inst.events_dir = str(tmp_path / "events")
-    data_dir = tmp_path / "data"
-    data_dir.mkdir(exist_ok=True)
-    inst.cache_db_path = str(data_dir / "cache.db")
-    return inst
-
-
 class TestGetPartKey:
     def test_lcsc_preferred(self):
         row = {"LCSC Part Number": "C123456", "Manufacture Part Number": "STM32", "Digikey Part Number": "DK-1"}

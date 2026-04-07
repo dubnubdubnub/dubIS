@@ -45,20 +45,6 @@ def _make_part(lcsc="", mpn="", qty=10, desc="Resistor 10kΩ", pkg="0402",
 
 
 @pytest.fixture
-def api(tmp_path):
-    inst = InventoryApi()
-    inst.base_dir = str(tmp_path)
-    inst.input_csv = str(tmp_path / "purchase_ledger.csv")
-    inst.output_csv = str(tmp_path / "inventory.csv")
-    inst.adjustments_csv = str(tmp_path / "adjustments.csv")
-    inst.prefs_json = str(tmp_path / "preferences.json")
-    data_dir = tmp_path / "data"
-    data_dir.mkdir(exist_ok=True)
-    inst.cache_db_path = str(data_dir / "cache.db")
-    return inst
-
-
-@pytest.fixture
 def pnp_server(api):
     mock_window = types.SimpleNamespace(evaluate_js=lambda code: None)
     server = start_pnp_server(api, mock_window, port=0)
