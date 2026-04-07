@@ -160,6 +160,7 @@ function createReverseLink(invItem) {
 
 function render() {
   body.innerHTML = "";
+  updateDistCounts();
   if (bomData) {
     var matchedInvKeys = renderBomComparison();
     renderRemainingInventory(matchedInvKeys, (searchInput.value || "").toLowerCase());
@@ -174,7 +175,6 @@ var SECTION_HIERARCHY = App.SECTION_HIERARCHY;
 var FLAT_SECTIONS = App.FLAT_SECTIONS;
 
 function renderNormalInventory() {
-  updateDistCounts();
   var query = (searchInput.value || "").toLowerCase();
   var sections = groupBySection(App.inventory);
 
@@ -332,21 +332,27 @@ function renderRemainingInventory(matchedInvKeys, query) {
 
 function renderRemainingNormalSections(otherParts, query) {
   var hasAny = FLAT_SECTIONS.some(function (s) { return !!otherParts[s]; });
-  if (hasAny) {
+  if (!hasAny) return;
+
+  // Record position before rendering — if nothing is appended, skip divider
+  var beforeCount = body.childNodes.length;
+
+  for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
+    var entry = SECTION_HIERARCHY[i];
+    if (!entry.children) {
+      var filtered = filterByDistributor(filterByQuery(otherParts[entry.name] || [], query), activeDistributor);
+      if (filtered.length > 0) renderSection(entry.name, filtered);
+    } else {
+      renderHierarchySection(entry, otherParts, query);
+    }
+  }
+
+  // Only insert the divider if sections actually rendered
+  if (body.childNodes.length > beforeCount) {
     var divider = document.createElement("div");
     divider.className = "inv-section-header inv-other-divider";
     divider.textContent = "Other Inventory";
-    body.appendChild(divider);
-
-    for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
-      var entry = SECTION_HIERARCHY[i];
-      if (!entry.children) {
-        var filtered = filterByDistributor(filterByQuery(otherParts[entry.name] || [], query), activeDistributor);
-        if (filtered.length > 0) renderSection(entry.name, filtered);
-      } else {
-        renderHierarchySection(entry, otherParts, query);
-      }
-    }
+    body.insertBefore(divider, body.childNodes[beforeCount]);
   }
 }
 
