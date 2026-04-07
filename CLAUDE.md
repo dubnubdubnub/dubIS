@@ -10,6 +10,29 @@ Desktop app: Python (pywebview) backend + vanilla JS/HTML/CSS frontend.
 | **Frontend** | `index.html`, `css/styles.css`, 31 JS ES modules in `js/` (no build step, no framework) |
 | **Data** | CSV in `data/` — `inventory.csv`, `purchase_ledger.csv`, `adjustments.csv`; events in `events/` — `price_observations.csv`, `part_events.csv`; config: `preferences.json`, `constants.json`, `pnp_part_map.json`; SQLite: `cache.db` (deletable, rebuilt from CSVs) |
 
+## Data Flow
+
+CSV files are the source of truth. SQLite cache is a derived, deletable materialized view.
+
+```
+purchase_ledger.csv + adjustments.csv
+        │
+        ▼
+  inventory_ops.py          (merge dupes → apply adjustments → categorize → sort)
+        │
+        ▼
+  cache_db.py               (populate SQLite: parts + stock tables)
+        │                   catch_up() replays only NEW adjustment rows since last checkpoint
+        │                   full rebuild if purchase_ledger changes or cache missing
+        ▼
+  cache.db (SQLite)         (query_inventory() → list[InventoryItem] sent to JS)
+        │
+        ├── prices table    (populated by price_history.py from events/price_observations.csv)
+        └── generic_parts   (populated by generic_parts.py, stored directly in SQLite)
+```
+
+All inventory-mutating API methods (`adjust_part`, `import_purchases`, `consume_bom`) append to CSVs, then rebuild cache and return fresh `list[InventoryItem]`. The cache can be deleted at any time — it rebuilds on next `rebuild_inventory()`.
+
 ## JS Module Dependency Graph
 
 Entry point: `<script type="module" src="js/app-init.js">` in `index.html`.
