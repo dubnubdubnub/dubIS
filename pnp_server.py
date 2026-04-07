@@ -147,9 +147,19 @@ class PnPHandler(BaseHTTPRequestHandler):
         })
 
 
+class _FastHTTPServer(HTTPServer):
+    """HTTPServer that skips the slow FQDN reverse-DNS lookup in server_bind()."""
+
+    def server_bind(self):
+        self.socket.bind(self.server_address)
+        self.server_address = self.socket.getsockname()
+        self.server_name = self.server_address[0]
+        self.server_port = self.server_address[1]
+
+
 def start_pnp_server(api, window, port=PNP_PORT, source="openpnp"):
     """Start the PnP HTTP server in a daemon thread."""
-    server = HTTPServer(("0.0.0.0", port), PnPHandler)
+    server = _FastHTTPServer(("0.0.0.0", port), PnPHandler)
     server.api = api
     server.window = window
     server.source = source
