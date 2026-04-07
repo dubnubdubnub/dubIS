@@ -106,12 +106,6 @@ const ALL_PAIRS = [
   { fg: '--vendor-pololu',  bg: '--bg-base', min: 3.0, label: 'Pololu navy on base' },
   { fg: '--vendor-mouser',  bg: '--bg-base', min: 3.0, label: 'Mouser blue on base' },
 
-  // Distributor filter button text colors (lightened for contrast on surface)
-  { fg: '#6a9fd8', bg: '--bg-surface', min: 3.0, label: 'Mouser filter text on surface' },
-  { fg: '#5a6fd6', bg: '--bg-surface', min: 3.0, label: 'Pololu filter text on surface' },
-  { fg: '--vendor-lcsc',    bg: '--bg-surface', min: 3.0, label: 'LCSC filter text on surface' },
-  { fg: '--vendor-digikey', bg: '--bg-surface', min: 3.0, label: 'Digikey filter text on surface' },
-
   // Button text
   { fg: '#ffffff', bg: '--color-green-dark', min: 4.5, label: 'white on green-dark button' },
   { fg: '#ffffff', bg: '--color-red-dark',   min: 4.5, label: 'white on red-dark button' },

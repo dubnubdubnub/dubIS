@@ -13,8 +13,6 @@ import { openCreate as openGenericCreate, openEdit as openGenericEdit } from '..
 import {
   groupBySection,
   filterByQuery,
-  filterByDistributor,
-  countByDistributor,
   computeMatchedInvKeys,
   sortBomRows,
   buildRowMap,
@@ -43,29 +41,8 @@ var FLAT_SECTIONS = store.FLAT_SECTIONS;
 export function init() {
   state.body = document.getElementById("inventory-body");
   state.searchInput = document.getElementById("inv-search");
-  state.clearFilterBtn = document.getElementById("clear-dist-filter");
-  state.distFilterBar = document.getElementById("dist-filter-bar");
 
-  setupEvents({ render: render, updateDistFilterUI: updateDistFilterUI });
-}
-
-// ── Distributor filter UI state ──
-
-function updateDistFilterUI() {
-  var btns = state.distFilterBar.querySelectorAll(".dist-filter-btn");
-  for (var i = 0; i < btns.length; i++) {
-    btns[i].classList.toggle("active", btns[i].dataset.distributor === state.activeDistributor);
-  }
-  state.clearFilterBtn.disabled = (state.activeDistributor === null);
-}
-
-function updateDistCounts() {
-  var counts = countByDistributor(store.inventory);
-  var btns = state.distFilterBar.querySelectorAll(".dist-filter-btn");
-  for (var i = 0; i < btns.length; i++) {
-    var dist = btns[i].dataset.distributor;
-    btns[i].textContent = dist.charAt(0).toUpperCase() + dist.slice(1) + " (" + counts[dist] + ")";
-  }
+  setupEvents({ render: render });
 }
 
 // ── Reverse link helper ──
@@ -90,7 +67,6 @@ function createReverseLink(invItem) {
 
 function render() {
   state.body.innerHTML = "";
-  updateDistCounts();
   if (state.bomData) {
     var matchedInvKeys = renderBomComparison();
     renderRemainingInventory(matchedInvKeys, (state.searchInput.value || "").toLowerCase());
@@ -108,7 +84,7 @@ function renderNormalInventory() {
   for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
     var entry = SECTION_HIERARCHY[i];
     if (!entry.children) {
-      var filtered = filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributor);
+      var filtered = filterByQuery(sections[entry.name] || [], query);
       if (filtered.length > 0) renderSection(entry.name, filtered);
     } else {
       renderHierarchySection(entry, sections, query);
@@ -117,12 +93,12 @@ function renderNormalInventory() {
 }
 
 function renderHierarchySection(entry, sections, query) {
-  var parentParts = filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributor);
+  var parentParts = filterByQuery(sections[entry.name] || [], query);
   var childData = [];
   var totalCount = parentParts.length;
   for (var i = 0; i < entry.children.length; i++) {
     var fullKey = entry.name + " > " + entry.children[i];
-    var filtered = filterByDistributor(filterByQuery(sections[fullKey] || [], query), state.activeDistributor);
+    var filtered = filterByQuery(sections[fullKey] || [], query);
     totalCount += filtered.length;
     childData.push({ name: entry.children[i], fullKey: fullKey, parts: filtered });
   }
@@ -259,27 +235,21 @@ function renderRemainingInventory(matchedInvKeys, query) {
 
 function renderRemainingNormalSections(otherParts, query) {
   var hasAny = FLAT_SECTIONS.some(function (s) { return !!otherParts[s]; });
-  if (!hasAny) return;
-
-  // Record position before rendering — if nothing is appended, skip divider
-  var beforeCount = state.body.childNodes.length;
-
-  for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
-    var entry = SECTION_HIERARCHY[i];
-    if (!entry.children) {
-      var filtered = filterByDistributor(filterByQuery(otherParts[entry.name] || [], query), state.activeDistributor);
-      if (filtered.length > 0) renderSection(entry.name, filtered);
-    } else {
-      renderHierarchySection(entry, otherParts, query);
-    }
-  }
-
-  // Only insert the divider if sections actually rendered
-  if (state.body.childNodes.length > beforeCount) {
+  if (hasAny) {
     var divider = document.createElement("div");
     divider.className = "inv-section-header inv-other-divider";
     divider.textContent = "Other Inventory";
-    state.body.insertBefore(divider, state.body.childNodes[beforeCount]);
+    state.body.appendChild(divider);
+
+    for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
+      var entry = SECTION_HIERARCHY[i];
+      if (!entry.children) {
+        var filtered = filterByQuery(otherParts[entry.name] || [], query);
+        if (filtered.length > 0) renderSection(entry.name, filtered);
+      } else {
+        renderHierarchySection(entry, otherParts, query);
+      }
+    }
   }
 }
 
