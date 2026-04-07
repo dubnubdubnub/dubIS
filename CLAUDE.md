@@ -52,6 +52,7 @@ Entry point: `<script type="module" src="js/app-init.js">` in `index.html`.
 - **`App` object** in `store.js` owns global state; properties declared upfront with ownership comments
 - **Error policy**: prefer `AppLog.warn`/`AppLog.error` over silent catches. Throw errors rather than silently failing.
 - **Test policy**: never use `pytest.skip`, `pytest.importorskip`, or `@pytest.mark.skip` to hide missing dependencies — add them to `requirements-dev.txt` instead. Tests must run, not be skipped.
+- **UI clipping tests**: `sticky-buttons.spec.mjs` and `resize-visibility.spec.mjs` verify that action buttons (Adjust, Confirm, Link) are not clipped by panel overflow. Never weaken these tests (e.g., by relaxing tolerances, removing viewport sizes, or switching from individual-button checks to cell-level checks). If a CSS change causes these tests to fail, fix the CSS — the test is catching a real bug.
 - **Window globals**: `window.closeModal` exposed for Python's `evaluate_js` (set in app-init.js)
 
 ## Testing & Linting
