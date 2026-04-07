@@ -151,6 +151,9 @@ class _FastHTTPServer(HTTPServer):
     """HTTPServer that skips the slow FQDN reverse-DNS lookup in server_bind()."""
 
     def server_bind(self):
+        if self.allow_reuse_address and hasattr(self.socket, 'setsockopt'):
+            import socket
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind(self.server_address)
         self.server_address = self.socket.getsockname()
         self.server_name = self.server_address[0]
