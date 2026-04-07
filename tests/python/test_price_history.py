@@ -8,13 +8,6 @@ import pytest
 import price_history
 
 
-@pytest.fixture
-def events_dir(tmp_path):
-    d = tmp_path / "events"
-    d.mkdir()
-    return str(d)
-
-
 class TestRecordObservation:
     def test_creates_csv_with_header(self, events_dir):
         price_history.record_observations(events_dir, [
