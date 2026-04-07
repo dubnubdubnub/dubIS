@@ -12,6 +12,7 @@ import state from './inv-state.js';
  */
 export function setupEvents(handlers) {
   var render = handlers.render;
+  var updateDistFilterUI = handlers.updateDistFilterUI;
 
   // ── ResizeObserver for description hiding ──
   new ResizeObserver(function (entries) {
@@ -31,6 +32,23 @@ export function setupEvents(handlers) {
     searchTimer = setTimeout(function () { render(); }, 150);
   });
 
+  // ── Distributor filter buttons ──
+  state.distFilterBar.addEventListener("click", function (e) {
+    var btn = e.target.closest(".dist-filter-btn");
+    if (!btn) return;
+    var dist = btn.dataset.distributor;
+    state.activeDistributor = (state.activeDistributor === dist) ? null : dist;
+    updateDistFilterUI();
+    render();
+  });
+
+  state.clearFilterBtn.addEventListener("click", function () {
+    if (state.activeDistributor === null) return;
+    state.activeDistributor = null;
+    updateDistFilterUI();
+    render();
+  });
+
   // ── EventBus subscriptions ──
   EventBus.on(Events.INVENTORY_LOADED, function () { render(); });
   EventBus.on(Events.INVENTORY_UPDATED, function () { render(); });
@@ -44,6 +62,8 @@ export function setupEvents(handlers) {
   EventBus.on(Events.BOM_CLEARED, function () {
     state.bomData = null;
     state.activeFilter = "all";
+    state.activeDistributor = null;
+    updateDistFilterUI();
     state.expandedAlts = new Set();
     state.expandedMembers = new Set();
     App.links.clearAll();
