@@ -44,9 +44,9 @@ tbody tr:hover:not(.part-preview-info tr, .part-preview-prices tr) { background:
 }
 #inventory-body .table-wrap tbody td { user-select: text; -webkit-user-select: text; }
 /* Prevent BOM table from squeezing columns below their defined widths.
-   Column sum: 140 refs + 24 status + 110 part + 140 mpn + 50 need + 50 have + 78 match + ~100 btns = ~692px
+   Column sum: 140 refs + 24 status + 110 part + 140 mpn + 50 need + 50 have + 78 match + 180 btns = ~772px
    Plus description gets whatever is left. Horizontal scroll kicks in via .table-wrap overflow-x. */
-#inventory-body .table-wrap table { min-width: 700px; border-collapse: separate; border-spacing: 0; }
+#inventory-body .table-wrap table { min-width: 800px; border-collapse: separate; border-spacing: 0; }
 /* Truncate description in BOM comparison rows to prevent tall rows at narrow widths */
 #inventory-body .table-wrap td.desc-cell {
   white-space: nowrap;
@@ -234,6 +234,7 @@ th.btn-group-hdr {
   position: sticky; right: 0; z-index: 3;
   background: var(--bg-surface);
   white-space: nowrap; text-align: right;
+  width: 180px;
 }
 td.btn-group button + button { margin-left: 6px; }
 
