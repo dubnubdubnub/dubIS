@@ -14,6 +14,8 @@ import { openCreate as openGenericCreate, openEdit as openGenericEdit } from '..
 import {
   groupBySection,
   filterByQuery,
+  filterByDistributor,
+  countByDistributor,
   computeMatchedInvKeys,
   sortBomRows,
   buildRowMap,
@@ -33,12 +35,15 @@ import {
 
 var body = document.getElementById("inventory-body");
 var searchInput = document.getElementById("inv-search");
+var clearFilterBtn = document.getElementById("clear-dist-filter");
+var distFilterBar = document.getElementById("dist-filter-bar");
 
 // ── Panel state ──
 
 var collapsedSections = new Set();
 var bomData = null;        // { rows, fileName, multiplier }
 var activeFilter = "all";
+var activeDistributor = null;  // null = show all, or "lcsc"|"digikey"|"mouser"|"pololu"|"other"
 var expandedAlts = new Set();
 var expandedMembers = new Set();
 var rowMap = new Map();    // partKey -> r, rebuilt each render
@@ -66,6 +71,23 @@ export function init() {
     searchTimer = setTimeout(function () { render(); }, 150);
   });
 
+  // ── Distributor filter buttons ──
+  distFilterBar.addEventListener("click", function (e) {
+    var btn = e.target.closest(".dist-filter-btn");
+    if (!btn) return;
+    var dist = btn.dataset.distributor;
+    activeDistributor = (activeDistributor === dist) ? null : dist;
+    updateDistFilterUI();
+    render();
+  });
+
+  clearFilterBtn.addEventListener("click", function () {
+    if (activeDistributor === null) return;
+    activeDistributor = null;
+    updateDistFilterUI();
+    render();
+  });
+
   // ── Event listeners ──
   EventBus.on(Events.INVENTORY_LOADED, function () { render(); });
   EventBus.on(Events.INVENTORY_UPDATED, function () { render(); });
@@ -79,6 +101,8 @@ export function init() {
   EventBus.on(Events.BOM_CLEARED, function () {
     bomData = null;
     activeFilter = "all";
+    activeDistributor = null;
+    updateDistFilterUI();
     expandedAlts = new Set();
     expandedMembers = new Set();
     App.links.clearAll();
@@ -93,6 +117,25 @@ export function init() {
       else App.links.setLinkingMode(false);
     }
   });
+}
+
+// ── Distributor filter UI state ──
+
+function updateDistFilterUI() {
+  var btns = distFilterBar.querySelectorAll(".dist-filter-btn");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].classList.toggle("active", btns[i].dataset.distributor === activeDistributor);
+  }
+  clearFilterBtn.disabled = (activeDistributor === null);
+}
+
+function updateDistCounts() {
+  var counts = countByDistributor(App.inventory);
+  var btns = distFilterBar.querySelectorAll(".dist-filter-btn");
+  for (var i = 0; i < btns.length; i++) {
+    var dist = btns[i].dataset.distributor;
+    btns[i].textContent = dist.charAt(0).toUpperCase() + dist.slice(1) + " (" + counts[dist] + ")";
+  }
 }
 
 // ── Reverse link helper ──
@@ -131,13 +174,14 @@ var SECTION_HIERARCHY = App.SECTION_HIERARCHY;
 var FLAT_SECTIONS = App.FLAT_SECTIONS;
 
 function renderNormalInventory() {
+  updateDistCounts();
   var query = (searchInput.value || "").toLowerCase();
   var sections = groupBySection(App.inventory);
 
   for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
     var entry = SECTION_HIERARCHY[i];
     if (!entry.children) {
-      var filtered = filterByQuery(sections[entry.name] || [], query);
+      var filtered = filterByDistributor(filterByQuery(sections[entry.name] || [], query), activeDistributor);
       if (filtered.length > 0) renderSection(entry.name, filtered);
     } else {
       renderHierarchySection(entry, sections, query);
@@ -146,12 +190,12 @@ function renderNormalInventory() {
 }
 
 function renderHierarchySection(entry, sections, query) {
-  var parentParts = filterByQuery(sections[entry.name] || [], query);
+  var parentParts = filterByDistributor(filterByQuery(sections[entry.name] || [], query), activeDistributor);
   var childData = [];
   var totalCount = parentParts.length;
   for (var i = 0; i < entry.children.length; i++) {
     var fullKey = entry.name + " > " + entry.children[i];
-    var filtered = filterByQuery(sections[fullKey] || [], query);
+    var filtered = filterByDistributor(filterByQuery(sections[fullKey] || [], query), activeDistributor);
     totalCount += filtered.length;
     childData.push({ name: entry.children[i], fullKey: fullKey, parts: filtered });
   }
@@ -297,7 +341,7 @@ function renderRemainingNormalSections(otherParts, query) {
     for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
       var entry = SECTION_HIERARCHY[i];
       if (!entry.children) {
-        var filtered = filterByQuery(otherParts[entry.name] || [], query);
+        var filtered = filterByDistributor(filterByQuery(otherParts[entry.name] || [], query), activeDistributor);
         if (filtered.length > 0) renderSection(entry.name, filtered);
       } else {
         renderHierarchySection(entry, otherParts, query);
