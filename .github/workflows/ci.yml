@@ -205,24 +205,33 @@ jobs:
 
   # ── Tier 3: Quality (non-blocking) ──────────────────────────────────
   quality:
-    name: Quality Tests (non-blocking)
+    name: Quality Tests (${{ matrix.name }})
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
       contains(fromJSON('["all","quality"]'), needs.parse-tags.outputs.tier)
-    runs-on: [self-hosted, pnp-testbox]
+    strategy:
+      matrix:
+        include:
+          - name: ubuntu
+            runner: [self-hosted, pnp-testbox]
+            checkout-clean: true
+            install-pw: true
+          - name: macos
+            runner: [self-hosted, m4-air]
+            checkout-clean: false
+            install-pw: false
+    runs-on: ${{ matrix.runner }}
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
-          clean: true
+          clean: ${{ matrix.checkout-clean }}
       - run: npm install
+      - name: Install Playwright browsers
+        if: matrix.install-pw
+        run: npx playwright install chromium
       - name: Quality unit tests (contrast, style-audit, ui-helpers)
         run: npx vitest run --project quality
       - name: Quality E2E (accessibility, resize-visibility)
         run: npx playwright test --project quality
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: quality-report
-          path: test-results/
