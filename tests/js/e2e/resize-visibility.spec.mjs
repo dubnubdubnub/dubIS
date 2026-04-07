@@ -427,6 +427,7 @@ test.describe('BOM comparison table buttons', () => {
     console.log('Btn-group after h-scroll:', result);
     expect(result.found, 'btn-group element should exist after h-scroll').toBe(true);
     expect(result.stickyComputed).toBe('sticky');
+    expect(result.visible, `btn-group should remain within table-wrap after scroll (btn.right=${result.btnRight}, wrap.right=${result.wrapRight})`).toBe(true);
   });
 
   test('button group stays visible when table scrolled horizontally — with PO', async ({ page }) => {
@@ -456,6 +457,7 @@ test.describe('BOM comparison table buttons', () => {
     console.log('Btn-group after h-scroll (BOM+PO):', result);
     expect(result.found, 'btn-group element should exist after h-scroll (BOM+PO)').toBe(true);
     expect(result.stickyComputed).toBe('sticky');
+    expect(result.visible, `btn-group should remain within table-wrap after scroll (btn.right=${result.btnRight}, wrap.right=${result.wrapRight})`).toBe(true);
   });
 
   test('Adjust/Confirm/Link buttons visible in first BOM row at narrow width', async ({ page }) => {
@@ -492,6 +494,56 @@ test.describe('BOM comparison table buttons', () => {
       expect(btn.height, `Button "${btn.text}" has zero height`).toBeGreaterThan(0);
     }
   });
+
+  /**
+   * Check that BOM table action buttons (Confirm, Adjust, Link) inside
+   * td.btn-group cells are not clipped by the panel body.
+   * This catches the table-layout:fixed column-width bug where th.btn-group-hdr
+   * had no explicit width, causing buttons to be clipped at narrower panels.
+   */
+  function checkBomButtonsNotClipped(viewportWidth, { withPO = false } = {}) {
+    return async ({ page }) => {
+      await addMockSetup(page, MOCK_INVENTORY);
+      await page.setViewportSize({ width: viewportWidth, height: 700 });
+      await page.goto('/index.html');
+      await waitForInventoryRows(page);
+      await applyMode(page, { bom: true, po: withPO });
+
+      const result = await page.evaluate(() => {
+        const panelBody = document.getElementById('inventory-body');
+        if (!panelBody) return { checked: 0, issues: ['panel body not found'] };
+        const bodyRect = panelBody.getBoundingClientRect();
+        const rows = panelBody.querySelectorAll('tr[data-part-key]');
+        const issues = [];
+        const checked = Math.min(rows.length, 10);
+        for (let i = 0; i < checked; i++) {
+          const buttons = rows[i].querySelectorAll('td.btn-group button');
+          for (const btn of buttons) {
+            if (btn.offsetWidth === 0 || btn.offsetHeight === 0) {
+              issues.push(`row ${i}: ${btn.className} has zero dimensions`);
+              continue;
+            }
+            const btnRect = btn.getBoundingClientRect();
+            if (btnRect.right > bodyRect.right + 1) {
+              issues.push(`row ${i}: ${btn.className} "${btn.textContent.trim()}" clipped (btn.right=${Math.round(btnRect.right)}, panel.right=${Math.round(bodyRect.right)})`);
+            }
+          }
+        }
+        return { checked, panelWidth: Math.round(bodyRect.width), issues };
+      });
+
+      const label = withPO ? 'BOM+PO' : 'BOM';
+      console.log(`Viewport ${viewportWidth}px [${label}] — panel: ${result.panelWidth}px, checked ${result.checked} BOM rows, issues: ${result.issues.length}`);
+      result.issues.forEach(i => console.log('  ' + i));
+      expect(result.issues.length, result.issues.join('; ')).toBe(0);
+    };
+  }
+
+  test('BOM table buttons not clipped at 1100px', checkBomButtonsNotClipped(1100));
+  test('BOM table buttons not clipped at 1200px', checkBomButtonsNotClipped(1200));
+  test('BOM table buttons not clipped at 2016px', checkBomButtonsNotClipped(2016));
+  test('BOM table buttons not clipped at 1100px with PO', checkBomButtonsNotClipped(1100, { withPO: true }));
+  test('BOM table buttons not clipped at 2016px with PO', checkBomButtonsNotClipped(2016, { withPO: true }));
 });
 
 
@@ -537,9 +589,8 @@ test.describe('Filter bar wrapping', () => {
     });
 
     console.log('Filter bar at 1200px:', JSON.stringify(filterInfo, null, 2));
-    if (filterInfo.found) {
-      expect(filterInfo.anyOverflow, 'Filter buttons overflow the bar').toBe(false);
-    }
+    expect(filterInfo.found, 'Filter bar should exist after loading BOM').toBe(true);
+    expect(filterInfo.anyOverflow, 'Filter buttons overflow the bar').toBe(false);
   });
 
   test('filter bar wraps gracefully at narrow width — with PO', async ({ page }) => {
@@ -570,9 +621,8 @@ test.describe('Filter bar wrapping', () => {
     });
 
     console.log('Filter bar at 1200px (BOM+PO):', JSON.stringify(filterInfo));
-    if (filterInfo.found) {
-      expect(filterInfo.anyOverflow, 'Filter buttons overflow the bar with PO loaded').toBe(false);
-    }
+    expect(filterInfo.found, 'Filter bar should exist after loading BOM+PO').toBe(true);
+    expect(filterInfo.anyOverflow, 'Filter buttons overflow the bar with PO loaded').toBe(false);
   });
 });
 
@@ -948,13 +998,15 @@ test.describe('Inventory row elements at narrow widths', () => {
   // Base state — no BOM, no PO
   test('adjust buttons not clipped at 1024px viewport', checkRowButtonsNotClipped(1024));
   test('adjust buttons not clipped at 900px viewport', checkRowButtonsNotClipped(900));
-  // With BOM only (900px omitted — Link button overflows until PR #117 is merged)
+  // With BOM only
   test('adjust+link buttons not clipped at 1024px with BOM', checkRowButtonsNotClipped(1024, { withBom: true }));
+  test('adjust+link buttons not clipped at 900px with BOM', checkRowButtonsNotClipped(900, { withBom: true }));
   // With PO only
   test('adjust buttons not clipped at 1024px with PO', checkRowButtonsNotClipped(1024, { withPO: true }));
   test('adjust buttons not clipped at 900px with PO', checkRowButtonsNotClipped(900, { withPO: true }));
-  // With BOM + PO (900px omitted — same overflow as BOM-only at 900px)
+  // With BOM + PO
   test('adjust+link buttons not clipped at 1024px with BOM + PO', checkRowButtonsNotClipped(1024, { withBom: true, withPO: true }));
+  test('adjust+link buttons not clipped at 900px with BOM + PO', checkRowButtonsNotClipped(900, { withBom: true, withPO: true }));
 
   test('part-id, mpn, qty visible in narrow inventory rows', async ({ page }) => {
     await addMockSetup(page, MOCK_INVENTORY);
@@ -1067,6 +1119,14 @@ test.describe('Cross-viewport visibility audit — with BOM', () => {
         const icon = r.visible ? (r.clipped ? 'CLIPPED' : 'OK') : 'HIDDEN';
         console.log(`  [${icon}] ${r.reason}`);
       }
+
+      // BOM elements should be visible at viewports >= 1024px
+      // (at 800px the app intentionally overflows — see "panels overflow at very narrow viewport" test)
+      if (vp.width >= 1024) {
+        for (const r of results) {
+          expect(r.visible, r.reason).toBe(true);
+        }
+      }
     });
   }
 });
@@ -1129,6 +1189,13 @@ test.describe('Cross-viewport visibility audit — with BOM + PO', () => {
       for (const r of results) {
         const icon = r.visible ? (r.clipped ? 'CLIPPED' : 'OK') : 'HIDDEN';
         console.log(`  [${icon}] ${r.reason}`);
+      }
+
+      // All elements should be visible at viewports >= 1024px
+      if (vp.width >= 1024) {
+        for (const r of results) {
+          expect(r.visible, r.reason).toBe(true);
+        }
       }
     });
   }
