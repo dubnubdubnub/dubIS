@@ -17,7 +17,6 @@ import file_dialogs
 import inventory_ops
 import price_ops
 from distributor_api import DistributorApi
-from distributor_manager import DistributorManager
 from generic_parts_api import GenericPartsApi
 from price_api import PriceApi
 
@@ -103,15 +102,11 @@ class InventoryApi:
             cache_db.create_schema(self._cache_conn)
         return self._cache_conn
 
-    # ── Static utility delegates ─────────────────────────────────────────
+    # ── Utility delegates ──────────────────────────────────────────────────
 
     @staticmethod
     def _parse_qty(value: Any, default: int = 0) -> int:
         return price_ops.parse_qty(value, default)
-
-    @staticmethod
-    def _parse_price(value: Any, default: float = 0.0) -> float:
-        return price_ops.parse_price(value, default)
 
     @staticmethod
     def _ensure_parsed(value: str | Any) -> Any:
@@ -125,49 +120,14 @@ class InventoryApi:
     def get_part_key(row: dict[str, str]) -> str:
         return inventory_ops.get_part_key(row)
 
-    @staticmethod
-    def _read_text(path: str) -> str:
-        return csv_io.read_text(path)
-
-    @staticmethod
-    def _migrate_csv_header(path: str, expected_fieldnames: list[str]) -> None:
-        return csv_io.migrate_csv_header(path, expected_fieldnames)
-
-    @staticmethod
-    def _infer_distributor(row: dict[str, str]) -> str:
-        """Infer distributor from which part number fields are populated."""
-        return DistributorManager.infer_distributor(row)
-
     def _infer_distributor_for_key(self, part_key: str) -> str:
         """Infer distributor from a part key string."""
         return self._distributors.infer_distributor_for_key(part_key)
 
-    # ── Compatibility shims (tests + legacy callers) ──────────────────────
-
-    @property
-    def _lcsc(self):
-        return self._distributors._lcsc
-
-    @property
-    def _digikey(self):
-        return self._distributors._digikey
-
-    @property
-    def _pololu(self):
-        return self._distributors._pololu
-
-    @property
-    def _mouser(self):
-        return self._distributors._mouser
-
     # Map JS field names to CSV column names (delegate to inventory_ops)
     _FIELD_TO_COL = inventory_ops._FIELD_TO_COL
 
-    # ── Core pipeline delegates ──────────────────────────────────────────
-
-    def _append_csv_rows(self, path: str, fieldnames: list[str],
-                         rows: list[dict[str, Any]]) -> None:
-        csv_io.append_csv_rows(path, fieldnames, rows)
+    # ── Pipeline helpers ───────────────────────────────────────────────────
 
     def _read_raw_inventory(self) -> tuple[list[str], dict[str, dict[str, str]]]:
         return inventory_ops.read_and_merge(self.input_csv, self.FIELDNAMES)
@@ -175,9 +135,6 @@ class InventoryApi:
     def _apply_adjustments(self, merged: dict[str, dict[str, str]],
                            fieldnames: list[str]) -> None:
         inventory_ops.apply_adjustments(merged, self.adjustments_csv, fieldnames)
-
-    def _categorize_and_sort(self, parts: list[dict[str, str]]) -> dict[str, list[dict[str, str]]]:
-        return inventory_ops.categorize_and_sort(parts)
 
     def _rebuild(self) -> list[dict[str, Any]]:
         """Full rebuild: replay all events into cache, return fresh inventory."""
@@ -230,7 +187,7 @@ class InventoryApi:
             up = price_ops.parse_price(row.get("Unit Price($)"))
             if up <= 0:
                 continue
-            distributor = self._infer_distributor(row)
+            distributor = self._distributors.infer_distributor(row)
             observations.append({
                 "part_id": part_key,
                 "distributor": distributor,
