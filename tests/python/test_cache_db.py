@@ -20,7 +20,7 @@ class TestSchema:
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
         assert row is not None
-        assert row[0] == "3"
+        assert row[0] == "4"
 
     def test_foreign_key_enforced(self, db):
         with pytest.raises(sqlite3.IntegrityError):
@@ -470,7 +470,7 @@ class TestSchemaV3:
         row = db.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
-        assert row[0] == "3"
+        assert row[0] == "4"
 
     def test_generic_parts_columns(self, db):
         db.execute(
@@ -532,7 +532,7 @@ class TestSchemaV3:
         version = conn.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()[0]
-        assert version == "3"
+        assert version == "4"
         conn.close()
 
 
@@ -547,7 +547,7 @@ class TestSchemaMigration:
         row = db.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
-        assert row[0] == "3"
+        assert row[0] == "4"
 
     def test_prices_table_columns(self, db):
         db.execute("INSERT INTO parts (part_id) VALUES ('C1525')")
@@ -586,8 +586,28 @@ class TestSchemaMigration:
         version = conn.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()[0]
-        assert version == "3"
+        assert version == "4"
         conn.close()
+
+
+class TestSchemaV4:
+    def test_generic_parts_has_source_column(self, db):
+        """generic_parts table should have a source column."""
+        row = db.execute("PRAGMA table_info(generic_parts)").fetchall()
+        col_names = [r["name"] for r in row]
+        assert "source" in col_names
+
+    def test_source_defaults_to_manual(self, db):
+        """source should default to 'manual' for user-created groups."""
+        db.execute(
+            "INSERT INTO parts (part_id) VALUES ('test1')"
+        )
+        db.execute(
+            "INSERT INTO generic_parts (generic_part_id, name, part_type) VALUES ('gp1', 'Test', 'other')"
+        )
+        db.commit()
+        row = db.execute("SELECT source FROM generic_parts WHERE generic_part_id='gp1'").fetchone()
+        assert row["source"] == "manual"
 
 
 class TestIntegration:
