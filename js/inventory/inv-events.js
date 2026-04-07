@@ -13,10 +13,15 @@ import state from './inv-state.js';
 export function setupEvents(handlers) {
   var render = handlers.render;
 
-  // ── ResizeObserver for description hiding ──
+  // ── ResizeObserver for description hiding + filter bar visibility ──
+  var FILTER_BAR_MIN_WIDTH = 700;
   new ResizeObserver(function (entries) {
-    var narrow = entries[0].contentRect.width < state.DESC_HIDE_WIDTH;
+    var w = entries[0].contentRect.width;
+    var narrow = w < state.DESC_HIDE_WIDTH;
     if (narrow !== state.hideDescs) { state.hideDescs = narrow; render(); }
+    var hideFilters = w < FILTER_BAR_MIN_WIDTH;
+    state.distFilterBar.classList.toggle("hidden", hideFilters);
+    state.clearFilterBtn.classList.toggle("hidden", hideFilters);
   }).observe(state.body);
 
   // Log app dimensions on resize
