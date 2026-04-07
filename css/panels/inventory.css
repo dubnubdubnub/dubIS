@@ -10,6 +10,9 @@
   color: var(--text-bright);
   font-size: 12px;
   width: 180px;
+  min-width: 100px;
+  flex-shrink: 1;
+  margin-left: auto;
   outline: none;
 }
 .search-input:focus { border-color: var(--color-blue); }
@@ -135,3 +138,59 @@
 .inv-part-row .part-id-digikey,
 .inv-part-row .part-id-pololu,
 .inv-part-row .part-id-mouser { overflow: hidden; white-space: nowrap; max-width: 100%; }
+
+/* ── Distributor Filter Buttons ─────────────────────── */
+.dist-filter-bar {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.dist-filter-bar.hidden, .clear-filters-btn.hidden { display: none; }
+.dist-filter-btn {
+  padding: 3px 6px;
+  border-radius: 6px 6px 2px 2px;
+  border: 1px solid var(--border-default);
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dist-filter-btn:hover { color: var(--text-primary); }
+.dist-filter-btn.active[data-distributor="lcsc"]    { border-bottom-color: var(--vendor-lcsc);    color: var(--vendor-lcsc);    background: #1166dd10; }
+.dist-filter-btn.active[data-distributor="digikey"] { border-bottom-color: var(--vendor-digikey); color: var(--vendor-digikey); background: #ee282110; }
+.dist-filter-btn.active[data-distributor="mouser"]  { border-bottom-color: #6a9fd8;              color: #6a9fd8;              background: #004A9910; } /* lightened --vendor-mouser for contrast */
+.dist-filter-btn.active[data-distributor="pololu"]  { border-bottom-color: #5a6fd6;              color: #5a6fd6;              background: #1e2f9410; } /* lightened --vendor-pololu for contrast */
+.dist-filter-btn.active[data-distributor="other"]   { border-bottom-color: var(--color-gray-muted); color: var(--text-secondary); background: #636c7610; }
+
+/* ── Clear Filters Button ───────────────────────────── */
+.clear-filters-btn {
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.clear-filters-btn:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+.clear-filters-btn:not(:disabled) {
+  color: var(--color-red);
+  border-color: #f8514930;
+  cursor: pointer;
+}
+.clear-filters-btn:not(:disabled):hover {
+  background: #f8514915;
+  border-color: var(--color-red);
+}
