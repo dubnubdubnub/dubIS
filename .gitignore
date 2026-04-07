@@ -19,6 +19,10 @@ data/*.ico
 !data/dubIS.ico
 !data/lcsc-icon.ico
 data/*.db
+data/*.db-shm
+data/*.db-wal
 data/events/*.csv
+data-backup-*/
 data_backup
+test-results/
 docs/superpowers/
