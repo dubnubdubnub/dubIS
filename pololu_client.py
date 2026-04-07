@@ -29,21 +29,15 @@ class PololuClient(BaseProductClient):
 
     provider = "pololu"
 
-    def __init__(self) -> None:
-        self._cache: dict[str, dict[str, Any] | None] = {}
-
-    def fetch_product(self, sku: str) -> dict[str, Any] | None:
+    def _fetch_raw(self, sku: str) -> dict[str, Any] | None:
         """Fetch Pololu product details by SKU (e.g. 1992).
 
         Returns a normalized dict of product info, or None if not found/failed.
-        Results (including None) are cached for the session.
+        Raises ValueError for invalid SKUs.
         """
         sku = str(sku).strip()
         if not re.match(r"^\d{1,6}$", sku):
             raise ValueError(f"Invalid Pololu SKU: {sku!r}")
-
-        if sku in self._cache:
-            return self._cache[sku]
 
         url = f"https://www.pololu.com/product/{sku}"
         try:
@@ -55,12 +49,9 @@ class PololuClient(BaseProductClient):
                 page_html = resp.read().decode("utf-8")
         except (urllib.error.URLError, TimeoutError) as exc:
             logger.warning("Pololu fetch failed for %s: %s", sku, exc)
-            self._cache[sku] = None
             return None
 
-        product = self._parse_product_page(page_html, sku, url)
-        self._cache[sku] = product
-        return product
+        return self._parse_product_page(page_html, sku, url)
 
     @staticmethod
     def _parse_product_page(page_html: str, sku: str, url: str) -> dict[str, Any] | None:
