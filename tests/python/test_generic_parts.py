@@ -1,28 +1,9 @@
 """Tests for generic_parts module."""
 
 import csv
-import json
 import os
 
-import pytest
-
-import cache_db
 import generic_parts
-
-
-@pytest.fixture
-def db(tmp_path):
-    conn = cache_db.connect(str(tmp_path / "cache.db"))
-    cache_db.create_schema(conn)
-    yield conn
-    conn.close()
-
-
-@pytest.fixture
-def events_dir(tmp_path):
-    d = tmp_path / "events"
-    d.mkdir()
-    return str(d)
 
 
 def _seed_parts(db):
