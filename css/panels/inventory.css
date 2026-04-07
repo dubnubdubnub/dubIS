@@ -158,8 +158,8 @@
 .dist-filter-btn:hover { color: var(--text-primary); }
 .dist-filter-btn.active[data-distributor="lcsc"]    { border-bottom-color: var(--vendor-lcsc);    color: var(--vendor-lcsc);    background: #1166dd10; }
 .dist-filter-btn.active[data-distributor="digikey"] { border-bottom-color: var(--vendor-digikey); color: var(--vendor-digikey); background: #ee282110; }
-.dist-filter-btn.active[data-distributor="mouser"]  { border-bottom-color: #6a9fd8;              color: #6a9fd8;              background: #004A9910; }
-.dist-filter-btn.active[data-distributor="pololu"]  { border-bottom-color: #5a6fd6;              color: #5a6fd6;              background: #1e2f9410; }
+.dist-filter-btn.active[data-distributor="mouser"]  { border-bottom-color: #6a9fd8;              color: #6a9fd8;              background: #004A9910; } /* lightened --vendor-mouser for contrast */
+.dist-filter-btn.active[data-distributor="pololu"]  { border-bottom-color: #5a6fd6;              color: #5a6fd6;              background: #1e2f9410; } /* lightened --vendor-pololu for contrast */
 .dist-filter-btn.active[data-distributor="other"]   { border-bottom-color: var(--color-gray-muted); color: var(--text-secondary); background: #636c7610; }
 
 /* ── Clear Filters Button ───────────────────────────── */
