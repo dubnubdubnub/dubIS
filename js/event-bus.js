@@ -1,6 +1,20 @@
 // @ts-check
 /* event-bus.js — Central event system for cross-panel communication */
 
+/**
+ * Event payloads (what `data` contains when the event fires):
+ *
+ * INVENTORY_LOADED:     InventoryItem[]          — full inventory array
+ * INVENTORY_UPDATED:    InventoryItem[]          — updated inventory array
+ * BOM_LOADED:           {rows, fileName, multiplier} — computed BOM rows + metadata
+ * BOM_CLEARED:          (none)
+ * PREFS_CHANGED:        (none)                   — listeners re-read store.preferences
+ * CONFIRMED_CHANGED:    (none)                   — listeners re-read store.links
+ * LINKING_MODE:         (none)                   — listeners re-read store.links.linkingMode etc.
+ * LINKS_CHANGED:        (none)                   — listeners re-read store.links
+ * SAVE_AND_CLOSE:       (none)
+ * GENERIC_PARTS_LOADED: GenericPart[]            — full generic parts array
+ */
 export const Events = Object.freeze({
   INVENTORY_LOADED:  "inventory-loaded",
   INVENTORY_UPDATED: "inventory-updated",
