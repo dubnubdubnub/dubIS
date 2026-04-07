@@ -8,37 +8,10 @@ import urllib.request
 
 import pytest
 
-from inventory_api import InventoryApi
 from pnp_server import _load_part_map, _resolve_part_id, start_pnp_server
 
-
-# ── Shared helpers (same convention as test_inventory_api.py) ──
-
-
-def _write_ledger(api, rows):
-    """Write rows to purchase_ledger.csv with standard fieldnames."""
-    import csv
-    with open(api.input_csv, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=InventoryApi.FIELDNAMES)
-        writer.writeheader()
-        for r in rows:
-            row = {fn: "" for fn in InventoryApi.FIELDNAMES}
-            row.update(r)
-            writer.writerow(row)
-
-
-def _make_part(lcsc="", mpn="", qty=10, desc="Resistor 10kΩ", pkg="0402",
-               unit_price="0.01", ext_price="0.10", digikey=""):
-    return {
-        "LCSC Part Number": lcsc,
-        "Manufacture Part Number": mpn,
-        "Digikey Part Number": digikey,
-        "Quantity": str(qty),
-        "Description": desc,
-        "Package": pkg,
-        "Unit Price($)": unit_price,
-        "Ext.Price($)": ext_price,
-    }
+from tests.python.helpers import make_part as _make_part
+from tests.python.helpers import write_ledger as _write_ledger
 
 
 # ── Fixtures ──

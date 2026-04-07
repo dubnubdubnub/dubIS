@@ -7,6 +7,8 @@ import pytest
 
 from categorize import categorize, parse_capacitance, parse_resistance
 from inventory_api import InventoryApi
+from tests.python.helpers import make_part as _make_part
+from tests.python.helpers import write_ledger as _write_ledger
 
 
 class TestGetPartKey:
@@ -264,31 +266,6 @@ class TestLoadPreferences:
         assert api.load_preferences() == {"theme": "dark"}
 
 
-# ── Helper to write purchase_ledger.csv ──
-
-def _write_ledger(api, rows):
-    """Write rows to purchase_ledger.csv with standard fieldnames."""
-    import csv
-    with open(api.input_csv, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=InventoryApi.FIELDNAMES)
-        writer.writeheader()
-        for r in rows:
-            row = {fn: "" for fn in InventoryApi.FIELDNAMES}
-            row.update(r)
-            writer.writerow(row)
-
-
-def _make_part(lcsc="", mpn="", qty=10, desc="Resistor 10kΩ", pkg="0402",
-               unit_price="0.01", ext_price="0.10"):
-    return {
-        "LCSC Part Number": lcsc,
-        "Manufacture Part Number": mpn,
-        "Quantity": str(qty),
-        "Description": desc,
-        "Package": pkg,
-        "Unit Price($)": unit_price,
-        "Ext.Price($)": ext_price,
-    }
 
 
 # ── New helper tests ──
