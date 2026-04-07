@@ -200,6 +200,7 @@
 .filter-chip.dim { opacity: 0.35; }
 .chip-count { color: var(--text-muted); margin-left: 2px; font-size: 9px; }
 
+
 /* ── Distributor Filter Buttons ─────────────────────── */
 .dist-filter-bar {
   display: flex;
