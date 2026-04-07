@@ -2,19 +2,32 @@
 
 from __future__ import annotations
 
-import html as html_mod
-import json
 import logging
 import re
 import urllib.error
 import urllib.request
 from typing import Any
 
+from base_client import BaseProductClient
+from html_product_parser import (
+    extract_attributes,
+    extract_description,
+    extract_image_url,
+    extract_jsonld_product,
+    extract_manufacturer,
+    extract_mpn,
+    extract_prices_from_jsonld,
+    extract_stock_from_jsonld,
+    extract_title,
+)
+
 logger = logging.getLogger(__name__)
 
 
-class MouserClient:
+class MouserClient(BaseProductClient):
     """Fetches and caches Mouser product details by part number."""
+
+    provider = "mouser"
 
     def __init__(self) -> None:
         self._cache: dict[str, dict[str, Any] | None] = {}
@@ -52,84 +65,21 @@ class MouserClient:
     @staticmethod
     def _parse_product_page(page_html: str, part_number: str, url: str) -> dict[str, Any] | None:
         """Parse a Mouser product page and extract product details."""
-        # Try to extract JSON-LD structured data first
-        jsonld_match = re.search(
-            r'<script\s+type="application/ld\+json"[^>]*>(.*?)</script>',
-            page_html, re.DOTALL,
-        )
-        jsonld = None
-        if jsonld_match:
-            try:
-                jsonld = json.loads(jsonld_match.group(1))
-                # Handle array of JSON-LD objects
-                if isinstance(jsonld, list):
-                    jsonld = next(
-                        (j for j in jsonld if isinstance(j, dict) and j.get("@type") == "Product"),
-                        None,
-                    )
-            except json.JSONDecodeError:
-                jsonld = None
+        jsonld = extract_jsonld_product(page_html)
 
-        # Extract title from JSON-LD or HTML
-        title = ""
-        if jsonld and jsonld.get("name"):
-            title = jsonld["name"]
-        else:
-            m = re.search(r"<h1[^>]*>(.*?)</h1>", page_html, re.DOTALL)
-            if m:
-                title = re.sub(r"<[^>]+>", "", m.group(1)).strip()
-                title = html_mod.unescape(title)
-
+        title = extract_title(page_html, jsonld)
         if not title:
             return None
 
-        # Extract description from meta tag or JSON-LD
-        description = ""
-        if jsonld and jsonld.get("description"):
-            description = jsonld["description"]
-        else:
-            m = re.search(r'<meta\s+name="description"\s+content="([^"]*)"', page_html)
-            if m:
-                description = html_mod.unescape(m.group(1))
+        description = extract_description(page_html, jsonld)
+        image_url = extract_image_url(page_html, jsonld)
+        manufacturer = extract_manufacturer(jsonld)
+        mpn = extract_mpn(jsonld)
 
-        # Extract image
-        image_url = ""
-        if jsonld and jsonld.get("image"):
-            img = jsonld["image"]
-            if isinstance(img, list):
-                image_url = img[0] if img else ""
-            else:
-                image_url = str(img)
-        if not image_url:
-            m = re.search(r'<meta\s+property="og:image"\s+content="([^"]*)"', page_html)
-            if m:
-                image_url = m.group(1)
-        # Fix protocol-relative URLs
-        if image_url.startswith("//"):
-            image_url = "https:" + image_url
-
-        # Extract price from JSON-LD offers
-        prices: list[dict[str, Any]] = []
-        if jsonld and jsonld.get("offers"):
-            offers = jsonld["offers"]
-            if isinstance(offers, dict) and offers.get("price"):
-                try:
-                    prices.append({"qty": 1, "price": float(offers["price"])})
-                except (ValueError, TypeError):
-                    pass
-            elif isinstance(offers, list):
-                for offer in offers:
-                    if isinstance(offer, dict) and offer.get("price"):
-                        try:
-                            prices.append({"qty": 1, "price": float(offer["price"])})
-                        except (ValueError, TypeError):
-                            pass
-
-        # Extract volume pricing from page HTML
+        # Prices: start from JSON-LD, then add Mouser-specific volume pricing tiers
         # Mouser shows pricing tiers like "10 $5.50" or "10+ $5.50" in tables
-        price_matches = re.findall(
-            r'(\d[\d,]*)\+?\s*\$(\d+\.?\d*)', page_html,
-        )
+        prices: list[dict[str, Any]] = extract_prices_from_jsonld(jsonld)
+        price_matches = re.findall(r'(\d[\d,]*)\+?\s*\$(\d+\.?\d*)', page_html)
         for qty_str, price_str in price_matches:
             try:
                 qty = int(qty_str.replace(",", ""))
@@ -140,20 +90,8 @@ class MouserClient:
                 pass
         prices.sort(key=lambda p: p["qty"])
 
-        # Extract stock/availability
-        stock = 0
-        if jsonld and jsonld.get("offers"):
-            offers = jsonld["offers"]
-            if isinstance(offers, dict):
-                avail = offers.get("availability", "")
-                if "InStock" in avail:
-                    stock = 1
-            elif isinstance(offers, list) and offers:
-                avail = offers[0].get("availability", "")
-                if "InStock" in avail:
-                    stock = 1
-
-        # Try to get actual stock count from page
+        # Stock: start from JSON-LD availability, then try actual count from page
+        stock = extract_stock_from_jsonld(jsonld)
         stock_match = re.search(r'(\d[\d,]*)\s+[Ii]n\s+[Ss]tock', page_html)
         if stock_match:
             try:
@@ -161,21 +99,7 @@ class MouserClient:
             except ValueError:
                 pass
 
-        # Extract brand/manufacturer from JSON-LD
-        manufacturer = ""
-        if jsonld and jsonld.get("brand"):
-            brand = jsonld["brand"]
-            if isinstance(brand, dict):
-                manufacturer = brand.get("name", "")
-            elif isinstance(brand, str):
-                manufacturer = brand
-
-        # Extract MPN from JSON-LD
-        mpn = ""
-        if jsonld:
-            mpn = jsonld.get("mpn", "") or jsonld.get("sku", "")
-
-        # Extract datasheet PDF URL
+        # Mouser-specific: extract datasheet PDF URL
         pdf_url = ""
         pdf_match = re.search(r'href="([^"]*\.pdf[^"]*)"', page_html, re.IGNORECASE)
         if pdf_match:
@@ -183,14 +107,13 @@ class MouserClient:
             if pdf_url.startswith("//"):
                 pdf_url = "https:" + pdf_url
 
-        # Extract category from breadcrumbs
+        # Mouser-specific: breadcrumb uses "breadcrumb" class, category = last crumb
         category = ""
         subcategory = ""
         breadcrumb_matches = re.findall(
             r'<a[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>([^<]+)</a>', page_html,
         )
         if not breadcrumb_matches:
-            # Alternative breadcrumb pattern
             breadcrumb_matches = re.findall(
                 r'<li[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>[^<]*<a[^>]*>([^<]+)</a>',
                 page_html,
@@ -203,17 +126,9 @@ class MouserClient:
             if len(crumbs) >= 2:
                 subcategory = crumbs[-2]
 
-        # Extract key specs/attributes from product detail tables
-        attributes: list[dict[str, str]] = []
-        spec_matches = re.findall(
-            r'<t[hd][^>]*>([^<]+)</t[hd]>\s*<td[^>]*>([^<]+)</td>',
-            page_html,
+        attributes = extract_attributes(
+            page_html, excluded_names=["quantity", "price", "unit price"]
         )
-        for name, value in spec_matches:
-            name = html_mod.unescape(name.strip())
-            value = html_mod.unescape(value.strip())
-            if name and value and name.lower() not in ("quantity", "price", "unit price"):
-                attributes.append({"name": name, "value": value})
 
         product: dict[str, Any] = {
             "productCode": part_number,

@@ -2,11 +2,10 @@
    Absorbs bom-comparison.js responsibilities. Delegates to
    inventory-logic.js (pure functions) and inventory-renderer.js (DOM rendering). */
 
-import { EventBus, Events } from '../event-bus.js';
 import { AppLog } from '../api.js';
 import { showToast, escHtml } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { App, snapshotLinks, getThreshold } from '../store.js';
+import { App, store, snapshotLinks, getThreshold } from '../store.js';
 import { bomKey, invPartKey, countStatuses } from '../part-keys.js';
 import { openAdjustModal, openPriceModal } from '../inventory-modals.js';
 import { openCreate as openGenericCreate, openEdit as openGenericEdit } from '../generic-parts-modal.js';
@@ -29,70 +28,21 @@ import {
   renderBomTableHeader,
 } from './inventory-renderer.js';
 
-// ── DOM references ──
+import state from './inv-state.js';
+import { setupEvents } from './inv-events.js';
 
-var body = document.getElementById("inventory-body");
-var searchInput = document.getElementById("inv-search");
+// ── Section hierarchy (read once from store) ──
 
-// ── Panel state ──
+var SECTION_HIERARCHY = store.SECTION_HIERARCHY;
+var FLAT_SECTIONS = store.FLAT_SECTIONS;
 
-var collapsedSections = new Set();
-var bomData = null;        // { rows, fileName, multiplier }
-var activeFilter = "all";
-var expandedAlts = new Set();
-var expandedMembers = new Set();
-var rowMap = new Map();    // partKey -> r, rebuilt each render
-
-// Hide descriptions when panel is too narrow for readable text
-var DESC_HIDE_WIDTH = 680;
-var hideDescs = true;
+// ── Init ──
 
 export function init() {
-  // ── ResizeObserver for description hiding ──
-  new ResizeObserver(function (entries) {
-    var narrow = entries[0].contentRect.width < DESC_HIDE_WIDTH;
-    if (narrow !== hideDescs) { hideDescs = narrow; render(); }
-  }).observe(body);
+  state.body = document.getElementById("inventory-body");
+  state.searchInput = document.getElementById("inv-search");
 
-  // Log app dimensions on resize
-  window.addEventListener("resize", function () {
-    AppLog.info("Window: " + window.innerWidth + "\u00D7" + window.innerHeight + "  inv-body: " + body.offsetWidth + "\u00D7" + body.offsetHeight);
-  });
-
-  // ── Search ──
-  var searchTimer;
-  searchInput.addEventListener("input", function () {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(function () { render(); }, 150);
-  });
-
-  // ── Event listeners ──
-  EventBus.on(Events.INVENTORY_LOADED, function () { render(); });
-  EventBus.on(Events.INVENTORY_UPDATED, function () { render(); });
-  EventBus.on(Events.PREFS_CHANGED, function () { render(); });
-
-  EventBus.on(Events.BOM_LOADED, function (data) {
-    bomData = data;
-    render();
-  });
-
-  EventBus.on(Events.BOM_CLEARED, function () {
-    bomData = null;
-    activeFilter = "all";
-    expandedAlts = new Set();
-    expandedMembers = new Set();
-    App.links.clearAll();
-    render();
-  });
-
-  EventBus.on(Events.LINKING_MODE, function () { render(); });
-
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && App.links.linkingMode) {
-      if (App.links.linkingBomRow) App.links.setReverseLinkingMode(false);
-      else App.links.setLinkingMode(false);
-    }
-  });
+  setupEvents({ render: render });
 }
 
 // ── Reverse link helper ──
@@ -116,10 +66,10 @@ function createReverseLink(invItem) {
 // ── Main render ──
 
 function render() {
-  body.innerHTML = "";
-  if (bomData) {
+  state.body.innerHTML = "";
+  if (state.bomData) {
     var matchedInvKeys = renderBomComparison();
-    renderRemainingInventory(matchedInvKeys, (searchInput.value || "").toLowerCase());
+    renderRemainingInventory(matchedInvKeys, (state.searchInput.value || "").toLowerCase());
   } else {
     renderNormalInventory();
   }
@@ -127,12 +77,9 @@ function render() {
 
 // ── Normal mode: grouped by section ──
 
-var SECTION_HIERARCHY = App.SECTION_HIERARCHY;
-var FLAT_SECTIONS = App.FLAT_SECTIONS;
-
 function renderNormalInventory() {
-  var query = (searchInput.value || "").toLowerCase();
-  var sections = groupBySection(App.inventory);
+  var query = (state.searchInput.value || "").toLowerCase();
+  var sections = groupBySection(store.inventory);
 
   for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
     var entry = SECTION_HIERARCHY[i];
@@ -160,13 +107,13 @@ function renderHierarchySection(entry, sections, query) {
   var container = document.createElement("div");
   container.className = "inv-section";
 
-  var isParentCollapsed = collapsedSections.has(entry.name);
+  var isParentCollapsed = state.collapsedSections.has(entry.name);
   var header = document.createElement("div");
   header.className = "inv-parent-header" + (isParentCollapsed ? " collapsed" : "");
   header.innerHTML = '<span class="chevron">\u25BE</span> ' + escHtml(entry.name) + ' <span class="inv-section-count">(' + totalCount + ')</span>';
   header.addEventListener("click", function () {
-    if (collapsedSections.has(entry.name)) collapsedSections.delete(entry.name);
-    else collapsedSections.add(entry.name);
+    if (state.collapsedSections.has(entry.name)) state.collapsedSections.delete(entry.name);
+    else state.collapsedSections.add(entry.name);
     render();
   });
   container.appendChild(header);
@@ -182,20 +129,20 @@ function renderHierarchySection(entry, sections, query) {
     }
   }
 
-  body.appendChild(container);
+  state.body.appendChild(container);
 }
 
 function renderSubSection(container, displayName, fullKey, parts) {
   var sub = document.createElement("div");
   sub.className = "inv-subsection";
 
-  var isCollapsed = collapsedSections.has(fullKey);
+  var isCollapsed = state.collapsedSections.has(fullKey);
   var header = document.createElement("div");
   header.className = "inv-subsection-header" + (isCollapsed ? " collapsed" : "");
   header.innerHTML = '<span class="chevron">\u25BE</span> ' + escHtml(displayName) + ' <span class="inv-section-count">(' + parts.length + ')</span>';
   header.addEventListener("click", function () {
-    if (collapsedSections.has(fullKey)) collapsedSections.delete(fullKey);
-    else collapsedSections.add(fullKey);
+    if (state.collapsedSections.has(fullKey)) state.collapsedSections.delete(fullKey);
+    else state.collapsedSections.add(fullKey);
     render();
   });
   sub.appendChild(header);
@@ -217,8 +164,8 @@ function createPartRow(item, sectionKey) {
 
   var isSource = App.links.linkingMode && App.links.linkingInvItem === item;
   var html = renderPartRowHtml(item, {
-    hideDescs: hideDescs,
-    isBomMode: !!bomData,
+    hideDescs: state.hideDescs,
+    isBomMode: !!state.bomData,
     isLinkSource: isSource,
     isReverseTarget: false,
     sectionKey: sectionKey,
@@ -274,8 +221,8 @@ function createPartRow(item, sectionKey) {
 
 function renderRemainingInventory(matchedInvKeys, query) {
   var otherParts = {};
-  for (var i = 0; i < App.inventory.length; i++) {
-    var item = App.inventory[i];
+  for (var i = 0; i < store.inventory.length; i++) {
+    var item = store.inventory[i];
     var pk = invPartKey(item).toUpperCase();
     if (matchedInvKeys.has(pk)) continue;
     var sec = item.section || "Other";
@@ -292,7 +239,7 @@ function renderRemainingNormalSections(otherParts, query) {
     var divider = document.createElement("div");
     divider.className = "inv-section-header inv-other-divider";
     divider.textContent = "Other Inventory";
-    body.appendChild(divider);
+    state.body.appendChild(divider);
 
     for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
       var entry = SECTION_HIERARCHY[i];
@@ -312,13 +259,13 @@ function renderSection(name, parts) {
   var section = document.createElement("div");
   section.className = "inv-section";
 
-  var isCollapsed = collapsedSections.has(name);
+  var isCollapsed = state.collapsedSections.has(name);
   var header = document.createElement("div");
   header.className = "inv-section-header" + (isCollapsed ? " collapsed" : "");
   header.innerHTML = '<span class="chevron">\u25BE</span> ' + escHtml(name) + ' <span class="inv-section-count">(' + parts.length + ')</span>';
   header.addEventListener("click", function () {
-    if (collapsedSections.has(name)) collapsedSections.delete(name);
-    else collapsedSections.add(name);
+    if (state.collapsedSections.has(name)) state.collapsedSections.delete(name);
+    else state.collapsedSections.add(name);
     render();
   });
   section.appendChild(header);
@@ -329,7 +276,7 @@ function renderSection(name, parts) {
     }
   }
 
-  body.appendChild(section);
+  state.body.appendChild(section);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -337,8 +284,8 @@ function renderSection(name, parts) {
 // ═══════════════════════════════════════════════════════
 
 function renderBomComparison() {
-  var query = (searchInput.value || "").toLowerCase();
-  var rows = bomData.rows;
+  var query = (state.searchInput.value || "").toLowerCase();
+  var rows = state.bomData.rows;
   var sortedRows = sortBomRows(rows);
   var c = countStatuses(rows);
   var linkingState = {
@@ -350,17 +297,17 @@ function renderBomComparison() {
   // Filter bar
   var filterBar = document.createElement("div");
   filterBar.className = "filter-bar";
-  filterBar.innerHTML = renderFilterBarHtml(c, activeFilter);
+  filterBar.innerHTML = renderFilterBarHtml(c, state.activeFilter);
   filterBar.querySelectorAll(".filter-btn").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      activeFilter = btn.dataset.filter;
+      state.activeFilter = btn.dataset.filter;
       render();
     });
   });
-  body.appendChild(filterBar);
+  state.body.appendChild(filterBar);
 
   // Build row lookup map for delegation
-  rowMap = buildRowMap(sortedRows);
+  state.rowMap = buildRowMap(sortedRows);
 
   // BOM matched section - table with full comparison
   var tableWrap = document.createElement("div");
@@ -371,7 +318,7 @@ function renderBomComparison() {
   var tbody = document.createElement("tbody");
   for (var i = 0; i < sortedRows.length; i++) {
     var r = sortedRows[i];
-    var d = bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState, expandedMembers);
+    var d = bomRowDisplayData(r, query, state.activeFilter, state.expandedAlts, linkingState, state.expandedMembers);
     if (!d) continue;
     tbody.appendChild(createBomRowElement(d));
     if (d.showAlts) {
@@ -393,7 +340,7 @@ function renderBomComparison() {
 
   table.appendChild(tbody);
   tableWrap.appendChild(table);
-  body.appendChild(tableWrap);
+  state.body.appendChild(tableWrap);
 
   // Sticky horizontal scrollbar
   var stickyScroll = document.createElement("div");
@@ -401,7 +348,7 @@ function renderBomComparison() {
   var stickyInner = document.createElement("div");
   stickyInner.style.height = "1px";
   stickyScroll.appendChild(stickyInner);
-  body.appendChild(stickyScroll);
+  state.body.appendChild(stickyScroll);
 
   function syncWidths() {
     stickyInner.style.width = table.scrollWidth + "px";
@@ -424,7 +371,7 @@ function renderBomComparison() {
   });
 
   // Return matched inv keys
-  return computeMatchedInvKeys(bomData);
+  return computeMatchedInvKeys(state.bomData);
 }
 
 // ── Delegated tbody click handler ──
@@ -435,8 +382,8 @@ function handleBomTableClick(e) {
   if (badge) {
     e.stopPropagation();
     var pk = badge.dataset.partKey;
-    if (expandedAlts.has(pk)) expandedAlts.delete(pk);
-    else expandedAlts.add(pk);
+    if (state.expandedAlts.has(pk)) state.expandedAlts.delete(pk);
+    else state.expandedAlts.add(pk);
     render();
     return;
   }
@@ -446,8 +393,8 @@ function handleBomTableClick(e) {
   if (memberBadge) {
     e.stopPropagation();
     var mpk = memberBadge.dataset.partKey;
-    if (expandedMembers.has(mpk)) expandedMembers.delete(mpk);
-    else expandedMembers.add(mpk);
+    if (state.expandedMembers.has(mpk)) state.expandedMembers.delete(mpk);
+    else state.expandedMembers.add(mpk);
     render();
     return;
   }
@@ -464,13 +411,13 @@ function handleBomTableClick(e) {
       var memberParentKey = tr.dataset.memberFor;
       if (btn.classList.contains("use-member-btn")) {
         // Confirm match with this specific member
-        var memberR = rowMap.get(memberParentKey);
+        var memberR = state.rowMap.get(memberParentKey);
         if (memberR) {
           UndoRedo.save("links", snapshotLinks());
           App.links.confirmMatch(bomKey(memberR.bom), memberPartId);
           AppLog.info("Generic member selected: " + memberParentKey + " \u2192 " + memberPartId);
           showToast("Confirmed " + memberParentKey + " \u2192 " + memberPartId);
-          expandedMembers.delete(memberParentKey);
+          state.expandedMembers.delete(memberParentKey);
         }
       } else if (btn.classList.contains("adj-btn")) {
         // Find the inventory item for this member
@@ -488,7 +435,7 @@ function handleBomTableClick(e) {
     // Alt row buttons
     if (tr.classList.contains("alt-row")) {
       var parentKey = tr.dataset.altFor;
-      var parentRow = rowMap.get(parentKey);
+      var parentRow = state.rowMap.get(parentKey);
       var altKey = tr.dataset.invKey;
       var alt = parentRow && parentRow.alts
         ? parentRow.alts.find(function (a) { return invPartKey(a) === altKey; })
@@ -501,7 +448,7 @@ function handleBomTableClick(e) {
 
     // Main row buttons
     var rowPk = tr.dataset.partKey;
-    var r = rowMap.get(rowPk);
+    var r = state.rowMap.get(rowPk);
     if (!r) return;
     if (btn.classList.contains("create-generic-btn")) {
       var typeMap = { C: "capacitor", R: "resistor", L: "inductor" };
@@ -527,7 +474,7 @@ function handleBomTableClick(e) {
   var linkTr = e.target.closest("tr.link-target");
   if (linkTr && !linkTr.classList.contains("alt-row")) {
     var linkPk = linkTr.dataset.partKey;
-    var linkR = rowMap.get(linkPk);
+    var linkR = state.rowMap.get(linkPk);
     if (linkR && linkR.inv) createReverseLink(linkR.inv);
   }
 }

@@ -10,7 +10,7 @@ from typing import Any
 
 from categorize import categorize, parse_capacitance, parse_inductance, parse_resistance
 from csv_io import append_csv_rows, fix_double_utf8
-from price_ops import parse_price, parse_qty
+from price_ops import derive_missing_price, parse_price, parse_qty
 
 logger = logging.getLogger(__name__)
 
@@ -78,13 +78,14 @@ def read_and_merge(purchase_csv: str,
 
     # Derive missing price from the other price field + qty
     for part in merged.values():
-        up = parse_price(part.get("Unit Price($)"))
-        ext = parse_price(part.get("Ext.Price($)"))
+        up = parse_price(part.get("Unit Price($)")) or None
+        ext = parse_price(part.get("Ext.Price($)")) or None
         qty = parse_qty(part.get("Quantity"))
-        if up == 0.0 and ext > 0 and qty > 0:
-            part["Unit Price($)"] = f"{ext / qty:.4f}"
-        elif ext == 0.0 and up > 0 and qty > 0:
-            part["Ext.Price($)"] = f"{up * qty:.2f}"
+        up, ext = derive_missing_price(up, ext, qty)
+        if up is not None:
+            part["Unit Price($)"] = f"{up:.4f}"
+        if ext is not None:
+            part["Ext.Price($)"] = f"{ext:.2f}"
 
     return file_fieldnames, merged
 
