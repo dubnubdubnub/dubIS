@@ -1,22 +1,11 @@
 """Tests for cache_db SQLite cache layer."""
 
 import csv
-import os
 import sqlite3
 
 import pytest
 
 import cache_db
-from inventory_ops import get_part_key
-
-
-@pytest.fixture
-def db(tmp_path):
-    """Create an in-memory cache database."""
-    conn = cache_db.connect(str(tmp_path / "cache.db"))
-    cache_db.create_schema(conn)
-    yield conn
-    conn.close()
 
 
 class TestSchema:
