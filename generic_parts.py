@@ -40,15 +40,16 @@ def create_generic_part(
     part_type: str,
     spec: dict,
     strictness: dict,
+    source: str = "manual",
 ) -> dict[str, Any]:
     """Create a generic part and auto-match existing real parts."""
     generic_part_id = spec_extractor.generate_generic_id(part_type, spec)
 
     conn.execute(
         """INSERT OR REPLACE INTO generic_parts
-           (generic_part_id, name, part_type, spec_json, strictness_json)
-           VALUES (?,?,?,?,?)""",
-        (generic_part_id, name, part_type, json.dumps(spec), json.dumps(strictness)),
+           (generic_part_id, name, part_type, spec_json, strictness_json, source)
+           VALUES (?,?,?,?,?,?)""",
+        (generic_part_id, name, part_type, json.dumps(spec), json.dumps(strictness), source),
     )
 
     # Auto-match: find all real parts whose spec matches
@@ -136,6 +137,110 @@ def set_preferred(conn: Any, events_dir: str, generic_part_id: str,
     os.makedirs(events_dir, exist_ok=True)
     _record_event(events_dir, "set_preferred", part_id=part_id,
                    generic_part_id=generic_part_id)
+
+
+PASSIVE_SECTIONS = {"Passives - Capacitors", "Passives - Resistors", "Passives - Inductors"}
+
+
+def auto_generate_passive_groups(conn: Any, events_dir: str) -> list[dict[str, Any]]:
+    """Scan all parts in passive sections and create auto-generated generic groups.
+
+    Groups parts by (type, value, package).  Deletes any previously auto-generated
+    groups first (idempotent).  Never touches manually-created groups.
+
+    Returns list of created group dicts.
+    """
+    # Remove all previously auto-generated groups and their members
+    auto_ids = [
+        row["generic_part_id"]
+        for row in conn.execute(
+            "SELECT generic_part_id FROM generic_parts WHERE source='auto'"
+        ).fetchall()
+    ]
+    if auto_ids:
+        placeholders = ",".join("?" * len(auto_ids))
+        conn.execute(
+            f"DELETE FROM generic_part_members WHERE generic_part_id IN ({placeholders})",
+            auto_ids,
+        )
+        conn.execute(
+            f"DELETE FROM generic_parts WHERE generic_part_id IN ({placeholders})",
+            auto_ids,
+        )
+
+    # Scan passive parts and group by (type, value_display, package)
+    parts = conn.execute(
+        "SELECT part_id, description, package, section FROM parts"
+    ).fetchall()
+
+    # groups_map: generic_part_id -> {"name", "part_type", "spec", "member_ids"}
+    groups_map: dict[str, dict[str, Any]] = {}
+
+    for part in parts:
+        if part["section"] not in PASSIVE_SECTIONS:
+            continue
+        part_spec = spec_extractor.extract_spec(
+            description=part["description"], package=part["package"]
+        )
+        part_type = part_spec.get("type", "other")
+        if part_type not in ("capacitor", "resistor", "inductor"):
+            continue
+        value_display = part_spec.get("value_display")
+        if not value_display:
+            continue
+        package = (part_spec.get("package") or "").strip()
+
+        # Build spec dict for the group (value as display string, package)
+        group_spec = {"value": value_display, "package": package}
+        generic_part_id = spec_extractor.generate_generic_id(part_type, group_spec)
+
+        if generic_part_id not in groups_map:
+            name = f"{value_display} {package}".strip() if package else value_display
+            groups_map[generic_part_id] = {
+                "generic_part_id": generic_part_id,
+                "name": name,
+                "part_type": part_type,
+                "spec": group_spec,
+                "member_ids": [],
+            }
+        groups_map[generic_part_id]["member_ids"].append(part["part_id"])
+
+    # Persist groups and members
+    created: list[dict[str, Any]] = []
+    for gid, group in groups_map.items():
+        conn.execute(
+            """INSERT INTO generic_parts
+               (generic_part_id, name, part_type, spec_json, strictness_json, source)
+               VALUES (?, ?, ?, ?, ?, 'auto')""",
+            (
+                gid,
+                group["name"],
+                group["part_type"],
+                json.dumps(group["spec"]),
+                json.dumps({"required": ["value", "package"]}),
+            ),
+        )
+        for part_id in group["member_ids"]:
+            conn.execute(
+                """INSERT OR IGNORE INTO generic_part_members
+                   (generic_part_id, part_id, source, preferred)
+                   VALUES (?, ?, 'auto', 0)""",
+                (gid, part_id),
+            )
+        created.append({
+            "generic_part_id": gid,
+            "name": group["name"],
+            "part_type": group["part_type"],
+            "spec": group["spec"],
+        })
+
+    conn.commit()
+
+    os.makedirs(events_dir, exist_ok=True)
+    _record_event(events_dir, "auto_generate_passive_groups",
+                   data={"count": len(created)})
+
+    return created
 
 
 def resolve_bom_spec(
