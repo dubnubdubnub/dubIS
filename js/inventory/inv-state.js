@@ -11,6 +11,11 @@ var state = {
   expandedMembers: new Set(),
   rowMap: new Map(),       // partKey -> r, rebuilt each render
 
+  // Groups mode state
+  groupsSections: new Set(),   // sections with groups mode active
+  expandedGroups: new Set(),   // expanded generic group IDs
+  groupFilters: {},            // { genericPartId: { dielectric: "C0G", tolerance: "10%" } }
+
   // Hide descriptions when panel is too narrow for readable text
   DESC_HIDE_WIDTH: 680,
   hideDescs: true,

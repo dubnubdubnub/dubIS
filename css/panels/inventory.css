@@ -135,3 +135,64 @@
 .inv-part-row .part-id-digikey,
 .inv-part-row .part-id-pololu,
 .inv-part-row .part-id-mouser { overflow: hidden; white-space: nowrap; max-width: 100%; }
+
+/* ── Groups Button ───────────────────────────────────── */
+.groups-btn {
+  margin-left: auto; font-size: 10px; padding: 2px 8px; border-radius: 4px;
+  background: #a371f718; color: var(--color-purple-light); border: 1px solid #a371f730;
+  cursor: pointer; font-weight: 500; white-space: nowrap;
+}
+.groups-btn:hover { background: #a371f730; }
+.groups-btn.active { background: #a371f740; border-color: #a371f760; }
+
+/* ── Group Header ────────────────────────────────────── */
+.generic-group-header {
+  display: flex; align-items: center; padding: 4px 12px 4px 24px;
+  gap: 6px; font-size: 11px; font-weight: 600;
+  background: #a371f70a; border-bottom: 1px solid #a371f718;
+  border-left: 3px solid var(--color-purple); color: var(--color-purple-light);
+  cursor: pointer; user-select: none;
+}
+.generic-group-header:hover { background: #a371f714; }
+.generic-group-header .chevron { font-size: 9px; color: var(--text-muted); }
+.generic-group-header .gp-icon { color: var(--color-purple); font-size: 12px; }
+.generic-group-header .gp-name { white-space: nowrap; }
+.generic-group-header .gp-source { font-size: 9px; color: var(--text-muted); opacity: 0.6; }
+.generic-group-header .gp-stats { font-weight: 400; color: var(--text-muted); font-size: 10px; }
+.generic-group-header .gp-total-qty { margin-left: auto; font-weight: 700; color: var(--color-purple); font-size: 12px; }
+.generic-group-header .group-edit-btn {
+  font-size: 9px; padding: 1px 6px; border-radius: 3px;
+  background: transparent; color: var(--text-muted); border: 1px solid var(--border-default); cursor: pointer;
+}
+.generic-group-header .group-edit-btn:hover { color: var(--color-purple-light); border-color: #a371f750; }
+.grouped-part-row { border-left: 3px solid #a371f730; }
+.ungrouped-part-row { opacity: 0.5; }
+
+/* ── Filter Row ──────────────────────────────────────── */
+.generic-filter-row {
+  display: flex; align-items: center; padding: 4px 12px 4px 36px;
+  gap: 4px; border-bottom: 1px solid #a371f715; background: #a371f706;
+  border-left: 3px solid #a371f750; flex-wrap: wrap; min-height: 26px;
+}
+.filter-name-zone {
+  display: flex; align-items: center; padding-right: 8px; flex-shrink: 0; cursor: default;
+}
+.filter-name-zone.link-target { cursor: pointer; }
+.filter-dynamic-name {
+  font-size: 11px; font-weight: 600; color: var(--color-purple-light);
+  font-family: "SFMono-Regular", Consolas, monospace; white-space: nowrap;
+}
+.filter-link-hint { font-size: 9px; color: var(--color-purple); margin-left: 6px; opacity: 0.7; white-space: nowrap; }
+.filter-sep { color: var(--border-default); margin: 0 4px; flex-shrink: 0; }
+.filter-chip-zone { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; flex: 1; }
+.filter-dim { display: inline-flex; align-items: center; gap: 3px; margin-right: 6px; }
+.filter-dim-label { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-right: 2px; }
+.filter-chip {
+  font-size: 10px; padding: 1px 7px; border-radius: 10px;
+  background: var(--bg-raised); color: var(--text-secondary); border: 1px solid var(--border-default);
+  cursor: pointer; white-space: nowrap; transition: all 0.1s;
+}
+.filter-chip:hover { border-color: #a371f750; color: var(--color-purple-light); background: #a371f715; }
+.filter-chip.active { background: #a371f725; color: var(--color-purple-light); border-color: #a371f760; }
+.filter-chip.dim { opacity: 0.35; }
+.chip-count { color: var(--text-muted); margin-left: 2px; font-size: 9px; }
