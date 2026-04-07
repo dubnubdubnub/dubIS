@@ -16,6 +16,7 @@ import csv_io
 import file_dialogs
 import inventory_ops
 import price_ops
+from distributor_api import DistributorApi
 from distributor_manager import DistributorManager
 
 logger = logging.getLogger(__name__)
@@ -82,7 +83,10 @@ class InventoryApi:
         self._bom_dirty: bool = False
         self._debug: bool = debug
         self._lock: threading.Lock = threading.Lock()
-        self._distributors = DistributorManager(self.base_dir, self._get_cache)
+        self._dist_api = DistributorApi(
+            base_dir=self.base_dir, get_cache=self._get_cache, debug=self._debug,
+        )
+        self._distributors = self._dist_api._distributors
 
     def _get_cache(self) -> sqlite3.Connection:
         """Get or create the cache database connection."""
@@ -608,55 +612,34 @@ class InventoryApi:
             }
         return result
 
-    # ── Product preview (delegated to client modules) ─────────────────────
+    # ── Product preview (delegated to DistributorApi) ──────────────────────
 
     def fetch_lcsc_product(self, product_code: str) -> dict[str, Any] | None:
-        """Delegate to LcscClient."""
-        result = self._distributors._lcsc.fetch_product(product_code)
-        if result and not self._debug:
-            result.pop("_debug", None)
-        return result
+        return self._dist_api.fetch_lcsc_product(product_code)
 
     def fetch_digikey_product(self, part_number: str) -> dict[str, Any] | None:
-        """Delegate to DigikeyClient."""
-        result = self._distributors._digikey.fetch_product(part_number)
-        if result and not self._debug:
-            result.pop("_debug", None)
-        return result
+        return self._dist_api.fetch_digikey_product(part_number)
 
     def fetch_pololu_product(self, sku: str) -> dict[str, Any] | None:
-        """Delegate to PololuClient."""
-        result = self._distributors._pololu.fetch_product(sku)
-        if result and not self._debug:
-            result.pop("_debug", None)
-        return result
+        return self._dist_api.fetch_pololu_product(sku)
 
     def fetch_mouser_product(self, part_number: str) -> dict[str, Any] | None:
-        """Delegate to MouserClient."""
-        result = self._distributors._mouser.fetch_product(part_number)
-        if result and not self._debug:
-            result.pop("_debug", None)
-        return result
+        return self._dist_api.fetch_mouser_product(part_number)
 
     def check_digikey_session(self) -> dict[str, Any]:
-        """Delegate to DistributorManager."""
-        return self._distributors.check_digikey_session()
+        return self._dist_api.check_digikey_session()
 
     def start_digikey_login(self) -> dict[str, Any]:
-        """Delegate to DistributorManager."""
-        return self._distributors.start_digikey_login()
+        return self._dist_api.start_digikey_login()
 
     def sync_digikey_cookies(self) -> dict[str, Any]:
-        """Delegate to DistributorManager."""
-        return self._distributors.sync_digikey_cookies()
+        return self._dist_api.sync_digikey_cookies()
 
     def get_digikey_login_status(self) -> dict[str, bool]:
-        """Delegate to DistributorManager."""
-        return self._distributors.get_digikey_login_status()
+        return self._dist_api.get_digikey_login_status()
 
     def logout_digikey(self) -> dict[str, str]:
-        """Delegate to DistributorManager."""
-        return self._distributors.logout_digikey()
+        return self._dist_api.logout_digikey()
 
     # ── Generic parts ────────────────────────────────────────────────────
 
