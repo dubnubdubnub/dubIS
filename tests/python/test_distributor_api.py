@@ -1,5 +1,7 @@
 """Tests for DistributorApi facade."""
 
+import sys
+
 import pytest
 
 from digikey_client import DigikeyClient
@@ -97,10 +99,12 @@ class TestDigikeySession:
         result = dist_api.logout_digikey()
         assert result == {"status": "ok"}
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="winreg only available on Windows")
     def test_check_session(self, dist_api):
         result = dist_api.check_digikey_session()
         assert "logged_in" in result
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="winreg only available on Windows")
     def test_start_login(self, dist_api):
         # start_login launches a browser process; it returns a dict with status
         result = dist_api.start_digikey_login()
