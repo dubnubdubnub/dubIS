@@ -29,21 +29,15 @@ class MouserClient(BaseProductClient):
 
     provider = "mouser"
 
-    def __init__(self) -> None:
-        self._cache: dict[str, dict[str, Any] | None] = {}
-
-    def fetch_product(self, part_number: str) -> dict[str, Any] | None:
+    def _fetch_raw(self, part_number: str) -> dict[str, Any] | None:
         """Fetch Mouser product details by part number (e.g. 736-FGG0B305CLAD52).
 
         Returns a normalized dict of product info, or None if not found/failed.
-        Results (including None) are cached for the session.
+        Raises ValueError for invalid part numbers.
         """
         part_number = str(part_number).strip()
         if not part_number or not re.match(r"^[\w.\-/]{2,60}$", part_number):
             raise ValueError(f"Invalid Mouser part number: {part_number!r}")
-
-        if part_number in self._cache:
-            return self._cache[part_number]
 
         url = f"https://www.mouser.com/ProductDetail/{part_number}"
         try:
@@ -55,12 +49,9 @@ class MouserClient(BaseProductClient):
                 page_html = resp.read().decode("utf-8")
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             logger.warning("Mouser fetch failed for %s: %s", part_number, exc)
-            self._cache[part_number] = None
             return None
 
-        product = self._parse_product_page(page_html, part_number, url)
-        self._cache[part_number] = product
-        return product
+        return self._parse_product_page(page_html, part_number, url)
 
     @staticmethod
     def _parse_product_page(page_html: str, part_number: str, url: str) -> dict[str, Any] | None:
