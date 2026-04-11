@@ -235,3 +235,4 @@ jobs:
         run: npx vitest run --project quality
       - name: Quality E2E (accessibility, resize-visibility)
         run: npx playwright test --project quality
+
