@@ -6,6 +6,7 @@ import os
 import pytest
 
 from categorize import categorize, parse_capacitance, parse_resistance
+from distributor_manager import DistributorManager
 from inventory_api import InventoryApi
 from tests.python.helpers import make_part as _make_part
 from tests.python.helpers import write_ledger as _write_ledger
@@ -720,23 +721,23 @@ class TestConvertXls:
 class TestInferDistributor:
     def test_lcsc(self):
         row = {"LCSC Part Number": "C1525", "Digikey Part Number": "", "Mouser Part Number": "", "Pololu Part Number": ""}
-        assert InventoryApi._infer_distributor(row) == "lcsc"
+        assert DistributorManager.infer_distributor(row) == "lcsc"
 
     def test_digikey(self):
         row = {"LCSC Part Number": "", "Digikey Part Number": "DK-123", "Mouser Part Number": "", "Pololu Part Number": ""}
-        assert InventoryApi._infer_distributor(row) == "digikey"
+        assert DistributorManager.infer_distributor(row) == "digikey"
 
     def test_mouser(self):
         row = {"LCSC Part Number": "", "Digikey Part Number": "", "Mouser Part Number": "M-123", "Pololu Part Number": ""}
-        assert InventoryApi._infer_distributor(row) == "mouser"
+        assert DistributorManager.infer_distributor(row) == "mouser"
 
     def test_pololu(self):
         row = {"LCSC Part Number": "", "Digikey Part Number": "", "Mouser Part Number": "", "Pololu Part Number": "1992"}
-        assert InventoryApi._infer_distributor(row) == "pololu"
+        assert DistributorManager.infer_distributor(row) == "pololu"
 
     def test_unknown(self):
         row = {"LCSC Part Number": "", "Digikey Part Number": "", "Mouser Part Number": "", "Pololu Part Number": ""}
-        assert InventoryApi._infer_distributor(row) == "unknown"
+        assert DistributorManager.infer_distributor(row) == "unknown"
 
 
 class TestPriceHistoryOnImport:

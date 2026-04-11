@@ -525,29 +525,29 @@ class TestInventoryApiDelegation:
     def test_api_has_clients(self):
         from inventory_api import InventoryApi
         api = InventoryApi()
-        assert isinstance(api._lcsc, LcscClient)
-        assert isinstance(api._digikey, DigikeyClient)
-        assert isinstance(api._pololu, PololuClient)
-        assert isinstance(api._mouser, MouserClient)
+        assert isinstance(api._distributors._lcsc, LcscClient)
+        assert isinstance(api._distributors._digikey, DigikeyClient)
+        assert isinstance(api._distributors._pololu, PololuClient)
+        assert isinstance(api._distributors._mouser, MouserClient)
 
     def test_digikey_cookies_file_configured(self):
         from inventory_api import InventoryApi
         api = InventoryApi()
-        assert api._digikey._cookies_file is not None
-        assert "digikey_cookies.json" in api._digikey._cookies_file
+        assert api._distributors._digikey._cookies_file is not None
+        assert "digikey_cookies.json" in api._distributors._digikey._cookies_file
 
     def test_fetch_lcsc_delegates(self):
         from inventory_api import InventoryApi
         api = InventoryApi()
         cached = {"productCode": "C2040", "provider": "lcsc"}
-        api._lcsc._cache["C2040"] = cached
+        api._distributors._lcsc._cache["C2040"] = cached
         assert api.fetch_lcsc_product("C2040") is cached
 
     def test_fetch_digikey_delegates(self):
         from inventory_api import InventoryApi
         api = InventoryApi()
         cached = {"productCode": "DK-1", "provider": "digikey"}
-        api._digikey._cache["DK-1"] = cached
+        api._distributors._digikey._cache["DK-1"] = cached
         assert api.fetch_digikey_product("DK-1") is cached
 
     def test_digikey_session_delegates(self):
@@ -571,14 +571,14 @@ class TestInventoryApiDelegation:
         from inventory_api import InventoryApi
         api = InventoryApi()
         cached = {"productCode": "1992", "provider": "pololu"}
-        api._pololu._cache["1992"] = cached
+        api._distributors._pololu._cache["1992"] = cached
         assert api.fetch_pololu_product("1992") is cached
 
     def test_fetch_mouser_delegates(self):
         from inventory_api import InventoryApi
         api = InventoryApi()
         cached = {"productCode": "736-FGG0B305CLAD52", "provider": "mouser"}
-        api._mouser._cache["736-FGG0B305CLAD52"] = cached
+        api._distributors._mouser._cache["736-FGG0B305CLAD52"] = cached
         assert api.fetch_mouser_product("736-FGG0B305CLAD52") is cached
 
 
