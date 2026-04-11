@@ -1,4 +1,4 @@
-"""Distributor API — facade for product fetching and Digikey session management."""
+"""Distributor API — product fetching and Digikey session management."""
 
 from __future__ import annotations
 
