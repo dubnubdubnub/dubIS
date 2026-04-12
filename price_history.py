@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import logging
 import os
+import sqlite3
 from datetime import datetime
 from typing import Any
 
@@ -125,3 +126,89 @@ def populate_prices_cache(conn: Any, events_dir: str) -> None:
              data["last_observed"], data["moq"], data["source"]),
         )
     conn.commit()
+
+
+# ── API-level helpers (formerly in PriceApi) ─────────────────────────────
+
+
+def resolve_part_key(conn: sqlite3.Connection, key: str) -> str | None:
+    """Resolve a distributor-specific PN to the inventory part_id.
+
+    Checks for a direct match first, then searches distributor columns
+    (lcsc, mpn, digikey, pololu, mouser) in the parts table.
+    """
+    try:
+        if conn.execute("SELECT 1 FROM parts WHERE part_id = ?", (key,)).fetchone():
+            return key
+        for col in ("lcsc", "mpn", "digikey", "pololu", "mouser"):
+            row = conn.execute(
+                f"SELECT part_id FROM parts WHERE {col} = ?", (key,)
+            ).fetchone()
+            if row:
+                return row["part_id"]
+    except (sqlite3.OperationalError, sqlite3.InterfaceError):
+        # Connection may be busy from a concurrent populate_prices_cache
+        logger.debug("resolve_part_key: cache busy, falling back to raw key")
+        return key
+    return None
+
+
+def record_fetched_prices(
+    conn: sqlite3.Connection,
+    events_dir: str,
+    part_key: str,
+    distributor: str,
+    price_tiers: list[dict[str, Any]],
+) -> None:
+    """Record prices fetched from a distributor API/scraper."""
+    resolved_key = resolve_part_key(conn, part_key)
+    if not resolved_key:
+        logger.warning("record_fetched_prices: no inventory part for %r", part_key)
+        return
+    os.makedirs(events_dir, exist_ok=True)
+    observations = []
+    for tier in price_tiers:
+        price = float(tier.get("price", 0))
+        if price <= 0:
+            continue
+        observations.append({
+            "part_id": resolved_key,
+            "distributor": distributor,
+            "unit_price": price,
+            "source": "live_fetch",
+            "moq": tier.get("qty", ""),
+        })
+    if observations:
+        record_observations(events_dir, observations)
+        populate_prices_cache(conn, events_dir)
+
+
+def get_price_summary(
+    conn: sqlite3.Connection,
+    events_dir: str,
+    part_key: str,
+) -> dict[str, dict[str, Any]]:
+    """Get aggregated pricing per distributor for a part."""
+    resolved_key = resolve_part_key(conn, part_key) or part_key
+    try:
+        if not conn.execute("SELECT 1 FROM prices LIMIT 1").fetchone():
+            if os.path.exists(events_dir):
+                populate_prices_cache(conn, events_dir)
+        rows = conn.execute(
+            "SELECT * FROM prices WHERE part_id = ?", (resolved_key,)
+        ).fetchall()
+    except (sqlite3.OperationalError, sqlite3.InterfaceError):
+        # Cache busy from concurrent record_fetched_prices rebuild
+        logger.debug("get_price_summary: cache busy for %r", part_key)
+        return {}
+    result = {}
+    for row in rows:
+        result[row["distributor"]] = {
+            "latest_unit_price": row["latest_unit_price"],
+            "avg_unit_price": row["avg_unit_price"],
+            "price_count": row["price_count"],
+            "last_observed": row["last_observed"],
+            "moq": row["moq"],
+            "source": row["source"],
+        }
+    return result

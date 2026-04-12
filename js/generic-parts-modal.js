@@ -4,7 +4,7 @@
 import { api, AppLog } from './api.js';
 import { Modal, showToast, escHtml } from './ui-helpers.js';
 import { EventBus, Events } from './event-bus.js';
-import { App } from './store.js';
+import { store } from './store.js';
 
 var modal;
 var editingId = null;  // null = create mode, string = edit mode
@@ -71,7 +71,7 @@ export async function openCreate(partKey, bomSpec) {
  */
 export function openEdit(genericPartId) {
   editingId = genericPartId;
-  var gp = App.genericParts.find(function (g) { return g.generic_part_id === genericPartId; });
+  var gp = store.genericParts.find(function (g) { return g.generic_part_id === genericPartId; });
   if (!gp) { showToast("Generic part not found"); return; }
 
   document.getElementById("generic-modal-title").textContent = "Edit Generic Part";
@@ -191,8 +191,8 @@ async function handleSave() {
 
     // Refresh generic parts
     var gps = await api("list_generic_parts");
-    App.genericParts = Array.isArray(gps) ? gps : [];
-    EventBus.emit(Events.GENERIC_PARTS_LOADED, App.genericParts);
+    store.genericParts = Array.isArray(gps) ? gps : [];
+    EventBus.emit(Events.GENERIC_PARTS_LOADED, store.genericParts);
 
     modal.close();
   } catch (e) {

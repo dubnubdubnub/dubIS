@@ -291,6 +291,21 @@ def list_generic_parts_with_member_specs(conn: Any) -> list[dict[str, Any]]:
     return result
 
 
+def fetch_members(
+    conn: Any,
+    generic_part_id: str,
+) -> list[dict[str, Any]]:
+    """Fetch members for a generic part with stock quantities."""
+    members = conn.execute(
+        """SELECT gm.part_id, gm.source, gm.preferred, s.quantity
+           FROM generic_part_members gm
+           JOIN stock s USING (part_id)
+           WHERE gm.generic_part_id = ?""",
+        (generic_part_id,),
+    ).fetchall()
+    return [dict(m) for m in members]
+
+
 def resolve_bom_spec(
     conn: Any,
     part_type: str,
@@ -329,3 +344,113 @@ def resolve_bom_spec(
                              "quantity": m["quantity"]} for m in members],
             }
     return None
+
+
+# ── API-level helpers (formerly in GenericPartsApi) ──────────────────────
+
+
+def _parse_json(value: str | dict) -> dict:
+    """Parse a JSON string or pass through a dict."""
+    return json.loads(value) if isinstance(value, str) else value
+
+
+def create_generic_part_api(
+    conn: Any,
+    events_dir: str,
+    name: str,
+    part_type: str,
+    spec_json: str | dict,
+    strictness_json: str | dict,
+) -> dict[str, Any]:
+    """Create a generic part with auto-matching. Parses JSON, returns with members."""
+    spec = _parse_json(spec_json)
+    strictness = _parse_json(strictness_json)
+    os.makedirs(events_dir, exist_ok=True)
+    gp = create_generic_part(conn, events_dir, name, part_type, spec, strictness)
+    gp["members"] = fetch_members(conn, gp["generic_part_id"])
+    return gp
+
+
+def update_generic_part_api(
+    conn: Any,
+    events_dir: str,
+    generic_part_id: str,
+    name: str,
+    spec_json: str | dict,
+    strictness_json: str | dict,
+) -> dict[str, Any]:
+    """Update a generic part's spec and re-run auto-matching."""
+    spec = _parse_json(spec_json)
+    strictness = _parse_json(strictness_json)
+    os.makedirs(events_dir, exist_ok=True)
+    conn.execute(
+        "UPDATE generic_parts SET name=?, spec_json=?, strictness_json=? WHERE generic_part_id=?",
+        (name, json.dumps(spec), json.dumps(strictness), generic_part_id),
+    )
+    # Re-run auto-matching: remove auto members, re-add
+    conn.execute(
+        "DELETE FROM generic_part_members WHERE generic_part_id=? AND source='auto'",
+        (generic_part_id,),
+    )
+    conn.commit()
+    part_type = conn.execute(
+        "SELECT part_type FROM generic_parts WHERE generic_part_id=?",
+        (generic_part_id,),
+    ).fetchone()["part_type"]
+    _auto_match(conn, generic_part_id, part_type, spec, strictness)
+    members = fetch_members(conn, generic_part_id)
+    return {
+        "generic_part_id": generic_part_id,
+        "name": name,
+        "part_type": part_type,
+        "spec": spec,
+        "strictness": strictness,
+        "members": members,
+    }
+
+
+def add_member_api(
+    conn: Any,
+    events_dir: str,
+    generic_part_id: str,
+    part_id: str,
+) -> list[dict[str, Any]]:
+    """Add a real part to a generic group and return updated members."""
+    os.makedirs(events_dir, exist_ok=True)
+    add_member(conn, events_dir, generic_part_id, part_id)
+    return fetch_members(conn, generic_part_id)
+
+
+def remove_member_api(
+    conn: Any,
+    events_dir: str,
+    generic_part_id: str,
+    part_id: str,
+) -> list[dict[str, Any]]:
+    """Remove a real part from a generic group and return updated members."""
+    os.makedirs(events_dir, exist_ok=True)
+    remove_member(conn, events_dir, generic_part_id, part_id)
+    return fetch_members(conn, generic_part_id)
+
+
+def set_preferred_api(
+    conn: Any,
+    events_dir: str,
+    generic_part_id: str,
+    part_id: str,
+) -> list[dict[str, Any]]:
+    """Set a member as preferred and return updated members."""
+    os.makedirs(events_dir, exist_ok=True)
+    set_preferred(conn, events_dir, generic_part_id, part_id)
+    return fetch_members(conn, generic_part_id)
+
+
+def extract_spec_for_part(conn: Any, part_key: str) -> dict[str, Any]:
+    """Extract component spec from a part's description/metadata in the cache."""
+    row = conn.execute(
+        "SELECT description, package FROM parts WHERE part_id=?",
+        (part_key,),
+    ).fetchone()
+    if not row:
+        return {}
+    return spec_extractor.extract_spec(row["description"] or "", row["package"] or "")

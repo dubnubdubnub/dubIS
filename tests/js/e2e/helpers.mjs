@@ -78,11 +78,11 @@ export async function loadBom(page, bomCsv) {
     const result = processBOM(csv, 'test-bom.csv');
     if (!result) throw new Error('processBOM returned null');
     const { headers, cols, aggregated } = result;
-    const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches);
-    App.bomResults = results;
-    App.bomHeaders = headers;
-    App.bomCols = cols;
-    App.bomFileName = 'test-bom.csv';
+    const results = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches);
+    store.bomResults = results;
+    store.bomHeaders = headers;
+    store.bomCols = cols;
+    store.bomFileName = 'test-bom.csv';
     const rows = results.map(r => ({
       ...r,
       effectiveQty: r.bom.qty,
@@ -101,11 +101,11 @@ export async function loadBomViaEmit(page, bomCsv) {
     const result = processBOM(csv, 'test-bom.csv');
     if (!result) throw new Error('processBOM returned null');
     const { headers, cols, aggregated } = result;
-    App.bomHeaders = headers;
-    App.bomCols = cols;
-    const results = matchBOM(aggregated, App.inventory, App.links.manualLinks, App.links.confirmedMatches);
-    App.bomResults = results;
-    App.bomFileName = 'test-bom.csv';
+    store.bomHeaders = headers;
+    store.bomCols = cols;
+    const results = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches);
+    store.bomResults = results;
+    store.bomFileName = 'test-bom.csv';
     const rows = results.map(r => {
       let status;
       if (r.bom.dnp) status = 'dnp';

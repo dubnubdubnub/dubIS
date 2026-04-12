@@ -13,7 +13,7 @@ import os
 import sqlite3
 from typing import Any
 
-from inventory_ops import apply_adjustments, get_part_key, read_and_merge, sort_key_for_section
+from inventory_ops import apply_adjustments, compute_adjusted_qty, get_part_key, read_and_merge, sort_key_for_section
 from price_ops import parse_price, parse_qty
 
 SCHEMA_VERSION = "4"
@@ -304,9 +304,12 @@ def catch_up(
                     qty = int(float(row.get("quantity", "0")))
                 except ValueError:
                     continue
+                new_qty = compute_adjusted_qty(0, adj_type, qty)
+                if new_qty is None:
+                    continue
                 if adj_type == "set":
-                    set_stock_quantity(conn, pn, max(0, qty))
-                elif adj_type in ("consume", "add", "remove"):
+                    set_stock_quantity(conn, pn, new_qty)
+                else:
                     apply_stock_delta(conn, pn, qty)
         logger.info("Cache catch-up: replayed %d new adjustments", adj_total - adj_seen)
 
