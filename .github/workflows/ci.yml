@@ -53,6 +53,8 @@ jobs:
             echo "run_quality=true" >> "$GITHUB_OUTPUT"
           }
 
+          KNOWN="all lint js python pnp-e2e pnp-cross quality"
+
           # --- 1. Read commit message tag ---
           TAG=""
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
@@ -63,6 +65,12 @@ jobs:
           else
             MSG=$(git log -1 --pretty=%B)
             TAG=$(echo "$MSG" | grep -oP '\[ci:\s*\K[a-z-]+(?=\])' | head -1)
+          fi
+
+          # Ignore unknown tag values (avoids false matches from prose)
+          if [[ -n "$TAG" ]] && [[ " $KNOWN " != *" $TAG "* ]]; then
+            echo "Ignoring unknown tag: $TAG"
+            TAG=""
           fi
 
           # --- 2. Explicit tag → set flags directly ---
