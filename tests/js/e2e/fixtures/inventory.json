@@ -481,7 +481,7 @@
     "pololu": ""
   },
   {
-    "section": "Passives - Resistors",
+    "section": "Passives - Resistors > Chip Resistors",
     "digikey": "",
     "lcsc": "C106231",
     "mpn": "RC0402FR-070RL",
@@ -494,7 +494,7 @@
     "pololu": ""
   },
   {
-    "section": "Passives - Resistors",
+    "section": "Passives - Resistors > Chip Resistors",
     "digikey": "",
     "lcsc": "C21189",
     "mpn": "0603WAF0000T5E",
@@ -507,7 +507,7 @@
     "pololu": ""
   },
   {
-    "section": "Passives - Resistors",
+    "section": "Passives - Resistors > Chip Resistors",
     "digikey": "",
     "lcsc": "C127692",
     "mpn": "25121WF100MT4E",
@@ -520,7 +520,7 @@
     "pololu": ""
   },
   {
-    "section": "Passives - Resistors",
+    "section": "Passives - Resistors > Chip Resistors",
     "digikey": "",
     "lcsc": "C393094",
     "mpn": "RLM12FTCMR020",
@@ -533,7 +533,7 @@
     "pololu": ""
   },
   {
-    "section": "Passives - Resistors",
+    "section": "Passives - Resistors > Chip Resistors",
     "digikey": "",
     "lcsc": "C22936",
     "mpn": "0603WAF100KT5E",
@@ -546,7 +546,7 @@
     "pololu": ""
   },
   {
-    "section": "Passives - Resistors",
+    "section": "Passives - Resistors > Variable / Trimmers",
     "digikey": "",
     "lcsc": "C25077",
     "mpn": "0402WGF100JTCE",
