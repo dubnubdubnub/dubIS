@@ -9,7 +9,6 @@ import { UndoRedo } from '../undo-redo.js';
 import { App, store, snapshotLinks, getThreshold } from '../store.js';
 import { bomKey, invPartKey, countStatuses } from '../part-keys.js';
 import { openAdjustModal, openPriceModal } from '../inventory-modals.js';
-import { openEdit as openGenericEdit } from '../generic-parts-modal.js';
 import { openFlyout } from '../group-flyout/flyout-panel.js';
 
 import {
@@ -263,7 +262,7 @@ function createPartRow(item, sectionKey) {
   if (gpBadge) {
     gpBadge.addEventListener("click", function (e) {
       e.stopPropagation();
-      openGenericEdit(gpBadge.dataset.genericId);
+      openFlyout(gpBadge.dataset.genericId, gpBadge);
     });
   }
 
@@ -405,7 +404,7 @@ function renderGroupedView(container, sectionKey, parts) {
     (function (gpId) {
       editBtn.addEventListener("click", function (e) {
         e.stopPropagation();
-        openGenericEdit(gpId);
+        openFlyout(gpId, editBtn);
       });
     })(gp.generic_part_id);
 
