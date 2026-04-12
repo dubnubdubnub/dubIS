@@ -81,8 +81,14 @@ tbody tr:hover:not(.part-preview-info tr, .part-preview-prices tr) { background:
 [data-ref] { cursor: default; }
 .ref-highlight { background: #ffe600; color: #000 !important; border-radius: 2px; font-size: 1.25em; font-weight: 700; }
 
-/* Colored refs display in BOM staging table */
-#bom-tbody .refs-cell { cursor: text; }
+/* Colored refs display in BOM staging table — scrollable like inventory refs */
+#bom-tbody .refs-cell {
+  cursor: text;
+  max-height: 52px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
 
 /* ── Row Color Coding ──────────────────────────────────── */
 tr.row-green   { --row-bg: #23863610; background: var(--row-bg); }
