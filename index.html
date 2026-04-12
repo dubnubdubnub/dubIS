@@ -57,14 +57,14 @@
       <button class="btn-md rebuild-btn" id="rebuild-inv" title="Rebuild Inventory">Rebuild Inventory</button>
       <div class="inv-search-group">
         <input type="text" class="search-input" id="inv-search" placeholder="Search parts...">
+        <button class="clear-filters-btn" id="clear-dist-filter" disabled title="Clear Filters"><span class="clear-label">Clear Filters</span><span class="clear-icon">&#x2715;</span></button>
         <div class="dist-filter-bar" id="dist-filter-bar">
-          <button class="dist-filter-btn" data-distributor="lcsc">LCSC</button>
-          <button class="dist-filter-btn" data-distributor="digikey">Digikey</button>
-          <button class="dist-filter-btn" data-distributor="mouser">Mouser</button>
-          <button class="dist-filter-btn" data-distributor="pololu">Pololu</button>
-          <button class="dist-filter-btn" data-distributor="other">Other</button>
+          <button class="dist-filter-btn" data-distributor="lcsc" title="LCSC"><img class="vendor-icon" src="data/lcsc-icon.ico"><span class="dist-label">LCSC</span></button>
+          <button class="dist-filter-btn" data-distributor="digikey" title="Digikey"><img class="vendor-icon" src="data/digikey-icon.png"><span class="dist-label">Digikey</span></button>
+          <button class="dist-filter-btn" data-distributor="mouser" title="Mouser"><img class="vendor-icon" src="data/mouser-icon.svg"><span class="dist-label">Mouser</span></button>
+          <button class="dist-filter-btn" data-distributor="pololu" title="Pololu"><img class="vendor-icon" src="data/pololu-icon.svg"><span class="dist-label">Pololu</span></button>
+          <button class="dist-filter-btn" data-distributor="other" title="Other"><span class="dist-icon-other">&#x2026;</span><span class="dist-label">Other</span></button>
         </div>
-        <button class="clear-filters-btn" id="clear-dist-filter" disabled>Clear Filters</button>
       </div>
     </div>
     <div class="panel-body" id="inventory-body"></div>
