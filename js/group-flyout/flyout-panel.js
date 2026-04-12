@@ -8,6 +8,7 @@ import { generateTags, filterMembers } from './flyout-logic.js';
 import { renderFlyout } from './flyout-renderer.js';
 import { flyouts, activeFlyoutId, setActiveFlyoutId } from './flyout-state.js';
 import { wireEvents, setPanelFunctions } from './flyout-events.js';
+import { wireDrag, wireInventoryDrag, unwireInventoryDrag, setRerenderFlyout } from './flyout-drag.js';
 
 /** @type {HTMLElement | null} */
 var _container = null;
@@ -163,6 +164,12 @@ export function closeFlyout(genericPartId) {
   }
 
   rearrangeFlyouts();
+
+  // Unwire inventory drag when last flyout closes
+  if (flyouts.size === 0) {
+    unwireInventoryDrag();
+  }
+
   EventBus.emit(Events.FLYOUT_CLOSED, { gpId: genericPartId });
 }
 
@@ -269,6 +276,11 @@ export async function openFlyout(genericPartId, sourceRowEl) {
 
   flyouts.set(String(genericPartId), inst);
 
+  // Wire inventory drag when first flyout opens
+  if (flyouts.size === 1) {
+    wireInventoryDrag();
+  }
+
   // Render HTML and insert into container
   var isActive = true;
   var html = renderFlyoutInstance(inst, isActive);
@@ -310,6 +322,10 @@ export function init() {
     rerenderFlyout: rerenderFlyout,
   });
 
+  // Provide rerenderFlyout to drag module (avoids circular import)
+  setRerenderFlyout(rerenderFlyout);
+
   wireEvents(_container);
+  wireDrag(_container);
   AppLog.info("flyout: initialized");
 }

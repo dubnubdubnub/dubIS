@@ -94,6 +94,7 @@ export function renderPartRowHtml(item, options) {
   partIdsHtml += '</span>';
 
   var html =
+    '<span class="inv-drag-handle" title="Drag to add to group">&#x2261;</span>' +
     partIdsHtml +
     '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + '</span>' +
     '<span class="part-value">' + valueStr + '</span>' +
@@ -115,6 +116,7 @@ export function renderPartRowHtml(item, options) {
 export function createBomRowElement(d) {
   var tr = document.createElement("tr");
   tr.dataset.partKey = d.partKey;
+  tr.draggable = true;
   tr.className = d.rowClass;
   if (d.isLinkingSource || d.isReverseLinkingSource) tr.classList.add("linking-source");
   if (d.isReverseTarget) tr.classList.add("link-target");

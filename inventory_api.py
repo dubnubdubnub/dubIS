@@ -560,6 +560,9 @@ class InventoryApi:
     def remove_generic_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
         return self._gp_api.remove_generic_member(generic_part_id, part_id)
 
+    def exclude_generic_member(self, generic_part_id: str, part_id: str) -> None:
+        return self._gp_api.exclude_generic_member(generic_part_id, part_id)
+
     def set_preferred_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
         return self._gp_api.set_preferred_member(generic_part_id, part_id)
 
@@ -569,6 +572,9 @@ class InventoryApi:
 
     def extract_spec(self, part_key: str) -> dict[str, Any]:
         return self._gp_api.extract_spec(part_key)
+
+    def extract_spec_from_value(self, part_type: str, value_str: str, package_str: str) -> dict[str, Any]:
+        return self._gp_api.extract_spec_from_value(part_type, value_str, package_str)
 
     # ── Window lifecycle ─────────────────────────────────────────────────
 
