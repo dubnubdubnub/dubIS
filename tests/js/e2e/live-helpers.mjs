@@ -24,7 +24,7 @@ const FIXTURE_DIR = join(__dirname, 'fixtures', 'e2e-seed');
  * @returns {Promise<{url: string, process: import('child_process').ChildProcess, reset: () => Promise<void>, cleanup: () => Promise<void>}>}
  */
 export async function startServer() {
-  const pythonExe = process.env.PYTHON || 'python';
+  const pythonExe = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 
   const child = spawn(pythonExe, [
     E2E_SERVER,
