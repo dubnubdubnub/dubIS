@@ -157,25 +157,37 @@ test.describe('Distributor filter buttons', () => {
     await waitForInventoryRows(page);
 
     for (const [dist, count] of Object.entries(DIST_COUNTS)) {
-      const btn = page.locator(`.dist-filter-btn[data-distributor="${dist}"]`);
+      const btn = page.locator(`.dist-filter-btn[data-distributor="${dist}"] .dist-label`);
       const text = await btn.textContent();
       const label = dist.charAt(0).toUpperCase() + dist.slice(1);
       expect(text, `${dist} button should show count`).toBe(`${label} (${count})`);
     }
   });
 
-  test('filter bar hidden at narrow panel width', async ({ page }) => {
+  test('filter bar compact at narrow panel width', async ({ page }) => {
     await addMockSetup(page, MOCK_INVENTORY);
-    // At 800px viewport, the inventory panel is narrow enough to trigger the hide.
-    // The ResizeObserver hides filters when panel body width < 700px.
+    // At 800px viewport, the inventory panel is narrow enough to trigger compact mode.
+    // The ResizeObserver adds .compact when panel body width < 700px.
     await page.setViewportSize({ width: 800, height: 600 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
 
     const filterBar = page.locator('#dist-filter-bar');
-    await expect(filterBar).toHaveClass(/hidden/);
+    await expect(filterBar).toHaveClass(/compact/);
 
-    const clearBtn = page.locator('#clear-dist-filter');
-    await expect(clearBtn).toHaveClass(/hidden/);
+    // Filter buttons should still be visible (icons only, no text labels)
+    await expect(filterBar).toBeVisible();
+
+    // Labels should be hidden in compact mode
+    const labels = filterBar.locator('.dist-label');
+    for (let i = 0; i < await labels.count(); i++) {
+      await expect(labels.nth(i)).toBeHidden();
+    }
+
+    // Icons should still be visible
+    const icons = filterBar.locator('.vendor-icon');
+    for (let i = 0; i < await icons.count(); i++) {
+      await expect(icons.nth(i)).toBeVisible();
+    }
   });
 });
