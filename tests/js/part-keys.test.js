@@ -7,7 +7,7 @@ vi.mock('../../js/ui-helpers.js', () => ({
 
 import {
   bomKey, bomAggKey, invPartKey, rawRowAggKey,
-  countStatuses, refColorClass, colorizeRefs,
+  countStatuses, refColorClass, colorizeRefs, compressRefs,
   STATUS_ICONS, STATUS_ROW_CLASS, REF_COLOR_MAP,
 } from '../../js/part-keys.js';
 
@@ -160,6 +160,51 @@ describe('colorizeRefs', () => {
     const html = colorizeRefs('J1');
     expect(html).toContain('J1');
     expect(html).not.toContain('class="ref-');
+  });
+});
+
+describe('compressRefs', () => {
+  it('returns empty string for empty input', () => {
+    expect(compressRefs('')).toBe('');
+    expect(compressRefs(null)).toBe('');
+  });
+
+  it('returns single ref unchanged', () => {
+    expect(compressRefs('R1')).toBe('R1');
+  });
+
+  it('returns non-consecutive refs unchanged', () => {
+    expect(compressRefs('C3, C6, C7')).toBe('C3, C6–C7');
+  });
+
+  it('compresses a full consecutive run', () => {
+    expect(compressRefs('C31, C32, C33, C34, C35')).toBe('C31–C35');
+  });
+
+  it('compresses mixed consecutive and non-consecutive', () => {
+    expect(compressRefs('C3, C6, C7, C16, C17, C18, C19, C20')).toBe('C3, C6–C7, C16–C20');
+  });
+
+  it('does not merge across different prefixes', () => {
+    expect(compressRefs('R1, R2, C1, C2')).toBe('R1–R2, C1–C2');
+  });
+
+  it('handles large runs', () => {
+    const refs = Array.from({ length: 50 }, (_, i) => `R${i + 1}`).join(', ');
+    expect(compressRefs(refs)).toBe('R1–R50');
+  });
+
+  it('handles pair (2 consecutive) as range', () => {
+    expect(compressRefs('L1, L2')).toBe('L1–L2');
+  });
+
+  it('preserves spacing after compression', () => {
+    expect(compressRefs('U1,U2,U3')).toBe('U1–U3');
+  });
+
+  it('handles the 28-capacitor BOM fixture case', () => {
+    const refs = 'C3, C6, C7, C16, C17, C18, C19, C20, C25, C26, C28, C29, C31, C32, C33, C34, C35, C36, C37, C38, C39, C40, C41, C42, C43, C44, C45, C46';
+    expect(compressRefs(refs)).toBe('C3, C6–C7, C16–C20, C25–C26, C28–C29, C31–C46');
   });
 });
 
