@@ -225,3 +225,36 @@ class TestEnsureEventsDir:
     def test_idempotent(self, gp_api):
         gp_api._ensure_events_dir()
         gp_api._ensure_events_dir()  # should not raise
+
+
+class TestPreviewGenericMembers:
+    def test_preview_returns_matches(self, gp_api, db):
+        _seed_parts(db)
+        results = gp_api.preview_generic_members(
+            spec_json='{"value":"100nF","package":"0402"}',
+            part_type="capacitor",
+            strictness_json='{"required":["value","package"]}',
+        )
+        part_ids = {r["part_id"] for r in results}
+        assert "C1525" in part_ids
+        assert "C9999" in part_ids
+
+    def test_preview_accepts_dict_args(self, gp_api, db):
+        _seed_parts(db)
+        results = gp_api.preview_generic_members(
+            spec_json={"value": "100nF", "package": "0402"},
+            part_type="capacitor",
+            strictness_json={"required": ["value", "package"]},
+        )
+        assert len(results) >= 2
+
+    def test_preview_does_not_create_group(self, gp_api, db):
+        _seed_parts(db)
+        gp_api.preview_generic_members(
+            spec_json='{"value":"100nF","package":"0402"}',
+            part_type="capacitor",
+            strictness_json='{"required":["value","package"]}',
+        )
+        conn = gp_api._get_cache()
+        count = conn.execute("SELECT COUNT(*) AS c FROM generic_parts").fetchone()["c"]
+        assert count == 0
