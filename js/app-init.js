@@ -69,8 +69,13 @@ async function initApp() {
   // ── Cross-panel designator hover highlighting ──────────
   var highlightedRef = null;
   document.addEventListener("mouseover", function (e) {
-    var target = e.target.closest("[data-ref]");
-    var ref = target ? target.dataset.ref : null;
+    var target = e.target.closest("[data-ref], [data-refs]");
+    var ref = null;
+    if (target) {
+      ref = target.dataset.ref || null;
+      // If hovering a range span, pick the first ref in the range for identity
+      if (!ref && target.dataset.refs) ref = target.dataset.refs.split(" ")[0];
+    }
     if (ref === highlightedRef) return;
     if (highlightedRef) {
       document.querySelectorAll(".ref-highlight").forEach(function (el) {
@@ -79,8 +84,15 @@ async function initApp() {
     }
     highlightedRef = ref;
     if (ref) {
-      document.querySelectorAll('[data-ref="' + CSS.escape(ref) + '"]').forEach(function (el) {
+      // Match individual refs (data-ref) and range spans (data-refs~= space-separated match)
+      var escaped = CSS.escape(ref);
+      document.querySelectorAll('[data-ref="' + escaped + '"], [data-refs~="' + escaped + '"]').forEach(function (el) {
         el.classList.add("ref-highlight");
+        // Scroll highlighted ref into view within its scrollable .refs-cell
+        var cell = el.closest(".refs-cell");
+        if (cell && cell.scrollHeight > cell.clientHeight) {
+          el.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }
       });
     }
   });
