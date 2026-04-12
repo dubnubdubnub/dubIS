@@ -8,6 +8,8 @@ const servePort = parseInt(process.env.SERVE_PORT || '3123', 10);
 export default defineConfig({
   testDir: 'tests/js/e2e',
   timeout: 30_000,
+  globalSetup: join(__dirname, 'tests/js/e2e/live/global-setup.mjs'),
+  globalTeardown: join(__dirname, 'tests/js/e2e/live/global-teardown.mjs'),
   use: {
     browserName: 'chromium',
     baseURL: `http://localhost:${servePort}`,
@@ -26,8 +28,6 @@ export default defineConfig({
       name: 'live',
       testDir: 'tests/js/e2e/live',
       testMatch: ['**/*.spec.mjs'],
-      globalSetup: join(__dirname, 'tests/js/e2e/live/global-setup.mjs'),
-      globalTeardown: join(__dirname, 'tests/js/e2e/live/global-teardown.mjs'),
       timeout: 45_000,
     },
   ],
