@@ -20,9 +20,9 @@ export function setupEvents(handlers) {
     var w = entries[0].contentRect.width;
     var narrow = w < state.DESC_HIDE_WIDTH;
     if (narrow !== state.hideDescs) { state.hideDescs = narrow; render(); }
-    var hideFilters = w < FILTER_BAR_MIN_WIDTH;
-    state.distFilterBar.classList.toggle("hidden", hideFilters);
-    state.clearFilterBtn.classList.toggle("hidden", hideFilters && !state.activeDistributor);
+    var compact = w < FILTER_BAR_MIN_WIDTH;
+    state.distFilterBar.classList.toggle("compact", compact);
+    state.clearFilterBtn.classList.toggle("compact", compact);
   }).observe(state.body);
 
   // Log app dimensions on resize
