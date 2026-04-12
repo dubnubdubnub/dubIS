@@ -159,9 +159,27 @@ ruff check .              # lint all Python files
 pytest tests/python/ -v   # unit tests (~30s)
 ```
 
-### CI commit-message tags
+### CI suite selection
 
-Control which CI tiers run by adding a tag to your commit message:
+CI auto-detects which suites to run based on changed files in PRs:
+
+| Changed files | Suites triggered |
+|---------------|-----------------|
+| `js/`, `css/`, `index.html`, test fixtures | JS + Quality |
+| `*.py`, `requirements*.txt`, `tests/python/` | Python |
+| `pnp_server.py`, `openpnp/`, `tests/pnp-e2e/` | PnP E2E + Python |
+| `.github/` | All (CI config changes) |
+| `data/constants.json` | JS |
+| Docs only (`*.md`, config files) | Lint only |
+| Unrecognized files | All (safe fallback) |
+
+Lint (eslint + tsc + ruff) always runs. Cross-compute PnP E2E only runs with an explicit tag. Push to main always runs all suites.
+
+Superseded PR runs are automatically cancelled (concurrency groups).
+
+#### Override with commit-message tags
+
+Add a `[ci: <tag>]` to your commit message to override auto-detection:
 
     fix(api): handle empty CSV
 
@@ -169,15 +187,13 @@ Control which CI tiers run by adding a tag to your commit message:
 
 | Tag | What runs | Wall clock |
 |-----|-----------|------------|
-| `[ci: all]` or no tag | Everything (safe default) | ~3 min |
+| `[ci: all]` | Everything | ~3 min |
 | `[ci: lint]` | ESLint + tsc + ruff only (no tests) | ~8s |
 | `[ci: js]` | Full JS: lint + types + vitest core + Playwright E2E | ~55s |
 | `[ci: python]` | Full Python: ruff + fixture check + pytest | ~17s |
 | `[ci: pnp-e2e]` | PnP same-machine E2E (both runners) | ~28s |
 | `[ci: pnp-cross]` | PnP cross-compute E2E (depends on pnp-e2e) | ~56s |
 | `[ci: quality]` | Visual/a11y: contrast, style-audit, accessibility E2E (warns, never blocks) | ~49s |
-
-When unsure, omit the tag — all suites run. Use `[ci: lint]` only for docs/comments/CLAUDE.md changes.
 
 ### CI troubleshooting
 
