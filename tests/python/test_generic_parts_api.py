@@ -199,6 +199,28 @@ class TestExtractSpec:
         assert spec == {}
 
 
+class TestExtractSpecFromValue:
+    def test_capacitor_value_string(self, gp_api):
+        spec = gp_api.extract_spec_from_value("capacitor", "100nF", "0402")
+        assert spec["type"] == "capacitor"
+        assert "value" in spec
+        assert abs(spec["value"] - 100e-9) < 1e-15
+        assert spec["package"] == "0402"
+
+    def test_resistor_value_string(self, gp_api):
+        spec = gp_api.extract_spec_from_value("resistor", "4.7k", "0402")
+        assert spec["type"] == "resistor"
+
+    def test_type_override_sets_type(self, gp_api):
+        # Even if value string contains no type hint, the part_type arg wins
+        spec = gp_api.extract_spec_from_value("inductor", "10uH", "0805")
+        assert spec["type"] == "inductor"
+
+    def test_empty_value_returns_type(self, gp_api):
+        spec = gp_api.extract_spec_from_value("capacitor", "", "")
+        assert spec["type"] == "capacitor"
+
+
 class TestFetchMembers:
     def test_fetch_members_returns_dicts(self, gp_api, db):
         _seed_parts(db)
