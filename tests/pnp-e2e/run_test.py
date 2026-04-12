@@ -563,6 +563,12 @@ def run_test(remote_openpnp=None):
             if exit_code != 0:
                 failures.append(f"OpenPnP (remote) exited with code {exit_code}")
 
+            # Probe dubIS state right after remote OpenPnP exit
+            probe = snapshot_quantities(base_url)
+            print(f"[e2e] DEBUG: dubIS state right after remote OpenPnP exit:")
+            for lcsc_part in EXPECTED_DECREASES:
+                print(f"[e2e] DEBUG:   {lcsc_part}: qty={probe.get(lcsc_part, 'NOT FOUND')}")
+
             # Read OpenPnP log from the remote host (not local)
             remote_log = read_remote_log(remote_openpnp)
             if remote_log:
@@ -677,6 +683,9 @@ def run_test(remote_openpnp=None):
 
         # ── Verify ALL 6 placements decremented correctly ──
         after = snapshot_quantities(base_url)
+        print(f"[e2e] Inventory snapshot (after OpenPnP): {len(after)} parts")
+        for lcsc_part in EXPECTED_DECREASES:
+            print(f"[e2e]   {lcsc_part}: qty={after.get(lcsc_part, 'NOT FOUND')}")
 
         for lcsc_part, expected_decrease in EXPECTED_DECREASES.items():
             if lcsc_part not in before or lcsc_part not in after:
