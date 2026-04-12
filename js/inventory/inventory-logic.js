@@ -181,7 +181,7 @@ function matchItemToGroup(item, memberToGroup) {
 /**
  * Group parts by their generic part membership.
  * @param {Array<Object>} parts - inventory items in this section
- * @param {Array<Object>} genericParts - from App.genericParts (has .members array)
+ * @param {Array<Object>} genericParts - from store.genericParts (has .members array)
  * @returns {{ groups: Array<{ gp: Object, parts: Array<Object> }>, ungrouped: Array<Object> }}
  */
 export function groupPartsByGeneric(parts, genericParts) {

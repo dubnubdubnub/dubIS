@@ -20,6 +20,7 @@ import { init as initPartPreview } from './part-preview.js';
 import { init as initGenericPartsModal } from './generic-parts-modal.js';
 
 // Expose globals for E2E tests and Python's evaluate_js
+window.store = store;
 window.EventBus = EventBus;
 window.Events = Events;
 window.processBOM = processBOM;
