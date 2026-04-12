@@ -20,6 +20,7 @@ import traceback
 # Set by run_job() so delayed_start() can verify the job actually ran.
 _job_ran = False
 _job_steps = 0
+_last_step_time = [0]  # mutable container so watchdog can read it
 
 
 def log(msg):
@@ -86,10 +87,12 @@ def run_job():
         proc.initialize(job)
         log("Processor initialized, running job...")
 
+        _last_step_time[0] = time.time()
         step_count = 0
         max_steps = 500  # safety limit
         while step_count < max_steps:
             step_count += 1
+            _last_step_time[0] = time.time()
             has_more = proc.next()
             if not has_more:
                 break
@@ -112,6 +115,20 @@ class JobRunner(Runnable):
 log("Startup.py loaded")
 
 import threading
+
+WATCHDOG_STALL_SECONDS = 30  # Kill if proc.next() blocks for this long
+
+
+def _watchdog():
+    """Kill the process if proc.next() stalls (macOS NullDriver hang workaround)."""
+    while not _job_ran:
+        time.sleep(5)
+        last = _last_step_time[0]
+        if last > 0 and (time.time() - last) > WATCHDOG_STALL_SECONDS:
+            log("WATCHDOG: proc.next() stalled for %ds, forcing exit (code 2)"
+                % int(time.time() - last))
+            System.exit(2)
+
 
 def delayed_start():
     log("Waiting 10s for OpenPnP initialization...")
@@ -138,3 +155,7 @@ def delayed_start():
 t = threading.Thread(target=delayed_start)
 t.daemon = True
 t.start()
+
+wd = threading.Thread(target=_watchdog)
+wd.daemon = True
+wd.start()

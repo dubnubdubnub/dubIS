@@ -38,7 +38,7 @@ test.describe('Designator colors — inventory panel BOM table', () => {
     await page.waitForTimeout(300);
 
     // Inventory panel's BOM comparison table should have colored ref spans
-    const refSpans = page.locator('#inventory-body .refs-cell [data-ref]');
+    const refSpans = page.locator('#inventory-body .refs-cell [data-ref], #inventory-body .refs-cell [data-refs]');
     const count = await refSpans.count();
     console.log('Colored ref spans in inventory panel:', count);
     expect(count).toBeGreaterThan(0);
@@ -62,16 +62,24 @@ test.describe('Designator colors — inventory panel BOM table', () => {
     await loadBomViaEmit(page, BOM_CSV);
     await page.waitForTimeout(300);
 
-    const refSpans = page.locator('#inventory-body .refs-cell [data-ref]');
+    const refSpans = page.locator('#inventory-body .refs-cell [data-ref], #inventory-body .refs-cell [data-refs]');
     const count = await refSpans.count();
     expect(count).toBeGreaterThan(0);
 
-    // Verify each span's data-ref matches its text content
+    // Verify each span has either data-ref (individual) or data-refs (range)
     for (let i = 0; i < Math.min(count, 20); i++) {
       const span = refSpans.nth(i);
       const dataRef = await span.getAttribute('data-ref');
+      const dataRefs = await span.getAttribute('data-refs');
       const text = await span.textContent();
-      expect(dataRef).toBe(text);
+      if (dataRef) {
+        // Individual ref: data-ref matches text
+        expect(dataRef).toBe(text);
+      } else {
+        // Range span: data-refs contains space-separated refs, text shows range notation
+        expect(dataRefs).toBeTruthy();
+        expect(text).toMatch(/\u2013/); // en-dash in range notation
+      }
     }
   });
 });
@@ -88,7 +96,7 @@ test.describe('Designator colors — inventory panel BOM table — with PO', () 
     await loadBomViaEmit(page, BOM_CSV);
     await page.waitForTimeout(300);
 
-    const refSpans = page.locator('#inventory-body .refs-cell [data-ref]');
+    const refSpans = page.locator('#inventory-body .refs-cell [data-ref], #inventory-body .refs-cell [data-refs]');
     const count = await refSpans.count();
     console.log('Colored ref spans in inventory panel (BOM+PO):', count);
     expect(count).toBeGreaterThan(0);
@@ -110,7 +118,7 @@ test.describe('Designator colors — inventory panel BOM table — with PO', () 
     await loadBomViaEmit(page, BOM_CSV);
     await page.waitForTimeout(300);
 
-    const refSpans = page.locator('#inventory-body .refs-cell [data-ref]');
+    const refSpans = page.locator('#inventory-body .refs-cell [data-ref], #inventory-body .refs-cell [data-refs]');
     const count = await refSpans.count();
     console.log('Colored ref spans at 1200px:', count);
     expect(count).toBeGreaterThan(0);
@@ -144,7 +152,7 @@ test.describe('Designator colors — BOM panel staging table', () => {
     expect(displayCount).toBeGreaterThan(0);
 
     // Check colored spans exist inside the display divs
-    const coloredSpans = page.locator('#bom-tbody .refs-cell [data-ref]');
+    const coloredSpans = page.locator('#bom-tbody .refs-cell [data-ref], #bom-tbody .refs-cell [data-refs]');
     const spanCount = await coloredSpans.count();
     console.log('Colored ref spans in BOM staging:', spanCount);
     expect(spanCount).toBeGreaterThan(0);
@@ -204,8 +212,8 @@ test.describe('Cross-panel designator hover highlighting', () => {
     await page.waitForTimeout(300);
 
     // Find a designator that appears in both panels (e.g. C1)
-    const invRefC1 = page.locator('#inventory-body [data-ref="C1"]').first();
-    const bomRefC1 = page.locator('#bom-tbody [data-ref="C1"]').first();
+    const invRefC1 = page.locator('#inventory-body [data-ref="C1"], #inventory-body [data-refs~="C1"]').first();
+    const bomRefC1 = page.locator('#bom-tbody [data-ref="C1"], #bom-tbody [data-refs~="C1"]').first();
 
     // Both should exist
     await expect(invRefC1).toBeVisible();
@@ -234,8 +242,8 @@ test.describe('Cross-panel designator hover highlighting', () => {
     await page.waitForTimeout(300);
 
     // Find R1 in both panels
-    const bomRefR1 = page.locator('#bom-tbody [data-ref="R1"]').first();
-    const invRefR1 = page.locator('#inventory-body [data-ref="R1"]').first();
+    const bomRefR1 = page.locator('#bom-tbody [data-ref="R1"], #bom-tbody [data-refs~="R1"]').first();
+    const invRefR1 = page.locator('#inventory-body [data-ref="R1"], #inventory-body [data-refs~="R1"]').first();
 
     await expect(bomRefR1).toBeVisible();
     await expect(invRefR1).toBeVisible();
@@ -258,7 +266,7 @@ test.describe('Cross-panel designator hover highlighting', () => {
     await loadBomViaFileInput(page, BOM_CSV_PATH);
     await page.waitForTimeout(300);
 
-    const invRefC1 = page.locator('#inventory-body [data-ref="C1"]').first();
+    const invRefC1 = page.locator('#inventory-body [data-ref="C1"], #inventory-body [data-refs~="C1"]').first();
     await invRefC1.hover();
     await expect(invRefC1).toHaveClass(/ref-highlight/);
 
@@ -286,8 +294,8 @@ test.describe('Cross-panel designator hover highlighting — with PO', () => {
     await loadBomViaFileInput(page, BOM_CSV_PATH);
     await page.waitForTimeout(300);
 
-    const invRefC1 = page.locator('#inventory-body [data-ref="C1"]').first();
-    const bomRefC1 = page.locator('#bom-tbody [data-ref="C1"]').first();
+    const invRefC1 = page.locator('#inventory-body [data-ref="C1"], #inventory-body [data-refs~="C1"]').first();
+    const bomRefC1 = page.locator('#bom-tbody [data-ref="C1"], #bom-tbody [data-refs~="C1"]').first();
 
     await expect(invRefC1).toBeVisible();
     await expect(bomRefC1).toBeVisible();
@@ -307,8 +315,8 @@ test.describe('Cross-panel designator hover highlighting — with PO', () => {
     await loadBomViaFileInput(page, BOM_CSV_PATH);
     await page.waitForTimeout(300);
 
-    const invRefC1 = page.locator('#inventory-body [data-ref="C1"]').first();
-    const bomRefC1 = page.locator('#bom-tbody [data-ref="C1"]').first();
+    const invRefC1 = page.locator('#inventory-body [data-ref="C1"], #inventory-body [data-refs~="C1"]').first();
+    const bomRefC1 = page.locator('#bom-tbody [data-ref="C1"], #bom-tbody [data-refs~="C1"]').first();
 
     await expect(invRefC1).toBeVisible();
     await expect(bomRefC1).toBeVisible();

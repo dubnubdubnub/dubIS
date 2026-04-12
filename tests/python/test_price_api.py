@@ -1,11 +1,11 @@
-"""Tests for PriceApi facade."""
+"""Tests for price_history API-level functions (resolve, record, summary)."""
 
 import os
 import sqlite3
 
 import pytest
 
-from price_api import PriceApi
+import price_history
 
 
 def _seed_parts(conn):
@@ -32,51 +32,33 @@ def _seed_parts(conn):
     conn.commit()
 
 
-@pytest.fixture
-def price_api(db, events_dir):
-    """PriceApi wired to test db and events_dir."""
-    return PriceApi(get_cache=lambda: db, events_dir=events_dir)
-
-
-class TestPriceApiInit:
-    def test_stores_get_cache(self, db, events_dir):
-        def getter():
-            return db
-        api = PriceApi(get_cache=getter, events_dir=events_dir)
-        assert api._get_cache is getter
-
-    def test_stores_events_dir(self, db, events_dir):
-        api = PriceApi(get_cache=lambda: db, events_dir=events_dir)
-        assert api.events_dir == events_dir
-
-
 class TestResolvePartKey:
-    def test_direct_match(self, price_api, db):
+    def test_direct_match(self, db):
         _seed_parts(db)
-        assert price_api._resolve_part_key("C1525") == "C1525"
+        assert price_history.resolve_part_key(db, "C1525") == "C1525"
 
-    def test_resolve_via_lcsc(self, price_api, db):
+    def test_resolve_via_lcsc(self, db):
         _seed_parts(db)
         # DRV8316C has lcsc=C9000, but part_id=DRV8316C, so C9000 should resolve
-        assert price_api._resolve_part_key("C9000") == "DRV8316C"
+        assert price_history.resolve_part_key(db, "C9000") == "DRV8316C"
 
-    def test_resolve_via_digikey(self, price_api, db):
+    def test_resolve_via_digikey(self, db):
         _seed_parts(db)
-        assert price_api._resolve_part_key("296-DRV8316CRRGFRCT-ND") == "DRV8316C"
+        assert price_history.resolve_part_key(db, "296-DRV8316CRRGFRCT-ND") == "DRV8316C"
 
-    def test_resolve_via_mpn(self, price_api, db):
+    def test_resolve_via_mpn(self, db):
         _seed_parts(db)
-        assert price_api._resolve_part_key("CL05B104KO5NNNC") == "C1525"
+        assert price_history.resolve_part_key(db, "CL05B104KO5NNNC") == "C1525"
 
-    def test_resolve_via_mouser(self, price_api, db):
+    def test_resolve_via_mouser(self, db):
         _seed_parts(db)
-        assert price_api._resolve_part_key("595-DRV8316CRRGFR") == "DRV8316C"
+        assert price_history.resolve_part_key(db, "595-DRV8316CRRGFR") == "DRV8316C"
 
-    def test_unknown_key_returns_none(self, price_api, db):
+    def test_unknown_key_returns_none(self, db):
         _seed_parts(db)
-        assert price_api._resolve_part_key("TOTALLY-UNKNOWN") is None
+        assert price_history.resolve_part_key(db, "TOTALLY-UNKNOWN") is None
 
-    def test_cache_busy_returns_raw_key(self, db, events_dir):
+    def test_cache_busy_returns_raw_key(self, db):
         """When DB is busy, falls back to returning the raw key."""
         _seed_parts(db)
 
@@ -85,15 +67,14 @@ class TestResolvePartKey:
             def execute(self, *args, **kwargs):
                 raise sqlite3.OperationalError("database is locked")
 
-        api = PriceApi(get_cache=lambda: BusyConn(), events_dir=events_dir)
-        result = api._resolve_part_key("C1525")
+        result = price_history.resolve_part_key(BusyConn(), "C1525")
         assert result == "C1525"
 
 
 class TestRecordFetchedPrices:
-    def test_records_and_populates_cache(self, price_api, db, events_dir):
+    def test_records_and_populates_cache(self, db, events_dir):
         _seed_parts(db)
-        price_api.record_fetched_prices("C1525", "lcsc", [
+        price_history.record_fetched_prices(db, events_dir, "C1525", "lcsc", [
             {"qty": 1, "price": 0.0080},
             {"qty": 10, "price": 0.0070},
         ])
@@ -107,16 +88,19 @@ class TestRecordFetchedPrices:
 
     def test_creates_events_dir(self, db, tmp_path):
         new_events = str(tmp_path / "new_events")
-        api = PriceApi(get_cache=lambda: db, events_dir=new_events)
         _seed_parts(db)
-        api.record_fetched_prices("C1525", "lcsc", [{"qty": 1, "price": 0.01}])
+        price_history.record_fetched_prices(db, new_events, "C1525", "lcsc", [
+            {"qty": 1, "price": 0.01},
+        ])
         assert os.path.isdir(new_events)
 
-    def test_resolves_distributor_pn(self, price_api, db):
+    def test_resolves_distributor_pn(self, db, events_dir):
         _seed_parts(db)
-        price_api.record_fetched_prices("296-DRV8316CRRGFRCT-ND", "digikey", [
-            {"qty": 1, "price": 2.80},
-        ])
+        price_history.record_fetched_prices(
+            db, events_dir, "296-DRV8316CRRGFRCT-ND", "digikey", [
+                {"qty": 1, "price": 2.80},
+            ],
+        )
         rows = db.execute(
             "SELECT * FROM prices WHERE part_id = ? AND distributor = ?",
             ("DRV8316C", "digikey"),
@@ -124,17 +108,19 @@ class TestRecordFetchedPrices:
         assert len(rows) == 1
         assert rows[0]["latest_unit_price"] == pytest.approx(2.80)
 
-    def test_skips_unknown_part(self, price_api, db):
+    def test_skips_unknown_part(self, db, events_dir):
         _seed_parts(db)
-        price_api.record_fetched_prices("TOTALLY-UNKNOWN-PN", "digikey", [
-            {"qty": 1, "price": 1.00},
-        ])
+        price_history.record_fetched_prices(
+            db, events_dir, "TOTALLY-UNKNOWN-PN", "digikey", [
+                {"qty": 1, "price": 1.00},
+            ],
+        )
         rows = db.execute("SELECT * FROM prices").fetchall()
         assert len(rows) == 0
 
-    def test_skips_zero_price_tiers(self, price_api, db, events_dir):
+    def test_skips_zero_price_tiers(self, db, events_dir):
         _seed_parts(db)
-        price_api.record_fetched_prices("C1525", "lcsc", [
+        price_history.record_fetched_prices(db, events_dir, "C1525", "lcsc", [
             {"qty": 1, "price": 0},
             {"qty": 10, "price": -5},
         ])
@@ -143,16 +129,16 @@ class TestRecordFetchedPrices:
 
 
 class TestGetPriceSummary:
-    def test_empty_for_nonexistent_part(self, price_api, db):
+    def test_empty_for_nonexistent_part(self, db, events_dir):
         _seed_parts(db)
-        assert price_api.get_price_summary("NONEXISTENT") == {}
+        assert price_history.get_price_summary(db, events_dir, "NONEXISTENT") == {}
 
-    def test_returns_distributor_data(self, price_api, db):
+    def test_returns_distributor_data(self, db, events_dir):
         _seed_parts(db)
-        price_api.record_fetched_prices("C1525", "lcsc", [
+        price_history.record_fetched_prices(db, events_dir, "C1525", "lcsc", [
             {"qty": 1, "price": 0.0080},
         ])
-        summary = price_api.get_price_summary("C1525")
+        summary = price_history.get_price_summary(db, events_dir, "C1525")
         assert "lcsc" in summary
         assert summary["lcsc"]["latest_unit_price"] == pytest.approx(0.0080)
         assert summary["lcsc"]["price_count"] == 1
@@ -160,25 +146,25 @@ class TestGetPriceSummary:
         assert "moq" in summary["lcsc"]
         assert "source" in summary["lcsc"]
 
-    def test_multiple_distributors(self, price_api, db):
+    def test_multiple_distributors(self, db, events_dir):
         _seed_parts(db)
-        price_api.record_fetched_prices("C1525", "lcsc", [
+        price_history.record_fetched_prices(db, events_dir, "C1525", "lcsc", [
             {"qty": 1, "price": 0.0080},
         ])
-        price_api.record_fetched_prices("C1525", "digikey", [
+        price_history.record_fetched_prices(db, events_dir, "C1525", "digikey", [
             {"qty": 1, "price": 0.012},
         ])
-        summary = price_api.get_price_summary("C1525")
+        summary = price_history.get_price_summary(db, events_dir, "C1525")
         assert "lcsc" in summary
         assert "digikey" in summary
 
-    def test_resolves_distributor_pn(self, price_api, db):
+    def test_resolves_distributor_pn(self, db, events_dir):
         _seed_parts(db)
-        price_api.record_fetched_prices("DRV8316C", "digikey", [
+        price_history.record_fetched_prices(db, events_dir, "DRV8316C", "digikey", [
             {"qty": 1, "price": 2.80},
         ])
         # Query using Digikey PN
-        summary = price_api.get_price_summary("296-DRV8316CRRGFRCT-ND")
+        summary = price_history.get_price_summary(db, events_dir, "296-DRV8316CRRGFRCT-ND")
         assert "digikey" in summary
 
     def test_cache_busy_returns_empty(self, db, events_dir):
@@ -186,12 +172,12 @@ class TestGetPriceSummary:
         call_count = 0
 
         class BusyConn:
-            """First call to _resolve_part_key returns key, then raises on summary query."""
+            """First call to resolve_part_key returns key, then raises on summary query."""
             def execute(self, sql, params=()):
                 nonlocal call_count
                 call_count += 1
                 if call_count == 1:
-                    # _resolve_part_key: direct match check
+                    # resolve_part_key: direct match check
                     return _FakeResult(True)
                 # get_price_summary: cache busy
                 raise sqlite3.OperationalError("database is locked")
@@ -202,6 +188,5 @@ class TestGetPriceSummary:
             def fetchone(self):
                 return {"part_id": "C1525"} if self._has_row else None
 
-        api = PriceApi(get_cache=lambda: BusyConn(), events_dir=events_dir)
-        result = api.get_price_summary("C1525")
+        result = price_history.get_price_summary(BusyConn(), events_dir, "C1525")
         assert result == {}

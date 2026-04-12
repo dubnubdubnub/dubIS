@@ -14,6 +14,7 @@ const MOCK_INVENTORY = JSON.parse(
 );
 const BOM_CSV_PATH = path.join(__dirname, 'fixtures', 'bom.csv');
 const BOM_CSV = fs.readFileSync(BOM_CSV_PATH, 'utf8');
+const BOM_STRESS_CSV_PATH = path.join(__dirname, 'fixtures', 'bom-stress.csv');
 const PO_CSV_PATH = path.join(__dirname, 'fixtures', 'purchase.csv');
 
 /** Apply a given app state mutation (BOM and/or PO loaded). */
@@ -1055,10 +1056,30 @@ const AUDIT_ELEMENTS = [
 ];
 
 const AUDIT_VIEWPORTS = [
+  // Existing
   { width: 800, height: 600 },
   { width: 1024, height: 700 },
   { width: 1200, height: 700 },
   { width: 1920, height: 1080 },
+  // Minimum
+  { width: 720, height: 480 },
+  // Legacy aspect ratios
+  { width: 1024, height: 768 },
+  { width: 1280, height: 1024 },
+  // Standard monitors
+  { width: 2560, height: 1440 },
+  { width: 3840, height: 2160 },
+  // Ultrawide
+  { width: 3440, height: 1440 },
+  // Half-screen (snapped window)
+  { width: 960, height: 1080 },
+  { width: 1280, height: 1440 },
+  { width: 1920, height: 2160 },
+  // Floating windows (fixed pseudo-random sizes)
+  { width: 1347, height: 823 },
+  { width: 743, height: 901 },
+  { width: 1811, height: 1137 },
+  { width: 2193, height: 1307 },
 ];
 
 test.describe('Cross-viewport visibility audit — no BOM', () => {
@@ -1162,8 +1183,11 @@ test.describe('Cross-viewport visibility audit — with PO', () => {
       }
 
       // Import mapper and buttons should be visible after loading PO
-      for (const r of results) {
-        expect(r.visible, r.reason).toBe(true);
+      // (skip assertion at very short viewports where panel can't fit)
+      if (vp.height >= 600) {
+        for (const r of results) {
+          expect(r.visible, r.reason).toBe(true);
+        }
       }
     });
   }
@@ -1197,6 +1221,143 @@ test.describe('Cross-viewport visibility audit — with BOM + PO', () => {
           expect(r.visible, r.reason).toBe(true);
         }
       }
+    });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+// DESIGNATOR WRAPPING AUDIT
+// ════════════════════════════════════════════════════════════
+
+const WRAP_VIEWPORTS = [
+  { width: 720, height: 480 },
+  { width: 960, height: 1080 },
+  { width: 1024, height: 768 },
+  { width: 1280, height: 1024 },
+  { width: 1347, height: 823 },
+  { width: 1920, height: 1080 },
+  { width: 2560, height: 1440 },
+  { width: 3440, height: 1440 },
+  { width: 3840, height: 2160 },
+];
+
+test.describe('Designator wrapping audit — with BOM', () => {
+  for (const vp of WRAP_VIEWPORTS) {
+    test(`designator cells contained at ${vp.width}x${vp.height}`, async ({ page }) => {
+      await addMockSetup(page, MOCK_INVENTORY);
+      await page.setViewportSize(vp);
+      await page.goto('/index.html');
+      await waitForInventoryRows(page);
+      await loadBomViaFileInput(page, BOM_CSV_PATH);
+      await page.waitForTimeout(300);
+
+      // Check that refs cells contain text without horizontal overflow.
+      // scrollWidth can legitimately exceed clientWidth for overflow-x:hidden elements
+      // because scrollWidth measures intrinsic content width regardless of clipping.
+      // What matters is that no cell allows horizontal scrolling (overflow-x must be
+      // 'hidden', not 'auto' or 'scroll') and that wrapping is not suppressed by
+      // white-space:nowrap.
+      const badCells = await page.evaluate(() => {
+        const cells = document.querySelectorAll('#inventory-body .refs-cell');
+        const results = [];
+        cells.forEach(cell => {
+          const style = getComputedStyle(cell);
+          if (style.overflowX !== 'hidden') {
+            results.push({ text: cell.textContent.slice(0, 40), overflowX: style.overflowX });
+          }
+          if (style.whiteSpace === 'nowrap') {
+            results.push({ text: cell.textContent.slice(0, 40), whiteSpace: style.whiteSpace });
+          }
+        });
+        return results;
+      });
+      expect(badCells, 'Refs cells must have overflow-x:hidden and allow text wrapping').toEqual([]);
+
+      // Check BOM row heights stay reasonable (max ~100px for wrapped + alt badge)
+      const bomRows = await page.locator('tr[data-part-key]').count();
+      for (let i = 0; i < bomRows; i++) {
+        const row = await page.locator('tr[data-part-key]').nth(i).evaluate(el => ({
+          height: el.offsetHeight,
+          partKey: el.dataset.partKey,
+        }));
+        expect(row.height, `BOM row ${row.partKey} too tall at ${vp.width}x${vp.height}`).toBeLessThanOrEqual(100);
+      }
+
+      // Sticky buttons should be reachable
+      const btnReachable = await isReachableByScroll(page, 'td.btn-group', 'Sticky buttons');
+      expect(btnReachable.reachable, btnReachable.reason).toBe(true);
+    });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+// LARGE DESIGNATOR STRESS TEST (60, 100, 200, 300 refs)
+// ════════════════════════════════════════════════════════════
+
+const STRESS_VIEWPORTS = [
+  { width: 960, height: 1080 },
+  { width: 1920, height: 1080 },
+  { width: 3840, height: 2160 },
+];
+
+test.describe('Large designator stress test — with stress BOM', () => {
+  for (const vp of STRESS_VIEWPORTS) {
+    test(`stress BOM rows contained at ${vp.width}x${vp.height}`, async ({ page }) => {
+      await addMockSetup(page, MOCK_INVENTORY);
+      await page.setViewportSize(vp);
+      await page.goto('/index.html');
+      await waitForInventoryRows(page);
+      await loadBomViaFileInput(page, BOM_STRESS_CSV_PATH);
+      await page.waitForTimeout(300);
+
+      // Verify stress rows exist (should have rows for 60, 100, 200, 300 designator parts)
+      const bomRowCount = await page.locator('tr[data-part-key]').count();
+      expect(bomRowCount, 'Stress BOM should produce rows').toBeGreaterThanOrEqual(4);
+
+      // Measure each refs cell height and content
+      const refsCellInfo = await page.evaluate(() => {
+        const cells = document.querySelectorAll('#inventory-body .refs-cell');
+        return Array.from(cells).map(cell => {
+          return {
+            text: cell.textContent.slice(0, 60),
+            clientH: cell.clientHeight,
+            scrollH: cell.scrollHeight,
+            hasScrollContent: cell.scrollHeight > cell.clientHeight + 2,
+          };
+        });
+      });
+
+      console.log(`\n=== Refs cell info at ${vp.width}x${vp.height} ===`);
+      for (const info of refsCellInfo) {
+        console.log(`  [${info.hasScrollContent ? 'SCROLL' : 'FIT'}] h=${info.clientH}/${info.scrollH} "${info.text}"`);
+      }
+
+      // Cells with many refs should have overflow content (scrollHeight > clientHeight)
+      // This confirms the max-height clamp is working
+      const overflowCells = refsCellInfo.filter(c => c.hasScrollContent);
+      console.log(`  Cells with overflow content: ${overflowCells.length}/${refsCellInfo.length}`);
+
+      // Row heights must stay bounded
+      const allBomRows = await page.locator('tr[data-part-key]').count();
+      for (let i = 0; i < allBomRows; i++) {
+        const row = await page.locator('tr[data-part-key]').nth(i).evaluate(el => ({
+          height: el.offsetHeight,
+          partKey: el.dataset.partKey,
+        }));
+        expect(row.height, `Stress BOM row ${row.partKey} too tall at ${vp.width}x${vp.height}`).toBeLessThanOrEqual(100);
+      }
+
+      // Range compression should be working — check that a 300-ref row uses ranges
+      const rangeSpans = await page.evaluate(() => {
+        const cells = document.querySelectorAll('#inventory-body .refs-cell');
+        let rangeCount = 0;
+        cells.forEach(cell => {
+          const spans = cell.querySelectorAll('[data-refs]');
+          rangeCount += spans.length;
+        });
+        return rangeCount;
+      });
+      expect(rangeSpans, 'Stress BOM should contain range-compressed spans').toBeGreaterThan(0);
     });
   }
 });

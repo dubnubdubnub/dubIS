@@ -48,7 +48,10 @@ def _post_consume(part_id, qty=1):
     req = urllib2.Request(url, data, {"Content-Type": "application/json"})
     try:
         resp = urllib2.urlopen(req, timeout=TIMEOUT)
-        body = json.loads(resp.read())
+        try:
+            body = json.loads(resp.read())
+        finally:
+            resp.close()
         if body.get("ok"):
             _log("consumed %dx %s (new_qty=%s)" % (qty, part_id, body.get("new_qty")))
             return True

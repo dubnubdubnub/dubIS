@@ -6,7 +6,7 @@ import { AppLog, api } from '../api.js';
 import { EventBus, Events } from '../event-bus.js';
 import { showToast, escHtml } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { App, store, snapshotLinks, getThreshold } from '../store.js';
+import { store, snapshotLinks, getThreshold } from '../store.js';
 import { bomKey, invPartKey, countStatuses } from '../part-keys.js';
 import { openAdjustModal, openPriceModal } from '../inventory-modals.js';
 import { openFlyout } from '../group-flyout/flyout-panel.js';
@@ -75,7 +75,7 @@ function updateDistCounts() {
 // ── Reverse link helper ──
 
 function createReverseLink(invItem) {
-  var bomRow = App.links.linkingBomRow;
+  var bomRow = store.links.linkingBomRow;
   if (!bomRow) return;
   var bk = bomKey(bomRow.bom);
   var ipk = invPartKey(invItem);
@@ -84,9 +84,9 @@ function createReverseLink(invItem) {
     return;
   }
   UndoRedo.save("links", snapshotLinks());
-  App.links.addManualLink(bk, ipk);
+  store.links.addManualLink(bk, ipk);
   AppLog.info("Manual link: " + ipk + " \u2192 " + bk);
-  App.links.setReverseLinkingMode(false);
+  store.links.setReverseLinkingMode(false);
   showToast("Linked " + ipk + " \u2192 " + bk);
 }
 
@@ -165,7 +165,7 @@ function renderSubSection(container, displayName, fullKey, parts) {
   sub.className = "inv-subsection";
 
   var isCollapsed = state.collapsedSections.has(fullKey);
-  var hasGroups = App.genericParts && App.genericParts.length > 0;
+  var hasGroups = store.genericParts && store.genericParts.length > 0;
   var groupsActive = state.groupsSections.has(fullKey);
 
   var header = document.createElement("div");
@@ -214,7 +214,7 @@ function createPartRow(item, sectionKey) {
   row.draggable = true;
   row.dataset.partId = invPartKey(item);
 
-  var isSource = App.links.linkingMode && App.links.linkingInvItem === item;
+  var isSource = store.links.linkingMode && store.links.linkingInvItem === item;
   var html = renderPartRowHtml(item, {
     hideDescs: state.hideDescs,
     isBomMode: !!state.bomData,
@@ -222,13 +222,13 @@ function createPartRow(item, sectionKey) {
     isReverseTarget: false,
     sectionKey: sectionKey,
     threshold: getThreshold(sectionKey),
-    genericParts: App.genericParts,
+    genericParts: store.genericParts,
   });
   row.innerHTML = html;
 
   if (isSource) row.classList.add("linking-source");
 
-  if (App.links.linkingMode && App.links.linkingBomRow) {
+  if (store.links.linkingMode && store.links.linkingBomRow) {
     row.classList.add("link-target");
     row.addEventListener("click", function () { createReverseLink(item); });
   }
@@ -255,7 +255,7 @@ function createPartRow(item, sectionKey) {
   if (linkBtnEl) {
     linkBtnEl.addEventListener("click", function (e) {
       e.stopPropagation();
-      App.links.setLinkingMode(true, item);
+      store.links.setLinkingMode(true, item);
     });
   }
   var gpBadge = row.querySelector(".generic-group-badge");
@@ -318,7 +318,7 @@ function renderSection(name, parts) {
   section.className = "inv-section";
 
   var isCollapsed = state.collapsedSections.has(name);
-  var hasGroups = App.genericParts && App.genericParts.length > 0;
+  var hasGroups = store.genericParts && store.genericParts.length > 0;
   var groupsActive = state.groupsSections.has(name);
 
   var header = document.createElement("div");
@@ -362,7 +362,7 @@ function renderSection(name, parts) {
 // ── Groups mode rendering ──
 
 function renderGroupedView(container, sectionKey, parts) {
-  var result = groupPartsByGeneric(parts, App.genericParts || []);
+  var result = groupPartsByGeneric(parts, store.genericParts || []);
 
   // Render each group
   for (var i = 0; i < result.groups.length; i++) {
@@ -409,7 +409,7 @@ function renderGroupedView(container, sectionKey, parts) {
     })(gp.generic_part_id);
 
     // In reverse-link mode, make group headers link-targets
-    if (App.links.linkingMode && App.links.linkingBomRow) {
+    if (store.links.linkingMode && store.links.linkingBomRow) {
       headerDiv.classList.add("link-target");
     }
 
@@ -467,7 +467,7 @@ function renderFilterRow(gp, parts) {
     nameZone.appendChild(nameSpan);
 
     // In link mode with chips active, make name zone a link-target
-    if (App.links.linkingMode && App.links.linkingBomRow) {
+    if (store.links.linkingMode && store.links.linkingBomRow) {
       nameZone.classList.add("link-target");
       var hintSpan = document.createElement("span");
       hintSpan.className = "filter-link-hint";
@@ -589,9 +589,9 @@ function renderBomComparison() {
   var sortedRows = sortBomRows(rows);
   var c = countStatuses(rows);
   var linkingState = {
-    linkingMode: App.links.linkingMode,
-    linkingInvItem: App.links.linkingInvItem,
-    linkingBomRow: App.links.linkingBomRow,
+    linkingMode: store.links.linkingMode,
+    linkingInvItem: store.links.linkingInvItem,
+    linkingBomRow: store.links.linkingBomRow,
   };
 
   // Filter bar
@@ -629,7 +629,7 @@ function renderBomComparison() {
     }
     if (d.showMembers && d.genericMembers) {
       var resolvedId = r.inv ? invPartKey(r.inv) : "";
-      var memberElements = renderMemberRows(d.genericMembers, d.partKey, resolvedId, d.genericPartName || "", App.inventory);
+      var memberElements = renderMemberRows(d.genericMembers, d.partKey, resolvedId, d.genericPartName || "", store.inventory);
       for (var m = 0; m < memberElements.length; m++) {
         tbody.appendChild(memberElements[m]);
       }
@@ -743,10 +743,10 @@ async function autoCreateGroupAndOpenFlyout(btn, row) {
 
   AppLog.info("Auto-created generic group: " + result.generic_part_id + " (" + name + ")");
 
-  // Step 4: refresh App.genericParts
+  // Step 4: refresh store.genericParts
   var gps = await api("list_generic_parts");
-  App.genericParts = Array.isArray(gps) ? gps : [];
-  EventBus.emit(Events.GENERIC_PARTS_LOADED, App.genericParts);
+  store.genericParts = Array.isArray(gps) ? gps : [];
+  EventBus.emit(Events.GENERIC_PARTS_LOADED, store.genericParts);
 
   // Step 5: open flyout for the newly created group
   openFlyout(result.generic_part_id, row);
@@ -792,15 +792,15 @@ function handleBomTableClick(e) {
         var memberR = state.rowMap.get(memberParentKey);
         if (memberR) {
           UndoRedo.save("links", snapshotLinks());
-          App.links.confirmMatch(bomKey(memberR.bom), memberPartId);
+          store.links.confirmMatch(bomKey(memberR.bom), memberPartId);
           AppLog.info("Generic member selected: " + memberParentKey + " \u2192 " + memberPartId);
           showToast("Confirmed " + memberParentKey + " \u2192 " + memberPartId);
           state.expandedMembers.delete(memberParentKey);
         }
       } else if (btn.classList.contains("adj-btn")) {
         // Find the inventory item for this member
-        for (var mi = 0; mi < App.inventory.length; mi++) {
-          var mItem = App.inventory[mi];
+        for (var mi = 0; mi < store.inventory.length; mi++) {
+          var mItem = store.inventory[mi];
           if (invPartKey(mItem) === memberPartId || (mItem.lcsc && mItem.lcsc.toUpperCase() === memberPartId.toUpperCase()) || (mItem.mpn && mItem.mpn.toUpperCase() === memberPartId.toUpperCase())) {
             openAdjustModal(mItem);
             break;
@@ -841,8 +841,8 @@ function handleBomTableClick(e) {
     else if (btn.classList.contains("unconfirm-btn")) unconfirmMatch(r);
     else if (btn.classList.contains("adj-btn")) openAdjustModal(r.inv);
     else if (btn.classList.contains("link-btn")) {
-      if (r.inv) App.links.setLinkingMode(true, r.inv);
-      else if (r.effectiveStatus === "missing") App.links.setReverseLinkingMode(true, r);
+      if (r.inv) store.links.setLinkingMode(true, r.inv);
+      else if (r.effectiveStatus === "missing") store.links.setReverseLinkingMode(true, r);
     }
     return;
   }
@@ -863,7 +863,7 @@ function confirmMatch(bomRow) {
   var ipk = invPartKey(bomRow.inv);
   if (!bk || !ipk) { AppLog.warn("Cannot confirm: missing part key"); return; }
   UndoRedo.save("links", snapshotLinks());
-  App.links.confirmMatch(bk, ipk);
+  store.links.confirmMatch(bk, ipk);
   AppLog.info("Confirmed: " + bk + " \u2192 " + ipk);
   showToast("Confirmed " + bk);
 }
@@ -872,7 +872,7 @@ function unconfirmMatch(bomRow) {
   var bk = bomKey(bomRow.bom);
   if (!bk) { AppLog.warn("Cannot unconfirm: missing BOM key"); return; }
   UndoRedo.save("links", snapshotLinks());
-  App.links.unconfirmMatch(bk);
+  store.links.unconfirmMatch(bk);
   AppLog.info("Unconfirmed: " + bk);
   showToast("Unconfirmed " + bk);
 }
@@ -882,7 +882,7 @@ function confirmAltMatch(bomRow, altInvItem) {
   var ipk = invPartKey(altInvItem);
   if (!bk || !ipk) { AppLog.warn("Cannot confirm alt: missing part key"); return; }
   UndoRedo.save("links", snapshotLinks());
-  App.links.confirmMatch(bk, ipk);
+  store.links.confirmMatch(bk, ipk);
   AppLog.info("Confirmed alt: " + bk + " \u2192 " + ipk);
   showToast("Confirmed " + bk + " \u2192 " + ipk);
 }

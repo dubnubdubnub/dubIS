@@ -4,7 +4,7 @@ import { EventBus, Events } from './event-bus.js';
 import { api, AppLog } from './api.js';
 import { showToast, Modal } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
-import { App, loadPreferences, loadInventory, onInventoryUpdated } from './store.js';
+import { store, loadPreferences, loadInventory, onInventoryUpdated } from './store.js';
 import { processBOM } from './csv-parser.js';
 import { matchBOM } from './matching.js';
 import { colorizeRefs, REF_COLOR_MAP } from './part-keys.js';
@@ -20,7 +20,7 @@ import { init as initPartPreview } from './part-preview.js';
 import { init as initGroupFlyout } from './group-flyout/flyout-panel.js';
 
 // Expose globals for E2E tests and Python's evaluate_js
-window.App = App;
+window.store = store;
 window.EventBus = EventBus;
 window.Events = Events;
 window.processBOM = processBOM;
@@ -69,8 +69,13 @@ async function initApp() {
   // ── Cross-panel designator hover highlighting ──────────
   var highlightedRef = null;
   document.addEventListener("mouseover", function (e) {
-    var target = e.target.closest("[data-ref]");
-    var ref = target ? target.dataset.ref : null;
+    var target = e.target.closest("[data-ref], [data-refs]");
+    var ref = null;
+    if (target) {
+      ref = target.dataset.ref || null;
+      // If hovering a range span, pick the first ref in the range for identity
+      if (!ref && target.dataset.refs) ref = target.dataset.refs.split(" ")[0];
+    }
     if (ref === highlightedRef) return;
     if (highlightedRef) {
       document.querySelectorAll(".ref-highlight").forEach(function (el) {
@@ -79,8 +84,15 @@ async function initApp() {
     }
     highlightedRef = ref;
     if (ref) {
-      document.querySelectorAll('[data-ref="' + CSS.escape(ref) + '"]').forEach(function (el) {
+      // Match individual refs (data-ref) and range spans (data-refs~= space-separated match)
+      var escaped = CSS.escape(ref);
+      document.querySelectorAll('[data-ref="' + escaped + '"], [data-refs~="' + escaped + '"]').forEach(function (el) {
         el.classList.add("ref-highlight");
+        // Scroll highlighted ref into view within its scrollable .refs-scroll container
+        var cell = el.closest(".refs-scroll") || el.closest(".refs-cell");
+        if (cell && cell.scrollHeight > cell.clientHeight) {
+          el.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }
       });
     }
   });
@@ -114,12 +126,12 @@ async function initApp() {
   UndoRedo.register("links", (action, data) => {
     if (action === "snapshot") {
       return {
-        manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
-        confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
+        manualLinks: JSON.parse(JSON.stringify(store.links.manualLinks)),
+        confirmedMatches: JSON.parse(JSON.stringify(store.links.confirmedMatches)),
       };
     }
-    App.links.manualLinks = data.manualLinks;
-    App.links.confirmedMatches = data.confirmedMatches;
+    store.links.manualLinks = data.manualLinks;
+    store.links.confirmedMatches = data.confirmedMatches;
     EventBus.emit(Events.LINKS_CHANGED);
     EventBus.emit(Events.CONFIRMED_CHANGED);
   });

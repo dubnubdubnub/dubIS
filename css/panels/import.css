@@ -99,6 +99,10 @@
   width: 20px; cursor: pointer; text-align: center;
   color: var(--text-muted); font-size: 13px; padding: 0;
 }
+.import-preview th.row-delete {
+  /* Empty header cell must not block clicks on sticky-overlapping td delete buttons */
+  pointer-events: none;
+}
 .import-preview .row-delete:hover { color: var(--color-red); }
 
 /* ── Import Staging Toolbar (overrides shared .staging-toolbar) ── */

@@ -19,9 +19,6 @@ def api(tmp_path):
     data_dir = tmp_path / "data"
     data_dir.mkdir(exist_ok=True)
     inst.cache_db_path = str(data_dir / "cache.db")
-    # Propagate overridden paths to sub-APIs
-    inst._gp_api.events_dir = inst.events_dir
-    inst._price_api.events_dir = inst.events_dir
     return inst
 
 

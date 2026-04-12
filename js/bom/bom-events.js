@@ -5,7 +5,7 @@ import { EventBus, Events } from '../event-bus.js';
 import { api, AppLog } from '../api.js';
 import { showToast, escHtml, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { App, store, setBomDirty, setBomResults, setBomMeta, onInventoryUpdated, savePreferences } from '../store.js';
+import { store, setBomDirty, setBomResults, setBomMeta, onInventoryUpdated, savePreferences } from '../store.js';
 import { bomAggKey } from '../part-keys.js';
 import { generateCSV } from '../csv-parser.js';
 import { computeRows, prepareConsumption } from './bom-logic.js';
@@ -35,9 +35,9 @@ export function setupEvents(handlers) {
     if (e.target.id === "bom-save-btn") {
       if (!state.bomHeaders.length || !state.bomRawRows.length) return;
       const csvText = generateCSV(state.bomHeaders, state.bomRawRows);
-      const linksJson = App.links.hasLinks() ? JSON.stringify({
-        manualLinks: App.links.manualLinks,
-        confirmedMatches: App.links.confirmedMatches,
+      const linksJson = store.links.hasLinks() ? JSON.stringify({
+        manualLinks: store.links.manualLinks,
+        confirmedMatches: store.links.confirmedMatches,
       }) : null;
       const result = await api("save_file_dialog", csvText, state.lastFileName || "bom.csv", store.preferences.lastBomDir || null, linksJson);
       if (result && result.path) {
@@ -164,7 +164,7 @@ export function setupEvents(handlers) {
     const linkTarget = e.target.closest('[data-action="link"]');
     if (linkTarget) {
       const aggKey = linkTarget.dataset.aggKey;
-      const rows = computeRows(state.lastResults, getMultiplier(), App.links);
+      const rows = computeRows(state.lastResults, getMultiplier(), store.links);
       if (rows) {
         const matchedResult = rows.find(r => bomAggKey(r.bom) === aggKey);
         if (matchedResult) createManualLink(matchedResult);
@@ -270,7 +270,7 @@ export function setupEvents(handlers) {
 
   EventBus.on(Events.LINKING_MODE, () => {
     if (state.lastResults) {
-      const rows = computeRows(state.lastResults, getMultiplier(), App.links);
+      const rows = computeRows(state.lastResults, getMultiplier(), store.links);
       if (rows) renderBomPanel(rows);
     }
   });
@@ -281,9 +281,9 @@ export function setupEvents(handlers) {
       return;
     }
     const csvText = generateCSV(state.bomHeaders, state.bomRawRows);
-    const linksJson = App.links.hasLinks() ? JSON.stringify({
-      manualLinks: App.links.manualLinks,
-      confirmedMatches: App.links.confirmedMatches,
+    const linksJson = store.links.hasLinks() ? JSON.stringify({
+      manualLinks: store.links.manualLinks,
+      confirmedMatches: store.links.confirmedMatches,
     }) : null;
     const result = await api("save_file_dialog", csvText, state.lastFileName || "bom.csv", store.preferences.lastBomDir || null, linksJson);
     if (result && result.path) {
