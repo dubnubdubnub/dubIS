@@ -1,6 +1,5 @@
 /* ── Inventory Panel ───────────────────────────────────── */
 .panel-inventory { flex: 1; min-width: 300px; }
-.panel-inventory > .panel-header { padding-right: 18px; /* clear the adjacent 5px resize handle */ }
 
 /* ── Search Group (filter buttons + search input) ─────── */
 .inv-search-group {
