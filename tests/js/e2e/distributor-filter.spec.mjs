@@ -35,9 +35,31 @@ test.describe('Distributor filter buttons', () => {
     const buttons = filterBar.locator('.dist-filter-btn');
     await expect(buttons).toHaveCount(5);
 
+    const ICON_SRCS = {
+      lcsc: 'data/lcsc-icon.ico',
+      digikey: 'data/digikey-icon.png',
+      mouser: 'data/mouser-icon.svg',
+      pololu: 'data/pololu-icon.svg',
+    };
+
     for (const dist of ['lcsc', 'digikey', 'mouser', 'pololu', 'other']) {
       const btn = filterBar.locator(`.dist-filter-btn[data-distributor="${dist}"]`);
       await expect(btn, `${dist} filter button should be visible`).toBeVisible();
+
+      // Each button should have a visible label and icon
+      const label = btn.locator('.dist-label');
+      await expect(label, `${dist} should have a text label`).toBeVisible();
+
+      if (ICON_SRCS[dist]) {
+        const icon = btn.locator('.vendor-icon');
+        await expect(icon, `${dist} should have a vendor icon`).toBeVisible();
+        const src = await icon.getAttribute('src');
+        expect(src, `${dist} icon src`).toBe(ICON_SRCS[dist]);
+      } else {
+        // "other" uses a text icon
+        const otherIcon = btn.locator('.dist-icon-other');
+        await expect(otherIcon, `other should have a text icon`).toBeVisible();
+      }
     }
 
     const clearBtn = page.locator('#clear-dist-filter');
