@@ -58,9 +58,9 @@ export function init() {
 function updateDistFilterUI() {
   var btns = state.distFilterBar.querySelectorAll(".dist-filter-btn");
   for (var i = 0; i < btns.length; i++) {
-    btns[i].classList.toggle("active", btns[i].dataset.distributor === state.activeDistributor);
+    btns[i].classList.toggle("active", state.activeDistributors.has(btns[i].dataset.distributor));
   }
-  state.clearFilterBtn.disabled = (state.activeDistributor === null);
+  state.clearFilterBtn.disabled = (state.activeDistributors.size === 0);
 }
 
 function updateDistCounts() {
@@ -113,7 +113,7 @@ function renderNormalInventory() {
   for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
     var entry = SECTION_HIERARCHY[i];
     if (!entry.children) {
-      var filtered = filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributor);
+      var filtered = filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributors);
       if (filtered.length > 0) renderSection(entry.name, filtered);
     } else {
       renderHierarchySection(entry, sections, query);
@@ -122,12 +122,12 @@ function renderNormalInventory() {
 }
 
 function renderHierarchySection(entry, sections, query) {
-  var parentParts = filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributor);
+  var parentParts = filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributors);
   var childData = [];
   var totalCount = parentParts.length;
   for (var i = 0; i < entry.children.length; i++) {
     var fullKey = entry.name + " > " + entry.children[i];
-    var filtered = filterByDistributor(filterByQuery(sections[fullKey] || [], query), state.activeDistributor);
+    var filtered = filterByDistributor(filterByQuery(sections[fullKey] || [], query), state.activeDistributors);
     totalCount += filtered.length;
     childData.push({ name: entry.children[i], fullKey: fullKey, parts: filtered });
   }
@@ -296,7 +296,7 @@ function renderRemainingNormalSections(otherParts, query) {
   for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
     var entry = SECTION_HIERARCHY[i];
     if (!entry.children) {
-      var filtered = filterByDistributor(filterByQuery(otherParts[entry.name] || [], query), state.activeDistributor);
+      var filtered = filterByDistributor(filterByQuery(otherParts[entry.name] || [], query), state.activeDistributors);
       if (filtered.length > 0) renderSection(entry.name, filtered);
     } else {
       renderHierarchySection(entry, otherParts, query);

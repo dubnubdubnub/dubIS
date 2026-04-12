@@ -50,19 +50,20 @@ export function setupEvents(handlers) {
     }, 150);
   });
 
-  // ── Distributor filter buttons ──
+  // ── Distributor filter buttons (multi-select) ──
   state.distFilterBar.addEventListener("click", function (e) {
     var btn = e.target.closest(".dist-filter-btn");
     if (!btn) return;
     var dist = btn.dataset.distributor;
-    state.activeDistributor = (state.activeDistributor === dist) ? null : dist;
+    if (state.activeDistributors.has(dist)) state.activeDistributors.delete(dist);
+    else state.activeDistributors.add(dist);
     updateDistFilterUI();
     render();
   });
 
   state.clearFilterBtn.addEventListener("click", function () {
-    if (state.activeDistributor === null) return;
-    state.activeDistributor = null;
+    if (state.activeDistributors.size === 0) return;
+    state.activeDistributors.clear();
     updateDistFilterUI();
     render();
   });
@@ -80,7 +81,7 @@ export function setupEvents(handlers) {
   EventBus.on(Events.BOM_CLEARED, function () {
     state.bomData = null;
     state.activeFilter = "all";
-    state.activeDistributor = null;
+    state.activeDistributors.clear();
     updateDistFilterUI();
     state.expandedAlts = new Set();
     state.expandedMembers = new Set();
