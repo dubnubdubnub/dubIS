@@ -615,6 +615,18 @@ def run_test(remote_openpnp=None):
                 except FileNotFoundError:
                     wm_proc = None
 
+                # Ensure X11 socket is ready before launching OpenPnP
+                if wm_proc is None:
+                    x_socket = f"/tmp/.X11-unix/X{display_num}"
+                    for _ in range(10):
+                        if os.path.exists(x_socket):
+                            break
+                        time.sleep(0.5)
+                    if os.path.exists(x_socket):
+                        print(f"[e2e] X11 socket ready: {x_socket}")
+                    else:
+                        print(f"[e2e] WARN: X11 socket {x_socket} not found after 5s")
+
             # Verify scripts are installed
             events_dir = os.path.expanduser("~/.openpnp2/scripts/Events")
             if os.path.isdir(events_dir):
