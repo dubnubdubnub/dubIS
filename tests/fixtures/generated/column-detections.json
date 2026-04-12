@@ -3,6 +3,13 @@
     "2": "Manufacture Part Number",
     "1": "Quantity"
   },
+  "LCSC Part Number,Manufacture Part Number,Description,Quantity,Unit Price($)": {
+    "0": "LCSC Part Number",
+    "1": "Manufacture Part Number",
+    "3": "Quantity",
+    "2": "Description",
+    "4": "Unit Price($)"
+  },
   "Index,DigiKey Part #,Manufacturer Part Number,Manufacturer,Description,Customer Reference,Quantity,Backorder,Unit Price,Extended Price": {
     "1": "Digikey Part Number",
     "2": "Manufacture Part Number",
