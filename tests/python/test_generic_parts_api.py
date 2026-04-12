@@ -1,5 +1,6 @@
 """Tests for GenericPartsApi facade."""
 
+import json
 import os
 
 import pytest
@@ -258,3 +259,82 @@ class TestPreviewGenericMembers:
         conn = gp_api._get_cache()
         count = conn.execute("SELECT COUNT(*) AS c FROM generic_parts").fetchone()["c"]
         assert count == 0
+
+
+@pytest.fixture
+def gp_api_with_data_dir(db, events_dir, tmp_path):
+    """GenericPartsApi wired to test db, events_dir, and a data_dir."""
+    data_dir = str(tmp_path / "data")
+    os.makedirs(data_dir, exist_ok=True)
+    return GenericPartsApi(get_cache=lambda: db, events_dir=events_dir, data_dir=data_dir)
+
+
+class TestListSavedSearches:
+    def test_empty_when_none(self, gp_api_with_data_dir):
+        result = gp_api_with_data_dir.list_saved_searches("cap_abc")
+        assert result == []
+
+    def test_returns_searches_for_group(self, gp_api_with_data_dir):
+        gp_api_with_data_dir.create_saved_search(
+            "cap_abc", "My Search", '{"mlcc": true}', "100nF", '["C1525"]'
+        )
+        result = gp_api_with_data_dir.list_saved_searches("cap_abc")
+        assert len(result) == 1
+        assert result[0]["name"] == "My Search"
+
+    def test_filters_by_group(self, gp_api_with_data_dir):
+        gp_api_with_data_dir.create_saved_search("cap_abc", "Cap Search", "{}", "", "[]")
+        gp_api_with_data_dir.create_saved_search("res_xyz", "Res Search", "{}", "", "[]")
+        result = gp_api_with_data_dir.list_saved_searches("cap_abc")
+        assert len(result) == 1
+        assert result[0]["name"] == "Cap Search"
+
+
+class TestCreateSavedSearch:
+    def test_creates_and_returns(self, gp_api_with_data_dir):
+        result = gp_api_with_data_dir.create_saved_search(
+            "cap_abc", "My Search", '{"mlcc": true}', "100nF", '["C1525"]'
+        )
+        assert result["name"] == "My Search"
+        assert result["generic_part_id"] == "cap_abc"
+        assert result["search_text"] == "100nF"
+        assert result["tag_state"] == {"mlcc": True}
+        assert result["frozen_members"] == ["C1525"]
+
+    def test_accepts_dict_args(self, gp_api_with_data_dir):
+        result = gp_api_with_data_dir.create_saved_search(
+            "cap_abc", "My Search", {"mlcc": True}, "100nF", ["C1525"]
+        )
+        assert result["tag_state"] == {"mlcc": True}
+        assert result["frozen_members"] == ["C1525"]
+
+    def test_persists_to_json(self, gp_api_with_data_dir):
+        gp_api_with_data_dir.create_saved_search(
+            "cap_abc", "My Search", "{}", "100nF", "[]"
+        )
+        json_path = os.path.join(gp_api_with_data_dir._data_dir, "saved_searches.json")
+        assert os.path.exists(json_path)
+        with open(json_path, encoding="utf-8") as f:
+            data = json.load(f)
+        assert len(data) == 1
+        assert data[0]["name"] == "My Search"
+
+
+class TestDeleteSavedSearch:
+    def test_delete_removes_search(self, gp_api_with_data_dir, db):
+        result = gp_api_with_data_dir.create_saved_search(
+            "cap_abc", "My Search", "{}", "", "[]"
+        )
+        gp_api_with_data_dir.delete_saved_search(result["id"])
+        remaining = gp_api_with_data_dir.list_saved_searches("cap_abc")
+        assert remaining == []
+
+    def test_delete_updates_json(self, gp_api_with_data_dir):
+        a = gp_api_with_data_dir.create_saved_search("cap_abc", "Search A", "{}", "", "[]")
+        gp_api_with_data_dir.create_saved_search("cap_abc", "Search B", "{}", "", "[]")
+        gp_api_with_data_dir.delete_saved_search(a["id"])
+        json_path = os.path.join(gp_api_with_data_dir._data_dir, "saved_searches.json")
+        with open(json_path, encoding="utf-8") as f:
+            data = json.load(f)
+        assert len(data) == 1
+        assert data[0]["name"] == "Search B"
