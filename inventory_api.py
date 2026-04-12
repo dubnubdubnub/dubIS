@@ -16,9 +16,9 @@ import csv_io
 import file_dialogs
 import inventory_ops
 import price_ops
+import price_history
 from distributor_manager import DistributorManager
 from generic_parts_api import GenericPartsApi
-from price_api import PriceApi
 
 logger = logging.getLogger(__name__)
 
@@ -86,9 +86,6 @@ class InventoryApi:
         self._lock: threading.Lock = threading.Lock()
         self._distributors = DistributorManager(self.base_dir, self._get_cache)
         self._gp_api = GenericPartsApi(
-            get_cache=self._get_cache, events_dir=self.events_dir,
-        )
-        self._price_api = PriceApi(
             get_cache=self._get_cache, events_dir=self.events_dir,
         )
 
@@ -496,16 +493,20 @@ class InventoryApi:
         """Load a file by path, return {name, content, directory, path, links?} or None."""
         return file_dialogs.load_file(path)
 
-    # ── Price history API (delegated to PriceApi) ──────────────────────────
+    # ── Price history API ───────────────────────────────────────────────────
 
     def record_fetched_prices(self, part_key: str, distributor: str,
                                price_tiers: list[dict[str, Any]]) -> None:
         """Record prices fetched from a distributor API/scraper."""
-        return self._price_api.record_fetched_prices(part_key, distributor, price_tiers)
+        return price_history.record_fetched_prices(
+            self._get_cache(), self.events_dir, part_key, distributor, price_tiers,
+        )
 
     def get_price_summary(self, part_key: str) -> dict[str, dict[str, Any]]:
         """Get aggregated pricing per distributor for a part."""
-        return self._price_api.get_price_summary(part_key)
+        return price_history.get_price_summary(
+            self._get_cache(), self.events_dir, part_key,
+        )
 
     # ── Product preview (delegated to DistributorManager) ───────────────────
 
