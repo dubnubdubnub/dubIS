@@ -72,6 +72,12 @@ class GenericPartsApi:
         generic_parts.remove_member(conn, self.events_dir, generic_part_id, part_id)
         return self._fetch_members(conn, generic_part_id)
 
+    def exclude_generic_member(self, generic_part_id: str, part_id: str) -> None:
+        """Mark a member as excluded from a generic part group."""
+        conn = self._get_cache()
+        self._ensure_events_dir()
+        generic_parts.exclude_member(conn, self.events_dir, generic_part_id, part_id)
+
     def set_preferred_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
         """Set a member as the preferred part in a generic group."""
         conn = self._get_cache()
@@ -129,6 +135,24 @@ class GenericPartsApi:
         if not row:
             return {}
         return spec_extractor.extract_spec(row["description"] or "", row["package"] or "")
+
+    def extract_spec_from_value(self, part_type: str, value_str: str, package_str: str) -> dict[str, Any]:
+        """Extract a spec dict from a raw BOM value string and package.
+
+        Used when auto-creating a generic group from a BOM row that has no
+        existing group (data-bom-value / data-bom-pkg attributes).
+
+        Prepends the part_type as a keyword so that spec_extractor's type
+        detection succeeds and value/voltage/tolerance fields are parsed.
+        """
+        # Prepend type keyword so extract_spec recognises the component type
+        # and runs the correct value parser (capacitance / resistance / inductance).
+        desc = part_type + " " + value_str + " " + package_str
+        spec = spec_extractor.extract_spec(desc, package_str)
+        # Always set type explicitly — extract_spec may still fall back to "other"
+        # for unknown types, but the caller has the authoritative type.
+        spec["type"] = part_type
+        return spec
 
     def list_saved_searches(self, generic_part_id: str) -> list[dict[str, Any]]:
         """Return all saved searches for a generic part group."""
