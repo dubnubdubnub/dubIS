@@ -1,12 +1,17 @@
 /* ── Flyout Container ─────────────────────────────────── */
 .flyout-container {
   position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   pointer-events: none;
   z-index: 100;
 }
 
 /* ── Flyout Panel ─────────────────────────────────────── */
 .group-flyout {
+  position: absolute;
   display: flex;
   flex-direction: row;
   width: 300px;
