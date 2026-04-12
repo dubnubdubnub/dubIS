@@ -17,9 +17,10 @@ const CSS_FILES = [
   'css/components/badges.css', 'css/components/console.css', 'css/components/linking.css',
 ];
 const css = CSS_FILES.map(f => readFileSync(join(ROOT, f), 'utf-8')).join('\n');
-// Read all inventory panel files (split across wiring + renderer)
+// Read all inventory panel files (split across wiring + renderer + bom view)
 const invPanelJs = readFileSync(join(ROOT, 'js/inventory/inventory-panel.js'), 'utf-8')
-  + readFileSync(join(ROOT, 'js/inventory/inventory-renderer.js'), 'utf-8');
+  + readFileSync(join(ROOT, 'js/inventory/inventory-renderer.js'), 'utf-8')
+  + readFileSync(join(ROOT, 'js/inventory/inv-bom-view.js'), 'utf-8');
 
 /**
  * Extract the content of a CSS rule block by selector.
