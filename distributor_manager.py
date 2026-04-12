@@ -6,6 +6,7 @@ import logging
 import os
 from typing import Any
 
+from base_client import BaseProductClient
 from digikey_client import DigikeyClient
 from lcsc_client import LcscClient
 from mouser_client import MouserClient
@@ -88,3 +89,38 @@ class DistributorManager:
     def logout_digikey(self) -> dict[str, str]:
         """Delegate to DigikeyClient."""
         return self._digikey.logout()
+
+    # ── Product fetching ─────────────────────────────────────────────────
+
+    def _fetch_product(
+        self, client: BaseProductClient, identifier: str, *, debug: bool = False,
+    ) -> dict[str, Any] | None:
+        """Fetch a product via the given client, stripping _debug in non-debug mode."""
+        result = client.fetch_product(identifier)
+        if result and not debug:
+            result.pop("_debug", None)
+        return result
+
+    def fetch_lcsc_product(
+        self, product_code: str, *, debug: bool = False,
+    ) -> dict[str, Any] | None:
+        """Fetch an LCSC product."""
+        return self._fetch_product(self._lcsc, product_code, debug=debug)
+
+    def fetch_digikey_product(
+        self, part_number: str, *, debug: bool = False,
+    ) -> dict[str, Any] | None:
+        """Fetch a Digikey product."""
+        return self._fetch_product(self._digikey, part_number, debug=debug)
+
+    def fetch_pololu_product(
+        self, sku: str, *, debug: bool = False,
+    ) -> dict[str, Any] | None:
+        """Fetch a Pololu product."""
+        return self._fetch_product(self._pololu, sku, debug=debug)
+
+    def fetch_mouser_product(
+        self, part_number: str, *, debug: bool = False,
+    ) -> dict[str, Any] | None:
+        """Fetch a Mouser product."""
+        return self._fetch_product(self._mouser, part_number, debug=debug)

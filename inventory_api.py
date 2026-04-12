@@ -16,7 +16,7 @@ import csv_io
 import file_dialogs
 import inventory_ops
 import price_ops
-from distributor_api import DistributorApi
+from distributor_manager import DistributorManager
 from generic_parts_api import GenericPartsApi
 from price_api import PriceApi
 
@@ -84,10 +84,7 @@ class InventoryApi:
         self._bom_dirty: bool = False
         self._debug: bool = debug
         self._lock: threading.Lock = threading.Lock()
-        self._dist_api = DistributorApi(
-            base_dir=self.base_dir, get_cache=self._get_cache, debug=self._debug,
-        )
-        self._distributors = self._dist_api._distributors
+        self._distributors = DistributorManager(self.base_dir, self._get_cache)
         self._gp_api = GenericPartsApi(
             get_cache=self._get_cache, events_dir=self.events_dir,
         )
@@ -510,34 +507,34 @@ class InventoryApi:
         """Get aggregated pricing per distributor for a part."""
         return self._price_api.get_price_summary(part_key)
 
-    # ── Product preview (delegated to DistributorApi) ──────────────────────
+    # ── Product preview (delegated to DistributorManager) ───────────────────
 
     def fetch_lcsc_product(self, product_code: str) -> dict[str, Any] | None:
-        return self._dist_api.fetch_lcsc_product(product_code)
+        return self._distributors.fetch_lcsc_product(product_code, debug=self._debug)
 
     def fetch_digikey_product(self, part_number: str) -> dict[str, Any] | None:
-        return self._dist_api.fetch_digikey_product(part_number)
+        return self._distributors.fetch_digikey_product(part_number, debug=self._debug)
 
     def fetch_pololu_product(self, sku: str) -> dict[str, Any] | None:
-        return self._dist_api.fetch_pololu_product(sku)
+        return self._distributors.fetch_pololu_product(sku, debug=self._debug)
 
     def fetch_mouser_product(self, part_number: str) -> dict[str, Any] | None:
-        return self._dist_api.fetch_mouser_product(part_number)
+        return self._distributors.fetch_mouser_product(part_number, debug=self._debug)
 
     def check_digikey_session(self) -> dict[str, Any]:
-        return self._dist_api.check_digikey_session()
+        return self._distributors.check_digikey_session()
 
     def start_digikey_login(self) -> dict[str, Any]:
-        return self._dist_api.start_digikey_login()
+        return self._distributors.start_digikey_login()
 
     def sync_digikey_cookies(self) -> dict[str, Any]:
-        return self._dist_api.sync_digikey_cookies()
+        return self._distributors.sync_digikey_cookies()
 
     def get_digikey_login_status(self) -> dict[str, bool]:
-        return self._dist_api.get_digikey_login_status()
+        return self._distributors.get_digikey_login_status()
 
     def logout_digikey(self) -> dict[str, str]:
-        return self._dist_api.logout_digikey()
+        return self._distributors.logout_digikey()
 
     # ── Generic parts (delegated to GenericPartsApi) ───────────────────────
 
