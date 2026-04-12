@@ -13,7 +13,7 @@ vi.mock('../../js/constants.js', () => ({
 }));
 
 import { UndoRedo } from '../../js/undo-redo.js';
-import { App, snapshotLinks } from '../../js/store.js';
+import { store, snapshotLinks } from '../../js/store.js';
 
 describe('UndoRedo.popLast', () => {
   it('returns the most recent entry and removes it', () => {
@@ -37,8 +37,8 @@ describe('UndoRedo.popLast', () => {
 
 describe('snapshotLinks', () => {
   it('returns a deep clone of manualLinks and confirmedMatches', () => {
-    App.links.manualLinks = [{ bomKey: 'a', invPartKey: 'b' }];
-    App.links.confirmedMatches = [{ bomKey: 'c', invPartKey: 'd' }];
+    store.links.manualLinks = [{ bomKey: 'a', invPartKey: 'b' }];
+    store.links.confirmedMatches = [{ bomKey: 'c', invPartKey: 'd' }];
 
     const snap = snapshotLinks();
 
@@ -48,8 +48,8 @@ describe('snapshotLinks', () => {
     });
 
     // Mutate originals — snapshot must be unaffected
-    App.links.manualLinks.push({ bomKey: 'x', invPartKey: 'y' });
-    App.links.confirmedMatches[0].bomKey = 'CHANGED';
+    store.links.manualLinks.push({ bomKey: 'x', invPartKey: 'y' });
+    store.links.confirmedMatches[0].bomKey = 'CHANGED';
 
     expect(snap.manualLinks).toEqual([{ bomKey: 'a', invPartKey: 'b' }]);
     expect(snap.confirmedMatches).toEqual([{ bomKey: 'c', invPartKey: 'd' }]);

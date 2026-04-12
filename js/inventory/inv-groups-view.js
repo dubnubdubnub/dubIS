@@ -3,7 +3,7 @@
    and grouped part rows. Receives createPartRow and render as parameters. */
 
 import { escHtml } from '../ui-helpers.js';
-import { App } from '../store.js';
+import { store } from '../store.js';
 import { openEdit as openGenericEdit } from '../generic-parts-modal.js';
 import {
   groupPartsByGeneric,
@@ -15,7 +15,7 @@ import state from './inv-state.js';
 // ── Groups mode rendering ──
 
 export function renderGroupedView(container, sectionKey, parts, createPartRow, render) {
-  var result = groupPartsByGeneric(parts, App.genericParts || []);
+  var result = groupPartsByGeneric(parts, store.genericParts || []);
 
   // Render each group
   for (var i = 0; i < result.groups.length; i++) {
@@ -62,7 +62,7 @@ export function renderGroupedView(container, sectionKey, parts, createPartRow, r
     })(gp.generic_part_id);
 
     // In reverse-link mode, make group headers link-targets
-    if (App.links.linkingMode && App.links.linkingBomRow) {
+    if (store.links.linkingMode && store.links.linkingBomRow) {
       headerDiv.classList.add("link-target");
     }
 
@@ -120,7 +120,7 @@ function renderFilterRow(gp, parts, render) {
     nameZone.appendChild(nameSpan);
 
     // In link mode with chips active, make name zone a link-target
-    if (App.links.linkingMode && App.links.linkingBomRow) {
+    if (store.links.linkingMode && store.links.linkingBomRow) {
       nameZone.classList.add("link-target");
       var hintSpan = document.createElement("span");
       hintSpan.className = "filter-link-hint";
