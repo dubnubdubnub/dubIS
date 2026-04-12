@@ -22,7 +22,7 @@ export function setupEvents(handlers) {
     if (narrow !== state.hideDescs) { state.hideDescs = narrow; render(); }
     var hideFilters = w < FILTER_BAR_MIN_WIDTH;
     state.distFilterBar.classList.toggle("hidden", hideFilters);
-    state.clearFilterBtn.classList.toggle("hidden", hideFilters);
+    state.clearFilterBtn.classList.toggle("hidden", hideFilters && !state.activeDistributor);
   }).observe(state.body);
 
   // Log app dimensions on resize
