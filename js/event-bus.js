@@ -26,6 +26,10 @@ export const Events = Object.freeze({
   LINKS_CHANGED:     "links-changed",
   SAVE_AND_CLOSE:    "save-and-close",
   GENERIC_PARTS_LOADED: "generic-parts-loaded",
+  FLYOUT_OPENED:          "flyout-opened",
+  FLYOUT_CLOSED:          "flyout-closed",
+  FLYOUT_ACTIVE_CHANGED:  "flyout-active-changed",
+  FLYOUT_SEARCH_CHANGED:  "flyout-search-changed",
 });
 
 export const EventBus = {
