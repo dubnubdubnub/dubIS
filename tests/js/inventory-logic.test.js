@@ -7,6 +7,9 @@ import {
   sortBomRows,
   buildRowMap,
   BOM_STATUS_SORT_ORDER,
+  inferDistributor,
+  countByDistributor,
+  filterByDistributor,
 } from '../../js/inventory/inventory-logic.js';
 
 // ── groupBySection tests ──
@@ -191,5 +194,68 @@ describe('buildRowMap', () => {
     expect(map.size).toBe(2);
     expect(map.get('C12345')).toBe(rows[0]);
     expect(map.get('ATMEGA328')).toBe(rows[1]);
+  });
+});
+
+// ── inferDistributor tests ──
+
+describe('inferDistributor', () => {
+  it('returns "lcsc" when item has lcsc field', () => {
+    expect(inferDistributor({ lcsc: 'C12345' })).toBe('lcsc');
+  });
+  it('returns "digikey" when item has digikey but no lcsc', () => {
+    expect(inferDistributor({ digikey: 'DK-123' })).toBe('digikey');
+  });
+  it('returns "mouser" when item has mouser but no lcsc/digikey', () => {
+    expect(inferDistributor({ mouser: 'M-456' })).toBe('mouser');
+  });
+  it('returns "pololu" when item has pololu but no lcsc/digikey/mouser', () => {
+    expect(inferDistributor({ pololu: 'P-789' })).toBe('pololu');
+  });
+  it('returns "other" when item has no distributor fields', () => {
+    expect(inferDistributor({ mpn: 'GENERIC' })).toBe('other');
+  });
+  it('priority: lcsc wins over digikey', () => {
+    expect(inferDistributor({ lcsc: 'C1', digikey: 'DK1' })).toBe('lcsc');
+  });
+});
+
+// ── countByDistributor tests ──
+
+describe('countByDistributor', () => {
+  it('counts inventory items per distributor', () => {
+    var inv = [
+      { lcsc: 'C1' },
+      { lcsc: 'C2' },
+      { digikey: 'DK1' },
+      { mpn: 'X' },
+    ];
+    expect(countByDistributor(inv)).toEqual({
+      lcsc: 2, digikey: 1, mouser: 0, pololu: 0, other: 1,
+    });
+  });
+  it('returns all zeros for empty inventory', () => {
+    expect(countByDistributor([])).toEqual({
+      lcsc: 0, digikey: 0, mouser: 0, pololu: 0, other: 0,
+    });
+  });
+});
+
+// ── filterByDistributor tests ──
+
+describe('filterByDistributor', () => {
+  var parts = [
+    { lcsc: 'C1', mpn: 'A' },
+    { digikey: 'DK1', mpn: 'B' },
+    { mpn: 'C' },
+  ];
+  it('returns all parts when filter is null', () => {
+    expect(filterByDistributor(parts, null)).toEqual(parts);
+  });
+  it('filters to lcsc parts only', () => {
+    expect(filterByDistributor(parts, 'lcsc')).toEqual([parts[0]]);
+  });
+  it('filters to other parts only', () => {
+    expect(filterByDistributor(parts, 'other')).toEqual([parts[2]]);
   });
 });
