@@ -155,6 +155,8 @@ class InventoryApi:
         import generic_parts
         os.makedirs(self.events_dir, exist_ok=True)
         generic_parts.auto_generate_passive_groups(conn, self.events_dir)
+        import saved_searches
+        saved_searches.load_into_db(conn, self.base_dir)
         return cache_db.query_inventory(conn)
 
     def _load_organized(self) -> list[dict[str, Any]]:

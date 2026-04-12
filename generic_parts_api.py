@@ -9,6 +9,7 @@ import sqlite3
 from typing import Any, Callable
 
 import generic_parts
+import saved_searches
 import spec_extractor
 
 logger = logging.getLogger(__name__)
@@ -21,9 +22,13 @@ class GenericPartsApi:
     stays identical.
     """
 
-    def __init__(self, *, get_cache: Callable[[], sqlite3.Connection], events_dir: str):
+    def __init__(self, *, get_cache: Callable[[], sqlite3.Connection], events_dir: str,
+                 data_dir: str | None = None):
         self._get_cache = get_cache
         self.events_dir = events_dir
+        # data_dir is where saved_searches.json and other data files live.
+        # If not provided, derive it from events_dir (events_dir == data_dir/events/).
+        self._data_dir = data_dir if data_dir is not None else os.path.dirname(events_dir)
 
     def _ensure_events_dir(self) -> None:
         """Create the events directory if it doesn't exist."""
@@ -124,6 +129,31 @@ class GenericPartsApi:
         if not row:
             return {}
         return spec_extractor.extract_spec(row["description"] or "", row["package"] or "")
+
+    def list_saved_searches(self, generic_part_id: str) -> list[dict[str, Any]]:
+        """Return all saved searches for a generic part group."""
+        conn = self._get_cache()
+        return saved_searches.list_for_group(conn, generic_part_id)
+
+    def create_saved_search(self, generic_part_id: str, name: str,
+                            tag_state_json: str | dict, search_text: str,
+                            frozen_members_json: str | list) -> dict[str, Any]:
+        """Create a saved search and persist it to JSON."""
+        tag_state = json.loads(tag_state_json) if isinstance(tag_state_json, str) else tag_state_json
+        frozen_members = (
+            json.loads(frozen_members_json)
+            if isinstance(frozen_members_json, str)
+            else frozen_members_json
+        )
+        conn = self._get_cache()
+        return saved_searches.create(
+            conn, self._data_dir, generic_part_id, name, tag_state, search_text, frozen_members
+        )
+
+    def delete_saved_search(self, search_id: str) -> None:
+        """Delete a saved search by id and update JSON."""
+        conn = self._get_cache()
+        saved_searches.delete(conn, self._data_dir, search_id)
 
     # ── Private helpers ─────────────────────────────────────────────────────
 
