@@ -152,7 +152,7 @@ test.describe('Designator colors — BOM panel staging table', () => {
     expect(displayCount).toBeGreaterThan(0);
 
     // Check colored spans exist inside the display divs
-    const coloredSpans = page.locator('#bom-tbody .refs-cell [data-ref]');
+    const coloredSpans = page.locator('#bom-tbody .refs-cell [data-ref], #bom-tbody .refs-cell [data-refs]');
     const spanCount = await coloredSpans.count();
     console.log('Colored ref spans in BOM staging:', spanCount);
     expect(spanCount).toBeGreaterThan(0);
@@ -213,7 +213,7 @@ test.describe('Cross-panel designator hover highlighting', () => {
 
     // Find a designator that appears in both panels (e.g. C1)
     const invRefC1 = page.locator('#inventory-body [data-ref="C1"], #inventory-body [data-refs~="C1"]').first();
-    const bomRefC1 = page.locator('#bom-tbody [data-ref="C1"]').first();
+    const bomRefC1 = page.locator('#bom-tbody [data-ref="C1"], #bom-tbody [data-refs~="C1"]').first();
 
     // Both should exist
     await expect(invRefC1).toBeVisible();
@@ -242,7 +242,7 @@ test.describe('Cross-panel designator hover highlighting', () => {
     await page.waitForTimeout(300);
 
     // Find R1 in both panels
-    const bomRefR1 = page.locator('#bom-tbody [data-ref="R1"]').first();
+    const bomRefR1 = page.locator('#bom-tbody [data-ref="R1"], #bom-tbody [data-refs~="R1"]').first();
     const invRefR1 = page.locator('#inventory-body [data-ref="R1"], #inventory-body [data-refs~="R1"]').first();
 
     await expect(bomRefR1).toBeVisible();
@@ -295,7 +295,7 @@ test.describe('Cross-panel designator hover highlighting — with PO', () => {
     await page.waitForTimeout(300);
 
     const invRefC1 = page.locator('#inventory-body [data-ref="C1"], #inventory-body [data-refs~="C1"]').first();
-    const bomRefC1 = page.locator('#bom-tbody [data-ref="C1"]').first();
+    const bomRefC1 = page.locator('#bom-tbody [data-ref="C1"], #bom-tbody [data-refs~="C1"]').first();
 
     await expect(invRefC1).toBeVisible();
     await expect(bomRefC1).toBeVisible();
@@ -316,7 +316,7 @@ test.describe('Cross-panel designator hover highlighting — with PO', () => {
     await page.waitForTimeout(300);
 
     const invRefC1 = page.locator('#inventory-body [data-ref="C1"], #inventory-body [data-refs~="C1"]').first();
-    const bomRefC1 = page.locator('#bom-tbody [data-ref="C1"]').first();
+    const bomRefC1 = page.locator('#bom-tbody [data-ref="C1"], #bom-tbody [data-refs~="C1"]').first();
 
     await expect(invRefC1).toBeVisible();
     await expect(bomRefC1).toBeVisible();
