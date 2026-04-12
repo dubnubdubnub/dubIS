@@ -3,10 +3,13 @@
 var state = {
   body: null,              // set in init()
   searchInput: null,       // set in init()
+  clearFilterBtn: null,    // set in init()
+  distFilterBar: null,     // set in init()
 
   collapsedSections: new Set(),
   bomData: null,           // { rows, fileName, multiplier }
   activeFilter: "all",
+  activeDistributor: null, // null = show all, or "lcsc"|"digikey"|"mouser"|"pololu"|"other"
   expandedAlts: new Set(),
   expandedMembers: new Set(),
   rowMap: new Map(),       // partKey -> r, rebuilt each render
