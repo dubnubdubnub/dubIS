@@ -16,7 +16,7 @@ from typing import Any
 from inventory_ops import apply_adjustments, compute_adjusted_qty, get_part_key, read_and_merge, sort_key_for_section
 from price_ops import parse_price, parse_qty
 
-SCHEMA_VERSION = "4"
+SCHEMA_VERSION = "5"
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,19 @@ def connect(db_path: str) -> sqlite3.Connection:
 
 def create_schema(conn: sqlite3.Connection) -> None:
     """Create cache tables if they don't exist. Migrates from older versions."""
+    # Check if schema version is stale — drop derived tables so they get recreated
+    row = conn.execute(
+        "SELECT value FROM cache_meta WHERE key = 'schema_version'"
+    ).fetchone() if conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='cache_meta'"
+    ).fetchone() else None
+    old_version = row[0] if row else None
+    if old_version and old_version != SCHEMA_VERSION:
+        conn.executescript("""
+            DROP TABLE IF EXISTS generic_part_members;
+            DROP TABLE IF EXISTS generic_parts;
+            DROP TABLE IF EXISTS saved_searches;
+        """)
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS cache_meta (
             key   TEXT PRIMARY KEY,
