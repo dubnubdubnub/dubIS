@@ -9,7 +9,7 @@ var state = {
   collapsedSections: new Set(),
   bomData: null,           // { rows, fileName, multiplier }
   activeFilter: "all",
-  activeDistributor: null, // null = show all, or "lcsc"|"digikey"|"mouser"|"pololu"|"other"
+  activeDistributors: new Set(), // empty = show all, or set of "lcsc"|"digikey"|"mouser"|"pololu"|"other"
   expandedAlts: new Set(),
   expandedMembers: new Set(),
   rowMap: new Map(),       // partKey -> r, rebuilt each render
