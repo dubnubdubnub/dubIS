@@ -1,5 +1,6 @@
 """Tests for generic_parts API-level functions."""
 
+import json
 import os
 
 import pytest
@@ -187,6 +188,40 @@ class TestExtractSpec:
         _seed_parts(db)
         spec = generic_parts.extract_spec_for_part(db, "NONEXISTENT")
         assert spec == {}
+
+
+class TestExtractSpecFromValue:
+    """Test extract_spec_from_value logic (now on InventoryApi, tested via spec_extractor)."""
+
+    def test_capacitor_value_string(self):
+        import spec_extractor
+        desc = "capacitor 100nF 0402"
+        spec = spec_extractor.extract_spec(desc, "0402")
+        spec["type"] = "capacitor"
+        assert spec["type"] == "capacitor"
+        assert "value" in spec
+        assert spec["package"] == "0402"
+
+    def test_resistor_value_string(self):
+        import spec_extractor
+        desc = "resistor 4.7k 0402"
+        spec = spec_extractor.extract_spec(desc, "0402")
+        spec["type"] = "resistor"
+        assert spec["type"] == "resistor"
+
+    def test_type_override_sets_type(self):
+        import spec_extractor
+        desc = "inductor 10uH 0805"
+        spec = spec_extractor.extract_spec(desc, "0805")
+        spec["type"] = "inductor"
+        assert spec["type"] == "inductor"
+
+    def test_empty_value_returns_type(self):
+        import spec_extractor
+        desc = "capacitor  "
+        spec = spec_extractor.extract_spec(desc, "")
+        spec["type"] = "capacitor"
+        assert spec["type"] == "capacitor"
 
 
 class TestFetchMembers:

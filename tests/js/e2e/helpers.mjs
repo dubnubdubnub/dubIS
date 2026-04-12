@@ -59,6 +59,17 @@ export function addMockSetup(page, inventory, options = {}) {
         fetch_pololu_product: async (sku) => productMocks[`pololu:${sku}`] || null,
         fetch_mouser_product: async (pn) => productMocks[`mouser:${pn}`] || null,
         update_part_fields: async () => inv,
+        list_generic_parts: async () => [],
+        list_saved_searches: async () => [],
+        create_saved_search: async () => ({ id: 'mock', name: 'mock' }),
+        delete_saved_search: async () => null,
+        exclude_generic_member: async () => null,
+        extract_spec_from_value: async () => ({}),
+        create_generic_part: async () => ({ generic_part_id: 'mock', members: [] }),
+        resolve_bom_spec: async () => null,
+        preview_generic_members: async () => [],
+        add_generic_member: async () => [],
+        remove_generic_member: async () => [],
       },
     };
   }, { inv: inventory, opts: options, colDetections: COLUMN_DETECTIONS });

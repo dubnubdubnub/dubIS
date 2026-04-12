@@ -146,6 +146,8 @@ class InventoryApi:
         import generic_parts
         os.makedirs(self.events_dir, exist_ok=True)
         generic_parts.auto_generate_passive_groups(conn, self.events_dir)
+        import saved_searches
+        saved_searches.load_into_db(conn, self.base_dir)
         return cache_db.query_inventory(conn)
 
     def _load_organized(self) -> list[dict[str, Any]]:
@@ -559,6 +561,11 @@ class InventoryApi:
             self._get_cache(), self.events_dir, generic_part_id, part_id,
         )
 
+    def exclude_generic_member(self, generic_part_id: str, part_id: str) -> None:
+        return generic_parts.exclude_member(
+            self._get_cache(), self.events_dir, generic_part_id, part_id,
+        )
+
     def set_preferred_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
         return generic_parts.set_preferred_api(
             self._get_cache(), self.events_dir, generic_part_id, part_id,
@@ -573,6 +580,33 @@ class InventoryApi:
 
     def extract_spec(self, part_key: str) -> dict[str, Any]:
         return generic_parts.extract_spec_for_part(self._get_cache(), part_key)
+
+    def extract_spec_from_value(self, part_type: str, value_str: str, package_str: str) -> dict[str, Any]:
+        import spec_extractor
+        desc = part_type + " " + value_str + " " + package_str
+        spec = spec_extractor.extract_spec(desc, package_str)
+        spec["type"] = part_type
+        return spec
+
+    def list_saved_searches(self, generic_part_id: str) -> list[dict[str, Any]]:
+        import saved_searches
+        return saved_searches.list_for_group(self._get_cache(), generic_part_id)
+
+    def create_saved_search(self, generic_part_id: str, name: str,
+                            tag_state_json: str, search_text: str,
+                            frozen_members_json: str) -> dict[str, Any]:
+        import json
+
+        import saved_searches
+        tag_state = json.loads(tag_state_json) if isinstance(tag_state_json, str) else tag_state_json
+        frozen = json.loads(frozen_members_json) if isinstance(frozen_members_json, str) else frozen_members_json
+        return saved_searches.create(
+            self._get_cache(), self.base_dir, generic_part_id, name,
+            tag_state, search_text, frozen)
+
+    def delete_saved_search(self, search_id: str) -> None:
+        import saved_searches
+        saved_searches.delete(self._get_cache(), self.base_dir, search_id)
 
     # ── Window lifecycle ─────────────────────────────────────────────────
 

@@ -34,7 +34,20 @@ export function setupEvents(handlers) {
   var searchTimer;
   state.searchInput.addEventListener("input", function () {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(function () { render(); }, 150);
+    searchTimer = setTimeout(function () {
+      render();
+      // Sync to active flyout
+      import('../group-flyout/flyout-state.js').then(function (flyoutState) {
+        if (!flyoutState.activeFlyoutId) return;
+        var inst = flyoutState.flyouts.get(flyoutState.activeFlyoutId);
+        if (inst) {
+          inst.searchText = state.searchInput.value;
+          import('../group-flyout/flyout-panel.js').then(function (panel) {
+            panel.rerenderFlyout(flyoutState.activeFlyoutId);
+          });
+        }
+      });
+    }, 150);
   });
 
   // ── Distributor filter buttons ──
@@ -76,6 +89,38 @@ export function setupEvents(handlers) {
   });
 
   EventBus.on(Events.LINKING_MODE, function () { render(); });
+
+  EventBus.on(Events.FLYOUT_SEARCH_CHANGED, function (data) {
+    if (state.searchInput && data && typeof data.searchText === "string") {
+      state.searchInput.value = data.searchText;
+      render();
+    }
+  });
+
+  EventBus.on(Events.FLYOUT_ACTIVE_CHANGED, function (data) {
+    if (!data || !data.gpId) return;
+    import('../group-flyout/flyout-state.js').then(function (flyoutState) {
+      var inst = flyoutState.flyouts.get(data.gpId);
+      if (inst && state.searchInput) {
+        state.searchInput.value = inst.searchText;
+        render();
+      }
+    });
+  });
+
+  EventBus.on(Events.FLYOUT_OPENED, function () {
+    var panel = document.getElementById("panel-inventory");
+    if (panel) panel.classList.add("flyout-drag-active");
+  });
+
+  EventBus.on(Events.FLYOUT_CLOSED, function () {
+    import('../group-flyout/flyout-state.js').then(function (flyoutState) {
+      if (flyoutState.flyouts.size === 0) {
+        var panel = document.getElementById("panel-inventory");
+        if (panel) panel.classList.remove("flyout-drag-active");
+      }
+    });
+  });
 
   // ── Escape key for linking mode ──
   document.addEventListener("keydown", function (e) {

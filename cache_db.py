@@ -84,6 +84,15 @@ def create_schema(conn: sqlite3.Connection) -> None:
             preferred        INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (generic_part_id, part_id)
         );
+        CREATE TABLE IF NOT EXISTS saved_searches (
+            id               TEXT PRIMARY KEY,
+            generic_part_id  TEXT,
+            name             TEXT,
+            tag_state        TEXT,
+            search_text      TEXT,
+            frozen_members   TEXT,
+            created_at       TEXT
+        );
     """)
     conn.execute(
         "INSERT OR REPLACE INTO cache_meta (key, value) VALUES ('schema_version', ?)",
