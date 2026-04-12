@@ -20,8 +20,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npx serve . -l ${servePort} -s --no-clipboard`,
+    command: `node scripts/serve-static.mjs . ${servePort}`,
     port: servePort,
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
+    timeout: 10_000,
   },
 });
