@@ -30,8 +30,9 @@ import time
 import urllib.error
 import urllib.request
 
-DUBIS_PORT = 7890
-TIMEOUT_SECONDS = 180
+DUBIS_PORT = int(os.environ.get("DUBIS_PORT", "7890"))
+TIMEOUT_SECONDS = 120
+OPENPNP_MAX_RETRIES = 2  # Retry OpenPnP on hang (macOS NullDriver flake)
 FIXTURES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixtures")
 OPENPNP_CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "openpnp-config")
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -201,6 +202,14 @@ def _setup_local_openpnp(openpnp_home, dubis_port):
                 shutil.rmtree(dst)
             shutil.copytree(src, dst)
 
+    # Clean stale queue file from previous runs to prevent phantom decrements
+    queue_path = os.path.join(openpnp_user_config, "dubis_queue.json")
+    if os.path.exists(queue_path):
+        with open(queue_path) as f:
+            stale = json.load(f)
+        print(f"[e2e] WARN: Removed stale queue file with {len(stale)} entries: {stale}")
+        os.remove(queue_path)
+
     # Install the real Job.Placement.Complete.py from the project
     events_dir = os.path.join(openpnp_user_config, "scripts", "Events")
     os.makedirs(events_dir, exist_ok=True)
@@ -309,6 +318,150 @@ def _restore_local_openpnp(backup_dir):
     shutil.rmtree(backup_dir)
 
 
+def _launch_and_wait_openpnp(openpnp_bin, env, xvfb_display, timeout):
+    """Launch OpenPnP, wait for completion, return results.
+
+    Returns (exit_code, output_text, openpnp_log_text).
+    exit_code is the process exit code; 2 = watchdog killed (stall detected).
+    """
+    import glob as globmod
+    import signal as signal_mod
+
+    # Clean stale logs
+    openpnp_log_dir = os.path.expanduser("~/.openpnp2/log")
+    if os.path.isdir(openpnp_log_dir):
+        for lf in globmod.glob(os.path.join(openpnp_log_dir, "OpenPnP*.log")):
+            try:
+                os.unlink(lf)
+            except Exception:
+                pass
+
+    # Temp file for output capture
+    stdout_file = tempfile.NamedTemporaryFile(
+        mode="w", prefix="openpnp-out-", suffix=".log", delete=False,
+    )
+    stdout_path = stdout_file.name
+
+    proc = subprocess.Popen(
+        [openpnp_bin], env=env,
+        stdout=stdout_file, stderr=subprocess.STDOUT,
+        cwd=os.path.expanduser("~/.openpnp2"),
+        start_new_session=True,
+    )
+
+    # Dialog dismissal
+    dialog_thread = threading.Thread(
+        target=_dismiss_dialog_local, args=(xvfb_display,), daemon=True,
+    )
+    dialog_thread.start()
+
+    # Monitor output
+    def _monitor(path, stop_event):
+        try:
+            with open(path, "r") as f:
+                while not stop_event.is_set():
+                    line = f.readline()
+                    if line:
+                        line = line.rstrip()
+                        if any(kw in line for kw in ("STARTUP:", "dubIS:", "WATCHDOG:", "Error", "Exception", "INFO:")):
+                            print(f"[openpnp] {line}")
+                    else:
+                        time.sleep(0.5)
+        except Exception:
+            pass
+
+    mon_stop = threading.Event()
+    threading.Thread(target=_monitor, args=(stdout_path, mon_stop), daemon=True).start()
+
+    # Periodic diagnostics
+    def _diag(proc_, display, stop_event):
+        check_times = [15, 30, 60]
+        prev = 0
+        for check_at in check_times:
+            if stop_event.wait(timeout=check_at - prev):
+                return
+            prev = check_at
+            if proc_.poll() is not None:
+                return
+            if os.path.isdir(openpnp_log_dir):
+                logs = globmod.glob(os.path.join(openpnp_log_dir, "OpenPnP*.log"))
+                total_size = sum(os.path.getsize(f) for f in logs)
+                print(f"[e2e] @{check_at}s: OpenPnP running (pid={proc_.pid}), "
+                      f"log files: {len(logs)}, total size: {total_size}b")
+
+    diag_stop = threading.Event()
+    threading.Thread(target=_diag, args=(proc, xvfb_display, diag_stop), daemon=True).start()
+
+    # Wait for completion
+    try:
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal_mod.SIGKILL)
+        proc.wait()
+
+    diag_stop.set()
+    mon_stop.set()
+    stdout_file.close()
+
+    with open(stdout_path, "r") as f:
+        output = f.read()
+    os.unlink(stdout_path)
+
+    # Read OpenPnP log
+    log_text = ""
+    if os.path.isdir(openpnp_log_dir):
+        log_files = sorted(
+            globmod.glob(os.path.join(openpnp_log_dir, "OpenPnP*.log")),
+            key=os.path.getmtime, reverse=True,
+        )
+        for lf in log_files:
+            try:
+                with open(lf, "r") as f:
+                    content = f.read()
+                if content.strip():
+                    log_text = content
+                    break
+            except Exception:
+                pass
+
+    return proc.returncode, output, log_text
+
+
+def _restart_dubis(dubis_proc, tmp_dir, test_source, base_url):
+    """Kill and restart dubIS with fresh fixtures. Returns the new Popen."""
+    if dubis_proc and dubis_proc.poll() is None:
+        dubis_proc.terminate()
+        try:
+            dubis_proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            dubis_proc.kill()
+            dubis_proc.wait()
+
+    # Re-copy fixture CSVs to reset inventory state
+    for fname in ("purchase_ledger.csv", "adjustments.csv"):
+        src = os.path.join(FIXTURES_DIR, fname)
+        if os.path.exists(src):
+            shutil.copy2(src, os.path.join(tmp_dir, fname))
+
+    # Delete cache.db so dubIS rebuilds from fresh CSVs
+    cache_path = os.path.join(tmp_dir, "cache.db")
+    if os.path.exists(cache_path):
+        os.unlink(cache_path)
+
+    dubis_cmd = [
+        sys.executable, os.path.join(os.path.dirname(__file__), "dubis_headless.py"),
+        "--data-dir", tmp_dir, "--port", str(DUBIS_PORT),
+        "--test-source", test_source,
+    ]
+    new_proc = subprocess.Popen(
+        dubis_cmd, cwd=PROJECT_ROOT,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    )
+    if not wait_for_server(base_url, timeout=15):
+        raise RuntimeError("dubIS failed to restart for retry")
+    return new_proc
+
+
 # ── Test orchestrator ────────────────────────────────────────
 
 
@@ -320,7 +473,6 @@ def run_test(remote_openpnp=None):
     # Create temp data directory with fixture copies
     tmp_dir = tempfile.mkdtemp(prefix="dubis-e2e-")
     dubis_proc = None
-    openpnp_proc = None
     xvfb_proc = None
     wm_proc = None
     local_backup_dir = None
@@ -428,19 +580,15 @@ def run_test(remote_openpnp=None):
             env["OPENPNP_TEST_JOB"] = os.path.abspath(job_path)
 
             # On Linux, start Xvfb for headless display.
-            # Optionally start matchbox-window-manager so xdotool can interact
-            # with Java Swing windows (needed if Welcome dialog somehow appears).
             xvfb_proc = None
             wm_proc = None
             xvfb_display = None
             if sys.platform == "linux":
                 import random
-                # Kill any stale processes from previous test runs
                 subprocess.run(["pkill", "-f", "Xvfb"], capture_output=True)
                 subprocess.run(["pkill", "-f", "matchbox-window-manager"], capture_output=True)
                 time.sleep(0.5)
 
-                # Try random display numbers to avoid conflicts
                 for _ in range(5):
                     display_num = random.randint(50, 200)
                     xvfb_display = f":{display_num}"
@@ -450,7 +598,7 @@ def run_test(remote_openpnp=None):
                     )
                     time.sleep(1)
                     if xvfb_proc.poll() is None:
-                        break  # Xvfb started successfully
+                        break
                     stderr = xvfb_proc.stderr.read().decode(errors="replace")
                     print(f"[e2e] Xvfb {xvfb_display} failed: {stderr.strip()}")
                     xvfb_proc = None
@@ -461,7 +609,6 @@ def run_test(remote_openpnp=None):
                 env["DISPLAY"] = xvfb_display
                 print(f"[e2e] Xvfb started on {xvfb_display}")
 
-                # Start matchbox WM (fallback for dialog dismissal if needed)
                 try:
                     wm_proc = subprocess.Popen(
                         ["matchbox-window-manager", "-use_titlebar", "no"],
@@ -476,25 +623,17 @@ def run_test(remote_openpnp=None):
                 except FileNotFoundError:
                     wm_proc = None
 
-            # Delete stale OpenPnP logs so we only read logs from THIS run
-            openpnp_log_dir = os.path.expanduser("~/.openpnp2/log")
-            if os.path.isdir(openpnp_log_dir):
-                import glob as globmod
-                for lf in globmod.glob(os.path.join(openpnp_log_dir, "OpenPnP*.log")):
-                    try:
-                        os.unlink(lf)
-                    except Exception:
-                        pass
-                print("[e2e] Cleaned stale OpenPnP log files")
-
-            # Use a temp file for output capture instead of PIPE.
-            # OpenPnP's install4j launcher uses `exec java` and Java redirects
-            # System.out via its logging framework. A temp file captures all output
-            # reliably (avoids potential pipe buffering issues).
-            openpnp_stdout_file = tempfile.NamedTemporaryFile(
-                mode="w", prefix="openpnp-out-", suffix=".log", delete=False,
-            )
-            openpnp_stdout_path = openpnp_stdout_file.name
+                # Ensure X11 socket is ready before launching OpenPnP
+                if wm_proc is None:
+                    x_socket = f"/tmp/.X11-unix/X{display_num}"
+                    for _ in range(10):
+                        if os.path.exists(x_socket):
+                            break
+                        time.sleep(0.5)
+                    if os.path.exists(x_socket):
+                        print(f"[e2e] X11 socket ready: {x_socket}")
+                    else:
+                        print(f"[e2e] WARN: X11 socket {x_socket} not found after 5s")
 
             # Verify scripts are installed
             events_dir = os.path.expanduser("~/.openpnp2/scripts/Events")
@@ -504,147 +643,43 @@ def run_test(remote_openpnp=None):
             else:
                 print("[e2e] WARN: No Events directory found!")
 
-            openpnp_cmd = [openpnp_bin]
-            print(f"[e2e] Launching OpenPnP: {openpnp_bin} (display={xvfb_display})")
-            print(f"[e2e] OPENPNP_TEST_JOB={env.get('OPENPNP_TEST_JOB')}")
-            openpnp_proc = subprocess.Popen(
-                openpnp_cmd, env=env,
-                stdout=openpnp_stdout_file, stderr=subprocess.STDOUT,
-                cwd=os.path.expanduser("~/.openpnp2"),
-                start_new_session=True,
-            )
-
-            # Dismiss OpenPnP first-run dialog in background
-            dialog_thread = threading.Thread(
-                target=_dismiss_dialog_local, args=(xvfb_display,), daemon=True,
-            )
-            dialog_thread.start()
-
-            # Monitor OpenPnP in background — print key lines in real-time
-            def _monitor_output(path, stop_event):
-                """Tail the output file and print important lines."""
-                try:
-                    with open(path, "r") as f:
-                        while not stop_event.is_set():
-                            line = f.readline()
-                            if line:
-                                line = line.rstrip()
-                                if any(kw in line for kw in ("STARTUP:", "dubIS:", "Error", "Exception", "INFO:")):
-                                    print(f"[openpnp] {line}")
-                            else:
-                                time.sleep(0.5)
-                except Exception:
-                    pass
-
-            monitor_stop = threading.Event()
-            monitor_thread = threading.Thread(
-                target=_monitor_output, args=(openpnp_stdout_path, monitor_stop), daemon=True,
-            )
-            monitor_thread.start()
-
-            # Periodic diagnostics while waiting for OpenPnP
-            def _periodic_diagnostics(proc, display, stop_event):
-                """Check OpenPnP health periodically."""
-                check_times = [15, 30, 60, 120]
-                prev = 0
-                for check_at in check_times:
-                    if stop_event.wait(timeout=check_at - prev):
-                        return
-                    prev = check_at
-                    if proc.poll() is not None:
-                        return
-                    # Check if log file exists
-                    log_dir = os.path.expanduser("~/.openpnp2/log")
-                    if os.path.isdir(log_dir):
-                        import glob as globmod2
-                        logs = globmod2.glob(os.path.join(log_dir, "OpenPnP*.log"))
-                        total_size = sum(os.path.getsize(f) for f in logs)
-                        print(f"[e2e] @{check_at}s: OpenPnP running (pid={proc.pid}), "
-                              f"log files: {len(logs)}, total size: {total_size}b")
-                    # Check windows on display
-                    if display:
-                        try:
-                            r = subprocess.run(
-                                ["xdotool", "search", "--onlyvisible", "--name", ""],
-                                env={"DISPLAY": display}, timeout=5,
-                                capture_output=True, text=True,
-                            )
-                            wins = [w for w in r.stdout.strip().split("\n") if w]
-                            if wins:
-                                # Get window names
-                                names = []
-                                for wid in wins[:3]:
-                                    nr = subprocess.run(
-                                        ["xdotool", "getwindowname", wid],
-                                        env={"DISPLAY": display}, timeout=3,
-                                        capture_output=True, text=True,
-                                    )
-                                    names.append(nr.stdout.strip())
-                                print(f"[e2e] @{check_at}s: Windows: {names}")
-                        except Exception:
-                            pass
-
-            diag_stop = threading.Event()
-            diag_thread = threading.Thread(
-                target=_periodic_diagnostics,
-                args=(openpnp_proc, xvfb_display, diag_stop), daemon=True,
-            )
-            diag_thread.start()
-
-            # Wait for OpenPnP to finish
-            try:
-                openpnp_proc.wait(timeout=TIMEOUT_SECONDS)
-            except subprocess.TimeoutExpired:
-                import signal
-                os.killpg(openpnp_proc.pid, signal.SIGKILL)
-                openpnp_proc.wait()
-                failures.append("OpenPnP timed out")
-
-            diag_stop.set()
-
-            monitor_stop.set()
-            openpnp_stdout_file.close()
-
-            # Read the captured output
-            with open(openpnp_stdout_path, "r") as f:
-                openpnp_output = f.read()
-            os.unlink(openpnp_stdout_path)
-
-            print(f"[e2e] OpenPnP exited with code {openpnp_proc.returncode}")
-            print(f"[e2e] OpenPnP stdout ({len(openpnp_output)} bytes, last 3000 chars):\n{openpnp_output[-3000:]}")
-            if openpnp_proc.returncode != 0:
-                failures.append(f"OpenPnP exited with code {openpnp_proc.returncode}")
-
-        # ── Read OpenPnP log file for diagnostics ──
-        # For cross-compute, the log was already read from remote above.
-        # For same-machine, read the local log file.
-        if not remote_openpnp:
-            openpnp_log_dir = os.path.expanduser("~/.openpnp2/log")
+            # Retry loop for OpenPnP (handles macOS NullDriver hang flake)
+            openpnp_exit = None
+            openpnp_output = ""
             openpnp_log = ""
-            if os.path.isdir(openpnp_log_dir):
-                import glob as globmod
-                log_files = sorted(
-                    globmod.glob(os.path.join(openpnp_log_dir, "OpenPnP*.log")),
-                    key=os.path.getmtime, reverse=True,
+            for attempt in range(1, OPENPNP_MAX_RETRIES + 1):
+                if attempt > 1:
+                    print(f"\n[e2e] ── Retry {attempt}/{OPENPNP_MAX_RETRIES} ──")
+                    dubis_proc = _restart_dubis(dubis_proc, tmp_dir, test_source, base_url)
+                    # Re-snapshot with fresh inventory
+                    before = snapshot_quantities(base_url)
+                    print(f"[e2e] Fresh snapshot: {len(before)} parts")
+                    for lcsc_part in EXPECTED_DECREASES:
+                        print(f"[e2e]   {lcsc_part}: qty={before.get(lcsc_part, 'NOT FOUND')}")
+
+                print(f"[e2e] Launching OpenPnP: {openpnp_bin} (attempt {attempt}, display={xvfb_display})")
+                openpnp_exit, openpnp_output, openpnp_log = _launch_and_wait_openpnp(
+                    openpnp_bin, env, xvfb_display, TIMEOUT_SECONDS,
                 )
-                for lf in log_files:
-                    try:
-                        with open(lf, "r") as f:
-                            content = f.read()
-                        if content.strip():
-                            openpnp_log = content
-                            print(f"[e2e] OpenPnP log ({os.path.basename(lf)}, {len(content)} bytes):")
-                            print(content[-3000:])
-                            break
-                    except Exception:
-                        pass
-                if not openpnp_log:
-                    print(f"[e2e] WARN: All OpenPnP log files empty. Files: {[os.path.basename(f) for f in log_files]}")
-            else:
-                print("[e2e] WARN: No OpenPnP log directory found")
+
+                print(f"[e2e] OpenPnP exited with code {openpnp_exit}")
+                print(f"[e2e] OpenPnP stdout ({len(openpnp_output)} bytes, last 3000 chars):\n{openpnp_output[-3000:]}")
+                if openpnp_log:
+                    print(f"[e2e] OpenPnP log ({len(openpnp_log)} bytes):\n{openpnp_log[-3000:]}")
+
+                if openpnp_exit == 0:
+                    break
+                if attempt < OPENPNP_MAX_RETRIES:
+                    print(f"[e2e] OpenPnP failed (code {openpnp_exit}), will retry...")
+
+            if openpnp_exit != 0:
+                failures.append(f"OpenPnP exited with code {openpnp_exit} after {OPENPNP_MAX_RETRIES} attempt(s)")
 
         # ── Verify ALL 6 placements decremented correctly ──
         after = snapshot_quantities(base_url)
+        print(f"[e2e] Inventory snapshot (after OpenPnP): {len(after)} parts")
+        for lcsc_part in EXPECTED_DECREASES:
+            print(f"[e2e]   {lcsc_part}: qty={after.get(lcsc_part, 'NOT FOUND')}")
 
         for lcsc_part, expected_decrease in EXPECTED_DECREASES.items():
             if lcsc_part not in before or lcsc_part not in after:
@@ -702,13 +737,7 @@ def run_test(remote_openpnp=None):
                 dubis_proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 dubis_proc.kill()
-        # Kill local OpenPnP if still running
-        if openpnp_proc is not None and openpnp_proc.poll() is None:
-            openpnp_proc.terminate()
-            try:
-                openpnp_proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                openpnp_proc.kill()
+        # OpenPnP is always waited-for inside _launch_and_wait_openpnp()
         # Kill window manager if it was started
         if wm_proc is not None and wm_proc.poll() is None:
             wm_proc.terminate()

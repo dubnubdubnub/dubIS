@@ -53,12 +53,13 @@ export function filterByQuery(parts, query) {
   });
 }
 
-// ── Distributor filtering ──
+// ── Distributor inference ──
 
 /**
- * Infer which distributor an inventory item belongs to.
- * @param {Object} item
- * @returns {string} "lcsc" | "digikey" | "mouser" | "pololu" | "other"
+ * Infer which distributor a part comes from based on populated PN fields.
+ * Priority: lcsc > digikey > mouser > pololu > other.
+ * @param {Object} item - inventory item
+ * @returns {"lcsc"|"digikey"|"mouser"|"pololu"|"other"}
  */
 export function inferDistributor(item) {
   if (item.lcsc) return "lcsc";
@@ -69,9 +70,9 @@ export function inferDistributor(item) {
 }
 
 /**
- * Count inventory items by distributor.
+ * Count inventory items per distributor.
  * @param {Array<Object>} inventory
- * @returns {{ lcsc: number, digikey: number, mouser: number, pololu: number, other: number }}
+ * @returns {{lcsc: number, digikey: number, mouser: number, pololu: number, other: number}}
  */
 export function countByDistributor(inventory) {
   var counts = { lcsc: 0, digikey: 0, mouser: 0, pololu: 0, other: 0 };
@@ -82,9 +83,9 @@ export function countByDistributor(inventory) {
 }
 
 /**
- * Filter parts by distributor. If distributor is null/falsy, return all parts.
+ * Filter parts by distributor. Returns all parts when filter is null.
  * @param {Array<Object>} parts
- * @param {string | null} distributor
+ * @param {string|null} distributor - "lcsc", "digikey", "mouser", "pololu", "other", or null
  * @returns {Array<Object>}
  */
 export function filterByDistributor(parts, distributor) {
@@ -180,7 +181,7 @@ function matchItemToGroup(item, memberToGroup) {
 /**
  * Group parts by their generic part membership.
  * @param {Array<Object>} parts - inventory items in this section
- * @param {Array<Object>} genericParts - from App.genericParts (has .members array)
+ * @param {Array<Object>} genericParts - from store.genericParts (has .members array)
  * @returns {{ groups: Array<{ gp: Object, parts: Array<Object> }>, ungrouped: Array<Object> }}
  */
 export function groupPartsByGeneric(parts, genericParts) {

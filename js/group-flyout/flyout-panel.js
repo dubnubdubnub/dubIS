@@ -3,7 +3,7 @@
 
 import { EventBus, Events } from '../event-bus.js';
 import { api, AppLog } from '../api.js';
-import { App } from '../store.js';
+import { store } from '../store.js';
 import { generateTags, filterMembers } from './flyout-logic.js';
 import { renderFlyout } from './flyout-renderer.js';
 import { flyouts, activeFlyoutId, setActiveFlyoutId } from './flyout-state.js';
@@ -242,9 +242,9 @@ export async function openFlyout(genericPartId, sourceRowEl) {
     return;
   }
 
-  // Find the generic part in App.genericParts
+  // Find the generic part in store.genericParts
   var gp = null;
-  var gps = App.genericParts;
+  var gps = store.genericParts;
   for (var i = 0; i < gps.length; i++) {
     if (String(gps[i].generic_part_id) === String(genericPartId)) {
       gp = gps[i];

@@ -1,6 +1,16 @@
 /* ── Inventory Panel ───────────────────────────────────── */
 .panel-inventory { flex: 1; min-width: 300px; }
 
+/* ── Search Group (filter buttons + search input) ─────── */
+.inv-search-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
 /* ── Search Input ──────────────────────────────────────── */
 .search-input {
   padding: 4px 8px;
@@ -12,7 +22,6 @@
   width: 180px;
   min-width: 100px;
   flex-shrink: 1;
-  margin-left: auto;
   outline: none;
 }
 .search-input:focus { border-color: var(--color-blue); }
@@ -71,9 +80,8 @@
 .inv-parent-header.collapsed .chevron { transform: rotate(-90deg); }
 
 /* ── Subsection (indented subcategory) ──────────────── */
-.inv-subsection { padding-left: 12px; }
 .inv-subsection-header {
-  padding: 4px 12px;
+  padding: 4px 12px 4px 24px;
   background: var(--bg-base);
   cursor: pointer;
   display: flex;

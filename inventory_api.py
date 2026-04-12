@@ -14,11 +14,11 @@ from typing import Any
 import cache_db
 import csv_io
 import file_dialogs
+import generic_parts
 import inventory_ops
+import price_history
 import price_ops
-from distributor_api import DistributorApi
-from generic_parts_api import GenericPartsApi
-from price_api import PriceApi
+from distributor_manager import DistributorManager
 
 logger = logging.getLogger(__name__)
 
@@ -84,16 +84,7 @@ class InventoryApi:
         self._bom_dirty: bool = False
         self._debug: bool = debug
         self._lock: threading.Lock = threading.Lock()
-        self._dist_api = DistributorApi(
-            base_dir=self.base_dir, get_cache=self._get_cache, debug=self._debug,
-        )
-        self._distributors = self._dist_api._distributors
-        self._gp_api = GenericPartsApi(
-            get_cache=self._get_cache, events_dir=self.events_dir,
-        )
-        self._price_api = PriceApi(
-            get_cache=self._get_cache, events_dir=self.events_dir,
-        )
+        self._distributors = DistributorManager(self.base_dir, self._get_cache)
 
     def _get_cache(self) -> sqlite3.Connection:
         """Get or create the cache database connection."""
@@ -501,92 +492,121 @@ class InventoryApi:
         """Load a file by path, return {name, content, directory, path, links?} or None."""
         return file_dialogs.load_file(path)
 
-    # ── Price history API (delegated to PriceApi) ──────────────────────────
+    # ── Price history API ───────────────────────────────────────────────────
 
     def record_fetched_prices(self, part_key: str, distributor: str,
                                price_tiers: list[dict[str, Any]]) -> None:
         """Record prices fetched from a distributor API/scraper."""
-        return self._price_api.record_fetched_prices(part_key, distributor, price_tiers)
+        return price_history.record_fetched_prices(
+            self._get_cache(), self.events_dir, part_key, distributor, price_tiers,
+        )
 
     def get_price_summary(self, part_key: str) -> dict[str, dict[str, Any]]:
         """Get aggregated pricing per distributor for a part."""
-        return self._price_api.get_price_summary(part_key)
+        return price_history.get_price_summary(
+            self._get_cache(), self.events_dir, part_key,
+        )
 
-    # ── Product preview (delegated to DistributorApi) ──────────────────────
+    # ── Product preview (delegated to DistributorManager) ───────────────────
 
     def fetch_lcsc_product(self, product_code: str) -> dict[str, Any] | None:
-        return self._dist_api.fetch_lcsc_product(product_code)
+        return self._distributors.fetch_lcsc_product(product_code, debug=self._debug)
 
     def fetch_digikey_product(self, part_number: str) -> dict[str, Any] | None:
-        return self._dist_api.fetch_digikey_product(part_number)
+        return self._distributors.fetch_digikey_product(part_number, debug=self._debug)
 
     def fetch_pololu_product(self, sku: str) -> dict[str, Any] | None:
-        return self._dist_api.fetch_pololu_product(sku)
+        return self._distributors.fetch_pololu_product(sku, debug=self._debug)
 
     def fetch_mouser_product(self, part_number: str) -> dict[str, Any] | None:
-        return self._dist_api.fetch_mouser_product(part_number)
+        return self._distributors.fetch_mouser_product(part_number, debug=self._debug)
 
     def check_digikey_session(self) -> dict[str, Any]:
-        return self._dist_api.check_digikey_session()
+        return self._distributors.check_digikey_session()
 
     def start_digikey_login(self) -> dict[str, Any]:
-        return self._dist_api.start_digikey_login()
+        return self._distributors.start_digikey_login()
 
     def sync_digikey_cookies(self) -> dict[str, Any]:
-        return self._dist_api.sync_digikey_cookies()
+        return self._distributors.sync_digikey_cookies()
 
     def get_digikey_login_status(self) -> dict[str, bool]:
-        return self._dist_api.get_digikey_login_status()
+        return self._distributors.get_digikey_login_status()
 
     def logout_digikey(self) -> dict[str, str]:
-        return self._dist_api.logout_digikey()
+        return self._distributors.logout_digikey()
 
-    # ── Generic parts (delegated to GenericPartsApi) ───────────────────────
+    # ── Generic parts ──────────────────────────────────────────────────────
 
     def create_generic_part(self, name: str, part_type: str,
                              spec_json: str, strictness_json: str) -> dict[str, Any]:
-        return self._gp_api.create_generic_part(name, part_type, spec_json, strictness_json)
+        return generic_parts.create_generic_part_api(
+            self._get_cache(), self.events_dir, name, part_type, spec_json, strictness_json,
+        )
 
     def resolve_bom_spec(self, part_type: str, value: float,
                           package: str) -> dict[str, Any] | None:
-        return self._gp_api.resolve_bom_spec(part_type, value, package)
+        return generic_parts.resolve_bom_spec(self._get_cache(), part_type, float(value), package)
 
     def list_generic_parts(self) -> list[dict[str, Any]]:
-        return self._gp_api.list_generic_parts()
+        return generic_parts.list_generic_parts_with_member_specs(self._get_cache())
 
     def add_generic_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
-        return self._gp_api.add_generic_member(generic_part_id, part_id)
+        return generic_parts.add_member_api(
+            self._get_cache(), self.events_dir, generic_part_id, part_id,
+        )
 
     def remove_generic_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
-        return self._gp_api.remove_generic_member(generic_part_id, part_id)
+        return generic_parts.remove_member_api(
+            self._get_cache(), self.events_dir, generic_part_id, part_id,
+        )
 
     def exclude_generic_member(self, generic_part_id: str, part_id: str) -> None:
-        return self._gp_api.exclude_generic_member(generic_part_id, part_id)
+        return generic_parts.exclude_member(
+            self._get_cache(), self.events_dir, generic_part_id, part_id,
+        )
 
     def set_preferred_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
-        return self._gp_api.set_preferred_member(generic_part_id, part_id)
+        return generic_parts.set_preferred_api(
+            self._get_cache(), self.events_dir, generic_part_id, part_id,
+        )
 
     def update_generic_part(self, generic_part_id: str, name: str,
                              spec_json: str, strictness_json: str) -> dict[str, Any]:
-        return self._gp_api.update_generic_part(generic_part_id, name, spec_json, strictness_json)
+        return generic_parts.update_generic_part_api(
+            self._get_cache(), self.events_dir, generic_part_id, name,
+            spec_json, strictness_json,
+        )
 
     def extract_spec(self, part_key: str) -> dict[str, Any]:
-        return self._gp_api.extract_spec(part_key)
+        return generic_parts.extract_spec_for_part(self._get_cache(), part_key)
 
     def extract_spec_from_value(self, part_type: str, value_str: str, package_str: str) -> dict[str, Any]:
-        return self._gp_api.extract_spec_from_value(part_type, value_str, package_str)
+        import spec_extractor
+        desc = part_type + " " + value_str + " " + package_str
+        spec = spec_extractor.extract_spec(desc, package_str)
+        spec["type"] = part_type
+        return spec
 
     def list_saved_searches(self, generic_part_id: str) -> list[dict[str, Any]]:
-        return self._gp_api.list_saved_searches(generic_part_id)
+        import saved_searches
+        return saved_searches.list_for_group(self._get_cache(), generic_part_id)
 
     def create_saved_search(self, generic_part_id: str, name: str,
                             tag_state_json: str, search_text: str,
                             frozen_members_json: str) -> dict[str, Any]:
-        return self._gp_api.create_saved_search(
-            generic_part_id, name, tag_state_json, search_text, frozen_members_json)
+        import json
+
+        import saved_searches
+        tag_state = json.loads(tag_state_json) if isinstance(tag_state_json, str) else tag_state_json
+        frozen = json.loads(frozen_members_json) if isinstance(frozen_members_json, str) else frozen_members_json
+        return saved_searches.create(
+            self._get_cache(), self.base_dir, generic_part_id, name,
+            tag_state, search_text, frozen)
 
     def delete_saved_search(self, search_id: str) -> None:
-        return self._gp_api.delete_saved_search(search_id)
+        import saved_searches
+        saved_searches.delete(self._get_cache(), self.base_dir, search_id)
 
     # ── Window lifecycle ─────────────────────────────────────────────────
 

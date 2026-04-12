@@ -3,7 +3,7 @@
 
 import { EventBus, Events } from '../event-bus.js';
 import { AppLog } from '../api.js';
-import { App } from '../store.js';
+import { store } from '../store.js';
 import state from './inv-state.js';
 
 /**
@@ -67,6 +67,23 @@ export function setupEvents(handlers) {
     render();
   });
 
+  // ── Distributor filter buttons ──
+  state.distFilterBar.addEventListener("click", function (e) {
+    var btn = e.target.closest(".dist-filter-btn");
+    if (!btn) return;
+    var dist = btn.dataset.distributor;
+    state.activeDistributor = (state.activeDistributor === dist) ? null : dist;
+    updateDistFilterUI();
+    render();
+  });
+
+  state.clearFilterBtn.addEventListener("click", function () {
+    if (state.activeDistributor === null) return;
+    state.activeDistributor = null;
+    updateDistFilterUI();
+    render();
+  });
+
   // ── EventBus subscriptions ──
   EventBus.on(Events.INVENTORY_LOADED, function () { render(); });
   EventBus.on(Events.INVENTORY_UPDATED, function () { render(); });
@@ -84,7 +101,7 @@ export function setupEvents(handlers) {
     updateDistFilterUI();
     state.expandedAlts = new Set();
     state.expandedMembers = new Set();
-    App.links.clearAll();
+    store.links.clearAll();
     render();
   });
 
@@ -124,9 +141,9 @@ export function setupEvents(handlers) {
 
   // ── Escape key for linking mode ──
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && App.links.linkingMode) {
-      if (App.links.linkingBomRow) App.links.setReverseLinkingMode(false);
-      else App.links.setLinkingMode(false);
+    if (e.key === "Escape" && store.links.linkingMode) {
+      if (store.links.linkingBomRow) store.links.setReverseLinkingMode(false);
+      else store.links.setLinkingMode(false);
     }
   });
 }

@@ -5,7 +5,7 @@ import { EventBus, Events } from '../event-bus.js';
 import { api, AppLog } from '../api.js';
 import { showToast, Modal, setupDropZone, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { App, store, setBomResults, setBomMeta, snapshotLinks, savePreferences } from '../store.js';
+import { store, setBomResults, setBomMeta, snapshotLinks, savePreferences } from '../store.js';
 import { bomKey, invPartKey, countStatuses, rawRowAggKey } from '../part-keys.js';
 import { processBOM, aggregateBomRows } from '../csv-parser.js';
 import { matchBOM } from '../matching.js';
@@ -27,7 +27,7 @@ function aggregateFromRawRows() {
 
 function reprocessAndRender() {
   const aggregated = aggregateFromRawRows();
-  const results = matchBOM(aggregated, store.inventory, App.links.manualLinks, App.links.confirmedMatches, App.genericParts);
+  const results = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches, store.genericParts);
   state.lastResults = results;
   setBomResults(results);
   setBomMeta({ headers: state.bomHeaders, cols: state.bomCols });
@@ -44,7 +44,7 @@ function getMultiplier() {
 // -- Compute effective rows and emit to inventory panel --
 
 function emitBomData() {
-  const rows = computeRows(state.lastResults, getMultiplier(), App.links);
+  const rows = computeRows(state.lastResults, getMultiplier(), store.links);
   if (!rows) return;
   renderBomPanel(rows);
   EventBus.emit(Events.BOM_LOADED, { rows, fileName: state.lastFileName, multiplier: getMultiplier() });
@@ -68,9 +68,9 @@ function renderBomPanel(rows) {
   const bannerEl = document.getElementById("linking-banner");
   if (bannerEl) bannerEl.remove();
   const bannerHtml = renderLinkingBanner({
-    active: App.links.linkingMode,
-    invItem: App.links.linkingInvItem,
-    bomRow: App.links.linkingBomRow,
+    active: store.links.linkingMode,
+    invItem: store.links.linkingInvItem,
+    bomRow: store.links.linkingBomRow,
   });
   if (bannerHtml) {
     const resultsEl = document.getElementById("bom-results");
@@ -79,8 +79,8 @@ function renderBomPanel(rows) {
     temp.innerHTML = bannerHtml;
     const banner = temp.firstElementChild;
     banner.querySelector(".cancel-link-btn").addEventListener("click", () => {
-      if (App.links.linkingInvItem) App.links.setLinkingMode(false);
-      else App.links.setReverseLinkingMode(false);
+      if (store.links.linkingInvItem) store.links.setLinkingMode(false);
+      else store.links.setReverseLinkingMode(false);
     });
     if (tableWrap) resultsEl.insertBefore(banner, tableWrap);
   }
@@ -94,7 +94,7 @@ function renderBomPanel(rows) {
 
   // Build status + linking maps
   const statusMap = buildStatusMap(rows);
-  const missingKeys = (App.links.linkingMode && App.links.linkingInvItem)
+  const missingKeys = (store.links.linkingMode && store.links.linkingInvItem)
     ? buildLinkableKeys(rows, true)
     : new Set();
 
@@ -107,7 +107,7 @@ function renderBomPanel(rows) {
     const cls = classifyBomRow(row, state.bomCols);
     const rk = rawRowAggKey(row, state.bomCols);
     const st = (cls === "ok" && rk) ? (statusMap[rk] || null) : null;
-    const isLinkTarget = !!(App.links.linkingMode && App.links.linkingInvItem && cls === "ok" && rk && missingKeys.has(rk));
+    const isLinkTarget = !!(store.links.linkingMode && store.links.linkingInvItem && cls === "ok" && rk && missingKeys.has(rk));
     tbodyHtml += renderStagingRow(row, ri, state.bomCols, state.bomHeaders, st, isLinkTarget, cls);
   });
   tbody.innerHTML = tbodyHtml;
@@ -169,7 +169,7 @@ function loadBomText(text, fileName, savedLinks) {
   state.bomRawRows = rawRows.map(r => r.slice()); // shallow copy each row
 
   setBomMeta({ headers, cols });
-  App.links.loadFromSaved(savedLinks);
+  store.links.loadFromSaved(savedLinks);
 
   // Log warnings
   warnings.forEach(w => {
@@ -177,7 +177,7 @@ function loadBomText(text, fileName, savedLinks) {
   });
 
   // Match
-  const results = matchBOM(aggregated, store.inventory, App.links.manualLinks, App.links.confirmedMatches, App.genericParts);
+  const results = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches, store.genericParts);
   state.lastResults = results;
   state.lastFileName = fileName;
   setBomResults(results);
@@ -204,15 +204,15 @@ function loadBomText(text, fileName, savedLinks) {
 
 function createManualLink(bomRow) {
   const bk = bomKey(bomRow.bom);
-  const ipk = invPartKey(App.links.linkingInvItem);
+  const ipk = invPartKey(store.links.linkingInvItem);
   if (!bk || !ipk) {
     showToast("Cannot create link \u2014 missing part key");
     return;
   }
   UndoRedo.save("links", snapshotLinks());
-  App.links.addManualLink(bk, ipk);
+  store.links.addManualLink(bk, ipk);
   AppLog.info("Manual link: " + ipk + " \u2192 " + bk);
-  App.links.setLinkingMode(false);
+  store.links.setLinkingMode(false);
   showToast("Linked " + ipk + " \u2192 " + bk);
 }
 
