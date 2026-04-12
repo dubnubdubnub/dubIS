@@ -576,6 +576,18 @@ class InventoryApi:
     def extract_spec_from_value(self, part_type: str, value_str: str, package_str: str) -> dict[str, Any]:
         return self._gp_api.extract_spec_from_value(part_type, value_str, package_str)
 
+    def list_saved_searches(self, generic_part_id: str) -> list[dict[str, Any]]:
+        return self._gp_api.list_saved_searches(generic_part_id)
+
+    def create_saved_search(self, generic_part_id: str, name: str,
+                            tag_state_json: str, search_text: str,
+                            frozen_members_json: str) -> dict[str, Any]:
+        return self._gp_api.create_saved_search(
+            generic_part_id, name, tag_state_json, search_text, frozen_members_json)
+
+    def delete_saved_search(self, search_id: str) -> None:
+        return self._gp_api.delete_saved_search(search_id)
+
     # ── Window lifecycle ─────────────────────────────────────────────────
 
     def set_bom_dirty(self, dirty) -> None:
