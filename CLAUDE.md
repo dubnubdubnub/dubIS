@@ -179,7 +179,7 @@ Superseded PR runs are automatically cancelled (concurrency groups).
 
 #### Override with commit-message tags
 
-Add a `[ci: <tag>]` to your commit message to override auto-detection:
+Add a `[ci: <suite>]` tag to your commit message to override auto-detection:
 
     fix(api): handle empty CSV
 
