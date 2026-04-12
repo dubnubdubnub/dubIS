@@ -90,6 +90,18 @@ def read_and_merge(purchase_csv: str,
     return file_fieldnames, merged
 
 
+def compute_adjusted_qty(current: int, adj_type: str, qty: int) -> int | None:
+    """Compute new quantity after applying an adjustment.
+
+    Returns the new quantity, or None if adj_type is unrecognized.
+    """
+    if adj_type == "set":
+        return max(0, qty)
+    elif adj_type in ("consume", "add", "remove"):
+        return max(0, current + qty)
+    return None
+
+
 def apply_adjustments(merged: dict[str, dict[str, str]],
                       adjustments_csv: str,
                       fieldnames: list[str]) -> None:
@@ -121,11 +133,8 @@ def apply_adjustments(merged: dict[str, dict[str, str]],
                     continue
 
             current = parse_qty(merged[pn]["Quantity"])
-            if adj_type == "set":
-                new_qty = max(0, qty)
-            elif adj_type in ("consume", "add", "remove"):
-                new_qty = max(0, current + qty)
-            else:
+            new_qty = compute_adjusted_qty(current, adj_type, qty)
+            if new_qty is None:
                 continue
             merged[pn]["Quantity"] = str(new_qty)
 
