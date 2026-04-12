@@ -75,6 +75,43 @@ export function refColorClass(ref) {
   return REF_COLOR_MAP[m[1].toUpperCase()] || "";
 }
 
+export function compressRefs(refsStr) {
+  if (!refsStr) return "";
+  var refs = refsStr.split(/,\s*/);
+  if (refs.length <= 1) return refsStr.trim();
+
+  // Parse each ref into { prefix, num, raw }
+  var parsed = refs.map(function (r) {
+    var trimmed = r.trim();
+    var m = trimmed.match(/^([A-Za-z]+)(\d+)$/);
+    return m ? { prefix: m[1].toUpperCase(), num: parseInt(m[2], 10), raw: trimmed, origPrefix: m[1] } : { prefix: null, num: null, raw: trimmed, origPrefix: null };
+  });
+
+  // Group consecutive runs with same prefix
+  var ranges = [];
+  var i = 0;
+  while (i < parsed.length) {
+    var start = parsed[i];
+    if (start.prefix === null) {
+      ranges.push(start.raw);
+      i++;
+      continue;
+    }
+    var end = start;
+    while (i + 1 < parsed.length && parsed[i + 1].prefix === start.prefix && parsed[i + 1].num === end.num + 1) {
+      end = parsed[++i];
+    }
+    if (start === end) {
+      ranges.push(start.raw);
+    } else {
+      ranges.push(start.origPrefix + start.num + "\u2013" + end.origPrefix + end.num);
+    }
+    i++;
+  }
+
+  return ranges.join(", ");
+}
+
 export function colorizeRefs(refsStr) {
   if (!refsStr) return "";
   return refsStr.split(/,\s*/).map(function (ref) {
