@@ -64,11 +64,13 @@ tbody tr:hover:not(.part-preview-info tr, .part-preview-prices tr) { background:
   font-size: 11px;
   color: var(--text-secondary);
   max-width: 140px;
+  line-height: 1.5;
+}
+.refs-scroll {
   max-height: 52px;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
-  line-height: 1.5;
 }
 .ref-r  { color: var(--color-red); }
 .ref-c  { color: var(--color-blue); }

@@ -88,8 +88,8 @@ async function initApp() {
       var escaped = CSS.escape(ref);
       document.querySelectorAll('[data-ref="' + escaped + '"], [data-refs~="' + escaped + '"]').forEach(function (el) {
         el.classList.add("ref-highlight");
-        // Scroll highlighted ref into view within its scrollable .refs-cell
-        var cell = el.closest(".refs-cell");
+        // Scroll highlighted ref into view within its scrollable .refs-scroll container
+        var cell = el.closest(".refs-scroll") || el.closest(".refs-cell");
         if (cell && cell.scrollHeight > cell.clientHeight) {
           el.scrollIntoView({ block: "nearest", inline: "nearest" });
         }
