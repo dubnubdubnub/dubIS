@@ -1220,3 +1220,63 @@ test.describe('Cross-viewport visibility audit — with BOM + PO', () => {
     });
   }
 });
+
+// ════════════════════════════════════════════════════════════
+// DESIGNATOR WRAPPING AUDIT
+// ════════════════════════════════════════════════════════════
+
+const WRAP_VIEWPORTS = [
+  { width: 720, height: 480 },
+  { width: 960, height: 1080 },
+  { width: 1024, height: 768 },
+  { width: 1280, height: 1024 },
+  { width: 1347, height: 823 },
+  { width: 1920, height: 1080 },
+  { width: 2560, height: 1440 },
+  { width: 3440, height: 1440 },
+  { width: 3840, height: 2160 },
+];
+
+test.describe('Designator wrapping audit — with BOM', () => {
+  for (const vp of WRAP_VIEWPORTS) {
+    test(`designator cells contained at ${vp.width}x${vp.height}`, async ({ page }) => {
+      await addMockSetup(page, MOCK_INVENTORY);
+      await page.setViewportSize(vp);
+      await page.goto('/index.html');
+      await waitForInventoryRows(page);
+      await loadBomViaFileInput(page, BOM_CSV_PATH);
+      await page.waitForTimeout(300);
+
+      // Check that no .refs-cell content overflows its cell boundary
+      const overflows = await page.evaluate(() => {
+        const cells = document.querySelectorAll('#inventory-body .refs-cell');
+        const results = [];
+        cells.forEach(cell => {
+          if (cell.scrollWidth > cell.clientWidth + 2) {
+            results.push({
+              text: cell.textContent.slice(0, 40),
+              scrollW: cell.scrollWidth,
+              clientW: cell.clientWidth,
+            });
+          }
+        });
+        return results;
+      });
+      expect(overflows, 'Refs cells should not overflow horizontally').toEqual([]);
+
+      // Check BOM row heights stay reasonable (max ~100px for wrapped + alt badge)
+      const bomRows = await page.locator('tr[data-part-key]').count();
+      for (let i = 0; i < bomRows; i++) {
+        const row = await page.locator('tr[data-part-key]').nth(i).evaluate(el => ({
+          height: el.offsetHeight,
+          partKey: el.dataset.partKey,
+        }));
+        expect(row.height, `BOM row ${row.partKey} too tall at ${vp.width}x${vp.height}`).toBeLessThanOrEqual(100);
+      }
+
+      // Sticky buttons should be reachable
+      const btnReachable = await isReachableByScroll(page, 'td.btn-group', 'Sticky buttons');
+      expect(btnReachable.reachable, btnReachable.reason).toBe(true);
+    });
+  }
+});
