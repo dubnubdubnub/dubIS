@@ -1,5 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
+const servePort = parseInt(process.env.SERVE_PORT || '3123', 10);
+
 export default defineConfig({
   testDir: 'tests/js/e2e',
   timeout: 30_000,
@@ -18,8 +20,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npx serve . -l 3123 -s --no-clipboard',
-    port: 3123,
+    command: `npx serve . -l ${servePort} -s --no-clipboard`,
+    port: servePort,
     reuseExistingServer: true,
   },
 });
