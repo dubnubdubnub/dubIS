@@ -297,7 +297,7 @@ test.describe('Row heights — BOM comparison mode', () => {
       partKey: el.dataset.partKey,
     }));
     console.log('First BOM row (wide):', firstBomRow);
-    expect(firstBomRow.height, 'BOM row should have reasonable height at wide viewport').toBeLessThanOrEqual(64);
+    expect(firstBomRow.height, 'BOM row should have reasonable height at wide viewport').toBeLessThanOrEqual(100);
 
     await logRowHeights(page, 'bom-remaining-wide');
   });
@@ -318,7 +318,7 @@ test.describe('Row heights — BOM comparison mode', () => {
     console.log('BOM rows (narrow):', bomRowCount);
     console.log('Remaining inv rows (narrow):', invRowCount);
 
-    // ALL BOM rows should stay compact — max 64px even with alt badges
+    // ALL BOM rows should stay compact — max 100px (refs wrap instead of truncating)
     // (macOS renders ~2px taller than Linux due to font metrics)
     for (let i = 0; i < bomRowCount; i++) {
       const row = await page.locator('tr[data-part-key]').nth(i).evaluate(el => ({
@@ -327,7 +327,7 @@ test.describe('Row heights — BOM comparison mode', () => {
         hasAltBadge: !!el.querySelector('.alt-badge'),
       }));
       console.log(`BOM row[${i}] (narrow): h=${row.height} key=${row.partKey} alt=${row.hasAltBadge}`);
-      expect(row.height, `Row ${row.partKey} too tall`).toBeLessThanOrEqual(64);
+      expect(row.height, `Row ${row.partKey} too tall`).toBeLessThanOrEqual(100);
     }
     await logRowHeights(page, 'bom-remaining-narrow');
   });
@@ -361,11 +361,26 @@ test.describe('Row heights — BOM comparison mode', () => {
 // ── Row height survey across viewport sizes ──
 
 const VIEWPORTS = [
+  // Existing
   { width: 1200, height: 700, label: '1200×700' },
   { width: 1400, height: 800, label: '1400×800' },
   { width: 1600, height: 900, label: '1600×900' },
   { width: 1920, height: 1080, label: '1920×1080' },
   { width: 2560, height: 1440, label: '2560×1440' },
+  // New standard + exotic resolutions
+  { width: 3840, height: 2160, label: '3840×2160' },
+  { width: 3440, height: 1440, label: '3440×1440' },
+  { width: 1024, height: 768, label: '1024×768' },
+  { width: 1280, height: 1024, label: '1280×1024' },
+  // Half-screen
+  { width: 960, height: 1080, label: '960×1080' },
+  { width: 1280, height: 1440, label: '1280×1440' },
+  { width: 1920, height: 2160, label: '1920×2160' },
+  // Floating windows
+  { width: 1347, height: 823, label: '1347×823' },
+  { width: 743, height: 901, label: '743×901' },
+  { width: 1811, height: 1137, label: '1811×1137' },
+  { width: 2193, height: 1307, label: '2193×1307' },
 ];
 
 test.describe('Row height survey — without BOM', () => {
@@ -404,7 +419,7 @@ test.describe('Row height survey — with BOM', () => {
       expect(bomRows.length, `Should have BOM rows at ${vp.label}`).toBeGreaterThan(0);
       for (const row of bomRows) {
         console.log(`BOM row ${row.partKey} (${vp.label}): h=${row.height} w=${row.width}`);
-        expect(row.height, `BOM row ${row.partKey} too tall at ${vp.label}`).toBeLessThanOrEqual(64);
+        expect(row.height, `BOM row ${row.partKey} too tall at ${vp.label}`).toBeLessThanOrEqual(100);
         for (const c of row.cells) {
           if (c.h > 30) console.log(`  TALL cell[${c.idx}] h=${c.h} cls="${c.cls}" text="${c.text}"`);
         }
