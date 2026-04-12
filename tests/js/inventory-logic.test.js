@@ -249,13 +249,22 @@ describe('filterByDistributor', () => {
     { digikey: 'DK1', mpn: 'B' },
     { mpn: 'C' },
   ];
+  it('returns all parts when filter set is empty', () => {
+    expect(filterByDistributor(parts, new Set())).toEqual(parts);
+  });
   it('returns all parts when filter is null', () => {
     expect(filterByDistributor(parts, null)).toEqual(parts);
   });
   it('filters to lcsc parts only', () => {
-    expect(filterByDistributor(parts, 'lcsc')).toEqual([parts[0]]);
+    expect(filterByDistributor(parts, new Set(['lcsc']))).toEqual([parts[0]]);
   });
   it('filters to other parts only', () => {
-    expect(filterByDistributor(parts, 'other')).toEqual([parts[2]]);
+    expect(filterByDistributor(parts, new Set(['other']))).toEqual([parts[2]]);
+  });
+  it('multi-select: lcsc + other shows combined', () => {
+    expect(filterByDistributor(parts, new Set(['lcsc', 'other']))).toEqual([parts[0], parts[2]]);
+  });
+  it('multi-select: all distributors shows everything', () => {
+    expect(filterByDistributor(parts, new Set(['lcsc', 'digikey', 'other']))).toEqual(parts);
   });
 });
