@@ -133,6 +133,54 @@ class TestManualMembership:
         assert row is None
 
 
+class TestExclusionRecords:
+    """Excluded members survive auto-regeneration."""
+
+    def test_exclude_member_persists_through_auto_match(self, db, events_dir):
+        _seed_parts(db)
+        gp = generic_parts.create_generic_part(
+            db, events_dir, "100nF 0402 Cap", "capacitor",
+            {"value": "100nF", "package": "0402"},
+            {"required": ["value", "package"]},
+        )
+        gp_id = gp["generic_part_id"]
+        members_before = db.execute(
+            "SELECT part_id FROM generic_part_members WHERE generic_part_id = ?",
+            (gp_id,)
+        ).fetchall()
+        member_ids_before = [m["part_id"] for m in members_before]
+        assert "C1525" in member_ids_before  # auto-matched 100nF 0402
+
+        # Exclude a member (simulates drag-out)
+        generic_parts.exclude_member(db, events_dir, gp_id, "C1525")
+
+        # Re-run auto_match (simulates inventory rebuild)
+        spec = {"value": "100nF", "package": "0402"}
+        generic_parts._auto_match(db, gp_id, "capacitor", spec, {"required": ["value", "package"]})
+
+        # Excluded member should NOT reappear as auto — row stays with source='excluded'
+        rows = db.execute(
+            "SELECT part_id, source FROM generic_part_members WHERE generic_part_id = ?",
+            (gp_id,)
+        ).fetchall()
+        member_map = {r["part_id"]: r["source"] for r in rows}
+        assert member_map.get("C1525") == "excluded"
+
+    def test_exclude_records_event(self, db, events_dir):
+        _seed_parts(db)
+        gp = generic_parts.create_generic_part(
+            db, events_dir, "100nF 0402 Cap", "capacitor",
+            {"value": "100nF", "package": "0402"},
+            {"required": ["value", "package"]},
+        )
+        generic_parts.exclude_member(db, events_dir, gp["generic_part_id"], "C1525")
+        with open(os.path.join(events_dir, "part_events.csv")) as f:
+            rows = list(csv.DictReader(f))
+        exclude_events = [r for r in rows if r["event_type"] == "exclude_member"]
+        assert len(exclude_events) == 1
+        assert exclude_events[0]["part_id"] == "C1525"
+
+
 class TestResolveBomRow:
     def test_resolve_to_best_part(self, db, events_dir):
         _seed_parts(db)
@@ -251,3 +299,63 @@ class TestListGenericPartsWithSpecs:
         for m in gp["members"]:
             assert "spec" in m
             assert "type" in m["spec"]
+
+
+class TestPreviewMembers:
+    def test_preview_returns_matching_parts(self, db):
+        _seed_parts(db)
+        results = generic_parts.preview_members(
+            db,
+            part_type="capacitor",
+            spec={"value": "100nF", "package": "0402"},
+            strictness={"required": ["value", "package"]},
+        )
+        part_ids = {r["part_id"] for r in results}
+        assert "C1525" in part_ids
+        assert "C9999" in part_ids
+
+    def test_preview_does_not_create_group(self, db):
+        _seed_parts(db)
+        generic_parts.preview_members(
+            db,
+            part_type="capacitor",
+            spec={"value": "100nF", "package": "0402"},
+            strictness={"required": ["value", "package"]},
+        )
+        count = db.execute("SELECT COUNT(*) AS c FROM generic_parts").fetchone()["c"]
+        assert count == 0
+
+    def test_preview_includes_quantity(self, db):
+        _seed_parts(db)
+        results = generic_parts.preview_members(
+            db,
+            part_type="capacitor",
+            spec={"value": "100nF", "package": "0402"},
+            strictness={"required": ["value", "package"]},
+        )
+        assert len(results) > 0
+        for r in results:
+            assert "quantity" in r
+
+    def test_preview_excludes_non_matching_type(self, db):
+        _seed_parts(db)
+        results = generic_parts.preview_members(
+            db,
+            part_type="capacitor",
+            spec={"value": "100nF", "package": "0402"},
+            strictness={"required": ["value", "package"]},
+        )
+        part_ids = {r["part_id"] for r in results}
+        # Resistor should not appear
+        assert "C2875244" not in part_ids
+
+    def test_preview_includes_spec(self, db):
+        _seed_parts(db)
+        results = generic_parts.preview_members(
+            db,
+            part_type="capacitor",
+            spec={"value": "100nF", "package": "0402"},
+            strictness={"required": ["value", "package"]},
+        )
+        for r in results:
+            assert "spec" in r

@@ -2,13 +2,14 @@
    Absorbs bom-comparison.js responsibilities. Delegates to
    inventory-logic.js (pure functions) and inventory-renderer.js (DOM rendering). */
 
-import { AppLog } from '../api.js';
+import { AppLog, api } from '../api.js';
+import { EventBus, Events } from '../event-bus.js';
 import { showToast, escHtml } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
 import { store, snapshotLinks, getThreshold } from '../store.js';
 import { bomKey, invPartKey, countStatuses } from '../part-keys.js';
 import { openAdjustModal, openPriceModal } from '../inventory-modals.js';
-import { openCreate as openGenericCreate, openEdit as openGenericEdit } from '../generic-parts-modal.js';
+import { openFlyout } from '../group-flyout/flyout-panel.js';
 
 import {
   groupBySection,
@@ -211,6 +212,8 @@ function renderSubSection(container, displayName, fullKey, parts) {
 function createPartRow(item, sectionKey) {
   var row = document.createElement("div");
   row.className = "inv-part-row";
+  row.draggable = true;
+  row.dataset.partId = invPartKey(item);
 
   var isSource = store.links.linkingMode && store.links.linkingInvItem === item;
   var html = renderPartRowHtml(item, {
@@ -260,7 +263,7 @@ function createPartRow(item, sectionKey) {
   if (gpBadge) {
     gpBadge.addEventListener("click", function (e) {
       e.stopPropagation();
-      openGenericEdit(gpBadge.dataset.genericId);
+      openFlyout(gpBadge.dataset.genericId, gpBadge);
     });
   }
 
@@ -402,7 +405,7 @@ function renderGroupedView(container, sectionKey, parts) {
     (function (gpId) {
       editBtn.addEventListener("click", function (e) {
         e.stopPropagation();
-        openGenericEdit(gpId);
+        openFlyout(gpId, editBtn);
       });
     })(gp.generic_part_id);
 
@@ -672,6 +675,84 @@ function renderBomComparison() {
   return computeMatchedInvKeys(state.bomData);
 }
 
+// ── Auto-create group from BOM spec ──
+
+/**
+ * Infer part type from a BOM designator string (e.g. "C1,C2" → "capacitor").
+ * Falls back to "other" when unknown.
+ * @param {string} refs
+ * @returns {string}
+ */
+function inferPartType(refs) {
+  var first = (refs || "").trim().charAt(0).toUpperCase();
+  if (first === "C") return "capacitor";
+  if (first === "R") return "resistor";
+  if (first === "L") return "inductor";
+  return "other";
+}
+
+/**
+ * Auto-create a generic group from BOM row data attributes and open the flyout.
+ * Steps:
+ *  1. Infer type from refs (C→capacitor, R→resistor, L→inductor)
+ *  2. Extract spec from raw value + package string via backend
+ *  3. Check if a matching group already exists (resolve_bom_spec)
+ *  4. If found, open flyout for existing group
+ *  5. If not found, create the group then open flyout
+ * @param {HTMLElement} btn
+ * @param {HTMLElement} row
+ */
+async function autoCreateGroupAndOpenFlyout(btn, row) {
+  var bomValue = btn.dataset.bomValue || "";
+  var bomPkg = btn.dataset.bomPkg || "";
+  var bomRefs = btn.dataset.bomRefs || "";
+
+  if (!bomValue) {
+    AppLog.warn("Cannot auto-create group: no BOM value on button");
+    return;
+  }
+
+  var partType = inferPartType(bomRefs);
+
+  // Step 1: extract spec from raw value string
+  var spec = await api("extract_spec_from_value", partType, bomValue, bomPkg);
+  if (!spec) {
+    AppLog.warn("Auto-create group: spec extraction failed for " + bomValue);
+    return;
+  }
+
+  var numericValue = spec.value;
+
+  // Step 2: check if a matching group already exists
+  if (numericValue !== undefined && numericValue !== null) {
+    var existing = await api("resolve_bom_spec", partType, numericValue, bomPkg);
+    if (existing && existing.generic_part_id) {
+      AppLog.info("Auto-create: found existing group " + existing.generic_part_id);
+      openFlyout(existing.generic_part_id, row);
+      return;
+    }
+  }
+
+  // Step 3: create new generic group
+  var name = bomValue + (bomPkg ? " " + bomPkg : "");
+  var strictness = { required: ["value", "package"] };
+  var result = await api("create_generic_part", name, partType, JSON.stringify(spec), JSON.stringify(strictness));
+  if (!result || !result.generic_part_id) {
+    AppLog.warn("Auto-create group: create_generic_part failed for " + name);
+    return;
+  }
+
+  AppLog.info("Auto-created generic group: " + result.generic_part_id + " (" + name + ")");
+
+  // Step 4: refresh store.genericParts
+  var gps = await api("list_generic_parts");
+  store.genericParts = Array.isArray(gps) ? gps : [];
+  EventBus.emit(Events.GENERIC_PARTS_LOADED, store.genericParts);
+
+  // Step 5: open flyout for the newly created group
+  openFlyout(result.generic_part_id, row);
+}
+
 // ── Delegated tbody click handler ──
 
 function handleBomTableClick(e) {
@@ -748,14 +829,13 @@ function handleBomTableClick(e) {
     var rowPk = tr.dataset.partKey;
     var r = state.rowMap.get(rowPk);
     if (!r) return;
-    if (btn.classList.contains("create-generic-btn")) {
-      var typeMap = { C: "capacitor", R: "resistor", L: "inductor" };
-      var refChar = (btn.dataset.bomRefs || "").trim().charAt(0).toUpperCase();
-      openGenericCreate(null, {
-        type: typeMap[refChar] || undefined,
-        value: btn.dataset.bomValue || undefined,
-        package: btn.dataset.bomPkg || undefined,
-      });
+    if (btn.classList.contains("group-flyout-btn")) {
+      var gpId = btn.dataset.gpId;
+      if (gpId) {
+        openFlyout(gpId, /** @type {HTMLElement} */ (btn.closest("tr")));
+      } else {
+        autoCreateGroupAndOpenFlyout(btn, /** @type {HTMLElement} */ (btn.closest("tr")));
+      }
       return;
     }
     if (btn.classList.contains("confirm-btn")) confirmMatch(r);

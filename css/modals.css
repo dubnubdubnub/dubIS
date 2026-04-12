@@ -76,15 +76,6 @@
   cursor: default;
 }
 
-/* ── Generic Parts Modal ──────────────────────────────── */
-.gp-spec-row { display: flex; align-items: center; gap: 8px; }
-.gp-spec-row label:first-child { min-width: 80px; }
-.gp-spec-input { flex: 1; }
-.gp-req-label { font-size: 11px; color: var(--text-secondary); white-space: nowrap; display: flex; align-items: center; gap: 3px; cursor: pointer; }
-.gp-req-label input { margin: 0; }
-.gp-preview-list { max-height: 200px; overflow-y: auto; }
-.gp-preview-item { padding: 4px 8px; font-size: 12px; display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--border-default); }
-
 /* ── Preferences Modal ────────────────────────────────── */
 .prefs-modal-wide { min-width: 420px; max-width: 520px; max-height: 80vh; display: flex; flex-direction: column; }
 .prefs-sliders {

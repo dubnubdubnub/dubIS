@@ -69,16 +69,25 @@ def create_generic_part(
 def _auto_match(conn: Any, generic_part_id: str, part_type: str,
                  spec: dict, strictness: dict) -> None:
     """Find and insert auto-matched members for a generic part."""
-    # Remove old auto-matches (keep manual)
+    # Remove old auto-matches (keep manual and excluded)
     conn.execute(
         "DELETE FROM generic_part_members WHERE generic_part_id=? AND source='auto'",
         (generic_part_id,),
     )
+    # Get excluded part_ids to skip
+    excluded = {r[0] for r in conn.execute(
+        "SELECT part_id FROM generic_part_members "
+        "WHERE generic_part_id = ? AND source = 'excluded'",
+        (generic_part_id,),
+    ).fetchall()}
+
     # Scan all parts and check spec match
     parts = conn.execute(
         "SELECT part_id, description, package, section FROM parts"
     ).fetchall()
     for part in parts:
+        if part["part_id"] in excluded:
+            continue
         part_spec = spec_extractor.extract_spec(
             description=part["description"], package=part["package"],
         )
@@ -91,6 +100,33 @@ def _auto_match(conn: Any, generic_part_id: str, part_type: str,
                    VALUES (?, ?, 'auto', 0)""",
                 (generic_part_id, part["part_id"]),
             )
+
+
+def preview_members(conn: Any, part_type: str, spec: dict, strictness: dict) -> list[dict[str, Any]]:
+    """Return parts matching spec without creating a generic part."""
+    parts = conn.execute(
+        "SELECT p.part_id, p.description, p.package, "
+        "COALESCE(s.quantity, 0) AS quantity "
+        "FROM parts p LEFT JOIN stock s ON p.part_id = s.part_id"
+    ).fetchall()
+    matches = []
+    for row in parts:
+        part_id = row["part_id"]
+        desc = row["description"]
+        pkg = row["package"]
+        qty = row["quantity"]
+        part_spec = spec_extractor.extract_spec(desc, pkg)
+        if part_spec.get("type") != part_type:
+            continue
+        if spec_extractor.spec_matches(part_spec, spec, strictness):
+            matches.append({
+                "part_id": part_id,
+                "description": desc,
+                "package": pkg,
+                "quantity": qty,
+                "spec": part_spec,
+            })
+    return matches
 
 
 def add_member(conn: Any, events_dir: str, generic_part_id: str,
@@ -118,6 +154,20 @@ def remove_member(conn: Any, events_dir: str, generic_part_id: str,
     conn.commit()
     os.makedirs(events_dir, exist_ok=True)
     _record_event(events_dir, "remove_member", part_id=part_id,
+                   generic_part_id=generic_part_id)
+
+
+def exclude_member(conn: Any, events_dir: str, generic_part_id: str,
+                    part_id: str) -> None:
+    """Mark a member as excluded — survives auto-regeneration."""
+    conn.execute(
+        "INSERT OR REPLACE INTO generic_part_members "
+        "(generic_part_id, part_id, source, preferred) VALUES (?, ?, 'excluded', 0)",
+        (generic_part_id, part_id),
+    )
+    conn.commit()
+    os.makedirs(events_dir, exist_ok=True)
+    _record_event(events_dir, "exclude_member", part_id=part_id,
                    generic_part_id=generic_part_id)
 
 

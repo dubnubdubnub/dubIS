@@ -17,7 +17,7 @@ import { init as initBomPanel } from './bom/bom-panel.js';
 import { init as initImportPanel } from './import/import-panel.js';
 import { init as initResizePanels } from './resize-panels.js';
 import { init as initPartPreview } from './part-preview.js';
-import { init as initGenericPartsModal } from './generic-parts-modal.js';
+import { init as initGroupFlyout } from './group-flyout/flyout-panel.js';
 
 // Expose globals for E2E tests and Python's evaluate_js
 window.store = store;
@@ -41,7 +41,7 @@ async function initApp() {
   initBomPanel();
   initImportPanel();
   initPartPreview();
-  initGenericPartsModal();
+  initGroupFlyout();
 
   // ── Close confirmation modal ────────────────────────────
   const closeModal = Modal("close-modal", { cancelId: "close-cancel" });

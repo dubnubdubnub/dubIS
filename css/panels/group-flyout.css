@@ -1,0 +1,325 @@
+/* ── Flyout Container ─────────────────────────────────── */
+.flyout-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* ── Flyout Panel ─────────────────────────────────────── */
+.group-flyout {
+  position: absolute;
+  display: flex;
+  flex-direction: row;
+  width: 300px;
+  max-height: 420px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.group-flyout.flyout-active {
+  border-color: var(--color-blue);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 2px #58a6ff40;
+}
+
+.group-flyout.flyout-frozen {
+  border-style: dashed;
+}
+
+/* ── Main Area ────────────────────────────────────────── */
+.flyout-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ── Header ───────────────────────────────────────────── */
+.flyout-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-default);
+  cursor: ns-resize;
+  flex-shrink: 0;
+}
+
+.flyout-drag-handle {
+  font-size: 16px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.flyout-title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.flyout-save-btn,
+.flyout-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.flyout-save-btn:hover,
+.flyout-close-btn:hover {
+  color: var(--text-primary);
+}
+
+/* ── Tags ─────────────────────────────────────────────── */
+.flyout-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.flyout-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.1s;
+}
+
+.flyout-tag:hover {
+  border-color: #58a6ff60;
+  color: var(--color-blue);
+}
+
+.flyout-tag.tag-enabled {
+  background: var(--color-blue);
+  border-color: var(--color-blue);
+  color: #ffffff;
+}
+
+.flyout-tag.tag-conflict {
+  border-color: var(--color-orange);
+  box-shadow: 0 0 0 1px #f0883e40;
+}
+
+.flyout-tag.tag-enabled.tag-conflict {
+  background: var(--color-orange);
+  border-color: var(--color-orange);
+  color: #ffffff;
+}
+
+/* ── Search ───────────────────────────────────────────── */
+.flyout-search {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.flyout-search-input {
+  flex: 1;
+  font-size: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  color: var(--text-primary);
+  padding: 2px 6px;
+  outline: none;
+  min-width: 0;
+}
+
+.flyout-search-input:focus {
+  border-color: var(--color-blue);
+}
+
+.flyout-promote-btn {
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 2px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.flyout-promote-btn:hover {
+  border-color: #58a6ff60;
+  color: var(--color-blue);
+  background: #58a6ff10;
+}
+
+/* ── Members ──────────────────────────────────────────── */
+.flyout-members {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 60px;
+}
+
+.flyout-member {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--bg-hover);
+  transition: background 0.1s;
+}
+
+.flyout-member:hover {
+  background: var(--bg-raised);
+}
+
+.flyout-member-grip {
+  cursor: grab;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.flyout-member-grip:active {
+  cursor: grabbing;
+}
+
+.flyout-member.dragging {
+  opacity: 0.3;
+}
+
+.flyout-member-id {
+  flex-shrink: 0;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  color: var(--color-blue);
+}
+
+.flyout-preferred {
+  color: var(--color-yellow);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.flyout-member-qty {
+  flex-shrink: 0;
+  min-width: 30px;
+  text-align: right;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.flyout-member-desc {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-width: 0;
+}
+
+.flyout-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ── Footer ───────────────────────────────────────────── */
+.flyout-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-top: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+/* ── Saved Tabs Sidebar ───────────────────────────────── */
+.flyout-saved-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid var(--border-default);
+  width: 28px;
+  overflow-y: auto;
+  flex-shrink: 0;
+  background: var(--bg-base);
+}
+
+.flyout-saved-tab {
+  writing-mode: vertical-rl;
+  font-size: 10px;
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  max-height: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 4px 2px;
+  text-align: left;
+  white-space: nowrap;
+  transition: all 0.1s;
+}
+
+.flyout-saved-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.flyout-saved-tab.tab-active {
+  color: var(--color-blue);
+  border-left-color: var(--color-blue);
+}
+
+/* ── Tag Hover Highlight ──────────────────────────────── */
+.tag-highlight {
+  background: rgba(88, 166, 255, 0.12);
+  border-radius: 2px;
+}
+
+/* ── Inventory Drag Handles ───────────────────────────── */
+.inv-drag-handle {
+  display: none;
+}
+
+.flyout-drag-active .inv-drag-handle {
+  display: inline-block;
+}
+
+/* ── Drop Zone ────────────────────────────────────────── */
+.group-flyout.drop-hover {
+  border-color: var(--color-green);
+  background: #3fb95008;
+}
+# triggered

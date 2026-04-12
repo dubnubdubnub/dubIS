@@ -100,8 +100,11 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
     };
   }
 
-  // ── Generic part creation eligibility ──
-  var showCreateGeneric = (st === "missing" || st === "possible") && !hasInv && !!(r.bom.value || r.bom.footprint);
+  // ── Group flyout eligibility ──
+  // Show for: rows already in a group, OR missing/possible rows with value/footprint info.
+  // Note: "possible" status implies hasInv (value match), but we still show the flyout
+  // so users can manage groups for value-only BOM rows that fuzzy-matched inventory.
+  var showGroupFlyout = !!(r.genericPartId) || ((st === "missing" || st === "possible") && !!(r.bom.value || r.bom.footprint));
 
   // ── Button visibility ──
   var showConfirm = st === "possible" && hasInv;
@@ -156,7 +159,8 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
     memberBadge: memberBadge,
     genericPartName: genericPartName,
     genericMembers: r.genericMembers || null,
-    showCreateGeneric: showCreateGeneric,
+    showGroupFlyout: showGroupFlyout,
+    genericPartId: r.genericPartId || null,
     bomValue: r.bom.value || "",
     bomFootprint: r.bom.footprint || "",
     bomRefs: r.bom.refs || "",

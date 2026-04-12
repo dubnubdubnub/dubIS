@@ -19,6 +19,11 @@ var state = {
   expandedGroups: new Set(),   // expanded generic group IDs
   groupFilters: {},            // { genericPartId: { dielectric: "C0G", tolerance: "10%" } }
 
+  // Flyout state
+  activeFlyoutId: null,       // generic_part_id of the active flyout
+  linkedSearchText: "",       // synced search text between active flyout and main inventory
+  flyoutDragActive: false,    // true when any flyout is open (shows drag handles on inventory rows)
+
   // Hide descriptions when panel is too narrow for readable text
   DESC_HIDE_WIDTH: 680,
   hideDescs: true,
