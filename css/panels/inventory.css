@@ -71,9 +71,8 @@
 .inv-parent-header.collapsed .chevron { transform: rotate(-90deg); }
 
 /* ── Subsection (indented subcategory) ──────────────── */
-.inv-subsection { padding-left: 12px; }
 .inv-subsection-header {
-  padding: 4px 12px;
+  padding: 4px 12px 4px 24px;
   background: var(--bg-base);
   cursor: pointer;
   display: flex;
