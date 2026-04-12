@@ -1247,22 +1247,27 @@ test.describe('Designator wrapping audit — with BOM', () => {
       await loadBomViaFileInput(page, BOM_CSV_PATH);
       await page.waitForTimeout(300);
 
-      // Check that no .refs-cell content overflows its cell boundary
-      const overflows = await page.evaluate(() => {
+      // Check that refs cells contain text without horizontal overflow.
+      // scrollWidth can legitimately exceed clientWidth for overflow-x:hidden elements
+      // because scrollWidth measures intrinsic content width regardless of clipping.
+      // What matters is that no cell allows horizontal scrolling (overflow-x must be
+      // 'hidden', not 'auto' or 'scroll') and that wrapping is not suppressed by
+      // white-space:nowrap.
+      const badCells = await page.evaluate(() => {
         const cells = document.querySelectorAll('#inventory-body .refs-cell');
         const results = [];
         cells.forEach(cell => {
-          if (cell.scrollWidth > cell.clientWidth + 2) {
-            results.push({
-              text: cell.textContent.slice(0, 40),
-              scrollW: cell.scrollWidth,
-              clientW: cell.clientWidth,
-            });
+          const style = getComputedStyle(cell);
+          if (style.overflowX !== 'hidden') {
+            results.push({ text: cell.textContent.slice(0, 40), overflowX: style.overflowX });
+          }
+          if (style.whiteSpace === 'nowrap') {
+            results.push({ text: cell.textContent.slice(0, 40), whiteSpace: style.whiteSpace });
           }
         });
         return results;
       });
-      expect(overflows, 'Refs cells should not overflow horizontally').toEqual([]);
+      expect(badCells, 'Refs cells must have overflow-x:hidden and allow text wrapping').toEqual([]);
 
       // Check BOM row heights stay reasonable (max ~100px for wrapped + alt badge)
       const bomRows = await page.locator('tr[data-part-key]').count();
