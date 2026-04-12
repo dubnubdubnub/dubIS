@@ -54,6 +54,7 @@ body {
   justify-content: space-between;
   gap: 8px;
   flex-shrink: 0;
+  position: relative; z-index: 11; /* above resize handles (z-index: 10) */
 }
 
 .panel-body {
