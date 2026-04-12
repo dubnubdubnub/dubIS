@@ -29,8 +29,8 @@ import { setupEvents } from './inv-events.js';
 
 // ── Section hierarchy (read once from store) ──
 
-var SECTION_HIERARCHY = store.SECTION_HIERARCHY;
-var FLAT_SECTIONS = store.FLAT_SECTIONS;
+const SECTION_HIERARCHY = store.SECTION_HIERARCHY;
+const FLAT_SECTIONS = store.FLAT_SECTIONS;
 
 // ── Init ──
 
@@ -46,18 +46,18 @@ export function init() {
 // ── Distributor filter UI state ──
 
 function updateDistFilterUI() {
-  var btns = state.distFilterBar.querySelectorAll(".dist-filter-btn");
-  for (var i = 0; i < btns.length; i++) {
+  const btns = state.distFilterBar.querySelectorAll(".dist-filter-btn");
+  for (let i = 0; i < btns.length; i++) {
     btns[i].classList.toggle("active", btns[i].dataset.distributor === state.activeDistributor);
   }
   state.clearFilterBtn.disabled = (state.activeDistributor === null);
 }
 
 function updateDistCounts() {
-  var counts = countByDistributor(store.inventory);
-  var btns = state.distFilterBar.querySelectorAll(".dist-filter-btn");
-  for (var i = 0; i < btns.length; i++) {
-    var dist = btns[i].dataset.distributor;
+  const counts = countByDistributor(store.inventory);
+  const btns = state.distFilterBar.querySelectorAll(".dist-filter-btn");
+  for (let i = 0; i < btns.length; i++) {
+    const dist = btns[i].dataset.distributor;
     btns[i].textContent = dist.charAt(0).toUpperCase() + dist.slice(1) + " (" + counts[dist] + ")";
   }
 }
@@ -65,10 +65,10 @@ function updateDistCounts() {
 // ── Reverse link helper ──
 
 function createReverseLink(invItem) {
-  var bomRow = store.links.linkingBomRow;
+  const bomRow = store.links.linkingBomRow;
   if (!bomRow) return;
-  var bk = bomKey(bomRow.bom);
-  var ipk = invPartKey(invItem);
+  const bk = bomKey(bomRow.bom);
+  const ipk = invPartKey(invItem);
   if (!bk || !ipk) {
     showToast("Cannot create link \u2014 missing part key");
     return;
@@ -86,7 +86,7 @@ function render() {
   state.body.innerHTML = "";
   updateDistCounts();
   if (state.bomData) {
-    var matchedInvKeys = renderBomComparison(render, createReverseLink);
+    const matchedInvKeys = renderBomComparison(render, createReverseLink);
     renderRemainingInventory(matchedInvKeys, (state.searchInput.value || "").toLowerCase());
   } else {
     renderNormalInventory();
@@ -96,13 +96,13 @@ function render() {
 // ── Normal mode: grouped by section ──
 
 function renderNormalInventory() {
-  var query = (state.searchInput.value || "").toLowerCase();
-  var sections = groupBySection(store.inventory);
+  const query = (state.searchInput.value || "").toLowerCase();
+  const sections = groupBySection(store.inventory);
 
-  for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
-    var entry = SECTION_HIERARCHY[i];
+  for (let i = 0; i < SECTION_HIERARCHY.length; i++) {
+    const entry = SECTION_HIERARCHY[i];
     if (!entry.children) {
-      var filtered = filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributor);
+      const filtered = filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributor);
       if (filtered.length > 0) renderSection(entry.name, filtered);
     } else {
       renderHierarchySection(entry, sections, query);
@@ -111,22 +111,22 @@ function renderNormalInventory() {
 }
 
 function renderHierarchySection(entry, sections, query) {
-  var parentParts = filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributor);
-  var childData = [];
-  var totalCount = parentParts.length;
-  for (var i = 0; i < entry.children.length; i++) {
-    var fullKey = entry.name + " > " + entry.children[i];
-    var filtered = filterByDistributor(filterByQuery(sections[fullKey] || [], query), state.activeDistributor);
+  const parentParts = filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributor);
+  const childData = [];
+  let totalCount = parentParts.length;
+  for (let i = 0; i < entry.children.length; i++) {
+    const fullKey = entry.name + " > " + entry.children[i];
+    const filtered = filterByDistributor(filterByQuery(sections[fullKey] || [], query), state.activeDistributor);
     totalCount += filtered.length;
     childData.push({ name: entry.children[i], fullKey: fullKey, parts: filtered });
   }
   if (totalCount === 0) return;
 
-  var container = document.createElement("div");
+  const container = document.createElement("div");
   container.className = "inv-section";
 
-  var isParentCollapsed = state.collapsedSections.has(entry.name);
-  var header = document.createElement("div");
+  const isParentCollapsed = state.collapsedSections.has(entry.name);
+  const header = document.createElement("div");
   header.className = "inv-parent-header" + (isParentCollapsed ? " collapsed" : "");
   header.innerHTML = '<span class="chevron">\u25BE</span> ' + escHtml(entry.name) + ' <span class="inv-section-count">(' + totalCount + ')</span>';
   header.addEventListener("click", function () {
@@ -140,7 +140,7 @@ function renderHierarchySection(entry, sections, query) {
     if (parentParts.length > 0) {
       renderSubSection(container, "Ungrouped", entry.name, parentParts);
     }
-    for (var j = 0; j < childData.length; j++) {
+    for (let j = 0; j < childData.length; j++) {
       if (childData[j].parts.length > 0) {
         renderSubSection(container, childData[j].name, childData[j].fullKey, childData[j].parts);
       }
@@ -151,14 +151,14 @@ function renderHierarchySection(entry, sections, query) {
 }
 
 function renderSubSection(container, displayName, fullKey, parts) {
-  var sub = document.createElement("div");
+  const sub = document.createElement("div");
   sub.className = "inv-subsection";
 
-  var isCollapsed = state.collapsedSections.has(fullKey);
-  var hasGroups = store.genericParts && store.genericParts.length > 0;
-  var groupsActive = state.groupsSections.has(fullKey);
+  const isCollapsed = state.collapsedSections.has(fullKey);
+  const hasGroups = store.genericParts && store.genericParts.length > 0;
+  const groupsActive = state.groupsSections.has(fullKey);
 
-  var header = document.createElement("div");
+  const header = document.createElement("div");
   header.className = "inv-subsection-header" + (isCollapsed ? " collapsed" : "");
   header.innerHTML = '<span class="chevron">\u25BE</span> ' + escHtml(displayName) + ' <span class="inv-section-count">(' + parts.length + ')</span>' +
     (hasGroups ? '<button class="groups-btn' + (groupsActive ? ' active' : '') + '">\u25C6 Groups</button>' : '');
@@ -172,7 +172,7 @@ function renderSubSection(container, displayName, fullKey, parts) {
   });
 
   // Groups button handler
-  var groupsBtn = header.querySelector(".groups-btn");
+  const groupsBtn = header.querySelector(".groups-btn");
   if (groupsBtn) {
     groupsBtn.addEventListener("click", function (e) {
       e.stopPropagation();
@@ -187,7 +187,7 @@ function renderSubSection(container, displayName, fullKey, parts) {
     if (groupsActive) {
       renderGroupedView(sub, fullKey, parts, createPartRow, render);
     } else {
-      for (var k = 0; k < parts.length; k++) {
+      for (let k = 0; k < parts.length; k++) {
         sub.appendChild(createPartRow(parts[k], fullKey));
       }
     }
@@ -199,11 +199,11 @@ function renderSubSection(container, displayName, fullKey, parts) {
 // ── Shared part row builder ──
 
 function createPartRow(item, sectionKey) {
-  var row = document.createElement("div");
+  const row = document.createElement("div");
   row.className = "inv-part-row";
 
-  var isSource = store.links.linkingMode && store.links.linkingInvItem === item;
-  var html = renderPartRowHtml(item, {
+  const isSource = store.links.linkingMode && store.links.linkingInvItem === item;
+  const html = renderPartRowHtml(item, {
     hideDescs: state.hideDescs,
     isBomMode: !!state.bomData,
     isLinkSource: isSource,
@@ -225,28 +225,28 @@ function createPartRow(item, sectionKey) {
     e.stopPropagation();
     openAdjustModal(item);
   });
-  var warnBtn = row.querySelector(".price-warn-btn");
+  const warnBtn = row.querySelector(".price-warn-btn");
   if (warnBtn) {
     warnBtn.addEventListener("click", function (e) {
       e.stopPropagation();
       openPriceModal(item);
     });
   }
-  var distWarnBtn = row.querySelector(".no-dist-warn");
+  const distWarnBtn = row.querySelector(".no-dist-warn");
   if (distWarnBtn) {
     distWarnBtn.addEventListener("click", function (e) {
       e.stopPropagation();
       openAdjustModal(item);
     });
   }
-  var linkBtnEl = row.querySelector(".link-btn");
+  const linkBtnEl = row.querySelector(".link-btn");
   if (linkBtnEl) {
     linkBtnEl.addEventListener("click", function (e) {
       e.stopPropagation();
       store.links.setLinkingMode(true, item);
     });
   }
-  var gpBadge = row.querySelector(".generic-group-badge");
+  const gpBadge = row.querySelector(".generic-group-badge");
   if (gpBadge) {
     gpBadge.addEventListener("click", function (e) {
       e.stopPropagation();
@@ -260,12 +260,12 @@ function createPartRow(item, sectionKey) {
 // ── Remaining inventory (after BOM comparison) ──
 
 function renderRemainingInventory(matchedInvKeys, query) {
-  var otherParts = {};
-  for (var i = 0; i < store.inventory.length; i++) {
-    var item = store.inventory[i];
-    var pk = invPartKey(item).toUpperCase();
+  const otherParts = {};
+  for (let i = 0; i < store.inventory.length; i++) {
+    const item = store.inventory[i];
+    const pk = invPartKey(item).toUpperCase();
     if (matchedInvKeys.has(pk)) continue;
-    var sec = item.section || "Other";
+    const sec = item.section || "Other";
     if (!otherParts[sec]) otherParts[sec] = [];
     otherParts[sec].push(item);
   }
@@ -274,16 +274,16 @@ function renderRemainingInventory(matchedInvKeys, query) {
 }
 
 function renderRemainingNormalSections(otherParts, query) {
-  var hasAny = FLAT_SECTIONS.some(function (s) { return !!otherParts[s]; });
+  const hasAny = FLAT_SECTIONS.some(function (s) { return !!otherParts[s]; });
   if (!hasAny) return;
 
   // Record position before rendering — if nothing is appended, skip divider
-  var beforeCount = state.body.childNodes.length;
+  const beforeCount = state.body.childNodes.length;
 
-  for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
-    var entry = SECTION_HIERARCHY[i];
+  for (let i = 0; i < SECTION_HIERARCHY.length; i++) {
+    const entry = SECTION_HIERARCHY[i];
     if (!entry.children) {
-      var filtered = filterByDistributor(filterByQuery(otherParts[entry.name] || [], query), state.activeDistributor);
+      const filtered = filterByDistributor(filterByQuery(otherParts[entry.name] || [], query), state.activeDistributor);
       if (filtered.length > 0) renderSection(entry.name, filtered);
     } else {
       renderHierarchySection(entry, otherParts, query);
@@ -292,7 +292,7 @@ function renderRemainingNormalSections(otherParts, query) {
 
   // Only insert the divider if sections actually rendered
   if (state.body.childNodes.length > beforeCount) {
-    var divider = document.createElement("div");
+    const divider = document.createElement("div");
     divider.className = "inv-section-header inv-other-divider";
     divider.textContent = "Other Inventory";
     state.body.insertBefore(divider, state.body.childNodes[beforeCount]);
@@ -302,14 +302,14 @@ function renderRemainingNormalSections(otherParts, query) {
 // ── Flat section renderer ──
 
 function renderSection(name, parts) {
-  var section = document.createElement("div");
+  const section = document.createElement("div");
   section.className = "inv-section";
 
-  var isCollapsed = state.collapsedSections.has(name);
-  var hasGroups = store.genericParts && store.genericParts.length > 0;
-  var groupsActive = state.groupsSections.has(name);
+  const isCollapsed = state.collapsedSections.has(name);
+  const hasGroups = store.genericParts && store.genericParts.length > 0;
+  const groupsActive = state.groupsSections.has(name);
 
-  var header = document.createElement("div");
+  const header = document.createElement("div");
   header.className = "inv-section-header" + (isCollapsed ? " collapsed" : "");
   header.innerHTML = '<span class="chevron">\u25BE</span> ' + escHtml(name) + ' <span class="inv-section-count">(' + parts.length + ')</span>' +
     (hasGroups ? '<button class="groups-btn' + (groupsActive ? ' active' : '') + '">\u25C6 Groups</button>' : '');
@@ -323,7 +323,7 @@ function renderSection(name, parts) {
   });
 
   // Groups button handler
-  var groupsBtn = header.querySelector(".groups-btn");
+  const groupsBtn = header.querySelector(".groups-btn");
   if (groupsBtn) {
     groupsBtn.addEventListener("click", function (e) {
       e.stopPropagation();
@@ -338,7 +338,7 @@ function renderSection(name, parts) {
     if (groupsActive) {
       renderGroupedView(section, name, parts, createPartRow, render);
     } else {
-      for (var k = 0; k < parts.length; k++) {
+      for (let k = 0; k < parts.length; k++) {
         section.appendChild(createPartRow(parts[k], name));
       }
     }

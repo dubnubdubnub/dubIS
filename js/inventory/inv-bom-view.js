@@ -33,18 +33,18 @@ import state from './inv-state.js';
  * @returns {Set<string>} matched inventory part keys (uppercased)
  */
 export function renderBomComparison(render, createReverseLink) {
-  var query = (state.searchInput.value || "").toLowerCase();
-  var rows = state.bomData.rows;
-  var sortedRows = sortBomRows(rows);
-  var c = countStatuses(rows);
-  var linkingState = {
+  const query = (state.searchInput.value || "").toLowerCase();
+  const rows = state.bomData.rows;
+  const sortedRows = sortBomRows(rows);
+  const c = countStatuses(rows);
+  const linkingState = {
     linkingMode: store.links.linkingMode,
     linkingInvItem: store.links.linkingInvItem,
     linkingBomRow: store.links.linkingBomRow,
   };
 
   // Filter bar
-  var filterBar = document.createElement("div");
+  const filterBar = document.createElement("div");
   filterBar.className = "filter-bar";
   filterBar.innerHTML = renderFilterBarHtml(c, state.activeFilter);
   filterBar.querySelectorAll(".filter-btn").forEach(function (btn) {
@@ -59,27 +59,27 @@ export function renderBomComparison(render, createReverseLink) {
   state.rowMap = buildRowMap(sortedRows);
 
   // BOM matched section - table with full comparison
-  var tableWrap = document.createElement("div");
+  const tableWrap = document.createElement("div");
   tableWrap.className = "table-wrap";
-  var table = document.createElement("table");
+  const table = document.createElement("table");
   table.innerHTML = renderBomTableHeader();
 
-  var tbody = document.createElement("tbody");
-  for (var i = 0; i < sortedRows.length; i++) {
-    var r = sortedRows[i];
-    var d = bomRowDisplayData(r, query, state.activeFilter, state.expandedAlts, linkingState, state.expandedMembers);
+  const tbody = document.createElement("tbody");
+  for (let i = 0; i < sortedRows.length; i++) {
+    const r = sortedRows[i];
+    const d = bomRowDisplayData(r, query, state.activeFilter, state.expandedAlts, linkingState, state.expandedMembers);
     if (!d) continue;
     tbody.appendChild(createBomRowElement(d));
     if (d.showAlts) {
-      var altElements = renderAltRows(r.alts, d.partKey);
-      for (var j = 0; j < altElements.length; j++) {
+      const altElements = renderAltRows(r.alts, d.partKey);
+      for (let j = 0; j < altElements.length; j++) {
         tbody.appendChild(altElements[j]);
       }
     }
     if (d.showMembers && d.genericMembers) {
-      var resolvedId = r.inv ? invPartKey(r.inv) : "";
-      var memberElements = renderMemberRows(d.genericMembers, d.partKey, resolvedId, d.genericPartName || "", store.inventory);
-      for (var m = 0; m < memberElements.length; m++) {
+      const resolvedId = r.inv ? invPartKey(r.inv) : "";
+      const memberElements = renderMemberRows(d.genericMembers, d.partKey, resolvedId, d.genericPartName || "", store.inventory);
+      for (let m = 0; m < memberElements.length; m++) {
         tbody.appendChild(memberElements[m]);
       }
     }
@@ -92,9 +92,9 @@ export function renderBomComparison(render, createReverseLink) {
   state.body.appendChild(tableWrap);
 
   // Sticky horizontal scrollbar
-  var stickyScroll = document.createElement("div");
+  const stickyScroll = document.createElement("div");
   stickyScroll.className = "sticky-scrollbar";
-  var stickyInner = document.createElement("div");
+  const stickyInner = document.createElement("div");
   stickyInner.style.height = "1px";
   stickyScroll.appendChild(stickyInner);
   state.body.appendChild(stickyScroll);
@@ -105,7 +105,7 @@ export function renderBomComparison(render, createReverseLink) {
   syncWidths();
   new ResizeObserver(syncWidths).observe(table);
 
-  var syncing = false;
+  let syncing = false;
   stickyScroll.addEventListener("scroll", function () {
     if (syncing) return;
     syncing = true;
@@ -127,10 +127,10 @@ export function renderBomComparison(render, createReverseLink) {
 
 function handleBomTableClick(e, render, createReverseLink) {
   // Alt badge toggle
-  var badge = e.target.closest(".alt-badge");
+  const badge = e.target.closest(".alt-badge");
   if (badge) {
     e.stopPropagation();
-    var pk = badge.dataset.partKey;
+    const pk = badge.dataset.partKey;
     if (state.expandedAlts.has(pk)) state.expandedAlts.delete(pk);
     else state.expandedAlts.add(pk);
     render();
@@ -138,10 +138,10 @@ function handleBomTableClick(e, render, createReverseLink) {
   }
 
   // Member badge toggle
-  var memberBadge = e.target.closest(".member-badge");
+  const memberBadge = e.target.closest(".member-badge");
   if (memberBadge) {
     e.stopPropagation();
-    var mpk = memberBadge.dataset.partKey;
+    const mpk = memberBadge.dataset.partKey;
     if (state.expandedMembers.has(mpk)) state.expandedMembers.delete(mpk);
     else state.expandedMembers.add(mpk);
     render();
@@ -149,18 +149,18 @@ function handleBomTableClick(e, render, createReverseLink) {
   }
 
   // Button clicks (both main rows and alt rows)
-  var btn = e.target.closest("button");
+  const btn = e.target.closest("button");
   if (btn) {
     e.stopPropagation();
-    var tr = btn.closest("tr");
+    const tr = btn.closest("tr");
 
     // Member row buttons
     if (tr.classList.contains("member-row")) {
-      var memberPartId = tr.dataset.memberPartId;
-      var memberParentKey = tr.dataset.memberFor;
+      const memberPartId = tr.dataset.memberPartId;
+      const memberParentKey = tr.dataset.memberFor;
       if (btn.classList.contains("use-member-btn")) {
         // Confirm match with this specific member
-        var memberR = state.rowMap.get(memberParentKey);
+        const memberR = state.rowMap.get(memberParentKey);
         if (memberR) {
           UndoRedo.save("links", snapshotLinks());
           store.links.confirmMatch(bomKey(memberR.bom), memberPartId);
@@ -170,8 +170,8 @@ function handleBomTableClick(e, render, createReverseLink) {
         }
       } else if (btn.classList.contains("adj-btn")) {
         // Find the inventory item for this member
-        for (var mi = 0; mi < store.inventory.length; mi++) {
-          var mItem = store.inventory[mi];
+        for (let mi = 0; mi < store.inventory.length; mi++) {
+          const mItem = store.inventory[mi];
           if (invPartKey(mItem) === memberPartId || (mItem.lcsc && mItem.lcsc.toUpperCase() === memberPartId.toUpperCase()) || (mItem.mpn && mItem.mpn.toUpperCase() === memberPartId.toUpperCase())) {
             openAdjustModal(mItem);
             break;
@@ -183,10 +183,10 @@ function handleBomTableClick(e, render, createReverseLink) {
 
     // Alt row buttons
     if (tr.classList.contains("alt-row")) {
-      var parentKey = tr.dataset.altFor;
-      var parentRow = state.rowMap.get(parentKey);
-      var altKey = tr.dataset.invKey;
-      var alt = parentRow && parentRow.alts
+      const parentKey = tr.dataset.altFor;
+      const parentRow = state.rowMap.get(parentKey);
+      const altKey = tr.dataset.invKey;
+      const alt = parentRow && parentRow.alts
         ? parentRow.alts.find(function (a) { return invPartKey(a) === altKey; })
         : null;
       if (!alt) return;
@@ -196,12 +196,12 @@ function handleBomTableClick(e, render, createReverseLink) {
     }
 
     // Main row buttons
-    var rowPk = tr.dataset.partKey;
-    var r = state.rowMap.get(rowPk);
+    const rowPk = tr.dataset.partKey;
+    const r = state.rowMap.get(rowPk);
     if (!r) return;
     if (btn.classList.contains("create-generic-btn")) {
-      var typeMap = { C: "capacitor", R: "resistor", L: "inductor" };
-      var refChar = (btn.dataset.bomRefs || "").trim().charAt(0).toUpperCase();
+      const typeMap = { C: "capacitor", R: "resistor", L: "inductor" };
+      const refChar = (btn.dataset.bomRefs || "").trim().charAt(0).toUpperCase();
       openGenericCreate(null, {
         type: typeMap[refChar] || undefined,
         value: btn.dataset.bomValue || undefined,
@@ -220,10 +220,10 @@ function handleBomTableClick(e, render, createReverseLink) {
   }
 
   // Reverse linking: row click on link-target
-  var linkTr = e.target.closest("tr.link-target");
+  const linkTr = e.target.closest("tr.link-target");
   if (linkTr && !linkTr.classList.contains("alt-row")) {
-    var linkPk = linkTr.dataset.partKey;
-    var linkR = state.rowMap.get(linkPk);
+    const linkPk = linkTr.dataset.partKey;
+    const linkR = state.rowMap.get(linkPk);
     if (linkR && linkR.inv) createReverseLink(linkR.inv);
   }
 }
@@ -231,8 +231,8 @@ function handleBomTableClick(e, render, createReverseLink) {
 // ── Confirm Match Functions ──
 
 function confirmMatch(bomRow) {
-  var bk = bomKey(bomRow.bom);
-  var ipk = invPartKey(bomRow.inv);
+  const bk = bomKey(bomRow.bom);
+  const ipk = invPartKey(bomRow.inv);
   if (!bk || !ipk) { AppLog.warn("Cannot confirm: missing part key"); return; }
   UndoRedo.save("links", snapshotLinks());
   store.links.confirmMatch(bk, ipk);
@@ -241,7 +241,7 @@ function confirmMatch(bomRow) {
 }
 
 function unconfirmMatch(bomRow) {
-  var bk = bomKey(bomRow.bom);
+  const bk = bomKey(bomRow.bom);
   if (!bk) { AppLog.warn("Cannot unconfirm: missing BOM key"); return; }
   UndoRedo.save("links", snapshotLinks());
   store.links.unconfirmMatch(bk);
@@ -250,8 +250,8 @@ function unconfirmMatch(bomRow) {
 }
 
 function confirmAltMatch(bomRow, altInvItem) {
-  var bk = bomKey(bomRow.bom);
-  var ipk = invPartKey(altInvItem);
+  const bk = bomKey(bomRow.bom);
+  const ipk = invPartKey(altInvItem);
   if (!bk || !ipk) { AppLog.warn("Cannot confirm alt: missing part key"); return; }
   UndoRedo.save("links", snapshotLinks());
   store.links.confirmMatch(bk, ipk);
