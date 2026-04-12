@@ -7,6 +7,7 @@ export default defineConfig({
   timeout: 30_000,
   use: {
     browserName: 'chromium',
+    baseURL: `http://localhost:${servePort}`,
     screenshot: 'on',
   },
   projects: [

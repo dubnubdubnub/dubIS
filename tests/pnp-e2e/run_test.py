@@ -202,6 +202,14 @@ def _setup_local_openpnp(openpnp_home, dubis_port):
                 shutil.rmtree(dst)
             shutil.copytree(src, dst)
 
+    # Clean stale queue file from previous runs to prevent phantom decrements
+    queue_path = os.path.join(openpnp_user_config, "dubis_queue.json")
+    if os.path.exists(queue_path):
+        with open(queue_path) as f:
+            stale = json.load(f)
+        print(f"[e2e] WARN: Removed stale queue file with {len(stale)} entries: {stale}")
+        os.remove(queue_path)
+
     # Install the real Job.Placement.Complete.py from the project
     events_dir = os.path.join(openpnp_user_config, "scripts", "Events")
     os.makedirs(events_dir, exist_ok=True)
@@ -669,6 +677,9 @@ def run_test(remote_openpnp=None):
 
         # ── Verify ALL 6 placements decremented correctly ──
         after = snapshot_quantities(base_url)
+        print(f"[e2e] Inventory snapshot (after OpenPnP): {len(after)} parts")
+        for lcsc_part in EXPECTED_DECREASES:
+            print(f"[e2e]   {lcsc_part}: qty={after.get(lcsc_part, 'NOT FOUND')}")
 
         for lcsc_part, expected_decrease in EXPECTED_DECREASES.items():
             if lcsc_part not in before or lcsc_part not in after:

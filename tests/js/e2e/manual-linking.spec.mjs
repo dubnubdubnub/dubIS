@@ -14,7 +14,7 @@ test.describe('Manual linking', () => {
   test.beforeEach(async ({ page }) => {
     await server.reset();
     await addLiveSetup(page, server.url);
-    await page.goto('http://localhost:3123/index.html');
+    await page.goto('/index.html');
     await waitForInventoryRows(page);
     await loadBomViaFileInput(page, BOM_CSV);
   });
