@@ -1055,10 +1055,30 @@ const AUDIT_ELEMENTS = [
 ];
 
 const AUDIT_VIEWPORTS = [
+  // Existing
   { width: 800, height: 600 },
   { width: 1024, height: 700 },
   { width: 1200, height: 700 },
   { width: 1920, height: 1080 },
+  // Minimum
+  { width: 720, height: 480 },
+  // Legacy aspect ratios
+  { width: 1024, height: 768 },
+  { width: 1280, height: 1024 },
+  // Standard monitors
+  { width: 2560, height: 1440 },
+  { width: 3840, height: 2160 },
+  // Ultrawide
+  { width: 3440, height: 1440 },
+  // Half-screen (snapped window)
+  { width: 960, height: 1080 },
+  { width: 1280, height: 1440 },
+  { width: 1920, height: 2160 },
+  // Floating windows (fixed pseudo-random sizes)
+  { width: 1347, height: 823 },
+  { width: 743, height: 901 },
+  { width: 1811, height: 1137 },
+  { width: 2193, height: 1307 },
 ];
 
 test.describe('Cross-viewport visibility audit — no BOM', () => {
