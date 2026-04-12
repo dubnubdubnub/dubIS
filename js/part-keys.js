@@ -114,11 +114,53 @@ export function compressRefs(refsStr) {
 
 export function colorizeRefs(refsStr) {
   if (!refsStr) return "";
-  return refsStr.split(/,\s*/).map(function (ref) {
-    var cls = refColorClass(ref);
-    var escaped = escHtml(ref);
-    return cls
-      ? '<span class="' + cls + '" data-ref="' + escaped + '">' + escaped + '</span>'
-      : '<span data-ref="' + escaped + '">' + escaped + '</span>';
-  }).join(", ");
+  var refs = refsStr.split(/,\s*/);
+  if (refs.length === 0) return "";
+
+  // Parse each ref into { prefix, num, raw }
+  var parsed = refs.map(function (r) {
+    var trimmed = r.trim();
+    var m = trimmed.match(/^([A-Za-z]+)(\d+)$/);
+    return m ? { prefix: m[1].toUpperCase(), num: parseInt(m[2], 10), raw: trimmed, origPrefix: m[1] } : { prefix: null, num: null, raw: trimmed, origPrefix: null };
+  });
+
+  // Build ranges and colorize
+  var parts = [];
+  var i = 0;
+  while (i < parsed.length) {
+    var start = parsed[i];
+    if (start.prefix === null) {
+      var escaped = escHtml(start.raw);
+      parts.push('<span data-ref="' + escaped + '">' + escaped + '</span>');
+      i++;
+      continue;
+    }
+    var end = start;
+    while (i + 1 < parsed.length && parsed[i + 1].prefix === start.prefix && parsed[i + 1].num === end.num + 1) {
+      end = parsed[++i];
+    }
+    var cls = refColorClass(start.raw);
+    if (start === end) {
+      // Single ref — use data-ref (unchanged from before)
+      var esc = escHtml(start.raw);
+      parts.push(cls
+        ? '<span class="' + cls + '" data-ref="' + esc + '">' + esc + '</span>'
+        : '<span data-ref="' + esc + '">' + esc + '</span>');
+    } else {
+      // Range — use data-refs with space-separated individual ref names
+      // (HTML doesn't allow duplicate attributes, so we use a single data-refs)
+      var label = escHtml(start.origPrefix + start.num + "\u2013" + end.num);
+      var allRefs = [];
+      for (var n = start.num; n <= end.num; n++) {
+        allRefs.push(escHtml(start.origPrefix + n));
+      }
+      var dataRefsAttr = ' data-refs="' + allRefs.join(' ') + '"';
+      parts.push(cls
+        ? '<span class="' + cls + '"' + dataRefsAttr + '>' + label + '</span>'
+        : '<span' + dataRefsAttr + '>' + label + '</span>');
+    }
+    i++;
+  }
+
+  return parts.join(", ");
 }

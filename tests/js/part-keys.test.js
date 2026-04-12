@@ -161,6 +161,39 @@ describe('colorizeRefs', () => {
     expect(html).toContain('J1');
     expect(html).not.toContain('class="ref-');
   });
+
+  it('compresses consecutive refs into range spans with data-refs', () => {
+    const html = colorizeRefs('C1, C2, C3');
+    expect(html).toContain('C1\u20133');
+    // Range spans use space-separated data-refs (not duplicate data-ref attributes)
+    expect(html).toContain('data-refs="C1 C2 C3"');
+  });
+
+  it('range spans have color class', () => {
+    const html = colorizeRefs('R1, R2, R3');
+    expect(html).toContain('class="ref-r"');
+    expect(html).toContain('R1\u20133');
+    expect(html).toContain('data-refs="R1 R2 R3"');
+  });
+
+  it('individual refs keep data-ref attribute', () => {
+    const html = colorizeRefs('C3, C6');
+    expect(html).toContain('data-ref="C3"');
+    expect(html).toContain('data-ref="C6"');
+    // No data-refs since these are individual, not ranges
+    expect(html).not.toContain('data-refs');
+  });
+
+  it('produces compact output for 28-capacitor case', () => {
+    const refs = 'C3, C6, C7, C16, C17, C18, C19, C20, C25, C26, C28, C29, C31, C32, C33, C34, C35, C36, C37, C38, C39, C40, C41, C42, C43, C44, C45, C46';
+    const html = colorizeRefs(refs);
+    // Should contain range notation, not 28 individual spans
+    expect(html).toContain('C31\u201346');
+    expect(html).toContain('C16\u201320');
+    // Range spans use data-refs with space-separated values
+    expect(html).toContain('data-refs=');
+    expect(html).toMatch(/data-refs="[^"]*C38[^"]*"/);
+  });
 });
 
 describe('compressRefs', () => {
