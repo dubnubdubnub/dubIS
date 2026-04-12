@@ -111,16 +111,6 @@ class PnPHandler(BaseHTTPRequestHandler):
             self._send_json(404, {"ok": False, "error": msg})
             return
 
-        # Log before-qty for diagnostics
-        before_qty = None
-        for item in inventory:
-            item_key = item.get("lcsc") or item.get("mpn") or item.get("digikey")
-            if item_key == part_key:
-                before_qty = item.get("qty")
-                break
-        logger.info("PnP consume request: %s → %s (before_qty=%s, remove %d)",
-                     part_id, part_key, before_qty, qty)
-
         # Perform the adjustment
         source = getattr(self.server, "source", "openpnp")
         try:
