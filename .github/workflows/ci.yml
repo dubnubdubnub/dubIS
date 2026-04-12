@@ -262,7 +262,7 @@ jobs:
         if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/pytest tests/python/ -v
 
-  # ── Tier 2: Functional (E2E tests) ──────────────────────────────────
+  # ── Tier 2: Functional (PnP E2E tests) ──────────────────────────────
   pnp-e2e:
     name: PnP End-to-End Test (${{ matrix.name }})
     needs: [parse-tags, guard]
