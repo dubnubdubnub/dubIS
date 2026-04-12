@@ -83,15 +83,15 @@ export function countByDistributor(inventory) {
 }
 
 /**
- * Filter parts by distributor. Returns all parts when filter is null.
+ * Filter parts by distributor(s). Returns all parts when filter set is empty.
  * @param {Array<Object>} parts
- * @param {string|null} distributor - "lcsc", "digikey", "mouser", "pololu", "other", or null
+ * @param {Set<string>|null} distributors - set of "lcsc"|"digikey"|"mouser"|"pololu"|"other", or null/empty
  * @returns {Array<Object>}
  */
-export function filterByDistributor(parts, distributor) {
-  if (!distributor) return parts;
+export function filterByDistributor(parts, distributors) {
+  if (!distributors || distributors.size === 0) return parts;
   return parts.filter(function (item) {
-    return inferDistributor(item) === distributor;
+    return distributors.has(inferDistributor(item));
   });
 }
 

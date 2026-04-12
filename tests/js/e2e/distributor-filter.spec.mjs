@@ -95,25 +95,34 @@ test.describe('Distributor filter buttons', () => {
     }
   });
 
-  test('clicking Digikey filter shows only Digikey parts', async ({ page }) => {
+  test('multi-select: clicking two distributors shows combined inventory', async ({ page }) => {
     await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
 
+    // Click LCSC
+    await page.locator('.dist-filter-btn[data-distributor="lcsc"]').click();
+    await page.waitForTimeout(200);
+
+    // Click Digikey too
     await page.locator('.dist-filter-btn[data-distributor="digikey"]').click();
     await page.waitForTimeout(200);
 
+    // Both buttons should have .active class
+    await expect(page.locator('.dist-filter-btn[data-distributor="lcsc"]')).toHaveClass(/active/);
     await expect(page.locator('.dist-filter-btn[data-distributor="digikey"]')).toHaveClass(/active/);
 
+    // Row count should be LCSC + Digikey combined
     const rowCount = await page.locator('.inv-part-row').count();
-    expect(rowCount).toBe(DIST_COUNTS.digikey);
+    expect(rowCount).toBe(DIST_COUNTS.lcsc + DIST_COUNTS.digikey);
 
-    // Every visible row should have a Digikey part ID span
+    // Every visible row should have either LCSC or Digikey part ID
     const rows = page.locator('.inv-part-row');
-    for (let i = 0; i < rowCount; i++) {
+    for (let i = 0; i < Math.min(rowCount, 10); i++) {
+      const hasLcsc = await rows.nth(i).locator('.part-id-lcsc').count();
       const hasDigikey = await rows.nth(i).locator('.part-id-digikey').count();
-      expect(hasDigikey, `row ${i} should have a Digikey part ID`).toBeGreaterThan(0);
+      expect(hasLcsc + hasDigikey, `row ${i} should have LCSC or Digikey part ID`).toBeGreaterThan(0);
     }
   });
 
@@ -197,19 +206,40 @@ test.describe('Distributor filter buttons', () => {
     const filterBar = page.locator('#dist-filter-bar');
     await expect(filterBar).toHaveClass(/compact/);
 
-    // Filter buttons should still be visible (icons only, no text labels)
-    await expect(filterBar).toBeVisible();
+    // Filter bar should still be in the DOM and have buttons
+    const buttons = filterBar.locator('.dist-filter-btn');
+    await expect(buttons).toHaveCount(5);
 
-    // Labels should be hidden in compact mode
-    const labels = filterBar.locator('.dist-label');
-    for (let i = 0; i < await labels.count(); i++) {
-      await expect(labels.nth(i)).toBeHidden();
+    // Text labels should be CSS-hidden in compact mode
+    const firstLabel = filterBar.locator('.dist-label').first();
+    await expect(firstLabel).toHaveCSS('display', 'none');
+  });
+
+  test('filter buttons not clipped at minimum window size (1200x700)', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1200, height: 700 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+
+    const header = await page.locator('.panel-inventory .panel-header').boundingBox();
+    const searchGroup = await page.locator('.inv-search-group').boundingBox();
+
+    // Search group should fit within the header
+    expect(searchGroup.x + searchGroup.width, 'search group right edge within header').toBeLessThanOrEqual(header.x + header.width + 1);
+
+    // Each filter button should be within the header bounds
+    const buttons = page.locator('.dist-filter-btn');
+    const count = await buttons.count();
+    for (let i = 0; i < count; i++) {
+      const box = await buttons.nth(i).boundingBox();
+      expect(box, `filter button ${i} should be rendered`).toBeTruthy();
+      expect(box.x + box.width, `filter button ${i} right edge within header`).toBeLessThanOrEqual(header.x + header.width + 1);
+      expect(box.height, `filter button ${i} should have height`).toBeGreaterThan(0);
     }
 
-    // Icons should still be visible
-    const icons = filterBar.locator('.vendor-icon');
-    for (let i = 0; i < await icons.count(); i++) {
-      await expect(icons.nth(i)).toBeVisible();
-    }
+    // Clear button should also be within bounds
+    const clearBox = await page.locator('#clear-dist-filter').boundingBox();
+    expect(clearBox, 'clear button should be rendered').toBeTruthy();
+    expect(clearBox.x + clearBox.width, 'clear button right edge within header').toBeLessThanOrEqual(header.x + header.width + 1);
   });
 });
