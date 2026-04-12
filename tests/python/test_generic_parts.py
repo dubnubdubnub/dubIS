@@ -299,3 +299,63 @@ class TestListGenericPartsWithSpecs:
         for m in gp["members"]:
             assert "spec" in m
             assert "type" in m["spec"]
+
+
+class TestPreviewMembers:
+    def test_preview_returns_matching_parts(self, db):
+        _seed_parts(db)
+        results = generic_parts.preview_members(
+            db,
+            part_type="capacitor",
+            spec={"value": "100nF", "package": "0402"},
+            strictness={"required": ["value", "package"]},
+        )
+        part_ids = {r["part_id"] for r in results}
+        assert "C1525" in part_ids
+        assert "C9999" in part_ids
+
+    def test_preview_does_not_create_group(self, db):
+        _seed_parts(db)
+        generic_parts.preview_members(
+            db,
+            part_type="capacitor",
+            spec={"value": "100nF", "package": "0402"},
+            strictness={"required": ["value", "package"]},
+        )
+        count = db.execute("SELECT COUNT(*) AS c FROM generic_parts").fetchone()["c"]
+        assert count == 0
+
+    def test_preview_includes_quantity(self, db):
+        _seed_parts(db)
+        results = generic_parts.preview_members(
+            db,
+            part_type="capacitor",
+            spec={"value": "100nF", "package": "0402"},
+            strictness={"required": ["value", "package"]},
+        )
+        assert len(results) > 0
+        for r in results:
+            assert "quantity" in r
+
+    def test_preview_excludes_non_matching_type(self, db):
+        _seed_parts(db)
+        results = generic_parts.preview_members(
+            db,
+            part_type="capacitor",
+            spec={"value": "100nF", "package": "0402"},
+            strictness={"required": ["value", "package"]},
+        )
+        part_ids = {r["part_id"] for r in results}
+        # Resistor should not appear
+        assert "C2875244" not in part_ids
+
+    def test_preview_includes_spec(self, db):
+        _seed_parts(db)
+        results = generic_parts.preview_members(
+            db,
+            part_type="capacitor",
+            spec={"value": "100nF", "package": "0402"},
+            strictness={"required": ["value", "package"]},
+        )
+        for r in results:
+            assert "spec" in r

@@ -105,6 +105,15 @@ class GenericPartsApi:
             "members": members,
         }
 
+    def preview_generic_members(self, spec_json: str | dict,
+                                part_type: str,
+                                strictness_json: str | dict) -> list[dict[str, Any]]:
+        """Preview matching members without creating a group."""
+        spec = json.loads(spec_json) if isinstance(spec_json, str) else spec_json
+        strictness = json.loads(strictness_json) if isinstance(strictness_json, str) else strictness_json
+        conn = self._get_cache()
+        return generic_parts.preview_members(conn, part_type, spec, strictness)
+
     def extract_spec(self, part_key: str) -> dict[str, Any]:
         """Extract component spec from a part's description/metadata."""
         conn = self._get_cache()

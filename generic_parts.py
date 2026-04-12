@@ -102,6 +102,33 @@ def _auto_match(conn: Any, generic_part_id: str, part_type: str,
             )
 
 
+def preview_members(conn: Any, part_type: str, spec: dict, strictness: dict) -> list[dict[str, Any]]:
+    """Return parts matching spec without creating a generic part."""
+    parts = conn.execute(
+        "SELECT p.part_id, p.description, p.package, "
+        "COALESCE(s.quantity, 0) AS quantity "
+        "FROM parts p LEFT JOIN stock s ON p.part_id = s.part_id"
+    ).fetchall()
+    matches = []
+    for row in parts:
+        part_id = row["part_id"]
+        desc = row["description"]
+        pkg = row["package"]
+        qty = row["quantity"]
+        part_spec = spec_extractor.extract_spec(desc, pkg)
+        if part_spec.get("type") != part_type:
+            continue
+        if spec_extractor.spec_matches(part_spec, spec, strictness):
+            matches.append({
+                "part_id": part_id,
+                "description": desc,
+                "package": pkg,
+                "quantity": qty,
+                "spec": part_spec,
+            })
+    return matches
+
+
 def add_member(conn: Any, events_dir: str, generic_part_id: str,
                 part_id: str, source: str = "manual") -> None:
     """Add a part to a generic group (manual override)."""
