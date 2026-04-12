@@ -273,9 +273,9 @@ jobs:
       matrix:
         include:
           - name: ubuntu
-            runner: [self-hosted, pnp-testbox]
+            runner: [self-hosted, pnp-testbox, gui]
           - name: macos
-            runner: [self-hosted, m4-air]
+            runner: [self-hosted, m4-air, gui]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 5
     env:
@@ -293,7 +293,7 @@ jobs:
     if: >-
       always() && !failure() &&
       needs.parse-tags.outputs.run_cross == 'true'
-    runs-on: [self-hosted, pnp-testbox]
+    runs-on: [self-hosted, pnp-testbox, gui]
     timeout-minutes: 5
     env:
       OPENPNP_BIN: /usr/local/bin/openpnp.sh
@@ -310,7 +310,7 @@ jobs:
     if: >-
       always() && !failure() &&
       needs.parse-tags.outputs.run_cross == 'true'
-    runs-on: [self-hosted, m4-air]
+    runs-on: [self-hosted, m4-air, gui]
     timeout-minutes: 5
     env:
       OPENPNP_BIN: /usr/local/bin/openpnp.sh
