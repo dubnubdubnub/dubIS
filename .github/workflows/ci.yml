@@ -21,33 +21,151 @@ on:
           - pnp-cross
           - quality
 
+# Cancel superseded PR runs; push/dispatch runs get unique groups so they never conflict
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name != 'pull_request' && github.run_id || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ── Tier routing ─────────────────────────────────────────────────────
   parse-tags:
     name: Parse CI tier
     runs-on: ubuntu-latest
     outputs:
-      tier: ${{ steps.parse.outputs.tier }}
+      run_lint:    ${{ steps.resolve.outputs.run_lint }}
+      run_js:      ${{ steps.resolve.outputs.run_js }}
+      run_python:  ${{ steps.resolve.outputs.run_python }}
+      run_pnp:     ${{ steps.resolve.outputs.run_pnp }}
+      run_cross:   ${{ steps.resolve.outputs.run_cross }}
+      run_quality: ${{ steps.resolve.outputs.run_quality }}
     steps:
       - uses: actions/checkout@v4
         with:
-          # PR events checkout a merge commit; fetch enough to read the branch head
-          fetch-depth: 2
-      - id: parse
+          fetch-depth: 0
+      - id: resolve
         run: |
+          set_all() {
+            echo "run_lint=true"    >> "$GITHUB_OUTPUT"
+            echo "run_js=true"      >> "$GITHUB_OUTPUT"
+            echo "run_python=true"  >> "$GITHUB_OUTPUT"
+            echo "run_pnp=true"     >> "$GITHUB_OUTPUT"
+            echo "run_cross=true"   >> "$GITHUB_OUTPUT"
+            echo "run_quality=true" >> "$GITHUB_OUTPUT"
+          }
+
+          # --- 1. Push to main always runs everything (squash-merge commits
+          #        inherit ci tags from PR branches — ignore them on main) ---
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "Push to main → all suites"
+            set_all
+            exit 0
+          fi
+
+          KNOWN="all lint js python pnp-e2e pnp-cross quality"
+
+          # --- 2. Read commit message tag ---
+          TAG=""
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "tier=${{ github.event.inputs.suite }}" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            # PR checkout is a merge commit — read the actual branch head
+            TAG="${{ github.event.inputs.suite }}"
+          else
             MSG=$(git log -1 --pretty=%B "${{ github.event.pull_request.head.sha }}")
             TAG=$(echo "$MSG" | grep -oP '\[ci:\s*\K[a-z-]+(?=\])' | head -1)
-            echo "tier=${TAG:-all}" >> "$GITHUB_OUTPUT"
-          else
-            MSG=$(git log -1 --pretty=%B)
-            TAG=$(echo "$MSG" | grep -oP '\[ci:\s*\K[a-z-]+(?=\])' | head -1)
-            echo "tier=${TAG:-all}" >> "$GITHUB_OUTPUT"
           fi
-          echo "Resolved tier: $(grep tier "$GITHUB_OUTPUT" | tail -1)"
+
+          # Ignore unknown tag values (avoids false matches from prose)
+          if [[ -n "$TAG" ]] && [[ " $KNOWN " != *" $TAG "* ]]; then
+            echo "Ignoring unknown tag: $TAG"
+            TAG=""
+          fi
+
+          # --- 3. Explicit tag → set flags directly ---
+          if [[ -n "$TAG" ]]; then
+            echo "Explicit tag: $TAG"
+            case "$TAG" in
+              all)
+                set_all ;;
+              lint)
+                echo "run_lint=true" >> "$GITHUB_OUTPUT" ;;
+              js)
+                echo "run_lint=true" >> "$GITHUB_OUTPUT"
+                echo "run_js=true"   >> "$GITHUB_OUTPUT" ;;
+              python)
+                echo "run_lint=true"   >> "$GITHUB_OUTPUT"
+                echo "run_python=true" >> "$GITHUB_OUTPUT" ;;
+              pnp-e2e)
+                echo "run_pnp=true" >> "$GITHUB_OUTPUT" ;;
+              pnp-cross)
+                echo "run_pnp=true"   >> "$GITHUB_OUTPUT"
+                echo "run_cross=true" >> "$GITHUB_OUTPUT" ;;
+              quality)
+                echo "run_lint=true"    >> "$GITHUB_OUTPUT"
+                echo "run_quality=true" >> "$GITHUB_OUTPUT" ;;
+            esac
+            exit 0
+          fi
+
+          # --- 4. PR with no tag → auto-detect from changed files ---
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+            FILES=$(git diff --name-only "$BASE" "$HEAD")
+          else
+            # workflow_dispatch without explicit tag (shouldn't happen, but safe)
+            set_all
+            exit 0
+          fi
+
+          echo "Changed files:"
+          echo "$FILES"
+          echo "---"
+
+          JS=false PY=false PNP=false QUALITY=false
+
+          while IFS= read -r f; do
+            [[ -z "$f" ]] && continue
+            case "$f" in
+              js/*|css/*|index.html)                    JS=true; QUALITY=true ;;
+              package.json|package-lock.json)            JS=true ;;
+              tsconfig.json|eslint.config.*)             JS=true ;;
+              vitest.config.*|playwright.config.*)       JS=true; QUALITY=true ;;
+              tests/js/*|tests/e2e/*|tests/fixtures/*)   JS=true ;;
+              pnp_server.py|tests/pnp-e2e/*)            PNP=true; PY=true ;;
+              openpnp/*|tests/openpnp-config/*)          PNP=true ;;
+              *.py|requirements*.txt)                    PY=true ;;
+              tests/python/*)                            PY=true ;;
+              scripts/*.py)                              PY=true ;;
+              data/constants.json)                       JS=true ;;
+              .github/*)                                 JS=true; PY=true; PNP=true; QUALITY=true ;;
+              # docs, CLAUDE.md, data/preferences.json, etc. → lint only
+            esac
+          done <<< "$FILES"
+
+          # Always run lint
+          echo "run_lint=true" >> "$GITHUB_OUTPUT"
+
+          # If nothing matched any pattern, run all as a safety net
+          if ! $JS && ! $PY && ! $PNP && ! $QUALITY; then
+            MATCHED=false
+            while IFS= read -r f; do
+              [[ -z "$f" ]] && continue
+              case "$f" in
+                *.md|*.txt|*.json|data/*|CLAUDE.md|.gitignore|LICENSE) MATCHED=true ;;
+              esac
+            done <<< "$FILES"
+            if ! $MATCHED; then
+              echo "Unknown file types changed → all suites"
+              set_all
+              exit 0
+            fi
+          fi
+
+          $JS      && echo "run_js=true"      >> "$GITHUB_OUTPUT"
+          $PY      && echo "run_python=true"   >> "$GITHUB_OUTPUT"
+          $PNP     && echo "run_pnp=true"      >> "$GITHUB_OUTPUT"
+          $QUALITY && echo "run_quality=true"   >> "$GITHUB_OUTPUT"
+          # Cross-compute only runs with explicit [ci: pnp-cross] or [ci: all]
+
+          echo "Resolved: lint=true js=$JS python=$PY pnp=$PNP quality=$QUALITY cross=false"
 
   guard:
     name: Branch guard
@@ -77,7 +195,7 @@ jobs:
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
-      contains(fromJSON('["all","js","lint"]'), needs.parse-tags.outputs.tier)
+      (needs.parse-tags.outputs.run_lint == 'true' || needs.parse-tags.outputs.run_js == 'true')
     strategy:
       matrix:
         include:
@@ -98,15 +216,15 @@ jobs:
       - run: npx eslint js/
       - run: npx tsc --noEmit
       - name: Unit tests
-        if: contains(fromJSON('["all","js"]'), needs.parse-tags.outputs.tier)
+        if: needs.parse-tags.outputs.run_js == 'true'
         run: npx vitest run --project core
       - name: Install Playwright browsers
         if: >-
           matrix.install-pw &&
-          contains(fromJSON('["all","js"]'), needs.parse-tags.outputs.tier)
+          needs.parse-tags.outputs.run_js == 'true'
         run: npx playwright install chromium
       - name: Playwright E2E
-        if: contains(fromJSON('["all","js"]'), needs.parse-tags.outputs.tier)
+        if: needs.parse-tags.outputs.run_js == 'true'
         run: npx playwright test --project functional
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -120,7 +238,7 @@ jobs:
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
-      contains(fromJSON('["all","python","lint"]'), needs.parse-tags.outputs.tier)
+      (needs.parse-tags.outputs.run_lint == 'true' || needs.parse-tags.outputs.run_python == 'true')
     strategy:
       matrix:
         include:
@@ -138,26 +256,26 @@ jobs:
       - run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
       - run: ~/dubis-venv/bin/ruff check .
       - name: Verify generated test fixtures are up to date
-        if: contains(fromJSON('["all","python"]'), needs.parse-tags.outputs.tier)
+        if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/python scripts/generate-test-fixtures.py --check
       - name: Unit tests
-        if: contains(fromJSON('["all","python"]'), needs.parse-tags.outputs.tier)
+        if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/pytest tests/python/ -v
 
-  # ── Tier 2: Functional (E2E tests) ──────────────────────────────────
+  # ── Tier 2: Functional (PnP E2E tests) ──────────────────────────────
   pnp-e2e:
     name: PnP End-to-End Test (${{ matrix.name }})
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
-      contains(fromJSON('["all","pnp-e2e","pnp-cross"]'), needs.parse-tags.outputs.tier)
+      needs.parse-tags.outputs.run_pnp == 'true'
     strategy:
       matrix:
         include:
           - name: ubuntu
-            runner: [self-hosted, pnp-testbox]
+            runner: [self-hosted, pnp-testbox, gui]
           - name: macos
-            runner: [self-hosted, m4-air]
+            runner: [self-hosted, m4-air, gui]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 5
     env:
@@ -174,8 +292,8 @@ jobs:
     needs: [parse-tags, guard, pnp-e2e]
     if: >-
       always() && !failure() &&
-      contains(fromJSON('["all","pnp-cross"]'), needs.parse-tags.outputs.tier)
-    runs-on: [self-hosted, pnp-testbox]
+      needs.parse-tags.outputs.run_cross == 'true'
+    runs-on: [self-hosted, pnp-testbox, gui]
     timeout-minutes: 5
     env:
       OPENPNP_BIN: /usr/local/bin/openpnp.sh
@@ -191,8 +309,8 @@ jobs:
     needs: [parse-tags, guard, pnp-e2e]
     if: >-
       always() && !failure() &&
-      contains(fromJSON('["all","pnp-cross"]'), needs.parse-tags.outputs.tier)
-    runs-on: [self-hosted, m4-air]
+      needs.parse-tags.outputs.run_cross == 'true'
+    runs-on: [self-hosted, m4-air, gui]
     timeout-minutes: 5
     env:
       OPENPNP_BIN: /usr/local/bin/openpnp.sh
@@ -209,7 +327,7 @@ jobs:
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
-      contains(fromJSON('["all","quality"]'), needs.parse-tags.outputs.tier)
+      needs.parse-tags.outputs.run_quality == 'true'
     strategy:
       matrix:
         include:
@@ -235,4 +353,3 @@ jobs:
         run: npx vitest run --project quality
       - name: Quality E2E (accessibility, resize-visibility)
         run: npx playwright test --project quality
-
