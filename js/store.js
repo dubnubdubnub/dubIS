@@ -1,6 +1,6 @@
 /* store.js --- Centralized state management with getter/setter pairs.
    Panels import `store` (read-only getters) and setter functions directly.
-   `store.links` is the full links API (via _linksProxy). */
+   `window.store` is exposed in app-init.js for E2E tests and Python evaluate_js. */
 
 import { EventBus, Events } from './event-bus.js';
 import { SECTION_ORDER } from './constants.js';
@@ -46,19 +46,43 @@ const _parsed = parseSectionOrder(SECTION_ORDER);
 const SECTION_HIERARCHY = _parsed.hierarchy;
 const FLAT_SECTIONS = _parsed.flat;
 
-// ── Read-only store (new API — modules can migrate to this) ──
+// ── Links proxy (store.links returns this object) ──
+
+const _linksProxy = {
+  get manualLinks() { return manualLinks; },
+  set manualLinks(v) { manualLinks = v; },
+  get confirmedMatches() { return confirmedMatches; },
+  set confirmedMatches(v) { confirmedMatches = v; },
+  get linkingMode() { return linkingActive; },
+  get linkingInvItem() { return linkingInvItem; },
+  get linkingBomRow() { return linkingBomRow; },
+
+  addManualLink(bk, ipk) { addManualLink(bk, ipk); },
+  confirmMatch(bk, ipk) { confirmMatch(bk, ipk); },
+  unconfirmMatch(bk) { unconfirmMatch(bk); },
+  setLinkingMode(active, invItem) { setLinkingMode(active, invItem); },
+  setReverseLinkingMode(active, bomRow) { setReverseLinkingMode(active, bomRow); },
+  loadFromSaved(savedLinks) { loadLinks(savedLinks); },
+  clearAll() { clearLinks(); },
+  hasLinks() { return hasLinks(); },
+};
+
+// ── Store (single public API for all state) ──
 
 export const store = {
   get inventory() { return inventory; },
   get bomResults() { return bomResults; },
+  set bomResults(v) { bomResults = v; },
   get bomFileName() { return bomFileName; },
+  set bomFileName(v) { bomFileName = v; },
   get bomHeaders() { return bomHeaders; },
+  set bomHeaders(v) { bomHeaders = v; },
   get bomCols() { return bomCols; },
+  set bomCols(v) { bomCols = v; },
   get bomDirty() { return bomDirty; },
   get preferences() { return preferences; },
   get genericParts() { return genericParts; },
   set genericParts(v) { genericParts = v; },
-  // links returns _linksProxy — defined below, safe because this getter is called lazily
   get links() { return _linksProxy; },
   SECTION_ORDER,
   SECTION_HIERARCHY,
@@ -141,27 +165,6 @@ export function clearLinks() {
 export function hasLinks() {
   return manualLinks.length > 0 || confirmedMatches.length > 0;
 }
-
-// ── _linksProxy — full links API (returned by store.links) ──
-
-const _linksProxy = {
-  get manualLinks() { return manualLinks; },
-  set manualLinks(v) { manualLinks = v; },
-  get confirmedMatches() { return confirmedMatches; },
-  set confirmedMatches(v) { confirmedMatches = v; },
-  get linkingMode() { return linkingActive; },
-  get linkingInvItem() { return linkingInvItem; },
-  get linkingBomRow() { return linkingBomRow; },
-
-  addManualLink(bk, ipk) { addManualLink(bk, ipk); },
-  confirmMatch(bk, ipk) { confirmMatch(bk, ipk); },
-  unconfirmMatch(bk) { unconfirmMatch(bk); },
-  setLinkingMode(active, invItem) { setLinkingMode(active, invItem); },
-  setReverseLinkingMode(active, bomRow) { setReverseLinkingMode(active, bomRow); },
-  loadFromSaved(savedLinks) { loadLinks(savedLinks); },
-  clearAll() { clearLinks(); },
-  hasLinks() { return hasLinks(); },
-};
 
 // ── snapshotLinks (existing API, unchanged behavior) ──────
 

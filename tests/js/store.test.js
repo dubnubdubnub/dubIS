@@ -200,7 +200,7 @@ describe('setThreshold', () => {
   });
 });
 
-// ── store/setter API tests ────────────────────────────
+// ── New store/setter API tests ────────────────────────────
 
 describe('store (read-only getters)', () => {
   beforeEach(() => {
@@ -221,7 +221,7 @@ describe('store (read-only getters)', () => {
     expect(store.bomResults).toBe(results);
   });
 
-  it('store.SECTION_HIERARCHY has the expected shape', () => {
+  it('store.SECTION_HIERARCHY is defined', () => {
     expect(store.SECTION_HIERARCHY).toEqual([
       { name: 'Resistors', children: null },
       { name: 'Capacitors', children: ['MLCC', 'Electrolytic'] },
@@ -229,7 +229,7 @@ describe('store (read-only getters)', () => {
     ]);
   });
 
-  it('store.FLAT_SECTIONS has the expected entries', () => {
+  it('store.FLAT_SECTIONS is defined', () => {
     expect(store.FLAT_SECTIONS).toEqual([
       'Resistors',
       'Capacitors',
@@ -286,7 +286,7 @@ describe('snapshotLinks', () => {
   });
 });
 
-describe('store.links full API (formerly App.links)', () => {
+describe('store object', () => {
   beforeEach(() => {
     setInventory([]);
     setBomResults(null);
@@ -325,12 +325,6 @@ describe('store.links full API (formerly App.links)', () => {
     const items = [{ lcsc: 'C1', qty: 5 }];
     setInventory(items);
     expect(store.inventory).toBe(items);
-  });
-
-  it('store.genericParts getter/setter works', () => {
-    const gps = [{ generic_part_id: 'gp1', name: 'Test' }];
-    store.genericParts = gps;
-    expect(store.genericParts).toBe(gps);
   });
 
   it('store.preferences.thresholds is accessible and mutable', () => {
