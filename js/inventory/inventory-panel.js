@@ -5,7 +5,7 @@
 import { AppLog } from '../api.js';
 import { showToast, escHtml } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { App, store, snapshotLinks, getThreshold } from '../store.js';
+import { store, snapshotLinks, getThreshold } from '../store.js';
 import { bomKey, invPartKey } from '../part-keys.js';
 import { openAdjustModal, openPriceModal } from '../inventory-modals.js';
 import { openEdit as openGenericEdit } from '../generic-parts-modal.js';
@@ -65,7 +65,7 @@ function updateDistCounts() {
 // ── Reverse link helper ──
 
 function createReverseLink(invItem) {
-  var bomRow = App.links.linkingBomRow;
+  var bomRow = store.links.linkingBomRow;
   if (!bomRow) return;
   var bk = bomKey(bomRow.bom);
   var ipk = invPartKey(invItem);
@@ -74,9 +74,9 @@ function createReverseLink(invItem) {
     return;
   }
   UndoRedo.save("links", snapshotLinks());
-  App.links.addManualLink(bk, ipk);
+  store.links.addManualLink(bk, ipk);
   AppLog.info("Manual link: " + ipk + " \u2192 " + bk);
-  App.links.setReverseLinkingMode(false);
+  store.links.setReverseLinkingMode(false);
   showToast("Linked " + ipk + " \u2192 " + bk);
 }
 
@@ -155,7 +155,7 @@ function renderSubSection(container, displayName, fullKey, parts) {
   sub.className = "inv-subsection";
 
   var isCollapsed = state.collapsedSections.has(fullKey);
-  var hasGroups = App.genericParts && App.genericParts.length > 0;
+  var hasGroups = store.genericParts && store.genericParts.length > 0;
   var groupsActive = state.groupsSections.has(fullKey);
 
   var header = document.createElement("div");
@@ -202,7 +202,7 @@ function createPartRow(item, sectionKey) {
   var row = document.createElement("div");
   row.className = "inv-part-row";
 
-  var isSource = App.links.linkingMode && App.links.linkingInvItem === item;
+  var isSource = store.links.linkingMode && store.links.linkingInvItem === item;
   var html = renderPartRowHtml(item, {
     hideDescs: state.hideDescs,
     isBomMode: !!state.bomData,
@@ -210,13 +210,13 @@ function createPartRow(item, sectionKey) {
     isReverseTarget: false,
     sectionKey: sectionKey,
     threshold: getThreshold(sectionKey),
-    genericParts: App.genericParts,
+    genericParts: store.genericParts,
   });
   row.innerHTML = html;
 
   if (isSource) row.classList.add("linking-source");
 
-  if (App.links.linkingMode && App.links.linkingBomRow) {
+  if (store.links.linkingMode && store.links.linkingBomRow) {
     row.classList.add("link-target");
     row.addEventListener("click", function () { createReverseLink(item); });
   }
@@ -243,7 +243,7 @@ function createPartRow(item, sectionKey) {
   if (linkBtnEl) {
     linkBtnEl.addEventListener("click", function (e) {
       e.stopPropagation();
-      App.links.setLinkingMode(true, item);
+      store.links.setLinkingMode(true, item);
     });
   }
   var gpBadge = row.querySelector(".generic-group-badge");
@@ -306,7 +306,7 @@ function renderSection(name, parts) {
   section.className = "inv-section";
 
   var isCollapsed = state.collapsedSections.has(name);
-  var hasGroups = App.genericParts && App.genericParts.length > 0;
+  var hasGroups = store.genericParts && store.genericParts.length > 0;
   var groupsActive = state.groupsSections.has(name);
 
   var header = document.createElement("div");

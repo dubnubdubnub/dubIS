@@ -1,6 +1,6 @@
 /* store.js --- Centralized state management with getter/setter pairs.
    Panels import `store` (read-only getters) and setter functions directly.
-   `App` is a plain read-only object kept for Python evaluate_js + App.links. */
+   `store.links` is the full links API (via _linksProxy). */
 
 import { EventBus, Events } from './event-bus.js';
 import { SECTION_ORDER } from './constants.js';
@@ -56,15 +56,10 @@ export const store = {
   get bomCols() { return bomCols; },
   get bomDirty() { return bomDirty; },
   get preferences() { return preferences; },
-  get links() {
-    return {
-      get manualLinks() { return manualLinks; },
-      get confirmedMatches() { return confirmedMatches; },
-      get linkingMode() { return linkingActive; },
-      get linkingInvItem() { return linkingInvItem; },
-      get linkingBomRow() { return linkingBomRow; },
-    };
-  },
+  get genericParts() { return genericParts; },
+  set genericParts(v) { genericParts = v; },
+  // links returns _linksProxy — defined below, safe because this getter is called lazily
+  get links() { return _linksProxy; },
   SECTION_ORDER,
   SECTION_HIERARCHY,
   FLAT_SECTIONS,
@@ -147,10 +142,7 @@ export function hasLinks() {
   return manualLinks.length > 0 || confirmedMatches.length > 0;
 }
 
-// ── App object (read-only, for Python evaluate_js + window.App) ──
-//
-// Panels use `store` getters and setter functions directly.
-// App is kept for Python interop (evaluate_js) and `App.links`.
+// ── _linksProxy — full links API (returned by store.links) ──
 
 const _linksProxy = {
   get manualLinks() { return manualLinks; },
@@ -169,22 +161,6 @@ const _linksProxy = {
   loadFromSaved(savedLinks) { loadLinks(savedLinks); },
   clearAll() { clearLinks(); },
   hasLinks() { return hasLinks(); },
-};
-
-export const App = {
-  get inventory() { return inventory; },
-  get bomResults() { return bomResults; },
-  get bomFileName() { return bomFileName; },
-  get bomHeaders() { return bomHeaders; },
-  get bomCols() { return bomCols; },
-  get bomDirty() { return bomDirty; },
-  get preferences() { return preferences; },
-  get genericParts() { return genericParts; },
-  set genericParts(v) { genericParts = v; },
-  links: _linksProxy,
-  SECTION_ORDER,
-  SECTION_HIERARCHY,
-  FLAT_SECTIONS,
 };
 
 // ── snapshotLinks (existing API, unchanged behavior) ──────

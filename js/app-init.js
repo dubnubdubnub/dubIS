@@ -4,7 +4,7 @@ import { EventBus, Events } from './event-bus.js';
 import { api, AppLog } from './api.js';
 import { showToast, Modal } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
-import { App, loadPreferences, loadInventory, onInventoryUpdated } from './store.js';
+import { store, loadPreferences, loadInventory, onInventoryUpdated } from './store.js';
 import { processBOM } from './csv-parser.js';
 import { matchBOM } from './matching.js';
 import { colorizeRefs, REF_COLOR_MAP } from './part-keys.js';
@@ -20,7 +20,6 @@ import { init as initPartPreview } from './part-preview.js';
 import { init as initGenericPartsModal } from './generic-parts-modal.js';
 
 // Expose globals for E2E tests and Python's evaluate_js
-window.App = App;
 window.EventBus = EventBus;
 window.Events = Events;
 window.processBOM = processBOM;
@@ -126,12 +125,12 @@ async function initApp() {
   UndoRedo.register("links", (action, data) => {
     if (action === "snapshot") {
       return {
-        manualLinks: JSON.parse(JSON.stringify(App.links.manualLinks)),
-        confirmedMatches: JSON.parse(JSON.stringify(App.links.confirmedMatches)),
+        manualLinks: JSON.parse(JSON.stringify(store.links.manualLinks)),
+        confirmedMatches: JSON.parse(JSON.stringify(store.links.confirmedMatches)),
       };
     }
-    App.links.manualLinks = data.manualLinks;
-    App.links.confirmedMatches = data.confirmedMatches;
+    store.links.manualLinks = data.manualLinks;
+    store.links.confirmedMatches = data.confirmedMatches;
     EventBus.emit(Events.LINKS_CHANGED);
     EventBus.emit(Events.CONFIRMED_CHANGED);
   });
