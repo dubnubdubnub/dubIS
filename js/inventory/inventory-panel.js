@@ -68,7 +68,8 @@ function updateDistCounts() {
   var btns = state.distFilterBar.querySelectorAll(".dist-filter-btn");
   for (var i = 0; i < btns.length; i++) {
     var dist = btns[i].dataset.distributor;
-    btns[i].textContent = dist.charAt(0).toUpperCase() + dist.slice(1) + " (" + counts[dist] + ")";
+    var label = btns[i].querySelector(".dist-label");
+    if (label) label.textContent = dist.charAt(0).toUpperCase() + dist.slice(1) + " (" + counts[dist] + ")";
   }
 }
 
