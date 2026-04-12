@@ -28,3 +28,4 @@ test-results/
 docs/superpowers/
 test-results/
 .superpowers/
+.server-url
