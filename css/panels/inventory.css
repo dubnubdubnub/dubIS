@@ -215,11 +215,10 @@
   gap: 4px;
   align-items: center;
 }
-.dist-filter-bar.compact .dist-label { display: none; }
-.dist-filter-bar.compact .dist-filter-btn { padding: 3px 4px; }
-.clear-filters-btn.compact .clear-label { display: none; }
-.clear-filters-btn.compact .clear-icon { display: inline; }
-.clear-filters-btn .clear-icon { display: none; }
+.dist-label { display: none; }
+.dist-filter-btn { padding: 3px 4px; }
+.clear-label { display: none; }
+.clear-icon { display: inline; }
 .dist-filter-btn {
   padding: 3px 6px;
   border-radius: 6px 6px 2px 2px;
