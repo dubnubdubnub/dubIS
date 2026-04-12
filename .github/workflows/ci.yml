@@ -53,17 +53,22 @@ jobs:
             echo "run_quality=true" >> "$GITHUB_OUTPUT"
           }
 
+          # --- 1. Push to main always runs everything (squash-merge commits
+          #        inherit ci tags from PR branches — ignore them on main) ---
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "Push to main → all suites"
+            set_all
+            exit 0
+          fi
+
           KNOWN="all lint js python pnp-e2e pnp-cross quality"
 
-          # --- 1. Read commit message tag ---
+          # --- 2. Read commit message tag ---
           TAG=""
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             TAG="${{ github.event.inputs.suite }}"
-          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            MSG=$(git log -1 --pretty=%B "${{ github.event.pull_request.head.sha }}")
-            TAG=$(echo "$MSG" | grep -oP '\[ci:\s*\K[a-z-]+(?=\])' | head -1)
           else
-            MSG=$(git log -1 --pretty=%B)
+            MSG=$(git log -1 --pretty=%B "${{ github.event.pull_request.head.sha }}")
             TAG=$(echo "$MSG" | grep -oP '\[ci:\s*\K[a-z-]+(?=\])' | head -1)
           fi
 
@@ -73,7 +78,7 @@ jobs:
             TAG=""
           fi
 
-          # --- 2. Explicit tag → set flags directly ---
+          # --- 3. Explicit tag → set flags directly ---
           if [[ -n "$TAG" ]]; then
             echo "Explicit tag: $TAG"
             case "$TAG" in
@@ -96,13 +101,6 @@ jobs:
                 echo "run_lint=true"    >> "$GITHUB_OUTPUT"
                 echo "run_quality=true" >> "$GITHUB_OUTPUT" ;;
             esac
-            exit 0
-          fi
-
-          # --- 3. Push to main with no tag → run everything ---
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "Push to main (no tag) → all suites"
-            set_all
             exit 0
           fi
 
