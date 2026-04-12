@@ -139,8 +139,10 @@ export function createBomRowElement(d) {
   var linkBtnHtml = d.showLink
     ? '<button class="btn-sm link-btn' + (d.linkActive ? ' active' : '') + '" title="' + (d.hasInv ? 'Link to missing BOM row' : 'Link to inventory part') + '">Link</button>'
     : '';
-  var createGenericHtml = d.showCreateGeneric
-    ? '<button class="create-generic-btn" title="Create generic part group" data-bom-value="' + escHtml(d.bomValue) + '" data-bom-pkg="' + escHtml(d.bomFootprint) + '" data-bom-refs="' + escHtml(d.bomRefs) + '">Group</button>'
+  var groupBtnHtml = d.showGroupFlyout && d.genericPartId
+    ? '<button class="group-flyout-btn" title="View group" data-gp-id="' + escHtml(d.genericPartId) + '"><span class="generic-group-badge">\u229B</span></button>'
+    : d.showGroupFlyout
+    ? '<button class="group-flyout-btn group-flyout-create" title="Create group" data-bom-value="' + escHtml(d.bomValue) + '" data-bom-pkg="' + escHtml(d.bomFootprint) + '" data-bom-refs="' + escHtml(d.bomRefs) + '"><span class="generic-group-badge">+\u229B</span></button>'
     : '';
 
   tr.innerHTML =
@@ -152,7 +154,7 @@ export function createBomRowElement(d) {
     '<td class="inv-qty-cell ' + d.qtyClass + '" style="text-align:right;font-weight:600">' + haveHtml + '</td>' +
     '<td class="desc-cell' + (d.isMissing ? ' muted' : '') + '" title="' + escHtml(d.invDesc) + '">' + escHtml(d.invDesc) + (d.genericPartName ? '<span class="generic-via">via ' + escHtml(d.genericPartName) + '</span>' : '') + '</td>' +
     '<td class="mono" style="text-align:center">' + d.matchLabel + '</td>' +
-    '<td class="btn-group">' + confirmBtnHtml + adjBtnHtml + linkBtnHtml + createGenericHtml + '</td>';
+    '<td class="btn-group">' + confirmBtnHtml + adjBtnHtml + linkBtnHtml + groupBtnHtml + '</td>';
 
   return tr;
 }

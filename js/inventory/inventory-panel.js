@@ -8,7 +8,8 @@ import { UndoRedo } from '../undo-redo.js';
 import { App, store, snapshotLinks, getThreshold } from '../store.js';
 import { bomKey, invPartKey, countStatuses } from '../part-keys.js';
 import { openAdjustModal, openPriceModal } from '../inventory-modals.js';
-import { openCreate as openGenericCreate, openEdit as openGenericEdit } from '../generic-parts-modal.js';
+import { openEdit as openGenericEdit } from '../generic-parts-modal.js';
+import { openFlyout } from '../group-flyout/flyout-panel.js';
 
 import {
   groupBySection,
@@ -747,14 +748,14 @@ function handleBomTableClick(e) {
     var rowPk = tr.dataset.partKey;
     var r = state.rowMap.get(rowPk);
     if (!r) return;
-    if (btn.classList.contains("create-generic-btn")) {
-      var typeMap = { C: "capacitor", R: "resistor", L: "inductor" };
-      var refChar = (btn.dataset.bomRefs || "").trim().charAt(0).toUpperCase();
-      openGenericCreate(null, {
-        type: typeMap[refChar] || undefined,
-        value: btn.dataset.bomValue || undefined,
-        package: btn.dataset.bomPkg || undefined,
-      });
+    if (btn.classList.contains("group-flyout-btn")) {
+      var gpId = btn.dataset.gpId;
+      if (gpId) {
+        openFlyout(gpId, /** @type {HTMLElement} */ (btn.closest("tr")));
+      } else {
+        // Auto-create will be implemented in Task 13
+        AppLog.warn("Auto-create group from BOM not yet implemented");
+      }
       return;
     }
     if (btn.classList.contains("confirm-btn")) confirmMatch(r);
