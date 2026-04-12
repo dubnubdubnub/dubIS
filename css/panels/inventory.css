@@ -130,11 +130,15 @@
 .inv-part-row .part-qty { width: 60px; min-width: 30px; text-align: right; font-weight: 600; }
 .inv-part-row .part-desc { flex: 1; min-width: 0; overflow: hidden; }
 .inv-part-row .part-actions { flex-shrink: 0; margin-left: auto; display: flex; gap: 4px; align-items: center; }
-.generic-group-badge {
-  background: #a371f718; color: var(--color-purple-light); border: 1px solid #a371f730;
-  font-size: 10px; padding: 1px 5px; border-radius: 4px; cursor: pointer; white-space: nowrap;
+.group-flyout-btn {
+  background: none; border: none; padding: 0; margin: 0; cursor: pointer; line-height: 1;
 }
-.generic-group-badge:hover { background: #a371f730; }
+.generic-group-badge {
+  background: #a371f718; color: var(--color-purple-light, #a371f7); border: 1px solid #a371f730;
+  font-size: 10px; padding: 1px 5px; border-radius: 4px; cursor: pointer; white-space: nowrap;
+  display: inline-block;
+}
+.group-flyout-btn:hover .generic-group-badge { background: #a371f730; }
 .part-desc-inner { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; color: var(--text-secondary); width: 100%; }
 
 /* ── Dual Part ID Display ─────────────────────────────── */
