@@ -101,7 +101,10 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
   }
 
   // ── Group flyout eligibility ──
-  var showGroupFlyout = !!(r.genericPartId) || ((st === "missing" || st === "possible") && !hasInv && !!(r.bom.value || r.bom.footprint));
+  // Show for: rows already in a group, OR missing/possible rows with value/footprint info.
+  // Note: "possible" status implies hasInv (value match), but we still show the flyout
+  // so users can manage groups for value-only BOM rows that fuzzy-matched inventory.
+  var showGroupFlyout = !!(r.genericPartId) || ((st === "missing" || st === "possible") && !!(r.bom.value || r.bom.footprint));
 
   // ── Button visibility ──
   var showConfirm = st === "possible" && hasInv;

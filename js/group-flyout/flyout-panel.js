@@ -53,25 +53,35 @@ function positionFlyout(inst) {
   var containerRect = _container.getBoundingClientRect();
 
   var flyoutH = inst.el.offsetHeight;
+  var flyoutW = inst.el.offsetWidth;
   var rowTop = 0;
   var rowH = 0;
+  var rowRight = containerRect.width; // default: right edge of container
 
   if (inst.sourceRowEl) {
     var rowRect = inst.sourceRowEl.getBoundingClientRect();
     rowTop = rowRect.top - containerRect.top;
     rowH = rowRect.height;
+    rowRight = rowRect.right - containerRect.left;
   }
 
   // Vertically center on the row
   var idealTop = rowTop + (rowH / 2) - (flyoutH / 2);
 
-  // Clamp
+  // Clamp vertically
   var minTop = 0;
   var maxTop = Math.max(0, _container.offsetHeight - flyoutH);
   if (idealTop < minTop) idealTop = minTop;
   if (idealTop > maxTop) idealTop = maxTop;
 
+  // Horizontally: place flyout to the right of the source row, clamped to container
+  var idealLeft = rowRight + 8; // 8px gap after row
+  var maxLeft = Math.max(0, _container.offsetWidth - flyoutW);
+  if (idealLeft > maxLeft) idealLeft = maxLeft;
+  if (idealLeft < 0) idealLeft = 0;
+
   inst.el.style.top = Math.round(idealTop) + "px";
+  inst.el.style.left = Math.round(idealLeft) + "px";
 }
 
 // ── rearrangeFlyouts ──────────────────────────────────────────────────────────
@@ -236,7 +246,7 @@ export async function openFlyout(genericPartId, sourceRowEl) {
   var gp = null;
   var gps = App.genericParts;
   for (var i = 0; i < gps.length; i++) {
-    if (String(gps[i].id) === String(genericPartId)) {
+    if (String(gps[i].generic_part_id) === String(genericPartId)) {
       gp = gps[i];
       break;
     }

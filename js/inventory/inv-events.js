@@ -91,16 +91,16 @@ export function setupEvents(handlers) {
   EventBus.on(Events.LINKING_MODE, function () { render(); });
 
   EventBus.on(Events.FLYOUT_SEARCH_CHANGED, function (data) {
-    if (state.searchInput && data && typeof data.text === "string") {
-      state.searchInput.value = data.text;
+    if (state.searchInput && data && typeof data.searchText === "string") {
+      state.searchInput.value = data.searchText;
       render();
     }
   });
 
   EventBus.on(Events.FLYOUT_ACTIVE_CHANGED, function (data) {
-    if (!data || !data.genericPartId) return;
+    if (!data || !data.gpId) return;
     import('../group-flyout/flyout-state.js').then(function (flyoutState) {
-      var inst = flyoutState.flyouts.get(data.genericPartId);
+      var inst = flyoutState.flyouts.get(data.gpId);
       if (inst && state.searchInput) {
         state.searchInput.value = inst.searchText;
         render();
