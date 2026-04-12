@@ -3,7 +3,7 @@
 
 import { EventBus, Events } from '../event-bus.js';
 import { AppLog } from '../api.js';
-import { App } from '../store.js';
+import { store } from '../store.js';
 import state from './inv-state.js';
 
 /**
@@ -71,7 +71,7 @@ export function setupEvents(handlers) {
     updateDistFilterUI();
     state.expandedAlts = new Set();
     state.expandedMembers = new Set();
-    App.links.clearAll();
+    store.links.clearAll();
     render();
   });
 
@@ -79,9 +79,9 @@ export function setupEvents(handlers) {
 
   // ── Escape key for linking mode ──
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && App.links.linkingMode) {
-      if (App.links.linkingBomRow) App.links.setReverseLinkingMode(false);
-      else App.links.setLinkingMode(false);
+    if (e.key === "Escape" && store.links.linkingMode) {
+      if (store.links.linkingBomRow) store.links.setReverseLinkingMode(false);
+      else store.links.setLinkingMode(false);
     }
   });
 }
