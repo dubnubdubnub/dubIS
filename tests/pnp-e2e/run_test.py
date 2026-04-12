@@ -30,7 +30,7 @@ import time
 import urllib.error
 import urllib.request
 
-DUBIS_PORT = 7890
+DUBIS_PORT = int(os.environ.get("DUBIS_PORT", "7890"))
 TIMEOUT_SECONDS = 120
 OPENPNP_MAX_RETRIES = 2  # Retry OpenPnP on hang (macOS NullDriver flake)
 FIXTURES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixtures")
