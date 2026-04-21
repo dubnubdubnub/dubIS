@@ -43,6 +43,17 @@ export function extractValueFromDesc(desc) {
 
 // ── Extract BOM value (tries value then desc, both parseEE and extractFromDesc) ──
 
+// Plain-number fallback specifically for resistors — only applied when the BOM row's
+// refs prefix identifies the component as a resistor. Capacitors/inductors remain
+// strict (plain numbers are ambiguous for those).
+function parseResistorPlainNumber(str) {
+  if (!str) return null;
+  const trimmed = String(str).trim();
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) return null;
+  const n = parseFloat(trimmed);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function extractBomValue(bom) {
   let val = parseEEValue(bom.value);
   // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
@@ -51,6 +62,10 @@ export function extractBomValue(bom) {
   if (val == null) val = parseEEValue(bom.desc);
   // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
   if (val == null) val = extractValueFromDesc(bom.desc);
+  // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
+  if (val == null && componentTypeFromRefs(bom.refs) === 'R') {
+    val = parseResistorPlainNumber(bom.value);
+  }
   return val;
 }
 
