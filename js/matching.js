@@ -75,6 +75,57 @@ export function isPassiveSection(section) {
   return /Resistor|Capacitor|Inductor/i.test(section || "");
 }
 
+// ── Canonical footprint extraction ──
+// Whitelist of known package codes. Word-boundary anchored so MPN-like strings
+// (e.g. "0603WAF0000T5E") do not match "0603". Only ever called on bom.footprint
+// and invItem.package — never on MPN or description fields.
+const FOOTPRINT_WHITELIST = [
+  // Chip passives
+  '0201', '0402', '0603', '0805', '1206', '1210', '1812', '2010', '2512',
+  // SOT family
+  'SOT-23-5', 'SOT-23-6', 'SOT-23', 'SOT-323', 'SOT-363', 'SOT-89', 'SOT-223',
+  // SOIC / MSOP / VSSOP / TSSOP / SSOP
+  'SOIC-8', 'SOIC-14', 'SOIC-16',
+  'MSOP-8', 'MSOP-10',
+  'VSSOP-8', 'VSSOP-10',
+  'TSSOP-8', 'TSSOP-14', 'TSSOP-16', 'TSSOP-20',
+  // Diode packages
+  'SOD-123', 'SOD-323', 'SOD-523',
+  'DO-214AA', 'DO-214AC', 'DO-214',
+  // Leadless / fine-pitch (with numeric suffix)
+  'QFN-16', 'QFN-20', 'QFN-24', 'QFN-32', 'QFN-48', 'QFN-64',
+  'DFN-6', 'DFN-8', 'DFN-10',
+  'LQFP-32', 'LQFP-48', 'LQFP-64', 'LQFP-100', 'LQFP-144',
+  'TQFP-32', 'TQFP-48', 'TQFP-64', 'TQFP-100',
+];
+
+// Pre-compiled regex: matches any whitelist entry at a word boundary, longest first.
+const FOOTPRINT_REGEX = new RegExp(
+  '(?:^|[^A-Za-z0-9])(' +
+    [...FOOTPRINT_WHITELIST].sort((a, b) => b.length - a.length)
+      .map(c => c.replace(/-/g, '\\-'))
+      .join('|') +
+  ')(?=[^A-Za-z0-9]|$)',
+  'i'
+);
+
+export function extractFootprintCode(str) {
+  if (!str) return null;
+  const m = String(str).match(FOOTPRINT_REGEX);
+  if (!m) return null;
+  const raw = m[1].toUpperCase();
+  // Normalize to the canonical whitelist spelling (preserves exact hyphenation).
+  const canonical = FOOTPRINT_WHITELIST.find(c => c.toUpperCase() === raw);
+  return canonical || raw;
+}
+
+export function footprintsCompatible(bom, invItem) {
+  const bomCode = extractFootprintCode(bom.footprint);
+  const invCode = extractFootprintCode(invItem.package);
+  if (!bomCode || !invCode) return true;
+  return bomCode === invCode;
+}
+
 export function packagesCompatible(bom, invItem) {
   const bomPkg = (bom.footprint || "").toUpperCase();
   const invPkg = (invItem.package || "").toUpperCase();
