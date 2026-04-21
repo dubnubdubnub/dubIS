@@ -1,4 +1,9 @@
 {
+  "Item,Qty,Reference(s),Value,LibPart,Footprint,Datasheet,DigiKey P/N,I2C addr,Manufacturer,Mfg P/N": {
+    "7": "Digikey Part Number",
+    "9": "Manufacturer",
+    "1": "Quantity"
+  },
   "Designator*,Quantity*,Manufacturer Part Number*,Value,Procurement Type,Exclude from BOM,Exclude from Board": {
     "2": "Manufacture Part Number",
     "1": "Quantity"
