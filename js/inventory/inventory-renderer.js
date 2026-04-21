@@ -71,6 +71,17 @@ export function renderPartRowHtml(item, options) {
   var displayMpn = item.mpn || "";
   var displayDesc = item.description || "";
 
+  var nearMissBadgeHtml = '';
+  if (options.nearMiss) {
+    var nm = options.nearMiss;
+    var tip = 'Value matches ' + (nm.bomRefs || 'BOM row') +
+              ' (' + (nm.bomValue || 'value') + ')' +
+              ' but footprint mismatch: inventory is ' + (nm.invPackage || '?') +
+              ', BOM wants ' + (nm.bomFootprintCode || '?') +
+              '. Click Link to override.';
+    nearMissBadgeHtml = '<button class="near-miss-badge" title="' + escHtml(tip) + '">⚠</button>';
+  }
+
   var stockValue = item.qty * (item.unit_price || 0);
   var qtyColor = stockValueColor(stockValue, options.threshold);
   var showPriceWarn = item.qty > 0 && !(item.unit_price > 0);
@@ -96,6 +107,7 @@ export function renderPartRowHtml(item, options) {
   var html =
     '<span class="inv-drag-handle" title="Drag to add to group">&#x2261;</span>' +
     partIdsHtml +
+    nearMissBadgeHtml +
     '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + '</span>' +
     '<span class="part-value">' + valueStr + '</span>' +
     '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data \u2014 click to set">\u26A0</button>' : '') + item.qty + '</span>' +
