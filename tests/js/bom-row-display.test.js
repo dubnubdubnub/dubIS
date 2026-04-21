@@ -383,3 +383,60 @@ describe('bomRowDisplayData — edge cases', () => {
     expect(bomRowDisplayData(makeRow(), '', 'all', EMPTY_ALTS, NO_LINKING).isMissing).toBe(false);
   });
 });
+
+// ── Footprint confirmation hint tests ──
+
+function row(overrides) {
+  overrides = overrides || {};
+  return {
+    bom: Object.assign(
+      { lcsc: '', mpn: '', value: '100', refs: 'R1', desc: '', footprint: '' },
+      overrides.bom || {}
+    ),
+    inv: overrides.inv || null,
+    status: overrides.status || 'possible',
+    effectiveStatus: overrides.effectiveStatus || overrides.status || 'possible',
+    matchType: overrides.matchType || 'value',
+    matchSignals: overrides.matchSignals || { value: true, footprint: false, mpn: false },
+    alts: [],
+    coveredByAlts: false,
+    altQty: 0,
+    effectiveQty: 1,
+  };
+}
+
+describe('bomRowDisplayData — footprint confirmation hint', () => {
+  it('exposes footprintConfirmed=true and footprintCode when signals agree on value+footprint', () => {
+    const r = row({
+      matchType: 'value',
+      matchSignals: { value: true, footprint: true, mpn: false },
+      bom: { lcsc: '', mpn: '', value: '100', refs: 'R1', desc: '', footprint: 'Resistor_SMD:R_0402_1005Metric_Pad0.72x0.64mm_HandSolder' },
+      inv: { package: '0402', qty: 10, description: '100Ω 0402', lcsc: 'C1', mpn: 'M1' },
+    });
+    const d = bomRowDisplayData(r, '', 'all', new Set(), NO_LINKING, new Set());
+    expect(d.footprintConfirmed).toBe(true);
+    expect(d.footprintCode).toBe('0402');
+  });
+
+  it('exposes footprintConfirmed=false when signals say value-only', () => {
+    const r = row({
+      matchType: 'value',
+      matchSignals: { value: true, footprint: false, mpn: false },
+      bom: { lcsc: '', mpn: '', value: '100', refs: 'R1', desc: '', footprint: '' },
+      inv: { package: 'SMD', qty: 10, description: '100Ω', lcsc: 'C1', mpn: 'M1' },
+    });
+    const d = bomRowDisplayData(r, '', 'all', new Set(), NO_LINKING, new Set());
+    expect(d.footprintConfirmed).toBe(false);
+  });
+
+  it('does not set footprintConfirmed for exact MPN matches (hint only applies to value/fuzzy)', () => {
+    const r = row({
+      matchType: 'lcsc',
+      matchSignals: { value: false, footprint: false, mpn: true },
+      effectiveStatus: 'ok',
+      inv: { package: '0402', qty: 10, description: '100Ω 0402', lcsc: 'C1', mpn: 'M1' },
+    });
+    const d = bomRowDisplayData(r, '', 'all', new Set(), NO_LINKING, new Set());
+    expect(d.footprintConfirmed).toBe(false);
+  });
+});

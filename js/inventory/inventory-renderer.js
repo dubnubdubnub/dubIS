@@ -155,7 +155,9 @@ export function createBomRowElement(d) {
     '<td class="' + d.qtyClass + '" style="text-align:right;font-weight:600">' + d.effectiveQty + '</td>' +
     '<td class="inv-qty-cell ' + d.qtyClass + '" style="text-align:right;font-weight:600">' + haveHtml + '</td>' +
     '<td class="desc-cell' + (d.isMissing ? ' muted' : '') + '" title="' + escHtml(d.invDesc) + '">' + escHtml(d.invDesc) + (d.genericPartName ? '<span class="generic-via">via ' + escHtml(d.genericPartName) + '</span>' : '') + '</td>' +
-    '<td class="mono" style="text-align:center">' + d.matchLabel + '</td>' +
+    '<td class="mono" style="text-align:center">' + d.matchLabel +
+      (d.footprintConfirmed && d.footprintCode ? ' <span class="match-signal-footprint" title="Footprint also matches: ' + escHtml(d.footprintCode) + '">+' + escHtml(d.footprintCode) + '</span>' : '') +
+    '</td>' +
     '<td class="btn-group">' + confirmBtnHtml + adjBtnHtml + linkBtnHtml + groupBtnHtml + '</td>';
 
   return tr;
