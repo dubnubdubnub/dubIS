@@ -27,6 +27,9 @@ var state = {
   // Hide descriptions when panel is too narrow for readable text
   DESC_HIDE_WIDTH: 680,
   hideDescs: true,
+
+  // Near-miss map: invPartKey.toUpperCase() → near-miss object (populated on BOM match)
+  nearMissMap: null,
 };
 
 export default state;
