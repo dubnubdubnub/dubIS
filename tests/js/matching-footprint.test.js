@@ -6,6 +6,7 @@ import {
   findValueMatch,
   buildLookupMaps,
 } from '../../js/matching.js';
+import { matchBOM } from '../../js/matching.js';
 
 describe('extractFootprintCode', () => {
   it('returns canonical chip size from a KiCad footprint string', () => {
@@ -143,5 +144,59 @@ describe('findValueMatch (filters by footprint)', () => {
     const inventory = [inv0603_120];
     const maps = buildLookupMaps(inventory);
     expect(findValueMatch(bom, inventory, maps.invByValue)).toBeNull();
+  });
+});
+
+describe('matchBOM: near-miss tracking and new return shape', () => {
+  const inv0603_1k = {
+    lcsc: 'C1234', mpn: 'DUMMY-1K-0603', manufacturer: 'ACME',
+    section: 'Passives - Resistors > Chip Resistors',
+    package: '0603',
+    description: '1kΩ ±1% 100mW 0603 Thick Film Resistor',
+    qty: 100, unit_price: 0.001, ext_price: 0.1,
+  };
+
+  it('returns { results, footprintNearMisses } shape', () => {
+    const agg = new Map();
+    agg.set('X', { lcsc: '', mpn: 'DOES-NOT-EXIST', qty: 1, refs: 'R1', value: '', desc: '', footprint: '', dnp: false });
+    const out = matchBOM(agg, [inv0603_1k], [], [], []);
+    expect(out).toHaveProperty('results');
+    expect(Array.isArray(out.results)).toBe(true);
+    expect(out).toHaveProperty('footprintNearMisses');
+    expect(Array.isArray(out.footprintNearMisses)).toBe(true);
+  });
+
+  it('records a near-miss when value matches but footprint differs', () => {
+    const agg = new Map();
+    agg.set('ABC', {
+      lcsc: '', mpn: 'ABCDEFGHIJ', qty: 1, refs: 'R1',
+      value: '1k', desc: '',
+      footprint: 'Resistor_SMD:R_0402_1005Metric_Pad0.72x0.64mm_HandSolder',
+      dnp: false,
+    });
+    const out = matchBOM(agg, [inv0603_1k], [], [], []);
+    expect(out.results).toHaveLength(1);
+    expect(out.results[0].status).toBe('missing');
+    expect(out.footprintNearMisses).toHaveLength(1);
+    const nm = out.footprintNearMisses[0];
+    expect(nm.inv).toBe(inv0603_1k);
+    expect(nm.bomFootprintCode).toBe('0402');
+    expect(nm.invPackage).toBe('0603');
+    expect(nm.bomValue).toBe('1k');
+  });
+
+  it('does not emit a near-miss when the footprint matches', () => {
+    const inv0402_1k = { ...inv0603_1k, lcsc: 'C5678', package: '0402', description: '1kΩ ±1% 62.5mW 0402 Thick Film Resistor' };
+    const agg = new Map();
+    agg.set('ABC', {
+      lcsc: '', mpn: 'ABCDEFGHIJ', qty: 1, refs: 'R1',
+      value: '1k', desc: '',
+      footprint: 'Resistor_SMD:R_0402_1005Metric_Pad0.72x0.64mm_HandSolder',
+      dnp: false,
+    });
+    const out = matchBOM(agg, [inv0402_1k], [], [], []);
+    expect(out.results).toHaveLength(1);
+    expect(out.results[0].status).not.toBe('missing');
+    expect(out.footprintNearMisses).toHaveLength(0);
   });
 });
