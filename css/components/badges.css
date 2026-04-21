@@ -14,3 +14,25 @@
 .chip.pink { background: #db61a220; color: var(--color-pink); border: 1px solid #db61a240; }
 .chip.grey { background: #484f5820; color: var(--color-gray-muted); border: 1px solid #484f5840; }
 .chip.teal { background: #2dd4bf20; color: var(--color-teal); border: 1px solid #2dd4bf40; }
+
+/* Near-miss: value-matching inventory parts that were rejected on footprint grounds. */
+.near-miss-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin-right: 4px;
+  font-size: 12px;
+  line-height: 1;
+  color: #8a5a00;
+  background: rgba(255, 180, 60, 0.25);
+  border: 1px solid rgba(255, 180, 60, 0.6);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.near-miss-badge:hover {
+  background: rgba(255, 180, 60, 0.45);
+}
