@@ -126,6 +126,8 @@ export function footprintsCompatible(bom, invItem) {
   return bomCode === invCode;
 }
 
+// packagesCompatible — legacy substring-based check, retained for export compatibility.
+// New code should use footprintsCompatible, which uses canonical codes.
 export function packagesCompatible(bom, invItem) {
   const bomPkg = (bom.footprint || "").toUpperCase();
   const invPkg = (invItem.package || "").toUpperCase();
@@ -145,7 +147,7 @@ export function valuesCompatible(bom, invItem) {
 
 export function isFuzzyMatchValid(bom, invItem) {
   if (!isPassiveSection(invItem.section)) return true;
-  return packagesCompatible(bom, invItem) && valuesCompatible(bom, invItem);
+  return footprintsCompatible(bom, invItem) && valuesCompatible(bom, invItem);
 }
 
 // ── Normalize float to stable string key (avoids IEEE 754 mismatch) ──
@@ -194,6 +196,7 @@ export function findValueMatch(bom, inventory, invByValue) {
     const candidates = invByValue[key] || [];
     let best = null, bestQty = -1;
     for (let i = 0; i < candidates.length; i++) {
+      if (!footprintsCompatible(bom, candidates[i])) continue;
       if (candidates[i].qty > bestQty) { best = candidates[i]; bestQty = candidates[i].qty; }
     }
     return best;
@@ -211,6 +214,7 @@ export function findValueMatch(bom, inventory, invByValue) {
       if (bomVal === 0 && invVal === 0) { /* match */ }
       else if (bomVal === 0 || invVal === 0) continue;
       else if (Math.abs(bomVal - invVal) / Math.max(Math.abs(bomVal), Math.abs(invVal)) > VALUE_TOLERANCE) continue;
+      if (!footprintsCompatible(bom, item)) continue;
       if (item.qty > bestQty) { best = item; bestQty = item.qty; }
     }
   }
