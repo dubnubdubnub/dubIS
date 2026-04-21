@@ -429,9 +429,33 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, g
       status = "short";
     }
 
+    const matchSignals = {
+      value: false,
+      footprint: false,
+      mpn: false,
+    };
+    if (inv) {
+      if (matchType === 'lcsc' || matchType === 'mpn' || matchType === 'manual' || matchType === 'confirmed') {
+        matchSignals.mpn = true;
+      } else if (matchType === 'fuzzy') {
+        matchSignals.mpn = true;
+        matchSignals.value = valuesCompatible(bom, inv);
+        matchSignals.footprint = footprintsCompatible(bom, inv);
+      } else if (matchType === 'value' || matchType === 'generic') {
+        matchSignals.value = true;
+        matchSignals.footprint = footprintsCompatible(bom, inv);
+      }
+    }
+
     const alts = findAlternatives(bom, inv, invByValue);
 
-    results.push({ bom, inv, status, matchType, alts, genericPartId: genericPartId || null, genericPartName: genericPartName || null, genericMembers: genericMembers || null });
+    results.push({
+      bom, inv, status, matchType, alts,
+      matchSignals,
+      genericPartId: genericPartId || null,
+      genericPartName: genericPartName || null,
+      genericMembers: genericMembers || null,
+    });
   });
 
   return { results, footprintNearMisses };

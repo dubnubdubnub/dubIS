@@ -200,3 +200,54 @@ describe('matchBOM: near-miss tracking and new return shape', () => {
     expect(out.footprintNearMisses).toHaveLength(0);
   });
 });
+
+describe('matchBOM: matchSignals on results', () => {
+  it('marks value+footprint when a value-path match lines up on both', () => {
+    const inv = {
+      lcsc: 'C25076', mpn: '0402WGF1000TCE',
+      section: 'Passives - Resistors > Chip Resistors',
+      package: '0402',
+      description: '100Ω ±1% 62.5mW 0402 Thick Film Resistor',
+      qty: 10,
+    };
+    const agg = new Map();
+    agg.set('K', {
+      lcsc: '', mpn: 'UNKNOWN-MPN', qty: 1, refs: 'R1',
+      value: '100', desc: '',
+      footprint: 'Resistor_SMD:R_0402_1005Metric_Pad0.72x0.64mm_HandSolder',
+      dnp: false,
+    });
+    const { results } = matchBOM(agg, [inv], [], [], []);
+    expect(results[0].matchType).toBe('value');
+    expect(results[0].matchSignals).toEqual({ value: true, footprint: true, mpn: false });
+  });
+
+  it('marks only mpn when matched on LCSC/MPN path', () => {
+    const inv = {
+      lcsc: 'C25076', mpn: '0402WGF1000TCE',
+      section: 'Passives - Resistors > Chip Resistors',
+      package: '0402',
+      description: '100Ω ±1% 62.5mW 0402 Thick Film Resistor',
+      qty: 10,
+    };
+    const agg = new Map();
+    agg.set('K', {
+      lcsc: 'C25076', mpn: '', qty: 1, refs: 'R1',
+      value: '', desc: '', footprint: '', dnp: false,
+    });
+    const { results } = matchBOM(agg, [inv], [], [], []);
+    expect(results[0].matchType).toBe('lcsc');
+    expect(results[0].matchSignals).toEqual({ value: false, footprint: false, mpn: true });
+  });
+
+  it('attaches a null-signal matchSignals object to missing results', () => {
+    const agg = new Map();
+    agg.set('K', {
+      lcsc: '', mpn: 'DOES-NOT-EXIST', qty: 1, refs: 'R1',
+      value: '', desc: '', footprint: '', dnp: false,
+    });
+    const { results } = matchBOM(agg, [], [], [], []);
+    expect(results[0].status).toBe('missing');
+    expect(results[0].matchSignals).toEqual({ value: false, footprint: false, mpn: false });
+  });
+});
