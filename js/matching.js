@@ -242,6 +242,7 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, g
   const maps = buildLookupMaps(inventory);
   const { invByLCSC, invByMPN, invByValue } = maps;
   const results = [];
+  const footprintNearMisses = [];
 
   // Build manual link lookup: bomKey -> invPartKey
   const manualLinkMap = {};
@@ -374,6 +375,34 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, g
       if (inv) matchType = "value";
     }
 
+    // 5a. Near-miss harvest: if nothing matched but there is a same-type, same-value
+    // inventory part whose footprint differs, record it for the inventory panel to surface.
+    if (!inv) {
+      const bomVal = extractBomValue(bom);
+      const bomType = componentTypeFromRefs(bom.refs);
+      const bomCode = extractFootprintCode(bom.footprint);
+      // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
+      if (bomVal != null && bomType && bomCode) {
+        const k = valueKey(bomType, bomVal);
+        const candidates = invByValue[k] || [];
+        for (let i = 0; i < candidates.length; i++) {
+          const cand = candidates[i];
+          const candCode = extractFootprintCode(cand.package);
+          if (candCode && candCode !== bomCode) {
+            footprintNearMisses.push({
+              bomKey: bk,
+              bomRefs: bom.refs || "",
+              bomValue: bom.value || "",
+              bomFootprintCode: bomCode,
+              inv: cand,
+              invPartKey: cand.lcsc || cand.mpn || "",
+              invPackage: cand.package || "",
+            });
+          }
+        }
+      }
+    }
+
     let status;
     if (!inv) {
       status = "missing";
@@ -390,5 +419,5 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, g
     results.push({ bom, inv, status, matchType, alts, genericPartId: genericPartId || null, genericPartName: genericPartName || null, genericMembers: genericMembers || null });
   });
 
-  return results;
+  return { results, footprintNearMisses };
 }
