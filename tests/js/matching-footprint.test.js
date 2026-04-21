@@ -130,4 +130,18 @@ describe('findValueMatch (filters by footprint)', () => {
     const result = findValueMatch(bom, inventory, maps.invByValue);
     expect(result).toBe(inv0402);
   });
+
+  it('rejects in the type-unknown fallback branch when footprint mismatches', () => {
+    // No refs → componentTypeFromRefs returns null → falls into the scan-all-groups path.
+    // This exercises the second footprintsCompatible filter in findValueMatch.
+    const bom = {
+      refs: '', value: '',
+      desc: '120Ω',
+      footprint: 'Resistor_SMD:R_0402_1005Metric_Pad0.72x0.64mm_HandSolder',
+    };
+    const inv0603_120 = { ...inv0603, description: '120Ω ±1% 100mW 0603 Thick Film Resistor' };
+    const inventory = [inv0603_120];
+    const maps = buildLookupMaps(inventory);
+    expect(findValueMatch(bom, inventory, maps.invByValue)).toBeNull();
+  });
 });
