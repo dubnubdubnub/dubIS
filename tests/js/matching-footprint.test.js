@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   extractFootprintCode,
   footprintsCompatible,
+  isFuzzyMatchValid,
+  findValueMatch,
+  buildLookupMaps,
 } from '../../js/matching.js';
 
 describe('extractFootprintCode', () => {
@@ -66,5 +69,65 @@ describe('footprintsCompatible', () => {
       { footprint: 'SOT-23' },
       { package: 'SOT-363' }
     )).toBe(false);
+  });
+});
+
+describe('isFuzzyMatchValid (tightened to canonical footprint)', () => {
+  it('rejects when BOM wants 0402 but inventory is 0603', () => {
+    const bom = { footprint: 'Resistor_SMD:R_0402_1005Metric_Pad0.72x0.64mm_HandSolder', value: '100' };
+    const inv = { package: '0603', section: 'Passives - Resistors > Chip Resistors', description: '100Ω ±1% 100mW 0603 Thick Film Resistor' };
+    expect(isFuzzyMatchValid(bom, inv)).toBe(false);
+  });
+
+  it('accepts when footprints match and values match', () => {
+    const bom = { footprint: 'Resistor_SMD:R_0402_1005Metric_Pad0.72x0.64mm_HandSolder', value: '100' };
+    const inv = { package: '0402', section: 'Passives - Resistors > Chip Resistors', description: '100Ω ±1% 62.5mW 0402 Thick Film Resistor' };
+    expect(isFuzzyMatchValid(bom, inv)).toBe(true);
+  });
+
+  it('falls back to permissive when one side lacks a canonical code', () => {
+    const bom = { footprint: '', value: '100' };
+    const inv = { package: '0402', section: 'Passives - Resistors > Chip Resistors', description: '100Ω ±1% 62.5mW 0402 Thick Film Resistor' };
+    expect(isFuzzyMatchValid(bom, inv)).toBe(true);
+  });
+});
+
+describe('findValueMatch (filters by footprint)', () => {
+  const inv0603 = {
+    lcsc: 'C22936', mpn: '0603WAF100KT5E',
+    section: 'Passives - Resistors > Chip Resistors',
+    package: '0603',
+    description: '1Ω ±1% 100mW 0603 Thick Film Resistor',
+    qty: 100,
+  };
+  const inv0402 = {
+    lcsc: 'C25079', mpn: '0402WGF1200TCE',
+    section: 'Passives - Resistors > Chip Resistors',
+    package: '0402',
+    description: '120Ω ±1% 62.5mW 0402 Thick Film Resistor',
+    qty: 50,
+  };
+
+  it('rejects the 0603 candidate when BOM wants 0402', () => {
+    const bom = {
+      refs: 'R1', value: '1k',
+      footprint: 'Resistor_SMD:R_0402_1005Metric_Pad0.72x0.64mm_HandSolder',
+    };
+    const inv0603_1k = { ...inv0603, description: '1kΩ ±1% 100mW 0603 Thick Film Resistor' };
+    const inventory = [inv0603_1k];
+    const maps = buildLookupMaps(inventory);
+    expect(findValueMatch(bom, inventory, maps.invByValue)).toBeNull();
+  });
+
+  it('accepts the 0402 candidate when BOM wants 0402', () => {
+    const bom = {
+      refs: 'R1', value: '120',
+      footprint: 'Resistor_SMD:R_0402_1005Metric_Pad0.72x0.64mm_HandSolder',
+      desc: '120Ω',  // forces extractBomValue to parse; plain-number path arrives in Task 4
+    };
+    const inventory = [inv0402];
+    const maps = buildLookupMaps(inventory);
+    const result = findValueMatch(bom, inventory, maps.invByValue);
+    expect(result).toBe(inv0402);
   });
 });
