@@ -584,30 +584,36 @@ def run_test(remote_openpnp=None):
             wm_proc = None
             xvfb_display = None
             if sys.platform == "linux":
-                import random
-                subprocess.run(["pkill", "-f", "Xvfb"], capture_output=True)
-                subprocess.run(["pkill", "-f", "matchbox-window-manager"], capture_output=True)
+                # Derive a stable display number from RUNNER_NAME so two runners
+                # on the same host (e.g. ux430 + ux430-2) never collide. Without
+                # this, a blanket `pkill -f Xvfb` would kill peer jobs' displays.
+                import hashlib
+                runner_name = os.environ.get("RUNNER_NAME") or os.environ.get("USER", "local")
+                display_num = 50 + int(hashlib.sha1(runner_name.encode()).hexdigest(), 16) % 100
+                xvfb_display = f":{display_num}"
+
+                # Clean up only stale processes on OUR display from a prior crashed
+                # run on this same runner. The trailing space and -screen anchor
+                # match `Xvfb :NN -screen ...` exactly so we never match `:NN<x>`.
+                subprocess.run(
+                    ["pkill", "-f", f"Xvfb {xvfb_display} -screen"],
+                    capture_output=True,
+                )
                 time.sleep(0.5)
 
-                for _ in range(5):
-                    display_num = random.randint(50, 200)
-                    xvfb_display = f":{display_num}"
-                    xvfb_proc = subprocess.Popen(
-                        ["Xvfb", xvfb_display, "-screen", "0", "1024x768x24", "-nolisten", "tcp"],
-                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                    )
-                    time.sleep(1)
-                    if xvfb_proc.poll() is None:
-                        break
+                xvfb_proc = subprocess.Popen(
+                    ["Xvfb", xvfb_display, "-screen", "0", "1024x768x24", "-nolisten", "tcp"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                )
+                time.sleep(1)
+                if xvfb_proc.poll() is not None:
                     stderr = xvfb_proc.stderr.read().decode(errors="replace")
-                    print(f"[e2e] Xvfb {xvfb_display} failed: {stderr.strip()}")
-                    xvfb_proc = None
-
-                if xvfb_proc is None:
-                    raise RuntimeError("Could not start Xvfb on any display")
+                    raise RuntimeError(
+                        f"Xvfb {xvfb_display} failed (runner={runner_name}): {stderr.strip()}"
+                    )
 
                 env["DISPLAY"] = xvfb_display
-                print(f"[e2e] Xvfb started on {xvfb_display}")
+                print(f"[e2e] Xvfb started on {xvfb_display} (runner={runner_name})")
 
                 try:
                     wm_proc = subprocess.Popen(
