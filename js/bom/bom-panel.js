@@ -100,7 +100,7 @@ function renderBomPanel(rows) {
     : new Set();
 
   // Render staging table
-  document.getElementById("bom-thead").innerHTML = renderStagingHead(state.bomHeaders);
+  document.getElementById("bom-thead").innerHTML = renderStagingHead(state.bomHeaders, state.bomCols);
 
   const tbody = document.getElementById("bom-tbody");
   let tbodyHtml = "";
