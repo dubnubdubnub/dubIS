@@ -35,6 +35,7 @@ export function setupEvents(handlers) {
   state.searchInput.addEventListener("input", function () {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(function () {
+      updateDistFilterUI();
       render();
       // Sync to active flyout
       import('../group-flyout/flyout-state.js').then(function (flyoutState) {
@@ -62,8 +63,9 @@ export function setupEvents(handlers) {
   });
 
   state.clearFilterBtn.addEventListener("click", function () {
-    if (state.activeDistributors.size === 0) return;
+    if (state.activeDistributors.size === 0 && !state.searchInput.value) return;
     state.activeDistributors.clear();
+    state.searchInput.value = "";
     updateDistFilterUI();
     render();
   });
