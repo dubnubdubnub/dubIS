@@ -4,6 +4,7 @@
    STATUS_ROW_CLASS (from part-keys.js). */
 
 import { bomKey, STATUS_ICONS, STATUS_ROW_CLASS } from './part-keys.js';
+import { extractFootprintCode } from './matching.js';
 
 export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState, expandedMembers) {
   var st = r.effectiveStatus;
@@ -106,6 +107,16 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
   // so users can manage groups for value-only BOM rows that fuzzy-matched inventory.
   var showGroupFlyout = !!(r.genericPartId) || ((st === "missing" || st === "possible") && !!(r.bom.value || r.bom.footprint));
 
+  // ── Footprint confirmation hint (only meaningful for value/fuzzy matches) ──
+  var footprintConfirmed = false;
+  var footprintCode = null;
+  if (r.matchSignals && (r.matchType === 'value' || r.matchType === 'fuzzy')) {
+    if (r.matchSignals.value && r.matchSignals.footprint) {
+      footprintConfirmed = true;
+      footprintCode = extractFootprintCode(r.bom.footprint) || extractFootprintCode(r.inv && r.inv.package) || null;
+    }
+  }
+
   // ── Button visibility ──
   var showConfirm = st === "possible" && hasInv;
   var showUnconfirm = (st === "confirmed" || st === "confirmed-short") && hasInv;
@@ -165,5 +176,7 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
     bomFootprint: r.bom.footprint || "",
     bomRefs: r.bom.refs || "",
     hasInv: hasInv,
+    footprintConfirmed: footprintConfirmed,
+    footprintCode: footprintCode,
   };
 }

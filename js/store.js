@@ -13,6 +13,7 @@ let bomFileName = "";
 let bomHeaders = [];
 let bomCols = {};
 let bomDirty = false;
+let bomFootprintNearMisses = [];
 let preferences = { thresholds: {} };
 let manualLinks = [];
 let confirmedMatches = [];
@@ -80,6 +81,7 @@ export const store = {
   get bomCols() { return bomCols; },
   set bomCols(v) { bomCols = v; },
   get bomDirty() { return bomDirty; },
+  get bomFootprintNearMisses() { return bomFootprintNearMisses; },
   get preferences() { return preferences; },
   get genericParts() { return genericParts; },
   set genericParts(v) { genericParts = v; },
@@ -95,6 +97,8 @@ export function setInventory(items) { inventory = items; }
 // NOTE: setInventory does NOT emit events --- callers (loadInventory, onInventoryUpdated) handle that
 
 export function setBomResults(results) { bomResults = results; }
+
+export function setBomFootprintNearMisses(nm) { bomFootprintNearMisses = nm || []; }
 
 export function setBomMeta({ fileName, headers, cols } = {}) {
   if (fileName !== undefined) bomFileName = fileName;

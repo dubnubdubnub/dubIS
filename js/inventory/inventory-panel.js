@@ -215,6 +215,10 @@ function createPartRow(item, sectionKey) {
   row.draggable = true;
   row.dataset.partId = invPartKey(item);
 
+  var pk = invPartKey(item).toUpperCase();
+  var nearMiss = state.nearMissMap ? state.nearMissMap.get(pk) : null;
+  if (nearMiss) row.classList.add("inv-row-near-miss");
+
   var isSource = store.links.linkingMode && store.links.linkingInvItem === item;
   var html = renderPartRowHtml(item, {
     hideDescs: state.hideDescs,
@@ -224,6 +228,7 @@ function createPartRow(item, sectionKey) {
     sectionKey: sectionKey,
     threshold: getThreshold(sectionKey),
     genericParts: store.genericParts,
+    nearMiss: nearMiss || null,
   });
   row.innerHTML = html;
 
@@ -267,12 +272,35 @@ function createPartRow(item, sectionKey) {
     });
   }
 
+  var nmBadge = row.querySelector(".near-miss-badge");
+  if (nmBadge) {
+    nmBadge.addEventListener("click", function (e) {
+      e.stopPropagation();
+      store.links.setLinkingMode(true, item);
+    });
+  }
+
   return row;
 }
 
 // ── Remaining inventory (after BOM comparison) ──
 
+function buildNearMissMap() {
+  var map = new Map();
+  var list = store.bomFootprintNearMisses || [];
+  for (var i = 0; i < list.length; i++) {
+    var nm = list[i];
+    if (!nm.inv) continue;
+    var key = invPartKey(nm.inv).toUpperCase();
+    // Keep first occurrence per inventory key; subsequent near-misses for the same
+    // inventory item are tolerated but not shown in the badge.
+    if (!map.has(key)) map.set(key, nm);
+  }
+  return map;
+}
+
 function renderRemainingInventory(matchedInvKeys, query) {
+  state.nearMissMap = buildNearMissMap();
   var otherParts = {};
   for (var i = 0; i < store.inventory.length; i++) {
     var item = store.inventory[i];

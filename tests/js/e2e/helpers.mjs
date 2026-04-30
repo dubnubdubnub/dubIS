@@ -89,7 +89,7 @@ export async function loadBom(page, bomCsv) {
     const result = processBOM(csv, 'test-bom.csv');
     if (!result) throw new Error('processBOM returned null');
     const { headers, cols, aggregated } = result;
-    const results = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches);
+    const { results } = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches);
     store.bomResults = results;
     store.bomHeaders = headers;
     store.bomCols = cols;
@@ -114,7 +114,7 @@ export async function loadBomViaEmit(page, bomCsv) {
     const { headers, cols, aggregated } = result;
     store.bomHeaders = headers;
     store.bomCols = cols;
-    const results = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches);
+    const { results } = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches);
     store.bomResults = results;
     store.bomFileName = 'test-bom.csv';
     const rows = results.map(r => {

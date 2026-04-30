@@ -5,7 +5,7 @@ import { EventBus, Events } from '../event-bus.js';
 import { api, AppLog } from '../api.js';
 import { showToast, Modal, setupDropZone, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { store, setBomResults, setBomMeta, snapshotLinks, savePreferences } from '../store.js';
+import { store, setBomResults, setBomFootprintNearMisses, setBomMeta, snapshotLinks, savePreferences } from '../store.js';
 import { bomKey, invPartKey, countStatuses, rawRowAggKey } from '../part-keys.js';
 import { processBOM, aggregateBomRows } from '../csv-parser.js';
 import { matchBOM } from '../matching.js';
@@ -27,9 +27,10 @@ function aggregateFromRawRows() {
 
 function reprocessAndRender() {
   const aggregated = aggregateFromRawRows();
-  const results = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches, store.genericParts);
+  const { results, footprintNearMisses } = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches, store.genericParts);
   state.lastResults = results;
   setBomResults(results);
+  setBomFootprintNearMisses(footprintNearMisses);
   setBomMeta({ headers: state.bomHeaders, cols: state.bomCols });
   emitBomData();
 }
@@ -177,10 +178,11 @@ function loadBomText(text, fileName, savedLinks) {
   });
 
   // Match
-  const results = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches, store.genericParts);
+  const { results, footprintNearMisses } = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches, store.genericParts);
   state.lastResults = results;
   state.lastFileName = fileName;
   setBomResults(results);
+  setBomFootprintNearMisses(footprintNearMisses);
   setBomMeta({ fileName });
 
   // Log summary

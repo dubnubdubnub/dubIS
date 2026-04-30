@@ -117,7 +117,7 @@ describe('matchBOM performance', () => {
     const bom = bomMap(bomEntries);
 
     const start = performance.now();
-    const results = matchBOM(bom, inventory, null, null);
+    const { results } = matchBOM(bom, inventory, null, null);
     const elapsed = performance.now() - start;
 
     expect(results).toHaveLength(150);
@@ -130,7 +130,7 @@ describe('matchBOM performance', () => {
     const bom = bomMap(bomEntries);
 
     const start = performance.now();
-    const results = matchBOM(bom, inventory, null, null);
+    const { results } = matchBOM(bom, inventory, null, null);
     const elapsed = performance.now() - start;
 
     expect(results).toHaveLength(300);
@@ -143,7 +143,7 @@ describe('matchBOM performance', () => {
     const bom = bomMap(bomEntries);
 
     const start = performance.now();
-    const results = matchBOM(bom, inventory, null, null);
+    const { results } = matchBOM(bom, inventory, null, null);
     const elapsed = performance.now() - start;
 
     expect(results).toHaveLength(500);
@@ -157,7 +157,7 @@ describe('matchBOM correctness at scale', () => {
   const inventory = generateInventory(500);
   const bomEntries = generateBOM(150, inventory);
   const bom = bomMap(bomEntries);
-  const results = matchBOM(bom, inventory, null, null);
+  const { results } = matchBOM(bom, inventory, null, null);
 
   it('every result has bom, inv, status, and matchType', () => {
     results.forEach(r => {
@@ -268,7 +268,7 @@ describe('matchBOM with manual links at scale', () => {
       }
     }
 
-    const results = matchBOM(bom, inventory, manualLinks, null);
+    const { results } = matchBOM(bom, inventory, manualLinks, null);
     const manualResults = results.filter(r => r.matchType === 'manual');
 
     // At least some manual links should have resolved

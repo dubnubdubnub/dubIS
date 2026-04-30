@@ -43,6 +43,17 @@ export function extractValueFromDesc(desc) {
 
 // ── Extract BOM value (tries value then desc, both parseEE and extractFromDesc) ──
 
+// Plain-number fallback specifically for resistors — only applied when the BOM row's
+// refs prefix identifies the component as a resistor. Capacitors/inductors remain
+// strict (plain numbers are ambiguous for those).
+function parseResistorPlainNumber(str) {
+  if (!str) return null;
+  const trimmed = String(str).trim();
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) return null;
+  const n = parseFloat(trimmed);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function extractBomValue(bom) {
   let val = parseEEValue(bom.value);
   // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
@@ -51,6 +62,10 @@ export function extractBomValue(bom) {
   if (val == null) val = parseEEValue(bom.desc);
   // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
   if (val == null) val = extractValueFromDesc(bom.desc);
+  // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
+  if (val == null && componentTypeFromRefs(bom.refs) === 'R') {
+    val = parseResistorPlainNumber(bom.value);
+  }
   return val;
 }
 
@@ -75,6 +90,59 @@ export function isPassiveSection(section) {
   return /Resistor|Capacitor|Inductor/i.test(section || "");
 }
 
+// ── Canonical footprint extraction ──
+// Whitelist of known package codes. Word-boundary anchored so MPN-like strings
+// (e.g. "0603WAF0000T5E") do not match "0603". Only ever called on bom.footprint
+// and invItem.package — never on MPN or description fields.
+const FOOTPRINT_WHITELIST = [
+  // Chip passives
+  '0201', '0402', '0603', '0805', '1206', '1210', '1812', '2010', '2512',
+  // SOT family
+  'SOT-23-5', 'SOT-23-6', 'SOT-23', 'SOT-323', 'SOT-363', 'SOT-89', 'SOT-223',
+  // SOIC / MSOP / VSSOP / TSSOP / SSOP
+  'SOIC-8', 'SOIC-14', 'SOIC-16',
+  'MSOP-8', 'MSOP-10',
+  'VSSOP-8', 'VSSOP-10',
+  'TSSOP-8', 'TSSOP-14', 'TSSOP-16', 'TSSOP-20',
+  // Diode packages
+  'SOD-123', 'SOD-323', 'SOD-523',
+  'DO-214AA', 'DO-214AC', 'DO-214',
+  // Leadless / fine-pitch (with numeric suffix)
+  'QFN-16', 'QFN-20', 'QFN-24', 'QFN-32', 'QFN-48', 'QFN-64',
+  'DFN-6', 'DFN-8', 'DFN-10',
+  'LQFP-32', 'LQFP-48', 'LQFP-64', 'LQFP-100', 'LQFP-144',
+  'TQFP-32', 'TQFP-48', 'TQFP-64', 'TQFP-100',
+];
+
+// Pre-compiled regex: matches any whitelist entry at a word boundary, longest first.
+const FOOTPRINT_REGEX = new RegExp(
+  '(?:^|[^A-Za-z0-9])(' +
+    [...FOOTPRINT_WHITELIST].sort((a, b) => b.length - a.length)
+      .map(c => c.replace(/-/g, '\\-'))
+      .join('|') +
+  ')(?=[^A-Za-z0-9]|$)',
+  'i'
+);
+
+export function extractFootprintCode(str) {
+  if (!str) return null;
+  const m = String(str).match(FOOTPRINT_REGEX);
+  if (!m) return null;
+  const raw = m[1].toUpperCase();
+  // Normalize to the canonical whitelist spelling (preserves exact hyphenation).
+  const canonical = FOOTPRINT_WHITELIST.find(c => c.toUpperCase() === raw);
+  return canonical || raw;
+}
+
+export function footprintsCompatible(bom, invItem) {
+  const bomCode = extractFootprintCode(bom.footprint);
+  const invCode = extractFootprintCode(invItem.package);
+  if (!bomCode || !invCode) return true;
+  return bomCode === invCode;
+}
+
+// packagesCompatible — legacy substring-based check, retained for export compatibility.
+// New code should use footprintsCompatible, which uses canonical codes.
 export function packagesCompatible(bom, invItem) {
   const bomPkg = (bom.footprint || "").toUpperCase();
   const invPkg = (invItem.package || "").toUpperCase();
@@ -94,7 +162,7 @@ export function valuesCompatible(bom, invItem) {
 
 export function isFuzzyMatchValid(bom, invItem) {
   if (!isPassiveSection(invItem.section)) return true;
-  return packagesCompatible(bom, invItem) && valuesCompatible(bom, invItem);
+  return footprintsCompatible(bom, invItem) && valuesCompatible(bom, invItem);
 }
 
 // ── Normalize float to stable string key (avoids IEEE 754 mismatch) ──
@@ -143,6 +211,7 @@ export function findValueMatch(bom, inventory, invByValue) {
     const candidates = invByValue[key] || [];
     let best = null, bestQty = -1;
     for (let i = 0; i < candidates.length; i++) {
+      if (!footprintsCompatible(bom, candidates[i])) continue;
       if (candidates[i].qty > bestQty) { best = candidates[i]; bestQty = candidates[i].qty; }
     }
     return best;
@@ -160,6 +229,7 @@ export function findValueMatch(bom, inventory, invByValue) {
       if (bomVal === 0 && invVal === 0) { /* match */ }
       else if (bomVal === 0 || invVal === 0) continue;
       else if (Math.abs(bomVal - invVal) / Math.max(Math.abs(bomVal), Math.abs(invVal)) > VALUE_TOLERANCE) continue;
+      if (!footprintsCompatible(bom, item)) continue;
       if (item.qty > bestQty) { best = item; bestQty = item.qty; }
     }
   }
@@ -187,6 +257,7 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, g
   const maps = buildLookupMaps(inventory);
   const { invByLCSC, invByMPN, invByValue } = maps;
   const results = [];
+  const footprintNearMisses = [];
 
   // Build manual link lookup: bomKey -> invPartKey
   const manualLinkMap = {};
@@ -319,6 +390,34 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, g
       if (inv) matchType = "value";
     }
 
+    // 5a. Near-miss harvest: if nothing matched but there is a same-type, same-value
+    // inventory part whose footprint differs, record it for the inventory panel to surface.
+    if (!inv) {
+      const bomVal = extractBomValue(bom);
+      const bomType = componentTypeFromRefs(bom.refs);
+      const bomCode = extractFootprintCode(bom.footprint);
+      // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
+      if (bomVal != null && bomType && bomCode) {
+        const k = valueKey(bomType, bomVal);
+        const candidates = invByValue[k] || [];
+        for (let i = 0; i < candidates.length; i++) {
+          const cand = candidates[i];
+          const candCode = extractFootprintCode(cand.package);
+          if (candCode && candCode !== bomCode) {
+            footprintNearMisses.push({
+              bomKey: bk,
+              bomRefs: bom.refs || "",
+              bomValue: bom.value || "",
+              bomFootprintCode: bomCode,
+              inv: cand,
+              invPartKey: cand.lcsc || cand.mpn || "",
+              invPackage: cand.package || "",
+            });
+          }
+        }
+      }
+    }
+
     let status;
     if (!inv) {
       status = "missing";
@@ -330,10 +429,34 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, g
       status = "short";
     }
 
+    const matchSignals = {
+      value: false,
+      footprint: false,
+      mpn: false,
+    };
+    if (inv) {
+      if (matchType === 'lcsc' || matchType === 'mpn' || matchType === 'manual' || matchType === 'confirmed') {
+        matchSignals.mpn = true;
+      } else if (matchType === 'fuzzy') {
+        matchSignals.mpn = true;
+        matchSignals.value = valuesCompatible(bom, inv);
+        matchSignals.footprint = footprintsCompatible(bom, inv);
+      } else if (matchType === 'value' || matchType === 'generic') {
+        matchSignals.value = true;
+        matchSignals.footprint = footprintsCompatible(bom, inv);
+      }
+    }
+
     const alts = findAlternatives(bom, inv, invByValue);
 
-    results.push({ bom, inv, status, matchType, alts, genericPartId: genericPartId || null, genericPartName: genericPartName || null, genericMembers: genericMembers || null });
+    results.push({
+      bom, inv, status, matchType, alts,
+      matchSignals,
+      genericPartId: genericPartId || null,
+      genericPartName: genericPartName || null,
+      genericMembers: genericMembers || null,
+    });
   });
 
-  return results;
+  return { results, footprintNearMisses };
 }

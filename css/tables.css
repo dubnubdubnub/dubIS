@@ -250,3 +250,8 @@ td.btn-group button + button { margin-left: 6px; }
 
 /* ── Vendor Icons ─────────────────────────────────────── */
 .vendor-icon { width: 12px; height: 12px; margin-right: 2px; flex-shrink: 0; }
+
+/* Near-miss: value-matching inventory parts that were rejected on footprint grounds. */
+.inv-row-near-miss {
+  background-color: rgba(255, 180, 60, 0.10);
+}
