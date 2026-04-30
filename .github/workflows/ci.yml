@@ -128,7 +128,7 @@ jobs:
               package.json|package-lock.json)            JS=true ;;
               tsconfig.json|eslint.config.*)             JS=true ;;
               vitest.config.*|playwright.config.*)       JS=true; QUALITY=true ;;
-              tests/js/*|tests/e2e/*|tests/fixtures/*)   JS=true ;;
+              tests/js/*|tests/e2e*|tests/fixtures/*)    JS=true ;;
               pnp_server.py|tests/pnp-e2e/*)            PNP=true; PY=true ;;
               openpnp/*|tests/openpnp-config/*)          PNP=true ;;
               *.py|requirements*.txt)                    PY=true ;;
@@ -226,6 +226,16 @@ jobs:
       - name: Playwright E2E
         if: needs.parse-tags.outputs.run_js == 'true'
         run: npx playwright test --project functional
+      - name: Install Python deps for live E2E
+        if: >-
+          matrix.install-pw &&
+          needs.parse-tags.outputs.run_js == 'true'
+        run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
+      - name: Live-backend E2E
+        if: >-
+          matrix.install-pw &&
+          needs.parse-tags.outputs.run_js == 'true'
+        run: npx playwright test --project live --workers 1
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

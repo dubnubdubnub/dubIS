@@ -1,14 +1,12 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-import { startServer, addLiveSetup, waitForInventoryRows } from './live-helpers.mjs';
+import { resetServer, setupPage } from './setup-page.mjs';
+import { waitForInventoryRows } from '../helpers.mjs';
 
 test.describe('Inventory search', () => {
-  let server;
-  test.beforeAll(async () => { server = await startServer(); });
-  test.afterAll(async () => { await server.cleanup(); });
   test.beforeEach(async ({ page }) => {
-    await server.reset();
-    await addLiveSetup(page, server.url);
+    await resetServer();
+    await setupPage(page);
     await page.goto('/index.html');
     await waitForInventoryRows(page);
   });

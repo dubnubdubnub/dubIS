@@ -2,18 +2,16 @@
 import { test, expect } from '@playwright/test';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startServer, addLiveSetup, waitForInventoryRows, loadPurchaseOrder } from './live-helpers.mjs';
+import { resetServer, setupPage } from './setup-page.mjs';
+import { waitForInventoryRows, loadPurchaseOrder } from '../helpers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const IMPORT_CSV = join(__dirname, 'fixtures', 'e2e-import.csv');
+const IMPORT_CSV = join(__dirname, '..', 'fixtures', 'e2e-import.csv');
 
 test.describe('Import workflow', () => {
-  let server;
-  test.beforeAll(async () => { server = await startServer(); });
-  test.afterAll(async () => { await server.cleanup(); });
   test.beforeEach(async ({ page }) => {
-    await server.reset();
-    await addLiveSetup(page, server.url);
+    await resetServer();
+    await setupPage(page);
     await page.goto('/index.html');
     await waitForInventoryRows(page);
   });
