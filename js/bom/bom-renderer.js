@@ -110,9 +110,12 @@ export function renderLinkingBanner(linkingMode) {
  * @param {string[]} headers
  * @returns {string}
  */
-export function renderStagingHead(headers) {
+export function renderStagingHead(headers, bomCols) {
   let html = '<tr><th class="row-delete"></th><th style="width:24px"></th>';
-  headers.forEach(h => { html += `<th>${escHtml(h)}</th>`; });
+  headers.forEach((h, ci) => {
+    var cls = (bomCols && ci === bomCols.ref) ? ' class="refs-col"' : '';
+    html += `<th${cls}>${escHtml(h)}</th>`;
+  });
   html += '</tr>';
   return html;
 }
