@@ -461,21 +461,41 @@ class DigikeyClient(BaseProductClient):
                 final_url = self._window.evaluate_js("window.location.href") or ""
                 logger.debug("DK fetch: final URL = %s", final_url)
 
+                # Detect login/auth redirects
+                if "/login" in final_url.lower() or "/mydigikey" in final_url.lower():
+                    logger.warning(
+                        "DK fetch: redirected to login page (%s) — session may have expired",
+                        final_url,
+                    )
+                    return None
+
                 result = self._window.evaluate_js(
                     "(function() {"
+                    "  function findProduct(obj) {"
+                    "    if (!obj || typeof obj !== 'object') return null;"
+                    "    if (obj['@type'] === 'Product') return obj;"
+                    "    if (Array.isArray(obj)) {"
+                    "      for (var i = 0; i < obj.length; i++) {"
+                    "        var r = findProduct(obj[i]);"
+                    "        if (r) return r;"
+                    "      }"
+                    "    }"
+                    # @graph is used by some JSON-LD schemas (array of entities)
+                    "    if (Array.isArray(obj['@graph'])) {"
+                    "      for (var j = 0; j < obj['@graph'].length; j++) {"
+                    "        var r2 = findProduct(obj['@graph'][j]);"
+                    "        if (r2) return r2;"
+                    "      }"
+                    "    }"
+                    "    return null;"
+                    "  }"
                     # Strategy 1: JSON-LD structured data
                     "  var scripts = document.querySelectorAll("
                     "    'script[type=\"application/ld+json\"]');"
                     "  for (var i = 0; i < scripts.length; i++) {"
                     "    try {"
                     "      var ld = JSON.parse(scripts[i].textContent);"
-                    "      var prod = null;"
-                    "      if (ld['@type'] === 'Product') prod = ld;"
-                    "      if (!prod && Array.isArray(ld)) {"
-                    "        for (var j = 0; j < ld.length; j++) {"
-                    "          if (ld[j]['@type'] === 'Product') { prod = ld[j]; break; }"
-                    "        }"
-                    "      }"
+                    "      var prod = findProduct(ld);"
                     "      if (prod) {"
                     "        try {"
                     "          var bt = document.body.innerText || '';"
@@ -495,7 +515,33 @@ class DigikeyClient(BaseProductClient):
                     "      if (pp) return {_source: 'nextdata', _props: pp};"
                     "    } catch(e) {}"
                     "  }"
-                    "  return null;"
+                    # Strategy 3: Next.js App Router RSC payload
+                    "  var rscScripts = document.querySelectorAll("
+                    "    'script');"
+                    "  for (var k = 0; k < rscScripts.length; k++) {"
+                    "    var txt = rscScripts[k].textContent || '';"
+                    "    if (txt.indexOf('self.__next_f.push') !== -1) {"
+                    "      return {_source: 'diag', _reason: 'next_app_router_rsc',"
+                    "        _hint: 'Page uses Next.js App Router (RSC), not Pages Router'};"
+                    "    }"
+                    "  }"
+                    # No data found — return diagnostics
+                    "  var ldCount = scripts.length;"
+                    "  var ldTypes = [];"
+                    "  for (var m = 0; m < scripts.length; m++) {"
+                    "    try {"
+                    "      var p = JSON.parse(scripts[m].textContent);"
+                    "      ldTypes.push(p['@type'] || (p['@graph'] ? '@graph['+p['@graph'].length+']' : typeof p));"
+                    "    } catch(e) { ldTypes.push('parse_error'); }"
+                    "  }"
+                    "  return {_source: 'diag',"
+                    "    _reason: 'no_product_data',"
+                    "    _url: window.location.href,"
+                    "    _title: document.title,"
+                    "    _ldCount: ldCount,"
+                    "    _ldTypes: ldTypes,"
+                    "    _hasNextData: !!document.getElementById('__NEXT_DATA__'),"
+                    "    _scriptCount: document.querySelectorAll('script').length};"
                     "})()"
                 )
                 logger.debug(
@@ -522,6 +568,22 @@ class DigikeyClient(BaseProductClient):
 
         if not result or not isinstance(result, dict):
             logger.debug("DK fetch: no product data for %s", part_number)
+            return None
+
+        # Diagnostic envelope — log details and return None
+        if result.get("_source") == "diag":
+            logger.warning(
+                "DK fetch: scrape failed for %s — %s (url=%s, title=%r, "
+                "ld_count=%s, ld_types=%s, has_next_data=%s, scripts=%s)",
+                part_number,
+                result.get("_reason"),
+                result.get("_url"),
+                result.get("_title"),
+                result.get("_ldCount"),
+                result.get("_ldTypes"),
+                result.get("_hasNextData"),
+                result.get("_scriptCount"),
+            )
             return None
 
         product = normalize_result(result, part_number)

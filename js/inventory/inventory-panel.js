@@ -60,7 +60,7 @@ function updateDistFilterUI() {
   for (var i = 0; i < btns.length; i++) {
     btns[i].classList.toggle("active", state.activeDistributors.has(btns[i].dataset.distributor));
   }
-  state.clearFilterBtn.disabled = (state.activeDistributors.size === 0);
+  state.clearFilterBtn.disabled = (state.activeDistributors.size === 0 && !state.searchInput.value);
 }
 
 function updateDistCounts() {
