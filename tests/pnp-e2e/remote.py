@@ -131,9 +131,13 @@ def launch_openpnp(host: str, openpnp_bin: str = "/usr/local/bin/openpnp.sh",
     platform = stdout.read().decode().strip().lower()
 
     if platform == "linux":
-        # Kill any stale Xvfb or OpenPnP from previous runs (ignore errors)
+        # Kill stale Xvfb on OUR display only — not peer pnp-e2e jobs running
+        # on the same remote host with their own RUNNER_NAME-derived displays.
+        # The -screen anchor matches `Xvfb :42 -screen ...` exactly.
+        display = ":42"
         _, _, stderr = client.exec_command(
-            "pkill -9 -f Xvfb 2>/dev/null; pkill -9 -f openpnp 2>/dev/null; sleep 1",
+            f"pkill -9 -f 'Xvfb {display} -screen' 2>/dev/null; "
+            "pkill -9 -f openpnp 2>/dev/null; sleep 1",
             timeout=15,
         )
         try:
@@ -141,8 +145,7 @@ def launch_openpnp(host: str, openpnp_bin: str = "/usr/local/bin/openpnp.sh",
         except Exception:
             pass
 
-        # Start Xvfb on a unique display (fire-and-forget with nohup)
-        display = ":42"
+        # Start Xvfb on display :42 (fire-and-forget with nohup)
         _, xout, _ = client.exec_command(
             f"nohup Xvfb {display} -screen 0 1024x768x24 -nolisten tcp "
             f">/dev/null 2>&1 & sleep 2 && echo OK",
