@@ -40,3 +40,16 @@ export async function api(method, ...args) {
     return undefined;
   }
 }
+
+// pywebview hydrates the JS bridge in two phases: api.js creates `window.pywebview = { api: {} }`
+// (a truthy empty placeholder), then finish.js calls _createApi(funcList) and dispatches
+// `pywebviewready`. Code that calls API methods before phase 2 hits "is not a function".
+// Probe for a known stable method to distinguish the placeholder from a hydrated bridge.
+export function whenPywebviewReady() {
+  if (typeof window.pywebview?.api?.load_preferences === "function") {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    window.addEventListener("pywebviewready", () => resolve(), { once: true });
+  });
+}

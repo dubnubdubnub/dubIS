@@ -1,7 +1,7 @@
 /* app-init.js — Application entry point: wires up modals, global shortcuts, loads inventory */
 
 import { EventBus, Events } from './event-bus.js';
-import { api, AppLog } from './api.js';
+import { api, AppLog, whenPywebviewReady } from './api.js';
 import { showToast, Modal } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
 import { store, loadPreferences, loadInventory, onInventoryUpdated } from './store.js';
@@ -30,10 +30,6 @@ window.REF_COLOR_MAP = REF_COLOR_MAP;
 
 // ── Init on pywebview ready ────────────────────────────
 async function initApp() {
-  if (window.pywebview && window.pywebview.api) {
-    await loadPreferences();
-  }
-
   // Initialize panels (explicit, no side-effect imports)
   initResizePanels();
   initInventoryModals();
@@ -169,22 +165,13 @@ async function initApp() {
     }
   });
 
-  if (window.pywebview && window.pywebview.api) {
-    loadInventory();
-    api("check_digikey_session").then(function (r) {
-      if (r && r.logged_in) AppLog.info("Digikey: existing session found");
-      else if (r && r.message) AppLog.info("DK: " + r.message);
-    });
-  } else {
-    window.addEventListener("pywebviewready", async () => {
-      await loadPreferences();
-      loadInventory();
-      api("check_digikey_session").then(function (r) {
-        if (r && r.logged_in) AppLog.info("Digikey: existing session found");
-        else if (r && r.message) AppLog.info("DK: " + r.message);
-      });
-    });
-  }
+  await whenPywebviewReady();
+  await loadPreferences();
+  loadInventory();
+  api("check_digikey_session").then(function (r) {
+    if (r && r.logged_in) AppLog.info("Digikey: existing session found");
+    else if (r && r.message) AppLog.info("DK: " + r.message);
+  });
 }
 
 if (document.readyState === "complete") {
