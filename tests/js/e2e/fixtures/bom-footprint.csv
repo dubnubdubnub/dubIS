@@ -1,0 +1,3 @@
+Item,Qty,Reference(s),Value,LibPart,Footprint,Datasheet,DigiKey P/N,I2C addr,Manufacturer,Mfg P/N
+1,1,R1,1k,Device:R,Resistor_SMD:R_0402_1005Metric_Pad0.72x0.64mm_HandSolder,~,,,Yageo,RC0402FR-071KL
+2,2,"R2, R5",620,Device:R,Resistor_SMD:R_0402_1005Metric_Pad0.72x0.64mm_HandSolder,~,,,Yageo,RC0402FR-07620RL

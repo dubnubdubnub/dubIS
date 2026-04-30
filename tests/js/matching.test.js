@@ -293,14 +293,14 @@ describe('matchBOM', () => {
   }
 
   it('returns empty for empty inputs', () => {
-    const results = matchBOM(new Map(), [], null, null);
+    const { results } = matchBOM(new Map(), [], null, null);
     expect(results).toEqual([]);
   });
 
   it('matches by LCSC exact match', () => {
     const inv = [{ lcsc: 'C123456', mpn: 'MPN1', section: 'Other', description: '', qty: 10 }];
     const bom = bomMap([{ lcsc: 'C123456', mpn: '', value: '', desc: '', refs: 'U1', qty: 1, footprint: '' }]);
-    const results = matchBOM(bom, inv, null, null);
+    const { results } = matchBOM(bom, inv, null, null);
     expect(results[0].matchType).toBe('lcsc');
     expect(results[0].inv).toBe(inv[0]);
   });
@@ -308,35 +308,35 @@ describe('matchBOM', () => {
   it('matches by MPN exact match', () => {
     const inv = [{ lcsc: '', mpn: 'STM32F405', section: 'Other', description: '', qty: 10 }];
     const bom = bomMap([{ lcsc: '', mpn: 'STM32F405', value: '', desc: '', refs: 'U1', qty: 1, footprint: '' }]);
-    const results = matchBOM(bom, inv, null, null);
+    const { results } = matchBOM(bom, inv, null, null);
     expect(results[0].matchType).toBe('mpn');
   });
 
   it('matches by MPN with underscore/dot normalization', () => {
     const inv = [{ lcsc: '', mpn: 'STM32F405.RGT6', section: 'Other', description: '', qty: 10 }];
     const bom = bomMap([{ lcsc: '', mpn: 'STM32F405_RGT6', value: '', desc: '', refs: 'U1', qty: 1, footprint: '' }]);
-    const results = matchBOM(bom, inv, null, null);
+    const { results } = matchBOM(bom, inv, null, null);
     expect(results[0].matchType).toBe('mpn');
   });
 
   it('matches by MPN prefix', () => {
     const inv = [{ lcsc: '', mpn: 'STM32F405RGT6XX', section: 'Other', description: '', qty: 10, package: '' }];
     const bom = bomMap([{ lcsc: '', mpn: 'STM32F405RGT6', value: '', desc: '', refs: 'U1', qty: 1, footprint: '' }]);
-    const results = matchBOM(bom, inv, null, null);
+    const { results } = matchBOM(bom, inv, null, null);
     expect(results[0].matchType).toBe('mpn');
   });
 
   it('matches by fuzzy MPN', () => {
     const inv = [{ lcsc: '', mpn: 'DRV8301DCAR', section: 'ICs - Motor Drivers', description: 'Motor Driver', qty: 10, package: '' }];
     const bom = bomMap([{ lcsc: '', mpn: 'DRV8301DCAX', value: '', desc: '', refs: 'U1', qty: 1, footprint: '' }]);
-    const results = matchBOM(bom, inv, null, null);
+    const { results } = matchBOM(bom, inv, null, null);
     expect(results[0].matchType).toBe('fuzzy');
   });
 
   it('falls back to value match', () => {
     const inv = [{ lcsc: 'C999', mpn: '', section: 'Passives - Capacitors', description: '100nF 50V', qty: 10 }];
     const bom = bomMap([{ lcsc: '', mpn: '', value: '100n', desc: '', refs: 'C1', qty: 1, footprint: '' }]);
-    const results = matchBOM(bom, inv, null, null);
+    const { results } = matchBOM(bom, inv, null, null);
     expect(results[0].matchType).toBe('value');
     expect(results[0].status).toBe('possible');
   });
@@ -344,7 +344,7 @@ describe('matchBOM', () => {
   it('sets missing status when no match found', () => {
     const inv = [{ lcsc: 'C999', mpn: 'OTHER', section: 'Other', description: '', qty: 10 }];
     const bom = bomMap([{ lcsc: '', mpn: 'NONEXISTENT', value: '', desc: '', refs: 'U1', qty: 1, footprint: '' }]);
-    const results = matchBOM(bom, inv, null, null);
+    const { results } = matchBOM(bom, inv, null, null);
     expect(results[0].status).toBe('missing');
     expect(results[0].inv).toBeNull();
   });
@@ -358,7 +358,7 @@ describe('matchBOM', () => {
     const bomEntry = bom.values().next().value;
     const bk = bomKey(bomEntry);
     const links = [{ bomKey: bk, invPartKey: 'C222' }];
-    const results = matchBOM(bom, inv, links, null);
+    const { results } = matchBOM(bom, inv, links, null);
     expect(results[0].matchType).toBe('manual');
     expect(results[0].inv).toBe(inv[1]);
   });
@@ -372,7 +372,7 @@ describe('matchBOM', () => {
     const bomEntry = bom.values().next().value;
     const bk = bomKey(bomEntry);
     const confirmed = [{ bomKey: bk, invPartKey: 'C111' }];
-    const results = matchBOM(bom, inv, null, confirmed);
+    const { results } = matchBOM(bom, inv, null, confirmed);
     expect(results[0].matchType).toBe('confirmed');
     expect(results[0].inv).toBe(inv[0]);
   });
@@ -403,7 +403,7 @@ describe("matchBOM with generic parts", () => {
       lcsc: "", mpn: "", qty: 10, refs: "C1 C2",
       desc: "Cap 100nF", value: "100nF", footprint: "0402",
     });
-    const results = matchBOM(aggregated, inventory, [], [], genericParts);
+    const { results } = matchBOM(aggregated, inventory, [], [], genericParts);
     const r = results[0];
     expect(r.matchType).toBe("generic");
     expect(r.inv.lcsc).toBe("C1525"); // best by stock
@@ -423,7 +423,7 @@ describe("matchBOM with generic parts", () => {
       lcsc: "", mpn: "", qty: 10, refs: "C1",
       desc: "Cap 100nF", value: "100nF", footprint: "0402",
     });
-    const results = matchBOM(aggregated, inventory, [], [], gps);
+    const { results } = matchBOM(aggregated, inventory, [], [], gps);
     expect(results[0].inv.lcsc).toBe("C9999"); // preferred
   });
 
@@ -433,7 +433,7 @@ describe("matchBOM with generic parts", () => {
       lcsc: "", mpn: "", qty: 10, refs: "C1",
       desc: "Cap 4.7\u00b5F", value: "4.7\u00b5F", footprint: "0805",
     });
-    const results = matchBOM(aggregated, inventory, [], [], genericParts);
+    const { results } = matchBOM(aggregated, inventory, [], [], genericParts);
     // No generic for 4.7µF 0805, falls through to value match or missing
     expect(results[0].matchType).not.toBe("generic");
   });
