@@ -8,7 +8,7 @@ block_cipher = None
 hiddenimports = collect_submodules('webview')
 
 a = Analysis(
-    ['app.py'],
+    ['app.pyw'],
     pathex=[],
     binaries=[],
     datas=[
