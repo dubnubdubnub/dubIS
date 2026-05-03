@@ -331,25 +331,11 @@ class InventoryApi:
         if not rows:
             raise ValueError("No rows to import")
 
-        # Read existing fieldnames or use defaults
-        if os.path.exists(self.input_csv):
-            with open(self.input_csv, newline="", encoding="utf-8-sig") as f:
-                reader = csv.DictReader(f)
-                fieldnames = reader.fieldnames
-        else:
-            fieldnames = list(self.FIELDNAMES)
+        fieldnames = list(self.FIELDNAMES)
+        normalized = [{fn: row.get(fn, "") for fn in fieldnames} for row in rows]
 
-        # Append new rows
         with self._lock:
-            write_header = not os.path.exists(self.input_csv) or os.path.getsize(self.input_csv) == 0
-            with open(self.input_csv, "a", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                if write_header:
-                    writer.writeheader()
-                for row in rows:
-                    inv_row = {fn: row.get(fn, "") for fn in fieldnames}
-                    writer.writerow(inv_row)
-
+            csv_io.append_csv_rows(self.input_csv, fieldnames, normalized)
             self._record_import_prices(rows)
             return self._rebuild()
 

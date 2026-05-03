@@ -982,3 +982,27 @@ class TestGenericPartsAPI:
         gps = api.list_generic_parts()
         assert len(gps) == 1
         assert gps[0]["name"] == "100nF 0402"
+
+
+def test_purchase_ledger_migrates_to_include_po_id(api):
+    """Loading inventory with an old-schema purchase_ledger.csv migrates the header."""
+    import csv
+
+    old_fields = ["LCSC Part Number", "Manufacture Part Number", "Manufacturer", "Quantity"]
+    with open(api.input_csv, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=old_fields)
+        w.writeheader()
+        w.writerow({"LCSC Part Number": "C100", "Manufacture Part Number": "ABC1",
+                    "Manufacturer": "TestMfg", "Quantity": "5"})
+
+    # First import triggers append_csv_rows which calls migrate_csv_header
+    api.import_purchases('[{"Manufacture Part Number":"NEW1","Quantity":"3","po_id":"po_test01"}]')
+
+    with open(api.input_csv, encoding="utf-8-sig") as f:
+        rows = list(csv.DictReader(f))
+    assert "po_id" in rows[0]
+    # Old row got empty po_id, new row got the value
+    old_row = next(r for r in rows if r.get("LCSC Part Number") == "C100")
+    new_row = next(r for r in rows if r.get("Manufacture Part Number") == "NEW1")
+    assert old_row["po_id"] == ""
+    assert new_row["po_id"] == "po_test01"
