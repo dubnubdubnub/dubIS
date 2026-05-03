@@ -14,7 +14,10 @@ let bomHeaders = [];
 let bomCols = {};
 let bomDirty = false;
 let bomFootprintNearMisses = [];
-let preferences = { thresholds: {} };
+let preferences = {
+  thresholds: {},
+  inventory_view: { group_level: 0, sort_column: null, sort_scope: null, vendor_group_scope: null },
+};
 let manualLinks = [];
 let confirmedMatches = [];
 let genericParts = [];
@@ -188,6 +191,14 @@ export async function loadPreferences() {
     if (stored.lastBomDir) preferences.lastBomDir = stored.lastBomDir;
     if (stored.lastImportDir) preferences.lastImportDir = stored.lastImportDir;
     if (stored.lastBomFile) preferences.lastBomFile = stored.lastBomFile;
+    if (stored.inventory_view && typeof stored.inventory_view === "object") {
+      preferences.inventory_view = {
+        group_level: Number.isInteger(stored.inventory_view.group_level) ? stored.inventory_view.group_level : 0,
+        sort_column: stored.inventory_view.sort_column || null,
+        sort_scope: stored.inventory_view.sort_scope || null,
+        vendor_group_scope: stored.inventory_view.vendor_group_scope || null,
+      };
+    }
   }
 }
 
@@ -210,6 +221,16 @@ export function setThreshold(section, value) {
   preferences.thresholds[section] = value;
   savePreferences();
   EventBus.emit(Events.PREFS_CHANGED);
+}
+
+export function saveInventoryView(view) {
+  preferences.inventory_view = {
+    group_level: view.groupLevel,
+    sort_column: view.sortColumn,
+    sort_scope: view.sortScope,
+    vendor_group_scope: view.vendorGroupScope,
+  };
+  savePreferences();
 }
 
 // ── Inventory loading ─────────────────────────────────────
