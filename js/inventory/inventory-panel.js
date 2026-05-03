@@ -32,6 +32,7 @@ import {
   renderMemberRows,
   renderFilterBarHtml,
   renderBomTableHeader,
+  renderInvColHeader,
 } from './inventory-renderer.js';
 
 import state from './inv-state.js';
@@ -96,10 +97,22 @@ function createReverseLink(invItem) {
 function render() {
   state.body.innerHTML = "";
   updateDistCounts();
+  // Sticky offset for parent/subsection headers depends on whether the
+  // column header is present (non-BOM mode only).
+  state.body.style.setProperty("--inv-col-header-h", state.bomData ? "0px" : "26px");
   if (state.bomData) {
     var matchedInvKeys = renderBomComparison();
     renderRemainingInventory(matchedInvKeys, (state.searchInput.value || "").toLowerCase());
   } else {
+    var headerWrap = document.createElement("div");
+    headerWrap.innerHTML = renderInvColHeader({
+      groupLevel: state.groupLevel,
+      sortColumn: state.sortColumn,
+      sortScope: state.sortScope,
+      vendorGroupScope: state.vendorGroupScope,
+      hideDescs: state.hideDescs,
+    });
+    while (headerWrap.firstChild) state.body.appendChild(headerWrap.firstChild);
     renderNormalInventory();
   }
 }
