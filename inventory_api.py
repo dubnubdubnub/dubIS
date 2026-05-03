@@ -787,6 +787,26 @@ class InventoryApi:
             purchase_orders.update_purchase_order(self._po_csv, po_id, **kwargs)
             return self._rebuild()
 
+    def get_po_with_items(self, po_id: str) -> dict[str, Any]:
+        """Return PO metadata + the ledger rows tagged with this po_id."""
+        import purchase_orders
+        po = purchase_orders.get_purchase_order(self._po_csv, po_id)
+        if not po:
+            raise KeyError(po_id)
+        items = []
+        if os.path.isfile(self.input_csv):
+            with open(self.input_csv, newline="", encoding="utf-8-sig") as f:
+                for row in csv.DictReader(f):
+                    if row.get("po_id") == po_id:
+                        items.append({
+                            "mpn": row.get("Manufacture Part Number", ""),
+                            "manufacturer": row.get("Manufacturer", ""),
+                            "package": row.get("Package", ""),
+                            "quantity": int(row.get("Quantity") or 0),
+                            "unit_price": float(row.get("Unit Price($)") or 0),
+                        })
+        return {"po": po, "line_items": items}
+
     def delete_purchase_order(self, po_id: str) -> list[dict[str, Any]]:
         import purchase_orders
         with self._lock:

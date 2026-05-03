@@ -1,15 +1,15 @@
 /* mfg-direct-panel.js — Direct-from-mfg import flow: state, events, API. */
 
-import { AppLog } from '../../api.js';
+import { api, AppLog, apiVendors, apiPurchaseOrders, apiMfgDirect } from '../../api.js';
 import { showToast } from '../../ui-helpers.js';
 import { onInventoryUpdated, store, loadVendorsAndPOs } from '../../store.js';
-import { apiVendors, apiPurchaseOrders, apiMfgDirect } from '../../api.js';
 import { renderEditor } from './mfg-direct-renderer.js';
 import { canonicalizeUrl, emptyLineItem, validateLineItems, looksLikeUrl } from './mfg-direct-logic.js';
 
 const state = {
   active: false,
   popout: false,
+  editingPoId: null,
   vendor: { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' },
   sourceFile: null,  // { name, path? } once user attaches
   lineItems: [],
@@ -21,6 +21,7 @@ export function startDirectFlow(mountElement) {
   mountEl = mountElement;
   state.active = true;
   state.popout = false;
+  state.editingPoId = null;
   state.vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
   state.sourceFile = null;
   state.lineItems = [emptyLineItem()];
@@ -182,6 +183,17 @@ function cancelFlow() {
 }
 
 async function importPO() {
+  if (state.editingPoId) {
+    // Edit path: only metadata updates (vendor/date/notes). Per-row qty/price
+    // edits flow through the existing adjust/price endpoints.
+    const fresh = await apiPurchaseOrders.update(
+      state.editingPoId, state.vendor.id, '', '');
+    onInventoryUpdated(fresh);
+    showToast('PO updated');
+    cancelFlow();
+    return;
+  }
+
   const errors = validateLineItems(state.lineItems);
   if (errors.length) {
     showToast(errors[0].msg);
@@ -218,4 +230,21 @@ async function importPO() {
   } catch (exc) {
     AppLog.error('Direct PO import failed: ' + exc);
   }
+}
+
+export async function editPO(poId, mountElement) {
+  const result = await api('get_po_with_items', poId);
+  if (!result || !result.po) return;
+  mountEl = mountElement || document.getElementById('import-body');
+  state.active = true;
+  state.popout = false;
+  state.editingPoId = poId;
+  state.vendor = (store.vendors || []).find(v => v.id === result.po.vendor_id) || { id: 'v_unknown', name: 'Unknown' };
+  state.sourceFile = result.po.source_file_hash
+    ? { name: `archived (${result.po.source_file_ext || 'file'})`, archived: true }
+    : null;
+  state.lineItems = result.line_items.map(li => ({
+    ...li, match: { status: 'definite' }, // existing rows by definition
+  }));
+  rerender();
 }

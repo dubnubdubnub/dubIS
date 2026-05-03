@@ -115,7 +115,7 @@ export function buildHoverFlyout(part) {
         iconHtml = '<img class="flyout-favicon flyout-favicon-img" src="' + escHtml(vendor.favicon_path) + '" alt="">';
       }
     }
-    rows += '<div class="flyout-po-row">' +
+    rows += '<div class="flyout-po-row" data-po-id="' + escHtml(poId) + '">' +
       iconHtml +
       '<span class="flyout-vendor-name">' + escHtml(vendorName) + '</span>' +
       (date ? '<span class="flyout-po-date">' + escHtml(date) + '</span>' : '') +

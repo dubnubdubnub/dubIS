@@ -191,6 +191,16 @@ export function setupEvents(handlers) {
     if (activeFanFlyout) { activeFanFlyout.remove(); activeFanFlyout = null; }
   });
 
+  // ── Fan-flyout PO row click → edit PO ──
+  document.addEventListener('click', function (e) {
+    var link = /** @type {Element} */ (e.target).closest('.flyout-po-row[data-po-id]');
+    if (link) {
+      e.preventDefault();
+      var poId = /** @type {HTMLElement} */ (link).dataset.poId;
+      import('../import/mfg-direct/mfg-direct-panel.js').then(function (m) { m.editPO(poId); });
+    }
+  });
+
   // ── Vendor management popover (click on favicon icon) ──
   document.addEventListener('click', function (e) {
     var fav = /** @type {Element} */ (e.target).closest('.fan-icon, .sub-favicon');

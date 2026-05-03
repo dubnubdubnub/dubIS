@@ -598,6 +598,26 @@ class TestConfirmClose:
         api.confirm_close()
         assert api._force_close is True
 
+
+def test_get_po_with_items(api):
+    api.import_purchases('[{"Manufacture Part Number":"X","Quantity":"5","Unit Price($)":"1.00","po_id":"po_test"}]')
+    # Manually create a matching PO row
+    import csv as _csv
+    po_csv = api._po_csv
+    with open(po_csv, "w", newline="", encoding="utf-8") as f:
+        w = _csv.DictWriter(f, fieldnames=[
+            "po_id", "vendor_id", "source_file_hash", "source_file_ext",
+            "purchase_date", "notes",
+        ])
+        w.writeheader()
+        w.writerow({"po_id": "po_test", "vendor_id": "v_unknown",
+                    "source_file_hash": "", "source_file_ext": "",
+                    "purchase_date": "2026-04-15", "notes": "x"})
+    result = api.get_po_with_items("po_test")
+    assert result["po"]["po_id"] == "po_test"
+    assert len(result["line_items"]) == 1
+    assert result["line_items"][0]["mpn"] == "X"
+
     def test_confirm_close_calls_destroy(self, api, monkeypatch):
         import types
         destroyed = []
