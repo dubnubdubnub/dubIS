@@ -86,6 +86,10 @@ class DistributorManager:
         """Delegate to DigikeyClient."""
         return self._digikey.get_login_status()
 
+    def validate_digikey_session(self) -> dict[str, Any]:
+        """Delegate to DigikeyClient."""
+        return self._digikey.validate_session()
+
     def logout_digikey(self) -> dict[str, str]:
         """Delegate to DigikeyClient."""
         return self._digikey.logout()
