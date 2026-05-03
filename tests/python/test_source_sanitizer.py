@@ -73,7 +73,7 @@ class TestExifStrip:
 
 
 class TestRejectedExtensions:
-    @pytest.mark.parametrize("ext", [".xlsm", ".docm", ".pptm"])
+    @pytest.mark.parametrize("ext", sorted(ss.REJECTED_EXTENSIONS))
     def test_macro_extensions_rejected(self, ext):
         with pytest.raises(ValueError, match="macro"):
             ss.sanitize(b"PK\x03\x04anything", ext)
