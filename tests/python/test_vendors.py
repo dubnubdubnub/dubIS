@@ -83,6 +83,16 @@ class TestListAndCreate:
         all_ids = [v["id"] for v in vendors.list_vendors(vjson)]
         assert len(all_ids) == len(set(all_ids)), f"duplicate IDs: {all_ids}"
 
+    def test_create_with_url_enriches_existing_inferred(self, vjson):
+        """An inferred vendor (no URL) can be re-found via create_vendor with URL."""
+        vendors.seed_builtins(vjson)
+        a = vendors.create_vendor(vjson, name="HRS", inferred=True)
+        assert a["url"] == ""
+        b = vendors.create_vendor(vjson, name="HRS", url="https://hirose.com")
+        assert b["id"] == a["id"]  # same vendor, not a duplicate
+        # Note: create_vendor returns existing record without modification.
+        # Caller must follow up with update_vendor to set the URL.
+
 
 class TestUpdateAndDelete:
     def test_update_changes_name_and_url(self, vjson):
@@ -111,6 +121,16 @@ class TestUpdateAndDelete:
         vendors.seed_builtins(vjson)
         with pytest.raises(ValueError, match="cannot delete"):
             vendors.delete_vendor(vjson, "v_unknown")
+
+    def test_update_pseudo_vendor_raises(self, vjson):
+        vendors.seed_builtins(vjson)
+        with pytest.raises(ValueError, match="pseudo"):
+            vendors.update_vendor(vjson, "v_self", name="Modified")
+
+    def test_delete_unknown_id_raises(self, vjson):
+        vendors.seed_builtins(vjson)
+        with pytest.raises(KeyError):
+            vendors.delete_vendor(vjson, "v_does_not_exist")
 
 
 class TestSimilarity:
@@ -156,3 +176,9 @@ class TestMerge:
         src = vendors.create_vendor(vjson, name="MDT", url="https://x.com")
         with pytest.raises(ValueError, match="pseudo"):
             vendors.merge_vendors(vjson, src["id"], "v_unknown")
+
+    def test_merge_unknown_src_raises(self, vjson):
+        vendors.seed_builtins(vjson)
+        dst = vendors.create_vendor(vjson, name="Alpha", url="https://a.com")
+        with pytest.raises(KeyError):
+            vendors.merge_vendors(vjson, "v_does_not_exist", dst["id"])

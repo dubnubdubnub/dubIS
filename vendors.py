@@ -63,15 +63,28 @@ def find_by_id(path: str, vendor_id: str) -> dict[str, Any] | None:
 
 def find_by_canonical_name(path: str, name: str,
                             url: str = "") -> dict[str, Any] | None:
-    """Find a vendor whose canonical slug matches name and (if url given) whose url matches."""
+    """Find a vendor whose canonical slug matches name.
+
+    When `url` is given, prefer an exact URL match; otherwise fall back to a
+    same-slug vendor that has no URL (so a previously inferred vendor can be
+    re-found and later enriched). If multiple same-slug vendors exist with
+    URLs that don't match `url`, none are returned (caller will create new).
+    """
     target_slug = _slugify(name)
     target_url = url.strip().lower()
-    for v in _read(path):
-        if _slugify(v["name"]) != target_slug:
-            continue
-        if target_url and v.get("url", "").strip().lower() != target_url:
-            continue
-        return v
+    candidates = [v for v in _read(path) if _slugify(v["name"]) == target_slug]
+    if not candidates:
+        return None
+    if not target_url:
+        return candidates[0]
+    # Prefer exact URL match
+    for v in candidates:
+        if v.get("url", "").strip().lower() == target_url:
+            return v
+    # Fall back to same-slug vendor with empty URL (inferred → enrichable)
+    for v in candidates:
+        if not v.get("url", "").strip():
+            return v
     return None
 
 
@@ -104,6 +117,8 @@ def update_vendor(path: str, vendor_id: str,
                    url: str | None = None,
                    favicon_path: str | None = None) -> dict[str, Any]:
     """Update fields on a vendor. Promotes inferred → real if URL added."""
+    if vendor_id in PSEUDO_IDS:
+        raise ValueError(f"cannot update pseudo-vendor {vendor_id}")
     data = _read(path)
     for v in data:
         if v["id"] == vendor_id:
@@ -123,8 +138,10 @@ def update_vendor(path: str, vendor_id: str,
 def delete_vendor(path: str, vendor_id: str) -> None:
     if vendor_id in PSEUDO_IDS:
         raise ValueError(f"cannot delete pseudo-vendor {vendor_id}")
-    data = [v for v in _read(path) if v["id"] != vendor_id]
-    _write(path, data)
+    data = _read(path)
+    if not any(v["id"] == vendor_id for v in data):
+        raise KeyError(vendor_id)
+    _write(path, [v for v in data if v["id"] != vendor_id])
 
 
 def merge_vendors(path: str, src_id: str, dst_id: str) -> str:
@@ -136,6 +153,8 @@ def merge_vendors(path: str, src_id: str, dst_id: str) -> str:
     data = _read(path)
     if not any(v["id"] == dst_id for v in data):
         raise KeyError(dst_id)
+    if not any(v["id"] == src_id for v in data):
+        raise KeyError(src_id)
     data = [v for v in data if v["id"] != src_id]
     _write(path, data)
     return dst_id
