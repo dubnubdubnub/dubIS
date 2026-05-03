@@ -229,6 +229,9 @@
 .clear-filters-btn.compact .clear-icon { display: inline; }
 .clear-filters-btn .clear-icon { display: none; }
 .dist-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   padding: 3px 6px;
   border-radius: 6px;
   border: 1px solid var(--border-default);
@@ -243,20 +246,20 @@
   text-overflow: ellipsis;
 }
 .dist-filter-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
-.dist-filter-btn .vendor-icon { width: 14px; height: 14px; margin-right: 2px; vertical-align: -2px; }
+.dist-filter-btn .vendor-icon { width: 14px; height: 14px; flex-shrink: 0; }
 .dist-icon-other {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   box-sizing: border-box;
+  flex-shrink: 0;
   width: 14px;
   height: 14px;
-  margin-right: 2px;
-  vertical-align: -3px;
   border: 1px solid currentColor;
   border-radius: 3px;
   font-size: 10px;
   font-weight: 700;
-  line-height: 12px;
-  text-align: center;
+  line-height: 1;
 }
 .dist-filter-btn.active[data-distributor="lcsc"]    { border-color: var(--vendor-lcsc);    color: var(--vendor-lcsc);    background: #1166dd15; }
 .dist-filter-btn.active[data-distributor="digikey"] { border-color: var(--vendor-digikey); color: var(--vendor-digikey); background: #ee282115; }
