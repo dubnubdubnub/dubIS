@@ -73,6 +73,46 @@
 .part-preview-stock.in-stock { background: #e6f7e9; color: #1a7f37; }
 .part-preview-stock.no-stock { background: #fce8e8; color: #d1242f; }
 
+.part-preview-pack-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px 0;
+  border-top: 1px solid #f0f0f0;
+  background: #f6f8fa;
+}
+.part-preview-pack-tab {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #57606a;
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.part-preview-pack-tab:hover { background: #eaedf1; color: #1f2328; }
+.part-preview-pack-tab.active {
+  background: #fff;
+  color: #1f2328;
+  border-bottom-color: #fff;
+  position: relative;
+  z-index: 1;
+}
+
+.part-preview-no-prices {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: #656d76;
+  text-align: center;
+  font-style: italic;
+}
+
 .part-preview-prices {
   width: 100%;
   border-collapse: collapse;

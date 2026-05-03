@@ -206,6 +206,135 @@ class TestNormalizeNextdata:
         assert result["digikeyUrl"] == "https://www.digikey.com/en/products/detail/ABC-123"
 
 
+class TestNormalizeCombined:
+    def test_jsonld_only_uses_dom_for_richer_prices(self):
+        """When JSON-LD has 1 price tier and DOM has many, prefer DOM tiers."""
+        raw = {
+            "_source": "dk_combined",
+            "jsonld": {
+                "@type": "Product",
+                "name": "Yageo Resistor",
+                "sku": "YAG2274TR-ND",
+                "mpn": "RC0402FR-0710KL",
+                "brand": {"name": "Yageo"},
+                "url": "https://www.digikey.com/product/YAG2274TR",
+                "offers": {"price": "0.10", "availability": "InStock"},
+            },
+            "nextdata": None,
+            "rsc": True,
+            "dom": {
+                "priceTiers": [
+                    {"qty": 1, "price": 0.10},
+                    {"qty": 10, "price": 0.034},
+                    {"qty": 25, "price": 0.0252},
+                    {"qty": 50, "price": 0.0204},
+                    {"qty": 100, "price": 0.0168},
+                    {"qty": 250, "price": 0.01316},
+                    {"qty": 500, "price": 0.01112},
+                    {"qty": 1000, "price": 0.00952},
+                    {"qty": 5000, "price": 0.00698},
+                ],
+                "datasheetUrl": "https://yageo.com/RC0402.pdf",
+                "packagings": [
+                    {"name": "Cut Tape (CT)", "code": "CT", "href": "/p/YAG2274CT-ND"},
+                    {"name": "Tape & Reel (TR)", "code": "TR", "href": "/p/YAG2274TR-ND"},
+                ],
+                "stock": 0,
+            },
+            "_url": "https://www.digikey.com/product/YAG2274TR",
+            "_title": "RC0402FR-0710KL",
+        }
+        result = normalize_result(raw, "YAG2274TR-ND")
+        # Prices should come from DOM (9 tiers, not 1)
+        assert len(result["prices"]) == 9
+        assert result["prices"][0] == {"qty": 1, "price": 0.10}
+        assert result["prices"][-1] == {"qty": 5000, "price": 0.00698}
+        # Datasheet URL pulled from DOM
+        assert result["pdfUrl"] == "https://yageo.com/RC0402.pdf"
+        # Packagings: two entries; the TR variant matched and got the prices
+        assert len(result["packagings"]) == 2
+        codes = [p["code"] for p in result["packagings"]]
+        assert "CT" in codes
+        assert "TR" in codes
+        active = next(p for p in result["packagings"] if p["code"] == "TR")
+        assert active["partNumber"] == "YAG2274TR-ND"
+        assert len(active["prices"]) == 9
+
+    def test_nextdata_packagings_extracted(self):
+        """All pricing entries should yield a packaging variant when next.js data is rich."""
+        raw = {
+            "_source": "dk_combined",
+            "jsonld": None,
+            "nextdata": {
+                "envelope": {
+                    "data": {
+                        "productOverview": {
+                            "rolledUpProductNumber": "YAG2274TR-ND",
+                            "manufacturerProductNumber": "RC0402FR",
+                            "datasheetUrl": "https://example.com/ds.pdf",
+                        },
+                        "priceQuantity": {
+                            "qtyAvailable": "10000",
+                            "pricing": [
+                                {
+                                    "packageType": {"name": "Cut Tape (CT)"},
+                                    "digiKeyProductNumber": "YAG2274CT-ND",
+                                    "mergedPricingTiers": [
+                                        {"brkQty": "1", "unitPrice": "$0.12"},
+                                        {"brkQty": "10", "unitPrice": "$0.04"},
+                                    ],
+                                },
+                                {
+                                    "packageType": {"name": "Tape & Reel (TR)"},
+                                    "digiKeyProductNumber": "YAG2274TR-ND",
+                                    "mergedPricingTiers": [
+                                        {"brkQty": "5000", "unitPrice": "$0.00698"},
+                                    ],
+                                },
+                            ],
+                        },
+                        "productAttributes": {},
+                    },
+                },
+            },
+            "rsc": False,
+            "dom": {
+                "priceTiers": [],
+                "packagings": [],
+                "datasheetUrl": "",
+                "stock": 0,
+            },
+        }
+        result = normalize_result(raw, "YAG2274TR-ND")
+        assert len(result["packagings"]) == 2
+        ct = next(p for p in result["packagings"] if "CT" in p["name"])
+        tr = next(p for p in result["packagings"] if "TR" in p["name"])
+        assert ct["partNumber"] == "YAG2274CT-ND"
+        assert tr["partNumber"] == "YAG2274TR-ND"
+        # Active packaging selected for the requested PN — its prices flow into result["prices"]
+        assert result["prices"] == tr["prices"]
+
+    def test_fallback_when_neither_jsonld_nor_nextdata(self):
+        raw = {
+            "_source": "dk_combined",
+            "jsonld": None,
+            "nextdata": None,
+            "rsc": True,
+            "dom": {
+                "priceTiers": [{"qty": 1, "price": 1.50}],
+                "packagings": [],
+                "datasheetUrl": "https://example.com/ds.pdf",
+                "stock": 42,
+            },
+            "_url": "https://www.digikey.com/p/X",
+        }
+        result = normalize_result(raw, "X-1")
+        assert result["prices"] == [{"qty": 1, "price": 1.50}]
+        assert result["pdfUrl"] == "https://example.com/ds.pdf"
+        assert result["stock"] == 42
+        assert result["digikeyUrl"] == "https://www.digikey.com/p/X"
+
+
 class TestNormalizeFallback:
     def test_unknown_format(self):
         raw = {"random_key": "random_value"}
