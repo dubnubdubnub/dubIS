@@ -39,3 +39,13 @@ var state = {
 };
 
 export default state;
+
+export function hydrateFromPreferences(view) {
+  if (!view || typeof view !== "object") return;
+  if (Number.isInteger(view.group_level) && view.group_level >= 0 && view.group_level <= 2) {
+    state.groupLevel = view.group_level;
+  }
+  state.sortColumn       = view.sort_column || null;
+  state.sortScope        = view.sort_scope  || null;
+  state.vendorGroupScope = view.vendor_group_scope || null;
+}
