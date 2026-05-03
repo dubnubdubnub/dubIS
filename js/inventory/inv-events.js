@@ -114,6 +114,7 @@ export function setupEvents(handlers) {
   EventBus.on(Events.FLYOUT_OPENED, function () {
     var panel = document.getElementById("panel-inventory");
     if (panel) panel.classList.add("flyout-drag-active");
+    setInventoryRowsDraggable(true);
   });
 
   EventBus.on(Events.FLYOUT_CLOSED, function () {
@@ -121,6 +122,7 @@ export function setupEvents(handlers) {
       if (flyoutState.flyouts.size === 0) {
         var panel = document.getElementById("panel-inventory");
         if (panel) panel.classList.remove("flyout-drag-active");
+        setInventoryRowsDraggable(false);
       }
     });
   });
@@ -132,4 +134,21 @@ export function setupEvents(handlers) {
       else store.links.setLinkingMode(false);
     }
   });
+}
+
+function setInventoryRowsDraggable(on) {
+  var rows = document.querySelectorAll(
+    "#inventory-body .inv-part-row, #inventory-body tr[data-part-key]"
+  );
+  for (var i = 0; i < rows.length; i++) rows[i].draggable = on;
+}
+
+/**
+ * True when at least one generic-parts flyout is open. Newly rendered rows
+ * use this to decide whether to be draggable, so they pick up the right
+ * state when the inventory re-renders while a flyout is active.
+ */
+export function isFlyoutDragActive() {
+  var panel = document.getElementById("panel-inventory");
+  return !!(panel && panel.classList.contains("flyout-drag-active"));
 }
