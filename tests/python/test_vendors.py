@@ -1,6 +1,6 @@
 """Tests for vendors module: CRUD on vendors.json + similarity detection."""
 import json
-import os  # noqa: F401
+import os
 
 import pytest
 
@@ -182,3 +182,64 @@ class TestMerge:
         dst = vendors.create_vendor(vjson, name="Alpha", url="https://a.com")
         with pytest.raises(KeyError):
             vendors.merge_vendors(vjson, "v_does_not_exist", dst["id"])
+
+
+class TestFavicon:
+    def test_canonicalize_url(self):
+        from vendors import _canonicalize_url
+        assert _canonicalize_url("https://Example.com/") == "https://example.com"
+        assert _canonicalize_url("HTTP://example.com/path/") == "http://example.com/path"
+        assert _canonicalize_url("example.com") == "https://example.com"
+
+    def test_extract_favicon_url_from_link_rel(self):
+        from vendors import _extract_favicon_url
+        html = '<html><head><link rel="icon" href="/static/icon.png"></head></html>'
+        assert _extract_favicon_url(html, "https://example.com") == "https://example.com/static/icon.png"
+
+    def test_extract_favicon_url_fallback_root(self):
+        from vendors import _extract_favicon_url
+        html = "<html><head></head></html>"
+        assert _extract_favicon_url(html, "https://example.com") == "https://example.com/favicon.ico"
+
+    def test_fetch_favicon_writes_cache(self, tmp_path, monkeypatch):
+        from vendors import fetch_favicon
+
+        cache_dir = str(tmp_path / "favicons")
+
+        def fake_get(url, timeout=None, allow_redirects=True):
+            class R:
+                status_code = 200
+                content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+                headers = {"Content-Type": "image/png"}
+                def raise_for_status(self): pass
+            return R()
+
+        import requests
+        monkeypatch.setattr(requests, "get", fake_get)
+
+        path = fetch_favicon("https://example.com", cache_dir)
+        assert path.endswith(".png")
+        assert os.path.isfile(os.path.join(cache_dir, os.path.basename(path)))
+
+    def test_fetch_favicon_dedupes_by_url_hash(self, tmp_path, monkeypatch):
+        from vendors import fetch_favicon
+
+        cache_dir = str(tmp_path / "favicons")
+        calls = {"n": 0}
+
+        def fake_get(url, timeout=None, allow_redirects=True):
+            calls["n"] += 1
+            class R:
+                status_code = 200
+                content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+                headers = {"Content-Type": "image/png"}
+                def raise_for_status(self): pass
+            return R()
+
+        import requests
+        monkeypatch.setattr(requests, "get", fake_get)
+
+        p1 = fetch_favicon("https://example.com", cache_dir)
+        p2 = fetch_favicon("https://example.com", cache_dir)
+        assert p1 == p2
+        # Two requests still happen (no in-memory cache yet); but file path is stable

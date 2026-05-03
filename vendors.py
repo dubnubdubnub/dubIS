@@ -195,3 +195,84 @@ def find_possible_duplicates(path: str) -> list[tuple[dict[str, Any], dict[str, 
             if name_close or domain_match:
                 pairs.append((a, b))
     return pairs
+
+
+# ── Favicon fetch ────────────────────────────────────────────────────
+
+from urllib.parse import urljoin  # noqa: E402  (already imported urlparse above)
+
+
+def _canonicalize_url(url: str) -> str:
+    """Lowercase host, strip trailing slash, default to https if no scheme."""
+    s = url.strip()
+    if not s:
+        return ""
+    if "://" not in s:
+        s = "https://" + s
+    parsed = urlparse(s)
+    netloc = parsed.netloc.lower()
+    path = parsed.path.rstrip("/") or ""
+    return f"{parsed.scheme.lower()}://{netloc}{path}"
+
+
+def _extract_favicon_url(html: str, base_url: str) -> str:
+    """Find <link rel="icon" href="..."> or fall back to /favicon.ico."""
+    m = re.search(
+        r"""<link[^>]+rel=['"]?(?:shortcut\s+)?icon['"]?[^>]*href=['"]([^'"]+)['"]""",
+        html, re.IGNORECASE,
+    )
+    if not m:
+        m = re.search(
+            r"""<link[^>]+href=['"]([^'"]+)['"][^>]*rel=['"]?(?:shortcut\s+)?icon['"]?""",
+            html, re.IGNORECASE,
+        )
+    if m:
+        return urljoin(base_url + "/", m.group(1))
+    return base_url.rstrip("/") + "/favicon.ico"
+
+
+_FAVICON_TIMEOUT = 5
+_FAVICON_MAX_BYTES = 64 * 1024
+
+
+def fetch_favicon(url: str, cache_dir: str) -> str:
+    """Fetch the favicon for a vendor URL; cache as <sha256-of-url>.<ext>.
+
+    Returns the absolute path to the cached favicon. Raises on network errors.
+    """
+    import requests
+
+    canonical = _canonicalize_url(url)
+    if not canonical:
+        raise ValueError("URL must not be empty")
+
+    # Discover favicon URL via the page HTML, falling back to /favicon.ico
+    try:
+        page = requests.get(canonical, timeout=_FAVICON_TIMEOUT, allow_redirects=True)
+        page.raise_for_status()
+        favicon_url = _extract_favicon_url(page.text[:1_000_000], canonical)
+    except Exception:
+        favicon_url = canonical.rstrip("/") + "/favicon.ico"
+
+    resp = requests.get(favicon_url, timeout=_FAVICON_TIMEOUT, allow_redirects=True)
+    resp.raise_for_status()
+    content = resp.content[:_FAVICON_MAX_BYTES]
+
+    # Determine extension from Content-Type
+    ctype = (resp.headers.get("Content-Type") or "").lower()
+    ext = ".ico"
+    if "png" in ctype:
+        ext = ".png"
+    elif "svg" in ctype:
+        ext = ".svg"
+    elif "jpeg" in ctype or "jpg" in ctype:
+        ext = ".jpg"
+    elif "gif" in ctype:
+        ext = ".gif"
+
+    h = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+    os.makedirs(cache_dir, exist_ok=True)
+    target = os.path.join(cache_dir, f"{h}{ext}")
+    with open(target, "wb") as f:
+        f.write(content)
+    return target
