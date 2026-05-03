@@ -116,15 +116,19 @@ export function renderPartRowHtml(item, options) {
   partIdsHtml += '</span>';
 
   var html =
-    '<span class="inv-drag-handle" title="Drag to add to group">&#x2261;</span>' +
-    sectionChipHtml +
+    '<span class="inv-row-group-cell">' +
+      '<span class="inv-drag-handle" title="Drag to add to group">&#x2261;</span>' +
+      sectionChipHtml +
+    '</span>' +
     partIdsHtml +
     nearMissBadgeHtml +
     '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + '</span>' +
     '<span class="part-unit-price">' + unitPriceStr + '</span>' +
     '<span class="part-value">' + valueStr + '</span>' +
     '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data \u2014 click to set">\u26A0</button>' : '') + item.qty + '</span>' +
-    (options.hideDescs ? '' : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
+    (options.hideDescs
+      ? '<span class="part-desc-pad" aria-hidden="true"></span>'
+      : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
     '<span class="part-actions">' + groupBtnStr + '<button class="btn-sm adj-btn" title="Adjust qty">Adjust</button>' +
     linkBtnStr + '</span>';
 
@@ -377,8 +381,13 @@ export function renderInvColHeader(viewState) {
     return '○○';                                       // ○○
   }
 
-  var descCellHtml = viewState.hideDescs ? '' :
-    '<button class="inv-col-cell inv-col-desc" data-col="description">Description ' + sortIndicator('description') + '</button>';
+  // When descriptions are hidden, emit an empty flex:1 spacer (separate
+  // class so existing .inv-col-desc / .part-desc selectors still get a
+  // count of zero) — the spacer absorbs the imbalance between the row's
+  // wider .part-actions and the header's narrow ↺ button.
+  var descCellHtml = viewState.hideDescs
+    ? '<span class="inv-col-desc-pad" aria-hidden="true"></span>'
+    : '<button class="inv-col-cell inv-col-desc" data-col="description">Description ' + sortIndicator('description') + '</button>';
 
   return '<div class="inv-col-header">' +
     '<button class="inv-col-cell inv-col-group" data-col="group" title="Cycle grouping: full → sections → flat">' +
