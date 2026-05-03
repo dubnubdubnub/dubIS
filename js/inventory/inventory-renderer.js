@@ -111,8 +111,10 @@ export function renderPartRowHtml(item, options) {
     partIdsHtml +
     nearMissBadgeHtml +
     '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + '</span>' +
-    '<span class="part-unit-price" title="Unit price">' + unitStr + '</span>' +
-    '<span class="part-value" title="Ext price (qty × unit price)">' + valueStr + '</span>' +
+    '<span class="part-value" title="Per unit / extended (qty × unit)">' +
+      '<span class="part-unit-price">' + unitStr + '</span>' +
+      '<span class="part-ext-price">' + valueStr + '</span>' +
+    '</span>' +
     '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data \u2014 click to set">\u26A0</button>' : '') + item.qty + '</span>' +
     (options.hideDescs ? '' : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
     '<span class="part-actions">' + groupBtnStr + '<button class="btn-sm adj-btn" title="Adjust qty">Adjust</button>' +

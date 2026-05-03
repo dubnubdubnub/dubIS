@@ -126,8 +126,9 @@
 .inv-part-row:hover { background: var(--bg-hover); }
 .inv-part-row .part-id { width: 90px; flex-shrink: 0; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: var(--color-blue); }
 .inv-part-row .part-mpn { width: 160px; min-width: 40px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
-.inv-part-row .part-unit-price { width: 70px; min-width: 20px; text-align: right; font-size: 11px; font-family: "SFMono-Regular", Consolas, monospace; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.inv-part-row .part-value { width: 70px; min-width: 20px; text-align: right; font-size: 11px; font-family: "SFMono-Regular", Consolas, monospace; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-part-row .part-value { width: 70px; min-width: 20px; display: flex; flex-direction: column; align-items: flex-end; font-size: 11px; font-family: "SFMono-Regular", Consolas, monospace; color: var(--text-primary); overflow: hidden; line-height: 1.2; }
+.inv-part-row .part-value .part-unit-price { color: var(--text-secondary); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.inv-part-row .part-value .part-ext-price { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .inv-part-row .part-qty { width: 60px; min-width: 30px; text-align: right; font-weight: 600; }
 .inv-part-row .part-desc { flex: 1; min-width: 0; overflow: hidden; }
 .inv-part-row .part-actions { flex-shrink: 0; margin-left: auto; display: flex; gap: 4px; align-items: center; }
