@@ -140,7 +140,7 @@ class TestMatchPart:
 
 
 class TestImportPO:
-    def test_import_writes_po_and_ledger(self, tmp_path, monkeypatch):
+    def test_import_writes_po_and_ledger(self, tmp_path):
         import vendors
 
         base_dir = tmp_path / "data"
