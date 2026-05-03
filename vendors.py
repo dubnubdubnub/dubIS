@@ -26,9 +26,9 @@ def _slugify(name: str) -> str:
     return s or "vendor"
 
 
-def _make_id(name: str) -> str:
+def _make_id(name: str, url: str = "") -> str:
     slug = _slugify(name)
-    h = hashlib.md5(name.lower().encode("utf-8")).hexdigest()[:4]
+    h = hashlib.md5((name.lower() + "|" + url.strip().lower()).encode("utf-8")).hexdigest()[:4]
     return f"v_{slug}_{h}"
 
 
@@ -86,7 +86,7 @@ def create_vendor(path: str, name: str, url: str = "",
         return existing
     vtype = "inferred" if inferred else ("real" if url else "inferred")
     new_v = {
-        "id": _make_id(name),
+        "id": _make_id(name, url),
         "name": name,
         "url": url.strip(),
         "favicon_path": "",
