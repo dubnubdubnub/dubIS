@@ -145,6 +145,7 @@ class TestQuery:
             "section", "lcsc", "mpn", "digikey", "pololu", "mouser",
             "manufacturer", "package", "description",
             "qty", "unit_price", "ext_price",
+            "primary_vendor_id",
         }
         assert set(result[0].keys()) == expected_keys
 

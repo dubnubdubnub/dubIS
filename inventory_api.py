@@ -456,7 +456,13 @@ class InventoryApi:
         try:
             if os.path.exists(self.prefs_json):
                 with open(self.prefs_json, encoding="utf-8") as f:
-                    return json.load(f)
+                    data = json.load(f)
+                # Migrate saved distributor_filter sets: "other" → "direct"
+                if isinstance(data, dict) and isinstance(data.get("distributor_filter"), list):
+                    data["distributor_filter"] = [
+                        "direct" if d == "other" else d for d in data["distributor_filter"]
+                    ]
+                return data
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Failed to load preferences: %s", exc)
         return {}
