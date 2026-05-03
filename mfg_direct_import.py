@@ -7,6 +7,7 @@ Public entry points (this task only):
 from __future__ import annotations
 
 import csv
+import difflib
 import logging
 import os
 import re
@@ -146,3 +147,81 @@ def parse_source_file(path: str) -> list[dict[str, Any]]:
         logger.warning("parse_source_file(%s) failed: %s", path, exc)
         return []
     return []
+
+
+# ── Match-and-confirm ────────────────────────────────────────────────
+
+
+def _normalize_mpn(s: str) -> str:
+    """Lowercase, strip whitespace/hyphens/underscores."""
+    return re.sub(r"[\s_\-]+", "", (s or "").lower())
+
+
+def _levenshtein(a: str, b: str) -> int:
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cost = 0 if ca == cb else 1
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost))
+        prev = cur
+    return prev[-1]
+
+
+def match_part(db, mpn: str, manufacturer: str = "") -> dict[str, Any]:
+    """Match an MPN against existing parts in the cache.
+
+    Returns:
+        {"status": "definite", "part_id": str, "existing_qty": int} on exact match
+        {"status": "possible", "candidates": [{"part_id": str, "mpn": str,
+                                                "manufacturer": str, "score": float}]}
+        {"status": "new"} otherwise
+    """
+    if not (mpn or "").strip():
+        return {"status": "new"}
+
+    norm = _normalize_mpn(mpn)
+
+    # Exact match (normalized)
+    rows = db.execute(
+        "SELECT part_id, mpn, manufacturer FROM parts"
+    ).fetchall()
+    for r in rows:
+        if _normalize_mpn(r["mpn"]) == norm and norm:
+            stock = db.execute(
+                "SELECT quantity FROM stock WHERE part_id=?", (r["part_id"],)
+            ).fetchone()
+            return {
+                "status": "definite",
+                "part_id": r["part_id"],
+                "existing_qty": (stock["quantity"] if stock else 0),
+            }
+
+    # Fuzzy match: difflib pre-filter, then Levenshtein ≤2
+    candidates = []
+    for r in rows:
+        other = _normalize_mpn(r["mpn"])
+        if not other:
+            continue
+        ratio = difflib.SequenceMatcher(None, norm, other).ratio()
+        if ratio < 0.7:
+            continue
+        dist = _levenshtein(norm, other)
+        if dist <= 2 or (len(norm) >= 6 and (norm in other or other in norm)):
+            candidates.append({
+                "part_id": r["part_id"],
+                "mpn": r["mpn"],
+                "manufacturer": r["manufacturer"],
+                "score": ratio,
+            })
+
+    if candidates:
+        candidates.sort(key=lambda c: -c["score"])
+        return {"status": "possible", "candidates": candidates[:5]}
+    return {"status": "new"}
