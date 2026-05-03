@@ -129,13 +129,20 @@ class InventoryApi:
 
     def _rebuild(self) -> list[dict[str, Any]]:
         """Full rebuild: replay all events into cache, return fresh inventory."""
+        vendors_json = os.path.join(self.base_dir, "vendors.json")
+        inventory_ops.migrate_to_vendors(self.input_csv, vendors_json)
         conn = self._get_cache()
         file_fieldnames, merged = inventory_ops.read_and_merge(
             self.input_csv, self.FIELDNAMES,
         )
         inventory_ops.apply_adjustments(merged, self.adjustments_csv, file_fieldnames)
         categorized = inventory_ops.categorize_and_sort(list(merged.values()))
-        cache_db.populate_full(conn, merged, categorized)
+        cache_db.populate_full(
+            conn, merged, categorized,
+            ledger_path=self.input_csv,
+            po_csv_path=os.path.join(self.base_dir, "purchase_orders.csv"),
+            vendors_json_path=vendors_json,
+        )
         purchase_lines = cache_db.count_csv_data_lines(self.input_csv)
         adj_lines = cache_db.count_csv_data_lines(self.adjustments_csv)
         cache_db.write_checkpoint(conn, purchase_lines=purchase_lines,
