@@ -85,6 +85,7 @@ class InventoryApi:
         self._bom_dirty: bool = False
         self._debug: bool = debug
         self._lock: threading.Lock = threading.Lock()
+        self._last_migration_summary: dict[str, int] = {}
         self._distributors = DistributorManager(self.base_dir, self._get_cache)
 
     def _get_cache(self) -> sqlite3.Connection:
@@ -131,7 +132,7 @@ class InventoryApi:
     def _rebuild(self) -> list[dict[str, Any]]:
         """Full rebuild: replay all events into cache, return fresh inventory."""
         vendors_json = os.path.join(self.base_dir, "vendors.json")
-        inventory_ops.migrate_to_vendors(self.input_csv, vendors_json)
+        self._last_migration_summary = inventory_ops.migrate_to_vendors(self.input_csv, vendors_json)
         conn = self._get_cache()
         file_fieldnames, merged = inventory_ops.read_and_merge(
             self.input_csv, self.FIELDNAMES,
@@ -822,6 +823,23 @@ class InventoryApi:
                     w.writerows(rows)
             purchase_orders.delete_purchase_order(self._po_csv, self._sources_dir, po_id)
             return self._rebuild()
+
+    def get_warnings(self) -> dict[str, Any]:
+        """Return a dict of console warnings for the frontend to display."""
+        import vendors
+        out: dict[str, Any] = {
+            "migration": self._last_migration_summary,
+            "duplicates": [],
+            "inferred_only": 0,
+        }
+        all_vendors = vendors.list_vendors(self._vendors_json)
+        out["inferred_only"] = sum(1 for v in all_vendors if v.get("type") == "inferred")
+        for a, b in vendors.find_possible_duplicates(self._vendors_json):
+            out["duplicates"].append({
+                "src": {"id": a["id"], "name": a["name"]},
+                "dst": {"id": b["id"], "name": b["name"]},
+            })
+        return out
 
     def open_source_file(self, po_id: str) -> dict[str, str]:
         """Open the archived source file for a PO in the OS default app."""

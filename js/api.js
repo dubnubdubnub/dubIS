@@ -77,3 +77,5 @@ export const apiMfgDirect = {
   parseFileB64: (b64, name) => api('parse_source_file_b64', b64, name),
   matchPart: (mpn, mfg) => api('match_part', mpn, mfg),
 };
+
+export const apiWarnings = { get: () => api('get_warnings') };
