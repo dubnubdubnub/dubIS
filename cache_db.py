@@ -47,6 +47,16 @@ def create_schema(conn: sqlite3.Connection) -> None:
             DROP TABLE IF EXISTS purchase_orders;
             DROP TABLE IF EXISTS vendors;
         """)
+    # Idempotent column migration: add primary_vendor_id to parts if it exists but lacks the column
+    parts_exists = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='parts'"
+    ).fetchone()
+    if parts_exists:
+        try:
+            conn.execute("ALTER TABLE parts ADD COLUMN primary_vendor_id TEXT DEFAULT ''")
+        except sqlite3.OperationalError as e:
+            if "duplicate column" not in str(e).lower():
+                raise
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS cache_meta (
             key   TEXT PRIMARY KEY,

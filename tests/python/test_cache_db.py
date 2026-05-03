@@ -705,3 +705,87 @@ def test_schema_v6_bumps_version(tmp_path):
     ).fetchone()
     assert row["value"] == "6"
     conn.close()
+
+
+def test_v5_to_v6_migration_adds_primary_vendor_id(tmp_path):
+    """Existing v5 database upgrades to v6 with primary_vendor_id added to parts."""
+    import cache_db
+
+    db_path = str(tmp_path / "cache.db")
+    # Manually create a v5-like state: cache_meta says "5" and parts table lacks primary_vendor_id
+    conn = cache_db.connect(db_path)
+    conn.executescript("""
+        CREATE TABLE cache_meta (key TEXT PRIMARY KEY, value TEXT);
+        INSERT INTO cache_meta (key, value) VALUES ('schema_version', '5');
+        CREATE TABLE parts (
+            part_id      TEXT PRIMARY KEY,
+            lcsc         TEXT DEFAULT '',
+            mpn          TEXT DEFAULT '',
+            digikey      TEXT DEFAULT '',
+            pololu       TEXT DEFAULT '',
+            mouser       TEXT DEFAULT '',
+            manufacturer TEXT DEFAULT '',
+            description  TEXT DEFAULT '',
+            package      TEXT DEFAULT '',
+            rohs         TEXT DEFAULT '',
+            section      TEXT DEFAULT '',
+            sort_key     REAL,
+            date_code    TEXT DEFAULT ''
+        );
+        INSERT INTO parts (part_id, mpn, manufacturer)
+            VALUES ('TEST1', 'TMR2615', 'MDT');
+    """)
+    conn.commit()
+    conn.close()
+
+    # Reopen and trigger schema migration
+    conn = cache_db.connect(db_path)
+    cache_db.create_schema(conn)
+
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(parts)")}
+    assert "primary_vendor_id" in cols
+
+    # Existing row preserved with empty primary_vendor_id
+    row = conn.execute(
+        "SELECT primary_vendor_id FROM parts WHERE part_id = ?", ("TEST1",)
+    ).fetchone()
+    assert row["primary_vendor_id"] == ""
+
+    # Version is now 6
+    v = conn.execute(
+        "SELECT value FROM cache_meta WHERE key='schema_version'"
+    ).fetchone()
+    assert v["value"] == "6"
+    conn.close()
+
+
+def test_v5_to_v6_migration_populate_full_succeeds(tmp_path):
+    """After migration, populate_full's INSERT with primary_vendor_id works."""
+    import cache_db
+
+    db_path = str(tmp_path / "cache.db")
+    conn = cache_db.connect(db_path)
+    conn.executescript("""
+        CREATE TABLE cache_meta (key TEXT PRIMARY KEY, value TEXT);
+        INSERT INTO cache_meta (key, value) VALUES ('schema_version', '5');
+        CREATE TABLE parts (
+            part_id TEXT PRIMARY KEY, lcsc TEXT DEFAULT '', mpn TEXT DEFAULT '',
+            digikey TEXT DEFAULT '', pololu TEXT DEFAULT '', mouser TEXT DEFAULT '',
+            manufacturer TEXT DEFAULT '', description TEXT DEFAULT '',
+            package TEXT DEFAULT '', rohs TEXT DEFAULT '', section TEXT DEFAULT '',
+            sort_key REAL, date_code TEXT DEFAULT ''
+        );
+    """)
+    conn.commit()
+    conn.close()
+
+    conn = cache_db.connect(db_path)
+    cache_db.create_schema(conn)
+
+    # Now populate_full should work (this would crash without the migration fix)
+    merged = {"TEST2": {"Manufacture Part Number": "TMR2305", "Manufacturer": "MDT",
+                        "Quantity": "10", "Unit Price($)": "3.10",
+                        "Ext.Price($)": "31.00"}}
+    categorized = {"Other": list(merged.values())}
+    cache_db.populate_full(conn, merged, categorized)
+    conn.close()
