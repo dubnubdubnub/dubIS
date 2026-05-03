@@ -1,6 +1,84 @@
 /* ── Inventory Panel ───────────────────────────────────── */
 .panel-inventory { flex: 1; min-width: 300px; }
 
+/* CSS custom property: column-header row height (single line of small text). */
+.panel-inventory { --inv-col-header-h: 26px; }
+
+/* ── Column Header Row ────────────────────────────────── */
+.inv-col-header {
+  display: flex;
+  align-items: center;
+  padding: 4px 12px 4px 24px;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  height: var(--inv-col-header-h);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  user-select: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.inv-col-cell {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: left;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.inv-col-cell:hover { color: var(--text-primary); }
+.inv-col-sort-active { color: var(--color-blue); font-weight: 700; }
+
+/* Group toggle dots */
+.inv-col-group-dots { font-size: 8px; letter-spacing: 1px; color: var(--text-muted); }
+
+/* Column widths must mirror the .inv-part-row column widths exactly. */
+.inv-col-group   { width: 50px; flex-shrink: 1; min-width: 24px; overflow: hidden; }
+.inv-col-partid  { width: 100px; flex-shrink: 0; }
+.inv-col-mpn     { width: 160px; flex-shrink: 0; }
+.inv-col-unit    { width: 70px; flex-shrink: 0; text-align: right; justify-content: flex-end; }
+.inv-col-value   { width: 70px; flex-shrink: 0; text-align: right; justify-content: flex-end; }
+.inv-col-qty     { width: 60px; flex-shrink: 0; text-align: right; justify-content: flex-end; }
+.inv-col-desc    { flex: 1; min-width: 0; }
+.inv-col-reset   { margin-left: auto; flex-shrink: 0; font-size: 14px; }
+
+/* Section chip shown on rows when Group level = 2 (flat mode) */
+.inv-section-chip {
+  display: inline-block;
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+/* Vendor sub-header (when Part # group is active) */
+.inv-vendor-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 36px;
+  background: var(--bg-base);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--bg-hover);
+}
+.inv-vendor-header .vendor-icon { width: 14px; height: 14px; }
+
 /* ── Search Group (filter buttons + search input) ─────── */
 .inv-search-group {
   display: flex;
@@ -42,7 +120,7 @@
   font-weight: 600;
   color: var(--text-secondary);
   position: sticky;
-  top: 0;
+  top: var(--inv-col-header-h);
   z-index: 3;
   user-select: none;
 }
@@ -67,7 +145,7 @@
   font-weight: 700;
   color: var(--text-primary);
   position: sticky;
-  top: 0;
+  top: var(--inv-col-header-h);
   z-index: 4;
   user-select: none;
   border-bottom: 1px solid var(--border-default);
@@ -92,7 +170,7 @@
   font-weight: 600;
   color: var(--text-secondary);
   position: sticky;
-  top: 29px;
+  top: calc(var(--inv-col-header-h) + 29px);
   z-index: 3;
   user-select: none;
 }
@@ -122,11 +200,15 @@
   border-bottom: 1px solid var(--bg-hover);
   transition: background 0.1s;
   user-select: text;
+  max-height: 64px;
+  overflow: hidden;
 }
 .inv-part-row:hover { background: var(--bg-hover); }
 .inv-part-row .part-id { width: 90px; flex-shrink: 0; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: var(--color-blue); }
 .inv-part-row .part-mpn { width: 160px; min-width: 40px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
+.inv-part-row .inv-drag-handle { width: 42px; flex-shrink: 1; min-width: 14px; align-items: center; }
 .inv-part-row .part-value { width: 70px; min-width: 20px; text-align: right; font-size: 11px; font-family: "SFMono-Regular", Consolas, monospace; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-part-row .part-unit-price { width: 70px; min-width: 0; text-align: right; font-size: 11px; font-family: "SFMono-Regular", Consolas, monospace; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inv-part-row .part-qty { width: 60px; min-width: 30px; text-align: right; font-weight: 600; }
 .inv-part-row .part-desc { flex: 1; min-width: 0; overflow: hidden; }
 .inv-part-row .part-actions { flex-shrink: 0; margin-left: auto; display: flex; gap: 4px; align-items: center; }

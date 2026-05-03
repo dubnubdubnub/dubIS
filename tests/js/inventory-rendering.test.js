@@ -62,3 +62,33 @@ describe('renderFilterBarHtml', () => {
     expect(html).toContain('1');
   });
 });
+
+describe('renderPartRowHtml — unit price column', () => {
+  const baseOpts = {
+    hideDescs: false, isBomMode: false, isLinkSource: false,
+    isReverseTarget: false, sectionKey: 'Resistors', threshold: 50, genericParts: null,
+  };
+
+  it('renders $X.XX for prices ≥ $0.01', () => {
+    const html = renderPartRowHtml({ mpn: 'A', qty: 10, unit_price: 0.05 }, baseOpts);
+    expect(html).toMatch(/<span class="part-unit-price">\$0\.05<\/span>/);
+  });
+
+  it('renders $X.XXXX for sub-cent prices', () => {
+    const html = renderPartRowHtml({ mpn: 'A', qty: 10, unit_price: 0.0034 }, baseOpts);
+    expect(html).toMatch(/<span class="part-unit-price">\$0\.0034<\/span>/);
+  });
+
+  it('renders em-dash for missing/zero unit price', () => {
+    const html = renderPartRowHtml({ mpn: 'A', qty: 10 }, baseOpts);
+    expect(html).toMatch(/<span class="part-unit-price">—<\/span>/);
+  });
+
+  it('renders a section chip when sectionChip option is provided', () => {
+    const html = renderPartRowHtml(
+      { mpn: 'A', qty: 10, unit_price: 0.05 },
+      { ...baseOpts, sectionChip: 'Resistors' }
+    );
+    expect(html).toMatch(/<span class="inv-section-chip">Resistors<\/span>/);
+  });
+});

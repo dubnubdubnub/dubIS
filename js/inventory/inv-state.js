@@ -30,6 +30,22 @@ var state = {
 
   // Near-miss map: invPartKey.toUpperCase() → near-miss object (populated on BOM match)
   nearMissMap: null,
+
+  // ── Column-header controls (sort + group) ──
+  groupLevel: 0,           // 0 = full hierarchy (default), 1 = sections only, 2 = flat
+  sortColumn: null,        // null | "mpn" | "description" | "qty" | "unit_price" | "value"
+  sortScope: null,         // null | "subsection" | "section" | "global"
+  vendorGroupScope: null,  // null | "subsection" | "section" | "global"
 };
 
 export default state;
+
+export function hydrateFromPreferences(view) {
+  if (!view || typeof view !== "object") return;
+  if (Number.isInteger(view.group_level) && view.group_level >= 0 && view.group_level <= 2) {
+    state.groupLevel = view.group_level;
+  }
+  state.sortColumn       = view.sort_column || null;
+  state.sortScope        = view.sort_scope  || null;
+  state.vendorGroupScope = view.vendor_group_scope || null;
+}
