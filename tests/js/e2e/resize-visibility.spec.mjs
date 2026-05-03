@@ -704,6 +704,31 @@ test.describe('Modal dialogs at narrow viewports', () => {
     expect(modalInfo.saveBtnVisible, 'Save button not visible in prefs modal').toBe(true);
   });
 
+  test('preferences modal sliders share left and right edges across categories and subcategories', async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+
+    await page.click('#prefs-btn');
+    await page.waitForSelector('#prefs-modal:not(.hidden)', { timeout: 5000 });
+
+    const sliderInfo = await page.evaluate(() => {
+      const sliders = Array.from(document.querySelectorAll('#prefs-sliders .prefs-slider'));
+      return sliders.map((s) => {
+        const r = s.getBoundingClientRect();
+        return { left: r.left, right: r.right, width: r.width };
+      });
+    });
+
+    expect(sliderInfo.length, 'Expected at least one parent + one child slider').toBeGreaterThanOrEqual(2);
+    const firstLeft = sliderInfo[0].left;
+    const firstRight = sliderInfo[0].right;
+    for (const s of sliderInfo) {
+      expect(Math.abs(s.left - firstLeft), `Slider left edge ${s.left} != ${firstLeft}`).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(s.right - firstRight), `Slider right edge ${s.right} != ${firstRight}`).toBeLessThanOrEqual(0.5);
+    }
+  });
+
   test('adjustment modal fits within 800px viewport — with BOM + PO', async ({ page }) => {
     await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 800, height: 600 });

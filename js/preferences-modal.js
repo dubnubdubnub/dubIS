@@ -32,9 +32,11 @@ function _createPrefsSliderRow(section, indent) {
   const val = getThreshold(section);
   const row = document.createElement("div");
   row.className = "prefs-row";
-  if (indent) row.style.paddingLeft = "18px";
+  const labelStyle = indent
+    ? 'font-size:11px;color:var(--text-secondary);text-indent:18px'
+    : '';
   row.innerHTML = `
-    <label class="prefs-label" ${indent ? 'style="font-size:11px;color:var(--text-secondary)"' : ''}>${escHtml(indent ? section.split(" > ").pop() : section)}</label>
+    <label class="prefs-label"${labelStyle ? ` style="${labelStyle}"` : ''}>${escHtml(indent ? section.split(" > ").pop() : section)}</label>
     <input type="range" class="prefs-slider" min="0" max="${Math.max(val, PREFS_MAX_THRESHOLD)}" step="1" value="${val}" data-section="${escHtml(section)}">
     <span class="prefs-value-wrap">$<input type="number" class="prefs-input" min="0" step="1" value="${val}"></span>
   `;
