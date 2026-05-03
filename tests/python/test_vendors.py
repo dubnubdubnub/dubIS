@@ -210,6 +210,7 @@ class TestFavicon:
             class R:
                 status_code = 200
                 content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+                text = ""
                 headers = {"Content-Type": "image/png"}
                 def raise_for_status(self): pass
             return R()
@@ -232,6 +233,7 @@ class TestFavicon:
             class R:
                 status_code = 200
                 content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+                text = ""
                 headers = {"Content-Type": "image/png"}
                 def raise_for_status(self): pass
             return R()

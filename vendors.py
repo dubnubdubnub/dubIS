@@ -251,7 +251,7 @@ def fetch_favicon(url: str, cache_dir: str) -> str:
         page = requests.get(canonical, timeout=_FAVICON_TIMEOUT, allow_redirects=True)
         page.raise_for_status()
         favicon_url = _extract_favicon_url(page.text[:1_000_000], canonical)
-    except Exception:
+    except requests.exceptions.RequestException:
         favicon_url = canonical.rstrip("/") + "/favicon.ico"
 
     resp = requests.get(favicon_url, timeout=_FAVICON_TIMEOUT, allow_redirects=True)
