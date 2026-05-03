@@ -789,3 +789,89 @@ def test_v5_to_v6_migration_populate_full_succeeds(tmp_path):
     categorized = {"Other": list(merged.values())}
     cache_db.populate_full(conn, merged, categorized)
     conn.close()
+
+
+def test_populate_full_sets_primary_vendor_id_from_po(tmp_path):
+    """A part that has a PO row gets primary_vendor_id set to that PO's vendor."""
+    import cache_db
+    import csv as _csv
+
+    base = tmp_path / "data"
+    base.mkdir()
+    (base / "sources").mkdir()
+    ledger = base / "purchase_ledger.csv"
+    fields = ["LCSC Part Number", "Manufacture Part Number", "Manufacturer",
+              "Quantity", "Unit Price($)", "po_id"]
+    with open(ledger, "w", newline="", encoding="utf-8") as f:
+        w = _csv.DictWriter(f, fieldnames=fields)
+        w.writeheader()
+        w.writerow({"LCSC Part Number": "", "Manufacture Part Number": "TMR2615",
+                    "Manufacturer": "MDT", "Quantity": "50",
+                    "Unit Price($)": "4.20", "po_id": "po_test01"})
+
+    po_csv = base / "purchase_orders.csv"
+    with open(po_csv, "w", newline="", encoding="utf-8") as f:
+        w = _csv.DictWriter(f, fieldnames=[
+            "po_id", "vendor_id", "source_file_hash", "source_file_ext",
+            "purchase_date", "notes",
+        ])
+        w.writeheader()
+        w.writerow({"po_id": "po_test01", "vendor_id": "v_mdt_x", "source_file_hash": "",
+                    "source_file_ext": "", "purchase_date": "2026-04-15", "notes": ""})
+
+    conn = cache_db.connect(str(base / "cache.db"))
+    cache_db.create_schema(conn)
+    # Use the helper that the rebuild path will call (added in Task 11 step 4)
+    from inventory_ops import read_and_merge, apply_adjustments, categorize_and_sort
+    fnames, merged = read_and_merge(str(ledger), fields)
+    apply_adjustments(merged, str(base / "adjustments.csv"), fnames)
+    categorized = categorize_and_sort(list(merged.values()))
+    cache_db.populate_full(conn, merged, categorized,
+                            ledger_path=str(ledger), po_csv_path=str(po_csv))
+    row = conn.execute(
+        "SELECT primary_vendor_id FROM parts WHERE mpn=?", ("TMR2615",)
+    ).fetchone()
+    assert row["primary_vendor_id"] == "v_mdt_x"
+    conn.close()
+
+
+def test_populate_full_falls_back_to_inferred_vendor(tmp_path):
+    """A part with no PO falls back to inferred vendor by manufacturer name."""
+    import cache_db
+    import csv as _csv
+    import json
+
+    base = tmp_path / "data"
+    base.mkdir()
+    ledger = base / "purchase_ledger.csv"
+    fields = ["LCSC Part Number", "Manufacture Part Number", "Manufacturer",
+              "Quantity", "po_id"]
+    with open(ledger, "w", newline="", encoding="utf-8") as f:
+        w = _csv.DictWriter(f, fieldnames=fields)
+        w.writeheader()
+        w.writerow({"LCSC Part Number": "", "Manufacture Part Number": "X1",
+                    "Manufacturer": "HRS", "Quantity": "5", "po_id": ""})
+
+    vjson = base / "vendors.json"
+    with open(vjson, "w", encoding="utf-8") as f:
+        json.dump([
+            {"id": "v_unknown", "name": "Unknown", "type": "unknown", "icon": "❓",
+             "url": "", "favicon_path": ""},
+            {"id": "v_hrs_abcd", "name": "HRS", "type": "inferred",
+             "url": "", "favicon_path": "", "icon": ""},
+        ], f)
+
+    conn = cache_db.connect(str(base / "cache.db"))
+    cache_db.create_schema(conn)
+    from inventory_ops import read_and_merge, apply_adjustments, categorize_and_sort
+    fnames, merged = read_and_merge(str(ledger), fields)
+    apply_adjustments(merged, str(base / "adjustments.csv"), fnames)
+    categorized = categorize_and_sort(list(merged.values()))
+    cache_db.populate_full(conn, merged, categorized,
+                            ledger_path=str(ledger), po_csv_path=None,
+                            vendors_json_path=str(vjson))
+    row = conn.execute(
+        "SELECT primary_vendor_id FROM parts WHERE mpn=?", ("X1",)
+    ).fetchone()
+    assert row["primary_vendor_id"] == "v_hrs_abcd"
+    conn.close()

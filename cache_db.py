@@ -147,6 +147,10 @@ def populate_full(
     conn: sqlite3.Connection,
     merged: dict[str, dict[str, str]],
     categorized: dict[str, list[dict[str, str]]],
+    *,
+    ledger_path: str | None = None,
+    po_csv_path: str | None = None,
+    vendors_json_path: str | None = None,
 ) -> None:
     """Full population from merge + categorize results. Clears existing data."""
     conn.execute("DELETE FROM prices")
@@ -192,6 +196,54 @@ def populate_full(
                     parse_price(part.get("Ext.Price($)")),
                 ),
             )
+    conn.commit()
+
+    # Build part_id → primary_vendor_id lookup
+    primary_vendor: dict[str, str] = {}
+
+    if ledger_path and po_csv_path and os.path.isfile(po_csv_path):
+        # part_id → most-recent po_id (latest order wins)
+        po_id_for_part: dict[str, str] = {}
+        if os.path.isfile(ledger_path):
+            with open(ledger_path, newline="", encoding="utf-8-sig") as f:
+                for row in csv.DictReader(f):
+                    pk = get_part_key(row)
+                    poid = (row.get("po_id") or "").strip()
+                    if pk and poid:
+                        po_id_for_part[pk] = poid  # last write wins (chronological)
+
+        # po_id → vendor_id
+        po_to_vendor: dict[str, str] = {}
+        with open(po_csv_path, newline="", encoding="utf-8-sig") as f:
+            for row in csv.DictReader(f):
+                po_to_vendor[row["po_id"]] = row["vendor_id"]
+
+        for pk, poid in po_id_for_part.items():
+            v = po_to_vendor.get(poid)
+            if v:
+                primary_vendor[pk] = v
+
+    # Fall back to inferred vendor by manufacturer name
+    if vendors_json_path and os.path.isfile(vendors_json_path):
+        import json
+        with open(vendors_json_path, encoding="utf-8") as f:
+            vendors_data = json.load(f)
+        # name → id (case-insensitive)
+        mfg_to_vendor = {v["name"].lower(): v["id"] for v in vendors_data
+                         if v.get("type") in ("inferred", "real")}
+        unknown_id = "v_unknown"
+        for part in merged.values():
+            pk = get_part_key(part)
+            if pk and pk not in primary_vendor:
+                mfg = (part.get("Manufacturer") or "").strip().lower()
+                primary_vendor[pk] = mfg_to_vendor.get(mfg, unknown_id)
+
+    # Update parts rows with primary_vendor_id
+    for pk, vid in primary_vendor.items():
+        conn.execute(
+            "UPDATE parts SET primary_vendor_id=? WHERE part_id=?",
+            (vid, pk),
+        )
     conn.commit()
 
 
