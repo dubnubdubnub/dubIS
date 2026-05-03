@@ -6,6 +6,10 @@ vi.mock('../../js/ui-helpers.js', () => ({
   showToast: vi.fn(),
 }));
 
+vi.mock('../../js/store.js', () => ({
+  store: { purchaseOrders: [], vendors: [], inventory: [] },
+}));
+
 import {
   renderPartRowHtml,
   renderFilterBarHtml,
