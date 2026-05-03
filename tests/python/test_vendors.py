@@ -74,6 +74,15 @@ class TestListAndCreate:
         assert len(suffix) == 4
         assert all(c in "0123456789abcdef" for c in suffix)
 
+    def test_create_distinct_url_produces_distinct_id(self, vjson):
+        """Same canonical name + different URL → distinct vendors with distinct IDs."""
+        vendors.seed_builtins(vjson)
+        a = vendors.create_vendor(vjson, name="MDT", url="https://x.com")
+        b = vendors.create_vendor(vjson, name="MDt", url="https://y.com")
+        assert a["id"] != b["id"]
+        all_ids = [v["id"] for v in vendors.list_vendors(vjson)]
+        assert len(all_ids) == len(set(all_ids)), f"duplicate IDs: {all_ids}"
+
 
 class TestUpdateAndDelete:
     def test_update_changes_name_and_url(self, vjson):
