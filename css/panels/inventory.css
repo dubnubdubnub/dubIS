@@ -245,9 +245,8 @@
 .dist-filter-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
 .dist-filter-btn .vendor-icon { width: 14px; height: 14px; margin-right: 2px; vertical-align: -2px; }
 .dist-icon-other {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-block;
+  box-sizing: border-box;
   width: 14px;
   height: 14px;
   margin-right: 2px;
@@ -256,7 +255,8 @@
   border-radius: 3px;
   font-size: 10px;
   font-weight: 700;
-  line-height: 1;
+  line-height: 12px;
+  text-align: center;
 }
 .dist-filter-btn.active[data-distributor="lcsc"]    { border-color: var(--vendor-lcsc);    color: var(--vendor-lcsc);    background: #1166dd15; }
 .dist-filter-btn.active[data-distributor="digikey"] { border-color: var(--vendor-digikey); color: var(--vendor-digikey); background: #ee282115; }
