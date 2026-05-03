@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import sqlite3
+import sys
 import threading
 from datetime import datetime
 from typing import Any
@@ -603,6 +604,195 @@ class InventoryApi:
     def delete_saved_search(self, search_id: str) -> None:
         import saved_searches
         saved_searches.delete(self._get_cache(), self.base_dir, search_id)
+
+    # ── Mfg-direct vendors / POs ─────────────────────────────────────────
+
+    @property
+    def _vendors_json(self) -> str:
+        return os.path.join(self.base_dir, "vendors.json")
+
+    @property
+    def _po_csv(self) -> str:
+        return os.path.join(self.base_dir, "purchase_orders.csv")
+
+    @property
+    def _sources_dir(self) -> str:
+        d = os.path.join(self.base_dir, "sources")
+        os.makedirs(d, exist_ok=True)
+        return d
+
+    @property
+    def _favicons_dir(self) -> str:
+        d = os.path.join(self._sources_dir, "favicons")
+        os.makedirs(d, exist_ok=True)
+        return d
+
+    def list_vendors(self) -> list[dict[str, Any]]:
+        """Return all vendors. Seeds built-ins on first call."""
+        import vendors
+        vendors.seed_builtins(self._vendors_json)
+        return vendors.list_vendors(self._vendors_json)
+
+    def update_vendor(self, vendor_id: str = "", name: str = "",
+                       url: str = "", favicon_path: str = "") -> dict[str, Any]:
+        """Create (vendor_id="") or update a vendor. Optionally fetch favicon if URL set."""
+        import vendors
+        vendors.seed_builtins(self._vendors_json)
+        if not vendor_id:
+            v = vendors.create_vendor(self._vendors_json, name=name, url=url)
+        else:
+            v = vendors.update_vendor(self._vendors_json, vendor_id,
+                                      name=name or None, url=url or None,
+                                      favicon_path=favicon_path or None)
+        if v.get("url") and not v.get("favicon_path"):
+            try:
+                fp = vendors.fetch_favicon(v["url"], self._favicons_dir)
+                v = vendors.update_vendor(self._vendors_json, v["id"],
+                                           favicon_path=os.path.relpath(fp, self.base_dir))
+            except Exception as exc:
+                logger.warning("favicon fetch failed for %s: %s", v["url"], exc)
+        return v
+
+    def merge_vendors(self, src_id: str, dst_id: str) -> list[dict[str, Any]]:
+        """Reassign all POs from src to dst, then remove src. Returns fresh inventory."""
+        import vendors
+        # Reassign POs first
+        with self._lock:
+            import csv as _csv
+            if os.path.isfile(self._po_csv):
+                with open(self._po_csv, newline="", encoding="utf-8-sig") as f:
+                    rows = list(_csv.DictReader(f))
+                for r in rows:
+                    if r["vendor_id"] == src_id:
+                        r["vendor_id"] = dst_id
+                with open(self._po_csv, "w", newline="", encoding="utf-8") as f:
+                    w = _csv.DictWriter(f, fieldnames=[
+                        "po_id", "vendor_id", "source_file_hash", "source_file_ext",
+                        "purchase_date", "notes",
+                    ])
+                    w.writeheader()
+                    w.writerows(rows)
+            vendors.merge_vendors(self._vendors_json, src_id, dst_id)
+            return self._rebuild()
+
+    def delete_vendor(self, vendor_id: str) -> list[dict[str, Any]]:
+        """Delete a vendor (cannot be a pseudo-vendor or have POs)."""
+        import vendors
+        # Refuse if any PO references it
+        if os.path.isfile(self._po_csv):
+            with open(self._po_csv, newline="", encoding="utf-8-sig") as f:
+                if any(r["vendor_id"] == vendor_id for r in csv.DictReader(f)):
+                    raise ValueError("vendor has POs; merge first")
+        vendors.delete_vendor(self._vendors_json, vendor_id)
+        return self._rebuild()
+
+    def fetch_favicon(self, url: str) -> str:
+        """Fetch favicon for a URL; return absolute path to cached file."""
+        import vendors
+        return vendors.fetch_favicon(url, self._favicons_dir)
+
+    def parse_source_file(self, path: str) -> list[dict[str, Any]]:
+        """Parse a CSV/PDF/image source file into candidate line items."""
+        import mfg_direct_import
+        return mfg_direct_import.parse_source_file(path)
+
+    def match_part(self, mpn: str, manufacturer: str = "") -> dict[str, Any]:
+        """Match an MPN against existing parts. See mfg_direct_import.match_part."""
+        import mfg_direct_import
+        return mfg_direct_import.match_part(self._get_cache(), mpn, manufacturer)
+
+    def create_purchase_order_with_items(
+        self,
+        vendor_id: str,
+        source_file_b64: str,
+        source_file_name: str,
+        purchase_date: str,
+        notes: str,
+        line_items_json: str,
+    ) -> list[dict[str, Any]]:
+        """Create a PO + ledger rows. Returns fresh inventory."""
+        import base64
+
+        import mfg_direct_import
+        line_items = self._ensure_parsed(line_items_json)
+        if not line_items:
+            raise ValueError("line_items must not be empty")
+
+        source_bytes = None
+        source_ext = None
+        if source_file_b64 and source_file_name:
+            source_bytes = base64.b64decode(source_file_b64)
+            source_ext = os.path.splitext(source_file_name)[1].lower()
+
+        with self._lock:
+            mfg_direct_import.import_po(
+                ledger_csv=self.input_csv,
+                po_csv=self._po_csv,
+                sources_dir=self._sources_dir,
+                vendor_id=vendor_id,
+                source_file_bytes=source_bytes,
+                source_file_ext=source_ext,
+                purchase_date=purchase_date,
+                notes=notes,
+                line_items=line_items,
+            )
+            self._record_import_prices([
+                {"Manufacture Part Number": li.get("mpn", ""),
+                 "Manufacturer": li.get("manufacturer", ""),
+                 "Unit Price($)": str(li.get("unit_price", "")),
+                 "Quantity": str(li.get("quantity", ""))}
+                for li in line_items
+            ])
+            return self._rebuild()
+
+    def list_purchase_orders(self) -> list[dict[str, str]]:
+        import purchase_orders
+        return purchase_orders.list_purchase_orders(self._po_csv)
+
+    def update_purchase_order(self, po_id: str, vendor_id: str = "",
+                               purchase_date: str = "",
+                               notes: str = "") -> list[dict[str, Any]]:
+        import purchase_orders
+        with self._lock:
+            kwargs = {}
+            if vendor_id:
+                kwargs["vendor_id"] = vendor_id
+            if purchase_date:
+                kwargs["purchase_date"] = purchase_date
+            if notes is not None and notes != "":
+                kwargs["notes"] = notes
+            purchase_orders.update_purchase_order(self._po_csv, po_id, **kwargs)
+            return self._rebuild()
+
+    def delete_purchase_order(self, po_id: str) -> list[dict[str, Any]]:
+        import purchase_orders
+        with self._lock:
+            # Remove ledger rows first
+            if os.path.isfile(self.input_csv):
+                with open(self.input_csv, newline="", encoding="utf-8-sig") as f:
+                    fn = csv.DictReader(f).fieldnames
+                    f.seek(0)
+                    rows = [r for r in csv.DictReader(f) if r.get("po_id") != po_id]
+                with open(self.input_csv, "w", newline="", encoding="utf-8") as f:
+                    w = csv.DictWriter(f, fieldnames=fn)
+                    w.writeheader()
+                    w.writerows(rows)
+            purchase_orders.delete_purchase_order(self._po_csv, self._sources_dir, po_id)
+            return self._rebuild()
+
+    def open_source_file(self, po_id: str) -> dict[str, str]:
+        """Open the archived source file for a PO in the OS default app."""
+        import purchase_orders
+        path = purchase_orders.resolve_source_path(self._sources_dir, po_id, self._po_csv)
+        if not path:
+            return {"opened": False, "reason": "no source file"}
+        if os.name == "nt":
+            os.startfile(path)  # type: ignore[attr-defined]
+        else:
+            import subprocess
+            opener = "open" if sys.platform == "darwin" else "xdg-open"
+            subprocess.Popen([opener, path])
+        return {"opened": True, "path": path}
 
     # ── Window lifecycle ─────────────────────────────────────────────────
 

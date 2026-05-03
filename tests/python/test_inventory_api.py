@@ -1006,3 +1006,49 @@ def test_purchase_ledger_migrates_to_include_po_id(api):
     new_row = next(r for r in rows if r.get("Manufacture Part Number") == "NEW1")
     assert old_row["po_id"] == ""
     assert new_row["po_id"] == "po_test01"
+
+
+def test_list_vendors_returns_seeded(api):
+    """First call seeds built-ins."""
+    result = api.list_vendors()
+    ids = {v["id"] for v in result}
+    assert {"v_self", "v_salvage", "v_unknown"}.issubset(ids)
+
+
+def test_create_and_update_vendor(api):
+    new_v = api.update_vendor(
+        vendor_id="",  # empty → create
+        name="MDT", url="https://tmr-sensors.com",
+    )
+    assert new_v["type"] == "real"
+    assert new_v["url"] == "https://tmr-sensors.com"
+
+
+def test_match_part_returns_status(api):
+    api.import_purchases(
+        '[{"Manufacture Part Number":"TMR2615","Manufacturer":"MDT","Quantity":"50","Unit Price($)":"4.20"}]')
+    result = api.match_part(mpn="TMR2615", manufacturer="MDT")
+    assert result["status"] == "definite"
+
+
+def test_parse_source_file_csv(api, tmp_path):
+    p = tmp_path / "po.csv"
+    p.write_text("Manufacture Part Number,Manufacturer,Quantity,Unit Price($)\n"
+                 "TMR2615,MDT,50,4.20\n", encoding="utf-8")
+    rows = api.parse_source_file(str(p))
+    assert len(rows) == 1
+    assert rows[0]["mpn"] == "TMR2615"
+
+
+def test_create_purchase_order_writes_files(api):
+    """Manual entry — no source file."""
+    new_v = api.update_vendor("", name="MDT", url="https://tmr-sensors.com")
+    inv = api.create_purchase_order_with_items(
+        vendor_id=new_v["id"],
+        source_file_b64="", source_file_name="",
+        purchase_date="2026-04-15", notes="",
+        line_items_json='[{"mpn":"TMR2615","manufacturer":"MDT","package":"",'
+                         '"quantity":50,"unit_price":4.20,"match":"new"}]',
+    )
+    # Returns fresh inventory
+    assert any(p["mpn"] == "TMR2615" for p in inv)
