@@ -30,6 +30,12 @@ var state = {
 
   // Near-miss map: invPartKey.toUpperCase() → near-miss object (populated on BOM match)
   nearMissMap: null,
+
+  // ── Column-header controls (sort + group) ──
+  groupLevel: 0,           // 0 = full hierarchy (default), 1 = sections only, 2 = flat
+  sortColumn: null,        // null | "mpn" | "description" | "qty" | "unit_price" | "value"
+  sortScope: null,         // null | "subsection" | "section" | "global"
+  vendorGroupScope: null,  // null | "subsection" | "section" | "global"
 };
 
 export default state;
