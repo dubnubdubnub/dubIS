@@ -12,7 +12,8 @@ const MOCK_INVENTORY = JSON.parse(
 
 /**
  * Adds a stateful preferences mock that round-trips inventory_view across reloads.
- * Must be called BEFORE addMockSetup so it can override its load/save methods.
+ * Must be called BEFORE addMockSetup so this init script registers first and the
+ * setter trap below is installed before addMockSetup assigns `window.pywebview`.
  * Uses sessionStorage so the next page-load init script reads the saved state.
  */
 async function addPersistentPrefsMock(page) {
@@ -24,20 +25,35 @@ async function addPersistentPrefsMock(page) {
       if (stored) prefs = JSON.parse(stored);
     } catch (_) {}
 
-    // Poll until addMockSetup installs window.pywebview.api, then override the prefs methods.
-    const checkInterval = setInterval(() => {
-      if (window.pywebview && window.pywebview.api) {
-        clearInterval(checkInterval);
-        window.pywebview.api.load_preferences = async () => prefs;
-        window.pywebview.api.save_preferences = async (json) => {
-          try {
-            prefs = typeof json === 'string' ? JSON.parse(json) : json;
-            window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
-          } catch (_) {}
-          return true;
-        };
-      }
-    }, 5);
+    function patch(api) {
+      if (!api) return;
+      api.load_preferences = async () => prefs;
+      api.save_preferences = async (json) => {
+        try {
+          prefs = typeof json === 'string' ? JSON.parse(json) : json;
+          window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+        } catch (_) {}
+        return true;
+      };
+    }
+
+    // Trap the future `window.pywebview = { api: {...} }` assignment from
+    // addMockSetup so we patch synchronously the moment the API exists. The
+    // previous setInterval(5) version raced against the app's first
+    // `await api("load_preferences")` call on fast machines (m4-air).
+    if (window.pywebview && window.pywebview.api) {
+      patch(window.pywebview.api);
+    } else {
+      let _pw;
+      Object.defineProperty(window, 'pywebview', {
+        configurable: true,
+        get() { return _pw; },
+        set(v) {
+          _pw = v;
+          if (v && v.api) patch(v.api);
+        },
+      });
+    }
   });
 }
 
@@ -125,6 +141,20 @@ test.describe('Inventory column header — sort/group/reset', () => {
     await groupBtn.click(); // → 1
     await groupBtn.click(); // → 2
     await expect(page.locator('.inv-section-chip').first()).toBeVisible();
+
+    // saveInventoryView fires save_preferences without awaiting it (store.js:226).
+    // The mock then resolves on a microtask. On fast machines (Apple Silicon m4-air)
+    // page.reload() can outrun that microtask, so the reload sees no saved state.
+    // Wait for the mock to flush group_level=2 into sessionStorage before reloading.
+    await page.waitForFunction(() => {
+      const raw = window.sessionStorage.getItem('__test_prefs_inv_view');
+      if (!raw) return false;
+      try {
+        return JSON.parse(raw)?.inventory_view?.group_level === 2;
+      } catch (_) {
+        return false;
+      }
+    });
 
     // Reload — sessionStorage carries the saved prefs into the next load_preferences call.
     await page.reload();
