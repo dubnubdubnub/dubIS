@@ -65,3 +65,28 @@
 .vendor-subpill.selected .sub-count { color: rgba(255,255,255,0.7); }
 .dist-vendor-caret { margin-left: 4px; font-size: 10px; color: var(--text-muted); cursor: pointer; }
 .dist-vendor-caret:hover { color: var(--color-blue); }
+
+/* Favicon fan stack (inventory row) */
+.favicon-fan-stack { position: relative; display: inline-block; vertical-align: middle;
+  flex-shrink: 0; height: 16px; }
+.fan-icon { position: absolute; top: 0; width: 16px; height: 16px; border-radius: 3px;
+  border: 1px solid var(--border-default); background: var(--bg-surface);
+  display: inline-flex; align-items: center; justify-content: center; font-size: 10px; }
+.fan-icon-img { object-fit: contain; }
+.fan-icon-empty { background: var(--bg-tertiary); }
+.fan-icon-extra { font-size: 9px; color: var(--text-muted); background: var(--bg-surface); }
+
+/* Hover flyout */
+.favicon-fan-flyout { position: fixed; z-index: 9999; background: var(--bg-surface);
+  border: 1px solid var(--border-default); border-radius: 4px; padding: 6px 8px;
+  min-width: 180px; max-width: 300px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  font-size: 11px; color: var(--text-primary); }
+.flyout-po-header { font-size: 10px; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: 0.5px; margin-bottom: 4px; }
+.flyout-po-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+.flyout-favicon { width: 14px; height: 14px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center; }
+.flyout-favicon-img { object-fit: contain; }
+.flyout-vendor-name { flex: 1; font-weight: 500; }
+.flyout-po-date { color: var(--text-muted); font-size: 10px; }
+.flyout-po-id { color: var(--text-muted); font-size: 10px; font-family: var(--font-mono, monospace); }

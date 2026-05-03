@@ -7,6 +7,7 @@ import { store } from '../store.js';
 import { escHtml } from '../ui-helpers.js';
 import { inferDistributor } from './inventory-logic.js';
 import state from './inv-state.js';
+import { buildHoverFlyout } from './favicon-stack.js';
 
 /**
  * Wire up all DOM event listeners and EventBus subscriptions.
@@ -150,6 +151,43 @@ export function setupEvents(handlers) {
   // ── Vendor sub-pill filter ──
   window.addEventListener('inv-filter-changed', function () {
     render();
+  });
+
+  // ── Favicon fan-stack hover flyout ──
+  var activeFanFlyout = null;
+  var fanFlyoutTimer = null;
+
+  state.body.addEventListener('mouseover', function (e) {
+    var stack = e.target.closest('.favicon-fan-stack');
+    if (!stack) return;
+    clearTimeout(fanFlyoutTimer);
+    fanFlyoutTimer = setTimeout(function () {
+      // Remove existing flyout
+      if (activeFanFlyout) { activeFanFlyout.remove(); activeFanFlyout = null; }
+      var partKey = stack.dataset.partKey || '';
+      var inv = store.inventory || [];
+      var part = null;
+      for (var i = 0; i < inv.length; i++) {
+        var p = inv[i];
+        var key = (p.lcsc || p.mpn || '');
+        if (key === partKey) { part = p; break; }
+      }
+      if (!part) return;
+      var flyout = buildHoverFlyout(part);
+      flyout.style.position = 'fixed';
+      var rect = stack.getBoundingClientRect();
+      flyout.style.top = (rect.bottom + 4) + 'px';
+      flyout.style.left = rect.left + 'px';
+      document.body.appendChild(flyout);
+      activeFanFlyout = flyout;
+    }, 120);
+  });
+
+  state.body.addEventListener('mouseout', function (e) {
+    var stack = e.target.closest('.favicon-fan-stack');
+    if (!stack) return;
+    clearTimeout(fanFlyoutTimer);
+    if (activeFanFlyout) { activeFanFlyout.remove(); activeFanFlyout = null; }
   });
 }
 
