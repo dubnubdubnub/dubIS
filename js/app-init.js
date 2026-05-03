@@ -169,8 +169,24 @@ async function initApp() {
   await loadPreferences();
   loadInventory();
   api("check_digikey_session").then(function (r) {
-    if (r && r.logged_in) AppLog.info("Digikey: existing session found");
-    else if (r && r.message) AppLog.info("DK: " + r.message);
+    if (r && r.logged_in) {
+      AppLog.info("Digikey: existing session found");
+      // Cookie presence isn't enough — validate the session is actually live.
+      // Hits a logged-in-only Digikey page in the hidden webview; on failure
+      // the backend invalidates the session so the next preview tooltip
+      // shows the "Login to Digikey in Preferences" message.
+      api("validate_digikey_session").then(function (v) {
+        if (!v) return;
+        if (v.changed && !v.logged_in) {
+          AppLog.warn("Digikey: " + (v.message || "session expired"));
+          showToast("Digikey session expired — log in via Preferences");
+        } else if (v.logged_in) {
+          AppLog.info("Digikey: session validated");
+        } else if (v.message) {
+          AppLog.info("Digikey: " + v.message);
+        }
+      });
+    } else if (r && r.message) AppLog.info("DK: " + r.message);
   });
 }
 
