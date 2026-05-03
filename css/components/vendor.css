@@ -49,3 +49,19 @@
 
 .new-po-btn-direct { color: var(--color-blue); border-color: var(--color-blue); }
 .new-po-btn-direct:hover { background: rgba(10, 132, 255, 0.1); }
+
+/* Vendor sub-pill expansion panel */
+.vendor-subpills-panel { display: flex; gap: 4px; flex-wrap: wrap; padding: 6px 12px;
+  background: var(--bg-surface); border-bottom: 1px solid var(--border-default); }
+.vendor-subpills-panel.hidden { display: none; }
+.vendor-subpill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
+  border: 1px solid var(--border-default); border-radius: 12px; background: transparent;
+  color: var(--text-secondary); font-size: 11px; cursor: pointer; }
+.vendor-subpill:hover { border-color: var(--color-blue); color: var(--color-blue); }
+.vendor-subpill.selected { background: var(--color-blue); color: #fff; border-color: var(--color-blue); }
+.sub-favicon { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; }
+.sub-favicon-empty { width: 14px; height: 14px; background: var(--bg-tertiary); border-radius: 2px; }
+.sub-count { font-size: 10px; color: var(--text-muted); }
+.vendor-subpill.selected .sub-count { color: rgba(255,255,255,0.7); }
+.dist-vendor-caret { margin-left: 4px; font-size: 10px; color: var(--text-muted); cursor: pointer; }
+.dist-vendor-caret:hover { color: var(--color-blue); }
