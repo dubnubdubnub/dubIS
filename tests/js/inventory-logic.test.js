@@ -10,6 +10,7 @@ import {
   inferDistributor,
   countByDistributor,
   filterByDistributor,
+  filterByVendor,
 } from '../../js/inventory/inventory-logic.js';
 
 // ── groupBySection tests ──
@@ -212,8 +213,11 @@ describe('inferDistributor', () => {
   it('returns "pololu" when item has pololu but no lcsc/digikey/mouser', () => {
     expect(inferDistributor({ pololu: 'P-789' })).toBe('pololu');
   });
-  it('returns "other" when item has no distributor fields', () => {
-    expect(inferDistributor({ mpn: 'GENERIC' })).toBe('other');
+  it('returns "direct" when item has no distributor fields', () => {
+    expect(inferDistributor({ mpn: 'GENERIC' })).toBe('direct');
+  });
+  it('returns "direct" for parts with no distributor PN', () => {
+    expect(inferDistributor({ mpn: 'TMR2615', primary_vendor_id: 'v_mdt' })).toBe('direct');
   });
   it('priority: lcsc wins over digikey', () => {
     expect(inferDistributor({ lcsc: 'C1', digikey: 'DK1' })).toBe('lcsc');
@@ -231,12 +235,12 @@ describe('countByDistributor', () => {
       { mpn: 'X' },
     ];
     expect(countByDistributor(inv)).toEqual({
-      lcsc: 2, digikey: 1, mouser: 0, pololu: 0, other: 1,
+      lcsc: 2, digikey: 1, mouser: 0, pololu: 0, direct: 1,
     });
   });
   it('returns all zeros for empty inventory', () => {
     expect(countByDistributor([])).toEqual({
-      lcsc: 0, digikey: 0, mouser: 0, pololu: 0, other: 0,
+      lcsc: 0, digikey: 0, mouser: 0, pololu: 0, direct: 0,
     });
   });
 });
@@ -258,13 +262,35 @@ describe('filterByDistributor', () => {
   it('filters to lcsc parts only', () => {
     expect(filterByDistributor(parts, new Set(['lcsc']))).toEqual([parts[0]]);
   });
-  it('filters to other parts only', () => {
-    expect(filterByDistributor(parts, new Set(['other']))).toEqual([parts[2]]);
+  it('filters to direct parts only', () => {
+    expect(filterByDistributor(parts, new Set(['direct']))).toEqual([parts[2]]);
   });
-  it('multi-select: lcsc + other shows combined', () => {
-    expect(filterByDistributor(parts, new Set(['lcsc', 'other']))).toEqual([parts[0], parts[2]]);
+  it('multi-select: lcsc + direct shows combined', () => {
+    expect(filterByDistributor(parts, new Set(['lcsc', 'direct']))).toEqual([parts[0], parts[2]]);
   });
   it('multi-select: all distributors shows everything', () => {
-    expect(filterByDistributor(parts, new Set(['lcsc', 'digikey', 'other']))).toEqual(parts);
+    expect(filterByDistributor(parts, new Set(['lcsc', 'digikey', 'direct']))).toEqual(parts);
+  });
+});
+
+// ── filterByVendor tests ──
+
+describe('filterByVendor', () => {
+  it('returns all when set empty', () => {
+    var parts = [{ primary_vendor_id: 'v_mdt' }, { primary_vendor_id: 'v_self' }];
+    expect(filterByVendor(parts, new Set()).length).toBe(2);
+  });
+  it('returns all when vendorIds is null', () => {
+    var parts = [{ primary_vendor_id: 'v_mdt' }, { primary_vendor_id: 'v_self' }];
+    expect(filterByVendor(parts, null).length).toBe(2);
+  });
+  it('filters by id', () => {
+    var parts = [{ primary_vendor_id: 'v_mdt' }, { primary_vendor_id: 'v_self' }];
+    expect(filterByVendor(parts, new Set(['v_mdt'])).length).toBe(1);
+    expect(filterByVendor(parts, new Set(['v_mdt']))[0].primary_vendor_id).toBe('v_mdt');
+  });
+  it('treats missing primary_vendor_id as v_unknown', () => {
+    var parts = [{}, { primary_vendor_id: 'v_unknown' }];
+    expect(filterByVendor(parts, new Set(['v_unknown'])).length).toBe(2);
   });
 });

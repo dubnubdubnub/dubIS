@@ -473,11 +473,12 @@ def query_inventory(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """Query cache in the same format as inventory_ops.load_organized().
 
     Returns list of dicts with keys: section, lcsc, mpn, digikey, pololu,
-    mouser, manufacturer, package, description, qty, unit_price, ext_price.
+    mouser, manufacturer, package, description, qty, unit_price, ext_price,
+    primary_vendor_id.
     """
     rows = conn.execute("""
         SELECT p.section, p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser,
-               p.manufacturer, p.package, p.description,
+               p.manufacturer, p.package, p.description, p.primary_vendor_id,
                s.quantity, s.unit_price, s.ext_price
         FROM parts p
         JOIN stock s USING (part_id)
@@ -497,6 +498,7 @@ def query_inventory(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             "qty": row["quantity"],
             "unit_price": row["unit_price"],
             "ext_price": row["ext_price"],
+            "primary_vendor_id": (row["primary_vendor_id"] or ""),
         }
         for row in rows
     ]

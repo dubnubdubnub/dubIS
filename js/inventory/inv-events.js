@@ -70,6 +70,18 @@ export function setupEvents(handlers) {
     render();
   });
 
+  // Caret on Direct pill toggles vendor sub-pill panel
+  var directBtn = document.querySelector('[data-distributor="direct"]');
+  if (directBtn) {
+    var caret = directBtn.querySelector('.dist-vendor-caret');
+    if (caret) {
+      caret.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleVendorSubpills();
+      });
+    }
+  }
+
   // ── EventBus subscriptions ──
   EventBus.on(Events.INVENTORY_LOADED, function () { render(); });
   EventBus.on(Events.INVENTORY_UPDATED, function () { render(); });
@@ -132,4 +144,12 @@ export function setupEvents(handlers) {
       else store.links.setLinkingMode(false);
     }
   });
+}
+
+/**
+ * Toggle vendor sub-pill panel visibility.
+ * T17 will implement the real panel; for now, just toggle a class.
+ */
+function toggleVendorSubpills() {
+  document.body.classList.toggle('vendor-subpills-open');
 }
