@@ -4,6 +4,8 @@
 import { EventBus, Events } from '../event-bus.js';
 import { AppLog } from '../api.js';
 import { store } from '../store.js';
+import { escHtml } from '../ui-helpers.js';
+import { inferDistributor } from './inventory-logic.js';
 import state from './inv-state.js';
 
 /**
@@ -144,12 +146,69 @@ export function setupEvents(handlers) {
       else store.links.setLinkingMode(false);
     }
   });
+
+  // ── Vendor sub-pill filter ──
+  window.addEventListener('inv-filter-changed', function () {
+    render();
+  });
+}
+
+/**
+ * Render vendor sub-pill panel contents.
+ */
+function renderVendorSubpills() {
+  var panel = document.getElementById('vendor-subpills-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'vendor-subpills-panel';
+    panel.className = 'vendor-subpills-panel hidden';
+    var filterBar = document.querySelector('.dist-filter-bar');
+    if (filterBar) filterBar.after(panel);
+  }
+  var counts = {};
+  (store.inventory || []).forEach(function (p) {
+    if (inferDistributor(p) === 'direct') {
+      var vid = p.primary_vendor_id || 'v_unknown';
+      counts[vid] = (counts[vid] || 0) + 1;
+    }
+  });
+  var vendors = (store.vendors || []).filter(function (v) {
+    return counts[v.id] || ['v_self', 'v_salvage', 'v_unknown'].includes(v.id);
+  });
+  panel.innerHTML = vendors.map(function (v) {
+    var selected = state.selectedVendorIds.has(v.id) ? 'selected' : '';
+    var iconHtml = v.icon
+      ? '<span class="sub-favicon">' + escHtml(v.icon) + '</span>'
+      : (v.favicon_path
+        ? '<img class="sub-favicon" src="' + escHtml(v.favicon_path) + '" alt="">'
+        : '<span class="sub-favicon-empty"></span>');
+    return '<button class="vendor-subpill ' + selected + '" data-vendor-id="' + escHtml(v.id) + '">' +
+      iconHtml + '<span class="sub-name">' + escHtml(v.name) + '</span>' +
+      '<span class="sub-count">' + escHtml(String(counts[v.id] || 0)) + '</span>' +
+      '</button>';
+  }).join('');
+  panel.querySelectorAll('.vendor-subpill').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var vid = btn.dataset.vendorId;
+      if (state.selectedVendorIds.has(vid)) state.selectedVendorIds.delete(vid);
+      else state.selectedVendorIds.add(vid);
+      btn.classList.toggle('selected');
+      window.dispatchEvent(new CustomEvent('inv-filter-changed'));
+    });
+  });
 }
 
 /**
  * Toggle vendor sub-pill panel visibility.
- * T17 will implement the real panel; for now, just toggle a class.
  */
 function toggleVendorSubpills() {
-  document.body.classList.toggle('vendor-subpills-open');
+  var panel = document.getElementById('vendor-subpills-panel');
+  if (!panel) {
+    renderVendorSubpills();
+    var p = document.getElementById('vendor-subpills-panel');
+    if (p) p.classList.remove('hidden');
+  } else {
+    panel.classList.toggle('hidden');
+    renderVendorSubpills();
+  }
 }

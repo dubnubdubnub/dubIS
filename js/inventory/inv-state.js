@@ -10,6 +10,7 @@ var state = {
   bomData: null,           // { rows, fileName, multiplier }
   activeFilter: "all",
   activeDistributors: new Set(), // empty = show all, or set of "lcsc"|"digikey"|"mouser"|"pololu"|"other"
+  selectedVendorIds: new Set(),  // empty = show all direct vendors, or set of vendor IDs
   expandedAlts: new Set(),
   expandedMembers: new Set(),
   rowMap: new Map(),       // partKey -> r, rebuilt each render
