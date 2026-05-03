@@ -35,7 +35,7 @@ import {
 } from './inventory-renderer.js';
 
 import state from './inv-state.js';
-import { setupEvents } from './inv-events.js';
+import { setupEvents, isFlyoutDragActive } from './inv-events.js';
 
 // ── Section hierarchy (read once from store) ──
 
@@ -212,7 +212,9 @@ function renderSubSection(container, displayName, fullKey, parts) {
 function createPartRow(item, sectionKey) {
   var row = document.createElement("div");
   row.className = "inv-part-row";
-  row.draggable = true;
+  // Only draggable while a generic-parts flyout is open (drop target). Off by
+  // default so click-and-drag selects text instead of starting a row drag.
+  row.draggable = isFlyoutDragActive();
   row.dataset.partId = invPartKey(item);
 
   var pk = invPartKey(item).toUpperCase();
@@ -237,6 +239,14 @@ function createPartRow(item, sectionKey) {
   if (store.links.linkingMode && store.links.linkingBomRow) {
     row.classList.add("link-target");
     row.addEventListener("click", function () { createReverseLink(item); });
+  }
+
+  // Keep MPN text selectable even while a flyout is open (when the row
+  // becomes draggable, dragstart from inside the MPN would otherwise
+  // suppress text selection).
+  var mpnEl = row.querySelector(".part-mpn");
+  if (mpnEl) {
+    mpnEl.addEventListener("dragstart", function (e) { e.preventDefault(); });
   }
 
   row.querySelector(".adj-btn").addEventListener("click", function (e) {
@@ -645,11 +655,14 @@ function renderBomComparison() {
   table.innerHTML = renderBomTableHeader();
 
   var tbody = document.createElement("tbody");
+  var flyoutActive = isFlyoutDragActive();
   for (var i = 0; i < sortedRows.length; i++) {
     var r = sortedRows[i];
     var d = bomRowDisplayData(r, query, state.activeFilter, state.expandedAlts, linkingState, state.expandedMembers);
     if (!d) continue;
-    tbody.appendChild(createBomRowElement(d));
+    var bomTr = createBomRowElement(d);
+    bomTr.draggable = flyoutActive;
+    tbody.appendChild(bomTr);
     if (d.showAlts) {
       var altElements = renderAltRows(r.alts, d.partKey);
       for (var j = 0; j < altElements.length; j++) {
