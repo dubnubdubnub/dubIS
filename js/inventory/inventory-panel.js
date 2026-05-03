@@ -120,12 +120,18 @@ function render() {
 
 // ── Normal mode: grouped by section ──
 
+// In BOM mode, the column header is hidden — sort/vendor-group state must NOT
+// leak into the "Other Inventory" rendering path.
+function activeSortScope()        { return state.bomData ? null : state.sortScope; }
+function activeVendorGroupScope() { return state.bomData ? null : state.vendorGroupScope; }
+function activeGroupLevel()       { return state.bomData ? 0    : state.groupLevel; }
+
 function renderNormalInventory() {
   var query = (state.searchInput.value || "").toLowerCase();
   var sections = groupBySection(store.inventory);
 
   // ── Global scope: flatten everything, no section/subsection headers ──
-  if (state.sortScope === "global" || state.vendorGroupScope === "global" || state.groupLevel === 2) {
+  if (activeSortScope() === "global" || activeVendorGroupScope() === "global" || activeGroupLevel() === 2) {
     renderGlobalScope(sections, query);
     return;
   }
@@ -153,14 +159,16 @@ function renderGlobalScope(sections, query) {
     var name = FLAT_SECTIONS[i];
     var bucket = sections[name] || [];
     var filtered = filterByDistributor(filterByQuery(bucket, query), state.activeDistributors);
+    var displayName = sectionDisplayName(name);
     for (var j = 0; j < filtered.length; j++) {
-      filtered[j].__sectionName = sectionDisplayName(name);
-      allParts.push(filtered[j]);
+      var tagged = Object.assign({}, filtered[j]);
+      tagged.__sectionName = displayName;
+      allParts.push(tagged);
     }
   }
   if (allParts.length === 0) return;
 
-  if (state.vendorGroupScope === "global") {
+  if (activeVendorGroupScope() === "global") {
     renderVendorPiles(state.body, allParts, "global");
   } else {
     var sorted = sortPartsBy(allParts, state.sortColumn);
@@ -170,7 +178,7 @@ function renderGlobalScope(sections, query) {
 
 function appendFlatRows(container, parts, scopeKey) {
   for (var k = 0; k < parts.length; k++) {
-    var sectionChip = state.groupLevel === 2 ? parts[k].__sectionName : undefined;
+    var sectionChip = activeGroupLevel() === 2 ? parts[k].__sectionName : undefined;
     var row = createPartRow(parts[k], scopeKey, sectionChip);
     container.appendChild(row);
   }
@@ -183,7 +191,7 @@ function renderVendorPiles(container, parts, scopeKey) {
     hdr.className = "inv-vendor-header";
     hdr.textContent = piles[p].vendor.charAt(0).toUpperCase() + piles[p].vendor.slice(1) + " (" + piles[p].parts.length + ")";
     container.appendChild(hdr);
-    var pileSorted = state.sortColumn ? sortPartsBy(piles[p].parts, state.sortColumn) : piles[p].parts;
+    var pileSorted = (state.bomData ? null : state.sortColumn) ? sortPartsBy(piles[p].parts, state.sortColumn) : piles[p].parts;
     appendFlatRows(container, pileSorted, scopeKey + ":" + piles[p].vendor);
   }
 }
@@ -217,10 +225,10 @@ function renderHierarchySection(entry, sections, query) {
   if (isParentCollapsed) { state.body.appendChild(container); return; }
 
   // \u2500\u2500 Section-scope sort or vendor-group: merge subsections, render flat under section header \u2500\u2500
-  if (state.sortScope === "section" || state.vendorGroupScope === "section") {
+  if (activeSortScope() === "section" || activeVendorGroupScope() === "section") {
     var merged = parentParts.slice();
     for (var c = 0; c < childData.length; c++) merged = merged.concat(childData[c].parts);
-    if (state.vendorGroupScope === "section") {
+    if (activeVendorGroupScope() === "section") {
       renderVendorPiles(container, merged, entry.name);
     } else {
       var sortedSec = sortPartsBy(merged, state.sortColumn);
@@ -231,7 +239,7 @@ function renderHierarchySection(entry, sections, query) {
   }
 
   // \u2500\u2500 Group level 1 (sections only): merge subsections without subsection headers \u2500\u2500
-  if (state.groupLevel === 1) {
+  if (activeGroupLevel() === 1) {
     var allChildParts = parentParts.slice();
     for (var cc = 0; cc < childData.length; cc++) allChildParts = allChildParts.concat(childData[cc].parts);
     for (var x = 0; x < allChildParts.length; x++) container.appendChild(createPartRow(allChildParts[x], entry.name));
@@ -280,10 +288,10 @@ function renderSubSection(container, displayName, fullKey, parts) {
   if (!isCollapsed) {
     if (groupsActive) {
       renderGroupedView(sub, fullKey, parts);
-    } else if (state.vendorGroupScope === "subsection") {
+    } else if (activeVendorGroupScope() === "subsection") {
       renderVendorPiles(sub, parts, fullKey);
     } else {
-      var subSorted = state.sortScope === "subsection" && state.sortColumn ? sortPartsBy(parts, state.sortColumn) : parts;
+      var subSorted = activeSortScope() === "subsection" && state.sortColumn ? sortPartsBy(parts, state.sortColumn) : parts;
       for (var k = 0; k < subSorted.length; k++) sub.appendChild(createPartRow(subSorted[k], fullKey));
     }
   }
@@ -469,11 +477,11 @@ function renderSection(name, parts) {
   if (!isCollapsed) {
     if (groupsActive) {
       renderGroupedView(section, name, parts);
-    } else if (state.vendorGroupScope === "section" || state.vendorGroupScope === "subsection") {
+    } else if (activeVendorGroupScope() === "section" || activeVendorGroupScope() === "subsection") {
       // Flat section has no subsections, so subsection-scope and section-scope behave identically here.
       renderVendorPiles(section, parts, name);
     } else {
-      var sorted = (state.sortScope === "section" || state.sortScope === "subsection") && state.sortColumn
+      var sorted = (activeSortScope() === "section" || activeSortScope() === "subsection") && state.sortColumn
         ? sortPartsBy(parts, state.sortColumn)
         : parts;
       for (var k = 0; k < sorted.length; k++) section.appendChild(createPartRow(sorted[k], name));
