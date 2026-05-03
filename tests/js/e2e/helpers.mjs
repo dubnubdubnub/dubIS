@@ -70,25 +70,32 @@ export function addMockSetup(page, inventory, options = {}) {
         preview_generic_members: async () => [],
         add_generic_member: async () => [],
         remove_generic_member: async () => [],
-        list_vendors: async () => ([
+        list_vendors: async () => opts.mfgDirectVendors || [
           { id: 'v_unknown', name: 'Unknown', type: 'unknown', icon: '❓',
             url: '', favicon_path: '' },
           { id: 'v_self', name: 'Self', type: 'self', icon: '⚙️',
             url: '', favicon_path: '' },
           { id: 'v_salvage', name: 'Salvage', type: 'salvage', icon: '♻️',
             url: '', favicon_path: '' },
-        ]),
+        ],
         list_purchase_orders: async () => [],
-        update_vendor: async (id, name, url) => ({
-          id: id || `v_${name.toLowerCase().replace(/\s+/g,'_')}_test`,
-          name, url, type: url ? 'real' : 'inferred',
-          favicon_path: '', icon: '',
-        }),
+        update_vendor: async (id, name, url) => {
+          if (opts.mfgDirectVendors) {
+            const existing = opts.mfgDirectVendors.find(v =>
+              (v.url && url && v.url === url) || (v.name && name && v.name === name));
+            if (existing) return existing;
+          }
+          return {
+            id: id || `v_${(name||'').toLowerCase().replace(/\s+/g,'_')}_test`,
+            name: name || '', url: url || '', type: url ? 'real' : 'inferred',
+            favicon_path: '', icon: '',
+          };
+        },
         merge_vendors: async () => inv,
         delete_vendor: async () => inv,
         fetch_favicon: async () => '/data/sources/favicons/test.ico',
         parse_source_file: async () => [],
-        parse_source_file_b64: async () => [],
+        parse_source_file_b64: async () => opts.mdtInvoiceParseResult || [],
         match_part: async () => ({ status: 'new' }),
         get_warnings: async () => ({ migration: { inferred_count: 0, unknown_count: 0 },
                                      duplicates: [], inferred_only: 0 }),
