@@ -645,11 +645,12 @@ class InventoryApi:
                                       name=name or None, url=url or None,
                                       favicon_path=favicon_path or None)
         if v.get("url") and not v.get("favicon_path"):
+            import requests
             try:
                 fp = vendors.fetch_favicon(v["url"], self._favicons_dir)
                 v = vendors.update_vendor(self._vendors_json, v["id"],
                                            favicon_path=os.path.relpath(fp, self.base_dir))
-            except Exception as exc:
+            except (requests.exceptions.RequestException, OSError) as exc:
                 logger.warning("favicon fetch failed for %s: %s", v["url"], exc)
         return v
 
