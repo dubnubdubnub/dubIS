@@ -90,3 +90,36 @@ describe('sortPartsBy', () => {
     expect(out.map(p => p.mpn)).toEqual(['A', 'B', '']);
   });
 });
+
+import { groupByVendor } from '../../js/inventory/inv-sort-group.js';
+
+describe('groupByVendor', () => {
+  it('returns piles in canonical vendor order, omitting empty piles', () => {
+    const parts = [
+      { mpn: 'A', lcsc: 'C1' },
+      { mpn: 'B', digikey: 'DK-2' },
+      { mpn: 'C', mouser: 'M-3' },
+      { mpn: 'D' }, // no distributor → "other"
+      { mpn: 'E', pololu: 'P-5' },
+      { mpn: 'F', lcsc: 'C6' },
+    ];
+    const piles = groupByVendor(parts);
+    expect(piles.map(p => p.vendor)).toEqual(['lcsc', 'digikey', 'mouser', 'pololu', 'other']);
+    expect(piles[0].parts.map(p => p.mpn)).toEqual(['A', 'F']);
+    expect(piles[1].parts.map(p => p.mpn)).toEqual(['B']);
+    expect(piles[2].parts.map(p => p.mpn)).toEqual(['C']);
+    expect(piles[3].parts.map(p => p.mpn)).toEqual(['E']);
+    expect(piles[4].parts.map(p => p.mpn)).toEqual(['D']);
+  });
+
+  it('classifies multi-distributor parts under the highest-priority vendor', () => {
+    const parts = [{ mpn: 'X', lcsc: 'C1', digikey: 'DK-1' }];
+    const piles = groupByVendor(parts);
+    expect(piles).toHaveLength(1);
+    expect(piles[0].vendor).toBe('lcsc');
+  });
+
+  it('returns empty array when input is empty', () => {
+    expect(groupByVendor([])).toEqual([]);
+  });
+});

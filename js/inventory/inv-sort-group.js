@@ -87,3 +87,33 @@ export function sortPartsBy(parts, column) {
   }
   return copy;
 }
+
+var VENDOR_ORDER = ['lcsc', 'digikey', 'mouser', 'pololu', 'other'];
+
+function classifyVendor(item) {
+  if (item.lcsc) return 'lcsc';
+  if (item.digikey) return 'digikey';
+  if (item.mouser) return 'mouser';
+  if (item.pololu) return 'pololu';
+  return 'other';
+}
+
+/**
+ * Split parts into vendor piles in canonical order.
+ * Empty piles are omitted from the returned array.
+ * Parts retain their original relative order within each pile.
+ * @param {Array<Object>} parts
+ * @returns {Array<{vendor: string, parts: Array<Object>}>}
+ */
+export function groupByVendor(parts) {
+  var buckets = { lcsc: [], digikey: [], mouser: [], pololu: [], other: [] };
+  for (var i = 0; i < parts.length; i++) {
+    buckets[classifyVendor(parts[i])].push(parts[i]);
+  }
+  var out = [];
+  for (var j = 0; j < VENDOR_ORDER.length; j++) {
+    var v = VENDOR_ORDER[j];
+    if (buckets[v].length > 0) out.push({ vendor: v, parts: buckets[v] });
+  }
+  return out;
+}
