@@ -126,6 +126,20 @@ test.describe('Inventory column header — sort/group/reset', () => {
     await groupBtn.click(); // → 2
     await expect(page.locator('.inv-section-chip').first()).toBeVisible();
 
+    // saveInventoryView fires save_preferences without awaiting it (store.js:226).
+    // The mock then resolves on a microtask. On fast machines (Apple Silicon m4-air)
+    // page.reload() can outrun that microtask, so the reload sees no saved state.
+    // Wait for the mock to flush group_level=2 into sessionStorage before reloading.
+    await page.waitForFunction(() => {
+      const raw = window.sessionStorage.getItem('__test_prefs_inv_view');
+      if (!raw) return false;
+      try {
+        return JSON.parse(raw)?.inventory_view?.group_level === 2;
+      } catch (_) {
+        return false;
+      }
+    });
+
     // Reload — sessionStorage carries the saved prefs into the next load_preferences call.
     await page.reload();
     await waitForInventoryRows(page);
