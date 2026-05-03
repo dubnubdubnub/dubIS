@@ -225,3 +225,95 @@ def match_part(db, mpn: str, manufacturer: str = "") -> dict[str, Any]:
         candidates.sort(key=lambda c: -c["score"])
         return {"status": "possible", "candidates": candidates[:5]}
     return {"status": "new"}
+
+
+# ── PO orchestration ─────────────────────────────────────────────────
+
+
+def _existing_part_identifiers(ledger_csv: str, part_id: str) -> dict[str, str]:
+    """Look up an existing part's identifier columns in the ledger so a new
+    row for the same part can carry the same LCSC/Digikey/etc. codes (which
+    drives the cache merge logic in inventory_ops.read_and_merge).
+    """
+    if not os.path.isfile(ledger_csv):
+        return {}
+    with open(ledger_csv, newline="", encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            for col in ("LCSC Part Number", "Digikey Part Number",
+                        "Pololu Part Number", "Mouser Part Number",
+                        "Manufacture Part Number"):
+                if (row.get(col) or "").strip() == part_id:
+                    return {
+                        "LCSC Part Number": row.get("LCSC Part Number", ""),
+                        "Digikey Part Number": row.get("Digikey Part Number", ""),
+                        "Pololu Part Number": row.get("Pololu Part Number", ""),
+                        "Mouser Part Number": row.get("Mouser Part Number", ""),
+                        "Manufacture Part Number": row.get("Manufacture Part Number", ""),
+                    }
+    return {}
+
+
+def import_po(
+    ledger_csv: str,
+    po_csv: str,
+    sources_dir: str,
+    vendor_id: str,
+    source_file_bytes: bytes | None,
+    source_file_ext: str | None,
+    purchase_date: str,
+    notes: str,
+    line_items: list[dict[str, Any]],
+) -> dict[str, str]:
+    """Create a PO record + append ledger rows tagged with the new po_id."""
+    if not line_items:
+        raise ValueError("line_items must not be empty")
+
+    import purchase_orders
+
+    new_po = purchase_orders.create_purchase_order(
+        csv_path=po_csv,
+        sources_dir=sources_dir,
+        vendor_id=vendor_id,
+        source_file_bytes=source_file_bytes,
+        source_file_ext=source_file_ext,
+        purchase_date=purchase_date,
+        notes=notes,
+    )
+
+    # Build ledger rows
+    fieldnames = [
+        "Digikey Part Number", "LCSC Part Number", "Pololu Part Number",
+        "Mouser Part Number", "Manufacture Part Number", "Manufacturer",
+        "Customer NO.", "Package", "Description", "RoHS",
+        "Quantity", "Unit Price($)", "Ext.Price($)",
+        "Estimated lead time (business days)", "Date Code / Lot No.", "po_id",
+    ]
+
+    new_rows: list[dict[str, str]] = []
+    for li in line_items:
+        ids = {}
+        if li.get("match") == "definite" and li.get("match_part_id"):
+            ids = _existing_part_identifiers(ledger_csv, li["match_part_id"])
+        row = {fn: "" for fn in fieldnames}
+        if ids:
+            row.update(ids)
+        # Always carry the freshly-imported MPN if no LCSC code is set
+        if not row.get("LCSC Part Number") and not row.get("Manufacture Part Number"):
+            row["Manufacture Part Number"] = li.get("mpn", "")
+        elif not row.get("Manufacture Part Number"):
+            row["Manufacture Part Number"] = li.get("mpn", "")
+        row["Manufacturer"] = li.get("manufacturer", "")
+        row["Package"] = li.get("package", "")
+        qty = int(li.get("quantity") or 0)
+        unit = float(li.get("unit_price") or 0.0)
+        row["Quantity"] = str(qty)
+        if unit > 0:
+            row["Unit Price($)"] = f"{unit:.4f}"
+            row["Ext.Price($)"] = f"{qty * unit:.2f}"
+        row["po_id"] = new_po["po_id"]
+        new_rows.append(row)
+
+    # Append (creates file with header if missing; migrates if header is older)
+    import csv_io
+    csv_io.append_csv_rows(ledger_csv, fieldnames, new_rows)
+    return new_po

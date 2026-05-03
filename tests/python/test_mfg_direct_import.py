@@ -137,3 +137,110 @@ class TestMatchPart:
     def test_empty_mpn_returns_new(self, db):
         result = mdi.match_part(db, mpn="", manufacturer="MDT")
         assert result["status"] == "new"
+
+
+class TestImportPO:
+    def test_import_writes_po_and_ledger(self, tmp_path, monkeypatch):
+        import vendors
+
+        base_dir = tmp_path / "data"
+        base_dir.mkdir()
+        (base_dir / "sources").mkdir()
+        vjson = str(base_dir / "vendors.json")
+        po_csv = str(base_dir / "purchase_orders.csv")
+        ledger_csv = str(base_dir / "purchase_ledger.csv")
+
+        vendors.seed_builtins(vjson)
+        v = vendors.create_vendor(vjson, name="MDT", url="https://tmr-sensors.com")
+
+        line_items = [
+            {"mpn": "TMR2615", "manufacturer": "MDT", "package": "SOIC-8",
+             "quantity": 50, "unit_price": 4.20, "match": "new"},
+            {"mpn": "TMR2305", "manufacturer": "MDT", "package": "SOIC-8",
+             "quantity": 25, "unit_price": 3.10, "match": "new"},
+        ]
+
+        new_po = mdi.import_po(
+            ledger_csv=ledger_csv,
+            po_csv=po_csv,
+            sources_dir=str(base_dir / "sources"),
+            vendor_id=v["id"],
+            source_file_bytes=None,
+            source_file_ext=None,
+            purchase_date="2026-04-15",
+            notes="apr",
+            line_items=line_items,
+        )
+        assert new_po["po_id"]
+
+        import csv as _csv
+        with open(ledger_csv, encoding="utf-8-sig") as f:
+            ledger_rows = list(_csv.DictReader(f))
+        assert len(ledger_rows) == 2
+        for row in ledger_rows:
+            assert row["po_id"] == new_po["po_id"]
+            assert row["Manufacturer"] == "MDT"
+
+    def test_import_with_match_links_existing_part(self, tmp_path):
+        # When line_items contain match.part_id, the ledger row carries that part's
+        # existing identifiers (LCSC, etc.) — so cache merge unifies the entries.
+        import csv as _csv
+
+        import vendors
+
+        base_dir = tmp_path / "data"
+        base_dir.mkdir()
+        (base_dir / "sources").mkdir()
+        vjson = str(base_dir / "vendors.json")
+        po_csv = str(base_dir / "purchase_orders.csv")
+        ledger_csv = str(base_dir / "purchase_ledger.csv")
+
+        # Seed an existing inventory row first
+        with open(ledger_csv, "w", newline="", encoding="utf-8") as f:
+            writer = _csv.DictWriter(f, fieldnames=[
+                "Digikey Part Number", "LCSC Part Number", "Pololu Part Number",
+                "Mouser Part Number", "Manufacture Part Number", "Manufacturer",
+                "Customer NO.", "Package", "Description", "RoHS",
+                "Quantity", "Unit Price($)", "Ext.Price($)",
+                "Estimated lead time (business days)", "Date Code / Lot No.", "po_id"])
+            writer.writeheader()
+            writer.writerow({"LCSC Part Number": "C12345",
+                             "Manufacture Part Number": "TMR2615",
+                             "Manufacturer": "MDT", "Quantity": "10",
+                             "Unit Price($)": "4.50", "po_id": ""})
+
+        vendors.seed_builtins(vjson)
+        v = vendors.create_vendor(vjson, name="MDT", url="https://tmr-sensors.com")
+
+        line_items = [{
+            "mpn": "TMR-2615", "manufacturer": "MDT", "package": "",
+            "quantity": 5, "unit_price": 4.20,
+            "match": "definite", "match_part_id": "TMR2615",
+        }]
+        new_po = mdi.import_po(
+            ledger_csv=ledger_csv, po_csv=po_csv,
+            sources_dir=str(base_dir / "sources"),
+            vendor_id=v["id"], source_file_bytes=None, source_file_ext=None,
+            purchase_date="2026-04-15", notes="", line_items=line_items,
+        )
+        import csv as _csv2
+        with open(ledger_csv, encoding="utf-8-sig") as f:
+            rows = list(_csv2.DictReader(f))
+        assert len(rows) == 2
+        # New row inherits the matched LCSC code so cache merges them
+        new_row = next(r for r in rows if r["po_id"] == new_po["po_id"])
+        assert new_row["LCSC Part Number"] == "C12345"
+
+    def test_import_empty_line_items_raises(self, tmp_path):
+        import vendors
+        vjson = str(tmp_path / "vendors.json")
+        vendors.seed_builtins(vjson)
+        with pytest.raises(ValueError, match="empty"):
+            mdi.import_po(
+                ledger_csv=str(tmp_path / "p.csv"),
+                po_csv=str(tmp_path / "po.csv"),
+                sources_dir=str(tmp_path / "sources"),
+                vendor_id="v_unknown",
+                source_file_bytes=None, source_file_ext=None,
+                purchase_date="2026-04-15", notes="", line_items=[],
+            )
