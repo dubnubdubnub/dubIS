@@ -128,7 +128,9 @@ export function renderPartRowHtml(item, options) {
 export function createBomRowElement(d) {
   var tr = document.createElement("tr");
   tr.dataset.partKey = d.partKey;
-  tr.draggable = true;
+  // Caller flips draggable on if a generic-parts flyout is currently open;
+  // off by default so click-and-drag selects text.
+  tr.draggable = false;
   tr.className = d.rowClass;
   if (d.isLinkingSource || d.isReverseLinkingSource) tr.classList.add("linking-source");
   if (d.isReverseTarget) tr.classList.add("link-target");
