@@ -381,3 +381,26 @@ class TestConvertXlsToCsv:
         assert result is not None
         assert result["row_count"] == 1
         assert "DK-123" in result["csv_text"]
+
+
+def test_migrate_csv_header_adds_po_id(tmp_path):
+    """purchase_ledger.csv with old header (no po_id) gets po_id added on next read."""
+    import csv
+
+    from csv_io import migrate_csv_header
+
+    path = str(tmp_path / "purchase_ledger.csv")
+    old_fields = ["LCSC Part Number", "Quantity"]
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=old_fields)
+        w.writeheader()
+        w.writerow({"LCSC Part Number": "C123", "Quantity": "10"})
+
+    new_fields = ["LCSC Part Number", "Quantity", "po_id"]
+    migrate_csv_header(path, new_fields)
+
+    with open(path, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert rows[0]["po_id"] == ""
+    assert rows[0]["LCSC Part Number"] == "C123"
+    assert rows[0]["Quantity"] == "10"
