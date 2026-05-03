@@ -21,6 +21,7 @@ export function renderDropZone(templates) {
         ${Object.entries(templates).map(([key, t]) =>
           `<button class="new-po-btn" data-template="${key}">${t.label}</button>`
         ).join("")}
+        <button class="new-po-btn new-po-btn-direct" data-template="direct" title="Direct from manufacturer">★ Direct</button>
       </div>
       <div id="import-mapper" class="hidden"></div>
     </div>
