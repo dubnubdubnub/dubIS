@@ -708,6 +708,7 @@ class InventoryApi:
         """Decode base64, write to temp file, parse, and return rows."""
         import base64
         import tempfile
+
         import mfg_direct_import
         ext = os.path.splitext(file_name)[1].lower()
         data = base64.b64decode(file_b64)
