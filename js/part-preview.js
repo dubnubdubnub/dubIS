@@ -348,10 +348,14 @@ function renderPriceTable(prices) {
     return '<div class="part-preview-no-prices">No pricing available</div>';
   }
   var html = '<table class="part-preview-prices">';
-  html += '<thead><tr><th>Qty</th><th>Unit Price</th></tr></thead><tbody>';
+  html += '<thead><tr><th>Qty</th><th>Unit Price</th><th>Ext. Price</th></tr></thead><tbody>';
   prices.forEach(function (p) {
+    var qty = Number(p.qty) || 0;
+    var unit = Number(p.price) || 0;
+    var ext = qty * unit;
     html += '<tr><td>' + escHtml(String(p.qty)) + '+</td><td>$' +
-      escHtml(Number(p.price).toFixed(4)) + '</td></tr>';
+      escHtml(unit.toFixed(4)) + '</td><td>$' +
+      escHtml(ext.toFixed(2)) + '</td></tr>';
   });
   html += '</tbody></table>';
   return html;
