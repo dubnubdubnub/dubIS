@@ -46,6 +46,7 @@ export function renderSubSectionHeader(displayName, collapsed, count) {
  * @param {boolean} options.isReverseTarget - whether this is a reverse link target
  * @param {string} options.sectionKey - section key for threshold lookup
  * @param {number} options.threshold - stock value threshold
+ * @param {string} [options.sectionChip] - optional section name shown as a chip in flat mode
  * @returns {string}
  */
 /**
@@ -96,6 +97,16 @@ export function renderPartRowHtml(item, options) {
   }
   var valueStr = stockValue > 0 ? "$" + stockValue.toFixed(2) : "\u2014";
 
+  var unitPrice = Number(item.unit_price) || 0;
+  var unitPriceStr;
+  if (unitPrice >= 0.01) unitPriceStr = '$' + unitPrice.toFixed(2);
+  else if (unitPrice > 0) unitPriceStr = '$' + unitPrice.toFixed(4);
+  else unitPriceStr = '\u2014';
+
+  var sectionChipHtml = options.sectionChip
+    ? '<span class="inv-section-chip">' + escHtml(options.sectionChip) + '</span>'
+    : '';
+
   var partIdsHtml = '<span class="part-ids">';
   if (item.lcsc) partIdsHtml += '<span class="part-id-lcsc" data-lcsc="' + escHtml(item.lcsc) + '"><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(item.lcsc) + '</span>';
   if (item.digikey) partIdsHtml += '<span class="part-id-digikey" data-digikey="' + escHtml(item.digikey) + '"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(item.digikey) + '</span>';
@@ -106,9 +117,11 @@ export function renderPartRowHtml(item, options) {
 
   var html =
     '<span class="inv-drag-handle" title="Drag to add to group">&#x2261;</span>' +
+    sectionChipHtml +
     partIdsHtml +
     nearMissBadgeHtml +
     '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + '</span>' +
+    '<span class="part-unit-price">' + unitPriceStr + '</span>' +
     '<span class="part-value">' + valueStr + '</span>' +
     '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data \u2014 click to set">\u26A0</button>' : '') + item.qty + '</span>' +
     (options.hideDescs ? '' : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
