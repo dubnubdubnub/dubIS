@@ -44,14 +44,22 @@
 /* Column widths must mirror the .inv-part-row column widths exactly:
    same width, same flex-shrink, same min-width — otherwise the row cells
    shrink at narrow widths while the header cells don't, breaking alignment. */
-.inv-col-group   { width: 50px; flex-shrink: 1; min-width: 14px; overflow: hidden; }
+.inv-col-group   { width: 50px; flex-shrink: 1; min-width: 0; overflow: hidden; }
 .inv-col-partid  { width: 100px; flex-shrink: 1; min-width: 40px; }
 .inv-col-mpn     { width: 160px; flex-shrink: 1; min-width: 40px; }
 .inv-col-unit    { width: 70px; flex-shrink: 1; min-width: 0; text-align: right; justify-content: flex-end; }
 .inv-col-value   { width: 70px; flex-shrink: 1; min-width: 20px; text-align: right; justify-content: flex-end; }
 .inv-col-qty     { width: 60px; flex-shrink: 1; min-width: 30px; text-align: right; justify-content: flex-end; }
 .inv-col-desc    { flex: 1; min-width: 0; }
-.inv-col-reset   { margin-left: auto; flex-shrink: 0; font-size: 14px; }
+/* Empty flex:1 spacer used in both header and row when descriptions are
+   auto-hidden at narrow widths. Keeps column alignment by absorbing the
+   width difference between the header's ↺ cell and the row's .part-actions. */
+.inv-col-desc-pad,
+.inv-part-row .part-desc-pad { flex: 1; min-width: 0; }
+/* min-width matches the row's .part-actions (Adjust button) so the same
+   amount of space is reserved on the right of both header and row. Without
+   this, the row's shrinkable cells shrink more than the header's. */
+.inv-col-reset   { margin-left: auto; flex-shrink: 0; font-size: 14px; min-width: 42px; justify-content: flex-end; }
 
 /* Section chip shown on rows when Group level = 2 (flat mode) */
 .inv-section-chip {
@@ -208,7 +216,20 @@
 .inv-part-row:hover { background: var(--bg-hover); }
 .inv-part-row .part-id { width: 90px; flex-shrink: 0; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: var(--color-blue); }
 .inv-part-row .part-mpn { width: 160px; min-width: 40px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
-.inv-part-row .inv-drag-handle { width: 50px; flex-shrink: 1; min-width: 14px; align-items: center; }
+/* The Group column slot. Always present so the row's first content
+   aligns with the column header's Group cell, even when the drag handle
+   inside is display:none (default; toggled by group-flyout.css). At very
+   narrow widths the wrapper may shrink to zero — the drag handle (when
+   shown via .flyout-drag-active) will overflow visibly into the next cell. */
+.inv-part-row .inv-row-group-cell {
+  width: 50px;
+  flex-shrink: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
 .inv-part-row .part-value { width: 70px; min-width: 20px; text-align: right; font-size: 11px; font-family: "SFMono-Regular", Consolas, monospace; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inv-part-row .part-unit-price { width: 70px; min-width: 0; text-align: right; font-size: 11px; font-family: "SFMono-Regular", Consolas, monospace; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inv-part-row .part-qty { width: 60px; min-width: 30px; text-align: right; font-weight: 600; }
