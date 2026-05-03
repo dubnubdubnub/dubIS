@@ -121,6 +121,32 @@ class DigikeyClient(BaseProductClient):
         }
         self._save_cookies(cookies)
 
+    def _invalidate_session(self, *, delete_cookies_file: bool) -> None:
+        """Mark the in-memory session as not-logged-in.
+
+        Called when a fetch confirms the session is unusable (login redirect
+        or persistent Cloudflare challenge). When ``delete_cookies_file`` is
+        True (definitive expiration like a login redirect), also remove the
+        on-disk cookies so the next app start does not lie about
+        ``existing session found``. The injected WebView2 cookies are left
+        alone — they live for the WebView session and will be replaced when
+        the user re-logs in.
+        """
+        self._pending_cookies = None
+        self._sync_result = {
+            "status": "expired",
+            "message": "Session expired — please re-login",
+            "logged_in": False,
+            "cookies_injected": 0,
+        }
+        if delete_cookies_file and self._cookies_file:
+            try:
+                os.remove(self._cookies_file)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                logger.warning("Failed to remove cookies file: %s", exc)
+
     def _save_cookies(self, cookies: list[dict]) -> None:
         """Persist Digikey cookies to disk."""
         if not self._cookies_file:
@@ -392,6 +418,92 @@ class DigikeyClient(BaseProductClient):
             return {"logged_in": True}
         return {"logged_in": False}
 
+    def validate_session(self) -> dict[str, Any]:
+        """Test whether the current Digikey session actually works.
+
+        Navigates the hidden webview to a logged-in-only page and checks
+        whether we land there or get redirected to login / stuck on a
+        Cloudflare challenge. On failure, invalidates the in-memory session
+        so subsequent ``get_login_status`` calls return ``logged_in=False``.
+
+        Cookie-presence is not enough to know the session is live: cf_clearance
+        is fingerprint-bound and dkuhint can be stale on the server side.
+
+        Intended to be called at startup (after ``check_session`` reports
+        a session is found) and any other time the UI wants to confirm.
+        """
+        was_logged_in = bool(self._pending_cookies) or self._sync_result.get(
+            "logged_in", False,
+        )
+        if not was_logged_in:
+            return {
+                "logged_in": False, "changed": False,
+                "message": "No saved session to validate",
+            }
+
+        try:
+            ok = self._probe_session()
+        except (RuntimeError, OSError) as exc:
+            logger.warning("DK session validation error: %s", exc)
+            # Inconclusive — keep the session as-is rather than invalidate
+            return {
+                "logged_in": was_logged_in, "changed": False,
+                "message": f"Validation error: {exc}",
+            }
+
+        if not ok:
+            self._invalidate_session(delete_cookies_file=True)
+            return {
+                "logged_in": False, "changed": True,
+                "message": "Session expired — please re-login",
+            }
+        return {
+            "logged_in": True, "changed": False,
+            "message": "Session valid",
+        }
+
+    def _probe_session(self) -> bool:
+        """Navigate to MyDigiKey/Account and check we don't end up at /login.
+
+        Returns True if the session is usable (lands on the account page),
+        False if redirected to login or the Cloudflare challenge persists.
+        """
+        with self._lock:
+            self._ensure_window()
+            probe_url = "https://www.digikey.com/MyDigiKey/Account"
+            self._loaded.clear()
+            self._window.load_url(probe_url)
+            if not self._loaded.wait(timeout=15):
+                logger.warning("DK probe: page load timed out")
+                return False
+
+            import time
+            cf_deadline = time.time() + 25.0
+            while time.time() < cf_deadline:
+                try:
+                    title = self._window.evaluate_js("document.title") or ""
+                except RuntimeError:
+                    title = ""
+                if title and "Just a moment" not in title:
+                    break
+                time.sleep(0.5)
+            else:
+                logger.warning("DK probe: Cloudflare challenge did not clear")
+                return False
+
+            try:
+                final_url = self._window.evaluate_js("window.location.href") or ""
+            except RuntimeError:
+                return False
+
+            url_lower = final_url.lower()
+            if "/login" in url_lower or "/signin" in url_lower:
+                logger.warning("DK probe: redirected to %s — session expired", final_url)
+                return False
+
+            logger.debug("DK probe: session valid (final url=%s)", final_url)
+            return True
+
     def logout(self) -> dict[str, str]:
         """Log out of Digikey and clear the product cache."""
         self._poll_stop.set()  # stop any running poll thread
@@ -456,6 +568,36 @@ class DigikeyClient(BaseProductClient):
                 logger.warning("DK fetch: page load timed out for %s", part_number)
                 return None
 
+            # Cloudflare interstitial: the `loaded` event fires on the
+            # "Just a moment..." challenge page, before CF's JS redirects to
+            # the real product page. Poll the title and wait for the challenge
+            # to clear (or the URL to leave /products/result).
+            import time
+            cf_deadline = time.time() + 25.0
+            cf_seen = False
+            while time.time() < cf_deadline:
+                try:
+                    title = self._window.evaluate_js("document.title") or ""
+                except RuntimeError:
+                    title = ""
+                if title and "Just a moment" not in title:
+                    if cf_seen:
+                        logger.debug(
+                            "DK fetch: CF challenge cleared after %.1fs (title=%r)",
+                            25.0 - (cf_deadline - time.time()), title,
+                        )
+                    break
+                cf_seen = True
+                time.sleep(0.5)
+            else:
+                logger.warning(
+                    "DK fetch: Cloudflare bot challenge did not resolve in 25s for %s "
+                    "(title=%r) — invalidating session",
+                    part_number, title,
+                )
+                self._invalidate_session(delete_cookies_file=False)
+                return None
+
             try:
                 # Get the final URL to check for redirects (e.g. login page)
                 final_url = self._window.evaluate_js("window.location.href") or ""
@@ -464,9 +606,10 @@ class DigikeyClient(BaseProductClient):
                 # Detect login/auth redirects
                 if "/login" in final_url.lower() or "/mydigikey" in final_url.lower():
                     logger.warning(
-                        "DK fetch: redirected to login page (%s) — session may have expired",
+                        "DK fetch: redirected to login page (%s) — session expired, invalidating",
                         final_url,
                     )
+                    self._invalidate_session(delete_cookies_file=True)
                     return None
 
                 result = self._window.evaluate_js(

@@ -533,6 +533,9 @@ class InventoryApi:
     def get_digikey_login_status(self) -> dict[str, bool]:
         return self._distributors.get_digikey_login_status()
 
+    def validate_digikey_session(self) -> dict[str, Any]:
+        return self._distributors.validate_digikey_session()
+
     def logout_digikey(self) -> dict[str, str]:
         return self._distributors.logout_digikey()
 
