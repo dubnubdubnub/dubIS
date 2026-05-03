@@ -697,6 +697,22 @@ class InventoryApi:
         import mfg_direct_import
         return mfg_direct_import.parse_source_file(path)
 
+    def parse_source_file_b64(self, file_b64: str, file_name: str) -> list[dict[str, Any]]:
+        """Decode base64, write to temp file, parse, and return rows."""
+        import base64
+        import tempfile
+        import mfg_direct_import
+        ext = os.path.splitext(file_name)[1].lower()
+        data = base64.b64decode(file_b64)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tf:
+            tf.write(data)
+            tmp_path = tf.name
+        try:
+            return mfg_direct_import.parse_source_file(tmp_path)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
     def match_part(self, mpn: str, manufacturer: str = "") -> dict[str, Any]:
         """Match an MPN against existing parts. See mfg_direct_import.match_part."""
         import mfg_direct_import

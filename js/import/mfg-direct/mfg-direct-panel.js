@@ -87,6 +87,26 @@ function bindEvents(root) {
     btn.onclick = () => selectPseudoVendor(btn.dataset.pseudo);
   });
 
+  const drop = root.querySelector('#mfg-source-drop');
+  const fileInput = root.querySelector('#mfg-source-input');
+  if (drop && fileInput) {
+    drop.onclick = () => fileInput.click();
+    drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('drag-over'); };
+    drop.ondragleave = () => drop.classList.remove('drag-over');
+    drop.ondrop = (e) => {
+      e.preventDefault();
+      drop.classList.remove('drag-over');
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) handleSourceFile(file);
+    };
+    fileInput.onchange = () => {
+      if (fileInput.files && fileInput.files[0]) handleSourceFile(fileInput.files[0]);
+    };
+  }
+
+  const replaceBtn = root.querySelector('#mfg-source-replace');
+  if (replaceBtn) replaceBtn.onclick = () => { state.sourceFile = null; rerender(); };
+
   const vinp = root.querySelector('#mfg-vendor-input');
   if (vinp) {
     vinp.onblur = () => onVendorInputBlur(vinp.value);
@@ -119,6 +139,35 @@ async function onVendorInputBlur(text) {
     }
   }
   rerender();
+}
+
+async function handleSourceFile(file) {
+  const reader = new FileReader();
+  reader.onload = async () => {
+    // dataURL → base64 (strip "data:...;base64,")
+    const dataUrl = reader.result;
+    const b64 = (typeof dataUrl === 'string') ? dataUrl.split(',')[1] : '';
+    state.sourceFile = { name: file.name, bytes: b64 };
+    rerender();
+    try {
+      const parsed = await apiMfgDirect.parseFileB64(b64, file.name);
+      if (parsed && parsed.length) {
+        state.lineItems = parsed.map(p => ({
+          ...p,
+          match: { status: 'pending' },
+        }));
+        rerender();
+        // Trigger match-and-confirm for each
+        await Promise.all(state.lineItems.map(async (li) => {
+          if (li.mpn) li.match = await apiMfgDirect.matchPart(li.mpn, li.manufacturer);
+        }));
+        rerender();
+      }
+    } catch (exc) {
+      AppLog.warn('parse failed: ' + exc);
+    }
+  };
+  reader.readAsDataURL(file);
 }
 
 function cancelFlow() {

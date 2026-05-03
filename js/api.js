@@ -74,5 +74,6 @@ export const apiPurchaseOrders = {
 
 export const apiMfgDirect = {
   parseFile: (path) => api('parse_source_file', path),
+  parseFileB64: (b64, name) => api('parse_source_file_b64', b64, name),
   matchPart: (mpn, mfg) => api('match_part', mpn, mfg),
 };

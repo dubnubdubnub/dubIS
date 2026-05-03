@@ -88,6 +88,7 @@ export function addMockSetup(page, inventory, options = {}) {
         delete_vendor: async () => inv,
         fetch_favicon: async () => '/data/sources/favicons/test.ico',
         parse_source_file: async () => [],
+        parse_source_file_b64: async () => [],
         match_part: async () => ({ status: 'new' }),
         create_purchase_order_with_items: async () => inv,
         update_purchase_order: async () => inv,
