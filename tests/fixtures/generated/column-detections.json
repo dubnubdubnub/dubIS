@@ -15,6 +15,13 @@
     "2": "Description",
     "4": "Unit Price($)"
   },
+  "Manufacture Part Number,Manufacturer,Package,Quantity,Unit Price($)": {
+    "0": "Manufacture Part Number",
+    "1": "Manufacturer",
+    "3": "Quantity",
+    "2": "Package",
+    "4": "Unit Price($)"
+  },
   "Index,DigiKey Part #,Manufacturer Part Number,Manufacturer,Description,Customer Reference,Quantity,Backorder,Unit Price,Extended Price": {
     "1": "Digikey Part Number",
     "2": "Manufacture Part Number",
