@@ -8,6 +8,7 @@ import { escHtml } from '../ui-helpers.js';
 import { inferDistributor } from './inventory-logic.js';
 import state from './inv-state.js';
 import { buildHoverFlyout } from './favicon-stack.js';
+import { openVendorPopover } from './vendor-flyout.js';
 
 /**
  * Wire up all DOM event listeners and EventBus subscriptions.
@@ -188,6 +189,30 @@ export function setupEvents(handlers) {
     if (!stack) return;
     clearTimeout(fanFlyoutTimer);
     if (activeFanFlyout) { activeFanFlyout.remove(); activeFanFlyout = null; }
+  });
+
+  // ── Vendor management popover (click on favicon icon) ──
+  document.addEventListener('click', function (e) {
+    var fav = /** @type {Element} */ (e.target).closest('.fan-icon, .sub-favicon');
+    if (!fav) return;
+    e.stopPropagation();
+    var vid = '';
+    var subpill = fav.closest('.vendor-subpill');
+    if (subpill) {
+      vid = /** @type {HTMLElement} */ (subpill).dataset.vendorId || '';
+    } else {
+      var stack = fav.closest('.favicon-fan-stack');
+      if (stack) {
+        var partKey = /** @type {HTMLElement} */ (stack).dataset.partKey || '';
+        var inv = store.inventory || [];
+        var part = null;
+        for (var i = 0; i < inv.length; i++) {
+          if ((inv[i].lcsc || inv[i].mpn || '') === partKey) { part = inv[i]; break; }
+        }
+        vid = part ? (part.primary_vendor_id || 'v_unknown') : '';
+      }
+    }
+    if (vid) openVendorPopover(/** @type {HTMLElement} */ (fav), vid);
   });
 }
 
