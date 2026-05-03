@@ -29,6 +29,37 @@ describe('renderPartRowHtml', () => {
     expect(html).toContain('USB-C-SMD');
   });
 
+  it('shows unit price and ext price (qty × unit) in their own cells', () => {
+    const item = {
+      lcsc: 'C2040', mpn: 'M', digikey: '', pololu: '', mouser: '',
+      manufacturer: '', package: '', description: '',
+      qty: 11, unit_price: 4.49, ext_price: 49.39, section: 'Connectors',
+    };
+    const html = renderPartRowHtml(item, {
+      hideDescs: false, isBomMode: false, isLinkSource: false,
+      isReverseTarget: false, sectionKey: 'Connectors', threshold: 0,
+      genericParts: [],
+    });
+    expect(html).toContain('part-unit-price');
+    expect(html).toContain('$4.4900');
+    expect(html).toContain('part-value');
+    expect(html).toContain('$49.39');
+  });
+
+  it('renders an em-dash for the unit price when no price is set', () => {
+    const item = {
+      lcsc: 'C2040', mpn: 'M', digikey: '', pololu: '', mouser: '',
+      manufacturer: '', package: '', description: '',
+      qty: 5, unit_price: 0, ext_price: 0, section: 'Connectors',
+    };
+    const html = renderPartRowHtml(item, {
+      hideDescs: false, isBomMode: false, isLinkSource: false,
+      isReverseTarget: false, sectionKey: 'Connectors', threshold: 0,
+      genericParts: [],
+    });
+    expect(html).toMatch(/part-unit-price[^>]*>\s*—\s*</);
+  });
+
   it('renders multiple items with distinct data attributes', () => {
     const items = [
       { lcsc: 'C1111', mpn: 'R1', digikey: '', pololu: '', mouser: '', manufacturer: '', package: '', description: '', qty: 5, unit_price: 0.01, ext_price: 0.05, section: 'Passives' },

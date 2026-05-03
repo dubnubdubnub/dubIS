@@ -82,9 +82,10 @@ export function renderPartRowHtml(item, options) {
     nearMissBadgeHtml = '<button class="near-miss-badge" title="' + escHtml(tip) + '">⚠</button>';
   }
 
-  var stockValue = item.qty * (item.unit_price || 0);
+  var unitPrice = item.unit_price || 0;
+  var stockValue = item.qty * unitPrice;
   var qtyColor = stockValueColor(stockValue, options.threshold);
-  var showPriceWarn = item.qty > 0 && !(item.unit_price > 0);
+  var showPriceWarn = item.qty > 0 && !(unitPrice > 0);
 
   var linkBtnStr = options.isBomMode ? '<button class="btn-sm link-btn' + (options.isLinkSource ? ' active' : '') + '" title="Link to missing BOM row">Link</button>' : '';
   var groupBtnStr = '';
@@ -94,6 +95,7 @@ export function renderPartRowHtml(item, options) {
       groupBtnStr = '<button class="generic-group-badge" data-generic-id="' + escHtml(gp.generic_part_id) + '" title="' + escHtml(gp.name) + '">\u25C6 ' + escHtml(gp.name) + '</button>';
     }
   }
+  var unitStr = unitPrice > 0 ? "$" + unitPrice.toFixed(4) : "\u2014";
   var valueStr = stockValue > 0 ? "$" + stockValue.toFixed(2) : "\u2014";
 
   var partIdsHtml = '<span class="part-ids">';
@@ -109,7 +111,8 @@ export function renderPartRowHtml(item, options) {
     partIdsHtml +
     nearMissBadgeHtml +
     '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + '</span>' +
-    '<span class="part-value">' + valueStr + '</span>' +
+    '<span class="part-unit-price" title="Unit price">' + unitStr + '</span>' +
+    '<span class="part-value" title="Ext price (qty × unit price)">' + valueStr + '</span>' +
     '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data \u2014 click to set">\u26A0</button>' : '') + item.qty + '</span>' +
     (options.hideDescs ? '' : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
     '<span class="part-actions">' + groupBtnStr + '<button class="btn-sm adj-btn" title="Adjust qty">Adjust</button>' +

@@ -89,6 +89,7 @@ test.describe('Adjustment modal', () => {
     await expect(page.locator('#adjust-modal')).toHaveClass(/hidden/);
     // 30 * 0.50 = 15.00
     await expect(row.locator('.part-value')).toContainText('15.00');
+    await expect(row.locator('.part-unit-price')).toContainText('0.5000');
   });
 
   test('field edit updates part metadata', async ({ page }) => {
