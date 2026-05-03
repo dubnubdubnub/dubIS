@@ -64,20 +64,46 @@ class TestParsePDF:
         assert mdi.parse_source_file(str(path)) == []
 
 
+def _ocr_available() -> bool:
+    """Return True only if tesseract binary, pytesseract module, and a font
+    large enough for reliable OCR are all available."""
+    if shutil.which("tesseract") is None:
+        return False
+    try:
+        import pytesseract  # noqa: F401
+    except ImportError:
+        return False
+    # Verify we can render text at a readable size (Pillow >= 10.1 or a TTF font)
+    try:
+        from PIL import ImageFont
+        try:
+            ImageFont.truetype("arial.ttf", 28)
+            return True
+        except OSError:
+            pass
+        # load_default(size=) requires Pillow >= 10.1
+        font = ImageFont.load_default(size=28)  # raises TypeError if unsupported
+        _ = font  # noqa: F841
+        return True
+    except (TypeError, ImportError):
+        return False
+
+
 @pytest.mark.skipif(
-    shutil.which("tesseract") is None,
-    reason="tesseract binary not available",
+    not _ocr_available(),
+    reason="tesseract/pytesseract/readable font not available",
 )
 class TestParseImage:
     def test_png_ocr(self, tmp_path):
         from PIL import Image, ImageDraw, ImageFont
-        img = Image.new("RGB", (400, 80), (255, 255, 255))
+        # Use a large, high-contrast image so tesseract reads it reliably.
+        img = Image.new("RGB", (800, 120), (255, 255, 255))
         draw = ImageDraw.Draw(img)
         try:
-            font = ImageFont.truetype("arial.ttf", 18)
+            font = ImageFont.truetype("arial.ttf", 28)
         except OSError:
-            font = ImageFont.load_default()
-        draw.text((10, 10), "TMR2615 MDT 50 4.20", font=font, fill=(0, 0, 0))
+            font = ImageFont.load_default(size=28)
+        draw.text((20, 30), "TMR2615 MDT 50 4.20", font=font, fill=(0, 0, 0))
         path = tmp_path / "scan.png"
         img.save(path)
         rows = mdi.parse_source_file(str(path))
