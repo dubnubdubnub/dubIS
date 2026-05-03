@@ -16,7 +16,7 @@ from typing import Any
 from inventory_ops import apply_adjustments, compute_adjusted_qty, get_part_key, read_and_merge, sort_key_for_section
 from price_ops import parse_price, parse_qty
 
-SCHEMA_VERSION = "5"
+SCHEMA_VERSION = "6"
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,8 @@ def create_schema(conn: sqlite3.Connection) -> None:
             DROP TABLE IF EXISTS generic_part_members;
             DROP TABLE IF EXISTS generic_parts;
             DROP TABLE IF EXISTS saved_searches;
+            DROP TABLE IF EXISTS purchase_orders;
+            DROP TABLE IF EXISTS vendors;
         """)
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS cache_meta (
@@ -63,7 +65,8 @@ def create_schema(conn: sqlite3.Connection) -> None:
             rohs          TEXT DEFAULT '',
             section       TEXT DEFAULT '',
             sort_key      REAL,
-            date_code     TEXT DEFAULT ''
+            date_code     TEXT DEFAULT '',
+            primary_vendor_id TEXT DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS stock (
             part_id     TEXT PRIMARY KEY REFERENCES parts(part_id),
@@ -106,6 +109,22 @@ def create_schema(conn: sqlite3.Connection) -> None:
             frozen_members   TEXT,
             created_at       TEXT
         );
+        CREATE TABLE IF NOT EXISTS vendors (
+            id            TEXT PRIMARY KEY,
+            name          TEXT NOT NULL,
+            url           TEXT DEFAULT '',
+            favicon_path  TEXT DEFAULT '',
+            type          TEXT NOT NULL,
+            icon          TEXT DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS purchase_orders (
+            po_id              TEXT PRIMARY KEY,
+            vendor_id          TEXT NOT NULL REFERENCES vendors(id),
+            source_file_hash   TEXT DEFAULT '',
+            source_file_ext    TEXT DEFAULT '',
+            purchase_date      TEXT DEFAULT '',
+            notes              TEXT DEFAULT ''
+        );
     """)
     conn.execute(
         "INSERT OR REPLACE INTO cache_meta (key, value) VALUES ('schema_version', ?)",
@@ -133,8 +152,9 @@ def populate_full(
             conn.execute(
                 """INSERT OR REPLACE INTO parts
                    (part_id, lcsc, mpn, digikey, pololu, mouser,
-                    manufacturer, description, package, rohs, section, sort_key, date_code)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    manufacturer, description, package, rohs, section, sort_key, date_code,
+                    primary_vendor_id)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     part_id,
                     (part.get("LCSC Part Number") or "").strip(),
@@ -149,6 +169,7 @@ def populate_full(
                     section,
                     sk,
                     (part.get("Date Code / Lot No.") or "").strip(),
+                    "",
                 ),
             )
             conn.execute(
