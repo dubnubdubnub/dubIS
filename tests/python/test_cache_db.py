@@ -20,7 +20,7 @@ class TestSchema:
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
         assert row is not None
-        assert row[0] == "5"
+        assert row[0] == "6"
 
     def test_foreign_key_enforced(self, db):
         with pytest.raises(sqlite3.IntegrityError):
@@ -470,7 +470,7 @@ class TestSchemaV3:
         row = db.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
-        assert row[0] == "5"
+        assert row[0] == "6"
 
     def test_generic_parts_columns(self, db):
         db.execute(
@@ -532,7 +532,7 @@ class TestSchemaV3:
         version = conn.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()[0]
-        assert version == "5"
+        assert version == "6"
         conn.close()
 
 
@@ -547,7 +547,7 @@ class TestSchemaMigration:
         row = db.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
-        assert row[0] == "5"
+        assert row[0] == "6"
 
     def test_prices_table_columns(self, db):
         db.execute("INSERT INTO parts (part_id) VALUES ('C1525')")
@@ -586,7 +586,7 @@ class TestSchemaMigration:
         version = conn.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()[0]
-        assert version == "5"
+        assert version == "6"
         conn.close()
 
 
@@ -666,3 +666,42 @@ class TestIntegration:
             assert cached_by_key[key]["qty"] == legacy_by_key[key]["qty"], f"qty mismatch for {key}"
             assert cached_by_key[key]["section"] == legacy_by_key[key]["section"], f"section mismatch for {key}"
             assert abs(cached_by_key[key]["unit_price"] - legacy_by_key[key]["unit_price"]) < 0.001, f"price mismatch for {key}"
+
+
+def test_schema_v6_creates_vendors_table(tmp_path):
+    import cache_db
+    conn = cache_db.connect(str(tmp_path / "cache.db"))
+    cache_db.create_schema(conn)
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(vendors)")}
+    assert cols == {"id", "name", "url", "favicon_path", "type", "icon"}
+    conn.close()
+
+
+def test_schema_v6_creates_purchase_orders_table(tmp_path):
+    import cache_db
+    conn = cache_db.connect(str(tmp_path / "cache.db"))
+    cache_db.create_schema(conn)
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(purchase_orders)")}
+    assert cols == {"po_id", "vendor_id", "source_file_hash", "source_file_ext",
+                    "purchase_date", "notes"}
+    conn.close()
+
+
+def test_schema_v6_adds_primary_vendor_id_to_parts(tmp_path):
+    import cache_db
+    conn = cache_db.connect(str(tmp_path / "cache.db"))
+    cache_db.create_schema(conn)
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(parts)")}
+    assert "primary_vendor_id" in cols
+    conn.close()
+
+
+def test_schema_v6_bumps_version(tmp_path):
+    import cache_db
+    conn = cache_db.connect(str(tmp_path / "cache.db"))
+    cache_db.create_schema(conn)
+    row = conn.execute(
+        "SELECT value FROM cache_meta WHERE key='schema_version'"
+    ).fetchone()
+    assert row["value"] == "6"
+    conn.close()
