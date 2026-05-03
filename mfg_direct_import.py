@@ -280,14 +280,10 @@ def import_po(
         notes=notes,
     )
 
-    # Build ledger rows
-    fieldnames = [
-        "Digikey Part Number", "LCSC Part Number", "Pololu Part Number",
-        "Mouser Part Number", "Manufacture Part Number", "Manufacturer",
-        "Customer NO.", "Package", "Description", "RoHS",
-        "Quantity", "Unit Price($)", "Ext.Price($)",
-        "Estimated lead time (business days)", "Date Code / Lot No.", "po_id",
-    ]
+    # Build ledger rows. Use the canonical FIELDNAMES from InventoryApi to avoid
+    # drift if data/constants.json is updated.
+    from inventory_api import InventoryApi
+    fieldnames = list(InventoryApi.FIELDNAMES)
 
     new_rows: list[dict[str, str]] = []
     for li in line_items:
@@ -297,10 +293,7 @@ def import_po(
         row = {fn: "" for fn in fieldnames}
         if ids:
             row.update(ids)
-        # Always carry the freshly-imported MPN if no LCSC code is set
-        if not row.get("LCSC Part Number") and not row.get("Manufacture Part Number"):
-            row["Manufacture Part Number"] = li.get("mpn", "")
-        elif not row.get("Manufacture Part Number"):
+        if not row.get("Manufacture Part Number"):
             row["Manufacture Part Number"] = li.get("mpn", "")
         row["Manufacturer"] = li.get("manufacturer", "")
         row["Package"] = li.get("package", "")
