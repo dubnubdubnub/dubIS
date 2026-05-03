@@ -1040,6 +1040,15 @@ def test_parse_source_file_csv(api, tmp_path):
     assert rows[0]["mpn"] == "TMR2615"
 
 
+def test_parse_source_file_b64_csv(api):
+    import base64
+    csv_text = "Manufacture Part Number,Manufacturer,Quantity,Unit Price($)\nTMR2615,MDT,50,4.20\n"
+    b64 = base64.b64encode(csv_text.encode("utf-8")).decode("ascii")
+    rows = api.parse_source_file_b64(b64, "po.csv")
+    assert len(rows) == 1
+    assert rows[0]["mpn"] == "TMR2615"
+
+
 def test_create_purchase_order_writes_files(api):
     """Manual entry — no source file."""
     new_v = api.update_vendor("", name="MDT", url="https://tmr-sensors.com")
