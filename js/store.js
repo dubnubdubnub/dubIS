@@ -270,6 +270,23 @@ export async function loadInventory() {
   } catch (e) {
     AppLog.warn("Failed to load vendors/POs: " + e);
   }
+  // Surface migration / duplicate / inferred-only warnings
+  try {
+    const w = await api('get_warnings');
+    if (w.migration && (w.migration.inferred_count || w.migration.unknown_count)) {
+      const m = w.migration;
+      if (m.inferred_count) AppLog.warn(`Migration: created ${m.inferred_count} inferred vendor(s) from existing manufacturers`);
+      if (m.unknown_count) AppLog.warn(`Migration: ${m.unknown_count} parts have no manufacturer — assigned to ❓ Unknown`);
+    }
+    if (w.inferred_only > 0) {
+      AppLog.warn(`${w.inferred_only} vendor(s) lack URLs — add URLs to enable favicons`);
+    }
+    (w.duplicates || []).forEach(d => {
+      AppLog.warn(`Vendor "${d.src.name}" and "${d.dst.name}" look similar — merge?`);
+    });
+  } catch (e) {
+    AppLog.warn("Failed to load warnings: " + e);
+  }
 }
 
 export function onInventoryUpdated(freshInventory) {
