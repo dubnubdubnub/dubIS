@@ -258,14 +258,23 @@ function renderTooltip(data, provider) {
   var stockLabel = stockNum > 0 ? stockNum.toLocaleString() + " in stock" : "Out of stock";
   html += '<div class="part-preview-stock ' + stockClass + '">' + escHtml(stockLabel) + '</div>';
 
-  // Price tiers
-  if (data.prices && data.prices.length > 0) {
-    html += '<table class="part-preview-prices">';
-    html += '<thead><tr><th>Qty</th><th>Unit Price</th></tr></thead><tbody>';
-    data.prices.forEach(function (p) {
-      html += '<tr><td>' + escHtml(String(p.qty)) + '+</td><td>$' + escHtml(Number(p.price).toFixed(4)) + '</td></tr>';
+  // Packaging tabs (only for sources with multiple packaging variants — Digikey).
+  // Each tab swaps the visible price table without re-fetching.
+  var hasPackagings = Array.isArray(data.packagings) && data.packagings.length > 1;
+  var activeIdx = 0;
+  if (hasPackagings) {
+    activeIdx = pickActivePackagingIdx(data.packagings, data.productCode);
+    html += '<div class="part-preview-pack-tabs" role="tablist">';
+    data.packagings.forEach(function (pkg, idx) {
+      var cls = "part-preview-pack-tab" + (idx === activeIdx ? " active" : "");
+      html += '<button type="button" class="' + cls + '" data-pack-idx="' + idx + '">' +
+        escHtml(pkg.name || "Packaging " + (idx + 1)) + '</button>';
     });
-    html += '</tbody></table>';
+    html += '</div>';
+    html += '<div class="part-preview-prices-wrap">' +
+      renderPriceTable(data.packagings[activeIdx].prices || []) + '</div>';
+  } else if (data.prices && data.prices.length > 0) {
+    html += renderPriceTable(data.prices);
   }
 
   // Action links: datasheet + provider page
@@ -316,6 +325,52 @@ function renderTooltip(data, provider) {
       }
     });
   }
+
+  if (hasPackagings) {
+    var tabs = tooltip.querySelectorAll(".part-preview-pack-tab");
+    var pricesWrap = tooltip.querySelector(".part-preview-prices-wrap");
+    tabs.forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        var idx = parseInt(tab.getAttribute("data-pack-idx") || "0", 10);
+        if (!Number.isFinite(idx) || !data.packagings[idx]) return;
+        tabs.forEach(function (t) { t.classList.remove("active"); });
+        tab.classList.add("active");
+        if (pricesWrap) {
+          pricesWrap.innerHTML = renderPriceTable(data.packagings[idx].prices || []);
+        }
+      });
+    });
+  }
+}
+
+function renderPriceTable(prices) {
+  if (!prices || prices.length === 0) {
+    return '<div class="part-preview-no-prices">No pricing available</div>';
+  }
+  var html = '<table class="part-preview-prices">';
+  html += '<thead><tr><th>Qty</th><th>Unit Price</th></tr></thead><tbody>';
+  prices.forEach(function (p) {
+    html += '<tr><td>' + escHtml(String(p.qty)) + '+</td><td>$' +
+      escHtml(Number(p.price).toFixed(4)) + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function pickActivePackagingIdx(packagings, productCode) {
+  var pn = (productCode || "").toString().trim().toUpperCase();
+  for (var i = 0; i < packagings.length; i++) {
+    var pkgPn = (packagings[i].partNumber || "").toString().trim().toUpperCase();
+    if (pkgPn && pkgPn === pn) return i;
+  }
+  // Fallback: code suffix match (e.g. requested ends in TR-ND, code=TR)
+  var m = pn.match(/([A-Z]{2,4})-ND\b/);
+  if (m) {
+    for (var j = 0; j < packagings.length; j++) {
+      if ((packagings[j].code || "").toString().toUpperCase() === m[1]) return j;
+    }
+  }
+  return 0;
 }
 
 function appendPriceHistory(summary) {
