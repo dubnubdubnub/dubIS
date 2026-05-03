@@ -46,6 +46,7 @@ export function renderSubSectionHeader(displayName, collapsed, count) {
  * @param {boolean} options.isReverseTarget - whether this is a reverse link target
  * @param {string} options.sectionKey - section key for threshold lookup
  * @param {number} options.threshold - stock value threshold
+ * @param {string} [options.sectionChip] - optional section name shown as a chip in flat mode
  * @returns {string}
  */
 /**
@@ -96,6 +97,16 @@ export function renderPartRowHtml(item, options) {
   }
   var valueStr = stockValue > 0 ? "$" + stockValue.toFixed(2) : "\u2014";
 
+  var unitPrice = Number(item.unit_price) || 0;
+  var unitPriceStr;
+  if (unitPrice >= 0.01) unitPriceStr = '$' + unitPrice.toFixed(2);
+  else if (unitPrice > 0) unitPriceStr = '$' + unitPrice.toFixed(4);
+  else unitPriceStr = '\u2014';
+
+  var sectionChipHtml = options.sectionChip
+    ? '<span class="inv-section-chip">' + escHtml(options.sectionChip) + '</span>'
+    : '';
+
   var partIdsHtml = '<span class="part-ids">';
   if (item.lcsc) partIdsHtml += '<span class="part-id-lcsc" data-lcsc="' + escHtml(item.lcsc) + '"><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(item.lcsc) + '</span>';
   if (item.digikey) partIdsHtml += '<span class="part-id-digikey" data-digikey="' + escHtml(item.digikey) + '"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(item.digikey) + '</span>';
@@ -106,9 +117,11 @@ export function renderPartRowHtml(item, options) {
 
   var html =
     '<span class="inv-drag-handle" title="Drag to add to group">&#x2261;</span>' +
+    sectionChipHtml +
     partIdsHtml +
     nearMissBadgeHtml +
     '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + '</span>' +
+    '<span class="part-unit-price">' + unitPriceStr + '</span>' +
     '<span class="part-value">' + valueStr + '</span>' +
     '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data \u2014 click to set">\u26A0</button>' : '') + item.qty + '</span>' +
     (options.hideDescs ? '' : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
@@ -328,3 +341,55 @@ export function renderBomTableHeader() {
 }
 
 export { countStatuses };
+
+// ── Column header ────────────────────────────────────────
+
+/**
+ * Build the inventory column-header HTML.
+ * @param {object} viewState
+ * @param {number} viewState.groupLevel        0 | 1 | 2
+ * @param {string|null} viewState.sortColumn   null | "mpn" | "description" | "qty" | "unit_price" | "value"
+ * @param {string|null} viewState.sortScope    null | "subsection" | "section" | "global"
+ * @param {string|null} viewState.vendorGroupScope null | "subsection" | "section" | "global"
+ * @param {boolean} viewState.hideDescs
+ * @returns {string}
+ */
+export function renderInvColHeader(viewState) {
+  function scopeDots(scope) {
+    if (scope === 'subsection') return '·';                // · (U+00B7 MIDDLE DOT)
+    if (scope === 'section')    return '··';           // ··
+    if (scope === 'global')     return '···';     // ···
+    return '';
+  }
+  function sortIndicator(col) {
+    if (viewState.sortColumn !== col) return '';
+    var isText = (col === 'mpn' || col === 'description');
+    var arrow = isText ? '▲' : '▼';                    // ▲ (U+25B2) / ▼ (U+25BC)
+    return '<span class="inv-col-sort-active">' + arrow + scopeDots(viewState.sortScope) + '</span>';
+  }
+  function vendorIndicator() {
+    if (!viewState.vendorGroupScope) return '';
+    return '<span class="inv-col-sort-active">⧉' + scopeDots(viewState.vendorGroupScope) + '</span>';  // ⧉ (U+29C9 TWO JOINED SQUARES)
+  }
+  function groupDots() {
+    if (viewState.groupLevel === 0) return '●●';       // ●● (U+25CF BLACK CIRCLE)
+    if (viewState.groupLevel === 1) return '●○';       // ●○ (U+25CB WHITE CIRCLE)
+    return '○○';                                       // ○○
+  }
+
+  var descCellHtml = viewState.hideDescs ? '' :
+    '<button class="inv-col-cell inv-col-desc" data-col="description">Description ' + sortIndicator('description') + '</button>';
+
+  return '<div class="inv-col-header">' +
+    '<button class="inv-col-cell inv-col-group" data-col="group" title="Cycle grouping: full → sections → flat">' +
+      '<span class="inv-col-group-dots">' + groupDots() + '</span> Group' +
+    '</button>' +
+    '<button class="inv-col-cell inv-col-partid" data-col="partid" title="Group by vendor">Part # ' + vendorIndicator() + '</button>' +
+    '<button class="inv-col-cell inv-col-mpn" data-col="mpn">MPN ' + sortIndicator('mpn') + '</button>' +
+    '<button class="inv-col-cell inv-col-unit"  data-col="unit_price">Unit $ ' + sortIndicator('unit_price') + '</button>' +
+    '<button class="inv-col-cell inv-col-value" data-col="value">Total $ ' + sortIndicator('value') + '</button>' +
+    '<button class="inv-col-cell inv-col-qty"   data-col="qty">Qty ' + sortIndicator('qty') + '</button>' +
+    descCellHtml +
+    '<button class="inv-col-cell inv-col-reset" data-col="reset" title="Reset sort/group">↺</button>' +  // ↺ (U+21BA ANTICLOCKWISE OPEN CIRCLE ARROW)
+    '</div>';
+}

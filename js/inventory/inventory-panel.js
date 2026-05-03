@@ -32,10 +32,12 @@ import {
   renderMemberRows,
   renderFilterBarHtml,
   renderBomTableHeader,
+  renderInvColHeader,
 } from './inventory-renderer.js';
 
 import state from './inv-state.js';
 import { setupEvents, isFlyoutDragActive } from './inv-events.js';
+import { sortPartsBy, groupByVendor } from './inv-sort-group.js';
 
 // ── Section hierarchy (read once from store) ──
 
@@ -96,20 +98,45 @@ function createReverseLink(invItem) {
 function render() {
   state.body.innerHTML = "";
   updateDistCounts();
+  // Sticky offset for parent/subsection headers depends on whether the
+  // column header is present (non-BOM mode only).
+  state.body.style.setProperty("--inv-col-header-h", state.bomData ? "0px" : "26px");
   if (state.bomData) {
     var matchedInvKeys = renderBomComparison();
     renderRemainingInventory(matchedInvKeys, (state.searchInput.value || "").toLowerCase());
   } else {
+    var headerWrap = document.createElement("div");
+    headerWrap.innerHTML = renderInvColHeader({
+      groupLevel: state.groupLevel,
+      sortColumn: state.sortColumn,
+      sortScope: state.sortScope,
+      vendorGroupScope: state.vendorGroupScope,
+      hideDescs: state.hideDescs,
+    });
+    while (headerWrap.firstChild) state.body.appendChild(headerWrap.firstChild);
     renderNormalInventory();
   }
 }
 
 // ── Normal mode: grouped by section ──
 
+// In BOM mode, the column header is hidden — sort/vendor-group state must NOT
+// leak into the "Other Inventory" rendering path.
+function activeSortScope()        { return state.bomData ? null : state.sortScope; }
+function activeVendorGroupScope() { return state.bomData ? null : state.vendorGroupScope; }
+function activeGroupLevel()       { return state.bomData ? 0    : state.groupLevel; }
+
 function renderNormalInventory() {
   var query = (state.searchInput.value || "").toLowerCase();
   var sections = groupBySection(store.inventory);
 
+  // ── Global scope: flatten everything, no section/subsection headers ──
+  if (activeSortScope() === "global" || activeVendorGroupScope() === "global" || activeGroupLevel() === 2) {
+    renderGlobalScope(sections, query);
+    return;
+  }
+
+  // ── Section/subsection rendering ──
   for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
     var entry = SECTION_HIERARCHY[i];
     if (!entry.children) {
@@ -118,6 +145,54 @@ function renderNormalInventory() {
     } else {
       renderHierarchySection(entry, sections, query);
     }
+  }
+}
+
+function sectionDisplayName(fullKey) {
+  var sep = fullKey.indexOf(" > ");
+  return sep === -1 ? fullKey : fullKey.substring(sep + 3);
+}
+
+function renderGlobalScope(sections, query) {
+  var allParts = [];
+  for (var i = 0; i < FLAT_SECTIONS.length; i++) {
+    var name = FLAT_SECTIONS[i];
+    var bucket = sections[name] || [];
+    var filtered = filterByDistributor(filterByQuery(bucket, query), state.activeDistributors);
+    var displayName = sectionDisplayName(name);
+    for (var j = 0; j < filtered.length; j++) {
+      var tagged = Object.assign({}, filtered[j]);
+      tagged.__sectionName = displayName;
+      allParts.push(tagged);
+    }
+  }
+  if (allParts.length === 0) return;
+
+  if (activeVendorGroupScope() === "global") {
+    renderVendorPiles(state.body, allParts, "global");
+  } else {
+    var sorted = sortPartsBy(allParts, state.sortColumn);
+    appendFlatRows(state.body, sorted, "global");
+  }
+}
+
+function appendFlatRows(container, parts, scopeKey) {
+  for (var k = 0; k < parts.length; k++) {
+    var sectionChip = activeGroupLevel() === 2 ? parts[k].__sectionName : undefined;
+    var row = createPartRow(parts[k], scopeKey, sectionChip);
+    container.appendChild(row);
+  }
+}
+
+function renderVendorPiles(container, parts, scopeKey) {
+  var piles = groupByVendor(parts);
+  for (var p = 0; p < piles.length; p++) {
+    var hdr = document.createElement("div");
+    hdr.className = "inv-vendor-header";
+    hdr.textContent = piles[p].vendor.charAt(0).toUpperCase() + piles[p].vendor.slice(1) + " (" + piles[p].parts.length + ")";
+    container.appendChild(hdr);
+    var pileSorted = (state.bomData ? null : state.sortColumn) ? sortPartsBy(piles[p].parts, state.sortColumn) : piles[p].parts;
+    appendFlatRows(container, pileSorted, scopeKey + ":" + piles[p].vendor);
   }
 }
 
@@ -147,17 +222,36 @@ function renderHierarchySection(entry, sections, query) {
   });
   container.appendChild(header);
 
-  if (!isParentCollapsed) {
-    if (parentParts.length > 0) {
-      renderSubSection(container, "Ungrouped", entry.name, parentParts);
+  if (isParentCollapsed) { state.body.appendChild(container); return; }
+
+  // \u2500\u2500 Section-scope sort or vendor-group: merge subsections, render flat under section header \u2500\u2500
+  if (activeSortScope() === "section" || activeVendorGroupScope() === "section") {
+    var merged = parentParts.slice();
+    for (var c = 0; c < childData.length; c++) merged = merged.concat(childData[c].parts);
+    if (activeVendorGroupScope() === "section") {
+      renderVendorPiles(container, merged, entry.name);
+    } else {
+      var sortedSec = sortPartsBy(merged, state.sortColumn);
+      for (var s = 0; s < sortedSec.length; s++) container.appendChild(createPartRow(sortedSec[s], entry.name));
     }
-    for (var j = 0; j < childData.length; j++) {
-      if (childData[j].parts.length > 0) {
-        renderSubSection(container, childData[j].name, childData[j].fullKey, childData[j].parts);
-      }
-    }
+    state.body.appendChild(container);
+    return;
   }
 
+  // \u2500\u2500 Group level 1 (sections only): merge subsections without subsection headers \u2500\u2500
+  if (activeGroupLevel() === 1) {
+    var allChildParts = parentParts.slice();
+    for (var cc = 0; cc < childData.length; cc++) allChildParts = allChildParts.concat(childData[cc].parts);
+    for (var x = 0; x < allChildParts.length; x++) container.appendChild(createPartRow(allChildParts[x], entry.name));
+    state.body.appendChild(container);
+    return;
+  }
+
+  // \u2500\u2500 Default rendering: subsection headers visible \u2500\u2500
+  if (parentParts.length > 0) renderSubSection(container, "Ungrouped", entry.name, parentParts);
+  for (var j = 0; j < childData.length; j++) {
+    if (childData[j].parts.length > 0) renderSubSection(container, childData[j].name, childData[j].fullKey, childData[j].parts);
+  }
   state.body.appendChild(container);
 }
 
@@ -174,15 +268,12 @@ function renderSubSection(container, displayName, fullKey, parts) {
   header.innerHTML = '<span class="chevron">\u25BE</span> ' + escHtml(displayName) + ' <span class="inv-section-count">(' + parts.length + ')</span>' +
     (hasGroups ? '<button class="groups-btn' + (groupsActive ? ' active' : '') + '">\u25C6 Groups</button>' : '');
 
-  // Collapse/expand on header click (but NOT on Groups button)
   header.addEventListener("click", function (e) {
     if (e.target.closest(".groups-btn")) return;
     if (state.collapsedSections.has(fullKey)) state.collapsedSections.delete(fullKey);
     else state.collapsedSections.add(fullKey);
     render();
   });
-
-  // Groups button handler
   var groupsBtn = header.querySelector(".groups-btn");
   if (groupsBtn) {
     groupsBtn.addEventListener("click", function (e) {
@@ -197,19 +288,19 @@ function renderSubSection(container, displayName, fullKey, parts) {
   if (!isCollapsed) {
     if (groupsActive) {
       renderGroupedView(sub, fullKey, parts);
+    } else if (activeVendorGroupScope() === "subsection") {
+      renderVendorPiles(sub, parts, fullKey);
     } else {
-      for (var k = 0; k < parts.length; k++) {
-        sub.appendChild(createPartRow(parts[k], fullKey));
-      }
+      var subSorted = activeSortScope() === "subsection" && state.sortColumn ? sortPartsBy(parts, state.sortColumn) : parts;
+      for (var k = 0; k < subSorted.length; k++) sub.appendChild(createPartRow(subSorted[k], fullKey));
     }
   }
-
   container.appendChild(sub);
 }
 
 // ── Shared part row builder ──
 
-function createPartRow(item, sectionKey) {
+function createPartRow(item, sectionKey, sectionChip) {
   var row = document.createElement("div");
   row.className = "inv-part-row";
   // Only draggable while a generic-parts flyout is open (drop target). Off by
@@ -231,6 +322,7 @@ function createPartRow(item, sectionKey) {
     threshold: getThreshold(sectionKey),
     genericParts: store.genericParts,
     nearMiss: nearMiss || null,
+    sectionChip: sectionChip,
   });
   row.innerHTML = html;
 
@@ -362,18 +454,15 @@ function renderSection(name, parts) {
 
   var header = document.createElement("div");
   header.className = "inv-section-header" + (isCollapsed ? " collapsed" : "");
-  header.innerHTML = '<span class="chevron">\u25BE</span> ' + escHtml(name) + ' <span class="inv-section-count">(' + parts.length + ')</span>' +
-    (hasGroups ? '<button class="groups-btn' + (groupsActive ? ' active' : '') + '">\u25C6 Groups</button>' : '');
+  header.innerHTML = '<span class="chevron">▾</span> ' + escHtml(name) + ' <span class="inv-section-count">(' + parts.length + ')</span>' +
+    (hasGroups ? '<button class="groups-btn' + (groupsActive ? ' active' : '') + '">◆ Groups</button>' : '');
 
-  // Collapse/expand on header click (but NOT on Groups button)
   header.addEventListener("click", function (e) {
     if (e.target.closest(".groups-btn")) return;
     if (state.collapsedSections.has(name)) state.collapsedSections.delete(name);
     else state.collapsedSections.add(name);
     render();
   });
-
-  // Groups button handler
   var groupsBtn = header.querySelector(".groups-btn");
   if (groupsBtn) {
     groupsBtn.addEventListener("click", function (e) {
@@ -388,13 +477,16 @@ function renderSection(name, parts) {
   if (!isCollapsed) {
     if (groupsActive) {
       renderGroupedView(section, name, parts);
+    } else if (activeVendorGroupScope() === "section" || activeVendorGroupScope() === "subsection") {
+      // Flat section has no subsections, so subsection-scope and section-scope behave identically here.
+      renderVendorPiles(section, parts, name);
     } else {
-      for (var k = 0; k < parts.length; k++) {
-        section.appendChild(createPartRow(parts[k], name));
-      }
+      var sorted = (activeSortScope() === "section" || activeSortScope() === "subsection") && state.sortColumn
+        ? sortPartsBy(parts, state.sortColumn)
+        : parts;
+      for (var k = 0; k < sorted.length; k++) section.appendChild(createPartRow(sorted[k], name));
     }
   }
-
   state.body.appendChild(section);
 }
 

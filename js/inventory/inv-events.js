@@ -3,8 +3,9 @@
 
 import { EventBus, Events } from '../event-bus.js';
 import { AppLog } from '../api.js';
-import { store } from '../store.js';
+import { store, saveInventoryView } from '../store.js';
 import state from './inv-state.js';
+import { nextScope } from './inv-sort-group.js';
 
 /**
  * Wire up all DOM event listeners and EventBus subscriptions.
@@ -68,6 +69,63 @@ export function setupEvents(handlers) {
     state.searchInput.value = "";
     updateDistFilterUI();
     render();
+  });
+
+  // ── Column header clicks ──
+  function persistAndRender() {
+    saveInventoryView({
+      groupLevel: state.groupLevel,
+      sortColumn: state.sortColumn,
+      sortScope: state.sortScope,
+      vendorGroupScope: state.vendorGroupScope,
+    });
+    render();
+  }
+
+  state.body.addEventListener("click", function (e) {
+    var cell = e.target.closest(".inv-col-cell");
+    if (!cell) return;
+    var col = cell.dataset.col;
+
+    if (col === "group") {
+      state.groupLevel = (state.groupLevel + 1) % 3;
+      // Drop scopes that are no longer reachable at the new level.
+      if (state.groupLevel === 2) {
+        if (state.sortScope && state.sortScope !== "global") { state.sortColumn = null; state.sortScope = null; }
+        if (state.vendorGroupScope && state.vendorGroupScope !== "global") state.vendorGroupScope = null;
+      } else if (state.groupLevel === 1) {
+        if (state.sortScope === "subsection") { state.sortColumn = null; state.sortScope = null; }
+        if (state.vendorGroupScope === "subsection") state.vendorGroupScope = null;
+      }
+      persistAndRender();
+      return;
+    }
+    if (col === "reset") {
+      state.groupLevel = 0;
+      state.sortColumn = null;
+      state.sortScope = null;
+      state.vendorGroupScope = null;
+      persistAndRender();
+      return;
+    }
+    if (col === "partid") {
+      state.vendorGroupScope = nextScope(state.groupLevel, state.vendorGroupScope);
+      if (state.vendorGroupScope) { state.sortColumn = null; state.sortScope = null; }
+      persistAndRender();
+      return;
+    }
+    if (col === "mpn" || col === "unit_price" || col === "value" || col === "qty" || col === "description") {
+      if (state.sortColumn !== col) {
+        state.sortColumn = col;
+        state.sortScope = nextScope(state.groupLevel, null);
+      } else {
+        state.sortScope = nextScope(state.groupLevel, state.sortScope);
+        if (state.sortScope === null) state.sortColumn = null;
+      }
+      if (state.sortColumn) state.vendorGroupScope = null;
+      persistAndRender();
+      return;
+    }
   });
 
   // ── EventBus subscriptions ──
