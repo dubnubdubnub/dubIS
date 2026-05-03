@@ -90,3 +90,50 @@ class TestUnknownExtension:
         path = tmp_path / "foo.xyz"
         path.write_bytes(b"random")
         assert mdi.parse_source_file(str(path)) == []
+
+
+class TestMatchPart:
+    def _seed_parts(self, db):
+        """Insert a few parts for matching."""
+        db.execute(
+            """INSERT INTO parts (part_id, lcsc, mpn, manufacturer)
+               VALUES (?, ?, ?, ?)""",
+            ("TMR2615", "", "TMR2615", "MDT"),
+        )
+        db.execute(
+            """INSERT INTO parts (part_id, lcsc, mpn, manufacturer)
+               VALUES (?, ?, ?, ?)""",
+            ("DF40C-30DP-0.4V(51)", "C429942", "DF40C-30DP-0.4V(51)", "HRS"),
+        )
+        db.commit()
+
+    def test_exact_match_definite(self, db):
+        self._seed_parts(db)
+        result = mdi.match_part(db, mpn="TMR2615", manufacturer="MDT")
+        assert result["status"] == "definite"
+        assert result["part_id"] == "TMR2615"
+
+    def test_case_insensitive_match(self, db):
+        self._seed_parts(db)
+        result = mdi.match_part(db, mpn="tmr2615", manufacturer="mdt")
+        assert result["status"] == "definite"
+
+    def test_hyphen_normalized_match(self, db):
+        self._seed_parts(db)
+        result = mdi.match_part(db, mpn="TMR-2615", manufacturer="MDT")
+        assert result["status"] == "definite"
+
+    def test_fuzzy_match_levenshtein_2(self, db):
+        self._seed_parts(db)
+        result = mdi.match_part(db, mpn="TMR2615A", manufacturer="MDT")
+        assert result["status"] == "possible"
+        assert any(c["part_id"] == "TMR2615" for c in result["candidates"])
+
+    def test_no_match(self, db):
+        self._seed_parts(db)
+        result = mdi.match_part(db, mpn="UNRELATED-XYZ", manufacturer="OtherMfg")
+        assert result["status"] == "new"
+
+    def test_empty_mpn_returns_new(self, db):
+        result = mdi.match_part(db, mpn="", manufacturer="MDT")
+        assert result["status"] == "new"
