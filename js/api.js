@@ -53,3 +53,26 @@ export function whenPywebviewReady() {
     window.addEventListener("pywebviewready", () => resolve(), { once: true });
   });
 }
+
+export const apiVendors = {
+  list:    () => api('list_vendors'),
+  upsert:  (id, name, url) => api('update_vendor', id, name, url),
+  merge:   (srcId, dstId) => api('merge_vendors', srcId, dstId),
+  delete:  (id) => api('delete_vendor', id),
+  fetchFavicon: (url) => api('fetch_favicon', url),
+};
+
+export const apiPurchaseOrders = {
+  list:   () => api('list_purchase_orders'),
+  create: (vendorId, fileB64, fileName, date, notes, items) =>
+    api('create_purchase_order_with_items', vendorId, fileB64, fileName, date, notes, JSON.stringify(items)),
+  update: (poId, vendorId, date, notes) =>
+    api('update_purchase_order', poId, vendorId, date, notes),
+  delete: (poId) => api('delete_purchase_order', poId),
+  openSource: (poId) => api('open_source_file', poId),
+};
+
+export const apiMfgDirect = {
+  parseFile: (path) => api('parse_source_file', path),
+  matchPart: (mpn, mfg) => api('match_part', mpn, mfg),
+};
