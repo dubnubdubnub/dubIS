@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.ci_watcher.audit import AuditLog, TriageRecord
+from scripts.ci_watcher.audit import AuditLog, TriageRecord, _parse_iso8601
 
 
 @pytest.fixture
@@ -81,3 +81,8 @@ def test_count_reruns_for_pr(log_path: Path) -> None:
     log.append(_record(signature=sig, pr=999, action="rerun"))  # different PR
 
     assert log.rerun_count_for_pr_signature(pr=234, signature=sig) == 2
+
+
+def test_parse_iso8601_returns_correct_utc_epoch() -> None:
+    # 2026-05-06T14:23:11Z is epoch 1778077391 (verified independently)
+    assert _parse_iso8601("2026-05-06T14:23:11Z") == 1778077391

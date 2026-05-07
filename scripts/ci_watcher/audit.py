@@ -6,6 +6,7 @@ each event. Recent signatures are queried to drive the decision matrix.
 """
 from __future__ import annotations
 
+import calendar
 import json
 import time
 from dataclasses import asdict, dataclass
@@ -33,7 +34,7 @@ class TriageRecord:
 
 def _parse_iso8601(ts: str) -> int:
     """Parse ISO-8601 'Z'-suffixed UTC timestamp to epoch seconds."""
-    return int(time.mktime(time.strptime(ts, "%Y-%m-%dT%H:%M:%SZ")) - time.timezone)
+    return calendar.timegm(time.strptime(ts, "%Y-%m-%dT%H:%M:%SZ"))
 
 
 class AuditLog:
