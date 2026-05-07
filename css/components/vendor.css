@@ -46,14 +46,14 @@
 .new-po-btn-direct { color: var(--color-blue); border-color: var(--color-blue); }
 .new-po-btn-direct:hover { background: rgba(10, 132, 255, 0.1); }
 
-/* Prominent placement inside the import drop-zone bottom-right. The drop-zone
-   uses asymmetric padding (14px top / 34px bottom) so this absolutely-positioned
-   button sits within the wider bottom padding — the dashed border stays clearly
-   visible around the button on all sides. */
+/* Prominent placement inside the import drop-zone bottom-right. 8px constant
+   margin: this matches the radius of the SVG inner-arc that wraps around the
+   button's NW corner — so the dashed line is exactly 8px from every facing
+   edge of the button (top, left, right, bottom, NW corner). */
 .drop-zone .new-po-btn-direct {
   position: absolute;
-  right: 10px;
-  bottom: 6px;
+  right: 8px;
+  bottom: 8px;
   font-size: 11px;
   padding: 2px 12px;
   font-weight: 600;
