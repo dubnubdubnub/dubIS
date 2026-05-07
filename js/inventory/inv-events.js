@@ -3,10 +3,11 @@
 
 import { EventBus, Events } from '../event-bus.js';
 import { AppLog } from '../api.js';
-import { store } from '../store.js';
+import { store, saveInventoryView } from '../store.js';
 import { escHtml } from '../ui-helpers.js';
 import { inferDistributor } from './inventory-logic.js';
 import state from './inv-state.js';
+import { nextScope } from './inv-sort-group.js';
 import { buildHoverFlyout } from './favicon-stack.js';
 import { openVendorPopover } from './vendor-flyout.js';
 
@@ -86,6 +87,64 @@ export function setupEvents(handlers) {
     }
   }
 
+  // ── Column header clicks ──
+  function persistAndRender() {
+    saveInventoryView({
+      groupLevel: state.groupLevel,
+      sortColumn: state.sortColumn,
+      sortScope: state.sortScope,
+      vendorGroupScope: state.vendorGroupScope,
+    });
+    render();
+  }
+
+  state.body.addEventListener("click", function (e) {
+    var cell = e.target.closest(".inv-col-cell");
+    if (!cell) return;
+    var col = cell.dataset.col;
+
+    if (col === "group") {
+      state.groupLevel = (state.groupLevel + 1) % 3;
+      // Drop scopes that are no longer reachable at the new level.
+      if (state.groupLevel === 2) {
+        if (state.sortScope && state.sortScope !== "global") { state.sortColumn = null; state.sortScope = null; }
+        if (state.vendorGroupScope && state.vendorGroupScope !== "global") state.vendorGroupScope = null;
+      } else if (state.groupLevel === 1) {
+        if (state.sortScope === "subsection") { state.sortColumn = null; state.sortScope = null; }
+        if (state.vendorGroupScope === "subsection") state.vendorGroupScope = null;
+      }
+      persistAndRender();
+      return;
+    }
+    if (col === "reset") {
+      state.groupLevel = 0;
+      state.sortColumn = null;
+      state.sortScope = null;
+      state.vendorGroupScope = null;
+      persistAndRender();
+      return;
+    }
+    if (col === "partid") {
+      state.vendorGroupScope = nextScope(state.groupLevel, state.vendorGroupScope);
+      if (state.vendorGroupScope) { state.sortColumn = null; state.sortScope = null; }
+      persistAndRender();
+      return;
+    }
+    if (col === "mpn" || col === "unit_price" || col === "value" || col === "qty" || col === "description") {
+      if (state.sortColumn !== col) {
+        state.sortColumn = col;
+        state.sortScope = nextScope(state.groupLevel, null);
+      } else {
+        state.sortScope = nextScope(state.groupLevel, state.sortScope);
+        if (state.sortScope === null) state.sortColumn = null;
+      }
+      if (state.sortColumn) state.vendorGroupScope = null;
+      persistAndRender();
+      return;
+    }
+  });
+
+
   // ── EventBus subscriptions ──
   EventBus.on(Events.INVENTORY_LOADED, function () { render(); });
   EventBus.on(Events.INVENTORY_UPDATED, function () { render(); });
@@ -130,6 +189,7 @@ export function setupEvents(handlers) {
   EventBus.on(Events.FLYOUT_OPENED, function () {
     var panel = document.getElementById("panel-inventory");
     if (panel) panel.classList.add("flyout-drag-active");
+    setInventoryRowsDraggable(true);
   });
 
   EventBus.on(Events.FLYOUT_CLOSED, function () {
@@ -137,6 +197,7 @@ export function setupEvents(handlers) {
       if (flyoutState.flyouts.size === 0) {
         var panel = document.getElementById("panel-inventory");
         if (panel) panel.classList.remove("flyout-drag-active");
+        setInventoryRowsDraggable(false);
       }
     });
   });
@@ -284,4 +345,21 @@ function toggleVendorSubpills() {
     panel.classList.toggle('hidden');
     renderVendorSubpills();
   }
+}
+
+function setInventoryRowsDraggable(on) {
+  var rows = document.querySelectorAll(
+    "#inventory-body .inv-part-row, #inventory-body tr[data-part-key]"
+  );
+  for (var i = 0; i < rows.length; i++) rows[i].draggable = on;
+}
+
+/**
+ * True when at least one generic-parts flyout is open. Newly rendered rows
+ * use this to decide whether to be draggable, so they pick up the right
+ * state when the inventory re-renders while a flyout is active.
+ */
+export function isFlyoutDragActive() {
+  var panel = document.getElementById("panel-inventory");
+  return !!(panel && panel.classList.contains("flyout-drag-active"));
 }

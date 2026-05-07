@@ -377,3 +377,21 @@ class TestExtractAttributes:
         """
         result = extract_attributes(html)
         assert len(result) == 1
+
+    def test_skips_numeric_only_names(self):
+        """Price-ladder rows and dimensional lookup tables (e.g. Pololu SKU
+        1992) have purely numeric first columns and are not real attributes."""
+        html = """
+        <table>
+            <tr><td>1</td><td>4.49</td></tr>
+            <tr><td>5</td><td>4.13</td></tr>
+            <tr><td>25</td><td>3.80</td></tr>
+            <tr><td>100</td><td>3.50</td></tr>
+            <tr><td>&ndash;</td><td>2.54</td></tr>
+            <tr><td>2.54</td><td>5.08</td></tr>
+            <tr><td>5.08</td><td>7.62</td></tr>
+            <tr><th>Pin Pitch</th><td>2.54mm</td></tr>
+        </table>
+        """
+        result = extract_attributes(html)
+        assert result == [{"name": "Pin Pitch", "value": "2.54mm"}]

@@ -79,7 +79,11 @@ tbody tr:hover:not(.part-preview-info tr, .part-preview-prices tr) { background:
 .ref-l  { color: var(--color-green); }
 .ref-d  { color: var(--color-orange); }
 [data-ref] { cursor: default; }
-.ref-highlight { background: #ffe600; color: #000 !important; border-radius: 2px; font-size: 1.25em; font-weight: 700; }
+/* Highlight applied to refs hovered in either panel. Must use only properties that
+   do not change the element's layout box (background, color, outline, box-shadow);
+   font-size/font-weight changes here cause reflow inside the narrow refs cell,
+   knocking the hovered ref out from under the cursor and breaking the highlight. */
+.ref-highlight { background: #ffe600; color: #000 !important; border-radius: 2px; outline: 2px solid #ffe600; }
 
 /* Colored refs display in BOM staging table — scrollable like inventory refs */
 #bom-tbody .refs-cell {

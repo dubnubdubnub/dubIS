@@ -124,7 +124,12 @@ def extract_attributes(
     page_html: str,
     excluded_names: list[str] | None = None,
 ) -> list[dict[str, str]]:
-    """Extract attribute rows from HTML spec tables."""
+    """Extract attribute rows from HTML spec tables.
+
+    Skips rows whose name has no alphabetic characters — these are price-ladder
+    rows (qty/price) or dimensional lookup tables (e.g. Pololu's pin-spacing
+    chart on header/connector pages) whose first column is purely numeric.
+    """
     excluded = {n.lower() for n in (excluded_names or [])}
     attributes: list[dict[str, str]] = []
     for name_raw, value_raw in re.findall(
@@ -133,6 +138,11 @@ def extract_attributes(
     ):
         name = html_mod.unescape(name_raw.strip())
         value = html_mod.unescape(value_raw.strip())
-        if name and value and name.lower() not in excluded:
-            attributes.append({"name": name, "value": value})
+        if not (name and value):
+            continue
+        if name.lower() in excluded:
+            continue
+        if not re.search(r"[A-Za-z]", name):
+            continue
+        attributes.append({"name": name, "value": value})
     return attributes

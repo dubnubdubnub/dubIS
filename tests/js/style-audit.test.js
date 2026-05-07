@@ -52,7 +52,11 @@ describe('Description auto-hide when panel is narrow', () => {
   });
 
   it('JS conditionally skips .part-desc based on hideDescs flag', () => {
-    expect(invPanelJs).toMatch(/hideDescs\s*\?\s*['"]{2}\s*:/);
+    // The truthy branch must not render the full description (no part-desc-inner);
+    // the falsy branch is the real description with .part-desc-inner. The truthy
+    // branch is allowed to be either an empty string or an empty .part-desc-pad
+    // spacer used to keep column alignment when descriptions auto-hide.
+    expect(invPanelJs).toMatch(/hideDescs\s*\?\s*['"][^'"]*['"][^]*?part-desc-inner/);
   });
 });
 

@@ -257,6 +257,53 @@ test.describe('Cross-panel designator hover highlighting', () => {
     console.log('Hover on bom R1 → both panels highlighted');
   });
 
+  test('hover highlight does not enlarge element (prevents reflow oscillation)', async ({ page }) => {
+    // Regression: .ref-highlight previously used font-size:1.25em + font-weight:700,
+    // which grew the hovered span and triggered layout reflow inside the narrow
+    // 140px refs cell. The last designator in a multi-ref cell would shift away
+    // from the cursor on highlight, causing the hover to oscillate and appear
+    // dead. The highlight must apply without changing the element's bounding box.
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.setViewportSize({ width: 1920, height: 900 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await page.waitForTimeout(300);
+    await loadBomViaFileInput(page, BOM_CSV_PATH);
+    await page.waitForTimeout(300);
+
+    // Pick a ref that's the LAST item in a multi-ref cell (worst-case for reflow).
+    // Find any data-ref span that is the last [data-ref]/[data-refs] inside its
+    // refs-scroll container.
+    const target = await page.evaluate(() => {
+      const cells = document.querySelectorAll('#inventory-body .refs-cell .refs-scroll');
+      for (const cell of cells) {
+        const refs = cell.querySelectorAll('[data-ref], [data-refs]');
+        if (refs.length >= 3) {
+          const last = refs[refs.length - 1];
+          const ref = last.dataset.ref || (last.dataset.refs || '').split(' ')[0];
+          if (ref) return ref;
+        }
+      }
+      return null;
+    });
+    expect(target, 'expected a multi-ref cell to exist after loading BOM').not.toBeNull();
+
+    const span = page.locator(`#inventory-body [data-ref="${target}"], #inventory-body [data-refs~="${target}"]`).first();
+    const before = await span.boundingBox();
+    expect(before).not.toBeNull();
+
+    await span.hover();
+    // If the highlight resizes the element, Playwright reports "element is not stable"
+    // and hover times out. A passing hover() proves the element stayed put.
+    await expect(span).toHaveClass(/ref-highlight/);
+
+    const after = await span.boundingBox();
+    expect(after).not.toBeNull();
+    // Bounding box must not grow on hover (allow 1px tolerance for sub-pixel rounding).
+    expect(Math.abs(after.width - before.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(after.height - before.height)).toBeLessThanOrEqual(1);
+  });
+
   test('moving mouse away clears highlights', async ({ page }) => {
     await addMockSetup(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });

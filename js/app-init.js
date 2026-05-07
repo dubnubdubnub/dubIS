@@ -167,6 +167,8 @@ async function initApp() {
 
   await whenPywebviewReady();
   await loadPreferences();
+  const { hydrateFromPreferences: hydrateInvView } = await import('./inventory/inv-state.js');
+  hydrateInvView(store.preferences.inventory_view);
   loadInventory();
   api("check_digikey_session").then(function (r) {
     if (r && r.logged_in) {

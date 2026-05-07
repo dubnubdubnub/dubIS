@@ -23,6 +23,7 @@ import {
   renderBomTableHeader,
 } from './inventory-renderer.js';
 import state from './inv-state.js';
+import { isFlyoutDragActive } from './inv-events.js';
 
 // ── BOM Comparison ──
 
@@ -65,11 +66,14 @@ export function renderBomComparison(render, createReverseLink) {
   table.innerHTML = renderBomTableHeader();
 
   const tbody = document.createElement("tbody");
+  const flyoutActive = isFlyoutDragActive();
   for (let i = 0; i < sortedRows.length; i++) {
     const r = sortedRows[i];
     const d = bomRowDisplayData(r, query, state.activeFilter, state.expandedAlts, linkingState, state.expandedMembers);
     if (!d) continue;
-    tbody.appendChild(createBomRowElement(d));
+    const bomTr = createBomRowElement(d);
+    bomTr.draggable = flyoutActive;
+    tbody.appendChild(bomTr);
     if (d.showAlts) {
       const altElements = renderAltRows(r.alts, d.partKey);
       for (let j = 0; j < altElements.length; j++) {

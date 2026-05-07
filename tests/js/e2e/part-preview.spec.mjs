@@ -20,6 +20,13 @@ const TOOLTIP_INVENTORY = [
     qty: 50, unit_price: 0.15, ext_price: 7.50,
   },
   {
+    section: "Passives - Resistors > Chip Resistors",
+    lcsc: "", digikey: "YAG2274TR-ND", pololu: "", mouser: "",
+    mpn: "RC0402FR-0710KL", manufacturer: "Yageo",
+    package: "0402", description: "10k 1% 0.063W 0402 Resistor",
+    qty: 5000, unit_price: 0.007, ext_price: 35.00,
+  },
+  {
     section: "Mechanical & Hardware",
     lcsc: "", digikey: "", pololu: "1992", mouser: "",
     mpn: "1992", manufacturer: "Pololu",
@@ -82,6 +89,63 @@ const MOCK_PRODUCTS = {
       { name: "Pin Count", value: "40" },
     ],
     provider: "pololu",
+  },
+  "digikey:YAG2274TR-ND": {
+    productCode: "YAG2274TR-ND",
+    title: "Yageo 10k Resistor 0402",
+    manufacturer: "Yageo",
+    mpn: "RC0402FR-0710KL",
+    package: "0402",
+    description: "10k 1% 0.063W 0402 Resistor",
+    stock: 1000000,
+    prices: [
+      { qty: 1, price: 0.10 },
+      { qty: 10, price: 0.034 },
+      { qty: 25, price: 0.0252 },
+      { qty: 50, price: 0.0204 },
+      { qty: 100, price: 0.0168 },
+      { qty: 250, price: 0.01316 },
+      { qty: 500, price: 0.01112 },
+      { qty: 1000, price: 0.00952 },
+      { qty: 5000, price: 0.00698 },
+    ],
+    imageUrl: "https://example.com/yag2274.jpg",
+    pdfUrl: "https://www.yageo.com/RC0402.pdf",
+    digikeyUrl: "https://www.digikey.com/product/YAG2274TR-ND",
+    category: "Resistors",
+    subcategory: "Chip Resistor - Surface Mount",
+    attributes: [
+      { name: "Resistance", value: "10k" },
+      { name: "Tolerance", value: "1%" },
+    ],
+    packagings: [
+      {
+        name: "Cut Tape (CT)",
+        partNumber: "YAG2274CT-ND",
+        code: "CT",
+        prices: [
+          { qty: 1, price: 0.12 },
+          { qty: 10, price: 0.040 },
+        ],
+      },
+      {
+        name: "Tape & Reel (TR)",
+        partNumber: "YAG2274TR-ND",
+        code: "TR",
+        prices: [
+          { qty: 1, price: 0.10 },
+          { qty: 10, price: 0.034 },
+          { qty: 25, price: 0.0252 },
+          { qty: 50, price: 0.0204 },
+          { qty: 100, price: 0.0168 },
+          { qty: 250, price: 0.01316 },
+          { qty: 500, price: 0.01112 },
+          { qty: 1000, price: 0.00952 },
+          { qty: 5000, price: 0.00698 },
+        ],
+      },
+    ],
+    provider: "digikey",
   },
   "mouser:736-FGG0B305CLAD52": {
     productCode: "736-FGG0B305CLAD52",
@@ -251,6 +315,49 @@ test.describe('Part preview tooltip — data loading', () => {
     await expect(page.locator('.part-preview-error')).toContainText(
       'Login to Digikey in Preferences to enable preview',
     );
+  });
+
+  test('DigiKey tooltip shows full price ladder, packaging tabs, datasheet & site links', async ({ page }) => {
+    const tooltip = await hoverAndWaitForTooltip(page, '[data-digikey="YAG2274TR-ND"]');
+
+    // Title and identifying info
+    await expect(page.locator('.part-preview-title')).toContainText('Yageo 10k Resistor');
+    await expect(tooltip).toContainText('Digikey Part #');
+    await expect(tooltip).toContainText('YAG2274TR-ND');
+
+    // All 9 price tiers from the active (Tape & Reel) packaging
+    const priceRows = page.locator('.part-preview-prices tbody tr');
+    await expect(priceRows).toHaveCount(9);
+    await expect(priceRows.nth(0)).toContainText('1+');
+    await expect(priceRows.nth(0)).toContainText('$0.1000');
+    await expect(priceRows.nth(8)).toContainText('5000+');
+    await expect(priceRows.nth(8)).toContainText('$0.0070');
+
+    // Packaging tabs visible, with TR active by default (matches the requested PN)
+    const tabs = page.locator('.part-preview-pack-tab');
+    await expect(tabs).toHaveCount(2);
+    await expect(tabs.nth(0)).toContainText('Cut Tape (CT)');
+    await expect(tabs.nth(1)).toContainText('Tape & Reel (TR)');
+    await expect(tabs.nth(1)).toHaveClass(/active/);
+
+    // Click the Cut Tape tab → price table swaps to its 2 tiers
+    await tabs.nth(0).click();
+    await expect(tabs.nth(0)).toHaveClass(/active/);
+    await expect(tabs.nth(1)).not.toHaveClass(/active/);
+    await expect(page.locator('.part-preview-prices tbody tr')).toHaveCount(2);
+    await expect(page.locator('.part-preview-prices tbody tr').nth(0)).toContainText('$0.1200');
+
+    // Action links: datasheet + Digikey
+    await expect(page.locator('.part-preview-actions a')).toHaveCount(2);
+    await expect(tooltip).toContainText('Datasheet (PDF)');
+    await expect(tooltip).toContainText('View on Digikey');
+    const dsLink = page.locator('.part-preview-actions a', { hasText: 'Datasheet' });
+    await expect(dsLink).toHaveAttribute('href', 'https://www.yageo.com/RC0402.pdf');
+    const siteLink = page.locator('.part-preview-actions a', { hasText: 'View on Digikey' });
+    await expect(siteLink).toHaveAttribute('href', 'https://www.digikey.com/product/YAG2274TR-ND');
+
+    // Provider accent
+    await expect(tooltip).toHaveClass(/provider-digikey/);
   });
 
   test('tooltip hides after moving mouse away', async ({ page }) => {
