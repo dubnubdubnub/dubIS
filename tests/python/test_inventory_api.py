@@ -910,12 +910,12 @@ class TestPricesFKResolution:
 
     def test_populate_prices_cache_resolves_distributor_pn(self, api):
         """populate_prices_cache resolves distributor PNs in historical data."""
-        import price_history
+        import domain.pricing
         self._setup_part_with_digikey(api)
         # Write observation with Digikey PN directly to the log
         events_dir = os.path.join(api.base_dir, "events")
         os.makedirs(events_dir, exist_ok=True)
-        price_history.record_observations(events_dir, [{
+        domain.pricing.record_observations(events_dir, [{
             "part_id": "296-DRV8316CRRGFRCT-ND",
             "distributor": "digikey",
             "unit_price": 2.80,
@@ -923,7 +923,7 @@ class TestPricesFKResolution:
         }])
         # Rebuild cache — should resolve the Digikey PN
         conn = api._get_cache()
-        price_history.populate_prices_cache(conn, events_dir)
+        domain.pricing.populate_prices_cache(conn, events_dir)
         rows = conn.execute(
             "SELECT * FROM prices WHERE part_id = ? AND distributor = ?",
             ("C1525", "digikey"),
