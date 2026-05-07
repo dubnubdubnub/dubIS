@@ -235,3 +235,71 @@ def test_walk_sources_resolves_imports_and_events(tmp_path: Path) -> None:
     assert info["js/main.js"].imports == ["js/store.js"]
     assert info["js/main.js"].emits == ["INVENTORY_LOADED"]
     assert info["js/store.js"].listens == ["INVENTORY_LOADED"]
+
+
+# ── Rendering ─────────────────────────────────────────────────────────
+
+def test_render_markdown_has_header_and_sections() -> None:
+    info = {
+        "a.py": gen_code_map.FileInfo(path="a.py", imports=["b.py"]),
+        "b.py": gen_code_map.FileInfo(path="b.py", imports=[]),
+    }
+    md = gen_code_map.render_markdown(info)
+    assert md.startswith("# Code Map\n")
+    assert "## Module imports" in md
+    assert "## Event flow" in md
+    assert "## Per-file index" in md
+
+
+def test_render_markdown_module_graph_uses_mermaid() -> None:
+    info = {
+        "a.py": gen_code_map.FileInfo(path="a.py", imports=["b.py"]),
+        "b.py": gen_code_map.FileInfo(path="b.py", imports=[]),
+    }
+    md = gen_code_map.render_markdown(info)
+    assert "```mermaid" in md
+    assert "graph LR" in md
+    assert "a.py --> b.py" in md or '"a.py" --> "b.py"' in md
+
+
+def test_render_markdown_event_table_lists_emitters_and_listeners() -> None:
+    info = {
+        "store.js": gen_code_map.FileInfo(
+            path="store.js", emits=["INVENTORY_LOADED"]
+        ),
+        "panel.js": gen_code_map.FileInfo(
+            path="panel.js", listens=["INVENTORY_LOADED"]
+        ),
+    }
+    md = gen_code_map.render_markdown(info)
+    # Find the event-flow section
+    assert "INVENTORY_LOADED" in md
+    # Both files appear in the event row
+    section = md.split("## Event flow", 1)[1].split("##", 1)[0]
+    assert "store.js" in section
+    assert "panel.js" in section
+
+
+def test_render_markdown_per_file_index_alphabetical() -> None:
+    info = {
+        "z.py": gen_code_map.FileInfo(path="z.py"),
+        "a.py": gen_code_map.FileInfo(path="a.py"),
+        "m.py": gen_code_map.FileInfo(path="m.py"),
+    }
+    md = gen_code_map.render_markdown(info)
+    section = md.split("## Per-file index", 1)[1]
+    a_pos = section.find("### a.py")
+    m_pos = section.find("### m.py")
+    z_pos = section.find("### z.py")
+    assert -1 < a_pos < m_pos < z_pos
+
+
+def test_render_markdown_per_file_index_includes_imported_by() -> None:
+    info = {
+        "a.py": gen_code_map.FileInfo(path="a.py", imports=["b.py"]),
+        "b.py": gen_code_map.FileInfo(path="b.py", imports=[]),
+    }
+    md = gen_code_map.render_markdown(info)
+    # b.py's section should mention a.py as an importer
+    b_section = md.split("### b.py", 1)[1].split("###", 1)[0]
+    assert "a.py" in b_section
