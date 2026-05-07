@@ -43,13 +43,15 @@
 
 /* Column widths must mirror the .inv-part-row column widths exactly:
    same width, same flex-shrink, same min-width — otherwise the row cells
-   shrink at narrow widths while the header cells don't, breaking alignment. */
-.inv-col-group   { width: 50px; flex-shrink: 1; min-width: 0; overflow: hidden; }
-.inv-col-partid  { width: 100px; flex-shrink: 1; min-width: 40px; }
-.inv-col-mpn     { width: 160px; flex-shrink: 1; min-width: 40px; }
-.inv-col-unit    { width: 70px; flex-shrink: 1; min-width: 0; text-align: right; justify-content: flex-end; }
-.inv-col-value   { width: 70px; flex-shrink: 1; min-width: 20px; text-align: right; justify-content: flex-end; }
-.inv-col-qty     { width: 60px; flex-shrink: 1; min-width: 30px; text-align: right; justify-content: flex-end; }
+   shrink at narrow widths while the header cells don't, breaking alignment.
+   Width values come from css/tokens.css so that JS can read them via
+   js/layout-tokens.js without duplicating the numbers. */
+.inv-col-group   { width: var(--inv-col-group-w);    flex-shrink: 1; min-width: 0; overflow: hidden; }
+.inv-col-partid  { width: var(--inv-col-pn-w);        flex-shrink: 1; min-width: 40px; }
+.inv-col-mpn     { width: var(--inv-col-mfgpn-w);     flex-shrink: 1; min-width: 40px; }
+.inv-col-unit    { width: var(--inv-col-unit-w);      flex-shrink: 1; min-width: 0; text-align: right; justify-content: flex-end; }
+.inv-col-value   { width: var(--inv-col-extprice-w);  flex-shrink: 1; min-width: 20px; text-align: right; justify-content: flex-end; }
+.inv-col-qty     { width: var(--inv-col-stock-w);     flex-shrink: 1; min-width: 30px; text-align: right; justify-content: flex-end; }
 .inv-col-desc    { flex: 1; min-width: 0; }
 /* Empty flex:1 spacer used in both header and row when descriptions are
    auto-hidden at narrow widths. Keeps column alignment by absorbing the
@@ -215,14 +217,14 @@
 }
 .inv-part-row:hover { background: var(--bg-hover); }
 .inv-part-row .part-id { width: 90px; flex-shrink: 0; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: var(--color-blue); }
-.inv-part-row .part-mpn { width: 160px; min-width: 40px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
+.inv-part-row .part-mpn { width: var(--inv-col-mfgpn-w); min-width: 40px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
 /* The Group column slot. Always present so the row's first content
    aligns with the column header's Group cell, even when the drag handle
    inside is display:none (default; toggled by group-flyout.css). At very
    narrow widths the wrapper may shrink to zero — the drag handle (when
    shown via .flyout-drag-active) will overflow visibly into the next cell. */
 .inv-part-row .inv-row-group-cell {
-  width: 50px;
+  width: var(--inv-col-group-w);
   flex-shrink: 1;
   min-width: 0;
   display: inline-flex;
@@ -230,9 +232,9 @@
   gap: 4px;
   overflow: hidden;
 }
-.inv-part-row .part-value { width: 70px; min-width: 20px; text-align: right; font-size: 11px; font-family: "SFMono-Regular", Consolas, monospace; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.inv-part-row .part-unit-price { width: 70px; min-width: 0; text-align: right; font-size: 11px; font-family: "SFMono-Regular", Consolas, monospace; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.inv-part-row .part-qty { width: 60px; min-width: 30px; text-align: right; font-weight: 600; }
+.inv-part-row .part-value { width: var(--inv-col-extprice-w); min-width: 20px; text-align: right; font-size: 11px; font-family: "SFMono-Regular", Consolas, monospace; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-part-row .part-unit-price { width: var(--inv-col-unit-w); min-width: 0; text-align: right; font-size: 11px; font-family: "SFMono-Regular", Consolas, monospace; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-part-row .part-qty { width: var(--inv-col-stock-w); min-width: 30px; text-align: right; font-weight: 600; }
 .inv-part-row .part-desc { flex: 1; min-width: 0; overflow: hidden; }
 .inv-part-row .part-actions { flex-shrink: 0; margin-left: auto; display: flex; gap: 4px; align-items: center; }
 .group-flyout-btn {
@@ -247,7 +249,7 @@
 .part-desc-inner { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; color: var(--text-secondary); width: 100%; }
 
 /* ── Dual Part ID Display ─────────────────────────────── */
-.inv-part-row .part-ids { width: 100px; min-width: 40px; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+.inv-part-row .part-ids { width: var(--inv-col-pn-w); min-width: 40px; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
 .part-id-lcsc { font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: var(--vendor-lcsc); cursor: pointer; }
 .part-id-digikey { font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: var(--vendor-digikey); cursor: pointer; }
 .part-id-pololu { font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: var(--vendor-pololu); cursor: pointer; }
