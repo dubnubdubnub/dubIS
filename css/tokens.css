@@ -1,0 +1,18 @@
+/* ── Layout Tokens ──────────────────────────────────────────────────────────
+   Single source of truth for layout values shared between CSS and JS.
+   Only CSS custom property declarations here — no selectors with rules.
+   JS consumers: js/layout-tokens.js
+   ──────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Inventory panel column widths.
+     These values must stay in sync with the corresponding row cells in
+     .inv-part-row so that column headers align with row content.
+     Consumed by: css/panels/inventory.css, js/layout-tokens.js */
+  --inv-col-group-w:   50px;   /* Group / drag-handle cell */
+  --inv-col-pn-w:     100px;   /* Part number (vendor IDs) */
+  --inv-col-mfgpn-w:  160px;   /* Manufacturer PN */
+  --inv-col-unit-w:    70px;   /* Unit price */
+  --inv-col-extprice-w: 70px;  /* Extended (total) price */
+  --inv-col-stock-w:   60px;   /* Stock qty */
+}
