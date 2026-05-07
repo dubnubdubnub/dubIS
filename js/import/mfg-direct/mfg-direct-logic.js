@@ -1,11 +1,5 @@
 /* mfg-direct-logic.js — Pure helpers for Direct import flow. */
 
-const URL_RE = /^(https?:\/\/)?[a-z0-9-]+(\.[a-z0-9-]+)+(\/.*)?$/i;
-
-export function looksLikeUrl(text) {
-  return URL_RE.test((text || '').trim());
-}
-
 export function canonicalizeUrl(text) {
   let s = (text || '').trim();
   if (!s) return '';

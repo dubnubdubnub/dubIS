@@ -12,8 +12,8 @@
 .mfg-direct-popout-btn:hover { color: var(--color-blue); border-color: var(--color-blue); }
 
 .mfg-direct-pseudo-row { display: flex; gap: 4px; margin-top: 4px; }
-.mfg-pseudo-chip { border-radius: 999px; background: var(--bg-raised); color: var(--text-secondary); }
-.mfg-pseudo-chip:hover { border-color: var(--color-blue); color: var(--color-blue); }
+.mfg-direct-vendor-url-row { display: flex; align-items: center; gap: 6px; padding-left: 24px; }
+.mfg-direct-vendor-url-row .mfg-direct-vendor-input { font-size: 11px; color: var(--text-secondary); }
 
 .mfg-source-drop { padding: 16px; text-align: center; cursor: pointer; }
 .mfg-source-attached { display: flex; align-items: center; gap: 6px; padding: 6px; background: var(--bg-surface); border-radius: 4px; }
@@ -46,14 +46,14 @@
 .new-po-btn-direct { color: var(--color-blue); border-color: var(--color-blue); }
 .new-po-btn-direct:hover { background: rgba(10, 132, 255, 0.1); }
 
-/* Prominent placement inside the import drop-zone bottom-right. The drop-zone
-   uses asymmetric padding (14px top / 34px bottom) so this absolutely-positioned
-   button sits within the wider bottom padding — the dashed border stays clearly
-   visible around the button on all sides. */
+/* Prominent placement inside the import drop-zone bottom-right. 8px constant
+   margin: this matches the radius of the SVG inner-arc that wraps around the
+   button's NW corner — so the dashed line is exactly 8px from every facing
+   edge of the button (top, left, right, bottom, NW corner). */
 .drop-zone .new-po-btn-direct {
   position: absolute;
-  right: 10px;
-  bottom: 6px;
+  right: 8px;
+  bottom: 8px;
   font-size: 11px;
   padding: 2px 12px;
   font-weight: 600;

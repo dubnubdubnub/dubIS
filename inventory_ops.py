@@ -10,7 +10,7 @@ from typing import Any
 
 from categorize import categorize, parse_capacitance, parse_inductance, parse_resistance
 from csv_io import append_csv_rows, fix_double_utf8
-from price_ops import derive_missing_price, parse_price, parse_qty
+from domain.pricing import derive_missing_price, parse_price, parse_qty
 
 logger = logging.getLogger(__name__)
 

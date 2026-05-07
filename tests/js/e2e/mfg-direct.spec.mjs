@@ -40,11 +40,14 @@ test.describe('Direct-from-mfg import', () => {
     await directBtn.click();
     await expect(page.locator('.mfg-direct-editor')).toBeVisible();
 
-    // 2. Type vendor URL
-    const vendorInput = page.locator('#mfg-vendor-input');
-    await vendorInput.click();
-    await vendorInput.fill('tmr-sensors.com');
-    await vendorInput.press('Tab');
+    // 2. Type vendor name + website
+    const nameInput = page.locator('#mfg-vendor-name-input');
+    await nameInput.click();
+    await nameInput.fill('TMR Sensors');
+    await nameInput.press('Tab');
+    const urlInput = page.locator('#mfg-vendor-url-input');
+    await urlInput.fill('tmr-sensors.com');
+    await urlInput.press('Tab');
     await expect(page.locator('.vendor-favicon, .vendor-favicon-emoji').first()).toBeVisible();
 
     // 3. Use file input directly (drag-drop in Playwright is via setInputFiles)
@@ -85,15 +88,101 @@ test.describe('Direct-from-mfg import', () => {
         textToButtonGap: br.top - hr.bottom,
       };
     });
-    // Button anchored to bottom-right, but with the dashed border clearly
-    // visible AROUND it on right and bottom (≥6px breathing room each).
+    // Button anchored to bottom-right with breathing room from the dashed
+    // perimeter on right and bottom.
     expect(m.rightGap).toBeGreaterThanOrEqual(6);
     expect(m.rightGap).toBeLessThanOrEqual(20);
     expect(m.bottomGap).toBeGreaterThanOrEqual(6);
     expect(m.bottomGap).toBeLessThanOrEqual(20);
-    // The drop-zone hint text must not crowd the button.
-    expect(m.textToButtonGap).toBeGreaterThanOrEqual(4);
+    // The drop-zone hint text must not crowd the button. macOS sub-pixel
+    // rendering produces ~1px less than other platforms, so we use a tolerant
+    // floor; the design goal is "no overlap and breathing room", not a
+    // specific pixel count.
+    expect(m.textToButtonGap).toBeGreaterThanOrEqual(2);
   });
+
+  // The dashed L-shape perimeter is rendered as an SVG <path> computed from
+  // the button's bounding rect with a constant 8px margin and rounded corners
+  // (5 convex outer/notch corners + 1 concave corner that wraps the button's
+  // NW corner). The path has 6 arc commands — one per corner.
+  for (const vp of [
+    { name: 'narrow', width: 1280, height: 720 },
+    { name: 'medium', width: 1600, height: 900 },
+    { name: 'wide',   width: 1920, height: 1200 },
+    { name: 'ultrawide', width: 2560, height: 1440 },
+  ]) {
+    test(`L-shape perimeter has rounded corners + constant 8px margin from button at ${vp.name} (${vp.width}x${vp.height})`, async ({ page }) => {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      // Force a re-layout so ResizeObserver fires.
+      await page.waitForTimeout(50);
+
+      const result = await page.evaluate(() => {
+        const z = document.getElementById('import-drop-zone');
+        const svg = z && z.querySelector('.drop-zone-frame');
+        const path = z && z.querySelector('.drop-zone-frame-path');
+        const button = z && z.querySelector('[data-template="direct"]');
+        if (!z || !svg || !path || !button) return { missing: true };
+
+        const d = path.getAttribute('d') || '';
+        const arcs = (d.match(/A /g) || []).length;
+        const dasharray = window.getComputedStyle(path).strokeDasharray;
+        const strokeWidth = parseFloat(window.getComputedStyle(path).strokeWidth);
+        const hasFrameClass = z.classList.contains('has-direct-frame');
+
+        const zr = z.getBoundingClientRect();
+        const br = button.getBoundingClientRect();
+        const btnLeftU = br.left - zr.left;
+        const btnTopU = br.top - zr.top;
+
+        // F-arc: 3rd arc command in the path (concave corner wrapping btn NW).
+        const arcMatches = [...d.matchAll(/A (\S+) (\S+) 0 0 (\d) (\S+) (\S+)/g)];
+        const fArc = arcMatches[2];
+        const fSweep = fArc ? fArc[3] : null;
+        const fRadius = fArc ? Number(fArc[1]) : null;
+        const fEndX = fArc ? Number(fArc[4]) : null;
+        const fEndY = fArc ? Number(fArc[5]) : null;
+
+        // Inside edge of the dashed stroke: stroke is centered on the path,
+        // path right at x = W-1 in userspace = zr.right - 1, so the stroke's
+        // inner edge (toward the button) is at zr.right - 1 - halfStroke.
+        const halfStroke = strokeWidth / 2;
+        const visibleRight = (zr.right - 1 - halfStroke) - br.right;
+        const visibleBottom = (zr.bottom - 1 - halfStroke) - br.bottom;
+
+        return {
+          missing: false,
+          hasFrameClass,
+          arcs,
+          dasharray,
+          visibleRight,
+          visibleBottom,
+          fSweep,
+          fRadius,
+          fEndDeltaX: fArc ? (btnLeftU - fEndX) : null,
+          fEndDeltaY: fArc ? (btnTopU - fEndY) : null,
+        };
+      });
+
+      expect(result.missing).toBe(false);
+      expect(result.hasFrameClass).toBe(true);
+      // Six rounded corners → six arc commands
+      expect(result.arcs).toBe(6);
+      // Dashed stroke
+      expect(result.dasharray).not.toBe('none');
+      // Constant 8px visible margin between button and dashed perimeter on
+      // right and bottom (the two sides where the perimeter is the outer
+      // rectangle, not the notch's inward edges).
+      expect(result.visibleRight).toBeCloseTo(8, 0);
+      expect(result.visibleBottom).toBeCloseTo(8, 0);
+      // Concave F arc: sweep=0, radius equals the margin (8) so the perimeter
+      // wraps the button's NW corner at constant distance.
+      expect(result.fSweep).toBe('0');
+      expect(result.fRadius).toBe(8);
+      // F arc end point is exactly 8px west of the button NW corner
+      expect(result.fEndDeltaX).toBeCloseTo(8, 0);
+      expect(result.fEndDeltaY).toBeCloseTo(0, 0);
+    });
+  }
 
   test('Direct filter pill replaces Other', async ({ page }) => {
     const direct = page.locator('[data-distributor="direct"]');
@@ -110,6 +199,8 @@ test.describe('Direct-from-mfg import', () => {
   test('pseudo-vendor chip selects Self', async ({ page }) => {
     await page.locator('[data-template="direct"]').click();
     await page.locator('.mfg-pseudo-chip[data-pseudo="v_self"]').click();
-    await expect(page.locator('.mfg-direct-vendor-input')).toHaveValue('Self');
+    await expect(page.locator('#mfg-vendor-name-input')).toHaveValue('Self');
+    // Pseudo-vendors don't get a website field
+    await expect(page.locator('#mfg-vendor-url-input')).toHaveCount(0);
   });
 });

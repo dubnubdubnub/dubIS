@@ -1,16 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { looksLikeUrl, canonicalizeUrl, emptyLineItem, validateLineItems, formatMatchBadge }
+import { canonicalizeUrl, emptyLineItem, validateLineItems, formatMatchBadge }
   from '../../js/import/mfg-direct/mfg-direct-logic.js';
-
-describe('looksLikeUrl', () => {
-  it('matches plain domains', () => {
-    expect(looksLikeUrl('tmr-sensors.com')).toBe(true);
-    expect(looksLikeUrl('https://tmr-sensors.com')).toBe(true);
-  });
-  it('rejects names with spaces', () => {
-    expect(looksLikeUrl('MDT Industries')).toBe(false);
-  });
-});
 
 describe('canonicalizeUrl', () => {
   it('adds https scheme', () => {
