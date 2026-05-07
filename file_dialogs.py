@@ -8,7 +8,7 @@ import os
 from typing import Any
 
 from csv_io import convert_xls_to_csv, read_text
-from price_ops import ensure_parsed
+from domain.pricing import ensure_parsed
 
 logger = logging.getLogger(__name__)
 
