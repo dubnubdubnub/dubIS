@@ -185,3 +185,53 @@ def test_scan_eventbus_dedupes_and_sorts(tmp_path: Path) -> None:
     emits, listens = gen_code_map.scan_eventbus_refs(src)
     assert emits == ["A", "B"]
     assert listens == ["A", "C"]
+
+
+# ── Source walker ─────────────────────────────────────────────────────
+
+def test_walk_sources_collects_internal_set(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("")
+    (tmp_path / "b.py").write_text("")
+    (tmp_path / "js").mkdir()
+    (tmp_path / "js" / "main.js").write_text("")
+    (tmp_path / "js" / "store.js").write_text("")
+
+    info = gen_code_map.walk_sources(tmp_path)
+    assert sorted(info.keys()) == ["a.py", "b.py", "js/main.js", "js/store.js"]
+
+
+def test_walk_sources_skips_excluded(tmp_path: Path) -> None:
+    (tmp_path / "good.py").write_text("")
+    (tmp_path / "node_modules").mkdir()
+    (tmp_path / "node_modules" / "junk.js").write_text("")
+    (tmp_path / ".claude" / "worktrees" / "x").mkdir(parents=True)
+    (tmp_path / ".claude" / "worktrees" / "x" / "junk.py").write_text("")
+    (tmp_path / "openpnp").mkdir()
+    (tmp_path / "openpnp" / "Job.py").write_text("")
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools" / "vendor.py").write_text("")
+    (tmp_path / "__pycache__").mkdir()
+    (tmp_path / "__pycache__" / "x.pyc").write_text("")
+
+    info = gen_code_map.walk_sources(tmp_path)
+    assert list(info.keys()) == ["good.py"]
+
+
+def test_walk_sources_resolves_imports_and_events(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("import b\n")
+    (tmp_path / "b.py").write_text("import os\n")
+    (tmp_path / "js").mkdir()
+    (tmp_path / "js" / "main.js").write_text(
+        "import { x } from './store.js';\n"
+        "EventBus.emit(Events.INVENTORY_LOADED);\n"
+    )
+    (tmp_path / "js" / "store.js").write_text(
+        "EventBus.on(Events.INVENTORY_LOADED, fn);\n"
+    )
+
+    info = gen_code_map.walk_sources(tmp_path)
+    assert info["a.py"].imports == ["b.py"]
+    assert info["b.py"].imports == []
+    assert info["js/main.js"].imports == ["js/store.js"]
+    assert info["js/main.js"].emits == ["INVENTORY_LOADED"]
+    assert info["js/store.js"].listens == ["INVENTORY_LOADED"]
