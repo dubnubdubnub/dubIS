@@ -16,9 +16,9 @@ function inferDistributor(item) {
   if (item.digikey) return 'digikey';
   if (item.mouser) return 'mouser';
   if (item.pololu) return 'pololu';
-  return 'other';
+  return 'direct';
 }
-const DIST_COUNTS = { lcsc: 0, digikey: 0, mouser: 0, pololu: 0, other: 0 };
+const DIST_COUNTS = { lcsc: 0, digikey: 0, mouser: 0, pololu: 0, direct: 0 };
 for (const item of MOCK_INVENTORY) DIST_COUNTS[inferDistributor(item)]++;
 
 test.describe('Distributor filter buttons', () => {
@@ -42,7 +42,7 @@ test.describe('Distributor filter buttons', () => {
       pololu: 'data/pololu-icon.svg',
     };
 
-    for (const dist of ['lcsc', 'digikey', 'mouser', 'pololu', 'other']) {
+    for (const dist of ['lcsc', 'digikey', 'mouser', 'pololu', 'direct']) {
       const btn = filterBar.locator(`.dist-filter-btn[data-distributor="${dist}"]`);
       await expect(btn, `${dist} filter button should be visible`).toBeVisible();
 
@@ -56,9 +56,9 @@ test.describe('Distributor filter buttons', () => {
         const src = await icon.getAttribute('src');
         expect(src, `${dist} icon src`).toBe(ICON_SRCS[dist]);
       } else {
-        // "other" uses a text icon
-        const otherIcon = btn.locator('.dist-icon-other');
-        await expect(otherIcon, `other should have a text icon`).toBeVisible();
+        // "direct" uses a text icon
+        const directIcon = btn.locator('.dist-icon-direct');
+        await expect(directIcon, `direct should have a text icon`).toBeVisible();
       }
     }
 

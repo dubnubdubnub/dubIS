@@ -16,7 +16,7 @@ from typing import Any
 from inventory_ops import apply_adjustments, compute_adjusted_qty, get_part_key, read_and_merge, sort_key_for_section
 from price_ops import parse_price, parse_qty
 
-SCHEMA_VERSION = "5"
+SCHEMA_VERSION = "7"
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,23 @@ def create_schema(conn: sqlite3.Connection) -> None:
             DROP TABLE IF EXISTS generic_part_members;
             DROP TABLE IF EXISTS generic_parts;
             DROP TABLE IF EXISTS saved_searches;
+            DROP TABLE IF EXISTS purchase_orders;
+            DROP TABLE IF EXISTS vendors;
         """)
+    # Idempotent column migrations: add columns to parts if they exist but lack them
+    parts_exists = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='parts'"
+    ).fetchone()
+    if parts_exists:
+        for col_ddl in (
+            "ALTER TABLE parts ADD COLUMN primary_vendor_id TEXT DEFAULT ''",
+            "ALTER TABLE parts ADD COLUMN po_history TEXT DEFAULT ''",
+        ):
+            try:
+                conn.execute(col_ddl)
+            except sqlite3.OperationalError as e:
+                if "duplicate column" not in str(e).lower():
+                    raise
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS cache_meta (
             key   TEXT PRIMARY KEY,
@@ -63,7 +79,9 @@ def create_schema(conn: sqlite3.Connection) -> None:
             rohs          TEXT DEFAULT '',
             section       TEXT DEFAULT '',
             sort_key      REAL,
-            date_code     TEXT DEFAULT ''
+            date_code     TEXT DEFAULT '',
+            primary_vendor_id TEXT DEFAULT '',
+            po_history    TEXT DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS stock (
             part_id     TEXT PRIMARY KEY REFERENCES parts(part_id),
@@ -106,6 +124,22 @@ def create_schema(conn: sqlite3.Connection) -> None:
             frozen_members   TEXT,
             created_at       TEXT
         );
+        CREATE TABLE IF NOT EXISTS vendors (
+            id            TEXT PRIMARY KEY,
+            name          TEXT NOT NULL,
+            url           TEXT DEFAULT '',
+            favicon_path  TEXT DEFAULT '',
+            type          TEXT NOT NULL,
+            icon          TEXT DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS purchase_orders (
+            po_id              TEXT PRIMARY KEY,
+            vendor_id          TEXT NOT NULL REFERENCES vendors(id),
+            source_file_hash   TEXT DEFAULT '',
+            source_file_ext    TEXT DEFAULT '',
+            purchase_date      TEXT DEFAULT '',
+            notes              TEXT DEFAULT ''
+        );
     """)
     conn.execute(
         "INSERT OR REPLACE INTO cache_meta (key, value) VALUES ('schema_version', ?)",
@@ -118,6 +152,10 @@ def populate_full(
     conn: sqlite3.Connection,
     merged: dict[str, dict[str, str]],
     categorized: dict[str, list[dict[str, str]]],
+    *,
+    ledger_path: str | None = None,
+    po_csv_path: str | None = None,
+    vendors_json_path: str | None = None,
 ) -> None:
     """Full population from merge + categorize results. Clears existing data."""
     conn.execute("DELETE FROM prices")
@@ -133,8 +171,9 @@ def populate_full(
             conn.execute(
                 """INSERT OR REPLACE INTO parts
                    (part_id, lcsc, mpn, digikey, pololu, mouser,
-                    manufacturer, description, package, rohs, section, sort_key, date_code)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    manufacturer, description, package, rohs, section, sort_key, date_code,
+                    primary_vendor_id)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     part_id,
                     (part.get("LCSC Part Number") or "").strip(),
@@ -149,6 +188,7 @@ def populate_full(
                     section,
                     sk,
                     (part.get("Date Code / Lot No.") or "").strip(),
+                    "",
                 ),
             )
             conn.execute(
@@ -161,6 +201,68 @@ def populate_full(
                     parse_price(part.get("Ext.Price($)")),
                 ),
             )
+    conn.commit()
+
+    # Build part_id → primary_vendor_id lookup and po_history per part
+    primary_vendor: dict[str, str] = {}
+    po_history_for_part: dict[str, list[str]] = {}
+
+    if ledger_path and po_csv_path and os.path.isfile(po_csv_path):
+        # part_id → most-recent po_id (latest order wins) + all po_ids in order
+        po_id_for_part: dict[str, str] = {}
+        if os.path.isfile(ledger_path):
+            with open(ledger_path, newline="", encoding="utf-8-sig") as f:
+                for row in csv.DictReader(f):
+                    pk = get_part_key(row)
+                    poid = (row.get("po_id") or "").strip()
+                    if pk and poid:
+                        po_id_for_part[pk] = poid  # last write wins (chronological)
+                        # Track all po_ids for this part in chronological order
+                        if pk not in po_history_for_part:
+                            po_history_for_part[pk] = []
+                        if poid not in po_history_for_part[pk]:
+                            po_history_for_part[pk].append(poid)
+
+        # po_id → vendor_id
+        po_to_vendor: dict[str, str] = {}
+        with open(po_csv_path, newline="", encoding="utf-8-sig") as f:
+            for row in csv.DictReader(f):
+                po_to_vendor[row["po_id"]] = row["vendor_id"]
+
+        for pk, poid in po_id_for_part.items():
+            v = po_to_vendor.get(poid)
+            if v:
+                primary_vendor[pk] = v
+
+    # Fall back to inferred vendor by manufacturer name
+    if vendors_json_path and os.path.isfile(vendors_json_path):
+        import json
+        with open(vendors_json_path, encoding="utf-8") as f:
+            vendors_data = json.load(f)
+        # name → id (case-insensitive)
+        mfg_to_vendor = {v["name"].lower(): v["id"] for v in vendors_data
+                         if v.get("type") in ("inferred", "real")}
+        unknown_id = "v_unknown"
+        for part in merged.values():
+            pk = get_part_key(part)
+            if pk and pk not in primary_vendor:
+                mfg = (part.get("Manufacturer") or "").strip().lower()
+                primary_vendor[pk] = mfg_to_vendor.get(mfg, unknown_id)
+
+    # Update parts rows with primary_vendor_id
+    for pk, vid in primary_vendor.items():
+        conn.execute(
+            "UPDATE parts SET primary_vendor_id=? WHERE part_id=?",
+            (vid, pk),
+        )
+
+    # Update parts rows with po_history
+    import json as _json
+    for pk, po_ids in po_history_for_part.items():
+        conn.execute(
+            "UPDATE parts SET po_history=? WHERE part_id=?",
+            (_json.dumps(po_ids), pk),
+        )
     conn.commit()
 
 
@@ -390,11 +492,14 @@ def query_inventory(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """Query cache in the same format as inventory_ops.load_organized().
 
     Returns list of dicts with keys: section, lcsc, mpn, digikey, pololu,
-    mouser, manufacturer, package, description, qty, unit_price, ext_price.
+    mouser, manufacturer, package, description, qty, unit_price, ext_price,
+    primary_vendor_id, po_history.
     """
+    import json as _json
     rows = conn.execute("""
         SELECT p.section, p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser,
-               p.manufacturer, p.package, p.description,
+               p.manufacturer, p.package, p.description, p.primary_vendor_id,
+               p.po_history,
                s.quantity, s.unit_price, s.ext_price
         FROM parts p
         JOIN stock s USING (part_id)
@@ -414,6 +519,8 @@ def query_inventory(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             "qty": row["quantity"],
             "unit_price": row["unit_price"],
             "ext_price": row["ext_price"],
+            "primary_vendor_id": (row["primary_vendor_id"] or ""),
+            "po_history": _json.loads(row["po_history"]) if row["po_history"] else [],
         }
         for row in rows
     ]

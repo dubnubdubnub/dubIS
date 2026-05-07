@@ -20,7 +20,7 @@ class TestSchema:
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
         assert row is not None
-        assert row[0] == "5"
+        assert row[0] == "7"
 
     def test_foreign_key_enforced(self, db):
         with pytest.raises(sqlite3.IntegrityError):
@@ -145,6 +145,7 @@ class TestQuery:
             "section", "lcsc", "mpn", "digikey", "pololu", "mouser",
             "manufacturer", "package", "description",
             "qty", "unit_price", "ext_price",
+            "primary_vendor_id", "po_history",
         }
         assert set(result[0].keys()) == expected_keys
 
@@ -470,7 +471,7 @@ class TestSchemaV3:
         row = db.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
-        assert row[0] == "5"
+        assert row[0] == "7"
 
     def test_generic_parts_columns(self, db):
         db.execute(
@@ -532,7 +533,7 @@ class TestSchemaV3:
         version = conn.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()[0]
-        assert version == "5"
+        assert version == "7"
         conn.close()
 
 
@@ -547,7 +548,7 @@ class TestSchemaMigration:
         row = db.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
-        assert row[0] == "5"
+        assert row[0] == "7"
 
     def test_prices_table_columns(self, db):
         db.execute("INSERT INTO parts (part_id) VALUES ('C1525')")
@@ -586,7 +587,7 @@ class TestSchemaMigration:
         version = conn.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()[0]
-        assert version == "5"
+        assert version == "7"
         conn.close()
 
 
@@ -666,3 +667,212 @@ class TestIntegration:
             assert cached_by_key[key]["qty"] == legacy_by_key[key]["qty"], f"qty mismatch for {key}"
             assert cached_by_key[key]["section"] == legacy_by_key[key]["section"], f"section mismatch for {key}"
             assert abs(cached_by_key[key]["unit_price"] - legacy_by_key[key]["unit_price"]) < 0.001, f"price mismatch for {key}"
+
+
+def test_schema_v6_creates_vendors_table(tmp_path):
+    import cache_db
+    conn = cache_db.connect(str(tmp_path / "cache.db"))
+    cache_db.create_schema(conn)
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(vendors)")}
+    assert cols == {"id", "name", "url", "favicon_path", "type", "icon"}
+    conn.close()
+
+
+def test_schema_v6_creates_purchase_orders_table(tmp_path):
+    import cache_db
+    conn = cache_db.connect(str(tmp_path / "cache.db"))
+    cache_db.create_schema(conn)
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(purchase_orders)")}
+    assert cols == {"po_id", "vendor_id", "source_file_hash", "source_file_ext",
+                    "purchase_date", "notes"}
+    conn.close()
+
+
+def test_schema_v6_adds_primary_vendor_id_to_parts(tmp_path):
+    import cache_db
+    conn = cache_db.connect(str(tmp_path / "cache.db"))
+    cache_db.create_schema(conn)
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(parts)")}
+    assert "primary_vendor_id" in cols
+    conn.close()
+
+
+def test_schema_v6_bumps_version(tmp_path):
+    import cache_db
+    conn = cache_db.connect(str(tmp_path / "cache.db"))
+    cache_db.create_schema(conn)
+    row = conn.execute(
+        "SELECT value FROM cache_meta WHERE key='schema_version'"
+    ).fetchone()
+    assert row["value"] == "7"
+    conn.close()
+
+
+def test_v5_to_v6_migration_adds_primary_vendor_id(tmp_path):
+    """Existing v5 database upgrades to v6 with primary_vendor_id added to parts."""
+    import cache_db
+
+    db_path = str(tmp_path / "cache.db")
+    # Manually create a v5-like state: cache_meta says "5" and parts table lacks primary_vendor_id
+    conn = cache_db.connect(db_path)
+    conn.executescript("""
+        CREATE TABLE cache_meta (key TEXT PRIMARY KEY, value TEXT);
+        INSERT INTO cache_meta (key, value) VALUES ('schema_version', '5');
+        CREATE TABLE parts (
+            part_id      TEXT PRIMARY KEY,
+            lcsc         TEXT DEFAULT '',
+            mpn          TEXT DEFAULT '',
+            digikey      TEXT DEFAULT '',
+            pololu       TEXT DEFAULT '',
+            mouser       TEXT DEFAULT '',
+            manufacturer TEXT DEFAULT '',
+            description  TEXT DEFAULT '',
+            package      TEXT DEFAULT '',
+            rohs         TEXT DEFAULT '',
+            section      TEXT DEFAULT '',
+            sort_key     REAL,
+            date_code    TEXT DEFAULT ''
+        );
+        INSERT INTO parts (part_id, mpn, manufacturer)
+            VALUES ('TEST1', 'TMR2615', 'MDT');
+    """)
+    conn.commit()
+    conn.close()
+
+    # Reopen and trigger schema migration
+    conn = cache_db.connect(db_path)
+    cache_db.create_schema(conn)
+
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(parts)")}
+    assert "primary_vendor_id" in cols
+
+    # Existing row preserved with empty primary_vendor_id
+    row = conn.execute(
+        "SELECT primary_vendor_id FROM parts WHERE part_id = ?", ("TEST1",)
+    ).fetchone()
+    assert row["primary_vendor_id"] == ""
+
+    # Version is now 7
+    v = conn.execute(
+        "SELECT value FROM cache_meta WHERE key='schema_version'"
+    ).fetchone()
+    assert v["value"] == "7"
+    conn.close()
+
+
+def test_v5_to_v6_migration_populate_full_succeeds(tmp_path):
+    """After migration, populate_full's INSERT with primary_vendor_id works."""
+    import cache_db
+
+    db_path = str(tmp_path / "cache.db")
+    conn = cache_db.connect(db_path)
+    conn.executescript("""
+        CREATE TABLE cache_meta (key TEXT PRIMARY KEY, value TEXT);
+        INSERT INTO cache_meta (key, value) VALUES ('schema_version', '5');
+        CREATE TABLE parts (
+            part_id TEXT PRIMARY KEY, lcsc TEXT DEFAULT '', mpn TEXT DEFAULT '',
+            digikey TEXT DEFAULT '', pololu TEXT DEFAULT '', mouser TEXT DEFAULT '',
+            manufacturer TEXT DEFAULT '', description TEXT DEFAULT '',
+            package TEXT DEFAULT '', rohs TEXT DEFAULT '', section TEXT DEFAULT '',
+            sort_key REAL, date_code TEXT DEFAULT ''
+        );
+    """)
+    conn.commit()
+    conn.close()
+
+    conn = cache_db.connect(db_path)
+    cache_db.create_schema(conn)
+
+    # Now populate_full should work (this would crash without the migration fix)
+    merged = {"TEST2": {"Manufacture Part Number": "TMR2305", "Manufacturer": "MDT",
+                        "Quantity": "10", "Unit Price($)": "3.10",
+                        "Ext.Price($)": "31.00"}}
+    categorized = {"Other": list(merged.values())}
+    cache_db.populate_full(conn, merged, categorized)
+    conn.close()
+
+
+def test_populate_full_sets_primary_vendor_id_from_po(tmp_path):
+    """A part that has a PO row gets primary_vendor_id set to that PO's vendor."""
+    import cache_db
+    import csv as _csv
+
+    base = tmp_path / "data"
+    base.mkdir()
+    (base / "sources").mkdir()
+    ledger = base / "purchase_ledger.csv"
+    fields = ["LCSC Part Number", "Manufacture Part Number", "Manufacturer",
+              "Quantity", "Unit Price($)", "po_id"]
+    with open(ledger, "w", newline="", encoding="utf-8") as f:
+        w = _csv.DictWriter(f, fieldnames=fields)
+        w.writeheader()
+        w.writerow({"LCSC Part Number": "", "Manufacture Part Number": "TMR2615",
+                    "Manufacturer": "MDT", "Quantity": "50",
+                    "Unit Price($)": "4.20", "po_id": "po_test01"})
+
+    po_csv = base / "purchase_orders.csv"
+    with open(po_csv, "w", newline="", encoding="utf-8") as f:
+        w = _csv.DictWriter(f, fieldnames=[
+            "po_id", "vendor_id", "source_file_hash", "source_file_ext",
+            "purchase_date", "notes",
+        ])
+        w.writeheader()
+        w.writerow({"po_id": "po_test01", "vendor_id": "v_mdt_x", "source_file_hash": "",
+                    "source_file_ext": "", "purchase_date": "2026-04-15", "notes": ""})
+
+    conn = cache_db.connect(str(base / "cache.db"))
+    cache_db.create_schema(conn)
+    # Use the helper that the rebuild path will call (added in Task 11 step 4)
+    from inventory_ops import read_and_merge, apply_adjustments, categorize_and_sort
+    fnames, merged = read_and_merge(str(ledger), fields)
+    apply_adjustments(merged, str(base / "adjustments.csv"), fnames)
+    categorized = categorize_and_sort(list(merged.values()))
+    cache_db.populate_full(conn, merged, categorized,
+                            ledger_path=str(ledger), po_csv_path=str(po_csv))
+    row = conn.execute(
+        "SELECT primary_vendor_id FROM parts WHERE mpn=?", ("TMR2615",)
+    ).fetchone()
+    assert row["primary_vendor_id"] == "v_mdt_x"
+    conn.close()
+
+
+def test_populate_full_falls_back_to_inferred_vendor(tmp_path):
+    """A part with no PO falls back to inferred vendor by manufacturer name."""
+    import cache_db
+    import csv as _csv
+    import json
+
+    base = tmp_path / "data"
+    base.mkdir()
+    ledger = base / "purchase_ledger.csv"
+    fields = ["LCSC Part Number", "Manufacture Part Number", "Manufacturer",
+              "Quantity", "po_id"]
+    with open(ledger, "w", newline="", encoding="utf-8") as f:
+        w = _csv.DictWriter(f, fieldnames=fields)
+        w.writeheader()
+        w.writerow({"LCSC Part Number": "", "Manufacture Part Number": "X1",
+                    "Manufacturer": "HRS", "Quantity": "5", "po_id": ""})
+
+    vjson = base / "vendors.json"
+    with open(vjson, "w", encoding="utf-8") as f:
+        json.dump([
+            {"id": "v_unknown", "name": "Unknown", "type": "unknown", "icon": "❓",
+             "url": "", "favicon_path": ""},
+            {"id": "v_hrs_abcd", "name": "HRS", "type": "inferred",
+             "url": "", "favicon_path": "", "icon": ""},
+        ], f)
+
+    conn = cache_db.connect(str(base / "cache.db"))
+    cache_db.create_schema(conn)
+    from inventory_ops import read_and_merge, apply_adjustments, categorize_and_sort
+    fnames, merged = read_and_merge(str(ledger), fields)
+    apply_adjustments(merged, str(base / "adjustments.csv"), fnames)
+    categorized = categorize_and_sort(list(merged.values()))
+    cache_db.populate_full(conn, merged, categorized,
+                            ledger_path=str(ledger), po_csv_path=None,
+                            vendors_json_path=str(vjson))
+    row = conn.execute(
+        "SELECT primary_vendor_id FROM parts WHERE mpn=?", ("X1",)
+    ).fetchone()
+    assert row["primary_vendor_id"] == "v_hrs_abcd"
+    conn.close()

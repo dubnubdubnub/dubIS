@@ -286,6 +286,25 @@ describe('snapshotLinks', () => {
   });
 });
 
+// ── Vendor / PO store tests ────────────────────────────────
+
+import { setVendors, setPurchaseOrders } from '../../js/store.js';
+
+describe('vendors store', () => {
+  beforeEach(() => { store.vendors = []; store.purchaseOrders = []; });
+
+  it('setVendors replaces and emits', () => {
+    setVendors([{ id: 'v_unknown', name: 'Unknown', type: 'unknown', icon: '❓' }]);
+    expect(store.vendors).toHaveLength(1);
+    expect(store.vendors[0].id).toBe('v_unknown');
+  });
+
+  it('setPurchaseOrders replaces and emits', () => {
+    setPurchaseOrders([{ po_id: 'po_test', vendor_id: 'v_unknown' }]);
+    expect(store.purchaseOrders).toHaveLength(1);
+  });
+});
+
 describe('store object', () => {
   beforeEach(() => {
     setInventory([]);

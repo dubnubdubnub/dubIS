@@ -598,6 +598,26 @@ class TestConfirmClose:
         api.confirm_close()
         assert api._force_close is True
 
+
+def test_get_po_with_items(api):
+    api.import_purchases('[{"Manufacture Part Number":"X","Quantity":"5","Unit Price($)":"1.00","po_id":"po_test"}]')
+    # Manually create a matching PO row
+    import csv as _csv
+    po_csv = api._po_csv
+    with open(po_csv, "w", newline="", encoding="utf-8") as f:
+        w = _csv.DictWriter(f, fieldnames=[
+            "po_id", "vendor_id", "source_file_hash", "source_file_ext",
+            "purchase_date", "notes",
+        ])
+        w.writeheader()
+        w.writerow({"po_id": "po_test", "vendor_id": "v_unknown",
+                    "source_file_hash": "", "source_file_ext": "",
+                    "purchase_date": "2026-04-15", "notes": "x"})
+    result = api.get_po_with_items("po_test")
+    assert result["po"]["po_id"] == "po_test"
+    assert len(result["line_items"]) == 1
+    assert result["line_items"][0]["mpn"] == "X"
+
     def test_confirm_close_calls_destroy(self, api, monkeypatch):
         import types
         destroyed = []
@@ -982,3 +1002,82 @@ class TestGenericPartsAPI:
         gps = api.list_generic_parts()
         assert len(gps) == 1
         assert gps[0]["name"] == "100nF 0402"
+
+
+def test_purchase_ledger_migrates_to_include_po_id(api):
+    """Loading inventory with an old-schema purchase_ledger.csv migrates the header."""
+    import csv
+
+    old_fields = ["LCSC Part Number", "Manufacture Part Number", "Manufacturer", "Quantity"]
+    with open(api.input_csv, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=old_fields)
+        w.writeheader()
+        w.writerow({"LCSC Part Number": "C100", "Manufacture Part Number": "ABC1",
+                    "Manufacturer": "TestMfg", "Quantity": "5"})
+
+    # First import triggers append_csv_rows which calls migrate_csv_header
+    api.import_purchases('[{"Manufacture Part Number":"NEW1","Quantity":"3","po_id":"po_test01"}]')
+
+    with open(api.input_csv, encoding="utf-8-sig") as f:
+        rows = list(csv.DictReader(f))
+    assert "po_id" in rows[0]
+    # Old row got empty po_id, new row got the value
+    old_row = next(r for r in rows if r.get("LCSC Part Number") == "C100")
+    new_row = next(r for r in rows if r.get("Manufacture Part Number") == "NEW1")
+    assert old_row["po_id"] == ""
+    assert new_row["po_id"] == "po_test01"
+
+
+def test_list_vendors_returns_seeded(api):
+    """First call seeds built-ins."""
+    result = api.list_vendors()
+    ids = {v["id"] for v in result}
+    assert {"v_self", "v_salvage", "v_unknown"}.issubset(ids)
+
+
+def test_create_and_update_vendor(api):
+    new_v = api.update_vendor(
+        vendor_id="",  # empty → create
+        name="MDT", url="https://tmr-sensors.com",
+    )
+    assert new_v["type"] == "real"
+    assert new_v["url"] == "https://tmr-sensors.com"
+
+
+def test_match_part_returns_status(api):
+    api.import_purchases(
+        '[{"Manufacture Part Number":"TMR2615","Manufacturer":"MDT","Quantity":"50","Unit Price($)":"4.20"}]')
+    result = api.match_part(mpn="TMR2615", manufacturer="MDT")
+    assert result["status"] == "definite"
+
+
+def test_parse_source_file_csv(api, tmp_path):
+    p = tmp_path / "po.csv"
+    p.write_text("Manufacture Part Number,Manufacturer,Quantity,Unit Price($)\n"
+                 "TMR2615,MDT,50,4.20\n", encoding="utf-8")
+    rows = api.parse_source_file(str(p))
+    assert len(rows) == 1
+    assert rows[0]["mpn"] == "TMR2615"
+
+
+def test_parse_source_file_b64_csv(api):
+    import base64
+    csv_text = "Manufacture Part Number,Manufacturer,Quantity,Unit Price($)\nTMR2615,MDT,50,4.20\n"
+    b64 = base64.b64encode(csv_text.encode("utf-8")).decode("ascii")
+    rows = api.parse_source_file_b64(b64, "po.csv")
+    assert len(rows) == 1
+    assert rows[0]["mpn"] == "TMR2615"
+
+
+def test_create_purchase_order_writes_files(api):
+    """Manual entry — no source file."""
+    new_v = api.update_vendor("", name="MDT", url="https://tmr-sensors.com")
+    inv = api.create_purchase_order_with_items(
+        vendor_id=new_v["id"],
+        source_file_b64="", source_file_name="",
+        purchase_date="2026-04-15", notes="",
+        line_items_json='[{"mpn":"TMR2615","manufacturer":"MDT","package":"",'
+                         '"quantity":50,"unit_price":4.20,"match":"new"}]',
+    )
+    # Returns fresh inventory
+    assert any(p["mpn"] == "TMR2615" for p in inv)
