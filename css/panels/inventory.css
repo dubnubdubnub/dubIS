@@ -61,7 +61,7 @@
 /* min-width matches the row's .part-actions (Adjust button) so the same
    amount of space is reserved on the right of both header and row. Without
    this, the row's shrinkable cells shrink more than the header's. */
-.inv-col-reset   { margin-left: auto; flex-shrink: 0; font-size: 14px; min-width: 42px; justify-content: flex-end; }
+.inv-col-reset   { margin-left: auto; flex-shrink: 0; font-size: 14px; min-width: var(--inv-col-reset-min-w); justify-content: flex-end; }
 
 /* Section chip shown on rows when Group level = 2 (flat mode) */
 .inv-section-chip {
@@ -236,7 +236,7 @@
 .inv-part-row .part-unit-price { width: var(--inv-col-unit-w); min-width: 0; text-align: right; font-size: 11px; font-family: "SFMono-Regular", Consolas, monospace; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inv-part-row .part-qty { width: var(--inv-col-stock-w); min-width: 30px; text-align: right; font-weight: 600; }
 .inv-part-row .part-desc { flex: 1; min-width: 0; overflow: hidden; }
-.inv-part-row .part-actions { flex-shrink: 0; margin-left: auto; display: flex; gap: 4px; align-items: center; }
+.inv-part-row .part-actions { flex-shrink: 0; margin-left: auto; display: flex; gap: var(--part-actions-gap); align-items: center; }
 .group-flyout-btn {
   background: none; border: none; padding: 0; margin: 0; cursor: pointer; line-height: 1;
 }
