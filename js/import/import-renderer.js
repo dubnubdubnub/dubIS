@@ -15,13 +15,13 @@ export function renderDropZone(templates) {
         <p>Drop a purchase CSV here</p>
         <div class="hint">LCSC orders, cart exports, packing lists, DigiKey, Pololu, Mouser</div>
         <input type="file" id="import-file-input" accept=".csv,.tsv,.txt,.xls">
+        <button class="new-po-btn new-po-btn-direct" data-template="direct" title="Direct from manufacturer (no distributor CSV)">★ Direct from mfg</button>
       </div>
       <div class="new-po-row" id="new-po-row">
         <span class="new-po-label">or create blank PO:</span>
         ${Object.entries(templates).map(([key, t]) =>
           `<button class="new-po-btn" data-template="${key}">${t.label}</button>`
         ).join("")}
-        <button class="new-po-btn new-po-btn-direct" data-template="direct" title="Direct from manufacturer">★ Direct</button>
       </div>
       <div id="import-mapper" class="hidden"></div>
     </div>

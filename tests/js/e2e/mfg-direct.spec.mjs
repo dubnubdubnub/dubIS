@@ -67,6 +67,25 @@ test.describe('Direct-from-mfg import', () => {
     await expect(page.locator('.mfg-direct-modal')).toBeVisible();
   });
 
+  test('Direct button sits in bottom-right of the import drop zone', async ({ page }) => {
+    const dropZone = page.locator('#import-drop-zone');
+    const directBtn = dropZone.locator('[data-template="direct"]');
+    await expect(directBtn).toBeVisible();
+
+    // Button's right/bottom edges hug the drop zone's right/bottom edges
+    const edges = await page.evaluate(() => {
+      const z = document.getElementById('import-drop-zone');
+      const b = z.querySelector('[data-template="direct"]');
+      const zr = z.getBoundingClientRect();
+      const br = b.getBoundingClientRect();
+      return { rightGap: zr.right - br.right, bottomGap: zr.bottom - br.bottom };
+    });
+    expect(edges.rightGap).toBeGreaterThanOrEqual(0);
+    expect(edges.rightGap).toBeLessThanOrEqual(20);
+    expect(edges.bottomGap).toBeGreaterThanOrEqual(0);
+    expect(edges.bottomGap).toBeLessThanOrEqual(20);
+  });
+
   test('Direct filter pill replaces Other', async ({ page }) => {
     const direct = page.locator('[data-distributor="direct"]');
     await expect(direct).toBeVisible();
