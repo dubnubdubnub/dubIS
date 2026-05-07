@@ -20,13 +20,13 @@ export function renderEditor(state) {
           <input type="text" class="mfg-direct-vendor-input" id="mfg-vendor-input"
                  value="${escHtml(vendor.name || vendor.url || '')}"
                  placeholder="Manufacturer URL or name">
-          <button class="mfg-direct-popout-btn" id="mfg-popout-btn"
+          <button class="btn-sm mfg-direct-popout-btn" id="mfg-popout-btn"
                   title="${popout ? 'Collapse' : 'Expand'}">${popout ? '⬓' : '⤢'}</button>
         </div>
         <div class="mfg-direct-pseudo-row">
-          <button class="mfg-pseudo-chip" data-pseudo="v_self">⚙️ Self</button>
-          <button class="mfg-pseudo-chip" data-pseudo="v_salvage">♻️ Salvage</button>
-          <button class="mfg-pseudo-chip" data-pseudo="v_unknown">❓ Unknown</button>
+          <button class="btn-md mfg-pseudo-chip" data-pseudo="v_self">⚙️ Self</button>
+          <button class="btn-md mfg-pseudo-chip" data-pseudo="v_salvage">♻️ Salvage</button>
+          <button class="btn-md mfg-pseudo-chip" data-pseudo="v_unknown">❓ Unknown</button>
         </div>
       </div>
       <div class="mfg-direct-section">
@@ -36,11 +36,11 @@ export function renderEditor(state) {
       <div class="mfg-direct-section">
         <div class="mfg-direct-label">LINE ITEMS (${lineItems.length})</div>
         ${renderLineItems(lineItems)}
-        <button class="mfg-add-row-btn" id="mfg-add-row">+ Add row</button>
+        <button class="btn-sm mfg-add-row-btn" id="mfg-add-row">+ Add row</button>
       </div>
       <div class="mfg-direct-actions">
-        <button class="btn btn-cancel" id="mfg-cancel">✕ Cancel</button>
-        <button class="btn btn-apply" id="mfg-import">Import ${lineItems.length} rows</button>
+        <button class="btn-md btn btn-cancel" id="mfg-cancel">✕ Cancel</button>
+        <button class="btn-md btn btn-apply" id="mfg-import">Import ${lineItems.length} rows</button>
       </div>
     </div>
   `;
@@ -57,7 +57,7 @@ function renderSourceDrop(sourceFile) {
   return `<div class="mfg-source-attached">
     <span class="mfg-source-icon">📄</span>
     <span class="mfg-source-name">${escHtml(sourceFile.name)}</span>
-    <button class="mfg-source-replace-btn" id="mfg-source-replace">Replace</button>
+    <button class="btn-sm mfg-source-replace-btn" id="mfg-source-replace">Replace</button>
   </div>`;
 }
 

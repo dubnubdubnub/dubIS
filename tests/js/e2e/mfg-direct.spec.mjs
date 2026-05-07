@@ -67,23 +67,32 @@ test.describe('Direct-from-mfg import', () => {
     await expect(page.locator('.mfg-direct-modal')).toBeVisible();
   });
 
-  test('Direct button sits in bottom-right of the import drop zone', async ({ page }) => {
+  test('Direct button sits in bottom-right with dashed border around it', async ({ page }) => {
     const dropZone = page.locator('#import-drop-zone');
     const directBtn = dropZone.locator('[data-template="direct"]');
     await expect(directBtn).toBeVisible();
 
-    // Button's right/bottom edges hug the drop zone's right/bottom edges
-    const edges = await page.evaluate(() => {
+    const m = await page.evaluate(() => {
       const z = document.getElementById('import-drop-zone');
       const b = z.querySelector('[data-template="direct"]');
+      const hint = z.querySelector('.hint');
       const zr = z.getBoundingClientRect();
       const br = b.getBoundingClientRect();
-      return { rightGap: zr.right - br.right, bottomGap: zr.bottom - br.bottom };
+      const hr = hint.getBoundingClientRect();
+      return {
+        rightGap: zr.right - br.right,
+        bottomGap: zr.bottom - br.bottom,
+        textToButtonGap: br.top - hr.bottom,
+      };
     });
-    expect(edges.rightGap).toBeGreaterThanOrEqual(0);
-    expect(edges.rightGap).toBeLessThanOrEqual(20);
-    expect(edges.bottomGap).toBeGreaterThanOrEqual(0);
-    expect(edges.bottomGap).toBeLessThanOrEqual(20);
+    // Button anchored to bottom-right, but with the dashed border clearly
+    // visible AROUND it on right and bottom (≥6px breathing room each).
+    expect(m.rightGap).toBeGreaterThanOrEqual(6);
+    expect(m.rightGap).toBeLessThanOrEqual(20);
+    expect(m.bottomGap).toBeGreaterThanOrEqual(6);
+    expect(m.bottomGap).toBeLessThanOrEqual(20);
+    // The drop-zone hint text must not crowd the button.
+    expect(m.textToButtonGap).toBeGreaterThanOrEqual(4);
   });
 
   test('Direct filter pill replaces Other', async ({ page }) => {

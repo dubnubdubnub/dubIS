@@ -63,12 +63,12 @@ export function openVendorPopover(anchorEl, vendorId) {
           '</label>'
         : '') +
       '<div class="vendor-popover-actions">' +
-        '<button class="vendor-popover-btn vendor-popover-save">Save</button>' +
+        '<button class="btn-sm vendor-popover-btn vendor-popover-save">Save</button>' +
         (!isPseudo && mergeOptions
           ? '<select class="vendor-popover-merge-select"><option value="">Merge into…</option>' + mergeOptions + '</select>'
           : '') +
         (!isPseudo
-          ? '<button class="vendor-popover-btn vendor-popover-refresh" title="Re-fetch favicon">Refresh favicon</button>'
+          ? '<button class="btn-sm vendor-popover-btn vendor-popover-refresh" title="Re-fetch favicon">Refresh favicon</button>'
           : '') +
       '</div>' +
     '</div>';
