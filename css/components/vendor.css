@@ -50,6 +50,30 @@
 .new-po-btn-direct { color: var(--color-blue); border-color: var(--color-blue); }
 .new-po-btn-direct:hover { background: rgba(10, 132, 255, 0.1); }
 
+/* Prominent placement when rendered inside the import drop-zone.
+   Sized to fit within the drop-zone's existing 24px bottom padding so it
+   does not push siblings below the import section out of viewport at small
+   heights — see resize-visibility.spec.mjs. */
+.drop-zone .new-po-btn-direct {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  font-size: 11px;
+  padding: 3px 12px;
+  font-weight: 600;
+  background: var(--color-blue);
+  color: #fff;
+  border-color: var(--color-blue);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  z-index: 1;
+}
+.drop-zone .new-po-btn-direct:hover {
+  background: #0973e0;
+  color: #fff;
+  border-color: #0973e0;
+}
+
 /* Vendor sub-pill expansion panel */
 .vendor-subpills-panel { display: flex; gap: 4px; flex-wrap: wrap; padding: 6px 12px;
   background: var(--bg-surface); border-bottom: 1px solid var(--border-default); }
