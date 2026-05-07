@@ -36,6 +36,7 @@ from html_product_parser import (
 logger = logging.getLogger(__name__)
 
 _API_SEARCH_URL = "https://api.mouser.com/api/v2/search/partnumber"
+_API_KEYWORD_URL = "https://api.mouser.com/api/v2/search/keyword"
 
 
 class MouserClient(BaseProductClient):
@@ -108,15 +109,55 @@ class MouserClient(BaseProductClient):
         return self._fetch_via_scrape(part_number)
 
     def _fetch_via_api(self, part_number: str, api_key: str) -> dict[str, Any] | None:
-        url = f"{_API_SEARCH_URL}?apiKey={urllib.parse.quote(api_key, safe='')}"
-        body = json.dumps({
-            "SearchByPartRequest": {
+        # Try the partnumber endpoint first — fastest path for valid Mouser PNs.
+        parts = self._call_api(
+            _API_SEARCH_URL,
+            {"SearchByPartRequest": {
                 "mouserPartNumber": part_number,
                 "partSearchOptions": "",
-            },
-        }).encode()
+            }},
+            api_key, part_number,
+        )
+        if parts:
+            return self._normalize_api_part(parts[0], part_number)
+
+        # No hit on partnumber. Fall back to keyword search, which matches
+        # against MPNs and descriptions — handles the case where the user has
+        # an MPN like "FGG.0B.305.CLAD52" in the Mouser column instead of the
+        # Mouser PN "736-FGG0B305CLAD52".
+        parts = self._call_api(
+            _API_KEYWORD_URL,
+            {"SearchByKeywordRequest": {
+                "keyword": part_number,
+                "records": 5,
+                "startingRecord": 0,
+                "searchOptions": "",
+                "searchWithYourSignUpLanguage": "false",
+            }},
+            api_key, part_number,
+        )
+        if not parts:
+            logger.debug("Mouser API: no keyword results for %s", part_number)
+            return None
+
+        # Pick the part whose MPN exactly matches the user's input (case-
+        # insensitive). Falls back to the first result (Mouser's relevance
+        # ranking) when nothing is an exact MPN match.
+        target = part_number.strip().lower()
+        best = next(
+            (p for p in parts
+             if (p.get("ManufacturerPartNumber") or "").strip().lower() == target),
+            parts[0],
+        )
+        return self._normalize_api_part(best, part_number)
+
+    def _call_api(
+        self, url: str, body: dict[str, Any], api_key: str, part_number: str,
+    ) -> list[dict[str, Any]] | None:
+        """Hit a Mouser API endpoint. Returns the Parts list, or None on error."""
+        full_url = f"{url}?apiKey={urllib.parse.quote(api_key, safe='')}"
         req = urllib.request.Request(
-            url, data=body, method="POST",
+            full_url, data=json.dumps(body).encode(), method="POST",
             headers={"Content-Type": "application/json", "Accept": "application/json"},
         )
         try:
@@ -133,12 +174,7 @@ class MouserClient(BaseProductClient):
             return None
 
         results = payload.get("SearchResults") or {}
-        parts = results.get("Parts") or []
-        if not parts:
-            logger.debug("Mouser API: no parts for %s", part_number)
-            return None
-
-        return self._normalize_api_part(parts[0], part_number)
+        return results.get("Parts") or []
 
     def _fetch_via_scrape(self, part_number: str) -> dict[str, Any] | None:
         url = f"https://www.mouser.com/ProductDetail/{part_number}"
