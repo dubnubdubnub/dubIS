@@ -12,8 +12,8 @@
 .mfg-direct-popout-btn:hover { color: var(--color-blue); border-color: var(--color-blue); }
 
 .mfg-direct-pseudo-row { display: flex; gap: 4px; margin-top: 4px; }
-.mfg-pseudo-chip { border-radius: 999px; background: var(--bg-raised); color: var(--text-secondary); }
-.mfg-pseudo-chip:hover { border-color: var(--color-blue); color: var(--color-blue); }
+.mfg-direct-vendor-url-row { display: flex; align-items: center; gap: 6px; padding-left: 24px; }
+.mfg-direct-vendor-url-row .mfg-direct-vendor-input { font-size: 11px; color: var(--text-secondary); }
 
 .mfg-source-drop { padding: 16px; text-align: center; cursor: pointer; }
 .mfg-source-attached { display: flex; align-items: center; gap: 6px; padding: 6px; background: var(--bg-surface); border-radius: 4px; }
