@@ -10,6 +10,7 @@ export function renderEditor(state) {
     : (vendor.favicon_path
         ? `<img class="vendor-favicon" src="${escHtml(vendor.favicon_path)}" alt="">`
         : `<span class="vendor-favicon-empty"></span>`);
+  const isPseudo = vendor.type === 'self' || vendor.type === 'salvage' || vendor.type === 'unknown';
 
   return `
     <div class="mfg-direct-editor ${popout ? 'mfg-direct-popout' : ''}">
@@ -17,16 +18,25 @@ export function renderEditor(state) {
         <div class="mfg-direct-label">VENDOR</div>
         <div class="mfg-direct-vendor-row">
           ${faviconHtml}
-          <input type="text" class="mfg-direct-vendor-input" id="mfg-vendor-input"
-                 value="${escHtml(vendor.name || vendor.url || '')}"
-                 placeholder="Manufacturer URL or name">
+          <input type="text" class="mfg-direct-vendor-input" id="mfg-vendor-name-input"
+                 data-field="name"
+                 value="${escHtml(vendor.name || '')}"
+                 placeholder="Vendor name (e.g. TMR Sensors, John @ Acme via email)">
           <button class="btn-sm mfg-direct-popout-btn" id="mfg-popout-btn"
                   title="${popout ? 'Collapse' : 'Expand'}">${popout ? '⬓' : '⤢'}</button>
         </div>
+        ${isPseudo ? '' : `
+        <div class="mfg-direct-vendor-url-row">
+          <input type="text" class="mfg-direct-vendor-input" id="mfg-vendor-url-input"
+                 data-field="url"
+                 value="${escHtml(vendor.url || '')}"
+                 placeholder="Website (optional, used to fetch favicon)">
+        </div>
+        `}
         <div class="mfg-direct-pseudo-row">
-          <button class="btn-md mfg-pseudo-chip" data-pseudo="v_self">⚙️ Self</button>
-          <button class="btn-md mfg-pseudo-chip" data-pseudo="v_salvage">♻️ Salvage</button>
-          <button class="btn-md mfg-pseudo-chip" data-pseudo="v_unknown">❓ Unknown</button>
+          <button class="btn-md filter-btn mfg-pseudo-chip" data-pseudo="v_self">⚙️ Self</button>
+          <button class="btn-md filter-btn mfg-pseudo-chip" data-pseudo="v_salvage">♻️ Salvage</button>
+          <button class="btn-md filter-btn mfg-pseudo-chip" data-pseudo="v_unknown">❓ Unknown</button>
         </div>
       </div>
       <div class="mfg-direct-section">

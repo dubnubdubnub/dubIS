@@ -655,6 +655,8 @@ class InventoryApi:
         import vendors
         vendors.seed_builtins(self._vendors_json)
         if not vendor_id:
+            if not name.strip() and url.strip():
+                name = vendors.name_from_url(url)
             v = vendors.create_vendor(self._vendors_json, name=name, url=url)
         else:
             v = vendors.update_vendor(self._vendors_json, vendor_id,
