@@ -540,6 +540,15 @@ class InventoryApi:
     def logout_digikey(self) -> dict[str, str]:
         return self._distributors.logout_digikey()
 
+    def get_mouser_api_key_status(self) -> dict[str, bool]:
+        return self._distributors.get_mouser_api_key_status()
+
+    def set_mouser_api_key(self, key: str) -> dict[str, bool]:
+        return self._distributors.set_mouser_api_key(key)
+
+    def clear_mouser_api_key(self) -> dict[str, bool]:
+        return self._distributors.clear_mouser_api_key()
+
     # ── Generic parts ──────────────────────────────────────────────────────
 
     def create_generic_part(self, name: str, part_type: str,

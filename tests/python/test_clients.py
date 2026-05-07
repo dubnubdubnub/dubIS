@@ -581,6 +581,31 @@ class TestInventoryApiDelegation:
         api._distributors._mouser._cache["736-FGG0B305CLAD52"] = cached
         assert api.fetch_mouser_product("736-FGG0B305CLAD52") is cached
 
+    def test_mouser_credentials_file_configured(self):
+        from inventory_api import InventoryApi
+        api = InventoryApi()
+        assert api._distributors._mouser._credentials_file is not None
+        assert "mouser_credentials.json" in api._distributors._mouser._credentials_file
+
+    def test_mouser_api_key_status_delegates(self):
+        from inventory_api import InventoryApi
+        api = InventoryApi()
+        status = api.get_mouser_api_key_status()
+        assert isinstance(status, dict)
+        assert "configured" in status
+
+    def test_set_mouser_api_key_delegates(self, tmp_path):
+        from inventory_api import InventoryApi
+        api = InventoryApi()
+        # Redirect the credentials file to a tmp path so we don't touch real data/.
+        api._distributors._mouser._credentials_file = str(
+            tmp_path / "mouser_credentials.json"
+        )
+        api.set_mouser_api_key("test-key")
+        assert api.get_mouser_api_key_status()["configured"] is True
+        api.clear_mouser_api_key()
+        assert api.get_mouser_api_key_status()["configured"] is False
+
 
 class TestMouserClient:
     def test_invalid_empty_raises(self):
@@ -811,3 +836,239 @@ class TestMouserClient:
             assert result is None
         finally:
             urllib.request.urlopen = original
+
+
+class TestMouserApiKey:
+    """API key storage on disk (mirrors DigiKey cookie persistence pattern)."""
+
+    def test_no_credentials_file_returns_none(self):
+        client = MouserClient()
+        assert client.get_api_key() is None
+
+    def test_save_and_load_roundtrip(self, tmp_path):
+        creds = str(tmp_path / "mouser_credentials.json")
+        client = MouserClient(credentials_file=creds)
+        client.set_api_key("abc-123-secret")
+        # Status method should reflect the saved key.
+        status = client.get_api_key_status()
+        assert status["configured"] is True
+        # New client instance loads the same key from disk.
+        client2 = MouserClient(credentials_file=creds)
+        assert client2.get_api_key() == "abc-123-secret"
+
+    def test_set_strips_whitespace(self, tmp_path):
+        creds = str(tmp_path / "mouser_credentials.json")
+        client = MouserClient(credentials_file=creds)
+        client.set_api_key("  key-with-padding  \n")
+        assert client.get_api_key() == "key-with-padding"
+
+    def test_set_empty_clears_credentials(self, tmp_path):
+        creds = str(tmp_path / "mouser_credentials.json")
+        client = MouserClient(credentials_file=creds)
+        client.set_api_key("real-key")
+        assert client.get_api_key_status()["configured"] is True
+        client.set_api_key("")
+        assert client.get_api_key_status()["configured"] is False
+        assert not (tmp_path / "mouser_credentials.json").exists()
+
+    def test_clear_removes_file(self, tmp_path):
+        creds = str(tmp_path / "mouser_credentials.json")
+        client = MouserClient(credentials_file=creds)
+        client.set_api_key("k")
+        client.clear_api_key()
+        assert not (tmp_path / "mouser_credentials.json").exists()
+        assert client.get_api_key() is None
+
+    def test_set_clears_session_cache(self, tmp_path):
+        """Changing keys should invalidate cached fetch results, otherwise a
+        previous "no key → scrape returned None" would keep being returned."""
+        creds = str(tmp_path / "mouser_credentials.json")
+        client = MouserClient(credentials_file=creds)
+        client._cache["PN-1"] = None
+        client.set_api_key("new-key")
+        assert "PN-1" not in client._cache
+
+    def test_corrupt_credentials_file_returns_none(self, tmp_path):
+        creds = str(tmp_path / "mouser_credentials.json")
+        with open(creds, "w") as f:
+            f.write("{not json")
+        client = MouserClient(credentials_file=creds)
+        assert client.get_api_key() is None
+
+
+class TestMouserApiFetch:
+    """When an API key is configured, _fetch_raw uses the Mouser Search API
+    instead of HTML scraping. This is the primary fix for the bot-block issue."""
+
+    _API_RESPONSE = {
+        "Errors": [],
+        "SearchResults": {
+            "NumberOfResult": 1,
+            "Parts": [{
+                "Availability": "500 In Stock",
+                "DataSheetUrl": "https://www.mouser.com/datasheet/2/280/FGG.pdf",
+                "Description": "Connectors LEMO 0B series 5-pos plug",
+                "ImagePath": "https://www.mouser.com/images/lemo/lrg/FGG0B305.jpg",
+                "Category": "Circular Connectors",
+                "LeadTime": "61 Days",
+                "LifecycleStatus": "Active",
+                "Manufacturer": "LEMO",
+                "ManufacturerPartNumber": "FGG.0B.305.CLAD52",
+                "Min": "1",
+                "Mult": "1",
+                "MouserPartNumber": "736-FGG0B305CLAD52",
+                "ProductDetailUrl": "https://www.mouser.com/ProductDetail/736-FGG0B305CLAD52",
+                "PriceBreaks": [
+                    {"Quantity": 1, "Price": "$37.55", "Currency": "USD"},
+                    {"Quantity": 10, "Price": "$35.00", "Currency": "USD"},
+                    {"Quantity": 25, "Price": "$33.50", "Currency": "USD"},
+                ],
+                "ProductAttributes": [
+                    {"AttributeName": "Contact Gender", "AttributeValue": "Plug"},
+                    {"AttributeName": "Number of Contacts", "AttributeValue": "5"},
+                ],
+            }],
+        },
+    }
+
+    def _install_mock_urlopen(self, response_payload, captured_requests, status_code=200):
+        import urllib.request
+        original = urllib.request.urlopen
+
+        body = json.dumps(response_payload).encode()
+        resp_status = status_code
+
+        class FakeResp:
+            status = resp_status
+            def read(self):
+                return body
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                pass
+
+        def fake_urlopen(req, *a, **kw):
+            captured_requests.append({
+                "url": req.full_url,
+                "method": req.get_method(),
+                "headers": dict(req.headers),
+                "data": req.data,
+            })
+            return FakeResp()
+
+        urllib.request.urlopen = fake_urlopen
+        return original
+
+    def test_api_path_used_when_key_configured(self, tmp_path):
+        """Sanity: with a key set, fetch hits api.mouser.com, not www.mouser.com."""
+        creds = str(tmp_path / "mouser_credentials.json")
+        client = MouserClient(credentials_file=creds)
+        client.set_api_key("test-key-123")
+
+        captured = []
+        original = self._install_mock_urlopen(self._API_RESPONSE, captured)
+        try:
+            product = client.fetch_product("736-FGG0B305CLAD52")
+        finally:
+            import urllib.request
+            urllib.request.urlopen = original
+
+        assert len(captured) == 1
+        assert "api.mouser.com" in captured[0]["url"]
+        assert "apikey=test-key-123" in captured[0]["url"].lower()
+        assert captured[0]["method"] == "POST"
+        # Body is the SearchByPartRequest payload.
+        body = json.loads(captured[0]["data"])
+        assert body["SearchByPartRequest"]["mouserPartNumber"] == "736-FGG0B305CLAD52"
+
+        assert product is not None
+        assert product["productCode"] == "736-FGG0B305CLAD52"
+        assert product["title"] == "Connectors LEMO 0B series 5-pos plug"
+        assert product["manufacturer"] == "LEMO"
+        assert product["mpn"] == "FGG.0B.305.CLAD52"
+        assert product["description"] == "Connectors LEMO 0B series 5-pos plug"
+        assert product["imageUrl"].startswith("https://")
+        assert product["pdfUrl"].endswith(".pdf")
+        assert product["category"] == "Circular Connectors"
+        assert product["stock"] == 500
+        assert product["mouserUrl"] == \
+            "https://www.mouser.com/ProductDetail/736-FGG0B305CLAD52"
+        assert product["provider"] == "mouser"
+
+        # Price breaks parsed from "$37.55" strings to floats with quantities.
+        assert len(product["prices"]) == 3
+        assert product["prices"][0] == {"qty": 1, "price": 37.55}
+        assert product["prices"][1] == {"qty": 10, "price": 35.00}
+        assert product["prices"][2] == {"qty": 25, "price": 33.50}
+
+        # Attributes preserved from API.
+        attr_names = [a["name"] for a in product["attributes"]]
+        assert "Contact Gender" in attr_names
+        assert "Number of Contacts" in attr_names
+
+    def test_api_no_results_returns_none(self, tmp_path):
+        creds = str(tmp_path / "mouser_credentials.json")
+        client = MouserClient(credentials_file=creds)
+        client.set_api_key("k")
+
+        captured = []
+        original = self._install_mock_urlopen(
+            {"Errors": [], "SearchResults": {"NumberOfResult": 0, "Parts": []}},
+            captured,
+        )
+        try:
+            assert client.fetch_product("DOES-NOT-EXIST") is None
+        finally:
+            import urllib.request
+            urllib.request.urlopen = original
+
+    def test_api_error_payload_returns_none(self, tmp_path, caplog):
+        """Mouser returns 200 with an Errors array on auth/quota/etc. failures."""
+        import logging
+        creds = str(tmp_path / "mouser_credentials.json")
+        client = MouserClient(credentials_file=creds)
+        client.set_api_key("bad-key")
+
+        captured = []
+        original = self._install_mock_urlopen(
+            {
+                "Errors": [{"Id": 0, "Code": "Invalid", "Message": "Invalid API key"}],
+                "SearchResults": None,
+            },
+            captured,
+        )
+        try:
+            with caplog.at_level(logging.WARNING, logger="mouser_client"):
+                result = client.fetch_product("WHATEVER")
+        finally:
+            import urllib.request
+            urllib.request.urlopen = original
+
+        assert result is None
+        assert any(
+            "Invalid API key" in rec.message
+            for rec in caplog.records
+        ), f"Expected error log, got: {[r.message for r in caplog.records]}"
+
+    def test_no_key_falls_back_to_scrape(self, tmp_path):
+        """Without an API key, _fetch_raw uses the legacy HTML scrape so users
+        without a Mouser API key still get tooltips when bot detection allows."""
+        client = MouserClient(credentials_file=str(tmp_path / "missing.json"))
+        assert client.get_api_key() is None
+
+        captured = []
+        original = self._install_mock_urlopen(
+            # Body content is irrelevant — we only assert the URL.
+            {"Errors": [], "SearchResults": {"NumberOfResult": 0, "Parts": []}},
+            captured,
+        )
+        try:
+            client.fetch_product("ANY-PART")
+        finally:
+            import urllib.request
+            urllib.request.urlopen = original
+
+        assert len(captured) == 1
+        # Hits www.mouser.com (scrape), NOT api.mouser.com.
+        assert "api.mouser.com" not in captured[0]["url"]
+        assert "www.mouser.com" in captured[0]["url"]
