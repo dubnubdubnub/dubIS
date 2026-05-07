@@ -1,4 +1,4 @@
-"""Inventory API — thin facade delegating to csv_io, inventory_ops, price_ops, file_dialogs."""
+"""Inventory API — thin facade delegating to csv_io, inventory_ops, domain.pricing, file_dialogs."""
 
 from __future__ import annotations
 
@@ -14,11 +14,10 @@ from typing import Any
 
 import cache_db
 import csv_io
+import domain.pricing
 import file_dialogs
 import generic_parts
 import inventory_ops
-import price_history
-import price_ops
 from distributor_manager import DistributorManager
 
 logger = logging.getLogger(__name__)
@@ -99,11 +98,11 @@ class InventoryApi:
 
     @staticmethod
     def _parse_qty(value: Any, default: int = 0) -> int:
-        return price_ops.parse_qty(value, default)
+        return domain.pricing.parse_qty(value, default)
 
     @staticmethod
     def _ensure_parsed(value: str | Any) -> Any:
-        return price_ops.ensure_parsed(value)
+        return domain.pricing.ensure_parsed(value)
 
     @staticmethod
     def fix_double_utf8(text: str) -> str:
@@ -149,9 +148,8 @@ class InventoryApi:
         adj_lines = cache_db.count_csv_data_lines(self.adjustments_csv)
         cache_db.write_checkpoint(conn, purchase_lines=purchase_lines,
                                   adjustment_lines=adj_lines)
-        import price_history
         if os.path.exists(self.events_dir):
-            price_history.populate_prices_cache(conn, self.events_dir)
+            domain.pricing.populate_prices_cache(conn, self.events_dir)
         import generic_parts
         os.makedirs(self.events_dir, exist_ok=True)
         generic_parts.auto_generate_passive_groups(conn, self.events_dir)
@@ -179,14 +177,13 @@ class InventoryApi:
 
     def _record_import_prices(self, rows: list[dict[str, str]]) -> None:
         """Extract and record price observations from imported purchase rows."""
-        import price_history
         os.makedirs(self.events_dir, exist_ok=True)
         observations = []
         for row in rows:
             part_key = inventory_ops.get_part_key(row)
             if not part_key:
                 continue
-            up = price_ops.parse_price(row.get("Unit Price($)"))
+            up = domain.pricing.parse_price(row.get("Unit Price($)"))
             if up <= 0:
                 continue
             distributor = self._distributors.infer_distributor(row)
@@ -197,7 +194,7 @@ class InventoryApi:
                 "source": "import",
             })
         if observations:
-            price_history.record_observations(self.events_dir, observations)
+            domain.pricing.record_observations(self.events_dir, observations)
 
     # ── Public API methods (called from JS via pywebview) ────────────────
 
@@ -371,8 +368,8 @@ class InventoryApi:
         for row in rows:
             pk = inventory_ops.get_part_key(row)
             if pk == part_key:
-                qty = price_ops.parse_qty(row.get("Quantity"))
-                unit_price, ext_price = price_ops.derive_missing_price(unit_price, ext_price, qty)
+                qty = domain.pricing.parse_qty(row.get("Quantity"))
+                unit_price, ext_price = domain.pricing.derive_missing_price(unit_price, ext_price, qty)
                 if unit_price is not None:
                     row["Unit Price($)"] = f"{unit_price:.4f}"
                 if ext_price is not None:
@@ -400,10 +397,9 @@ class InventoryApi:
                 writer.writerows(rows)
 
             # Record price observation
-            import price_history
             os.makedirs(self.events_dir, exist_ok=True)
             if unit_price is not None and unit_price > 0:
-                price_history.record_observations(self.events_dir, [{
+                domain.pricing.record_observations(self.events_dir, [{
                     "part_id": part_key,
                     "distributor": self._infer_distributor_for_key(part_key),
                     "unit_price": unit_price,
@@ -498,13 +494,13 @@ class InventoryApi:
     def record_fetched_prices(self, part_key: str, distributor: str,
                                price_tiers: list[dict[str, Any]]) -> None:
         """Record prices fetched from a distributor API/scraper."""
-        return price_history.record_fetched_prices(
+        return domain.pricing.record_fetched_prices(
             self._get_cache(), self.events_dir, part_key, distributor, price_tiers,
         )
 
     def get_price_summary(self, part_key: str) -> dict[str, dict[str, Any]]:
         """Get aggregated pricing per distributor for a part."""
-        return price_history.get_price_summary(
+        return domain.pricing.get_price_summary(
             self._get_cache(), self.events_dir, part_key,
         )
 
