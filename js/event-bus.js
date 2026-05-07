@@ -14,6 +14,8 @@
  * LINKS_CHANGED:        (none)                   — listeners re-read store.links
  * SAVE_AND_CLOSE:       (none)
  * GENERIC_PARTS_LOADED: GenericPart[]            — full generic parts array
+ * VENDORS_CHANGED:      Vendor[]                 — full vendors array
+ * PO_CHANGED:           PurchaseOrder[]          — full purchase orders array
  */
 export const Events = Object.freeze({
   INVENTORY_LOADED:  "inventory-loaded",
@@ -30,6 +32,8 @@ export const Events = Object.freeze({
   FLYOUT_CLOSED:          "flyout-closed",
   FLYOUT_ACTIVE_CHANGED:  "flyout-active-changed",
   FLYOUT_SEARCH_CHANGED:  "flyout-search-changed",
+  VENDORS_CHANGED:        "vendors-changed",
+  PO_CHANGED:             "po-changed",
 });
 
 export const EventBus = {

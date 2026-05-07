@@ -4,8 +4,12 @@
 import { EventBus, Events } from '../event-bus.js';
 import { AppLog } from '../api.js';
 import { store, saveInventoryView } from '../store.js';
+import { escHtml } from '../ui-helpers.js';
+import { inferDistributor } from './inventory-logic.js';
 import state from './inv-state.js';
 import { nextScope } from './inv-sort-group.js';
+import { buildHoverFlyout } from './favicon-stack.js';
+import { openVendorPopover } from './vendor-flyout.js';
 
 /**
  * Wire up all DOM event listeners and EventBus subscriptions.
@@ -71,6 +75,18 @@ export function setupEvents(handlers) {
     render();
   });
 
+  // Caret on Direct pill toggles vendor sub-pill panel
+  var directBtn = document.querySelector('[data-distributor="direct"]');
+  if (directBtn) {
+    var caret = directBtn.querySelector('.dist-vendor-caret');
+    if (caret) {
+      caret.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleVendorSubpills();
+      });
+    }
+  }
+
   // ── Column header clicks ──
   function persistAndRender() {
     saveInventoryView({
@@ -127,6 +143,7 @@ export function setupEvents(handlers) {
       return;
     }
   });
+
 
   // ── EventBus subscriptions ──
   EventBus.on(Events.INVENTORY_LOADED, function () { render(); });
@@ -192,6 +209,142 @@ export function setupEvents(handlers) {
       else store.links.setLinkingMode(false);
     }
   });
+
+  // ── Vendor sub-pill filter ──
+  window.addEventListener('inv-filter-changed', function () {
+    render();
+  });
+
+  // ── Favicon fan-stack hover flyout ──
+  var activeFanFlyout = null;
+  var fanFlyoutTimer = null;
+
+  state.body.addEventListener('mouseover', function (e) {
+    var stack = e.target.closest('.favicon-fan-stack');
+    if (!stack) return;
+    clearTimeout(fanFlyoutTimer);
+    fanFlyoutTimer = setTimeout(function () {
+      // Remove existing flyout
+      if (activeFanFlyout) { activeFanFlyout.remove(); activeFanFlyout = null; }
+      var partKey = stack.dataset.partKey || '';
+      var inv = store.inventory || [];
+      var part = null;
+      for (var i = 0; i < inv.length; i++) {
+        var p = inv[i];
+        var key = (p.lcsc || p.mpn || '');
+        if (key === partKey) { part = p; break; }
+      }
+      if (!part) return;
+      var flyout = buildHoverFlyout(part);
+      flyout.style.position = 'fixed';
+      var rect = stack.getBoundingClientRect();
+      flyout.style.top = (rect.bottom + 4) + 'px';
+      flyout.style.left = rect.left + 'px';
+      document.body.appendChild(flyout);
+      activeFanFlyout = flyout;
+    }, 120);
+  });
+
+  state.body.addEventListener('mouseout', function (e) {
+    var stack = e.target.closest('.favicon-fan-stack');
+    if (!stack) return;
+    clearTimeout(fanFlyoutTimer);
+    if (activeFanFlyout) { activeFanFlyout.remove(); activeFanFlyout = null; }
+  });
+
+  // ── Fan-flyout PO row click → edit PO ──
+  document.addEventListener('click', function (e) {
+    var link = /** @type {Element} */ (e.target).closest('.flyout-po-row[data-po-id]');
+    if (link) {
+      e.preventDefault();
+      var poId = /** @type {HTMLElement} */ (link).dataset.poId;
+      import('../import/mfg-direct/mfg-direct-panel.js').then(function (m) { m.editPO(poId); });
+    }
+  });
+
+  // ── Vendor management popover (click on favicon icon) ──
+  document.addEventListener('click', function (e) {
+    var fav = /** @type {Element} */ (e.target).closest('.fan-icon, .sub-favicon');
+    if (!fav) return;
+    e.stopPropagation();
+    var vid = '';
+    var subpill = fav.closest('.vendor-subpill');
+    if (subpill) {
+      vid = /** @type {HTMLElement} */ (subpill).dataset.vendorId || '';
+    } else {
+      var stack = fav.closest('.favicon-fan-stack');
+      if (stack) {
+        var partKey = /** @type {HTMLElement} */ (stack).dataset.partKey || '';
+        var inv = store.inventory || [];
+        var part = null;
+        for (var i = 0; i < inv.length; i++) {
+          if ((inv[i].lcsc || inv[i].mpn || '') === partKey) { part = inv[i]; break; }
+        }
+        vid = part ? (part.primary_vendor_id || 'v_unknown') : '';
+      }
+    }
+    if (vid) openVendorPopover(/** @type {HTMLElement} */ (fav), vid);
+  });
+}
+
+/**
+ * Render vendor sub-pill panel contents.
+ */
+function renderVendorSubpills() {
+  var panel = document.getElementById('vendor-subpills-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'vendor-subpills-panel';
+    panel.className = 'vendor-subpills-panel hidden';
+    var filterBar = document.querySelector('.dist-filter-bar');
+    if (filterBar) filterBar.after(panel);
+  }
+  var counts = {};
+  (store.inventory || []).forEach(function (p) {
+    if (inferDistributor(p) === 'direct') {
+      var vid = p.primary_vendor_id || 'v_unknown';
+      counts[vid] = (counts[vid] || 0) + 1;
+    }
+  });
+  var vendors = (store.vendors || []).filter(function (v) {
+    return counts[v.id] || ['v_self', 'v_salvage', 'v_unknown'].includes(v.id);
+  });
+  panel.innerHTML = vendors.map(function (v) {
+    var selected = state.selectedVendorIds.has(v.id) ? 'selected' : '';
+    var iconHtml = v.icon
+      ? '<span class="sub-favicon">' + escHtml(v.icon) + '</span>'
+      : (v.favicon_path
+        ? '<img class="sub-favicon" src="' + escHtml(v.favicon_path) + '" alt="">'
+        : '<span class="sub-favicon-empty"></span>');
+    return '<button class="vendor-subpill ' + selected + '" data-vendor-id="' + escHtml(v.id) + '">' +
+      iconHtml + '<span class="sub-name">' + escHtml(v.name) + '</span>' +
+      '<span class="sub-count">' + escHtml(String(counts[v.id] || 0)) + '</span>' +
+      '</button>';
+  }).join('');
+  panel.querySelectorAll('.vendor-subpill').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var vid = btn.dataset.vendorId;
+      if (state.selectedVendorIds.has(vid)) state.selectedVendorIds.delete(vid);
+      else state.selectedVendorIds.add(vid);
+      btn.classList.toggle('selected');
+      window.dispatchEvent(new CustomEvent('inv-filter-changed'));
+    });
+  });
+}
+
+/**
+ * Toggle vendor sub-pill panel visibility.
+ */
+function toggleVendorSubpills() {
+  var panel = document.getElementById('vendor-subpills-panel');
+  if (!panel) {
+    renderVendorSubpills();
+    var p = document.getElementById('vendor-subpills-panel');
+    if (p) p.classList.remove('hidden');
+  } else {
+    panel.classList.toggle('hidden');
+    renderVendorSubpills();
+  }
 }
 
 function setInventoryRowsDraggable(on) {

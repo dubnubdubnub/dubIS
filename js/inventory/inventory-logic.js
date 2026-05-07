@@ -57,25 +57,26 @@ export function filterByQuery(parts, query) {
 
 /**
  * Infer which distributor a part comes from based on populated PN fields.
- * Priority: lcsc > digikey > mouser > pololu > other.
+ * Priority: lcsc > digikey > mouser > pololu > direct.
  * @param {Object} item - inventory item
- * @returns {"lcsc"|"digikey"|"mouser"|"pololu"|"other"}
+ * @returns {"lcsc"|"digikey"|"mouser"|"pololu"|"direct"}
  */
 export function inferDistributor(item) {
   if (item.lcsc) return "lcsc";
   if (item.digikey) return "digikey";
   if (item.mouser) return "mouser";
   if (item.pololu) return "pololu";
-  return "other";
+  // Direct: any part with no distributor PN (primary_vendor_id points to a non-distributor vendor)
+  return "direct";
 }
 
 /**
  * Count inventory items per distributor.
  * @param {Array<Object>} inventory
- * @returns {{lcsc: number, digikey: number, mouser: number, pololu: number, other: number}}
+ * @returns {{lcsc: number, digikey: number, mouser: number, pololu: number, direct: number}}
  */
 export function countByDistributor(inventory) {
-  var counts = { lcsc: 0, digikey: 0, mouser: 0, pololu: 0, other: 0 };
+  var counts = { lcsc: 0, digikey: 0, mouser: 0, pololu: 0, direct: 0 };
   for (var i = 0; i < inventory.length; i++) {
     counts[inferDistributor(inventory[i])]++;
   }
@@ -85,13 +86,26 @@ export function countByDistributor(inventory) {
 /**
  * Filter parts by distributor(s). Returns all parts when filter set is empty.
  * @param {Array<Object>} parts
- * @param {Set<string>|null} distributors - set of "lcsc"|"digikey"|"mouser"|"pololu"|"other", or null/empty
+ * @param {Set<string>|null} distributors - set of "lcsc"|"digikey"|"mouser"|"pololu"|"direct", or null/empty
  * @returns {Array<Object>}
  */
 export function filterByDistributor(parts, distributors) {
   if (!distributors || distributors.size === 0) return parts;
   return parts.filter(function (item) {
     return distributors.has(inferDistributor(item));
+  });
+}
+
+/**
+ * Filter parts by vendor IDs. Empty/null set returns all parts.
+ * @param {Array<Object>} parts
+ * @param {Set<string>|null} vendorIds
+ * @returns {Array<Object>}
+ */
+export function filterByVendor(parts, vendorIds) {
+  if (!vendorIds || vendorIds.size === 0) return parts;
+  return parts.filter(function (item) {
+    return vendorIds.has(item.primary_vendor_id || 'v_unknown');
   });
 }
 

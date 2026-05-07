@@ -21,6 +21,8 @@ let preferences = {
 let manualLinks = [];
 let confirmedMatches = [];
 let genericParts = [];
+let vendors = [];
+let purchaseOrders = [];
 let linkingActive = false;
 let linkingInvItem = null;
 let linkingBomRow = null;
@@ -88,6 +90,10 @@ export const store = {
   get preferences() { return preferences; },
   get genericParts() { return genericParts; },
   set genericParts(v) { genericParts = v; },
+  get vendors() { return vendors; },
+  set vendors(v) { vendors = v; },
+  get purchaseOrders() { return purchaseOrders; },
+  set purchaseOrders(v) { purchaseOrders = v; },
   get links() { return _linksProxy; },
   SECTION_ORDER,
   SECTION_HIERARCHY,
@@ -112,6 +118,25 @@ export function setBomMeta({ fileName, headers, cols } = {}) {
 export function setBomDirty(dirty) { bomDirty = dirty; }
 
 export function setPreferences(prefs) { preferences = { ...preferences, ...prefs }; }
+
+export function setVendors(list) {
+  vendors = list || [];
+  EventBus.emit(Events.VENDORS_CHANGED, vendors);
+}
+
+export function setPurchaseOrders(list) {
+  purchaseOrders = list || [];
+  EventBus.emit(Events.PO_CHANGED, purchaseOrders);
+}
+
+export async function loadVendorsAndPOs() {
+  const [vs, pos] = await Promise.all([
+    api('list_vendors'),
+    api('list_purchase_orders'),
+  ]);
+  setVendors(vs);
+  setPurchaseOrders(pos);
+}
 
 // ── Link setters ──────────────────────────────────────────
 
@@ -260,10 +285,35 @@ export async function loadInventory() {
     AppLog.warn("Failed to load generic parts: " + e);
     genericParts = [];
   }
+  // Load vendors and purchase orders
+  try {
+    await loadVendorsAndPOs();
+  } catch (e) {
+    AppLog.warn("Failed to load vendors/POs: " + e);
+  }
+  // Surface migration / duplicate / inferred-only warnings
+  try {
+    const w = await api('get_warnings');
+    if (w.migration && (w.migration.inferred_count || w.migration.unknown_count)) {
+      const m = w.migration;
+      if (m.inferred_count) AppLog.warn(`Migration: created ${m.inferred_count} inferred vendor(s) from existing manufacturers`);
+      if (m.unknown_count) AppLog.warn(`Migration: ${m.unknown_count} parts have no manufacturer — assigned to ❓ Unknown`);
+    }
+    if (w.inferred_only > 0) {
+      AppLog.warn(`${w.inferred_only} vendor(s) lack URLs — add URLs to enable favicons`);
+    }
+    (w.duplicates || []).forEach(d => {
+      AppLog.warn(`Vendor "${d.src.name}" and "${d.dst.name}" look similar — merge?`);
+    });
+  } catch (e) {
+    AppLog.warn("Failed to load warnings: " + e);
+  }
 }
 
 export function onInventoryUpdated(freshInventory) {
   inventory = freshInventory;
   updateInventoryHeader();
   EventBus.emit(Events.INVENTORY_UPDATED, inventory);
+  // Refresh vendors and purchase orders after any inventory mutation
+  loadVendorsAndPOs().catch(e => AppLog.warn("Failed to refresh vendors/POs: " + e));
 }

@@ -300,6 +300,37 @@ def rollback_source(adjustments_csv: str, source: str) -> list[dict]:
     return removed
 
 
+def migrate_to_vendors(ledger_csv: str, vendors_json: str) -> dict[str, int]:
+    """Seed vendors.json with built-ins + inferred vendors from existing ledger.
+
+    Returns {"inferred_count": int, "unknown_count": int}.
+    """
+    import vendors
+    vendors.seed_builtins(vendors_json)
+
+    if not os.path.exists(ledger_csv):
+        return {"inferred_count": 0, "unknown_count": 0}
+
+    distinct_mfgs: set[str] = set()
+    unknown_count = 0
+    with open(ledger_csv, newline="", encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            mfg = (row.get("Manufacturer") or "").strip()
+            if mfg:
+                distinct_mfgs.add(mfg)
+            else:
+                unknown_count += 1
+
+    inferred_count = 0
+    for name in sorted(distinct_mfgs):
+        existing = vendors.find_by_canonical_name(vendors_json, name)
+        if existing:
+            continue
+        vendors.create_vendor(vendors_json, name=name, inferred=True)
+        inferred_count += 1
+    return {"inferred_count": inferred_count, "unknown_count": unknown_count}
+
+
 def truncate_csv(csv_path: str, count: int, label: str) -> tuple[list[str], list[dict]]:
     """Remove the last *count* rows from a CSV.
 

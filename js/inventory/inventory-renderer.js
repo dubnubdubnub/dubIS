@@ -4,6 +4,7 @@
 
 import { escHtml, stockValueColor } from '../ui-helpers.js';
 import { invPartKey, colorizeRefs, countStatuses } from '../part-keys.js';
+import { renderFanStack } from './favicon-stack.js';
 
 // ── Section header HTML ──
 
@@ -122,7 +123,7 @@ export function renderPartRowHtml(item, options) {
     '</span>' +
     partIdsHtml +
     nearMissBadgeHtml +
-    '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + '</span>' +
+    '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + renderFanStack(item) + '</span>' +
     '<span class="part-unit-price">' + unitPriceStr + '</span>' +
     '<span class="part-value">' + valueStr + '</span>' +
     '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data \u2014 click to set">\u26A0</button>' : '') + item.qty + '</span>' +
