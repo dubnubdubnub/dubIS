@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import re
 import sys
 from pathlib import Path
 
@@ -54,6 +55,64 @@ def parse_python_imports(file_path: Path, internal_modules: set[str]) -> list[st
                 if candidate in internal_modules:
                     found.add(candidate)
                     break
+
+    return sorted(found)
+
+
+# ── JS import parsing ─────────────────────────────────────────────────
+
+# Matches: import ... from "..."   or   import "..."
+# Captures the source string (group 1).
+# Multiline-friendly: the {...} brace group can span lines.
+_JS_IMPORT_RE = re.compile(
+    r"""
+    ^\s*import \s+
+    (?:
+        (?: \{ [^}]* \} )                 # named: { a, b }
+        | (?: \* \s+ as \s+ \w+ )         # namespace: * as ns
+        | (?: \w+ )                       # default: foo
+        | (?: \w+ \s*,\s* \{ [^}]* \} )   # default + named: foo, { a }
+    )
+    \s+ from \s+ ['"]([^'"]+)['"]
+    """,
+    re.VERBOSE | re.MULTILINE | re.DOTALL,
+)
+
+
+def parse_js_imports(
+    file_path: Path,
+    repo_root: Path,
+    internal_modules: set[str],
+) -> list[str]:
+    """Return sorted unique repo-relative paths this JS file imports from the
+    project. Bare specifiers (e.g. 'lodash', '@scope/pkg') are skipped.
+    """
+    try:
+        text = file_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return []
+
+    # Strip block comments to avoid false matches.
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+    # Strip line comments.
+    text = re.sub(r"//[^\n]*", "", text)
+
+    found: set[str] = set()
+    src_dir = file_path.parent
+
+    for m in _JS_IMPORT_RE.finditer(text):
+        spec = m.group(1)
+        if not spec.startswith("."):
+            continue  # bare specifier — external
+
+        target = (src_dir / spec).resolve()
+        try:
+            rel = target.relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            continue  # outside repo
+
+        if rel in internal_modules:
+            found.add(rel)
 
     return sorted(found)
 
