@@ -1,10 +1,22 @@
-"""Mouser product-fetching client — scrapes product pages from mouser.com."""
+"""Mouser product-fetching client.
+
+Two paths:
+  - API: when an API key is configured, calls Mouser's Search API v2.
+    This is the preferred path — clean JSON, no bot detection. Free tier
+    is 1000 calls/day / 30/min, plenty for tooltip use.
+  - Scrape: legacy HTML scraping of mouser.com product pages. Only used
+    when no API key is set. Often blocked by Mouser's bot protection
+    (DataDome) so we detect block pages and return None.
+"""
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -23,22 +35,112 @@ from html_product_parser import (
 
 logger = logging.getLogger(__name__)
 
+_API_SEARCH_URL = "https://api.mouser.com/api/v2/search/partnumber"
+
 
 class MouserClient(BaseProductClient):
     """Fetches and caches Mouser product details by part number."""
 
     provider = "mouser"
 
-    def _fetch_raw(self, part_number: str) -> dict[str, Any] | None:
-        """Fetch Mouser product details by part number (e.g. 736-FGG0B305CLAD52).
+    def __init__(self, credentials_file: str | None = None) -> None:
+        super().__init__()
+        self._credentials_file = credentials_file
 
-        Returns a normalized dict of product info, or None if not found/failed.
-        Raises ValueError for invalid part numbers.
-        """
+    # ── API key persistence ───────────────────────────────────────────────
+
+    def get_api_key(self) -> str | None:
+        """Return the configured Mouser API key, or None if unset/unreadable."""
+        if not self._credentials_file:
+            return None
+        try:
+            with open(self._credentials_file, encoding="utf-8") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            return None
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Failed to read Mouser credentials: %s", exc)
+            return None
+        key = (data.get("api_key") or "").strip() if isinstance(data, dict) else ""
+        return key or None
+
+    def get_api_key_status(self) -> dict[str, bool]:
+        """Return whether an API key is currently configured."""
+        return {"configured": self.get_api_key() is not None}
+
+    def set_api_key(self, key: str) -> None:
+        """Persist a Mouser API key. Empty/whitespace clears the credentials."""
+        if not self._credentials_file:
+            raise RuntimeError("Mouser credentials file not configured")
+        key = (key or "").strip()
+        # Stale results from before the key change would be misleading.
+        self.clear_cache()
+        if not key:
+            self.clear_api_key()
+            return
+        with open(self._credentials_file, "w", encoding="utf-8") as f:
+            json.dump({"api_key": key}, f)
+
+    def clear_api_key(self) -> None:
+        """Remove the credentials file. Idempotent."""
+        if not self._credentials_file:
+            return
+        self.clear_cache()
+        try:
+            os.remove(self._credentials_file)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.warning("Failed to remove Mouser credentials: %s", exc)
+
+    # ── Fetch ─────────────────────────────────────────────────────────────
+
+    def _fetch_raw(self, part_number: str) -> dict[str, Any] | None:
+        """Fetch Mouser product details. Uses the API when a key is configured,
+        falls back to HTML scraping otherwise."""
         part_number = str(part_number).strip()
         if not part_number or not re.match(r"^[\w.\-/]{2,60}$", part_number):
             raise ValueError(f"Invalid Mouser part number: {part_number!r}")
 
+        api_key = self.get_api_key()
+        if api_key:
+            return self._fetch_via_api(part_number, api_key)
+        return self._fetch_via_scrape(part_number)
+
+    def _fetch_via_api(self, part_number: str, api_key: str) -> dict[str, Any] | None:
+        url = f"{_API_SEARCH_URL}?apiKey={urllib.parse.quote(api_key, safe='')}"
+        body = json.dumps({
+            "SearchByPartRequest": {
+                "mouserPartNumber": part_number,
+                "partSearchOptions": "",
+            },
+        }).encode()
+        req = urllib.request.Request(
+            url, data=body, method="POST",
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+            logger.warning("Mouser API call failed for %s: %s", part_number, exc)
+            return None
+
+        errors = payload.get("Errors") or []
+        if errors:
+            messages = "; ".join(e.get("Message", "") for e in errors if isinstance(e, dict))
+            logger.warning("Mouser API error for %s: %s", part_number, messages)
+            return None
+
+        results = payload.get("SearchResults") or {}
+        parts = results.get("Parts") or []
+        if not parts:
+            logger.debug("Mouser API: no parts for %s", part_number)
+            return None
+
+        return self._normalize_api_part(parts[0], part_number)
+
+    def _fetch_via_scrape(self, part_number: str) -> dict[str, Any] | None:
         url = f"https://www.mouser.com/ProductDetail/{part_number}"
         try:
             req = urllib.request.Request(url, headers={
@@ -55,6 +157,71 @@ class MouserClient(BaseProductClient):
         if product is None:
             self._log_parse_diagnostics(page_html, part_number, url)
         return product
+
+    # ── API normalization ─────────────────────────────────────────────────
+
+    @staticmethod
+    def _normalize_api_part(part: dict[str, Any], part_number: str) -> dict[str, Any]:
+        """Convert a Mouser Search API Parts[i] dict to the tooltip schema."""
+        prices: list[dict[str, Any]] = []
+        for pb in part.get("PriceBreaks") or []:
+            qty = pb.get("Quantity")
+            raw_price = pb.get("Price")
+            if not isinstance(qty, int) or not isinstance(raw_price, str):
+                continue
+            # Mouser returns price as "$37.55" or "37,55 €" depending on region.
+            # Strip non-numeric prefix, accept either decimal separator.
+            cleaned = re.sub(r"[^\d.,]", "", raw_price).replace(",", ".")
+            try:
+                prices.append({"qty": qty, "price": float(cleaned)})
+            except ValueError:
+                continue
+        prices.sort(key=lambda p: p["qty"])
+
+        # "500 In Stock" / "0" / "Available on Backorder" — pull leading digits.
+        stock = 0
+        avail = part.get("Availability") or ""
+        m = re.match(r"\s*([\d,]+)", avail)
+        if m:
+            try:
+                stock = int(m.group(1).replace(",", ""))
+            except ValueError:
+                pass
+
+        attributes = []
+        for a in part.get("ProductAttributes") or []:
+            name = (a.get("AttributeName") or "").strip()
+            value = (a.get("AttributeValue") or "").strip()
+            if name and value:
+                attributes.append({"name": name, "value": value})
+
+        title = (part.get("Description") or part.get("ManufacturerPartNumber")
+                 or part_number)
+        return {
+            "productCode": part.get("MouserPartNumber") or part_number,
+            "title": title,
+            "manufacturer": part.get("Manufacturer") or "",
+            "mpn": part.get("ManufacturerPartNumber") or "",
+            "package": "",
+            "description": part.get("Description") or "",
+            "stock": stock,
+            "prices": prices,
+            "imageUrl": part.get("ImagePath") or "",
+            "pdfUrl": part.get("DataSheetUrl") or "",
+            "mouserUrl": (
+                part.get("ProductDetailUrl")
+                or f"https://www.mouser.com/ProductDetail/{part_number}"
+            ),
+            "category": part.get("Category") or "",
+            "subcategory": "",
+            "attributes": attributes,
+            "provider": "mouser",
+            "_debug": {
+                "source": "api",
+                "part_number": part_number,
+                "raw": part,
+            },
+        }
 
     @staticmethod
     def _log_parse_diagnostics(page_html: str, part_number: str, url: str) -> None:
