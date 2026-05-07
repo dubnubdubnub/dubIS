@@ -90,6 +90,71 @@ class TestExtractJsonldProduct:
         assert result is not None
         assert result["name"] == "Valid"
 
+    def test_graph_wrapper(self):
+        """schema.org JSON-LD with @graph array wrapping the Product.
+
+        Same fix as PR #204 for DigiKey: modern Mouser/sites nest the Product
+        inside a top-level @graph alongside BreadcrumbList, Organization, etc.
+        """
+        html = """
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@graph": [
+                {"@type": "BreadcrumbList", "itemListElement": []},
+                {"@type": "Organization", "name": "Mouser Electronics"},
+                {"@type": "Product", "name": "Wrapped In Graph", "sku": "GRAPH-1"}
+            ]
+        }
+        </script>
+        """
+        result = extract_jsonld_product(html)
+        assert result is not None
+        assert result["name"] == "Wrapped In Graph"
+        assert result["sku"] == "GRAPH-1"
+
+    def test_graph_no_product(self):
+        """@graph without a Product entry returns None."""
+        html = """
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@graph": [
+                {"@type": "BreadcrumbList"},
+                {"@type": "Organization"}
+            ]
+        }
+        </script>
+        """
+        assert extract_jsonld_product(html) is None
+
+    def test_type_as_array(self):
+        """@type can be an array per schema.org spec — match if 'Product' is in it."""
+        html = """
+        <script type="application/ld+json">
+        {"@type": ["Product", "IndividualProduct"], "name": "Multi-Type"}
+        </script>
+        """
+        result = extract_jsonld_product(html)
+        assert result is not None
+        assert result["name"] == "Multi-Type"
+
+    def test_graph_in_array(self):
+        """Top-level array containing a node with @graph — recurse into it."""
+        html = """
+        <script type="application/ld+json">
+        [
+            {"@type": "WebPage"},
+            {"@graph": [
+                {"@type": "Product", "name": "Nested Graph Product"}
+            ]}
+        ]
+        </script>
+        """
+        result = extract_jsonld_product(html)
+        assert result is not None
+        assert result["name"] == "Nested Graph Product"
+
 
 class TestExtractTitle:
     def test_from_jsonld(self):

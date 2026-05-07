@@ -51,15 +51,44 @@ class MouserClient(BaseProductClient):
             logger.warning("Mouser fetch failed for %s: %s", part_number, exc)
             return None
 
-        return self._parse_product_page(page_html, part_number, url)
+        product = self._parse_product_page(page_html, part_number, url)
+        if product is None:
+            self._log_parse_diagnostics(page_html, part_number, url)
+        return product
 
     @staticmethod
-    def _parse_product_page(page_html: str, part_number: str, url: str) -> dict[str, Any] | None:
+    def _log_parse_diagnostics(page_html: str, part_number: str, url: str) -> None:
+        """Log diagnostics when _parse_product_page returns None.
+
+        Same diagnostic pattern as PR #204 for DigiKey: lets us tell bot-block
+        pages apart from format changes without needing to reproduce locally.
+        """
+        title_match = re.search(r"<title[^>]*>([^<]*)</title>", page_html, re.DOTALL)
+        title = title_match.group(1).strip() if title_match else ""
+        ld_count = len(re.findall(
+            r"""<script[^>]*type=['"]application/ld\+json['"]""", page_html,
+        ))
+        logger.warning(
+            "Mouser scrape failed for %s: url=%s title=%r length=%d ld_count=%d",
+            part_number, url, title, len(page_html), ld_count,
+        )
+
+    # Bot-block pages can have an <h1> like "Access Denied" — treat those as
+    # parse failures rather than rendering a tooltip with the deny page text.
+    _BOT_BLOCK_TITLE_RE = re.compile(
+        r"\b(access denied|access to this page has been denied|please enable js)\b",
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def _parse_product_page(cls, page_html: str, part_number: str, url: str) -> dict[str, Any] | None:
         """Parse a Mouser product page and extract product details."""
         jsonld = extract_jsonld_product(page_html)
 
         title = extract_title(page_html, jsonld)
         if not title:
+            return None
+        if cls._BOT_BLOCK_TITLE_RE.search(title):
             return None
 
         description = extract_description(page_html, jsonld)
