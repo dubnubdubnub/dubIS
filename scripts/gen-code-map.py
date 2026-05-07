@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_OUT = REPO_ROOT / "docs" / "code-map.md"
 
 
 # ── Python import parsing ─────────────────────────────────────────────
@@ -294,9 +295,44 @@ def render_markdown(info: dict[str, FileInfo]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="Exit 1 if docs/code-map.md is stale")
-    parser.parse_args(argv)
-    # Implementation continues in later tasks
+    parser.add_argument(
+        "--root", default=str(REPO_ROOT),
+        help="Repository root to scan (default: repo root)",
+    )
+    parser.add_argument(
+        "--out", default=str(DEFAULT_OUT),
+        help="Output path for the code map (default: docs/code-map.md)",
+    )
+    parser.add_argument(
+        "--check", action="store_true",
+        help="Exit 1 if the output file is missing or stale (does not write)",
+    )
+    args = parser.parse_args(argv)
+
+    root = Path(args.root)
+    out = Path(args.out)
+
+    info = walk_sources(root)
+    rendered = render_markdown(info)
+
+    if args.check:
+        if not out.exists():
+            print(
+                f"error: {out} does not exist. Run `python scripts/gen-code-map.py` and commit.",
+                file=sys.stderr,
+            )
+            return 1
+        existing = out.read_text(encoding="utf-8")
+        if existing != rendered:
+            print(
+                f"error: {out} is stale. Run `python scripts/gen-code-map.py` and commit.",
+                file=sys.stderr,
+            )
+            return 1
+        return 0
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(rendered, encoding="utf-8")
     return 0
 
 
