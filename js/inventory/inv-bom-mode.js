@@ -3,10 +3,9 @@
    renderRemainingInventory, renderRemainingNormalSections. */
 
 import { store } from '../store.js';
-import { invPartKey } from '../part-keys.js';
+import { invPartKey, countStatuses } from '../part-keys.js';
 import {
   sortBomRows,
-  countStatuses,
   buildRowMap,
   bomRowDisplayData,
   computeMatchedInvKeys,
