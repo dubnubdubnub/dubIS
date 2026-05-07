@@ -5,6 +5,8 @@ import importlib
 import sys
 from pathlib import Path
 
+import pytest
+
 # Make the script importable as a module
 SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -303,3 +305,52 @@ def test_render_markdown_per_file_index_includes_imported_by() -> None:
     # b.py's section should mention a.py as an importer
     b_section = md.split("### b.py", 1)[1].split("###", 1)[0]
     assert "a.py" in b_section
+
+
+# ── CLI ───────────────────────────────────────────────────────────────
+
+def test_main_writes_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / "a.py").write_text("import b\n")
+    (tmp_path / "b.py").write_text("")
+    out = tmp_path / "code-map.md"
+
+    rc = gen_code_map.main(["--root", str(tmp_path), "--out", str(out)])
+    assert rc == 0
+    assert out.exists()
+    text = out.read_text(encoding="utf-8")
+    assert "# Code Map" in text
+    assert "a.py" in text
+
+
+def test_main_check_passes_when_fresh(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("")
+    out = tmp_path / "code-map.md"
+
+    rc1 = gen_code_map.main(["--root", str(tmp_path), "--out", str(out)])
+    assert rc1 == 0
+    rc2 = gen_code_map.main(["--root", str(tmp_path), "--out", str(out), "--check"])
+    assert rc2 == 0
+
+
+def test_main_check_fails_when_stale(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "a.py").write_text("")
+    out = tmp_path / "code-map.md"
+
+    gen_code_map.main(["--root", str(tmp_path), "--out", str(out)])
+    # Now mutate the source so the regeneration would differ.
+    (tmp_path / "b.py").write_text("")
+
+    rc = gen_code_map.main(["--root", str(tmp_path), "--out", str(out), "--check"])
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "stale" in captured.err.lower() or "stale" in captured.out.lower()
+
+
+def test_main_check_fails_when_missing(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("")
+    out = tmp_path / "code-map.md"  # never created
+
+    rc = gen_code_map.main(["--root", str(tmp_path), "--out", str(out), "--check"])
+    assert rc == 1
