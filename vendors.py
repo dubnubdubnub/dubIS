@@ -215,6 +215,23 @@ def _canonicalize_url(url: str) -> str:
     return f"{parsed.scheme.lower()}://{netloc}{path}"
 
 
+def name_from_url(url: str) -> str:
+    """Derive a vendor display name from a URL's hostname (e.g. 'tmr-sensors.com').
+
+    Strips a leading 'www.' but keeps the TLD so the result is unambiguous and
+    matches what the user typed. Returns "" when no host can be parsed.
+    """
+    s = url.strip()
+    if not s:
+        return ""
+    if "://" not in s:
+        s = "https://" + s
+    host = urlparse(s).netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host
+
+
 def _extract_favicon_url(html: str, base_url: str) -> str:
     """Find <link rel="icon" href="..."> or fall back to /favicon.ico."""
     m = re.search(

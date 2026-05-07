@@ -4,7 +4,7 @@ import { api, AppLog, apiVendors, apiPurchaseOrders, apiMfgDirect } from '../../
 import { showToast } from '../../ui-helpers.js';
 import { onInventoryUpdated, store, loadVendorsAndPOs } from '../../store.js';
 import { renderEditor } from './mfg-direct-renderer.js';
-import { canonicalizeUrl, emptyLineItem, validateLineItems, looksLikeUrl } from './mfg-direct-logic.js';
+import { canonicalizeUrl, emptyLineItem, validateLineItems } from './mfg-direct-logic.js';
 
 const state = {
   active: false,
@@ -108,10 +108,11 @@ function bindEvents(root) {
   const replaceBtn = root.querySelector('#mfg-source-replace');
   if (replaceBtn) replaceBtn.onclick = () => { state.sourceFile = null; rerender(); };
 
-  const vinp = root.querySelector('#mfg-vendor-input');
-  if (vinp) {
-    vinp.onblur = () => onVendorInputBlur(vinp.value);
-  }
+  const nameInput = root.querySelector('#mfg-vendor-name-input');
+  if (nameInput) nameInput.onblur = () => onVendorNameBlur(nameInput.value);
+
+  const urlInput = root.querySelector('#mfg-vendor-url-input');
+  if (urlInput) urlInput.onblur = () => onVendorUrlBlur(urlInput.value);
 }
 
 function selectPseudoVendor(id) {
@@ -121,24 +122,44 @@ function selectPseudoVendor(id) {
   rerender();
 }
 
-async function onVendorInputBlur(text) {
+async function onVendorNameBlur(text) {
   const trimmed = (text || '').trim();
   if (!trimmed) return;
-  if (looksLikeUrl(trimmed)) {
-    const url = canonicalizeUrl(trimmed);
-    const v = await apiVendors.upsert('', '', url);
-    state.vendor = { ...v };
-  } else {
-    // Treat as a name; if existing, pick it; else create inferred
-    const existing = (store.vendors || []).find(
-      v => v.name.toLowerCase() === trimmed.toLowerCase());
-    if (existing) {
-      state.vendor = { ...existing };
-    } else {
-      const v = await apiVendors.upsert('', trimmed, '');
-      state.vendor = { ...v };
+  // Already pointing at this vendor — nothing to do.
+  if (state.vendor.id && state.vendor.name.toLowerCase() === trimmed.toLowerCase()) return;
+
+  // If the user typed a URL before naming the vendor, carry it through.
+  const pendingUrl = state.vendor.url || '';
+
+  const existing = (store.vendors || []).find(
+    v => v.name.toLowerCase() === trimmed.toLowerCase());
+  if (existing) {
+    state.vendor = { ...existing };
+    if (pendingUrl && !state.vendor.url && state.vendor.type !== 'self'
+        && state.vendor.type !== 'salvage' && state.vendor.type !== 'unknown') {
+      const v = await apiVendors.upsert(state.vendor.id, '', pendingUrl);
+      if (v) state.vendor = { ...v };
     }
+  } else {
+    const v = await apiVendors.upsert('', trimmed, pendingUrl);
+    if (!v) return;
+    state.vendor = { ...v };
   }
+  rerender();
+}
+
+async function onVendorUrlBlur(text) {
+  const canonical = canonicalizeUrl(text || '');
+  if (!state.vendor.id) {
+    // No backend record yet — keep the URL locally so onVendorNameBlur picks it up.
+    state.vendor = { ...state.vendor, url: canonical };
+    return;
+  }
+  if (canonical === (state.vendor.url || '')) return;
+  if (!canonical) return;  // ignore clears here; vendor flyout handles deletes
+  const v = await apiVendors.upsert(state.vendor.id, '', canonical);
+  if (!v) return;
+  state.vendor = { ...v };
   rerender();
 }
 
