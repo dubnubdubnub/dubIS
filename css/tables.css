@@ -248,9 +248,9 @@ th.btn-group-hdr {
   position: sticky; right: 0; z-index: 3;
   background: var(--bg-surface);
   white-space: nowrap; text-align: right;
-  width: 180px;
+  width: var(--sticky-btn-col-w);
 }
-td.btn-group button + button { margin-left: 6px; }
+td.btn-group button + button { margin-left: var(--sticky-btn-gap); }
 
 /* ── Vendor Icons ─────────────────────────────────────── */
 .vendor-icon { width: 12px; height: 12px; margin-right: 2px; flex-shrink: 0; }
