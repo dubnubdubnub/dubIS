@@ -67,9 +67,10 @@ body {
 
 /* ── Drop Zone ─────────────────────────────────────────── */
 .drop-zone {
+  position: relative;
   border: 2px dashed var(--border-default);
   border-radius: 8px;
-  padding: 24px 12px;
+  padding: 24px 12px 44px;
   text-align: center;
   margin: 12px;
   cursor: pointer;

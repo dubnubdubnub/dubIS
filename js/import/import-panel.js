@@ -79,8 +79,9 @@ UndoRedo.register("import", async (action, data) => {
 export function init() {
   body.innerHTML = renderDropZone(PO_TEMPLATES);
   setupDropZone("import-drop-zone", "import-file-input", browseImportFile, handleImportFile);
-  document.querySelectorAll("#new-po-row .new-po-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
+  document.querySelectorAll(".new-po-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
       if (btn.dataset.template === 'direct') {
         import('./mfg-direct/mfg-direct-panel.js').then(m => {
           m.startDirectFlow(body);
