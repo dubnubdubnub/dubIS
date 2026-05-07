@@ -12,8 +12,40 @@ import re
 from typing import Any
 
 
+def _find_product_node(node: Any) -> dict[str, Any] | None:
+    """Recursively find the first @type=Product dict inside a JSON-LD node.
+
+    Walks both @graph arrays (used by Mouser and other schema.org sites) and
+    raw lists. @type may be a string or an array containing 'Product'.
+    """
+    if isinstance(node, dict):
+        node_type = node.get("@type")
+        if node_type == "Product" or (
+            isinstance(node_type, list) and "Product" in node_type
+        ):
+            return node
+        graph = node.get("@graph")
+        if isinstance(graph, list):
+            for item in graph:
+                found = _find_product_node(item)
+                if found is not None:
+                    return found
+    elif isinstance(node, list):
+        for item in node:
+            found = _find_product_node(item)
+            if found is not None:
+                return found
+    return None
+
+
 def extract_jsonld_product(page_html: str) -> dict[str, Any] | None:
-    """Extract the first JSON-LD Product object from HTML."""
+    """Extract the first JSON-LD Product object from HTML.
+
+    Handles three schema.org shapes seen across distributors:
+      - top-level dict with @type=Product
+      - top-level list of nodes (find first Product)
+      - top-level dict with @graph wrapping the Product (Mouser, modern sites)
+    """
     for match in re.finditer(
         r"""<script[^>]*type=['"]application/ld\+json['"][^>]*>(.*?)</script>""",
         page_html,
@@ -21,15 +53,11 @@ def extract_jsonld_product(page_html: str) -> dict[str, Any] | None:
     ):
         try:
             candidate = json.loads(match.group(1))
-            if isinstance(candidate, list):
-                candidate = next(
-                    (j for j in candidate if isinstance(j, dict) and j.get("@type") == "Product"),
-                    None,
-                )
-            if isinstance(candidate, dict) and candidate.get("@type") == "Product":
-                return candidate
         except json.JSONDecodeError:
             continue
+        product = _find_product_node(candidate)
+        if product is not None:
+            return product
     return None
 
 
