@@ -1,16 +1,14 @@
 """Tests for scripts/gen-code-map.py."""
 from __future__ import annotations
 
+import importlib
 import sys
 from pathlib import Path
-
-import pytest
 
 # Make the script importable as a module
 SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-import importlib
 gen_code_map = importlib.import_module("gen-code-map")
 
 
