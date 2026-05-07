@@ -719,3 +719,95 @@ class TestMouserClient:
             "https://www.mouser.com/ProductDetail/NOPE",
         )
         assert result is None
+
+    def test_parse_graph_wrapped_jsonld(self):
+        """Mouser pages that wrap the Product in @graph parse correctly.
+
+        Reproduces the "Product not found" tooltip bug: with @graph wrapping,
+        extract_jsonld_product was returning None, falling back to <h1>, and
+        when the page lacked an SSR <h1> the parse returned None.
+        """
+        mock_html = """
+        <html>
+        <head>
+            <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@graph": [
+                    {"@type": "BreadcrumbList", "itemListElement": []},
+                    {"@type": "Organization", "name": "Mouser Electronics"},
+                    {
+                        "@type": "Product",
+                        "name": "FGG.0B.305.CLAD52 Circular Connector",
+                        "sku": "736-FGG0B305CLAD52",
+                        "mpn": "FGG.0B.305.CLAD52",
+                        "brand": {"name": "LEMO"},
+                        "image": "https://www.mouser.com/images/lemo/lrg/FGG0B305.jpg",
+                        "description": "LEMO 0B series 5-position connector",
+                        "offers": {
+                            "price": "37.55",
+                            "availability": "https://schema.org/InStock"
+                        }
+                    }
+                ]
+            }
+            </script>
+        </head>
+        <body></body>
+        </html>
+        """
+        result = MouserClient._parse_product_page(
+            mock_html,
+            "736-FGG0B305CLAD52",
+            "https://www.mouser.com/ProductDetail/736-FGG0B305CLAD52",
+        )
+        assert result is not None
+        assert result["productCode"] == "736-FGG0B305CLAD52"
+        assert result["title"] == "FGG.0B.305.CLAD52 Circular Connector"
+        assert result["manufacturer"] == "LEMO"
+        assert result["mpn"] == "FGG.0B.305.CLAD52"
+        assert result["stock"] == 1
+        assert result["prices"] == [{"qty": 1, "price": 37.55}]
+        assert result["provider"] == "mouser"
+
+    def test_fetch_logs_diagnostics_when_parse_fails(self, caplog):
+        """When the page fails to parse, _fetch_raw logs diagnostics for debugging.
+
+        Same diagnostic pattern as PR #204 for DigiKey: log URL, response title,
+        body length, and JSON-LD count so we can tell bot-block pages apart from
+        format changes without needing to reproduce locally.
+        """
+        import logging
+        import urllib.request
+
+        client = MouserClient()
+        original = urllib.request.urlopen
+
+        # Bot-block page: HTTP 200 but no JSON-LD and an "Access Denied" h1.
+        denied_page = (
+            b"<html><head><title>Access to this page has been denied.</title></head>"
+            b"<body><h1>Access Denied</h1></body></html>"
+        )
+
+        class FakeResp:
+            def read(self):
+                return denied_page
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                pass
+
+        urllib.request.urlopen = lambda *a, **kw: FakeResp()
+        try:
+            with caplog.at_level(logging.WARNING, logger="mouser_client"):
+                result = client.fetch_product("BLOCKED-PART")
+            # The h1 "Access Denied" causes the parser to return a partial dict
+            # rather than None — but we should at least see a diagnostic warning.
+            assert any(
+                "BLOCKED-PART" in rec.message and "Access" in rec.message
+                for rec in caplog.records
+            ), f"Expected diagnostic warning, got: {[r.message for r in caplog.records]}"
+            # The result should be None — parse should detect the bot-block title.
+            assert result is None
+        finally:
+            urllib.request.urlopen = original
