@@ -15,4 +15,14 @@
   --inv-col-unit-w:    70px;   /* Unit price */
   --inv-col-extprice-w: 70px;  /* Extended (total) price */
   --inv-col-stock-w:   60px;   /* Stock qty */
+
+  /* Sticky action-button column geometry (BOM comparison table).
+     These govern the Adjust / Confirm / Link buttons that stick to the
+     right edge of the inventory table and are the recurring source of
+     button-clipping bugs.
+     Consumed by: css/tables.css, css/panels/inventory.css, js/layout-tokens.js */
+  --sticky-btn-col-w:     180px;  /* Width of the sticky button column (th.btn-group-hdr / td.btn-group) */
+  --sticky-btn-gap:         6px;  /* Spacing between adjacent buttons inside td.btn-group */
+  --inv-col-reset-min-w:   42px;  /* Min-width of the inv column-header ↺ reset button, matching .part-actions width */
+  --part-actions-gap:       4px;  /* Gap between buttons in .part-actions (non-BOM inventory rows) */
 }
