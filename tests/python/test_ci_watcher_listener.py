@@ -124,3 +124,44 @@ def test_non_workflow_run_event_ignored(client) -> None:
         )
     assert rv.status_code == 200
     send.assert_not_called()
+
+
+def test_socket_send_failure_does_not_mark_seen(client, tmp_path: Path) -> None:
+    """If the socket send fails, the run must NOT be marked seen — GitHub retry must work."""
+    from scripts.ci_watcher.state import State
+
+    body = json.dumps(_payload(run_id=777, attempt=1)).encode()
+    headers = {"X-Hub-Signature-256": _sign(body), "X-GitHub-Event": "workflow_run"}
+
+    # Find the state DB path the test client is using.
+    state_db_paths = list(tmp_path.glob("state.db"))
+    assert len(state_db_paths) == 1
+    state_db = state_db_paths[0]
+
+    with patch("scripts.ci_watcher.listener._send_to_socket", side_effect=OSError("simulated")):
+        with pytest.raises(OSError):
+            client.post("/webhook", data=body, headers=headers)
+
+    # CRITICAL: the run was NOT marked seen — retry must succeed
+    assert State(state_db).is_seen(run_id=777, attempt=1) is False
+
+
+def test_invalid_json_payload_rejected(client) -> None:
+    """A POST with valid signature but malformed JSON body should not crash silently."""
+    body = b"not-json-at-all{"
+    headers = {"X-Hub-Signature-256": _sign(body), "X-GitHub-Event": "workflow_run"}
+    # With app.testing = True, uncaught exceptions bubble up. That's acceptable —
+    # GitHub will retry, but the bad payload won't change, so it's fine.
+    with pytest.raises(json.JSONDecodeError):
+        client.post("/webhook", data=body, headers=headers)
+
+
+def test_extract_pr_from_workflow_run_pull_requests() -> None:
+    """_extract_pr should pull the PR number from the pull_requests array."""
+    from scripts.ci_watcher.listener import _extract_pr
+
+    assert _extract_pr({"pull_requests": [{"number": 234}]}) == 234
+    assert _extract_pr({"pull_requests": []}) is None
+    assert _extract_pr({}) is None
+    assert _extract_pr({"pull_requests": [{"number": 0}]}) is None  # treat 0 as none
+    assert _extract_pr({"pull_requests": "garbage"}) is None

@@ -22,6 +22,7 @@ def _send_to_socket(socket_path: Path, payload: dict[str, Any]) -> None:
     """Send a JSON-encoded event to the worker via Unix datagram socket."""
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     try:
+        sock.settimeout(5)
         sock.sendto(json.dumps(payload).encode("utf-8"), str(socket_path))
     finally:
         sock.close()
@@ -67,8 +68,6 @@ def create_app(*, secret: str, socket_path: Path, state_path: Path) -> Flask:
         if state.is_seen(run_id=run_id, attempt=attempt):
             return {"ignored": "duplicate"}, 200
 
-        state.mark_seen(run_id=run_id, attempt=attempt)
-
         event_to_worker = {
             "run_id": run_id,
             "run_attempt": attempt,
@@ -77,7 +76,13 @@ def create_app(*, secret: str, socket_path: Path, state_path: Path) -> Flask:
             "head_branch": run.get("head_branch", ""),
             "pr": _extract_pr(run),
         }
-        _send_to_socket(socket_path, event_to_worker)
+        try:
+            _send_to_socket(socket_path, event_to_worker)
+        except Exception:
+            app.logger.exception("failed to enqueue run_id=%s; will retry on GitHub redelivery", run_id)
+            raise  # let Flask 500 so GitHub retries
+
+        state.mark_seen(run_id=run_id, attempt=attempt)
         return {"queued": True, "run_id": run_id}, 200
 
     return app
