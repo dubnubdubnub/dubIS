@@ -91,6 +91,54 @@ body {
 .drop-zone .hint { font-size: 11px; margin-top: 6px; color: var(--text-muted); }
 .drop-zone.loaded p { color: var(--color-green); }
 
+/* The import drop-zone has the ★ Direct button anchored in its bottom-right
+   corner. Render the dashed perimeter as an L-shape that goes AROUND the
+   button instead of behind it: ::before draws the outer rectangle clipped to
+   an L-shape (4 outer edges of the L), and ::after adds the two inward edges
+   that bound the notch. Together: 6 corners. */
+#import-drop-zone {
+  border-color: transparent;  /* hide the base border; ::before paints the visible L */
+}
+#import-drop-zone::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  box-sizing: border-box;
+  border: 2px dashed var(--border-default);
+  border-radius: 8px;
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - 30px),
+    calc(100% - 100px) calc(100% - 30px),
+    calc(100% - 100px) 100%,
+    0 100%
+  );
+  pointer-events: none;
+  transition: border-color 0.15s;
+}
+#import-drop-zone::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 100px;
+  height: 30px;
+  border-top: 2px dashed var(--border-default);
+  border-left: 2px dashed var(--border-default);
+  pointer-events: none;
+  transition: border-color 0.15s;
+}
+#import-drop-zone:hover::before,
+#import-drop-zone.dragover::before {
+  border-color: var(--color-blue);
+}
+#import-drop-zone:hover::after,
+#import-drop-zone.dragover::after {
+  border-top-color: var(--color-blue);
+  border-left-color: var(--color-blue);
+}
+
 /* ── Hidden Utility ───────────────────────────────────── */
 .hidden { display: none !important; }
 

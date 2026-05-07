@@ -85,14 +85,46 @@ test.describe('Direct-from-mfg import', () => {
         textToButtonGap: br.top - hr.bottom,
       };
     });
-    // Button anchored to bottom-right, but with the dashed border clearly
-    // visible AROUND it on right and bottom (≥6px breathing room each).
+    // Button anchored to bottom-right with breathing room from the dashed
+    // perimeter on right and bottom.
     expect(m.rightGap).toBeGreaterThanOrEqual(6);
     expect(m.rightGap).toBeLessThanOrEqual(20);
     expect(m.bottomGap).toBeGreaterThanOrEqual(6);
     expect(m.bottomGap).toBeLessThanOrEqual(20);
     // The drop-zone hint text must not crowd the button.
     expect(m.textToButtonGap).toBeGreaterThanOrEqual(4);
+  });
+
+  test('drop-zone dashed perimeter wraps around the button (L-shape, 6 corners)', async ({ page }) => {
+    // ::before paints the outer L (4 edges of the L) clipped via clip-path.
+    // ::after paints the two inward edges of the notch (top + left) that
+    // wrap around the button. Together: 6 corners.
+    const frame = await page.evaluate(() => {
+      const z = document.getElementById('import-drop-zone');
+      const beforeS = window.getComputedStyle(z, '::before');
+      const afterS = window.getComputedStyle(z, '::after');
+      return {
+        beforeContent: beforeS.content,
+        beforeClipPath: beforeS.clipPath,
+        beforeBorderStyle: beforeS.borderStyle,
+        afterContent: afterS.content,
+        afterBorderTopStyle: afterS.borderTopStyle,
+        afterBorderLeftStyle: afterS.borderLeftStyle,
+        afterBorderRightStyle: afterS.borderRightStyle,
+        afterBorderBottomStyle: afterS.borderBottomStyle,
+      };
+    });
+    // Both pseudo-elements present
+    expect(frame.beforeContent).not.toBe('none');
+    expect(frame.afterContent).not.toBe('none');
+    // ::before is the dashed L-shape: dashed border + clip-path polygon
+    expect(frame.beforeBorderStyle).toContain('dashed');
+    expect(frame.beforeClipPath).toContain('polygon');
+    // ::after has dashed top + left only (the two inward edges of the notch)
+    expect(frame.afterBorderTopStyle).toBe('dashed');
+    expect(frame.afterBorderLeftStyle).toBe('dashed');
+    expect(frame.afterBorderRightStyle).toBe('none');
+    expect(frame.afterBorderBottomStyle).toBe('none');
   });
 
   test('Direct filter pill replaces Other', async ({ page }) => {
