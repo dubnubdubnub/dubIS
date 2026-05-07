@@ -133,3 +133,55 @@ def test_parse_js_imports_handles_multiline(tmp_path: Path) -> None:
 
     imports = gen_code_map.parse_js_imports(src, tmp_path, internal)
     assert imports == ["big.js"]
+
+
+# ── EventBus reference scanning ───────────────────────────────────────
+
+def test_scan_eventbus_emits(tmp_path: Path) -> None:
+    src = tmp_path / "panel.js"
+    src.write_text(
+        "EventBus.emit(Events.INVENTORY_LOADED, items);\n"
+        "EventBus.emit(Events.BOM_CLEARED);\n"
+    )
+    emits, listens = gen_code_map.scan_eventbus_refs(src)
+    assert emits == ["BOM_CLEARED", "INVENTORY_LOADED"]
+    assert listens == []
+
+
+def test_scan_eventbus_listens(tmp_path: Path) -> None:
+    src = tmp_path / "events.js"
+    src.write_text(
+        "EventBus.on(Events.INVENTORY_LOADED, render);\n"
+        "EventBus.on(Events.PREFS_CHANGED, () => render());\n"
+    )
+    emits, listens = gen_code_map.scan_eventbus_refs(src)
+    assert emits == []
+    assert listens == ["INVENTORY_LOADED", "PREFS_CHANGED"]
+
+
+def test_scan_eventbus_ignores_event_constants_definition(tmp_path: Path) -> None:
+    """Events.X appearing inside the const Events = {...} block doesn't count."""
+    src = tmp_path / "event-bus.js"
+    src.write_text(
+        "export const Events = Object.freeze({\n"
+        "  INVENTORY_LOADED: 'inventory-loaded',\n"
+        "  BOM_LOADED: 'bom-loaded',\n"
+        "});\n"
+    )
+    emits, listens = gen_code_map.scan_eventbus_refs(src)
+    assert emits == []
+    assert listens == []
+
+
+def test_scan_eventbus_dedupes_and_sorts(tmp_path: Path) -> None:
+    src = tmp_path / "panel.js"
+    src.write_text(
+        "EventBus.emit(Events.B);\n"
+        "EventBus.emit(Events.A);\n"
+        "EventBus.emit(Events.B);\n"
+        "EventBus.on(Events.C, fn);\n"
+        "EventBus.on(Events.A, fn);\n"
+    )
+    emits, listens = gen_code_map.scan_eventbus_refs(src)
+    assert emits == ["A", "B"]
+    assert listens == ["A", "C"]

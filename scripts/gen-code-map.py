@@ -117,6 +117,29 @@ def parse_js_imports(
     return sorted(found)
 
 
+# ── EventBus reference scanning ──────────────────────────────────────
+
+_EVENTBUS_EMIT_RE  = re.compile(r"\bEventBus\.emit\(\s*Events\.([A-Z_][A-Z0-9_]*)")
+_EVENTBUS_ON_RE    = re.compile(r"\bEventBus\.on\(\s*Events\.([A-Z_][A-Z0-9_]*)")
+
+
+def scan_eventbus_refs(file_path: Path) -> tuple[list[str], list[str]]:
+    """Return (emits, listens) — sorted unique Event names referenced in this
+    JS file via `EventBus.emit(Events.X)` and `EventBus.on(Events.X)`.
+
+    The Events enum definition in event-bus.js does not match these patterns,
+    so it's naturally excluded.
+    """
+    try:
+        text = file_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return [], []
+
+    emits = sorted(set(_EVENTBUS_EMIT_RE.findall(text)))
+    listens = sorted(set(_EVENTBUS_ON_RE.findall(text)))
+    return emits, listens
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Exit 1 if docs/code-map.md is stale")
