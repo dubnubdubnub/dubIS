@@ -11,7 +11,8 @@ import { classifyRow, countWarnings } from './import-logic.js';
 export function renderDropZone(templates) {
   return `
     <div class="import-section">
-      <div class="drop-zone" id="import-drop-zone">
+      <div class="drop-zone has-direct-frame" id="import-drop-zone">
+        <svg class="drop-zone-frame" aria-hidden="true"><path class="drop-zone-frame-path"></path></svg>
         <p>Drop a purchase CSV here</p>
         <div class="hint">LCSC orders, cart exports, packing lists, DigiKey, Pololu, Mouser</div>
         <input type="file" id="import-file-input" accept=".csv,.tsv,.txt,.xls">

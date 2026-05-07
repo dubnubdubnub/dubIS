@@ -40,14 +40,11 @@ test.describe('Direct-from-mfg import', () => {
     await directBtn.click();
     await expect(page.locator('.mfg-direct-editor')).toBeVisible();
 
-    // 2. Type vendor name + website
-    const nameInput = page.locator('#mfg-vendor-name-input');
-    await nameInput.click();
-    await nameInput.fill('TMR Sensors');
-    await nameInput.press('Tab');
-    const urlInput = page.locator('#mfg-vendor-url-input');
-    await urlInput.fill('tmr-sensors.com');
-    await urlInput.press('Tab');
+    // 2. Type vendor URL
+    const vendorInput = page.locator('#mfg-vendor-input');
+    await vendorInput.click();
+    await vendorInput.fill('tmr-sensors.com');
+    await vendorInput.press('Tab');
     await expect(page.locator('.vendor-favicon, .vendor-favicon-emoji').first()).toBeVisible();
 
     // 3. Use file input directly (drag-drop in Playwright is via setInputFiles)
@@ -98,37 +95,93 @@ test.describe('Direct-from-mfg import', () => {
     expect(m.textToButtonGap).toBeGreaterThanOrEqual(4);
   });
 
-  test('drop-zone dashed perimeter wraps around the button (L-shape, 6 corners)', async ({ page }) => {
-    // ::before paints the outer L (4 edges of the L) clipped via clip-path.
-    // ::after paints the two inward edges of the notch (top + left) that
-    // wrap around the button. Together: 6 corners.
-    const frame = await page.evaluate(() => {
-      const z = document.getElementById('import-drop-zone');
-      const beforeS = window.getComputedStyle(z, '::before');
-      const afterS = window.getComputedStyle(z, '::after');
-      return {
-        beforeContent: beforeS.content,
-        beforeClipPath: beforeS.clipPath,
-        beforeBorderStyle: beforeS.borderStyle,
-        afterContent: afterS.content,
-        afterBorderTopStyle: afterS.borderTopStyle,
-        afterBorderLeftStyle: afterS.borderLeftStyle,
-        afterBorderRightStyle: afterS.borderRightStyle,
-        afterBorderBottomStyle: afterS.borderBottomStyle,
-      };
+  // The dashed L-shape perimeter is rendered as an SVG <path> computed from
+  // the button's bounding rect with a constant 8px margin and rounded corners
+  // (5 convex outer/notch corners + 1 concave corner that wraps the button's
+  // NW corner). The path has 6 arc commands — one per corner.
+  for (const vp of [
+    { name: 'narrow', width: 1280, height: 720 },
+    { name: 'medium', width: 1600, height: 900 },
+    { name: 'wide',   width: 1920, height: 1200 },
+    { name: 'ultrawide', width: 2560, height: 1440 },
+  ]) {
+    test(`L-shape perimeter has rounded corners + constant 8px margin from button at ${vp.name} (${vp.width}x${vp.height})`, async ({ page }) => {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      // Force a re-layout so ResizeObserver fires.
+      await page.waitForTimeout(50);
+
+      const result = await page.evaluate(() => {
+        const z = document.getElementById('import-drop-zone');
+        const svg = z && z.querySelector('.drop-zone-frame');
+        const path = z && z.querySelector('.drop-zone-frame-path');
+        const button = z && z.querySelector('[data-template="direct"]');
+        if (!z || !svg || !path || !button) return { missing: true };
+
+        const d = path.getAttribute('d') || '';
+        const arcs = (d.match(/A /g) || []).length;
+        const dasharray = window.getComputedStyle(path).strokeDasharray;
+        const strokeWidth = parseFloat(window.getComputedStyle(path).strokeWidth);
+        const hasFrameClass = z.classList.contains('has-direct-frame');
+
+        const zr = z.getBoundingClientRect();
+        const br = button.getBoundingClientRect();
+        // SVG userspace (0,0) = (zr.left, zr.top); user units = pixels
+        const btnLeftU = br.left - zr.left;
+        const btnTopU = br.top - zr.top;
+
+        // Pull the F-arc parameters out of the path.
+        // Path order: M, H, A(B), V, A(C), H, A(F), V, A(D), H, A(E), V, A(A), Z
+        // The 3rd arc (index 2) is F — concave, sweep=0, centered at button NW.
+        const arcMatches = [...d.matchAll(/A (\S+) (\S+) 0 0 (\d) (\S+) (\S+)/g)];
+        const fArc = arcMatches[2];
+        const fSweep = fArc ? fArc[3] : null;
+        const fRadius = fArc ? Number(fArc[1]) : null;
+        const fEndX = fArc ? Number(fArc[4]) : null;
+        const fEndY = fArc ? Number(fArc[5]) : null;
+
+        // Visible margin = distance from button to the inside edge of the
+        // dashed stroke. The path's right edge is at x = W-1 in userspace,
+        // and the stroke spans 1px on each side, so the inside edge of the
+        // dashed line is at viewport x = zr.right - 2.
+        const halfStroke = strokeWidth / 2;
+        const visibleRight = (zr.right - 1 - halfStroke) - br.right;
+        const visibleBottom = (zr.bottom - 1 - halfStroke) - br.bottom;
+
+        return {
+          missing: false,
+          hasFrameClass,
+          arcs,
+          dasharray,
+          visibleRight,
+          visibleBottom,
+          fSweep,
+          fRadius,
+          // F end is at (btnLeft - M, btnTop) in SVG userspace
+          fEndDeltaX: fArc ? (btnLeftU - fEndX) : null,
+          fEndDeltaY: fArc ? (btnTopU - fEndY) : null,
+        };
+      });
+
+      expect(result.missing).toBe(false);
+      expect(result.hasFrameClass).toBe(true);
+      // Six rounded corners → six arc commands
+      expect(result.arcs).toBe(6);
+      // Dashed stroke
+      expect(result.dasharray).not.toBe('none');
+      // Constant 8px visible margin between button and dashed perimeter on
+      // right and bottom (the two sides where the perimeter is the outer
+      // rectangle, not the notch's inward edges).
+      expect(result.visibleRight).toBeCloseTo(8, 0);
+      expect(result.visibleBottom).toBeCloseTo(8, 0);
+      // Concave F arc: sweep=0, radius equals the margin (8) so the perimeter
+      // wraps the button's NW corner at constant distance.
+      expect(result.fSweep).toBe('0');
+      expect(result.fRadius).toBe(8);
+      // F arc end point is exactly 8px west of the button NW corner
+      expect(result.fEndDeltaX).toBeCloseTo(8, 0);
+      expect(result.fEndDeltaY).toBeCloseTo(0, 0);
     });
-    // Both pseudo-elements present
-    expect(frame.beforeContent).not.toBe('none');
-    expect(frame.afterContent).not.toBe('none');
-    // ::before is the dashed L-shape: dashed border + clip-path polygon
-    expect(frame.beforeBorderStyle).toContain('dashed');
-    expect(frame.beforeClipPath).toContain('polygon');
-    // ::after has dashed top + left only (the two inward edges of the notch)
-    expect(frame.afterBorderTopStyle).toBe('dashed');
-    expect(frame.afterBorderLeftStyle).toBe('dashed');
-    expect(frame.afterBorderRightStyle).toBe('none');
-    expect(frame.afterBorderBottomStyle).toBe('none');
-  });
+  }
 
   test('Direct filter pill replaces Other', async ({ page }) => {
     const direct = page.locator('[data-distributor="direct"]');
@@ -145,8 +198,6 @@ test.describe('Direct-from-mfg import', () => {
   test('pseudo-vendor chip selects Self', async ({ page }) => {
     await page.locator('[data-template="direct"]').click();
     await page.locator('.mfg-pseudo-chip[data-pseudo="v_self"]').click();
-    await expect(page.locator('#mfg-vendor-name-input')).toHaveValue('Self');
-    // Pseudo-vendors don't get a website field
-    await expect(page.locator('#mfg-vendor-url-input')).toHaveCount(0);
+    await expect(page.locator('.mfg-direct-vendor-input')).toHaveValue('Self');
   });
 });
