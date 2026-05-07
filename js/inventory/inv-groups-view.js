@@ -1,42 +1,41 @@
 /* inv-groups-view.js — Generic-parts groups view for the inventory panel.
-   Extracted from inventory-panel.js. Renders group headers, filter rows,
-   and grouped part rows. Receives createPartRow and render as parameters. */
+   renderGroupedView, renderFilterRow, applyGroupFilters. */
 
 import { escHtml } from '../ui-helpers.js';
 import { store } from '../store.js';
-import { openEdit as openGenericEdit } from '../generic-parts-modal.js';
+import { openFlyout } from '../group-flyout/flyout-panel.js';
 import {
   groupPartsByGeneric,
   computeFilterDimensions,
   filterMembersByChips,
 } from './inventory-logic.js';
 import state from './inv-state.js';
+import { createPartRow } from './inv-row-build.js';
 
 // ── Groups mode rendering ──
 
-export function renderGroupedView(container, sectionKey, parts, createPartRow, render) {
-  const result = groupPartsByGeneric(parts, store.genericParts || []);
+export function renderGroupedView(container, sectionKey, parts) {
+  var result = groupPartsByGeneric(parts, store.genericParts || []);
 
   // Render each group
-  for (let i = 0; i < result.groups.length; i++) {
-    const group = result.groups[i];
-    const gp = group.gp;
-    const gpParts = group.parts;
+  for (var i = 0; i < result.groups.length; i++) {
+    var group = result.groups[i];
+    var gp = group.gp;
+    var gpParts = group.parts;
 
-    const gpId = gp.generic_part_id;
-    const isExpanded = state.expandedGroups.has(gpId);
+    var isExpanded = state.expandedGroups.has(gp.generic_part_id);
 
     // Compute total qty and part count
-    let totalQty = 0;
-    for (let q = 0; q < gpParts.length; q++) {
+    var totalQty = 0;
+    for (var q = 0; q < gpParts.length; q++) {
       totalQty += gpParts[q].qty || 0;
     }
 
-    const headerDiv = document.createElement("div");
+    var headerDiv = document.createElement("div");
     headerDiv.className = "generic-group-header";
     headerDiv.innerHTML =
-      '<span class="chevron">' + (isExpanded ? "\u25BE" : "\u25B8") + '</span>' +
-      '<span class="gp-icon">\u25C6</span>' +
+      '<span class="chevron">' + (isExpanded ? "▾" : "▸") + '</span>' +
+      '<span class="gp-icon">◆</span>' +
       '<span class="gp-name">' + escHtml(gp.name) + '</span>' +
       '<span class="gp-source">' + escHtml(gp.source || "") + '</span>' +
       '<span class="gp-stats">' + gpParts.length + ' parts</span>' +
@@ -44,19 +43,23 @@ export function renderGroupedView(container, sectionKey, parts, createPartRow, r
       '<button class="group-edit-btn">Edit</button>';
 
     // Toggle expanded state on click
-    headerDiv.addEventListener("click", function (e) {
-      if (e.target.closest(".group-edit-btn")) return;
-      if (state.expandedGroups.has(gpId)) state.expandedGroups.delete(gpId);
-      else state.expandedGroups.add(gpId);
-      render();
-    });
+    (function (gpId) {
+      headerDiv.addEventListener("click", function (e) {
+        if (e.target.closest(".group-edit-btn")) return;
+        if (state.expandedGroups.has(gpId)) state.expandedGroups.delete(gpId);
+        else state.expandedGroups.add(gpId);
+        state._render();
+      });
+    })(gp.generic_part_id);
 
     // Edit button handler
-    const editBtn = headerDiv.querySelector(".group-edit-btn");
-    editBtn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      openGenericEdit(gpId);
-    });
+    var editBtn = headerDiv.querySelector(".group-edit-btn");
+    (function (gpId) {
+      editBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        openFlyout(gpId, editBtn);
+      });
+    })(gp.generic_part_id);
 
     // In reverse-link mode, make group headers link-targets
     if (store.links.linkingMode && store.links.linkingBomRow) {
@@ -68,13 +71,13 @@ export function renderGroupedView(container, sectionKey, parts, createPartRow, r
     // Expanded: render filter row + member part rows
     if (isExpanded) {
       // Filter row
-      const filterRowEl = renderFilterRow(gp, gpParts, render);
+      var filterRowEl = renderFilterRow(gp, gpParts);
       if (filterRowEl) container.appendChild(filterRowEl);
 
       // Apply filters to parts
-      const filteredParts = applyGroupFilters(gpId, gpParts, gp);
-      for (let j = 0; j < filteredParts.length; j++) {
-        const row = createPartRow(filteredParts[j], sectionKey);
+      var filteredParts = applyGroupFilters(gp.generic_part_id, gpParts, gp);
+      for (var j = 0; j < filteredParts.length; j++) {
+        var row = createPartRow(filteredParts[j], sectionKey);
         row.classList.add("grouped-part-row");
         container.appendChild(row);
       }
@@ -82,36 +85,36 @@ export function renderGroupedView(container, sectionKey, parts, createPartRow, r
   }
 
   // Render ungrouped parts (dimmed)
-  for (let u = 0; u < result.ungrouped.length; u++) {
-    const ungRow = createPartRow(result.ungrouped[u], sectionKey);
+  for (var u = 0; u < result.ungrouped.length; u++) {
+    var ungRow = createPartRow(result.ungrouped[u], sectionKey);
     ungRow.classList.add("ungrouped-part-row");
     container.appendChild(ungRow);
   }
 }
 
-function renderFilterRow(gp, parts, render) {
-  const gpId = gp.generic_part_id;
-  const activeFilters = state.groupFilters[gpId] || {};
-  const activeKeys = Object.keys(activeFilters);
+export function renderFilterRow(gp, parts) {
+  var activeFilters = state.groupFilters[gp.generic_part_id] || {};
+  var activeKeys = Object.keys(activeFilters);
 
   // Compute dimensions from gp.members (not inventory parts)
-  const dimensions = computeFilterDimensions(gp.members || [], gp.part_type || "other");
+  var dimensions = computeFilterDimensions(gp.members || [], gp.part_type || "other");
   if (dimensions.length === 0 && activeKeys.length === 0) return null;
 
-  const filterRow = document.createElement("div");
+  var filterRow = document.createElement("div");
   filterRow.className = "generic-filter-row";
 
   // Left: dynamic name zone (shown when chips are active)
-  const nameZone = document.createElement("div");
+  var nameZone = document.createElement("div");
   nameZone.className = "filter-name-zone";
   if (activeKeys.length > 0) {
-    const activeValues = [];
-    for (let a = 0; a < activeKeys.length; a++) {
+    var dynamicName = gp.name;
+    var activeValues = [];
+    for (var a = 0; a < activeKeys.length; a++) {
       activeValues.push(activeFilters[activeKeys[a]]);
     }
-    const dynamicName = gp.name + " " + activeValues.join(" ");
+    dynamicName += " " + activeValues.join(" ");
 
-    const nameSpan = document.createElement("span");
+    var nameSpan = document.createElement("span");
     nameSpan.className = "filter-dynamic-name";
     nameSpan.textContent = dynamicName;
     nameZone.appendChild(nameSpan);
@@ -119,83 +122,84 @@ function renderFilterRow(gp, parts, render) {
     // In link mode with chips active, make name zone a link-target
     if (store.links.linkingMode && store.links.linkingBomRow) {
       nameZone.classList.add("link-target");
-      const hintSpan = document.createElement("span");
+      var hintSpan = document.createElement("span");
       hintSpan.className = "filter-link-hint";
-      hintSpan.textContent = "\u2190 click to link";
+      hintSpan.textContent = "← click to link";
       nameZone.appendChild(hintSpan);
     }
   }
   filterRow.appendChild(nameZone);
 
   if (dimensions.length > 0 && activeKeys.length > 0) {
-    const sep = document.createElement("span");
+    var sep = document.createElement("span");
     sep.className = "filter-sep";
     sep.textContent = "|";
     filterRow.appendChild(sep);
   }
 
   // Right: chip zone with dimension labels and chips
-  const chipZone = document.createElement("div");
+  var chipZone = document.createElement("div");
   chipZone.className = "filter-chip-zone";
 
-  for (let d = 0; d < dimensions.length; d++) {
-    const dim = dimensions[d];
+  for (var d = 0; d < dimensions.length; d++) {
+    var dim = dimensions[d];
 
     // Cross-dimension filtering: count members matching other active filters
-    const otherFilters = {};
-    for (let f = 0; f < activeKeys.length; f++) {
+    var otherFilters = {};
+    for (var f = 0; f < activeKeys.length; f++) {
       if (activeKeys[f] !== dim.field) {
         otherFilters[activeKeys[f]] = activeFilters[activeKeys[f]];
       }
     }
-    const crossFiltered = filterMembersByChips(gp.members || [], otherFilters);
+    var crossFiltered = filterMembersByChips(gp.members || [], otherFilters);
 
     // Count values in the cross-filtered set
-    const valueCounts = {};
-    for (let c = 0; c < crossFiltered.length; c++) {
-      const spec = crossFiltered[c].spec;
+    var valueCounts = {};
+    for (var c = 0; c < crossFiltered.length; c++) {
+      var spec = crossFiltered[c].spec;
       if (!spec) continue;
-      const raw = spec[dim.field];
+      var raw = spec[dim.field];
       if (raw === undefined || raw === null || raw === "") continue;
-      let display = String(raw);
+      var display = String(raw);
       if (dim.field === "voltage") display = display + "V";
       valueCounts[display] = (valueCounts[display] || 0) + 1;
     }
 
-    const dimDiv = document.createElement("span");
+    var dimDiv = document.createElement("span");
     dimDiv.className = "filter-dim";
 
-    const label = document.createElement("span");
+    var label = document.createElement("span");
     label.className = "filter-dim-label";
     label.textContent = dim.field;
     dimDiv.appendChild(label);
 
-    for (let v = 0; v < dim.values.length; v++) {
-      const val = dim.values[v];
-      const count = valueCounts[val] || 0;
-      const isActive = activeFilters[dim.field] === val;
+    for (var v = 0; v < dim.values.length; v++) {
+      var val = dim.values[v];
+      var count = valueCounts[val] || 0;
+      var isActive = activeFilters[dim.field] === val;
 
-      const chip = document.createElement("span");
+      var chip = document.createElement("span");
       chip.className = "filter-chip" + (isActive ? " active" : "") + (count === 0 && !isActive ? " dim" : "");
       chip.innerHTML = escHtml(val) + '<span class="chip-count">' + count + '</span>';
 
-      // Toggle filter on click — dim.field and val are block-scoped by const in the for-loop
-      const field = dim.field;
-      chip.addEventListener("click", function () {
-        if (!state.groupFilters[gpId]) {
-          state.groupFilters[gpId] = {};
-        }
-        if (state.groupFilters[gpId][field] === val) {
-          delete state.groupFilters[gpId][field];
-        } else {
-          state.groupFilters[gpId][field] = val;
-        }
-        // Clean up empty filter objects
-        if (Object.keys(state.groupFilters[gpId]).length === 0) {
-          delete state.groupFilters[gpId];
-        }
-        render();
-      });
+      // Toggle filter on click
+      (function (field, value) {
+        chip.addEventListener("click", function () {
+          if (!state.groupFilters[gp.generic_part_id]) {
+            state.groupFilters[gp.generic_part_id] = {};
+          }
+          if (state.groupFilters[gp.generic_part_id][field] === value) {
+            delete state.groupFilters[gp.generic_part_id][field];
+          } else {
+            state.groupFilters[gp.generic_part_id][field] = value;
+          }
+          // Clean up empty filter objects
+          if (Object.keys(state.groupFilters[gp.generic_part_id]).length === 0) {
+            delete state.groupFilters[gp.generic_part_id];
+          }
+          state._render();
+        });
+      })(dim.field, val);
 
       dimDiv.appendChild(chip);
     }
@@ -207,21 +211,21 @@ function renderFilterRow(gp, parts, render) {
   return filterRow;
 }
 
-function applyGroupFilters(gpId, parts, gp) {
-  const activeFilters = state.groupFilters[gpId];
+export function applyGroupFilters(gpId, parts, gp) {
+  var activeFilters = state.groupFilters[gpId];
   if (!activeFilters || Object.keys(activeFilters).length === 0) return parts;
 
   // Get filtered member part_ids from gp.members
-  const filteredMembers = filterMembersByChips(gp.members || [], activeFilters);
-  const allowedIds = new Set();
-  for (let i = 0; i < filteredMembers.length; i++) {
+  var filteredMembers = filterMembersByChips(gp.members || [], activeFilters);
+  var allowedIds = new Set();
+  for (var i = 0; i < filteredMembers.length; i++) {
     allowedIds.add(filteredMembers[i].part_id.toUpperCase());
   }
 
   // Filter inventory parts to only those whose IDs match filtered members
   return parts.filter(function (item) {
-    const ids = [item.lcsc, item.mpn, item.digikey, item.pololu, item.mouser];
-    for (let j = 0; j < ids.length; j++) {
+    var ids = [item.lcsc, item.mpn, item.digikey, item.pololu, item.mouser];
+    for (var j = 0; j < ids.length; j++) {
       if (ids[j] && allowedIds.has(ids[j].toUpperCase())) return true;
     }
     return false;
