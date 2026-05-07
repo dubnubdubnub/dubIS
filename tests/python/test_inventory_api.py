@@ -1044,6 +1044,14 @@ def test_create_and_update_vendor(api):
     assert new_v["url"] == "https://tmr-sensors.com"
 
 
+def test_create_vendor_url_only_derives_name(api):
+    """User pastes just a URL into the vendor field — facade fills in a hostname-based name."""
+    v = api.update_vendor(vendor_id="", name="", url="https://tmr-sensors.com/")
+    assert v["name"] == "tmr-sensors.com"
+    assert v["url"] == "https://tmr-sensors.com/"
+    assert v["type"] == "real"
+
+
 def test_match_part_returns_status(api):
     api.import_purchases(
         '[{"Manufacture Part Number":"TMR2615","Manufacturer":"MDT","Quantity":"50","Unit Price($)":"4.20"}]')

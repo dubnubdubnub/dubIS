@@ -40,11 +40,14 @@ test.describe('Direct-from-mfg import', () => {
     await directBtn.click();
     await expect(page.locator('.mfg-direct-editor')).toBeVisible();
 
-    // 2. Type vendor URL
-    const vendorInput = page.locator('#mfg-vendor-input');
-    await vendorInput.click();
-    await vendorInput.fill('tmr-sensors.com');
-    await vendorInput.press('Tab');
+    // 2. Type vendor name + website
+    const nameInput = page.locator('#mfg-vendor-name-input');
+    await nameInput.click();
+    await nameInput.fill('TMR Sensors');
+    await nameInput.press('Tab');
+    const urlInput = page.locator('#mfg-vendor-url-input');
+    await urlInput.fill('tmr-sensors.com');
+    await urlInput.press('Tab');
     await expect(page.locator('.vendor-favicon, .vendor-favicon-emoji').first()).toBeVisible();
 
     // 3. Use file input directly (drag-drop in Playwright is via setInputFiles)
@@ -142,6 +145,8 @@ test.describe('Direct-from-mfg import', () => {
   test('pseudo-vendor chip selects Self', async ({ page }) => {
     await page.locator('[data-template="direct"]').click();
     await page.locator('.mfg-pseudo-chip[data-pseudo="v_self"]').click();
-    await expect(page.locator('.mfg-direct-vendor-input')).toHaveValue('Self');
+    await expect(page.locator('#mfg-vendor-name-input')).toHaveValue('Self');
+    // Pseudo-vendors don't get a website field
+    await expect(page.locator('#mfg-vendor-url-input')).toHaveCount(0);
   });
 });

@@ -558,6 +558,11 @@ graph LR
 - **Imports:** `js/api.js`, `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/inventory/inv-events.js`, `tests/js/vendor-flyout.test.js`
 
+### js/layout-tokens.js
+
+- **Imports:** —
+- **Imported by:** —
+
 ### js/matching.js
 
 - **Imports:** `js/part-keys.js`
