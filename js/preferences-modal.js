@@ -1,5 +1,5 @@
-/* preferences-modal.js — Preferences modal with section threshold sliders
-   and Digikey login/logout flow. Extracted from app-init.js. */
+/* preferences-modal.js — Preferences modal with section threshold sliders,
+   Digikey login/logout flow, and Mouser API key management. */
 
 import { api, AppLog } from './api.js';
 import { showToast, escHtml, Modal } from './ui-helpers.js';
@@ -107,7 +107,31 @@ export function openPreferencesModal() {
     }
   });
 
+  // Load Mouser API key status
+  refreshMouserStatus();
+
   prefsModal.open();
+}
+
+function refreshMouserStatus() {
+  var statusEl = document.getElementById("mouser-status");
+  var keyInput = document.getElementById("mouser-api-key");
+  var clearBtn = document.getElementById("mouser-clear");
+  if (!statusEl || !keyInput || !clearBtn) return;
+  api("get_mouser_api_key_status").then(function (result) {
+    if (result && result.configured) {
+      statusEl.textContent = "API key saved — using Mouser API";
+      statusEl.style.color = "var(--color-green)";
+      keyInput.value = "";
+      keyInput.placeholder = "Replace key (leave empty to keep)";
+      clearBtn.classList.remove("hidden");
+    } else {
+      statusEl.textContent = "No API key — falling back to web scrape";
+      statusEl.style.color = "var(--text-muted)";
+      keyInput.placeholder = "API key";
+      clearBtn.classList.add("hidden");
+    }
+  });
 }
 
 function closePreferencesModal() {
@@ -186,4 +210,34 @@ export function wireDigikeyButtons() {
     dkLogoutBtn.classList.add("hidden");
     showToast("Digikey logged out");
   });
+
+  // Mouser API key save/clear
+  var mouserSaveBtn = document.getElementById("mouser-save");
+  var mouserClearBtn = document.getElementById("mouser-clear");
+  var mouserKeyInput = document.getElementById("mouser-api-key");
+
+  if (mouserSaveBtn && mouserKeyInput) {
+    mouserSaveBtn.addEventListener("click", async () => {
+      var key = mouserKeyInput.value.trim();
+      if (!key) {
+        showToast("Enter a Mouser API key first");
+        return;
+      }
+      await api("set_mouser_api_key", key);
+      refreshMouserStatus();
+      showToast("Mouser API key saved");
+      AppLog.info("Mouser API key configured");
+    });
+    mouserKeyInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); mouserSaveBtn.click(); }
+    });
+  }
+
+  if (mouserClearBtn) {
+    mouserClearBtn.addEventListener("click", async () => {
+      await api("clear_mouser_api_key");
+      refreshMouserStatus();
+      showToast("Mouser API key cleared");
+    });
+  }
 }

@@ -32,7 +32,9 @@ class DistributorManager:
             cookies_file=os.path.join(base_dir, "digikey_cookies.json"),
         )
         self._pololu = PololuClient()
-        self._mouser = MouserClient()
+        self._mouser = MouserClient(
+            credentials_file=os.path.join(base_dir, "mouser_credentials.json"),
+        )
         self._get_cache = get_cache
 
     # ── Distributor inference ─────────────────────────────────────────────
@@ -93,6 +95,22 @@ class DistributorManager:
     def logout_digikey(self) -> dict[str, str]:
         """Delegate to DigikeyClient."""
         return self._digikey.logout()
+
+    # ── Mouser API key management ─────────────────────────────────────────
+
+    def get_mouser_api_key_status(self) -> dict[str, bool]:
+        """Delegate to MouserClient."""
+        return self._mouser.get_api_key_status()
+
+    def set_mouser_api_key(self, key: str) -> dict[str, bool]:
+        """Delegate to MouserClient."""
+        self._mouser.set_api_key(key)
+        return self._mouser.get_api_key_status()
+
+    def clear_mouser_api_key(self) -> dict[str, bool]:
+        """Delegate to MouserClient."""
+        self._mouser.clear_api_key()
+        return self._mouser.get_api_key_status()
 
     # ── Product fetching ─────────────────────────────────────────────────
 
