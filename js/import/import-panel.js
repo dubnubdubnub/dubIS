@@ -32,6 +32,7 @@ async function handleImportUndo(data) {
   zone.innerHTML = `<p>${escHtml(importFileName)}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
     <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`;
   zone.classList.add("loaded");
+  zone.classList.remove("has-direct-frame");
   resetDropZoneInput("import-file-input", handleImportFile);
   renderMapper();
   showToast("Undid import of " + data.importedCount + " rows");
@@ -91,6 +92,84 @@ export function init() {
       }
     });
   });
+  setupDropZoneFrame();
+}
+
+// ── Drop-zone L-shape frame (SVG path computed from button position) ─────
+//
+// The import drop-zone has the ★ Direct button anchored in its bottom-right
+// corner. We render the dashed perimeter as an L-shape with rounded corners
+// and a constant 8px margin from the button. The path is computed at runtime
+// from the button's bounding rect and re-computed on resize.
+const FRAME_MARGIN = 8;        // px between button and dashed perimeter
+const FRAME_OUTER_R = 8;       // outer corner radius (matches drop-zone border-radius)
+const FRAME_NOTCH_R = 4;       // notch convex corner radius (C, D)
+let frameObserver = null;
+
+function buildFramePath(W, H, btnLeft, btnTop) {
+  const M = FRAME_MARGIN;
+  const R = FRAME_OUTER_R;
+  const r = FRAME_NOTCH_R;
+  // Stroke is centered on the path with stroke-width 2; leave 1px so dashes
+  // aren't clipped by the SVG bounds.
+  const x0 = 1, y0 = 1, x1 = W - 1, y1 = H - 1;
+  // Notch top/left edges sit M away from the button on those sides; clamp
+  // them to leave room for the outer rounded corners (R) plus the notch's
+  // own convex corner (r) so the path is well-formed even at narrow widths.
+  const notchTop = Math.max(y0 + R + r + 2, btnTop - M);
+  const notchLeft = Math.max(x0 + R + r + 2, btnLeft - M);
+  // Convex corners use sweep=1 (clockwise traversal). The concave F corner
+  // is a quarter-arc of radius M centered on the button's NW corner — the
+  // perimeter wraps around the button's corner at constant distance M
+  // (sweep=0, CCW around its center).
+  return [
+    `M ${x0 + R} ${y0}`,
+    `H ${x1 - R}`,
+    `A ${R} ${R} 0 0 1 ${x1} ${y0 + R}`,                 // B: TR convex
+    `V ${notchTop - r}`,
+    `A ${r} ${r} 0 0 1 ${x1 - r} ${notchTop}`,           // C: right→notch-top
+    `H ${btnLeft}`,
+    `A ${M} ${M} 0 0 0 ${notchLeft} ${btnTop}`,          // F: concave, wraps button NW
+    `V ${y1 - r}`,
+    `A ${r} ${r} 0 0 1 ${notchLeft - r} ${y1}`,          // D: notch-left→bottom
+    `H ${x0 + R}`,
+    `A ${R} ${R} 0 0 1 ${x0} ${y1 - R}`,                 // E: BL
+    `V ${y0 + R}`,
+    `A ${R} ${R} 0 0 1 ${x0 + R} ${y0}`,                 // A: TL
+    'Z',
+  ].join(' ');
+}
+
+function updateDropZoneFrame() {
+  const zone = document.getElementById('import-drop-zone');
+  if (!zone || !zone.classList.contains('has-direct-frame')) return;
+  const svg = zone.querySelector('.drop-zone-frame');
+  const path = zone.querySelector('.drop-zone-frame-path');
+  const button = zone.querySelector('[data-template="direct"]');
+  if (!svg || !path || !button) return;
+  const zr = zone.getBoundingClientRect();
+  const br = button.getBoundingClientRect();
+  if (zr.width === 0 || zr.height === 0) return;
+  // SVG has inset:-2 + width/height calc(100% + 4) so it covers the drop-zone's
+  // BORDER box exactly (the 2px transparent border on #import-drop-zone). In
+  // pixel terms the SVG's rendered size equals zr.width × zr.height. Setting
+  // viewBox to those pixel dims makes user units = pixels and SVG (0,0) =
+  // (zr.left, zr.top), so button position in SVG userspace is br - zr.
+  const W = zr.width;
+  const H = zr.height;
+  const btnLeft = br.left - zr.left;
+  const btnTop = br.top - zr.top;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  path.setAttribute('d', buildFramePath(W, H, btnLeft, btnTop));
+}
+
+function setupDropZoneFrame() {
+  if (frameObserver) { frameObserver.disconnect(); frameObserver = null; }
+  const zone = document.getElementById('import-drop-zone');
+  if (!zone) return;
+  updateDropZoneFrame();
+  frameObserver = new ResizeObserver(updateDropZoneFrame);
+  frameObserver.observe(zone);
 }
 
 async function browseImportFile() {
@@ -144,6 +223,7 @@ async function createNewPO(templateKey = "generic") {
   zone.innerHTML = `<p>${escHtml(fileName)}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
     <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`;
   zone.classList.add("loaded");
+  zone.classList.remove("has-direct-frame");
   resetDropZoneInput("import-file-input", handleImportFile);
 
   const newPoRow = document.getElementById("new-po-row");
@@ -178,6 +258,7 @@ async function loadImportText(text, fileName) {
   zone.innerHTML = `<p>${escHtml(fileName)}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
     <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`;
   zone.classList.add("loaded");
+  zone.classList.remove("has-direct-frame");
   resetDropZoneInput("import-file-input", handleImportFile);
 
   const newPoRow = document.getElementById("new-po-row");

@@ -133,6 +133,20 @@ class TestUpdateAndDelete:
             vendors.delete_vendor(vjson, "v_does_not_exist")
 
 
+class TestNameFromUrl:
+    def test_hostname_with_tld(self):
+        assert vendors.name_from_url("https://tmr-sensors.com/") == "tmr-sensors.com"
+
+    def test_strips_www_prefix(self):
+        assert vendors.name_from_url("https://www.hirose.com") == "hirose.com"
+
+    def test_handles_missing_scheme(self):
+        assert vendors.name_from_url("tmr-sensors.com") == "tmr-sensors.com"
+
+    def test_empty_returns_empty(self):
+        assert vendors.name_from_url("") == ""
+
+
 class TestSimilarity:
     def test_levenshtein_under_3(self, vjson):
         vendors.seed_builtins(vjson)
