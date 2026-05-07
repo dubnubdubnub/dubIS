@@ -1072,3 +1072,209 @@ class TestMouserApiFetch:
         # Hits www.mouser.com (scrape), NOT api.mouser.com.
         assert "api.mouser.com" not in captured[0]["url"]
         assert "www.mouser.com" in captured[0]["url"]
+
+    def test_falls_back_to_keyword_when_partnumber_empty(self, tmp_path):
+        """The /partnumber endpoint matches Mouser PNs primarily — a user who
+        has the manufacturer part number (e.g. FGG.0B.305.CLAD52) in their
+        inventory column won't find anything by partnumber. Fall back to
+        /keyword which searches MPNs and descriptions."""
+        import urllib.request
+
+        creds = str(tmp_path / "mouser_credentials.json")
+        client = MouserClient(credentials_file=creds)
+        client.set_api_key("k")
+
+        captured = []
+        original = urllib.request.urlopen
+
+        responses = [
+            # First call (partnumber): no results.
+            {"Errors": [], "SearchResults": {"NumberOfResult": 0, "Parts": []}},
+            # Second call (keyword): returns the LEMO connector.
+            self._API_RESPONSE,
+        ]
+        idx = [0]
+
+        def fake_urlopen(req, *a, **kw):
+            captured.append({"url": req.full_url, "data": req.data})
+            body = json.dumps(responses[idx[0]]).encode()
+            idx[0] += 1
+
+            class FakeResp:
+                def read(self):
+                    return body
+                def __enter__(self):
+                    return self
+                def __exit__(self, *a):
+                    pass
+            return FakeResp()
+
+        urllib.request.urlopen = fake_urlopen
+        try:
+            product = client.fetch_product("FGG.0B.305.CLAD52")
+        finally:
+            urllib.request.urlopen = original
+
+        # Two API calls: first /partnumber, then /keyword.
+        assert len(captured) == 2
+        assert "/search/partnumber" in captured[0]["url"]
+        assert "/search/keyword" in captured[1]["url"]
+
+        # Keyword body uses the right schema.
+        kw_body = json.loads(captured[1]["data"])
+        assert kw_body["SearchByKeywordRequest"]["keyword"] == "FGG.0B.305.CLAD52"
+
+        # Got the part back.
+        assert product is not None
+        assert product["mpn"] == "FGG.0B.305.CLAD52"
+        assert product["productCode"] == "736-FGG0B305CLAD52"
+
+    def test_partnumber_hit_skips_keyword(self, tmp_path):
+        """When /partnumber finds the part, don't waste a /keyword call."""
+        import urllib.request
+
+        creds = str(tmp_path / "mouser_credentials.json")
+        client = MouserClient(credentials_file=creds)
+        client.set_api_key("k")
+
+        captured = []
+        original = self._install_mock_urlopen(self._API_RESPONSE, captured)
+        try:
+            product = client.fetch_product("736-FGG0B305CLAD52")
+        finally:
+            urllib.request.urlopen = original
+
+        assert product is not None
+        # Exactly one call — the partnumber one. No keyword fallback.
+        assert len(captured) == 1
+        assert "/search/partnumber" in captured[0]["url"]
+
+    def test_keyword_chooses_best_match_by_mpn(self, tmp_path):
+        """Keyword search returns multiple parts ranked by Mouser. We want
+        the one whose MPN actually matches the user's input — not just the
+        first result, which may be a near-miss accessory or alternate."""
+        import urllib.request
+
+        creds = str(tmp_path / "mouser_credentials.json")
+        client = MouserClient(credentials_file=creds)
+        client.set_api_key("k")
+
+        partnumber_empty = {
+            "Errors": [], "SearchResults": {"NumberOfResult": 0, "Parts": []},
+        }
+        keyword_multi = {
+            "Errors": [],
+            "SearchResults": {
+                "NumberOfResult": 3,
+                "Parts": [
+                    # First result — a near-miss accessory.
+                    {
+                        "MouserPartNumber": "999-OTHER",
+                        "ManufacturerPartNumber": "FGG.0B.305.OTHER",
+                        "Description": "Accessory",
+                        "Manufacturer": "LEMO",
+                        "PriceBreaks": [], "ProductAttributes": [],
+                        "Availability": "0",
+                    },
+                    # Second result — the exact MPN match.
+                    {
+                        "MouserPartNumber": "736-FGG0B305CLAD52",
+                        "ManufacturerPartNumber": "FGG.0B.305.CLAD52",
+                        "Description": "The right one",
+                        "Manufacturer": "LEMO",
+                        "PriceBreaks": [{"Quantity": 1, "Price": "$37.55"}],
+                        "ProductAttributes": [],
+                        "Availability": "500 In Stock",
+                    },
+                ],
+            },
+        }
+        responses = [partnumber_empty, keyword_multi]
+        idx = [0]
+
+        def fake_urlopen(req, *a, **kw):
+            body = json.dumps(responses[idx[0]]).encode()
+            idx[0] += 1
+
+            class FakeResp:
+                def read(self):
+                    return body
+                def __enter__(self):
+                    return self
+                def __exit__(self, *a):
+                    pass
+            return FakeResp()
+
+        original = urllib.request.urlopen
+        urllib.request.urlopen = fake_urlopen
+        try:
+            product = client.fetch_product("FGG.0B.305.CLAD52")
+        finally:
+            urllib.request.urlopen = original
+
+        assert product is not None
+        # Should pick the MPN-matching result, not the first-listed one.
+        assert product["mpn"] == "FGG.0B.305.CLAD52"
+        assert product["title"] == "The right one"
+
+    def test_keyword_falls_back_to_first_when_no_exact_match(self, tmp_path):
+        """If keyword returns multiple parts but none exact-match the input,
+        return the first (Mouser's relevance ranking)."""
+        import urllib.request
+
+        creds = str(tmp_path / "mouser_credentials.json")
+        client = MouserClient(credentials_file=creds)
+        client.set_api_key("k")
+
+        partnumber_empty = {
+            "Errors": [], "SearchResults": {"NumberOfResult": 0, "Parts": []},
+        }
+        keyword_no_exact = {
+            "Errors": [],
+            "SearchResults": {
+                "NumberOfResult": 2,
+                "Parts": [
+                    {
+                        "MouserPartNumber": "111-FIRST",
+                        "ManufacturerPartNumber": "FIRST-MPN",
+                        "Description": "First listed",
+                        "Manufacturer": "X",
+                        "PriceBreaks": [], "ProductAttributes": [],
+                        "Availability": "0",
+                    },
+                    {
+                        "MouserPartNumber": "222-SECOND",
+                        "ManufacturerPartNumber": "SECOND-MPN",
+                        "Description": "Second listed",
+                        "Manufacturer": "Y",
+                        "PriceBreaks": [], "ProductAttributes": [],
+                        "Availability": "0",
+                    },
+                ],
+            },
+        }
+        responses = [partnumber_empty, keyword_no_exact]
+        idx = [0]
+
+        def fake_urlopen(req, *a, **kw):
+            body = json.dumps(responses[idx[0]]).encode()
+            idx[0] += 1
+
+            class FakeResp:
+                def read(self):
+                    return body
+                def __enter__(self):
+                    return self
+                def __exit__(self, *a):
+                    pass
+            return FakeResp()
+
+        original = urllib.request.urlopen
+        urllib.request.urlopen = fake_urlopen
+        try:
+            product = client.fetch_product("UNRELATED-INPUT")
+        finally:
+            urllib.request.urlopen = original
+
+        assert product is not None
+        assert product["productCode"] == "111-FIRST"
