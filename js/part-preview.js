@@ -139,6 +139,11 @@ async function showTooltip(code, provider, triggerEl) {
       errMsg = (dkStatus && dkStatus.logged_in)
         ? "Could not load product data"
         : "Login to Digikey in Preferences to enable preview";
+    } else if (provider === "mouser") {
+      var moStatus = await api("get_mouser_api_key_status");
+      errMsg = (moStatus && moStatus.configured)
+        ? "Mouser API: no match for " + code
+        : "Save a Mouser API key in Preferences for tooltips";
     }
     tooltip.innerHTML = '<div class="part-preview-card"><div class="part-preview-error">' + escHtml(errMsg) + '</div></div>';
     return;
