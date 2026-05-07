@@ -41,3 +41,19 @@ export var INV_COL_EXTPRICE_W  = getLayoutTokenPx("--inv-col-extprice-w");
 
 /** Width of the Stock Qty column (px). */
 export var INV_COL_STOCK_W     = getLayoutTokenPx("--inv-col-stock-w");
+
+// ── Sticky action-button column geometry ─────────────────────────────────────
+// These govern the Adjust / Confirm / Link buttons that stick to the right
+// edge of the BOM comparison table.
+
+/** Width of the sticky button column — th.btn-group-hdr / td.btn-group (px). */
+export var STICKY_BTN_COL_W    = getLayoutTokenPx("--sticky-btn-col-w");
+
+/** Spacing between adjacent buttons inside td.btn-group (px). */
+export var STICKY_BTN_GAP      = getLayoutTokenPx("--sticky-btn-gap");
+
+/** Min-width of the inventory column-header ↺ reset button (px), matching .part-actions width. */
+export var INV_COL_RESET_MIN_W = getLayoutTokenPx("--inv-col-reset-min-w");
+
+/** Gap between buttons in .part-actions on non-BOM inventory rows (px). */
+export var PART_ACTIONS_GAP    = getLayoutTokenPx("--part-actions-gap");
