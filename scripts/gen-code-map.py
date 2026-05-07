@@ -14,6 +14,7 @@ import argparse
 import ast
 import re
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -138,6 +139,71 @@ def scan_eventbus_refs(file_path: Path) -> tuple[list[str], list[str]]:
     emits = sorted(set(_EVENTBUS_EMIT_RE.findall(text)))
     listens = sorted(set(_EVENTBUS_ON_RE.findall(text)))
     return emits, listens
+
+
+# ── Source tree walker ────────────────────────────────────────────────
+
+# Directories whose contents are NOT part of our code map.
+EXCLUDE_DIRS = {
+    "node_modules",
+    "__pycache__",
+    ".git",
+    ".claude",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".vscode",
+    "test-results",
+    "dist",
+    "build",
+    "openpnp",
+    "tools",
+    "docs",
+    "data",
+    "events",
+    "css",
+}
+
+
+@dataclass
+class FileInfo:
+    path: str
+    imports: list[str] = field(default_factory=list)
+    emits: list[str] = field(default_factory=list)
+    listens: list[str] = field(default_factory=list)
+
+
+def _iter_source_files(root: Path) -> list[Path]:
+    """Walk repo for .py and .js files, skipping EXCLUDE_DIRS at any depth."""
+    found: list[Path] = []
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        if path.suffix not in (".py", ".js"):
+            continue
+        # Skip if any ancestor directory name is in EXCLUDE_DIRS
+        rel_parts = path.relative_to(root).parts
+        if any(part in EXCLUDE_DIRS for part in rel_parts[:-1]):
+            continue
+        found.append(path)
+    return sorted(found)
+
+
+def walk_sources(root: Path) -> dict[str, FileInfo]:
+    """Return repo-relative path → FileInfo for every source file in `root`."""
+    files = _iter_source_files(root)
+    internal = {p.relative_to(root).as_posix() for p in files}
+
+    info: dict[str, FileInfo] = {}
+    for p in files:
+        rel = p.relative_to(root).as_posix()
+        fi = FileInfo(path=rel)
+        if p.suffix == ".py":
+            fi.imports = parse_python_imports(p, internal)
+        else:  # .js
+            fi.imports = parse_js_imports(p, root, internal)
+            fi.emits, fi.listens = scan_eventbus_refs(p)
+        info[rel] = fi
+    return info
 
 
 def main(argv: list[str] | None = None) -> int:
