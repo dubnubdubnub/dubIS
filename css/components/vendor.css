@@ -8,20 +8,17 @@
 .vendor-favicon, .vendor-favicon-emoji { width: 18px; height: 18px; display: inline-flex;
   align-items: center; justify-content: center; }
 .vendor-favicon-empty { width: 18px; height: 18px; background: var(--bg-surface); border-radius: 3px; }
-.mfg-direct-popout-btn { background: transparent; color: var(--text-muted); border: 1px solid var(--border-default);
-  padding: 2px 6px; font-size: 12px; cursor: pointer; }
+.mfg-direct-popout-btn { color: var(--text-muted); }
 .mfg-direct-popout-btn:hover { color: var(--color-blue); border-color: var(--color-blue); }
 
 .mfg-direct-pseudo-row { display: flex; gap: 4px; margin-top: 4px; }
-.mfg-pseudo-chip { font-size: 11px; padding: 2px 8px; border: 1px solid var(--border-default);
-  border-radius: 12px; background: var(--bg-surface); color: var(--text-secondary); cursor: pointer; }
+.mfg-pseudo-chip { border-radius: 999px; background: var(--bg-raised); color: var(--text-secondary); }
 .mfg-pseudo-chip:hover { border-color: var(--color-blue); color: var(--color-blue); }
 
 .mfg-source-drop { padding: 16px; text-align: center; cursor: pointer; }
 .mfg-source-attached { display: flex; align-items: center; gap: 6px; padding: 6px; background: var(--bg-surface); border-radius: 4px; }
-.mfg-source-replace-btn { margin-left: auto; font-size: 11px; padding: 2px 6px;
-  border: 1px solid var(--border-default); background: var(--bg-surface); color: var(--text-secondary);
-  border-radius: 3px; cursor: pointer; }
+.mfg-source-replace-btn { margin-left: auto; color: var(--text-secondary); }
+.mfg-source-replace-btn:hover { border-color: var(--color-blue); color: var(--color-blue); }
 
 .mfg-items-table { width: 100%; border-collapse: collapse; font-size: 11px; }
 .mfg-items-table th, .mfg-items-table td { padding: 3px; text-align: left; }
@@ -38,8 +35,7 @@
 .mfg-row-delete { background: transparent; color: var(--text-muted); border: none; cursor: pointer; font-size: 14px; }
 .mfg-row-delete:hover { color: var(--color-red); }
 
-.mfg-add-row-btn { font-size: 11px; padding: 2px 8px; border: 1px solid var(--border-default);
-  border-radius: 4px; background: var(--bg-surface); color: var(--text-secondary); cursor: pointer; }
+.mfg-add-row-btn { color: var(--text-secondary); align-self: flex-start; }
 .mfg-add-row-btn:hover { border-color: var(--color-green); color: var(--color-green); }
 
 .mfg-direct-actions { display: flex; justify-content: space-between; gap: 8px; }
@@ -50,22 +46,21 @@
 .new-po-btn-direct { color: var(--color-blue); border-color: var(--color-blue); }
 .new-po-btn-direct:hover { background: rgba(10, 132, 255, 0.1); }
 
-/* Prominent placement when rendered inside the import drop-zone.
-   Sized to fit within the drop-zone's existing 24px bottom padding so it
-   does not push siblings below the import section out of viewport at small
-   heights — see resize-visibility.spec.mjs. */
+/* Prominent placement inside the import drop-zone bottom-right. The drop-zone
+   uses asymmetric padding (14px top / 34px bottom) so this absolutely-positioned
+   button sits within the wider bottom padding — the dashed border stays clearly
+   visible around the button on all sides. */
 .drop-zone .new-po-btn-direct {
   position: absolute;
-  right: 6px;
-  bottom: 4px;
+  right: 10px;
+  bottom: 6px;
   font-size: 11px;
-  padding: 3px 12px;
+  padding: 2px 12px;
   font-weight: 600;
   background: var(--color-blue);
   color: #fff;
   border-color: var(--color-blue);
   border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   z-index: 1;
 }
 .drop-zone .new-po-btn-direct:hover {
@@ -137,8 +132,7 @@
 .vendor-popover-input:focus { border-color: var(--color-blue); outline: none; }
 .vendor-popover-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
   margin-top: 2px; }
-.vendor-popover-btn { font-size: 11px; padding: 3px 10px; border: 1px solid var(--border-default);
-  border-radius: 3px; background: var(--bg-surface); color: var(--text-secondary); cursor: pointer; }
+.vendor-popover-btn { color: var(--text-secondary); }
 .vendor-popover-btn:hover { border-color: var(--color-blue); color: var(--color-blue); }
 .vendor-popover-save { border-color: var(--color-blue); color: var(--color-blue); }
 .vendor-popover-save:hover { background: rgba(10,132,255,0.1); }
