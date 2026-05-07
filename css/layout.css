@@ -70,7 +70,10 @@ body {
   position: relative;
   border: 2px dashed var(--border-default);
   border-radius: 8px;
-  padding: 24px 12px;
+  /* Top/bottom padding redistributed (14/34) to give the absolutely-positioned
+     ★ Direct button room in the bottom-right without enlarging the box.
+     Total vertical padding stays 48px so resize-visibility geometry is preserved. */
+  padding: 14px 12px 34px;
   text-align: center;
   margin: 12px;
   cursor: pointer;
@@ -84,7 +87,7 @@ body {
   color: var(--color-blue);
 }
 .drop-zone input[type="file"] { display: none; }
-.drop-zone p { font-size: 13px; }
+.drop-zone p { font-size: 13px; margin: 0; }
 .drop-zone .hint { font-size: 11px; margin-top: 6px; color: var(--text-muted); }
 .drop-zone.loaded p { color: var(--color-green); }
 
