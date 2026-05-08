@@ -3,6 +3,7 @@
 
 import { escHtml } from '../ui-helpers.js';
 import { STATUS_ICONS, STATUS_ROW_CLASS, colorizeRefs, rawRowAggKey } from '../part-keys.js';
+import { BOM_STATUS_COL_W } from '../layout-tokens.js';
 
 /**
  * Returns the initial BOM drop zone HTML (including results container).
@@ -111,7 +112,7 @@ export function renderLinkingBanner(linkingMode) {
  * @returns {string}
  */
 export function renderStagingHead(headers, bomCols) {
-  let html = '<tr><th class="row-delete"></th><th style="width:24px"></th>';
+  let html = `<tr><th class="row-delete"></th><th style="width:${BOM_STATUS_COL_W}px"></th>`;
   headers.forEach((h, ci) => {
     var cls = (bomCols && ci === bomCols.ref) ? ' class="refs-col"' : '';
     html += `<th${cls}>${escHtml(h)}</th>`;

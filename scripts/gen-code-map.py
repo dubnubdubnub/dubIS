@@ -332,7 +332,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(rendered, encoding="utf-8")
+    out.write_text(rendered, encoding="utf-8", newline="\n")
     return 0
 
 

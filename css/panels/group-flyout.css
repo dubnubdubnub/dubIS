@@ -14,8 +14,8 @@
   position: absolute;
   display: flex;
   flex-direction: row;
-  width: 300px;
-  max-height: 420px;
+  width: var(--flyout-w);
+  max-height: var(--flyout-max-h);
   border: 1px solid var(--border-default);
   border-radius: 6px;
   background: var(--bg-surface);
@@ -269,7 +269,7 @@
   flex-direction: column;
   gap: 2px;
   border-right: 1px solid var(--border-default);
-  width: 28px;
+  width: var(--flyout-saved-tabs-w);
   overflow-y: auto;
   flex-shrink: 0;
   background: var(--bg-base);

@@ -85,7 +85,7 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         stream=sys.stderr,
     )
-    socket_path = Path(os.environ.get("CI_WATCHER_SOCKET", "/var/run/ci-watcher.sock"))
+    socket_path = Path(os.environ.get("CI_WATCHER_SOCKET", "/var/lib/ci-watcher/ci-watcher.sock"))
     prompt_path = Path(os.environ.get(
         "CI_WATCHER_PROMPT",
         "/var/lib/ci-watcher/repo/scripts/ci_watcher/triage-prompt.md",

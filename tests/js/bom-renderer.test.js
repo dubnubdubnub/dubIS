@@ -5,6 +5,27 @@ vi.mock('../../js/ui-helpers.js', () => ({
   escHtml: vi.fn(s => s || ''),
 }));
 
+vi.mock('../../js/layout-tokens.js', () => ({
+  BOM_STATUS_COL_W: 24,
+  BOM_ROW_DELETE_W: 20,
+  FLYOUT_W: 300,
+  FLYOUT_MAX_H: 420,
+  FLYOUT_SAVED_TABS_W: 28,
+  FLYOUT_GAP_PX: 8,
+  INV_COL_GROUP_W: 50,
+  INV_COL_PN_W: 100,
+  INV_COL_MFGPN_W: 160,
+  INV_COL_UNIT_W: 70,
+  INV_COL_EXTPRICE_W: 70,
+  INV_COL_STOCK_W: 60,
+  STICKY_BTN_COL_W: 180,
+  STICKY_BTN_GAP: 6,
+  INV_COL_RESET_MIN_W: 42,
+  PART_ACTIONS_GAP: 4,
+  getLayoutToken: vi.fn(() => ''),
+  getLayoutTokenPx: vi.fn(() => 0),
+}));
+
 import {
   renderDropZone,
   renderLoadedDropZone,

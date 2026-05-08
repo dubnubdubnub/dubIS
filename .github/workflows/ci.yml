@@ -271,6 +271,9 @@ jobs:
       - name: Verify code map is up to date
         if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/python scripts/gen-code-map.py --check
+      - name: Verify module manifests are accurate
+        if: needs.parse-tags.outputs.run_python == 'true'
+        run: ~/dubis-venv/bin/python scripts/check-manifests.py
       - name: Unit tests
         if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/pytest tests/python/ -v
