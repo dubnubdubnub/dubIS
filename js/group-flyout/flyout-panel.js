@@ -9,6 +9,7 @@ import { renderFlyout } from './flyout-renderer.js';
 import { flyouts, activeFlyoutId, setActiveFlyoutId } from './flyout-state.js';
 import { wireEvents, setPanelFunctions } from './flyout-events.js';
 import { wireDrag, wireInventoryDrag, unwireInventoryDrag, setRerenderFlyout } from './flyout-drag.js';
+import { FLYOUT_GAP_PX } from '../layout-tokens.js';
 
 /** @type {HTMLElement | null} */
 var _container = null;
@@ -75,7 +76,7 @@ function positionFlyout(inst) {
   if (idealTop > maxTop) idealTop = maxTop;
 
   // Horizontally: place flyout to the right of the source row, clamped to container
-  var idealLeft = rowRight + 8; // 8px gap after row
+  var idealLeft = rowRight + FLYOUT_GAP_PX; // gap after row
   var maxLeft = Math.max(0, _container.offsetWidth - flyoutW);
   if (idealLeft > maxLeft) idealLeft = maxLeft;
   if (idealLeft < 0) idealLeft = 0;
@@ -85,8 +86,6 @@ function positionFlyout(inst) {
 }
 
 // ── rearrangeFlyouts ──────────────────────────────────────────────────────────
-
-var FLYOUT_GAP = 8;
 
 /**
  * Sort flyouts by their current top position and push overlapping ones down.
@@ -113,7 +112,7 @@ function rearrangeFlyouts() {
     var prev = insts[i - 1];
     var curr = insts[i];
     var prevTop = parseInt(prev.el.style.top, 10) || 0;
-    var prevBottom = prevTop + prev.el.offsetHeight + FLYOUT_GAP;
+    var prevBottom = prevTop + prev.el.offsetHeight + FLYOUT_GAP_PX;
     var currTop = parseInt(curr.el.style.top, 10) || 0;
     if (currTop < prevBottom) {
       currTop = prevBottom;

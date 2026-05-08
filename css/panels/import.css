@@ -96,7 +96,7 @@
 .import-preview tr.row-subtotal { background: #484f5815; opacity: 0.6; }
 
 .import-preview .row-delete {
-  width: 20px; cursor: pointer; text-align: center;
+  width: var(--bom-row-delete-w); cursor: pointer; text-align: center;
   color: var(--text-muted); font-size: 13px; padding: 0;
 }
 .import-preview th.row-delete {
