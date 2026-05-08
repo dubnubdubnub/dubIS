@@ -1,4 +1,4 @@
-"""Inventory API — thin facade delegating to csv_io, inventory_ops, domain.pricing, file_dialogs."""
+"""Inventory API — thin facade delegating to domain.inventory, domain.pricing, file_dialogs."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ import os
 import sqlite3
 import sys
 import threading
-from datetime import datetime
 from typing import Any
 
 import cache_db
 import csv_io
+import domain.inventory
 import domain.pricing
 import file_dialogs
 import generic_parts
@@ -32,31 +32,9 @@ def _load_constants() -> dict:
 
 _CONSTANTS = _load_constants()
 
-
-def _parse_section_order(raw: list) -> tuple[list[str], list[dict]]:
-    """Parse mixed SECTION_ORDER (strings + objects with children) into:
-    - flat_order: list of all section strings (compound + bare parents) for iteration
-    - hierarchy: structured list for the frontend
-    """
-    flat_order: list[str] = []
-    hierarchy: list[dict] = []
-    for entry in raw:
-        if isinstance(entry, str):
-            flat_order.append(entry)
-            hierarchy.append({"name": entry, "children": None})
-        else:
-            name = entry["name"]
-            children = entry["children"]
-            # Parent section (for parts that don't match any subcategory)
-            flat_order.append(name)
-            # Compound sections for each child
-            for child in children:
-                flat_order.append(f"{name} > {child}")
-            hierarchy.append({"name": name, "children": children})
-    return flat_order, hierarchy
-
-
-_FLAT_SECTION_ORDER, _SECTION_HIERARCHY = _parse_section_order(_CONSTANTS["SECTION_ORDER"])
+_FLAT_SECTION_ORDER, _SECTION_HIERARCHY = domain.inventory.parse_section_order(
+    _CONSTANTS["SECTION_ORDER"]
+)
 
 
 class InventoryApi:
@@ -130,46 +108,35 @@ class InventoryApi:
 
     def _rebuild(self) -> list[dict[str, Any]]:
         """Full rebuild: replay all events into cache, return fresh inventory."""
-        vendors_json = os.path.join(self.base_dir, "vendors.json")
-        self._last_migration_summary = inventory_ops.migrate_to_vendors(self.input_csv, vendors_json)
-        conn = self._get_cache()
-        file_fieldnames, merged = inventory_ops.read_and_merge(
-            self.input_csv, self.FIELDNAMES,
+        result, migration_summary = domain.inventory.rebuild(
+            base_dir=self.base_dir,
+            input_csv=self.input_csv,
+            adjustments_csv=self.adjustments_csv,
+            events_dir=self.events_dir,
+            fieldnames=self.FIELDNAMES,
+            adj_fieldnames=self.ADJ_FIELDNAMES,
+            conn=self._get_cache(),
         )
-        inventory_ops.apply_adjustments(merged, self.adjustments_csv, file_fieldnames)
-        categorized = inventory_ops.categorize_and_sort(list(merged.values()))
-        cache_db.populate_full(
-            conn, merged, categorized,
-            ledger_path=self.input_csv,
-            po_csv_path=os.path.join(self.base_dir, "purchase_orders.csv"),
-            vendors_json_path=vendors_json,
-        )
-        purchase_lines = cache_db.count_csv_data_lines(self.input_csv)
-        adj_lines = cache_db.count_csv_data_lines(self.adjustments_csv)
-        cache_db.write_checkpoint(conn, purchase_lines=purchase_lines,
-                                  adjustment_lines=adj_lines)
-        if os.path.exists(self.events_dir):
-            domain.pricing.populate_prices_cache(conn, self.events_dir)
-        import generic_parts
-        os.makedirs(self.events_dir, exist_ok=True)
-        generic_parts.auto_generate_passive_groups(conn, self.events_dir)
-        import saved_searches
-        saved_searches.load_into_db(conn, self.base_dir)
-        return cache_db.query_inventory(conn)
+        self._last_migration_summary = migration_summary
+        return result
 
     def _load_organized(self) -> list[dict[str, Any]]:
         """Load current inventory from cache."""
-        conn = self._get_cache()
-        result = cache_db.query_inventory(conn)
-        if not result:
-            # Cache empty — populate from CSVs
-            return self._rebuild()
+        result, _ = domain.inventory.load_or_rebuild(
+            base_dir=self.base_dir,
+            input_csv=self.input_csv,
+            adjustments_csv=self.adjustments_csv,
+            events_dir=self.events_dir,
+            fieldnames=self.FIELDNAMES,
+            adj_fieldnames=self.ADJ_FIELDNAMES,
+            conn=self._get_cache(),
+        )
         return result
 
     def _append_adjustment(self, adj_type: str, part_key: str, quantity: int,
                            note: str = "", bom_file: str = "",
                            board_qty: int | str = "", source: str = "") -> None:
-        inventory_ops.append_adjustment(
+        domain.inventory.append_adjustment(
             self.adjustments_csv, self.ADJ_FIELDNAMES,
             adj_type, part_key, quantity,
             note=note, bom_file=bom_file, board_qty=board_qty, source=source,
@@ -177,24 +144,7 @@ class InventoryApi:
 
     def _record_import_prices(self, rows: list[dict[str, str]]) -> None:
         """Extract and record price observations from imported purchase rows."""
-        os.makedirs(self.events_dir, exist_ok=True)
-        observations = []
-        for row in rows:
-            part_key = inventory_ops.get_part_key(row)
-            if not part_key:
-                continue
-            up = domain.pricing.parse_price(row.get("Unit Price($)"))
-            if up <= 0:
-                continue
-            distributor = self._distributors.infer_distributor(row)
-            observations.append({
-                "part_id": part_key,
-                "distributor": distributor,
-                "unit_price": up,
-                "source": "import",
-            })
-        if observations:
-            domain.pricing.record_observations(self.events_dir, observations)
+        domain.inventory.record_import_prices(rows, self.events_dir, self._distributors)
 
     # ── Public API methods (called from JS via pywebview) ────────────────
 
@@ -208,120 +158,74 @@ class InventoryApi:
 
     def rebuild_inventory(self) -> list[dict[str, Any]]:
         """Rebuild inventory. Uses catch-up if cache exists, full rebuild otherwise."""
-        conn = self._get_cache()
-        cp = cache_db.read_checkpoint(conn)
-        has_cache = conn.execute("SELECT 1 FROM parts LIMIT 1").fetchone() is not None
-        if has_cache and (cp["purchase_lines"] > 0 or cp["adjustment_lines"] > 0):
-            # Cache exists — try catch-up (returns False if purchase ledger changed)
-            if cache_db.catch_up(conn, self.input_csv, self.adjustments_csv,
-                                 self.ADJ_FIELDNAMES):
-                return cache_db.query_inventory(conn)
-        # No cache, no checkpoint, or catch-up declined — full rebuild
-        return self._rebuild()
+        result, migration_summary = domain.inventory.rebuild_or_catchup(
+            base_dir=self.base_dir,
+            input_csv=self.input_csv,
+            adjustments_csv=self.adjustments_csv,
+            events_dir=self.events_dir,
+            fieldnames=self.FIELDNAMES,
+            adj_fieldnames=self.ADJ_FIELDNAMES,
+            conn=self._get_cache(),
+        )
+        if migration_summary:
+            self._last_migration_summary = migration_summary
+        return result
 
     def adjust_part(self, adj_type: str, part_key: str, quantity: int | str,
                     note: str = "", source: str = "") -> list[dict[str, Any]]:
         """Set/add/remove adjustment. Returns fresh inventory."""
-        if not part_key or not str(part_key).strip():
-            raise ValueError("part_key must not be empty")
-        quantity = int(quantity)
-        if quantity < 0:
-            raise ValueError(f"quantity must be non-negative, got {quantity}")
-        if adj_type == "remove":
-            record_qty = -abs(quantity)
-        elif adj_type == "add":
-            record_qty = abs(quantity)
-        elif adj_type == "set":
-            record_qty = quantity
-        else:
-            raise ValueError(f"Unknown adjustment type: {adj_type}")
         with self._lock:
-            self._append_adjustment(adj_type, part_key, record_qty, note=note, source=source)
-            conn = self._get_cache()
-            # Check if part exists in cache
-            exists = conn.execute(
-                "SELECT 1 FROM stock WHERE part_id = ?", (part_key,)
-            ).fetchone()
-            if not exists:
-                # Part not in cache (e.g., "set" on a brand new part) — full rebuild
-                return self._rebuild()
-            if adj_type == "set":
-                cache_db.set_stock_quantity(conn, part_key, max(0, record_qty))
-            else:  # add, remove
-                cache_db.apply_stock_delta(conn, part_key, record_qty)
-            adj_lines = cache_db.count_csv_data_lines(self.adjustments_csv)
-            cp = cache_db.read_checkpoint(conn)
-            cache_db.write_checkpoint(conn, purchase_lines=cp["purchase_lines"],
-                                      adjustment_lines=adj_lines)
-            return cache_db.query_inventory(conn)
+            return domain.inventory.adjust_part(
+                adj_type=adj_type,
+                part_key=part_key,
+                quantity=int(quantity),
+                note=note,
+                source=source,
+                adjustments_csv=self.adjustments_csv,
+                adj_fieldnames=self.ADJ_FIELDNAMES,
+                base_dir=self.base_dir,
+                input_csv=self.input_csv,
+                events_dir=self.events_dir,
+                fieldnames=self.FIELDNAMES,
+                conn=self._get_cache(),
+            )
 
     def consume_bom(self, matches_json: str | list[dict[str, Any]],
                     board_qty: int | str, bom_name: str,
                     note: str = "", source: str = "") -> list[dict[str, Any]]:
         """Consume matched BOM parts. Returns fresh inventory."""
         matches = self._ensure_parsed(matches_json)
-        board_qty = int(board_qty)
-        if board_qty <= 0:
-            raise ValueError(f"board_qty must be positive, got {board_qty}")
-        if not matches:
-            raise ValueError("matches must not be empty")
-        ts = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-        adj_rows = []
-        for m in matches:
-            bom_qty = int(m["bom_qty"])
-            if bom_qty <= 0:
-                raise ValueError(f"bom_qty must be positive, got {bom_qty}")
-            delta = -(bom_qty * board_qty)
-            adj_rows.append({
-                "timestamp": ts,
-                "type": "consume",
-                "lcsc_part": m["part_key"],
-                "quantity": delta,
-                "bom_file": bom_name,
-                "board_qty": board_qty,
-                "note": note or f"consumed {board_qty}x {bom_name}",
-                "source": source,
-            })
         with self._lock:
-            csv_io.append_csv_rows(self.adjustments_csv, self.ADJ_FIELDNAMES, adj_rows)
-            conn = self._get_cache()
-            affected_parts = [row["lcsc_part"] for row in adj_rows]
-            # Check if all affected parts are already in the cache
-            all_cached = all(
-                conn.execute(
-                    "SELECT 1 FROM stock WHERE part_id = ?", (pn,)
-                ).fetchone()
-                for pn in affected_parts
+            return domain.inventory.consume_bom(
+                matches=matches,
+                board_qty=int(board_qty),
+                bom_name=bom_name,
+                note=note,
+                source=source,
+                adjustments_csv=self.adjustments_csv,
+                adj_fieldnames=self.ADJ_FIELDNAMES,
+                base_dir=self.base_dir,
+                input_csv=self.input_csv,
+                events_dir=self.events_dir,
+                fieldnames=self.FIELDNAMES,
+                conn=self._get_cache(),
             )
-            if not all_cached:
-                # Cache empty or stale — full rebuild includes the new adjustments
-                return self._rebuild()
-            for row in adj_rows:
-                pn = row["lcsc_part"]
-                delta = int(row["quantity"])
-                cache_db.apply_stock_delta(conn, pn, delta)
-            adj_lines = cache_db.count_csv_data_lines(self.adjustments_csv)
-            cp = cache_db.read_checkpoint(conn)
-            cache_db.write_checkpoint(conn, purchase_lines=cp["purchase_lines"],
-                                      adjustment_lines=adj_lines)
-            # Spot-check verification on affected parts
-            cache_db.verify_parts(
-                conn, affected_parts, self.input_csv, self.adjustments_csv,
-                self.FIELDNAMES, fix=True,
-            )
-            return cache_db.query_inventory(conn)
 
     def _truncate_csv(self, csv_path: str, count: int, label: str) -> list[dict[str, Any]]:
         """Remove the last *count* rows from a CSV and rebuild inventory."""
-        fieldnames, rows = inventory_ops.truncate_csv(csv_path, count, label)
-
         with self._lock:
-            with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(rows)
-
-            return self._rebuild()
+            return domain.inventory.truncate_and_rebuild(
+                csv_path=csv_path,
+                count=count,
+                label=label,
+                base_dir=self.base_dir,
+                input_csv=self.input_csv,
+                adjustments_csv=self.adjustments_csv,
+                events_dir=self.events_dir,
+                fieldnames=self.FIELDNAMES,
+                adj_fieldnames=self.ADJ_FIELDNAMES,
+                conn=self._get_cache(),
+            )
 
     def remove_last_purchases(self, count: int | str) -> list[dict[str, Any]]:
         """Remove the last `count` rows from purchase_ledger.csv and rebuild inventory."""
@@ -334,16 +238,18 @@ class InventoryApi:
     def import_purchases(self, rows_json: str | list[dict[str, str]]) -> list[dict[str, Any]]:
         """Append purchase rows to purchase_ledger.csv. Returns fresh inventory."""
         rows = self._ensure_parsed(rows_json)
-        if not rows:
-            raise ValueError("No rows to import")
-
-        fieldnames = list(self.FIELDNAMES)
-        normalized = [{fn: row.get(fn, "") for fn in fieldnames} for row in rows]
-
         with self._lock:
-            csv_io.append_csv_rows(self.input_csv, fieldnames, normalized)
-            self._record_import_prices(rows)
-            return self._rebuild()
+            return domain.inventory.import_purchases(
+                rows=rows,
+                fieldnames=self.FIELDNAMES,
+                input_csv=self.input_csv,
+                events_dir=self.events_dir,
+                adjustments_csv=self.adjustments_csv,
+                adj_fieldnames=self.ADJ_FIELDNAMES,
+                base_dir=self.base_dir,
+                conn=self._get_cache(),
+                distributors=self._distributors,
+            )
 
     def update_part_price(self, part_key: str, unit_price: float | None = None,
                           ext_price: float | None = None) -> list[dict[str, Any]]:
@@ -355,94 +261,38 @@ class InventoryApi:
             unit_price = float(unit_price)
         if ext_price is not None:
             ext_price = float(ext_price)
-
-        if not os.path.exists(self.input_csv):
-            raise ValueError("No purchase ledger found")
-
-        with open(self.input_csv, newline="", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            fieldnames = reader.fieldnames
-            rows = list(reader)
-
-        found = False
-        for row in rows:
-            pk = inventory_ops.get_part_key(row)
-            if pk == part_key:
-                qty = domain.pricing.parse_qty(row.get("Quantity"))
-                unit_price, ext_price = domain.pricing.derive_missing_price(unit_price, ext_price, qty)
-                if unit_price is not None:
-                    row["Unit Price($)"] = f"{unit_price:.4f}"
-                if ext_price is not None:
-                    row["Ext.Price($)"] = f"{ext_price:.2f}"
-                found = True
-
-        if not found:
-            # Part only exists via adjustments -- add a new ledger row with price info
-            new_row = {fn: "" for fn in fieldnames}
-            if part_key.upper().startswith("C") and part_key[1:].isdigit():
-                new_row["LCSC Part Number"] = part_key
-            else:
-                new_row["Manufacture Part Number"] = part_key
-            new_row["Quantity"] = "0"
-            if unit_price is not None:
-                new_row["Unit Price($)"] = f"{unit_price:.4f}"
-            if ext_price is not None:
-                new_row["Ext.Price($)"] = f"{ext_price:.2f}"
-            rows.append(new_row)
-
         with self._lock:
-            with open(self.input_csv, "w", newline="", encoding="utf-8-sig") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(rows)
-
-            # Record price observation
-            os.makedirs(self.events_dir, exist_ok=True)
-            if unit_price is not None and unit_price > 0:
-                domain.pricing.record_observations(self.events_dir, [{
-                    "part_id": part_key,
-                    "distributor": self._infer_distributor_for_key(part_key),
-                    "unit_price": unit_price,
-                    "source": "manual",
-                }])
-
-            return self._rebuild()
+            return domain.inventory.update_part_price(
+                part_key=part_key,
+                unit_price=unit_price,
+                ext_price=ext_price,
+                input_csv=self.input_csv,
+                events_dir=self.events_dir,
+                adjustments_csv=self.adjustments_csv,
+                adj_fieldnames=self.ADJ_FIELDNAMES,
+                base_dir=self.base_dir,
+                fieldnames=self.FIELDNAMES,
+                conn=self._get_cache(),
+                infer_distributor_for_key=self._infer_distributor_for_key,
+            )
 
     def update_part_fields(self, part_key: str,
                            fields_json: str | dict[str, str]) -> list[dict[str, Any]]:
         """Update metadata fields for a part in purchase_ledger.csv."""
         fields = self._ensure_parsed(fields_json)
-        if not fields:
-            raise ValueError("No fields to update")
-
-        if not os.path.exists(self.input_csv):
-            raise ValueError("No purchase ledger found")
-
-        with open(self.input_csv, newline="", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            fieldnames = reader.fieldnames
-            rows = list(reader)
-
-        found = False
-        for row in rows:
-            pk = inventory_ops.get_part_key(row)
-            if pk == part_key:
-                for js_name, value in fields.items():
-                    col = self._FIELD_TO_COL.get(js_name)
-                    if col and col in fieldnames:
-                        row[col] = value
-                found = True
-
-        if not found:
-            raise ValueError(f"Part {part_key!r} not found in purchase ledger")
-
         with self._lock:
-            with open(self.input_csv, "w", newline="", encoding="utf-8-sig") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(rows)
-
-            return self._rebuild()
+            return domain.inventory.update_part_fields(
+                part_key=part_key,
+                fields=fields,
+                field_to_col=self._FIELD_TO_COL,
+                input_csv=self.input_csv,
+                adjustments_csv=self.adjustments_csv,
+                adj_fieldnames=self.ADJ_FIELDNAMES,
+                base_dir=self.base_dir,
+                fieldnames=self.FIELDNAMES,
+                events_dir=self.events_dir,
+                conn=self._get_cache(),
+            )
 
     def detect_columns(self, headers_json: str | list[str]) -> dict[str, str]:
         """Auto-detect column mapping for purchase CSV import."""
