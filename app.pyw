@@ -25,6 +25,7 @@ if sys.platform == "win32":
 import webview
 from inventory_api import InventoryApi
 from pnp_server import start_pnp_server
+from poll_api import start_poll_server
 
 
 def set_icon():
@@ -70,6 +71,7 @@ def main():
     def on_ready():
         set_icon()
         start_pnp_server(api, window)
+        start_poll_server(api)
 
     start_kwargs = {"func": on_ready, "debug": debug}
     if sys.platform != "win32" and os.path.isfile(PNG_ICON_PATH):
