@@ -257,7 +257,7 @@ jobs:
             checkout-clean: true
           - name: macos
             runner: [self-hosted, m4-air]
-            checkout-clean: false
+            checkout-clean: true
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
