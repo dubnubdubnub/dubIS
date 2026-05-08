@@ -274,6 +274,9 @@ jobs:
       - name: Verify module manifests are accurate
         if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/python scripts/check-manifests.py
+      - name: Guard against new hard-coded px layout values
+        if: needs.parse-tags.outputs.run_python == 'true'
+        run: ~/dubis-venv/bin/python scripts/check-layout-tokens.py --check
       - name: Unit tests
         if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/pytest tests/python/ -v
