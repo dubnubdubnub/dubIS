@@ -57,3 +57,25 @@ export var INV_COL_RESET_MIN_W = getLayoutTokenPx("--inv-col-reset-min-w");
 
 /** Gap between buttons in .part-actions on non-BOM inventory rows (px). */
 export var PART_ACTIONS_GAP    = getLayoutTokenPx("--part-actions-gap");
+
+// ── BOM / staging table shared column widths ──────────────────────────────────
+
+/** Width of the status icon column in BOM comparison and staging tables (px). */
+export var BOM_STATUS_COL_W    = getLayoutTokenPx("--bom-status-col-w");
+
+/** Width of the delete-row (×) button column in BOM and import staging tables (px). */
+export var BOM_ROW_DELETE_W    = getLayoutTokenPx("--bom-row-delete-w");
+
+// ── Group-flyout panel geometry ───────────────────────────────────────────────
+
+/** Default flyout panel width (px). */
+export var FLYOUT_W            = getLayoutTokenPx("--flyout-w");
+
+/** Default flyout panel max-height (px). */
+export var FLYOUT_MAX_H        = getLayoutTokenPx("--flyout-max-h");
+
+/** Width of the saved-searches sidebar inside the flyout (px). */
+export var FLYOUT_SAVED_TABS_W = getLayoutTokenPx("--flyout-saved-tabs-w");
+
+/** Gap between flyout and source row, and between stacked flyouts (px). */
+export var FLYOUT_GAP_PX       = getLayoutTokenPx("--flyout-gap");
