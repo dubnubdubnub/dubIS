@@ -22,12 +22,19 @@ graph LR
     "distributor_manager.py" --> "lcsc_client.py"
     "distributor_manager.py" --> "mouser_client.py"
     "distributor_manager.py" --> "pololu_client.py"
+    "domain/inventory.py" --> "cache_db.py"
+    "domain/inventory.py" --> "csv_io.py"
+    "domain/inventory.py" --> "domain/pricing.py"
+    "domain/inventory.py" --> "generic_parts.py"
+    "domain/inventory.py" --> "inventory_ops.py"
+    "domain/inventory.py" --> "saved_searches.py"
     "file_dialogs.py" --> "csv_io.py"
     "file_dialogs.py" --> "domain/pricing.py"
     "generic_parts.py" --> "spec_extractor.py"
     "inventory_api.py" --> "cache_db.py"
     "inventory_api.py" --> "csv_io.py"
     "inventory_api.py" --> "distributor_manager.py"
+    "inventory_api.py" --> "domain/inventory.py"
     "inventory_api.py" --> "domain/pricing.py"
     "inventory_api.py" --> "file_dialogs.py"
     "inventory_api.py" --> "generic_parts.py"
@@ -84,6 +91,7 @@ graph LR
     "js/bom/bom-panel.js" --> "js/store.js"
     "js/bom/bom-panel.js" --> "js/ui-helpers.js"
     "js/bom/bom-panel.js" --> "js/undo-redo.js"
+    "js/bom/bom-renderer.js" --> "js/layout-tokens.js"
     "js/bom/bom-renderer.js" --> "js/part-keys.js"
     "js/bom/bom-renderer.js" --> "js/ui-helpers.js"
     "js/group-flyout/flyout-drag.js" --> "js/api.js"
@@ -99,6 +107,7 @@ graph LR
     "js/group-flyout/flyout-panel.js" --> "js/group-flyout/flyout-logic.js"
     "js/group-flyout/flyout-panel.js" --> "js/group-flyout/flyout-renderer.js"
     "js/group-flyout/flyout-panel.js" --> "js/group-flyout/flyout-state.js"
+    "js/group-flyout/flyout-panel.js" --> "js/layout-tokens.js"
     "js/group-flyout/flyout-panel.js" --> "js/store.js"
     "js/group-flyout/flyout-renderer.js" --> "js/group-flyout/flyout-logic.js"
     "js/group-flyout/flyout-renderer.js" --> "js/ui-helpers.js"
@@ -273,11 +282,15 @@ graph LR
     "tests/python/test_ci_watcher_payload.py" --> "scripts/ci_watcher/triage_payload.py"
     "tests/python/test_ci_watcher_state.py" --> "scripts/ci_watcher/state.py"
     "tests/python/test_ci_watcher_worker.py" --> "scripts/ci_watcher/worker.py"
-    "tests/python/test_clients.py" --> "digikey_client.py"
-    "tests/python/test_clients.py" --> "inventory_api.py"
-    "tests/python/test_clients.py" --> "lcsc_client.py"
-    "tests/python/test_clients.py" --> "mouser_client.py"
-    "tests/python/test_clients.py" --> "pololu_client.py"
+    "tests/python/test_clients_base.py" --> "digikey_client.py"
+    "tests/python/test_clients_base.py" --> "inventory_api.py"
+    "tests/python/test_clients_base.py" --> "lcsc_client.py"
+    "tests/python/test_clients_base.py" --> "mouser_client.py"
+    "tests/python/test_clients_base.py" --> "pololu_client.py"
+    "tests/python/test_clients_digikey.py" --> "digikey_client.py"
+    "tests/python/test_clients_lcsc.py" --> "lcsc_client.py"
+    "tests/python/test_clients_mouser.py" --> "mouser_client.py"
+    "tests/python/test_clients_pololu.py" --> "pololu_client.py"
     "tests/python/test_csv_io.py" --> "csv_io.py"
     "tests/python/test_digikey_cdp.py" --> "digikey_cdp.py"
     "tests/python/test_digikey_normalizer.py" --> "digikey_normalizer.py"
@@ -293,11 +306,14 @@ graph LR
     "tests/python/test_generic_parts_api.py" --> "generic_parts.py"
     "tests/python/test_generic_parts_api.py" --> "spec_extractor.py"
     "tests/python/test_html_product_parser.py" --> "html_product_parser.py"
-    "tests/python/test_inventory_api.py" --> "categorize.py"
-    "tests/python/test_inventory_api.py" --> "distributor_manager.py"
-    "tests/python/test_inventory_api.py" --> "domain/pricing.py"
-    "tests/python/test_inventory_api.py" --> "inventory_api.py"
-    "tests/python/test_inventory_api.py" --> "tests/python/helpers.py"
+    "tests/python/test_inventory_api_adjustments.py" --> "inventory_api.py"
+    "tests/python/test_inventory_api_adjustments.py" --> "tests/python/helpers.py"
+    "tests/python/test_inventory_api_categorize.py" --> "categorize.py"
+    "tests/python/test_inventory_api_loading.py" --> "inventory_api.py"
+    "tests/python/test_inventory_api_loading.py" --> "tests/python/helpers.py"
+    "tests/python/test_inventory_api_pricing.py" --> "distributor_manager.py"
+    "tests/python/test_inventory_api_pricing.py" --> "domain/pricing.py"
+    "tests/python/test_inventory_api_pricing.py" --> "tests/python/helpers.py"
     "tests/python/test_inventory_ops.py" --> "inventory_ops.py"
     "tests/python/test_mfg_direct_import.py" --> "mfg_direct_import.py"
     "tests/python/test_mfg_direct_import.py" --> "vendors.py"
@@ -346,17 +362,17 @@ graph LR
 ### cache_db.py
 
 - **Imports:** `domain/pricing.py`, `inventory_ops.py`
-- **Imported by:** `inventory_api.py`, `tests/python/conftest.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_saved_searches.py`
+- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `tests/python/conftest.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_saved_searches.py`
 
 ### categorize.py
 
 - **Imports:** —
-- **Imported by:** `inventory_ops.py`, `spec_extractor.py`, `tests/python/test_inventory_api.py`
+- **Imported by:** `inventory_ops.py`, `spec_extractor.py`, `tests/python/test_inventory_api_categorize.py`
 
 ### csv_io.py
 
 - **Imports:** —
-- **Imported by:** `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `tests/python/test_csv_io.py`
+- **Imported by:** `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `tests/python/test_csv_io.py`
 
 ### digikey_cdp.py
 
@@ -366,7 +382,7 @@ graph LR
 ### digikey_client.py
 
 - **Imports:** `base_client.py`, `digikey_cdp.py`, `digikey_normalizer.py`, `digikey_scrape_js.py`, `digikey_session.py`, `dubis_errors.py`
-- **Imported by:** `distributor_manager.py`, `tests/python/test_clients.py`, `tests/python/test_distributor_api.py`, `tests/python/test_normalizers.py`
+- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_distributor_api.py`, `tests/python/test_normalizers.py`
 
 ### digikey_normalizer.py
 
@@ -386,17 +402,22 @@ graph LR
 ### distributor_manager.py
 
 - **Imports:** `base_client.py`, `digikey_client.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`
-- **Imported by:** `inventory_api.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_manager.py`, `tests/python/test_inventory_api.py`
+- **Imported by:** `inventory_api.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_manager.py`, `tests/python/test_inventory_api_pricing.py`
 
 ### domain/__init__.py
 
 - **Imports:** —
 - **Imported by:** —
 
+### domain/inventory.py
+
+- **Imports:** `cache_db.py`, `csv_io.py`, `domain/pricing.py`, `generic_parts.py`, `inventory_ops.py`, `saved_searches.py`
+- **Imported by:** `inventory_api.py`
+
 ### domain/pricing.py
 
 - **Imports:** —
-- **Imported by:** `cache_db.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_inventory_api.py`
+- **Imported by:** `cache_db.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_inventory_api_pricing.py`
 
 ### dubis_errors.py
 
@@ -411,7 +432,7 @@ graph LR
 ### generic_parts.py
 
 - **Imports:** `spec_extractor.py`
-- **Imported by:** `inventory_api.py`, `tests/python/test_generic_parts.py`, `tests/python/test_generic_parts_api.py`
+- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `tests/python/test_generic_parts.py`, `tests/python/test_generic_parts_api.py`
 
 ### html_product_parser.py
 
@@ -420,13 +441,13 @@ graph LR
 
 ### inventory_api.py
 
-- **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/pricing.py`, `file_dialogs.py`, `generic_parts.py`, `inventory_ops.py`, `mfg_direct_import.py`, `poll_api.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
-- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients.py`, `tests/python/test_inventory_api.py`, `tests/python/test_real_data.py`
+- **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/inventory.py`, `domain/pricing.py`, `file_dialogs.py`, `generic_parts.py`, `inventory_ops.py`, `mfg_direct_import.py`, `poll_api.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
+- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_real_data.py`
 
 ### inventory_ops.py
 
 - **Imports:** `categorize.py`, `csv_io.py`, `domain/pricing.py`, `vendors.py`
-- **Imported by:** `cache_db.py`, `inventory_api.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_ops.py`
+- **Imported by:** `cache_db.py`, `domain/inventory.py`, `inventory_api.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_ops.py`
 
 ### js/api.js
 
@@ -466,7 +487,7 @@ graph LR
 
 ### js/bom/bom-renderer.js
 
-- **Imports:** `js/part-keys.js`, `js/ui-helpers.js`
+- **Imports:** `js/layout-tokens.js`, `js/part-keys.js`, `js/ui-helpers.js`
 - **Imported by:** `js/bom/bom-panel.js`, `tests/js/bom-renderer.test.js`
 
 ### js/bom/bom-state.js
@@ -513,7 +534,7 @@ graph LR
 
 ### js/group-flyout/flyout-panel.js
 
-- **Imports:** `js/api.js`, `js/event-bus.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-logic.js`, `js/group-flyout/flyout-renderer.js`, `js/group-flyout/flyout-state.js`, `js/store.js`
+- **Imports:** `js/api.js`, `js/event-bus.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-logic.js`, `js/group-flyout/flyout-renderer.js`, `js/group-flyout/flyout-state.js`, `js/layout-tokens.js`, `js/store.js`
 - **Imported by:** `js/app-init.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`
 - **Emits:** `FLYOUT_ACTIVE_CHANGED`, `FLYOUT_CLOSED`, `FLYOUT_OPENED`
 - **Listens:** —
@@ -640,7 +661,7 @@ graph LR
 ### js/layout-tokens.js
 
 - **Imports:** —
-- **Imported by:** —
+- **Imported by:** `js/bom/bom-renderer.js`, `js/group-flyout/flyout-panel.js`
 
 ### js/matching.js
 
@@ -694,7 +715,7 @@ graph LR
 ### lcsc_client.py
 
 - **Imports:** `base_client.py`
-- **Imported by:** `distributor_manager.py`, `tests/python/test_clients.py`, `tests/python/test_distributor_api.py`
+- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_lcsc.py`, `tests/python/test_distributor_api.py`
 
 ### mfg_direct_import.py
 
@@ -704,7 +725,7 @@ graph LR
 ### mouser_client.py
 
 - **Imports:** `base_client.py`, `html_product_parser.py`
-- **Imported by:** `distributor_manager.py`, `tests/python/test_clients.py`, `tests/python/test_distributor_api.py`
+- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_api.py`
 
 ### pnp_server.py
 
@@ -719,7 +740,7 @@ graph LR
 ### pololu_client.py
 
 - **Imports:** `base_client.py`, `html_product_parser.py`
-- **Imported by:** `distributor_manager.py`, `tests/python/test_clients.py`, `tests/python/test_distributor_api.py`
+- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_pololu.py`, `tests/python/test_distributor_api.py`
 
 ### purchase_orders.py
 
@@ -729,7 +750,7 @@ graph LR
 ### saved_searches.py
 
 - **Imports:** —
-- **Imported by:** `inventory_api.py`, `tests/python/test_saved_searches.py`
+- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `tests/python/test_saved_searches.py`
 
 ### scripts/__init__.py
 
@@ -737,6 +758,11 @@ graph LR
 - **Imported by:** —
 
 ### scripts/capture-distributor-fixtures.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### scripts/check-manifests.py
 
 - **Imports:** —
 - **Imported by:** —
@@ -961,7 +987,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `inventory_api.py`
-- **Imported by:** `tests/python/test_inventory_api.py`, `tests/python/test_pnp_server.py`, `tests/python/test_poll_api.py`
+- **Imported by:** `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`, `tests/python/test_poll_api.py`
 
 ### tests/python/test_base_client.py
 
@@ -971,6 +997,11 @@ graph LR
 ### tests/python/test_cache_db.py
 
 - **Imports:** `cache_db.py`, `inventory_api.py`, `inventory_ops.py`
+- **Imported by:** —
+
+### tests/python/test_check_manifests.py
+
+- **Imports:** —
 - **Imported by:** —
 
 ### tests/python/test_ci_watcher_audit.py
@@ -998,9 +1029,29 @@ graph LR
 - **Imports:** `scripts/ci_watcher/worker.py`
 - **Imported by:** —
 
-### tests/python/test_clients.py
+### tests/python/test_clients_base.py
 
 - **Imports:** `digikey_client.py`, `inventory_api.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`
+- **Imported by:** —
+
+### tests/python/test_clients_digikey.py
+
+- **Imports:** `digikey_client.py`
+- **Imported by:** —
+
+### tests/python/test_clients_lcsc.py
+
+- **Imports:** `lcsc_client.py`
+- **Imported by:** —
+
+### tests/python/test_clients_mouser.py
+
+- **Imports:** `mouser_client.py`
+- **Imported by:** —
+
+### tests/python/test_clients_pololu.py
+
+- **Imports:** `pololu_client.py`
 - **Imported by:** —
 
 ### tests/python/test_csv_io.py
@@ -1058,9 +1109,34 @@ graph LR
 - **Imports:** `html_product_parser.py`
 - **Imported by:** —
 
-### tests/python/test_inventory_api.py
+### tests/python/test_inventory_api_adjustments.py
 
-- **Imports:** `categorize.py`, `distributor_manager.py`, `domain/pricing.py`, `inventory_api.py`, `tests/python/helpers.py`
+- **Imports:** `inventory_api.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
+### tests/python/test_inventory_api_categorize.py
+
+- **Imports:** `categorize.py`
+- **Imported by:** —
+
+### tests/python/test_inventory_api_generic_parts.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### tests/python/test_inventory_api_loading.py
+
+- **Imports:** `inventory_api.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
+### tests/python/test_inventory_api_misc.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### tests/python/test_inventory_api_pricing.py
+
+- **Imports:** `distributor_manager.py`, `domain/pricing.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/test_inventory_ops.py
