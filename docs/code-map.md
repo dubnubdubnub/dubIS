@@ -83,6 +83,7 @@ graph LR
     "js/bom/bom-panel.js" --> "js/store.js"
     "js/bom/bom-panel.js" --> "js/ui-helpers.js"
     "js/bom/bom-panel.js" --> "js/undo-redo.js"
+    "js/bom/bom-renderer.js" --> "js/layout-tokens.js"
     "js/bom/bom-renderer.js" --> "js/part-keys.js"
     "js/bom/bom-renderer.js" --> "js/ui-helpers.js"
     "js/group-flyout/flyout-drag.js" --> "js/api.js"
@@ -98,6 +99,7 @@ graph LR
     "js/group-flyout/flyout-panel.js" --> "js/group-flyout/flyout-logic.js"
     "js/group-flyout/flyout-panel.js" --> "js/group-flyout/flyout-renderer.js"
     "js/group-flyout/flyout-panel.js" --> "js/group-flyout/flyout-state.js"
+    "js/group-flyout/flyout-panel.js" --> "js/layout-tokens.js"
     "js/group-flyout/flyout-panel.js" --> "js/store.js"
     "js/group-flyout/flyout-renderer.js" --> "js/group-flyout/flyout-logic.js"
     "js/group-flyout/flyout-renderer.js" --> "js/ui-helpers.js"
@@ -463,7 +465,7 @@ graph LR
 
 ### js/bom/bom-renderer.js
 
-- **Imports:** `js/part-keys.js`, `js/ui-helpers.js`
+- **Imports:** `js/layout-tokens.js`, `js/part-keys.js`, `js/ui-helpers.js`
 - **Imported by:** `js/bom/bom-panel.js`, `tests/js/bom-renderer.test.js`
 
 ### js/bom/bom-state.js
@@ -510,7 +512,7 @@ graph LR
 
 ### js/group-flyout/flyout-panel.js
 
-- **Imports:** `js/api.js`, `js/event-bus.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-logic.js`, `js/group-flyout/flyout-renderer.js`, `js/group-flyout/flyout-state.js`, `js/store.js`
+- **Imports:** `js/api.js`, `js/event-bus.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-logic.js`, `js/group-flyout/flyout-renderer.js`, `js/group-flyout/flyout-state.js`, `js/layout-tokens.js`, `js/store.js`
 - **Imported by:** `js/app-init.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`
 - **Emits:** `FLYOUT_ACTIVE_CHANGED`, `FLYOUT_CLOSED`, `FLYOUT_OPENED`
 - **Listens:** —
@@ -637,7 +639,7 @@ graph LR
 ### js/layout-tokens.js
 
 - **Imports:** —
-- **Imported by:** —
+- **Imported by:** `js/bom/bom-renderer.js`, `js/group-flyout/flyout-panel.js`
 
 ### js/matching.js
 
@@ -729,6 +731,11 @@ graph LR
 - **Imported by:** —
 
 ### scripts/capture-distributor-fixtures.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### scripts/check-manifests.py
 
 - **Imports:** —
 - **Imported by:** —
@@ -963,6 +970,11 @@ graph LR
 ### tests/python/test_cache_db.py
 
 - **Imports:** `cache_db.py`, `inventory_api.py`, `inventory_ops.py`
+- **Imported by:** —
+
+### tests/python/test_check_manifests.py
+
+- **Imports:** —
 - **Imported by:** —
 
 ### tests/python/test_ci_watcher_audit.py
