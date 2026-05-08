@@ -13,9 +13,14 @@ graph LR
     "digikey_client.py" --> "base_client.py"
     "digikey_client.py" --> "digikey_cdp.py"
     "digikey_client.py" --> "digikey_normalizer.py"
-    "digikey_client.py" --> "digikey_scrape_js.py"
+    "digikey_client.py" --> "digikey_product.py"
+    "digikey_client.py" --> "digikey_search.py"
     "digikey_client.py" --> "digikey_session.py"
-    "digikey_client.py" --> "dubis_errors.py"
+    "digikey_search.py" --> "digikey_cdp.py"
+    "digikey_search.py" --> "digikey_normalizer.py"
+    "digikey_search.py" --> "digikey_scrape_js.py"
+    "digikey_search.py" --> "digikey_session.py"
+    "digikey_search.py" --> "dubis_errors.py"
     "digikey_session.py" --> "digikey_cdp.py"
     "distributor_manager.py" --> "base_client.py"
     "distributor_manager.py" --> "digikey_client.py"
@@ -370,27 +375,37 @@ graph LR
 ### digikey_cdp.py
 
 - **Imports:** —
-- **Imported by:** `digikey_client.py`, `digikey_session.py`, `tests/python/test_digikey_cdp.py`
+- **Imported by:** `digikey_client.py`, `digikey_search.py`, `digikey_session.py`, `tests/python/test_digikey_cdp.py`
 
 ### digikey_client.py
 
-- **Imports:** `base_client.py`, `digikey_cdp.py`, `digikey_normalizer.py`, `digikey_scrape_js.py`, `digikey_session.py`, `dubis_errors.py`
+- **Imports:** `base_client.py`, `digikey_cdp.py`, `digikey_normalizer.py`, `digikey_product.py`, `digikey_search.py`, `digikey_session.py`
 - **Imported by:** `distributor_manager.py`, `tests/python/test_clients.py`, `tests/python/test_distributor_api.py`, `tests/python/test_normalizers.py`
 
 ### digikey_normalizer.py
 
 - **Imports:** —
-- **Imported by:** `digikey_client.py`, `tests/python/test_digikey_normalizer.py`
+- **Imported by:** `digikey_client.py`, `digikey_search.py`, `tests/python/test_digikey_normalizer.py`
+
+### digikey_product.py
+
+- **Imports:** —
+- **Imported by:** `digikey_client.py`
 
 ### digikey_scrape_js.py
 
 - **Imports:** —
+- **Imported by:** `digikey_search.py`
+
+### digikey_search.py
+
+- **Imports:** `digikey_cdp.py`, `digikey_normalizer.py`, `digikey_scrape_js.py`, `digikey_session.py`, `dubis_errors.py`
 - **Imported by:** `digikey_client.py`
 
 ### digikey_session.py
 
 - **Imports:** `digikey_cdp.py`
-- **Imported by:** `digikey_client.py`
+- **Imported by:** `digikey_client.py`, `digikey_search.py`
 
 ### distributor_manager.py
 
@@ -415,7 +430,7 @@ graph LR
 ### dubis_errors.py
 
 - **Imports:** —
-- **Imported by:** `base_client.py`, `digikey_client.py`, `tests/python/test_base_client.py`, `tests/python/test_dubis_errors.py`
+- **Imported by:** `base_client.py`, `digikey_search.py`, `tests/python/test_base_client.py`, `tests/python/test_dubis_errors.py`
 
 ### file_dialogs.py
 
