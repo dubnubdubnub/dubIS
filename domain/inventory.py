@@ -348,8 +348,7 @@ def import_purchases(
         raise ValueError("No rows to import")
 
     normalized = [{fn: row.get(fn, "") for fn in fieldnames} for row in rows]
-    from csv_io import append_csv_rows as _append  # noqa: PLC0415
-    _append(input_csv, list(fieldnames), normalized)
+    append_csv_rows(input_csv, list(fieldnames), normalized)
     record_import_prices(rows, events_dir, distributors)
     result, _ = rebuild(
         base_dir=base_dir,

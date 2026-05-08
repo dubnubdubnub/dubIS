@@ -133,15 +133,6 @@ class InventoryApi:
         )
         return result
 
-    def _append_adjustment(self, adj_type: str, part_key: str, quantity: int,
-                           note: str = "", bom_file: str = "",
-                           board_qty: int | str = "", source: str = "") -> None:
-        domain.inventory.append_adjustment(
-            self.adjustments_csv, self.ADJ_FIELDNAMES,
-            adj_type, part_key, quantity,
-            note=note, bom_file=bom_file, board_qty=board_qty, source=source,
-        )
-
     def _record_import_prices(self, rows: list[dict[str, str]]) -> None:
         """Extract and record price observations from imported purchase rows."""
         domain.inventory.record_import_prices(rows, self.events_dir, self._distributors)
