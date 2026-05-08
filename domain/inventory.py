@@ -74,9 +74,9 @@ def rebuild(
                               adjustment_lines=adj_lines)
     if os.path.exists(events_dir):
         domain.pricing.populate_prices_cache(conn, events_dir)
-    import generic_parts  # noqa: PLC0415
+    from domain import generic_parts as _gp  # noqa: PLC0415
     os.makedirs(events_dir, exist_ok=True)
-    generic_parts.auto_generate_passive_groups(conn, events_dir)
+    _gp.auto_generate_passive_groups(conn, events_dir)
     import saved_searches  # noqa: PLC0415
     saved_searches.load_into_db(conn, base_dir)
     return cache_db.query_inventory(conn), migration_summary
