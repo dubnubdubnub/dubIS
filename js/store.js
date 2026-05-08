@@ -3,6 +3,7 @@
    `window.store` is exposed in app-init.js for E2E tests and Python evaluate_js. */
 
 import { EventBus, Events } from './event-bus.js';
+import { signal } from './signals.js';
 import { SECTION_ORDER } from './constants.js';
 import { api, AppLog } from './api.js';
 
@@ -18,6 +19,15 @@ let preferences = {
   thresholds: {},
   inventory_view: { group_level: 0, sort_column: null, sort_scope: null, vendor_group_scope: null },
 };
+
+// ── Signals ───────────────────────────────────────────────
+
+/**
+ * Signal wrapping `preferences`. Listeners call `.get()` inside an effect;
+ * writers call `.set(preferences)` after mutating the object.
+ * Replaces the EventBus.emit(Events.PREFS_CHANGED) pattern for PREFS_CHANGED.
+ */
+export const preferencesSignal = signal(preferences);
 let manualLinks = [];
 let confirmedMatches = [];
 let genericParts = [];
@@ -245,7 +255,7 @@ export function getThreshold(section) {
 export function setThreshold(section, value) {
   preferences.thresholds[section] = value;
   savePreferences();
-  EventBus.emit(Events.PREFS_CHANGED);
+  preferencesSignal.set(preferences);
 }
 
 export function saveInventoryView(view) {
