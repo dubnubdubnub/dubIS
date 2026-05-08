@@ -545,6 +545,44 @@ class InventoryApi:
     def clear_mouser_api_key(self) -> dict[str, bool]:
         return self._distributors.clear_mouser_api_key()
 
+    # ── Poll API ───────────────────────────────────────────────────────────
+
+    def get_poll_api_info(self) -> dict[str, Any]:
+        """Return the local poll API URL and active port."""
+        import poll_api
+        server = getattr(self, "_poll_server", None)
+        prefs = self.load_preferences()
+        info: dict[str, Any] = {
+            "default_port": poll_api.POLL_PORT,
+            "configured_port": prefs.get("pollApiPort"),
+            "running": server is not None,
+        }
+        if server is not None:
+            host, port = server.server_address
+            info["host"] = host
+            info["port"] = port
+            info["url"] = f"http://{host}:{port}"
+        else:
+            info["host"] = ""
+            info["port"] = None
+            info["url"] = ""
+        return info
+
+    def set_poll_api_port(self, port: int | str) -> dict[str, Any]:
+        """Restart the poll API server on a new port and persist to preferences."""
+        import poll_api
+        try:
+            port_int = int(port)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"port must be an integer, got {port!r}") from exc
+        if port_int < 1024 or port_int > 65535:
+            raise ValueError(f"port out of range (1024-65535): {port_int}")
+        poll_api.restart_poll_server(self, port_int)
+        prefs = self.load_preferences()
+        prefs["pollApiPort"] = port_int
+        self.save_preferences(prefs)
+        return self.get_poll_api_info()
+
     # ── Generic parts ──────────────────────────────────────────────────────
 
     def create_generic_part(self, name: str, part_type: str,

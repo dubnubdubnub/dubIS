@@ -33,6 +33,7 @@ graph LR
     "inventory_api.py" --> "generic_parts.py"
     "inventory_api.py" --> "inventory_ops.py"
     "inventory_api.py" --> "mfg_direct_import.py"
+    "inventory_api.py" --> "poll_api.py"
     "inventory_api.py" --> "purchase_orders.py"
     "inventory_api.py" --> "saved_searches.py"
     "inventory_api.py" --> "spec_extractor.py"
@@ -303,6 +304,8 @@ graph LR
     "tests/python/test_normalizers.py" --> "digikey_client.py"
     "tests/python/test_pnp_server.py" --> "pnp_server.py"
     "tests/python/test_pnp_server.py" --> "tests/python/helpers.py"
+    "tests/python/test_poll_api.py" --> "poll_api.py"
+    "tests/python/test_poll_api.py" --> "tests/python/helpers.py"
     "tests/python/test_purchase_orders.py" --> "purchase_orders.py"
     "tests/python/test_real_data.py" --> "inventory_api.py"
     "tests/python/test_saved_searches.py" --> "cache_db.py"
@@ -417,7 +420,7 @@ graph LR
 
 ### inventory_api.py
 
-- **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/pricing.py`, `file_dialogs.py`, `generic_parts.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
+- **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/pricing.py`, `file_dialogs.py`, `generic_parts.py`, `inventory_ops.py`, `mfg_direct_import.py`, `poll_api.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
 - **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients.py`, `tests/python/test_inventory_api.py`, `tests/python/test_real_data.py`
 
 ### inventory_ops.py
@@ -708,6 +711,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** `tests/pnp-e2e/dubis_headless.py`, `tests/python/test_pnp_server.py`
 
+### poll_api.py
+
+- **Imports:** —
+- **Imported by:** `inventory_api.py`, `tests/python/test_poll_api.py`
+
 ### pololu_client.py
 
 - **Imports:** `base_client.py`, `html_product_parser.py`
@@ -953,7 +961,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `inventory_api.py`
-- **Imported by:** `tests/python/test_inventory_api.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/test_inventory_api.py`, `tests/python/test_pnp_server.py`, `tests/python/test_poll_api.py`
 
 ### tests/python/test_base_client.py
 
@@ -1073,6 +1081,11 @@ graph LR
 ### tests/python/test_pnp_server.py
 
 - **Imports:** `pnp_server.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
+### tests/python/test_poll_api.py
+
+- **Imports:** `poll_api.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/test_purchase_orders.py
