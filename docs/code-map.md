@@ -217,6 +217,8 @@ graph LR
     "pololu_client.py" --> "base_client.py"
     "pololu_client.py" --> "html_product_parser.py"
     "purchase_orders.py" --> "source_sanitizer.py"
+    "scripts/ci_watcher/listener.py" --> "scripts/ci_watcher/state.py"
+    "scripts/ci_watcher/worker.py" --> "scripts/ci_watcher/triage_payload.py"
     "scripts/generate-test-fixtures.py" --> "inventory_api.py"
     "scripts/generate-test-fixtures.py" --> "inventory_ops.py"
     "spec_extractor.py" --> "categorize.py"
@@ -264,6 +266,12 @@ graph LR
     "tests/python/test_cache_db.py" --> "cache_db.py"
     "tests/python/test_cache_db.py" --> "inventory_api.py"
     "tests/python/test_cache_db.py" --> "inventory_ops.py"
+    "tests/python/test_ci_watcher_audit.py" --> "scripts/ci_watcher/audit.py"
+    "tests/python/test_ci_watcher_listener.py" --> "scripts/ci_watcher/listener.py"
+    "tests/python/test_ci_watcher_listener.py" --> "scripts/ci_watcher/state.py"
+    "tests/python/test_ci_watcher_payload.py" --> "scripts/ci_watcher/triage_payload.py"
+    "tests/python/test_ci_watcher_state.py" --> "scripts/ci_watcher/state.py"
+    "tests/python/test_ci_watcher_worker.py" --> "scripts/ci_watcher/worker.py"
     "tests/python/test_clients.py" --> "digikey_client.py"
     "tests/python/test_clients.py" --> "inventory_api.py"
     "tests/python/test_clients.py" --> "lcsc_client.py"
@@ -715,10 +723,45 @@ graph LR
 - **Imports:** —
 - **Imported by:** `inventory_api.py`, `tests/python/test_saved_searches.py`
 
+### scripts/__init__.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### scripts/capture-distributor-fixtures.py
 
 - **Imports:** —
 - **Imported by:** —
+
+### scripts/ci_watcher/__init__.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### scripts/ci_watcher/audit.py
+
+- **Imports:** —
+- **Imported by:** `tests/python/test_ci_watcher_audit.py`
+
+### scripts/ci_watcher/listener.py
+
+- **Imports:** `scripts/ci_watcher/state.py`
+- **Imported by:** `tests/python/test_ci_watcher_listener.py`
+
+### scripts/ci_watcher/state.py
+
+- **Imports:** —
+- **Imported by:** `scripts/ci_watcher/listener.py`, `tests/python/test_ci_watcher_listener.py`, `tests/python/test_ci_watcher_state.py`
+
+### scripts/ci_watcher/triage_payload.py
+
+- **Imports:** —
+- **Imported by:** `scripts/ci_watcher/worker.py`, `tests/python/test_ci_watcher_payload.py`
+
+### scripts/ci_watcher/worker.py
+
+- **Imports:** `scripts/ci_watcher/triage_payload.py`
+- **Imported by:** `tests/python/test_ci_watcher_worker.py`
 
 ### scripts/gen-code-map.py
 
@@ -920,6 +963,31 @@ graph LR
 ### tests/python/test_cache_db.py
 
 - **Imports:** `cache_db.py`, `inventory_api.py`, `inventory_ops.py`
+- **Imported by:** —
+
+### tests/python/test_ci_watcher_audit.py
+
+- **Imports:** `scripts/ci_watcher/audit.py`
+- **Imported by:** —
+
+### tests/python/test_ci_watcher_listener.py
+
+- **Imports:** `scripts/ci_watcher/listener.py`, `scripts/ci_watcher/state.py`
+- **Imported by:** —
+
+### tests/python/test_ci_watcher_payload.py
+
+- **Imports:** `scripts/ci_watcher/triage_payload.py`
+- **Imported by:** —
+
+### tests/python/test_ci_watcher_state.py
+
+- **Imports:** `scripts/ci_watcher/state.py`
+- **Imported by:** —
+
+### tests/python/test_ci_watcher_worker.py
+
+- **Imports:** `scripts/ci_watcher/worker.py`
 - **Imported by:** —
 
 ### tests/python/test_clients.py
