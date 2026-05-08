@@ -56,7 +56,7 @@ tbody tr:hover:not(.part-preview-info tr, .part-preview-prices tr) { background:
 }
 
 /* ── Status Column ─────────────────────────────────────── */
-.status { font-weight: 700; text-align: center; width: 24px; font-size: 14px; }
+.status { font-weight: 700; text-align: center; width: var(--bom-status-col-w); font-size: 14px; }
 
 /* ── Designators Column ───────────────────────────────── */
 .refs-col { width: 140px; }
