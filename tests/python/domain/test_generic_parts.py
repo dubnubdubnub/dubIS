@@ -1,17 +1,40 @@
-"""Tests for generic_parts module."""
+"""Tests for domain.generic_parts — CRUD, auto-matching, BOM resolution, API helpers."""
 
 import csv
+import json
 import os
 
-import generic_parts
+import pytest
+
+import domain.generic_parts
+from domain.generic_parts import (
+    _auto_match,
+    _parse_json,
+    add_member,
+    add_member_api,
+    auto_generate_passive_groups,
+    create_generic_part,
+    create_generic_part_api,
+    exclude_member,
+    extract_spec_for_part,
+    fetch_members,
+    list_generic_parts_with_member_specs,
+    preview_members,
+    remove_member,
+    remove_member_api,
+    resolve_bom_spec,
+    set_preferred,
+    set_preferred_api,
+    update_generic_part_api,
+)
 
 
 def _seed_parts(db):
     """Insert test parts into cache."""
     parts = [
         ("C1525", "C1525", "CL05B104KO5NNNC", "Samsung", "100nF 16V 0402 Capacitor MLCC", "0402"),
-        ("C2875244", "C2875244", "RC0402FR-074K7L", "YAGEO", "4.7k\u03a9 0402 Resistor", "0402"),
-        ("C19702", "C19702", "GRM21BR61C106KE15L", "Murata", "10\u00b5F 16V 0805 Capacitor MLCC", "0805"),
+        ("C2875244", "C2875244", "RC0402FR-074K7L", "YAGEO", "4.7kΩ 0402 Resistor", "0402"),
+        ("C19702", "C19702", "GRM21BR61C106KE15L", "Murata", "10µF 16V 0805 Capacitor MLCC", "0805"),
         ("C9999", "C9999", "CL05B104KA5NNNC", "Samsung", "100nF 25V 0402 Capacitor MLCC", "0402"),
     ]
     for pid, lcsc, mpn, mfr, desc, pkg in parts:
@@ -26,10 +49,13 @@ def _seed_parts(db):
     db.commit()
 
 
+# ── Core CRUD tests (from test_generic_parts.py) ────────────────────────────
+
+
 class TestCreateGenericPart:
     def test_create_basic(self, db, events_dir):
         _seed_parts(db)
-        gp = generic_parts.create_generic_part(
+        gp = create_generic_part(
             db, events_dir,
             name="100nF 0402 MLCC",
             part_type="capacitor",
@@ -43,7 +69,7 @@ class TestCreateGenericPart:
 
     def test_auto_matches_members(self, db, events_dir):
         _seed_parts(db)
-        gp = generic_parts.create_generic_part(
+        gp = create_generic_part(
             db, events_dir,
             name="100nF 0402 MLCC",
             part_type="capacitor",
@@ -66,7 +92,7 @@ class TestCreateGenericPart:
 
     def test_records_event(self, db, events_dir):
         _seed_parts(db)
-        generic_parts.create_generic_part(
+        create_generic_part(
             db, events_dir,
             name="100nF 0402",
             part_type="capacitor",
@@ -84,7 +110,7 @@ class TestCreateGenericPart:
 class TestManualMembership:
     def test_add_manual_member(self, db, events_dir):
         _seed_parts(db)
-        gp = generic_parts.create_generic_part(
+        gp = create_generic_part(
             db, events_dir,
             name="100nF 0402",
             part_type="capacitor",
@@ -92,7 +118,7 @@ class TestManualMembership:
             strictness={"required": ["value", "package"]},
         )
         # Add a resistor manually (override auto-matching)
-        generic_parts.add_member(db, events_dir, gp["generic_part_id"], "C2875244", source="manual")
+        add_member(db, events_dir, gp["generic_part_id"], "C2875244", source="manual")
         members = db.execute(
             "SELECT part_id, source FROM generic_part_members WHERE generic_part_id=?",
             (gp["generic_part_id"],),
@@ -102,14 +128,14 @@ class TestManualMembership:
 
     def test_set_preferred(self, db, events_dir):
         _seed_parts(db)
-        gp = generic_parts.create_generic_part(
+        gp = create_generic_part(
             db, events_dir,
             name="100nF 0402",
             part_type="capacitor",
             spec={"value": "100nF", "package": "0402"},
             strictness={"required": ["value", "package"]},
         )
-        generic_parts.set_preferred(db, events_dir, gp["generic_part_id"], "C1525")
+        set_preferred(db, events_dir, gp["generic_part_id"], "C1525")
         row = db.execute(
             "SELECT preferred FROM generic_part_members WHERE generic_part_id=? AND part_id='C1525'",
             (gp["generic_part_id"],),
@@ -118,14 +144,14 @@ class TestManualMembership:
 
     def test_remove_member(self, db, events_dir):
         _seed_parts(db)
-        gp = generic_parts.create_generic_part(
+        gp = create_generic_part(
             db, events_dir,
             name="100nF 0402",
             part_type="capacitor",
             spec={"value": "100nF", "package": "0402"},
             strictness={"required": ["value", "package"]},
         )
-        generic_parts.remove_member(db, events_dir, gp["generic_part_id"], "C1525")
+        remove_member(db, events_dir, gp["generic_part_id"], "C1525")
         row = db.execute(
             "SELECT 1 FROM generic_part_members WHERE generic_part_id=? AND part_id='C1525'",
             (gp["generic_part_id"],),
@@ -138,7 +164,7 @@ class TestExclusionRecords:
 
     def test_exclude_member_persists_through_auto_match(self, db, events_dir):
         _seed_parts(db)
-        gp = generic_parts.create_generic_part(
+        gp = create_generic_part(
             db, events_dir, "100nF 0402 Cap", "capacitor",
             {"value": "100nF", "package": "0402"},
             {"required": ["value", "package"]},
@@ -152,11 +178,11 @@ class TestExclusionRecords:
         assert "C1525" in member_ids_before  # auto-matched 100nF 0402
 
         # Exclude a member (simulates drag-out)
-        generic_parts.exclude_member(db, events_dir, gp_id, "C1525")
+        exclude_member(db, events_dir, gp_id, "C1525")
 
         # Re-run auto_match (simulates inventory rebuild)
         spec = {"value": "100nF", "package": "0402"}
-        generic_parts._auto_match(db, gp_id, "capacitor", spec, {"required": ["value", "package"]})
+        _auto_match(db, gp_id, "capacitor", spec, {"required": ["value", "package"]})
 
         # Excluded member should NOT reappear as auto — row stays with source='excluded'
         rows = db.execute(
@@ -168,12 +194,12 @@ class TestExclusionRecords:
 
     def test_exclude_records_event(self, db, events_dir):
         _seed_parts(db)
-        gp = generic_parts.create_generic_part(
+        gp = create_generic_part(
             db, events_dir, "100nF 0402 Cap", "capacitor",
             {"value": "100nF", "package": "0402"},
             {"required": ["value", "package"]},
         )
-        generic_parts.exclude_member(db, events_dir, gp["generic_part_id"], "C1525")
+        exclude_member(db, events_dir, gp["generic_part_id"], "C1525")
         with open(os.path.join(events_dir, "part_events.csv")) as f:
             rows = list(csv.DictReader(f))
         exclude_events = [r for r in rows if r["event_type"] == "exclude_member"]
@@ -187,14 +213,14 @@ class TestResolveBomRow:
         # Give C1525 more stock to make it the "best"
         db.execute("UPDATE stock SET quantity=500 WHERE part_id='C1525'")
         db.commit()
-        gp = generic_parts.create_generic_part(
+        gp = create_generic_part(
             db, events_dir,
             name="100nF 0402",
             part_type="capacitor",
             spec={"value": "100nF", "package": "0402"},
             strictness={"required": ["value", "package"]},
         )
-        result = generic_parts.resolve_bom_spec(
+        result = resolve_bom_spec(
             db, part_type="capacitor", value=1e-7, package="0402",
         )
         assert result is not None
@@ -205,7 +231,7 @@ class TestResolveBomRow:
         _seed_parts(db)
         db.execute("UPDATE stock SET quantity=500 WHERE part_id='C1525'")
         db.commit()
-        gp = generic_parts.create_generic_part(
+        gp = create_generic_part(
             db, events_dir,
             name="100nF 0402",
             part_type="capacitor",
@@ -213,13 +239,13 @@ class TestResolveBomRow:
             strictness={"required": ["value", "package"]},
         )
         # Mark C9999 as preferred (even though it has less stock)
-        generic_parts.set_preferred(db, events_dir, gp["generic_part_id"], "C9999")
-        result = generic_parts.resolve_bom_spec(db, part_type="capacitor", value=1e-7, package="0402")
+        set_preferred(db, events_dir, gp["generic_part_id"], "C9999")
+        result = resolve_bom_spec(db, part_type="capacitor", value=1e-7, package="0402")
         assert result["best_part_id"] == "C9999"
 
     def test_no_match_returns_none(self, db, events_dir):
         _seed_parts(db)
-        result = generic_parts.resolve_bom_spec(
+        result = resolve_bom_spec(
             db, part_type="capacitor", value=4.7e-6, package="1206",
         )
         assert result is None
@@ -228,7 +254,7 @@ class TestResolveBomRow:
 class TestAutoGeneratePassiveGroups:
     def test_generates_groups_for_capacitors(self, db, events_dir):
         _seed_parts(db)
-        groups = generic_parts.auto_generate_passive_groups(db, events_dir)
+        groups = auto_generate_passive_groups(db, events_dir)
         # Should create groups for 100nF 0402 (C1525 + C9999) and 10µF 0805 (C19702)
         assert len(groups) >= 2
         names = {g["name"] for g in groups}
@@ -237,13 +263,13 @@ class TestAutoGeneratePassiveGroups:
 
     def test_auto_groups_have_source_auto(self, db, events_dir):
         _seed_parts(db)
-        generic_parts.auto_generate_passive_groups(db, events_dir)
+        auto_generate_passive_groups(db, events_dir)
         rows = db.execute("SELECT source FROM generic_parts").fetchall()
         assert all(r["source"] == "auto" for r in rows)
 
     def test_auto_groups_have_correct_members(self, db, events_dir):
         _seed_parts(db)
-        generic_parts.auto_generate_passive_groups(db, events_dir)
+        auto_generate_passive_groups(db, events_dir)
         # Find the 100nF 0402 group
         gp = db.execute(
             "SELECT generic_part_id FROM generic_parts WHERE name LIKE '%100nF%0402%'"
@@ -267,15 +293,15 @@ class TestAutoGeneratePassiveGroups:
             " VALUES ('manual_1', 'My Group', 'other', 'manual')"
         )
         db.commit()
-        generic_parts.auto_generate_passive_groups(db, events_dir)
+        auto_generate_passive_groups(db, events_dir)
         row = db.execute("SELECT source FROM generic_parts WHERE generic_part_id='manual_1'").fetchone()
         assert row["source"] == "manual"
 
     def test_idempotent(self, db, events_dir):
         _seed_parts(db)
-        generic_parts.auto_generate_passive_groups(db, events_dir)
+        auto_generate_passive_groups(db, events_dir)
         count1 = db.execute("SELECT COUNT(*) as c FROM generic_parts WHERE source='auto'").fetchone()["c"]
-        generic_parts.auto_generate_passive_groups(db, events_dir)
+        auto_generate_passive_groups(db, events_dir)
         count2 = db.execute("SELECT COUNT(*) as c FROM generic_parts WHERE source='auto'").fetchone()["c"]
         assert count1 == count2
 
@@ -283,16 +309,16 @@ class TestAutoGeneratePassiveGroups:
 class TestListGenericPartsWithSpecs:
     def test_list_includes_source(self, db, events_dir):
         _seed_parts(db)
-        generic_parts.auto_generate_passive_groups(db, events_dir)
-        gps = generic_parts.list_generic_parts_with_member_specs(db)
+        auto_generate_passive_groups(db, events_dir)
+        gps = list_generic_parts_with_member_specs(db)
         assert len(gps) >= 1
         assert all("source" in gp for gp in gps)
         assert all(gp["source"] == "auto" for gp in gps)
 
     def test_list_includes_member_specs(self, db, events_dir):
         _seed_parts(db)
-        generic_parts.auto_generate_passive_groups(db, events_dir)
-        gps = generic_parts.list_generic_parts_with_member_specs(db)
+        auto_generate_passive_groups(db, events_dir)
+        gps = list_generic_parts_with_member_specs(db)
         gp = next(g for g in gps if "100nF" in g["name"])
         assert len(gp["members"]) >= 2
         # Each member should have extracted spec fields
@@ -304,7 +330,7 @@ class TestListGenericPartsWithSpecs:
 class TestPreviewMembers:
     def test_preview_returns_matching_parts(self, db):
         _seed_parts(db)
-        results = generic_parts.preview_members(
+        results = preview_members(
             db,
             part_type="capacitor",
             spec={"value": "100nF", "package": "0402"},
@@ -316,7 +342,7 @@ class TestPreviewMembers:
 
     def test_preview_does_not_create_group(self, db):
         _seed_parts(db)
-        generic_parts.preview_members(
+        preview_members(
             db,
             part_type="capacitor",
             spec={"value": "100nF", "package": "0402"},
@@ -327,7 +353,7 @@ class TestPreviewMembers:
 
     def test_preview_includes_quantity(self, db):
         _seed_parts(db)
-        results = generic_parts.preview_members(
+        results = preview_members(
             db,
             part_type="capacitor",
             spec={"value": "100nF", "package": "0402"},
@@ -339,7 +365,7 @@ class TestPreviewMembers:
 
     def test_preview_excludes_non_matching_type(self, db):
         _seed_parts(db)
-        results = generic_parts.preview_members(
+        results = preview_members(
             db,
             part_type="capacitor",
             spec={"value": "100nF", "package": "0402"},
@@ -351,7 +377,7 @@ class TestPreviewMembers:
 
     def test_preview_includes_spec(self, db):
         _seed_parts(db)
-        results = generic_parts.preview_members(
+        results = preview_members(
             db,
             part_type="capacitor",
             spec={"value": "100nF", "package": "0402"},
@@ -359,3 +385,228 @@ class TestPreviewMembers:
         )
         for r in results:
             assert "spec" in r
+
+
+# ── API-level tests (from test_generic_parts_api.py) ────────────────────────
+
+
+class TestCreateGenericPartApi:
+    def test_creates_and_returns(self, db, events_dir):
+        _seed_parts(db)
+        result = create_generic_part_api(
+            db, events_dir,
+            name="100nF 0402 MLCC",
+            part_type="capacitor",
+            spec_json='{"value":"100nF","package":"0402"}',
+            strictness_json='{"required":["value","package"]}',
+        )
+        assert result["generic_part_id"].startswith("cap_")
+        assert result["name"] == "100nF 0402 MLCC"
+        assert len(result["members"]) == 2  # C1525 and C9999
+
+    def test_accepts_dict_args(self, db, events_dir):
+        _seed_parts(db)
+        result = create_generic_part_api(
+            db, events_dir,
+            name="100nF 0402 MLCC",
+            part_type="capacitor",
+            spec_json={"value": "100nF", "package": "0402"},
+            strictness_json={"required": ["value", "package"]},
+        )
+        assert result["generic_part_id"].startswith("cap_")
+
+    def test_ensures_events_dir(self, db, tmp_path):
+        new_events = str(tmp_path / "new_events")
+        _seed_parts(db)
+        create_generic_part_api(
+            db, new_events,
+            name="100nF 0402",
+            part_type="capacitor",
+            spec_json='{"value":"100nF","package":"0402"}',
+            strictness_json='{"required":["value","package"]}',
+        )
+        assert os.path.isdir(new_events)
+
+
+class TestResolveBomSpecApi:
+    def test_resolves_matching_spec(self, db, events_dir):
+        _seed_parts(db)
+        create_generic_part_api(
+            db, events_dir,
+            name="100nF 0402",
+            part_type="capacitor",
+            spec_json='{"value":"100nF","package":"0402"}',
+            strictness_json='{"required":["value","package"]}',
+        )
+        result = resolve_bom_spec(db, "capacitor", 1e-7, "0402")
+        assert result is not None
+        assert result["best_part_id"] in ("C1525", "C9999")
+
+    def test_returns_none_for_no_match(self, db, events_dir):
+        _seed_parts(db)
+        result = resolve_bom_spec(db, "capacitor", 4.7e-6, "1206")
+        assert result is None
+
+
+class TestListGenericPartsApi:
+    def test_lists_created_parts(self, db, events_dir):
+        _seed_parts(db)
+        create_generic_part_api(
+            db, events_dir,
+            name="100nF 0402",
+            part_type="capacitor",
+            spec_json='{"value":"100nF","package":"0402"}',
+            strictness_json='{"required":["value","package"]}',
+        )
+        gps = list_generic_parts_with_member_specs(db)
+        assert len(gps) == 1
+        assert gps[0]["name"] == "100nF 0402"
+        assert "members" in gps[0]
+        assert gps[0]["part_type"] == "capacitor"
+        assert gps[0]["spec"] == {"value": "100nF", "package": "0402"}
+
+    def test_empty_when_no_parts(self, db):
+        assert list_generic_parts_with_member_specs(db) == []
+
+
+class TestAddRemoveMemberApi:
+    def test_add_member_returns_members(self, db, events_dir):
+        _seed_parts(db)
+        gp = create_generic_part_api(
+            db, events_dir,
+            name="100nF 0402",
+            part_type="capacitor",
+            spec_json='{"value":"100nF","package":"0402"}',
+            strictness_json='{"required":["value","package"]}',
+        )
+        # Add a resistor manually
+        members = add_member_api(db, events_dir, gp["generic_part_id"], "C2875244")
+        part_ids = {m["part_id"] for m in members}
+        assert "C2875244" in part_ids
+
+    def test_remove_member(self, db, events_dir):
+        _seed_parts(db)
+        gp = create_generic_part_api(
+            db, events_dir,
+            name="100nF 0402",
+            part_type="capacitor",
+            spec_json='{"value":"100nF","package":"0402"}',
+            strictness_json='{"required":["value","package"]}',
+        )
+        members = remove_member_api(db, events_dir, gp["generic_part_id"], "C1525")
+        part_ids = {m["part_id"] for m in members}
+        assert "C1525" not in part_ids
+
+
+class TestSetPreferredApi:
+    def test_set_preferred_member(self, db, events_dir):
+        _seed_parts(db)
+        gp = create_generic_part_api(
+            db, events_dir,
+            name="100nF 0402",
+            part_type="capacitor",
+            spec_json='{"value":"100nF","package":"0402"}',
+            strictness_json='{"required":["value","package"]}',
+        )
+        members = set_preferred_api(db, events_dir, gp["generic_part_id"], "C1525")
+        preferred = [m for m in members if m["preferred"] == 1]
+        assert len(preferred) == 1
+        assert preferred[0]["part_id"] == "C1525"
+
+
+class TestUpdateGenericPartApi:
+    def test_update_spec_and_rematch(self, db, events_dir):
+        _seed_parts(db)
+        gp = create_generic_part_api(
+            db, events_dir,
+            name="100nF 0402",
+            part_type="capacitor",
+            spec_json='{"value":"100nF","package":"0402"}',
+            strictness_json='{"required":["value","package"]}',
+        )
+        result = update_generic_part_api(
+            db, events_dir,
+            gp["generic_part_id"],
+            name="100nF 0805",
+            spec_json='{"value":"100nF","package":"0805"}',
+            strictness_json='{"required":["value","package"]}',
+        )
+        assert result["name"] == "100nF 0805"
+        assert result["spec"] == {"value": "100nF", "package": "0805"}
+        # 0805 100nF parts: none in our test seed
+        assert len(result["members"]) == 0
+
+
+class TestExtractSpecApi:
+    def test_extracts_from_part(self, db, events_dir):
+        _seed_parts(db)
+        spec = extract_spec_for_part(db, "C1525")
+        assert spec["type"] == "capacitor"
+        assert "value" in spec
+
+    def test_returns_empty_for_missing_part(self, db, events_dir):
+        _seed_parts(db)
+        spec = extract_spec_for_part(db, "NONEXISTENT")
+        assert spec == {}
+
+
+class TestExtractSpecFromValue:
+    """Test extract_spec_from_value logic (now on InventoryApi, tested via spec_extractor)."""
+
+    def test_capacitor_value_string(self):
+        import spec_extractor
+        desc = "capacitor 100nF 0402"
+        spec = spec_extractor.extract_spec(desc, "0402")
+        spec["type"] = "capacitor"
+        assert spec["type"] == "capacitor"
+        assert "value" in spec
+        assert spec["package"] == "0402"
+
+    def test_resistor_value_string(self):
+        import spec_extractor
+        desc = "resistor 4.7k 0402"
+        spec = spec_extractor.extract_spec(desc, "0402")
+        spec["type"] = "resistor"
+        assert spec["type"] == "resistor"
+
+    def test_type_override_sets_type(self):
+        import spec_extractor
+        desc = "inductor 10uH 0805"
+        spec = spec_extractor.extract_spec(desc, "0805")
+        spec["type"] = "inductor"
+        assert spec["type"] == "inductor"
+
+    def test_empty_value_returns_type(self):
+        import spec_extractor
+        desc = "capacitor  "
+        spec = spec_extractor.extract_spec(desc, "")
+        spec["type"] = "capacitor"
+        assert spec["type"] == "capacitor"
+
+
+class TestFetchMembersApi:
+    def test_fetch_members_returns_dicts(self, db, events_dir):
+        _seed_parts(db)
+        gp = create_generic_part_api(
+            db, events_dir,
+            name="100nF 0402",
+            part_type="capacitor",
+            spec_json='{"value":"100nF","package":"0402"}',
+            strictness_json='{"required":["value","package"]}',
+        )
+        members = fetch_members(db, gp["generic_part_id"])
+        assert isinstance(members, list)
+        assert len(members) == 2
+        assert all(isinstance(m, dict) for m in members)
+        assert all("part_id" in m for m in members)
+        assert all("quantity" in m for m in members)
+
+
+class TestParseJson:
+    def test_parses_string(self):
+        result = _parse_json('{"key": "value"}')
+        assert result == {"key": "value"}
+
+    def test_passes_through_dict(self):
+        d = {"key": "value"}
+        assert _parse_json(d) is d
