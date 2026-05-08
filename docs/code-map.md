@@ -22,12 +22,19 @@ graph LR
     "distributor_manager.py" --> "lcsc_client.py"
     "distributor_manager.py" --> "mouser_client.py"
     "distributor_manager.py" --> "pololu_client.py"
+    "domain/inventory.py" --> "cache_db.py"
+    "domain/inventory.py" --> "csv_io.py"
+    "domain/inventory.py" --> "domain/pricing.py"
+    "domain/inventory.py" --> "generic_parts.py"
+    "domain/inventory.py" --> "inventory_ops.py"
+    "domain/inventory.py" --> "saved_searches.py"
     "file_dialogs.py" --> "csv_io.py"
     "file_dialogs.py" --> "domain/pricing.py"
     "generic_parts.py" --> "spec_extractor.py"
     "inventory_api.py" --> "cache_db.py"
     "inventory_api.py" --> "csv_io.py"
     "inventory_api.py" --> "distributor_manager.py"
+    "inventory_api.py" --> "domain/inventory.py"
     "inventory_api.py" --> "domain/pricing.py"
     "inventory_api.py" --> "file_dialogs.py"
     "inventory_api.py" --> "generic_parts.py"
@@ -348,7 +355,7 @@ graph LR
 ### cache_db.py
 
 - **Imports:** `domain/pricing.py`, `inventory_ops.py`
-- **Imported by:** `inventory_api.py`, `tests/python/conftest.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_saved_searches.py`
+- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `tests/python/conftest.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_saved_searches.py`
 
 ### categorize.py
 
@@ -358,7 +365,7 @@ graph LR
 ### csv_io.py
 
 - **Imports:** —
-- **Imported by:** `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `tests/python/test_csv_io.py`
+- **Imported by:** `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `tests/python/test_csv_io.py`
 
 ### digikey_cdp.py
 
@@ -395,10 +402,15 @@ graph LR
 - **Imports:** —
 - **Imported by:** —
 
+### domain/inventory.py
+
+- **Imports:** `cache_db.py`, `csv_io.py`, `domain/pricing.py`, `generic_parts.py`, `inventory_ops.py`, `saved_searches.py`
+- **Imported by:** `inventory_api.py`
+
 ### domain/pricing.py
 
 - **Imports:** —
-- **Imported by:** `cache_db.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_inventory_api_pricing.py`
+- **Imported by:** `cache_db.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_inventory_api_pricing.py`
 
 ### dubis_errors.py
 
@@ -413,7 +425,7 @@ graph LR
 ### generic_parts.py
 
 - **Imports:** `spec_extractor.py`
-- **Imported by:** `inventory_api.py`, `tests/python/test_generic_parts.py`, `tests/python/test_generic_parts_api.py`
+- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `tests/python/test_generic_parts.py`, `tests/python/test_generic_parts_api.py`
 
 ### html_product_parser.py
 
@@ -422,13 +434,13 @@ graph LR
 
 ### inventory_api.py
 
-- **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/pricing.py`, `file_dialogs.py`, `generic_parts.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
+- **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/inventory.py`, `domain/pricing.py`, `file_dialogs.py`, `generic_parts.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
 - **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_real_data.py`
 
 ### inventory_ops.py
 
 - **Imports:** `categorize.py`, `csv_io.py`, `domain/pricing.py`, `vendors.py`
-- **Imported by:** `cache_db.py`, `inventory_api.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_ops.py`
+- **Imported by:** `cache_db.py`, `domain/inventory.py`, `inventory_api.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_ops.py`
 
 ### js/api.js
 
@@ -726,7 +738,7 @@ graph LR
 ### saved_searches.py
 
 - **Imports:** —
-- **Imported by:** `inventory_api.py`, `tests/python/test_saved_searches.py`
+- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `tests/python/test_saved_searches.py`
 
 ### scripts/__init__.py
 
