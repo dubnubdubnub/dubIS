@@ -294,11 +294,14 @@ graph LR
     "tests/python/test_generic_parts_api.py" --> "generic_parts.py"
     "tests/python/test_generic_parts_api.py" --> "spec_extractor.py"
     "tests/python/test_html_product_parser.py" --> "html_product_parser.py"
-    "tests/python/test_inventory_api.py" --> "categorize.py"
-    "tests/python/test_inventory_api.py" --> "distributor_manager.py"
-    "tests/python/test_inventory_api.py" --> "domain/pricing.py"
-    "tests/python/test_inventory_api.py" --> "inventory_api.py"
-    "tests/python/test_inventory_api.py" --> "tests/python/helpers.py"
+    "tests/python/test_inventory_api_adjustments.py" --> "inventory_api.py"
+    "tests/python/test_inventory_api_adjustments.py" --> "tests/python/helpers.py"
+    "tests/python/test_inventory_api_categorize.py" --> "categorize.py"
+    "tests/python/test_inventory_api_loading.py" --> "inventory_api.py"
+    "tests/python/test_inventory_api_loading.py" --> "tests/python/helpers.py"
+    "tests/python/test_inventory_api_pricing.py" --> "distributor_manager.py"
+    "tests/python/test_inventory_api_pricing.py" --> "domain/pricing.py"
+    "tests/python/test_inventory_api_pricing.py" --> "tests/python/helpers.py"
     "tests/python/test_inventory_ops.py" --> "inventory_ops.py"
     "tests/python/test_mfg_direct_import.py" --> "mfg_direct_import.py"
     "tests/python/test_mfg_direct_import.py" --> "vendors.py"
@@ -350,7 +353,7 @@ graph LR
 ### categorize.py
 
 - **Imports:** —
-- **Imported by:** `inventory_ops.py`, `spec_extractor.py`, `tests/python/test_inventory_api.py`
+- **Imported by:** `inventory_ops.py`, `spec_extractor.py`, `tests/python/test_inventory_api_categorize.py`
 
 ### csv_io.py
 
@@ -385,7 +388,7 @@ graph LR
 ### distributor_manager.py
 
 - **Imports:** `base_client.py`, `digikey_client.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`
-- **Imported by:** `inventory_api.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_manager.py`, `tests/python/test_inventory_api.py`
+- **Imported by:** `inventory_api.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_manager.py`, `tests/python/test_inventory_api_pricing.py`
 
 ### domain/__init__.py
 
@@ -395,7 +398,7 @@ graph LR
 ### domain/pricing.py
 
 - **Imports:** —
-- **Imported by:** `cache_db.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_inventory_api.py`
+- **Imported by:** `cache_db.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_inventory_api_pricing.py`
 
 ### dubis_errors.py
 
@@ -420,7 +423,7 @@ graph LR
 ### inventory_api.py
 
 - **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/pricing.py`, `file_dialogs.py`, `generic_parts.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
-- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients.py`, `tests/python/test_inventory_api.py`, `tests/python/test_real_data.py`
+- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_real_data.py`
 
 ### inventory_ops.py
 
@@ -960,7 +963,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `inventory_api.py`
-- **Imported by:** `tests/python/test_inventory_api.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/test_base_client.py
 
@@ -1062,9 +1065,34 @@ graph LR
 - **Imports:** `html_product_parser.py`
 - **Imported by:** —
 
-### tests/python/test_inventory_api.py
+### tests/python/test_inventory_api_adjustments.py
 
-- **Imports:** `categorize.py`, `distributor_manager.py`, `domain/pricing.py`, `inventory_api.py`, `tests/python/helpers.py`
+- **Imports:** `inventory_api.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
+### tests/python/test_inventory_api_categorize.py
+
+- **Imports:** `categorize.py`
+- **Imported by:** —
+
+### tests/python/test_inventory_api_generic_parts.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### tests/python/test_inventory_api_loading.py
+
+- **Imports:** `inventory_api.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
+### tests/python/test_inventory_api_misc.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### tests/python/test_inventory_api_pricing.py
+
+- **Imports:** `distributor_manager.py`, `domain/pricing.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/test_inventory_ops.py
