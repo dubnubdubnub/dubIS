@@ -144,7 +144,8 @@ class _FastHTTPServer(HTTPServer):
 def start_poll_server(api, port=POLL_PORT):
     """Start the poll API server in a daemon thread.
 
-    Bound to 127.0.0.1 — local-only by design.
+    Bound to 127.0.0.1 — local-only by design. Stores the server on
+    `api._poll_server` so it can be restarted via `restart_poll_server`.
     """
     server = _FastHTTPServer(("127.0.0.1", port), PollHandler)
     server.api = api
@@ -153,5 +154,18 @@ def start_poll_server(api, port=POLL_PORT):
         target=server.serve_forever, name="poll-api", daemon=True,
     )
     thread.start()
+    api._poll_server = server
     logger.info("Poll API listening on 127.0.0.1:%d", server.server_address[1])
     return server
+
+
+def restart_poll_server(api, port):
+    """Shut down the existing poll server (if any) and start a new one on `port`."""
+    old = getattr(api, "_poll_server", None)
+    if old is not None:
+        try:
+            old.shutdown()
+            old.server_close()
+        except Exception as exc:
+            logger.warning("Poll API shutdown failed: %s", exc)
+    return start_poll_server(api, port=port)
