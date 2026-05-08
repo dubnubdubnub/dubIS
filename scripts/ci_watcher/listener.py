@@ -98,7 +98,7 @@ def _extract_pr(run: dict[str, Any]) -> int | None:
 
 if __name__ == "__main__":
     secret = Path("/etc/ci-watcher/secret").read_text(encoding="utf-8").strip()
-    socket_path = Path("/var/run/ci-watcher.sock")
-    state_path = Path("/var/lib/ci-watcher/state.db")
+    socket_path = Path(os.environ.get("CI_WATCHER_SOCKET", "/var/lib/ci-watcher/ci-watcher.sock"))
+    state_path = Path(os.environ.get("CI_WATCHER_STATE", "/var/lib/ci-watcher/state.db"))
     app = create_app(secret=secret, socket_path=socket_path, state_path=state_path)
     app.run(host="127.0.0.1", port=int(os.environ.get("PORT", "9090")))
