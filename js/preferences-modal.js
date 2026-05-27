@@ -3,8 +3,7 @@
 
 import { api, AppLog } from './api.js';
 import { showToast, escHtml, Modal } from './ui-helpers.js';
-import { EventBus, Events } from './event-bus.js';
-import { store, getThreshold, savePreferences } from './store.js';
+import { store, getThreshold, savePreferences, preferencesSignal } from './store.js';
 
 var PREFS_MAX_THRESHOLD = 200;
 var PREFS_MIN_THRESHOLD = 5;
@@ -172,7 +171,7 @@ export function applyPreferences() {
 
   savePreferences();
   closePreferencesModal();
-  EventBus.emit(Events.PREFS_CHANGED);
+  preferencesSignal.set(store.preferences);
 }
 
 // ── Digikey login/logout button wiring ──

@@ -2,8 +2,9 @@
    Extracted from init() to keep inventory-panel.js focused on rendering. */
 
 import { EventBus, Events } from '../event-bus.js';
+import { effect } from '../signals.js';
 import { AppLog } from '../api.js';
-import { store, saveInventoryView } from '../store.js';
+import { store, saveInventoryView, preferencesSignal } from '../store.js';
 import { escHtml } from '../ui-helpers.js';
 import { inferDistributor } from './inventory-logic.js';
 import state from './inv-state.js';
@@ -148,7 +149,16 @@ export function setupEvents(handlers) {
   // ── EventBus subscriptions ──
   EventBus.on(Events.INVENTORY_LOADED, function () { render(); });
   EventBus.on(Events.INVENTORY_UPDATED, function () { render(); });
-  EventBus.on(Events.PREFS_CHANGED, function () { render(); });
+
+  // PREFS_CHANGED is now signal-driven (no longer uses EventBus).
+  // The effect runs immediately on creation; skip that initial call since
+  // render() will be triggered by INVENTORY_LOADED shortly after init.
+  var _prefsEffectFirstRun = true;
+  effect(function () {
+    preferencesSignal.get(); // subscribe
+    if (_prefsEffectFirstRun) { _prefsEffectFirstRun = false; return; }
+    render();
+  });
 
   EventBus.on(Events.BOM_LOADED, function (data) {
     state.bomData = data;

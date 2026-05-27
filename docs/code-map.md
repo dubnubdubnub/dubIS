@@ -159,6 +159,7 @@ graph LR
     "js/inventory/inv-events.js" --> "js/inventory/inv-state.js"
     "js/inventory/inv-events.js" --> "js/inventory/inventory-logic.js"
     "js/inventory/inv-events.js" --> "js/inventory/vendor-flyout.js"
+    "js/inventory/inv-events.js" --> "js/signals.js"
     "js/inventory/inv-events.js" --> "js/store.js"
     "js/inventory/inv-events.js" --> "js/ui-helpers.js"
     "js/inventory/inv-groups-view.js" --> "js/group-flyout/flyout-panel.js"
@@ -211,12 +212,12 @@ graph LR
     "js/part-preview.js" --> "js/api.js"
     "js/part-preview.js" --> "js/ui-helpers.js"
     "js/preferences-modal.js" --> "js/api.js"
-    "js/preferences-modal.js" --> "js/event-bus.js"
     "js/preferences-modal.js" --> "js/store.js"
     "js/preferences-modal.js" --> "js/ui-helpers.js"
     "js/store.js" --> "js/api.js"
     "js/store.js" --> "js/constants.js"
     "js/store.js" --> "js/event-bus.js"
+    "js/store.js" --> "js/signals.js"
     "js/undo-redo.js" --> "js/api.js"
     "lcsc_client.py" --> "base_client.py"
     "mfg_direct_import.py" --> "csv_io.py"
@@ -258,6 +259,7 @@ graph LR
     "tests/js/real-data.test.js" --> "js/matching.js"
     "tests/js/real-data.test.js" --> "js/part-keys.js"
     "tests/js/real-data.test.js" --> "tests/js/helpers/load-fixtures.js"
+    "tests/js/signals.test.js" --> "js/signals.js"
     "tests/js/store.test.js" --> "js/event-bus.js"
     "tests/js/store.test.js" --> "js/store.js"
     "tests/js/ui-helpers.test.js" --> "js/ui-helpers.js"
@@ -348,7 +350,7 @@ graph LR
 | `LINKING_MODE` | `js/store.js` | `js/bom/bom-events.js`, `js/inventory/inv-events.js`, `tests/js/store.test.js` |
 | `LINKS_CHANGED` | `js/app-init.js`, `js/store.js` | `js/bom/bom-events.js`, `tests/js/store.test.js` |
 | `PO_CHANGED` | `js/store.js` | — |
-| `PREFS_CHANGED` | `js/preferences-modal.js`, `js/store.js` | `js/inventory/inv-events.js` |
+| `PREFS_CHANGED` | `js/store.js` | — |
 | `SAVE_AND_CLOSE` | `js/app-init.js` | `js/bom/bom-events.js` |
 | `VENDORS_CHANGED` | `js/store.js` | — |
 
@@ -513,7 +515,7 @@ graph LR
 ### js/event-bus.js
 
 - **Imports:** —
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/inventory/inv-events.js`, `js/inventory/inv-mutations.js`, `js/preferences-modal.js`, `js/store.js`, `tests/js/event-bus.test.js`, `tests/js/store.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/inventory/inv-events.js`, `js/inventory/inv-mutations.js`, `js/store.js`, `tests/js/event-bus.test.js`, `tests/js/store.test.js`
 
 ### js/group-flyout/flyout-drag.js
 
@@ -601,10 +603,10 @@ graph LR
 
 ### js/inventory/inv-events.js
 
-- **Imports:** `js/api.js`, `js/event-bus.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-sort-group.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-logic.js`, `js/inventory/vendor-flyout.js`, `js/store.js`, `js/ui-helpers.js`
+- **Imports:** `js/api.js`, `js/event-bus.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-sort-group.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-logic.js`, `js/inventory/vendor-flyout.js`, `js/signals.js`, `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`
 - **Emits:** —
-- **Listens:** `BOM_CLEARED`, `BOM_LOADED`, `FLYOUT_ACTIVE_CHANGED`, `FLYOUT_CLOSED`, `FLYOUT_OPENED`, `FLYOUT_SEARCH_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LINKING_MODE`, `PREFS_CHANGED`
+- **Listens:** `BOM_CLEARED`, `BOM_LOADED`, `FLYOUT_ACTIVE_CHANGED`, `FLYOUT_CLOSED`, `FLYOUT_OPENED`, `FLYOUT_SEARCH_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LINKING_MODE`
 
 ### js/inventory/inv-groups-view.js
 
@@ -680,19 +682,22 @@ graph LR
 
 ### js/preferences-modal.js
 
-- **Imports:** `js/api.js`, `js/event-bus.js`, `js/store.js`, `js/ui-helpers.js`
+- **Imports:** `js/api.js`, `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/app-init.js`
-- **Emits:** `PREFS_CHANGED`
-- **Listens:** —
 
 ### js/resize-panels.js
 
 - **Imports:** —
 - **Imported by:** `js/app-init.js`
 
+### js/signals.js
+
+- **Imports:** —
+- **Imported by:** `js/inventory/inv-events.js`, `js/store.js`, `tests/js/signals.test.js`
+
 ### js/store.js
 
-- **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`
+- **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/signals.js`
 - **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory-modals.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`, `js/inventory/vendor-flyout.js`, `js/preferences-modal.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
 - **Emits:** `CONFIRMED_CHANGED`, `GENERIC_PARTS_LOADED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LINKING_MODE`, `LINKS_CHANGED`, `PO_CHANGED`, `PREFS_CHANGED`, `VENDORS_CHANGED`
 - **Listens:** —
@@ -925,6 +930,11 @@ graph LR
 ### tests/js/real-data.test.js
 
 - **Imports:** `js/csv-parser.js`, `js/matching.js`, `js/part-keys.js`, `tests/js/helpers/load-fixtures.js`
+- **Imported by:** —
+
+### tests/js/signals.test.js
+
+- **Imports:** `js/signals.js`
 - **Imported by:** —
 
 ### tests/js/store.test.js
