@@ -292,8 +292,9 @@ jobs:
         include:
           - name: ubuntu
             runner: [self-hosted, pnp-testbox, gui]
-          - name: macos
-            runner: [self-hosted, m4-air, gui]
+          # TODO(m4-air-offline): restore macos entry once the m4-air runner is back online
+          # - name: macos
+          #   runner: [self-hosted, m4-air, gui]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 5
     env:
