@@ -767,6 +767,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** —
 
+### scripts/check-layout-tokens.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### scripts/check-manifests.py
 
 - **Imports:** —
@@ -1007,6 +1012,11 @@ graph LR
 ### tests/python/test_cache_db.py
 
 - **Imports:** `cache_db.py`, `inventory_api.py`, `inventory_ops.py`
+- **Imported by:** —
+
+### tests/python/test_check_layout_tokens.py
+
+- **Imports:** —
 - **Imported by:** —
 
 ### tests/python/test_check_manifests.py
