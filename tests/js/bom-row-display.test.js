@@ -439,4 +439,45 @@ describe('bomRowDisplayData — footprint confirmation hint', () => {
     const d = bomRowDisplayData(r, '', 'all', new Set(), NO_LINKING, new Set());
     expect(d.footprintConfirmed).toBe(false);
   });
+
+  it('does not set footprintConfirmed when neither side has an extractable footprint code', () => {
+    // matchSignals.footprint=true here only because footprintsCompatible defaulted
+    // permissive (no data either side). The badge must NOT claim a confirmation
+    // that was never actually verified.
+    const r = row({
+      matchType: 'value',
+      matchSignals: { value: true, footprint: true, mpn: false },
+      bom: { lcsc: '', mpn: '', value: '100', refs: 'R1', desc: '', footprint: 'unknown_kicad_footprint' },
+      inv: { package: '', qty: 10, description: '100Ω resistor with no size info', lcsc: 'C1', mpn: 'M1' },
+    });
+    const d = bomRowDisplayData(r, '', 'all', new Set(), NO_LINKING, new Set());
+    expect(d.footprintConfirmed).toBe(false);
+    expect(d.footprintCode).toBeNull();
+  });
+
+  it('does not set footprintConfirmed when BOM has no extractable footprint code', () => {
+    const r = row({
+      matchType: 'value',
+      matchSignals: { value: true, footprint: true, mpn: false },
+      bom: { lcsc: '', mpn: '', value: '100', refs: 'R1', desc: '', footprint: '' },
+      inv: { package: '0402', qty: 10, description: '100Ω 0402 resistor', lcsc: 'C1', mpn: 'M1' },
+    });
+    const d = bomRowDisplayData(r, '', 'all', new Set(), NO_LINKING, new Set());
+    expect(d.footprintConfirmed).toBe(false);
+    expect(d.footprintCode).toBeNull();
+  });
+
+  it('sets footprintConfirmed from inventory description when package field is empty', () => {
+    // CL10A226MP8NUNE case: when BOM and inv both want 0603, the badge should
+    // still surface — the inv side's "0603" lives in the description.
+    const r = row({
+      matchType: 'value',
+      matchSignals: { value: true, footprint: true, mpn: false },
+      bom: { lcsc: '', mpn: '', value: '22uF', refs: 'C1', desc: '', footprint: 'Capacitor_SMD:C_0603_1608Metric' },
+      inv: { package: '', qty: 3000, description: '22uF ±20% 10V Ceramic Capacitor X5R 0603', lcsc: 'C86295', mpn: 'CL10A226MP8NUNE' },
+    });
+    const d = bomRowDisplayData(r, '', 'all', new Set(), NO_LINKING, new Set());
+    expect(d.footprintConfirmed).toBe(true);
+    expect(d.footprintCode).toBe('0603');
+  });
 });

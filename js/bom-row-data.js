@@ -4,7 +4,7 @@
    STATUS_ROW_CLASS (from part-keys.js). */
 
 import { bomKey, STATUS_ICONS, STATUS_ROW_CLASS } from './part-keys.js';
-import { extractFootprintCode } from './matching.js';
+import { extractFootprintCode, invFootprintCode } from './matching.js';
 
 export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState, expandedMembers) {
   var st = r.effectiveStatus;
@@ -108,12 +108,19 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
   var showGroupFlyout = !!(r.genericPartId) || ((st === "missing" || st === "possible") && !!(r.bom.value || r.bom.footprint));
 
   // ── Footprint confirmation hint (only meaningful for value/fuzzy matches) ──
+  // Show the "+CODE" badge only when we can actually verify the match: both BOM
+  // and inventory must yield an extractable footprint code, and they must agree.
+  // matchSignals.footprint defaults permissive when data is missing, so we re-check
+  // here to avoid claiming a confirmation that was never earned.
   var footprintConfirmed = false;
   var footprintCode = null;
-  if (r.matchSignals && (r.matchType === 'value' || r.matchType === 'fuzzy')) {
-    if (r.matchSignals.value && r.matchSignals.footprint) {
+  if (r.matchSignals && r.matchSignals.value && r.matchSignals.footprint &&
+      (r.matchType === 'value' || r.matchType === 'fuzzy')) {
+    var bomCode = extractFootprintCode(r.bom.footprint);
+    var invCode = invFootprintCode(r.inv);
+    if (bomCode && invCode && bomCode === invCode) {
       footprintConfirmed = true;
-      footprintCode = extractFootprintCode(r.bom.footprint) || extractFootprintCode(r.inv && r.inv.package) || null;
+      footprintCode = bomCode;
     }
   }
 
