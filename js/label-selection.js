@@ -23,7 +23,7 @@ let tape = "6mm";
 let previewHandler = (items, tapeWidth) => {
   // Default no-op handler — the real preview modal registers itself in a later
   // task via setPreviewHandler(). Keeps the tasks decoupled.
-  console.warn(`Label preview not available (${items.length} item(s), ${tapeWidth})`);
+  AppLog.warn(`Label preview not available (${items.length} item(s), ${tapeWidth})`);
   showToast("Label preview not available");
 };
 
