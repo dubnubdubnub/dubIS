@@ -243,6 +243,9 @@ def adjust_part(
 
     cache_db.write_checkpoint(conn, purchase_path=input_csv,
                               adjustments_path=adjustments_csv)
+    cache_db.verify_parts(
+        conn, [part_key], input_csv, adjustments_csv, fieldnames, fix=True,
+    )
     return cache_db.query_inventory(conn)
 
 
