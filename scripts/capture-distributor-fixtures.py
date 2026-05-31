@@ -26,7 +26,7 @@ are preserved. A stale distributor whose credentials are absent (Mouser API key
 overwritten with an empty auth-error block (data-loss guard). --public-only
 narrows the refresh scope to {lcsc, pololu}; it is only meaningful alongside
 --refresh-if-stale and is ignored otherwise. --max-age-days N overrides the
-default 30-day threshold (N must be a positive integer).
+default 30-day threshold (N must be a non-negative integer (0 = treat everything as stale)).
 """
 
 from __future__ import annotations
@@ -40,6 +40,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Iterable
 from datetime import datetime
 
 # Top-level modules are importable (pythonpath=["."]); scripts/ is one level down,
@@ -585,7 +586,7 @@ def check_freshness(max_age_days: int = 30) -> bool:
     for dist in distributor_fixtures.DISTRIBUTORS:
         ts = distributor_fixtures.block_captured_at(fixture, dist)
         block = fixture.get(dist) if isinstance(fixture.get(dist), dict) else {}
-        count = len(block.get("parts", {})) if isinstance(block, dict) else 0
+        count = len(block.get("parts", {}))
         if ts is None:
             print(f"  {dist:<8} STALE: no timestamp")
             continue
@@ -611,7 +612,7 @@ def _lcsc_part_list() -> list[str]:
     return LCSC_HARDCODED + [p for p in dynamic if p not in LCSC_HARDCODED]
 
 
-def refresh_if_stale(scope, max_age_days: int = 30) -> bool:
+def refresh_if_stale(scope: Iterable[str], max_age_days: int = 30) -> bool:
     """Re-capture only the stale distributors in *scope*, merge, and write.
 
     For each stale distributor:
