@@ -170,7 +170,8 @@ export function format12mm(item, cfg) {
  */
 export function buildLabels(items, tape, cfg) {
   if (tape === "6mm") return items.map(item => format6mm(item, cfg));
-  return items.map(item => format12mm(item, cfg));
+  if (tape === "12mm") return items.map(item => format12mm(item, cfg));
+  throw new Error(`Unknown tape type: ${tape}`);
 }
 
 // ── CSV escaping helper ───────────────────────────────────────────────────────
@@ -203,11 +204,13 @@ export function toCsvByDistributor(results, tape, cfg) {
   }
 
   const is6mm = tape === "6mm";
-  const headers = is6mm ? ["Label"] : ["Line1", "Line2", "Line3"];
 
   /** @type {Map<string, string>} */
   const out = new Map();
   for (const [vendorId, group] of groups) {
+    const headers = is6mm
+      ? ["Label"]
+      : Array.from({ length: group.length > 0 ? group[0].columns.length : 3 }, (_, i) => `Line${i + 1}`);
     const rows = [];
     if (cfg.header_row) rows.push(headers.map(csvEscape).join(","));
     for (const result of group) {
