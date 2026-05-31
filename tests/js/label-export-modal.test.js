@@ -162,6 +162,78 @@ describe('live re-estimate on edit', () => {
   });
 });
 
+describe('live re-estimate on edit — 12mm badge thresholds', () => {
+  // With the stubbed CFG:
+  //   preferred_mm = 30, budget_mm = 40, font_pt = 10, calibration_k = 0.085
+  //   default char width = 0.6  →  0.6 * 10 * 0.085 = 0.51 mm/char
+  //   wide char (M)      width = 0.95 →  0.95 * 10 * 0.085 ≈ 0.8075 mm/char
+  //
+  //   To exceed preferred_mm (30) without exceeding budget_mm (40):
+  //     40 wide chars  → ~32.3 mm  (30 < 32.3 < 40) → AMBER
+  //   To exceed budget_mm (40):
+  //     50 wide chars  → ~40.375 mm  (> 40) → RED
+  //   Short text that falls below preferred_mm:
+  //     5 wide chars   → ~4 mm → no badge
+
+  function singleItem12mm() {
+    return [{ mpn: 'X', lcsc: 'C1', description: 'a', primary_vendor_id: 'v_lcsc' }];
+  }
+
+  it('shows AMBER badge when estimated width exceeds preferred_mm but not budget_mm', () => {
+    openWith(singleItem12mm(), '12mm');
+    const row = rows()[0];
+    const cell = editCells(row)[0]; // Line 1 cell
+    expect(row.querySelector('.label-badge')).toBeNull();
+
+    // 40 wide chars → ~32.3 mm, which is > preferred_mm (30) but < budget_mm (40).
+    const amberText = 'M'.repeat(40);
+    cell.textContent = amberText;
+    cell.dispatchEvent(new Event('input'));
+
+    const est = estimateWidthMm(amberText, CFG.tape12.font_pt, CFG);
+    expect(est).toBeGreaterThan(CFG.tape12.preferred_mm);
+    expect(est).toBeLessThan(CFG.tape12.budget_mm);
+    expect(row.querySelector('.label-mm').textContent).toBe(est.toFixed(1) + ' mm');
+    expect(row.querySelector('.label-badge-amber')).not.toBeNull();
+    expect(row.querySelector('.label-badge-red')).toBeNull();
+  });
+
+  it('shows RED badge when estimated width exceeds budget_mm', () => {
+    openWith(singleItem12mm(), '12mm');
+    const row = rows()[0];
+    const cell = editCells(row)[0];
+
+    // 50 wide chars → ~40.375 mm, which is > budget_mm (40).
+    const redText = 'M'.repeat(50);
+    cell.textContent = redText;
+    cell.dispatchEvent(new Event('input'));
+
+    const est = estimateWidthMm(redText, CFG.tape12.font_pt, CFG);
+    expect(est).toBeGreaterThan(CFG.tape12.budget_mm);
+    expect(row.querySelector('.label-badge-red')).not.toBeNull();
+    expect(row.querySelector('.label-badge-amber')).toBeNull();
+  });
+
+  it('clears the badge when width falls back below preferred_mm', () => {
+    openWith(singleItem12mm(), '12mm');
+    const row = rows()[0];
+    const cell = editCells(row)[0];
+
+    // First push over budget.
+    cell.textContent = 'M'.repeat(50);
+    cell.dispatchEvent(new Event('input'));
+    expect(row.querySelector('.label-badge-red')).not.toBeNull();
+
+    // Now bring it back down below preferred_mm (5 wide chars ≈ 4 mm).
+    cell.textContent = 'M'.repeat(5);
+    cell.dispatchEvent(new Event('input'));
+
+    const est = estimateWidthMm('M'.repeat(5), CFG.tape12.font_pt, CFG);
+    expect(est).toBeLessThan(CFG.tape12.preferred_mm);
+    expect(row.querySelector('.label-badge')).toBeNull();
+  });
+});
+
 describe('tape toggle', () => {
   it('switching to 12mm rebuilds the model (three cells per row)', () => {
     openWith(sampleItems(), '6mm');

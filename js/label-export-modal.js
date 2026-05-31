@@ -119,6 +119,7 @@ function render() {
     const colHeaders = is6mm
       ? '<th>Label</th>'
       : '<th>Line 1</th><th>Line 2</th><th>Line 3</th>';
+    // All strings here are static literals (no user data), so innerHTML is safe.
     table.innerHTML =
       '<thead><tr>' + colHeaders +
       '<th class="label-mm-head">Length</th><th class="label-badge-head"></th>' +
@@ -164,7 +165,6 @@ function render() {
           } else {
             const idx = Number(cell.dataset.field);
             result.columns[idx] = value;
-            result.lines = result.columns;
           }
           recompute(result);
           updateRowDisplay(row, result);
@@ -286,6 +286,8 @@ export function init() {
       const t = /** @type {HTMLInputElement} */ (e.target);
       if (t && t.name === 'label-export-tape') {
         currentTape = (t.value === '12mm') ? '12mm' : '6mm';
+        // Intentionally discards any in-progress edits — rebuilds the model
+        // fresh from currentItems for the newly selected tape width.
         rebuildModel();
         render();
       }
