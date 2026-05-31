@@ -296,11 +296,13 @@ graph LR
     "tests/python/test_csv_io.py" --> "csv_io.py"
     "tests/python/test_digikey_cdp.py" --> "digikey_cdp.py"
     "tests/python/test_digikey_normalizer.py" --> "digikey_normalizer.py"
+    "tests/python/test_digikey_session.py" --> "digikey_client.py"
     "tests/python/test_distributor_api.py" --> "digikey_client.py"
     "tests/python/test_distributor_api.py" --> "distributor_manager.py"
     "tests/python/test_distributor_api.py" --> "lcsc_client.py"
     "tests/python/test_distributor_api.py" --> "mouser_client.py"
     "tests/python/test_distributor_api.py" --> "pololu_client.py"
+    "tests/python/test_distributor_live.py" --> "distributor_manager.py"
     "tests/python/test_distributor_manager.py" --> "distributor_manager.py"
     "tests/python/test_dubis_errors.py" --> "dubis_errors.py"
     "tests/python/test_file_dialogs.py" --> "file_dialogs.py"
@@ -320,6 +322,8 @@ graph LR
     "tests/python/test_mfg_direct_import.py" --> "mfg_direct_import.py"
     "tests/python/test_mfg_direct_import.py" --> "vendors.py"
     "tests/python/test_normalizers.py" --> "digikey_client.py"
+    "tests/python/test_normalizers.py" --> "mouser_client.py"
+    "tests/python/test_normalizers.py" --> "pololu_client.py"
     "tests/python/test_pnp_server.py" --> "pnp_server.py"
     "tests/python/test_pnp_server.py" --> "tests/python/helpers.py"
     "tests/python/test_poll_api.py" --> "poll_api.py"
@@ -384,7 +388,7 @@ graph LR
 ### digikey_client.py
 
 - **Imports:** `base_client.py`, `digikey_cdp.py`, `digikey_normalizer.py`, `digikey_scrape_js.py`, `digikey_session.py`, `dubis_errors.py`
-- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_distributor_api.py`, `tests/python/test_normalizers.py`
+- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_digikey_session.py`, `tests/python/test_distributor_api.py`, `tests/python/test_normalizers.py`
 
 ### digikey_normalizer.py
 
@@ -404,7 +408,7 @@ graph LR
 ### distributor_manager.py
 
 - **Imports:** `base_client.py`, `digikey_client.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`
-- **Imported by:** `inventory_api.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_manager.py`, `tests/python/test_inventory_api_pricing.py`
+- **Imported by:** `inventory_api.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_live.py`, `tests/python/test_distributor_manager.py`, `tests/python/test_inventory_api_pricing.py`
 
 ### domain/__init__.py
 
@@ -730,7 +734,7 @@ graph LR
 ### mouser_client.py
 
 - **Imports:** `base_client.py`, `html_product_parser.py`
-- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_api.py`
+- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_api.py`, `tests/python/test_normalizers.py`
 
 ### pnp_server.py
 
@@ -745,7 +749,7 @@ graph LR
 ### pololu_client.py
 
 - **Imports:** `base_client.py`, `html_product_parser.py`
-- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_pololu.py`, `tests/python/test_distributor_api.py`
+- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_pololu.py`, `tests/python/test_distributor_api.py`, `tests/python/test_normalizers.py`
 
 ### purchase_orders.py
 
@@ -1089,9 +1093,19 @@ graph LR
 - **Imports:** `digikey_normalizer.py`
 - **Imported by:** —
 
+### tests/python/test_digikey_session.py
+
+- **Imports:** `digikey_client.py`
+- **Imported by:** —
+
 ### tests/python/test_distributor_api.py
 
 - **Imports:** `digikey_client.py`, `distributor_manager.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`
+- **Imported by:** —
+
+### tests/python/test_distributor_live.py
+
+- **Imports:** `distributor_manager.py`
 - **Imported by:** —
 
 ### tests/python/test_distributor_manager.py
@@ -1171,7 +1185,7 @@ graph LR
 
 ### tests/python/test_normalizers.py
 
-- **Imports:** `digikey_client.py`
+- **Imports:** `digikey_client.py`, `mouser_client.py`, `pololu_client.py`
 - **Imported by:** —
 
 ### tests/python/test_pnp_server.py

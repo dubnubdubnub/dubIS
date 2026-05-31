@@ -11,6 +11,7 @@ node_modules/
 .mcp.json
 .pytest_cache/
 .ruff_cache/
+tests/python/.live_latencies.json
 *.xlsx
 data/*.png
 !data/dubIS.png

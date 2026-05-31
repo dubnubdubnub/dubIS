@@ -235,3 +235,88 @@ if os.path.exists(FIXTURE_PATH):
             _pn, entry = lcsc_response_part
             raw_response = entry["raw_response"]
             assert raw_response["result"] == entry["raw"]
+
+    # ── Mouser normalizer tests ──
+
+    _mouser_parts = _FIXTURES.get("mouser", {}).get("parts", {})
+
+    # Guard: only define the class when data exists. An empty params list makes
+    # pytest emit a SKIP ("got empty parameter set"), which project policy forbids.
+    if _mouser_parts:
+        from mouser_client import MouserClient
+
+        class TestMouserNormalizer:
+            """Test _normalize_api_part against every captured Mouser part."""
+
+            @pytest.fixture(
+                params=list(_mouser_parts.keys()), ids=list(_mouser_parts.keys())
+            )
+            def mouser_part(self, request):
+                mpn = request.param
+                entry = _mouser_parts[mpn]
+                return mpn, entry
+
+            def test_normalize_produces_valid_output(self, mouser_part):
+                mpn, entry = mouser_part
+                result = MouserClient._normalize_api_part(entry["raw"], mpn)
+
+                assert result["provider"] == "mouser"
+                assert isinstance(result["title"], str) and result["title"]
+                assert isinstance(result["productCode"], str) and result["productCode"]
+                assert isinstance(result["prices"], list)
+                for tier in result["prices"]:
+                    assert isinstance(tier["qty"], int)
+                    assert isinstance(tier["price"], (int, float))
+                assert isinstance(result["stock"], int)
+                assert result["stock"] >= 0
+                assert isinstance(result["manufacturer"], str)
+                assert isinstance(result["mpn"], str)
+                assert isinstance(result["description"], str)
+                assert isinstance(result["imageUrl"], str)
+                assert isinstance(result["attributes"], list)
+                for attr in result["attributes"]:
+                    assert isinstance(attr["name"], str) and attr["name"]
+                    assert isinstance(attr["value"], str) and attr["value"]
+
+    # ── Pololu normalizer tests ──
+
+    _pololu_parts = _FIXTURES.get("pololu", {}).get("parts", {})
+
+    if _pololu_parts:
+        from pololu_client import PololuClient
+
+        class TestPololuNormalizer:
+            """Test _parse_product_page against every captured Pololu page."""
+
+            @pytest.fixture(
+                params=list(_pololu_parts.keys()), ids=list(_pololu_parts.keys())
+            )
+            def pololu_part(self, request):
+                sku = request.param
+                entry = _pololu_parts[sku]
+                return sku, entry
+
+            def test_parse_produces_valid_output(self, pololu_part):
+                sku, entry = pololu_part
+                url = f"https://www.pololu.com/product/{sku}"
+                result = PololuClient._parse_product_page(entry["raw_html"], sku, url)
+
+                # Only successfully-parsed pages are captured into the fixture,
+                # so the result must be a dict with valid fields.
+                assert isinstance(result, dict)
+                assert result["provider"] == "pololu"
+                assert isinstance(result["title"], str) and result["title"]
+                assert isinstance(result["productCode"], str) and result["productCode"]
+                assert result["productCode"] == sku
+                assert isinstance(result["prices"], list)
+                for tier in result["prices"]:
+                    assert isinstance(tier["qty"], int)
+                    assert isinstance(tier["price"], (int, float))
+                assert isinstance(result["stock"], int)
+                assert result["stock"] >= 0
+                assert isinstance(result["manufacturer"], str)
+                assert isinstance(result["mpn"], str) and result["mpn"]
+                assert isinstance(result["description"], str)
+                assert isinstance(result["imageUrl"], str)
+                assert isinstance(result["pololuUrl"], str) and result["pololuUrl"]
+                assert isinstance(result["attributes"], list)
