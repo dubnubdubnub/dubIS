@@ -60,9 +60,8 @@ jobs:
       - name: Refresh stale PUBLIC fixtures (LCSC + Pololu only, no creds)
         run: ~/dubis-venv/bin/python scripts/capture-distributor-fixtures.py --refresh-if-stale --public-only
 
-      - name: Open or update PR if the fixture changed
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Push refreshed fixture to the automation branch
+        id: push
         run: |
           set -euo pipefail
 
@@ -72,10 +71,12 @@ jobs:
           # Nothing stale → script left the fixture untouched → quiet no-op.
           if git diff --quiet -- "$FIXTURE"; then
             echo "Fixtures fresh, nothing to do."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           echo "Fixture changed — preparing PR on $BRANCH."
+          echo "changed=true" >> "$GITHUB_OUTPUT"
 
           # Commit as the actions bot.
           git config user.name  "github-actions[bot]"
@@ -95,11 +96,23 @@ jobs:
           # Force-update the deterministic branch (it is automation-owned).
           git push --force origin "$BRANCH"
 
-          # Open a PR if one isn't already open; otherwise the force-push above
-          # already updated the existing PR, so treat "already exists" as success.
-          gh pr create \
-            --base "$DEFAULT_BRANCH" \
-            --head "$BRANCH" \
-            --title "chore(fixtures): refresh public distributor fixtures" \
-            --body "Automated weekly refresh of the public (LCSC + Pololu) distributor fixtures. CI runs the offline replay tests on this PR to validate the captured data. Mouser/DigiKey are refreshed locally (their credentials never run on CI)." \
-            || echo "PR already exists for $BRANCH — updated by the force-push above."
+      # Open the PR via the first-party github-script action (GitHub REST API),
+      # so this job has NO dependency on the `gh` CLI being installed on the
+      # self-hosted runner. The force-push above already updated any open PR, so
+      # a 422 ("a pull request already exists") is treated as success.
+      - name: Open or update refresh PR
+        if: steps.push.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const base = context.payload.repository.default_branch;
+            const head = 'automation/refresh-fixtures';
+            const title = 'chore(fixtures): refresh public distributor fixtures';
+            const body = 'Automated weekly refresh of the public (LCSC + Pololu) distributor fixtures. CI runs the offline replay tests on this PR to validate the captured data. Mouser/DigiKey are refreshed locally (their credentials never run on CI).';
+            try {
+              const pr = await github.rest.pulls.create({ owner: context.repo.owner, repo: context.repo.repo, base, head, title, body });
+              core.info(`Opened PR #${pr.data.number}`);
+            } catch (e) {
+              if (e.status === 422) { core.info('PR already exists for this branch; branch updated by the force-push.'); }
+              else { throw e; }
+            }
