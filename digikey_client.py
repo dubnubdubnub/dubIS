@@ -279,7 +279,6 @@ class DigikeyClient(BaseProductClient):
         # 2. Try headless browser CDP
         import random
         import subprocess
-        import time
 
         exe = find_default_browser_exe()
         if not exe:
@@ -442,7 +441,6 @@ class DigikeyClient(BaseProductClient):
                 logger.warning("DK probe: page load timed out")
                 return False
 
-            import time
             cf_deadline = time.time() + 25.0
             while time.time() < cf_deadline:
                 try:
@@ -537,7 +535,6 @@ class DigikeyClient(BaseProductClient):
             # "Just a moment..." challenge page, before CF's JS redirects to
             # the real product page. Poll the title and wait for the challenge
             # to clear (or the URL to leave /products/result).
-            import time
             cf_deadline = time.time() + 25.0
             cf_seen = False
             while time.time() < cf_deadline:
