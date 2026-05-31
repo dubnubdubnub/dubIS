@@ -1,0 +1,118 @@
+# Scheduled auto-refresh of the PUBLIC distributor fixtures.
+#
+# What this does
+#   Once a week (and on manual dispatch) it re-captures only the distributors
+#   that need NO credentials — LCSC and Pololu — via
+#   `capture-distributor-fixtures.py --refresh-if-stale --public-only`.
+#   The script only re-captures blocks whose per-distributor `captured_at`
+#   timestamp is stale (>30 days), so most weekly runs are a quiet no-op.
+#
+# Why public-only / no secrets
+#   Mouser (API key) and DigiKey (browser cookies) are intentionally NOT
+#   refreshed here — their credentials never live on CI. The cred-safe guard
+#   in the script skips them; they are refreshed locally via `pytest -m live`.
+#   Because this job touches no secrets, there is nothing to leak.
+#
+# Why a PR, not a direct push
+#   `main` is protected (requires PR + passing CI), so this job must NOT push
+#   to it. Instead it commits the refreshed fixture to a deterministic
+#   automation branch and opens (or updates) a PR. The PR commit deliberately
+#   does NOT carry `[skip ci]` — we WANT CI to run so the offline replay tests
+#   validate the freshly captured data before a human merges.
+#
+# Why this is safe re: forks
+#   `schedule` and `workflow_dispatch` events always run from the base repo
+#   with the base repo's `GITHUB_TOKEN` — never from a fork — so granting
+#   `contents: write` + `pull-requests: write` here cannot be abused by
+#   external contributors.
+
+name: Refresh public distributor fixtures
+
+on:
+  schedule:
+    # Mondays at 06:00 UTC. Fixtures go stale at 30 days; weekly polling keeps
+    # the refresh prompt timely while staying a no-op most weeks.
+    - cron: '0 6 * * 1'
+  workflow_dispatch: {}
+
+# Minimal but sufficient: push a branch + open/update a PR.
+permissions:
+  contents: write
+  pull-requests: write
+
+# Never let two refresh runs race on the automation branch.
+concurrency:
+  group: refresh-fixtures
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Refresh public fixtures
+    # Mirrors ci.yml's "Python Lint & Test" job: same internet-connected
+    # self-hosted runner and the same pre-provisioned venv (~/dubis-venv).
+    runs-on: [self-hosted, pnp-testbox]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so we can branch off the latest default branch and push.
+          fetch-depth: 0
+
+      - name: Refresh stale PUBLIC fixtures (LCSC + Pololu only, no creds)
+        run: ~/dubis-venv/bin/python scripts/capture-distributor-fixtures.py --refresh-if-stale --public-only
+
+      - name: Push refreshed fixture to the automation branch
+        id: push
+        run: |
+          set -euo pipefail
+
+          FIXTURE="tests/fixtures/generated/distributor-scrapes.json"
+          BRANCH="automation/refresh-fixtures"
+
+          # Nothing stale → script left the fixture untouched → quiet no-op.
+          if git diff --quiet -- "$FIXTURE"; then
+            echo "Fixtures fresh, nothing to do."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Fixture changed — preparing PR on $BRANCH."
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+          # Commit as the actions bot.
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Recreate the automation branch from the latest default branch so the
+          # PR diff is exactly the refreshed fixture and nothing else. Stash the
+          # working-tree change, branch off the base, then re-apply it.
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+          git stash push -- "$FIXTURE"
+          git checkout -B "$BRANCH" "origin/${DEFAULT_BRANCH}"
+          git stash pop
+
+          git add "$FIXTURE"
+          git commit -m "chore(fixtures): refresh public distributor fixtures (LCSC + Pololu)"
+
+          # Force-update the deterministic branch (it is automation-owned).
+          git push --force origin "$BRANCH"
+
+      # Open the PR via the first-party github-script action (GitHub REST API),
+      # so this job has NO dependency on the `gh` CLI being installed on the
+      # self-hosted runner. The force-push above already updated any open PR, so
+      # a 422 ("a pull request already exists") is treated as success.
+      - name: Open or update refresh PR
+        if: steps.push.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const base = context.payload.repository.default_branch;
+            const head = 'automation/refresh-fixtures';
+            const title = 'chore(fixtures): refresh public distributor fixtures';
+            const body = 'Automated weekly refresh of the public (LCSC + Pololu) distributor fixtures. CI runs the offline replay tests on this PR to validate the captured data. Mouser/DigiKey are refreshed locally (their credentials never run on CI).';
+            try {
+              const pr = await github.rest.pulls.create({ owner: context.repo.owner, repo: context.repo.repo, base, head, title, body });
+              core.info(`Opened PR #${pr.data.number}`);
+            } catch (e) {
+              if (e.status === 422) { core.info('PR already exists for this branch; branch updated by the force-push.'); }
+              else { throw e; }
+            }

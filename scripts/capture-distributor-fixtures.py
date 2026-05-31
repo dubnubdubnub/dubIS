@@ -6,13 +6,27 @@ offline.
 
 Usage:
     python scripts/capture-distributor-fixtures.py             # fetch all
-    python scripts/capture-distributor-fixtures.py --check     # verify fixtures exist
+    python scripts/capture-distributor-fixtures.py --check     # per-distributor freshness report
     python scripts/capture-distributor-fixtures.py --lcsc-only # LCSC parts only
     python scripts/capture-distributor-fixtures.py --digikey-only  # Digikey parts only
     python scripts/capture-distributor-fixtures.py --mouser-only   # Mouser parts only
     python scripts/capture-distributor-fixtures.py --pololu-only   # Pololu parts only
+    python scripts/capture-distributor-fixtures.py --refresh-if-stale  # re-capture only stale blocks
+    python scripts/capture-distributor-fixtures.py --refresh-if-stale --public-only  # only lcsc/pololu
+    python scripts/capture-distributor-fixtures.py --refresh-if-stale --max-age-days 7  # custom age
 
-The --check flag exits 0 if all fixture files are present, 1 if any are missing.
+The --check flag reports each distributor's age and which are stale; it exits 0
+if NONE of the four are stale, 1 if any is.
+
+--refresh-if-stale re-captures only the distributors whose per-distributor
+``captured_at`` is missing/unparseable/older than --max-age-days (default 30),
+then MERGES the new blocks into the existing fixture so untouched distributors
+are preserved. A stale distributor whose credentials are absent (Mouser API key
+/ DigiKey cookies) is SKIPPED — its existing block is left untouched rather than
+overwritten with an empty auth-error block (data-loss guard). --public-only
+narrows the refresh scope to {lcsc, pololu}; it is only meaningful alongside
+--refresh-if-stale and is ignored otherwise. --max-age-days N overrides the
+default 30-day threshold (N must be a non-negative integer (0 = treat everything as stale)).
 """
 
 from __future__ import annotations
@@ -26,7 +40,14 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Iterable
 from datetime import datetime
+
+# Top-level modules are importable (pythonpath=["."]); scripts/ is one level down,
+# so ensure the project root is on sys.path before importing distributor_fixtures.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import distributor_fixtures  # noqa: E402
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GENERATED_DIR = os.path.join(PROJECT_ROOT, "tests", "fixtures", "generated")
@@ -512,44 +533,192 @@ def write_json(path: str, data: object) -> None:
         f.write("\n")
 
 
-def check_freshness() -> bool:
-    """Check if fixtures exist and are less than 30 days old."""
-    if not os.path.exists(FIXTURE_PATH):
-        print(f"MISSING: {os.path.relpath(FIXTURE_PATH, PROJECT_ROOT)}")
-        print("  Run: python scripts/capture-distributor-fixtures.py")
-        return False
-    with open(FIXTURE_PATH, encoding="utf-8") as f:
-        data = json.load(f)
-    captured_at = data.get("captured_at", "")
-    if not captured_at:
-        print("STALE: no captured_at timestamp")
-        return False
+def _display_path(path: str) -> str:
+    """Path relative to PROJECT_ROOT for display, falling back to the raw path.
+
+    os.path.relpath raises ValueError across drive letters on Windows (e.g. a
+    tmp fixture on C: vs the project on D:); fall back to the absolute path.
+    """
     try:
-        dt = datetime.fromisoformat(captured_at)
-        age_days = (datetime.now() - dt).days
+        return os.path.relpath(path, PROJECT_ROOT)
     except ValueError:
-        print(f"STALE: invalid timestamp {captured_at!r}")
-        return False
-    if age_days > 30:
-        print(f"STALE: fixtures are {age_days} days old (captured {captured_at})")
+        return path
+
+
+def _load_fixture() -> dict:
+    """Load the existing fixture JSON, returning {} if missing or corrupt."""
+    if not os.path.exists(FIXTURE_PATH):
+        return {}
+    try:
+        with open(FIXTURE_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def check_freshness(max_age_days: int = 30) -> bool:
+    """Report per-distributor fixture freshness.
+
+    Prints the age of each of the four distributors (using the per-block
+    timestamp, falling back to the legacy top-level ``captured_at``) and which
+    are stale relative to *max_age_days*.
+
+    Returns True if NONE of the four distributors are stale, False if any is.
+    Backward-compatible with the single top-level ``captured_at`` format.
+    """
+    if not os.path.exists(FIXTURE_PATH):
+        print(f"MISSING: {_display_path(FIXTURE_PATH)}")
         print("  Run: python scripts/capture-distributor-fixtures.py")
         return False
-    dk_count = len(data.get("digikey", {}).get("parts", {}))
-    lcsc_count = len(data.get("lcsc", {}).get("parts", {}))
-    mouser_count = len(data.get("mouser", {}).get("parts", {}))
-    pololu_count = len(data.get("pololu", {}).get("parts", {}))
-    print(
-        f"OK: {dk_count} Digikey + {lcsc_count} LCSC + {mouser_count} Mouser + "
-        f"{pololu_count} Pololu parts (captured {captured_at}, {age_days} days ago)"
+
+    fixture = _load_fixture()
+    if not fixture:
+        print(f"CORRUPT or EMPTY: {_display_path(FIXTURE_PATH)}")
+        print("  Run: python scripts/capture-distributor-fixtures.py")
+        return False
+
+    now = datetime.now()
+    stale = distributor_fixtures.stale_distributors(
+        fixture, distributor_fixtures.DISTRIBUTORS, now, max_age_days
     )
+
+    for dist in distributor_fixtures.DISTRIBUTORS:
+        ts = distributor_fixtures.block_captured_at(fixture, dist)
+        block = fixture.get(dist) if isinstance(fixture.get(dist), dict) else {}
+        count = len(block.get("parts", {}))
+        if ts is None:
+            print(f"  {dist:<8} STALE: no timestamp")
+            continue
+        try:
+            age_days = (now - datetime.fromisoformat(ts)).days
+        except (ValueError, TypeError):
+            print(f"  {dist:<8} STALE: invalid timestamp {ts!r}")
+            continue
+        label = "STALE" if dist in stale else "OK"
+        print(f"  {dist:<8} {label}: {count} parts, {age_days} days old (captured {ts})")
+
+    if stale:
+        print(f"STALE distributors: {', '.join(sorted(stale))}")
+        print("  Run: python scripts/capture-distributor-fixtures.py --refresh-if-stale")
+        return False
+    print("OK: all distributors fresh")
     return True
+
+
+def _lcsc_part_list() -> list[str]:
+    """Hardcoded + dynamic LCSC parts, matching the full-capture order in main()."""
+    dynamic = get_dynamic_lcsc_parts()
+    return LCSC_HARDCODED + [p for p in dynamic if p not in LCSC_HARDCODED]
+
+
+def refresh_if_stale(scope: Iterable[str], max_age_days: int = 30) -> bool:
+    """Re-capture only the stale distributors in *scope*, merge, and write.
+
+    For each stale distributor:
+      - lcsc / pololu: always re-captured (public, no creds needed).
+      - mouser: re-captured ONLY if ``_load_mouser_api_key()`` is truthy.
+      - digikey: re-captured ONLY if ``_load_digikey_cookies()`` is truthy.
+      - A stale distributor with absent creds is SKIPPED entirely — its capture
+        function is NOT called and it is NOT added to the merge, so its existing
+        block is preserved untouched (data-loss guard).
+
+    Returns True if anything was re-captured and written, False otherwise.
+    """
+    existing = _load_fixture()
+    now = datetime.now()
+    stale = distributor_fixtures.stale_distributors(existing, scope, now, max_age_days)
+
+    if not stale:
+        print("Nothing stale — all distributors in scope are fresh.")
+        return False
+
+    new_blocks: dict = {}
+    skipped: list[str] = []
+
+    if "lcsc" in stale:
+        parts = _lcsc_part_list()
+        print(f"Refreshing LCSC ({len(parts)} parts)...")
+        new_blocks["lcsc"] = capture_lcsc(parts)
+
+    if "pololu" in stale:
+        print(f"Refreshing Pololu ({len(POLOLU_HARDCODED)} parts)...")
+        new_blocks["pololu"] = capture_pololu(POLOLU_HARDCODED)
+
+    if "mouser" in stale:
+        if _load_mouser_api_key():
+            print(f"Refreshing Mouser ({len(MOUSER_HARDCODED)} parts)...")
+            new_blocks["mouser"] = capture_mouser(MOUSER_HARDCODED)
+        else:
+            skipped.append("mouser")
+            print("Skipping stale Mouser: no API key (existing block preserved).")
+
+    if "digikey" in stale:
+        if _load_digikey_cookies():
+            dk_parts = DIGIKEY_HARDCODED + get_dynamic_digikey_parts()
+            print(f"Refreshing Digikey ({len(dk_parts)} parts)...")
+            new_blocks["digikey"] = capture_digikey(dk_parts)
+        else:
+            skipped.append("digikey")
+            print("Skipping stale Digikey: no cookies (existing block preserved).")
+
+    if not new_blocks:
+        if skipped:
+            print(f"Nothing refreshed — stale but missing creds: {', '.join(sorted(skipped))}.")
+        return False
+
+    merged = distributor_fixtures.merge_capture(existing, new_blocks, now)
+    write_json(FIXTURE_PATH, merged)
+    print(f"Refreshed: {', '.join(sorted(new_blocks))}")
+    if skipped:
+        print(f"Preserved (stale, no creds): {', '.join(sorted(skipped))}")
+    print(f"Fixtures written to {_display_path(FIXTURE_PATH)}")
+    return True
+
+
+def _parse_max_age_days(args: list[str]) -> int:
+    """Parse the integer following --max-age-days; default 30. Errors clearly if invalid."""
+    if "--max-age-days" not in args:
+        return 30
+    idx = args.index("--max-age-days")
+    if idx + 1 >= len(args):
+        print("Error: --max-age-days requires a positive integer argument.", file=sys.stderr)
+        sys.exit(1)
+    raw = args[idx + 1]
+    try:
+        value = int(raw)
+    except ValueError:
+        print(f"Error: --max-age-days must be an integer, got {raw!r}.", file=sys.stderr)
+        sys.exit(1)
+    if value < 0:
+        print(f"Error: --max-age-days must be non-negative, got {value}.", file=sys.stderr)
+        sys.exit(1)
+    return value
 
 
 def main() -> None:
     args = sys.argv[1:]
 
+    max_age_days = _parse_max_age_days(args)
+
     if "--check" in args:
-        sys.exit(0 if check_freshness() else 1)
+        sys.exit(0 if check_freshness(max_age_days) else 1)
+
+    if "--refresh-if-stale" in args:
+        scope = (
+            ("lcsc", "pololu")
+            if "--public-only" in args
+            else distributor_fixtures.DISTRIBUTORS
+        )
+        refresh_if_stale(scope, max_age_days)
+        return
+
+    if "--public-only" in args:
+        print(
+            "Error: --public-only is only meaningful with --refresh-if-stale.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     digikey_only = "--digikey-only" in args
     lcsc_only = "--lcsc-only" in args
@@ -567,41 +736,45 @@ def main() -> None:
     do_mouser = not (lcsc_only or digikey_only or pololu_only)
     do_pololu = not (lcsc_only or digikey_only or mouser_only)
 
-    output: dict = {"captured_at": datetime.now().isoformat(timespec="seconds")}
+    new_blocks: dict = {}
 
     if do_lcsc:
-        dynamic = get_dynamic_lcsc_parts()
-        lcsc_parts = LCSC_HARDCODED + [p for p in dynamic if p not in LCSC_HARDCODED]
+        lcsc_parts = _lcsc_part_list()
         print(f"Capturing {len(lcsc_parts)} LCSC parts...")
-        output["lcsc"] = capture_lcsc(lcsc_parts)
-        ok = len(output["lcsc"]["parts"])
-        err = len(output["lcsc"]["errors"])
+        new_blocks["lcsc"] = capture_lcsc(lcsc_parts)
+        ok = len(new_blocks["lcsc"]["parts"])
+        err = len(new_blocks["lcsc"]["errors"])
         print(f"  Done: {ok} OK, {err} errors")
 
     if do_digikey:
         dk_parts = DIGIKEY_HARDCODED + get_dynamic_digikey_parts()
         print(f"Capturing {len(dk_parts)} Digikey parts...")
-        output["digikey"] = capture_digikey(dk_parts)
-        dk_ok = len(output["digikey"]["parts"])
-        dk_err = len(output["digikey"]["errors"])
+        new_blocks["digikey"] = capture_digikey(dk_parts)
+        dk_ok = len(new_blocks["digikey"]["parts"])
+        dk_err = len(new_blocks["digikey"]["errors"])
         print(f"  Done: {dk_ok} OK, {dk_err} errors")
 
     if do_mouser:
         print(f"Capturing {len(MOUSER_HARDCODED)} Mouser parts...")
-        output["mouser"] = capture_mouser(MOUSER_HARDCODED)
-        m_ok = len(output["mouser"]["parts"])
-        m_err = len(output["mouser"]["errors"])
+        new_blocks["mouser"] = capture_mouser(MOUSER_HARDCODED)
+        m_ok = len(new_blocks["mouser"]["parts"])
+        m_err = len(new_blocks["mouser"]["errors"])
         print(f"  Done: {m_ok} OK, {m_err} errors")
 
     if do_pololu:
         print(f"Capturing {len(POLOLU_HARDCODED)} Pololu parts...")
-        output["pololu"] = capture_pololu(POLOLU_HARDCODED)
-        p_ok = len(output["pololu"]["parts"])
-        p_err = len(output["pololu"]["errors"])
+        new_blocks["pololu"] = capture_pololu(POLOLU_HARDCODED)
+        p_ok = len(new_blocks["pololu"]["parts"])
+        p_err = len(new_blocks["pololu"]["errors"])
         print(f"  Done: {p_ok} OK, {p_err} errors")
 
-    write_json(FIXTURE_PATH, output)
-    print(f"\nFixtures written to {os.path.relpath(FIXTURE_PATH, PROJECT_ROOT)}")
+    # Merge into the existing fixture so per-distributor timestamps are stamped
+    # and any distributor NOT captured in this run (e.g. a --lcsc-only run) keeps
+    # its prior block + timestamp instead of being dropped.
+    existing = _load_fixture()
+    merged = distributor_fixtures.merge_capture(existing, new_blocks, datetime.now())
+    write_json(FIXTURE_PATH, merged)
+    print(f"\nFixtures written to {_display_path(FIXTURE_PATH)}")
 
 
 if __name__ == "__main__":
