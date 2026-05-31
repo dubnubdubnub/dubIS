@@ -82,6 +82,19 @@ Run the E2E tests — especially if touching panel layout, overflow, or button p
 npx playwright test sticky-buttons resize-visibility
 ```
 
+### After modifying distributor clients or normalizers
+These tests are opt-in and deselected by default (plain `pytest` and CI never run them). Run them locally before merging changes to `digikey_client.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`, the normalizers, or `scripts/capture-distributor-fixtures.py`:
+```bash
+pytest -m live           # hits real endpoints; requires network + local credentials
+                         # (cached DigiKey cookies in data/digikey_cookies.json,
+                         #  Mouser API key in data/mouser_credentials.json)
+```
+Missing credentials cause a test failure with an actionable message — they do not skip. If live runs reveal upstream API drift, refresh the committed fixtures and commit the result:
+```bash
+python scripts/capture-distributor-fixtures.py
+git add tests/fixtures/generated/distributor-scrapes.json
+```
+
 ## Testing & Linting
 
 ```bash

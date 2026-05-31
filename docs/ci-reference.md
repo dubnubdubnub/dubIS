@@ -36,6 +36,29 @@ Add a `[ci: <suite>]` tag to your commit message to override auto-detection:
 | `[ci: pnp-cross]` | PnP cross-compute E2E (depends on pnp-e2e) | ~56s |
 | `[ci: quality]` | Visual/a11y: contrast, style-audit, accessibility E2E (warns, never blocks) | ~49s |
 
+## Live distributor test tier
+
+The `live` pytest marker gates tests that hit real distributor endpoints (`test_lcsc_live`, `test_pololu_live`, `test_mouser_live`, `test_digikey_session_live`). The DigiKey test uses `DigikeyClient.ensure_session(interactive=True)` — a warm cookie cache validates silently; a stale cache opens a browser to re-login.
+
+These tests are **deselected by default** via `addopts = ["-m", "not live"]` in `pyproject.toml`, so `pytest tests/python/ -v` (and all CI runs) never collect them.
+
+**Run locally** when touching distributor clients, normalizers, or `scripts/capture-distributor-fixtures.py`, and before merging that work:
+
+```bash
+pytest -m live   # requires network, cached DigiKey cookies (data/digikey_cookies.json),
+                 # and a Mouser API key (data/mouser_credentials.json)
+                 # missing credentials → actionable failure, not a skip
+```
+
+Latency is recorded and printed; there are no threshold assertions. If live runs reveal upstream API drift, refresh the committed fixtures:
+
+```bash
+python scripts/capture-distributor-fixtures.py
+git add tests/fixtures/generated/distributor-scrapes.json
+```
+
+The capture → commit → replay flow: `scripts/capture-distributor-fixtures.py` writes `tests/fixtures/generated/distributor-scrapes.json`; `tests/python/test_normalizers.py` replays all four distributors offline from that file. Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
