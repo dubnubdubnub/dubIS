@@ -30,7 +30,7 @@ def pnp_server(api):
     port = server.server_address[1]
     base_url = f"http://127.0.0.1:{port}"
     yield server, base_url, mock_window
-    server.shutdown()
+    stop_pnp_server(server)
 
 
 def _write_part_map(api, mapping):
