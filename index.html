@@ -236,6 +236,26 @@
   </div>
 </div>
 
+<!-- Label Export Modal -->
+<div class="modal-overlay hidden" id="label-export-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title">Create Labels</div>
+    <div class="modal-subtitle">Preview and edit the generated labels, then export one CSV per distributor for the Epson Label Editor.</div>
+    <div class="label-export-controls">
+      <div class="label-tape-toggle" id="label-export-tape-toggle">
+        <label class="label-tape-opt"><input type="radio" name="label-export-tape" value="6mm" checked> 6&nbsp;mm</label>
+        <label class="label-tape-opt"><input type="radio" name="label-export-tape" value="12mm"> 12&nbsp;mm</label>
+      </div>
+    </div>
+    <div class="label-export-preview" id="label-export-preview"></div>
+    <div class="label-export-help" id="label-export-help"></div>
+    <div class="modal-actions">
+      <button class="btn-lg btn btn-cancel" id="label-export-cancel">Cancel</button>
+      <button class="btn-lg btn btn-apply" id="label-export-do">Export</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
