@@ -16,6 +16,8 @@
  * GENERIC_PARTS_LOADED: GenericPart[]            — full generic parts array
  * VENDORS_CHANGED:      Vendor[]                 — full vendors array
  * PO_CHANGED:           PurchaseOrder[]          — full purchase orders array
+ * LABEL_MODE:           boolean                  — true when label-select mode is active
+ * LABEL_SELECTION_CHANGED: number                — current selected part count
  */
 export const Events = Object.freeze({
   INVENTORY_LOADED:  "inventory-loaded",
@@ -34,6 +36,8 @@ export const Events = Object.freeze({
   FLYOUT_SEARCH_CHANGED:  "flyout-search-changed",
   VENDORS_CHANGED:        "vendors-changed",
   PO_CHANGED:             "po-changed",
+  LABEL_MODE:             "label-mode",
+  LABEL_SELECTION_CHANGED: "label-selection-changed",
 });
 
 export const EventBus = {
