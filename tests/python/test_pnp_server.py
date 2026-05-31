@@ -299,7 +299,10 @@ class TestPnPServerCORS:
 
 class TestThreadLock:
     def test_api_has_threading_lock(self, api):
-        assert isinstance(api._lock, type(threading.Lock()))
+        # Either a Lock or an RLock satisfies the thread-safety contract.
+        # _get_cache's lazy init re-acquires this lock from lock-holding
+        # methods, so it must be reentrant (RLock).
+        assert isinstance(api._lock, (type(threading.Lock()), type(threading.RLock())))
 
     def test_concurrent_adjustments(self, api):
         _write_ledger(api, [_make_part(lcsc="C100000", qty=0)])

@@ -23,6 +23,80 @@ class TestLoadPreferences:
         assert api.load_preferences() == {"theme": "dark"}
 
 
+class TestGetCache:
+    def test_returns_same_connection(self, api):
+        conn1 = api._get_cache()
+        conn2 = api._get_cache()
+        assert conn1 is conn2
+
+    def test_schema_created(self, api):
+        conn = api._get_cache()
+        tables = {
+            r[0]
+            for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        assert "parts" in tables
+        assert "stock" in tables
+
+    def test_connect_called_once_under_concurrent_access(self, api, monkeypatch):
+        """Lazy init must not create two connections if threads race in."""
+        import threading
+
+        import cache_db
+
+        calls = []
+        real_connect = cache_db.connect
+
+        def counting_connect(path):
+            calls.append(path)
+            return real_connect(path)
+
+        monkeypatch.setattr(cache_db, "connect", counting_connect)
+
+        results = []
+        barrier = threading.Barrier(8)
+
+        def worker():
+            barrier.wait()  # maximize the race window
+            results.append(api._get_cache())
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(calls) == 1
+        assert all(c is results[0] for c in results)
+
+    def test_first_init_via_lock_holding_path_does_not_deadlock(self, api):
+        """A lock-holding API method triggers the very first lazy cache init.
+
+        If _get_cache re-acquired a non-reentrant lock already held by the
+        caller, this would deadlock. It must not.
+        """
+        import threading
+
+        from tests.python.helpers import make_part as _mp
+        from tests.python.helpers import write_ledger as _wl
+
+        _wl(api, [_mp(lcsc="C100000", qty=10)])
+        assert api._cache_conn is None  # no cache yet → first access happens under lock
+
+        done = threading.Event()
+
+        def run():
+            api.adjust_part("add", "C100000", 5)
+            done.set()
+
+        t = threading.Thread(target=run)
+        t.start()
+        t.join(timeout=10)
+        assert done.is_set(), "adjust_part deadlocked on first lazy cache init"
+
+
 class TestDetectColumns:
     def test_digikey_headers(self, api):
         headers = ["Digi-Key Part Number", "Manufacturer Part Number",

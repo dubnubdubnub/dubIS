@@ -61,15 +61,29 @@ class InventoryApi:
         self._closing: bool = False
         self._bom_dirty: bool = False
         self._debug: bool = debug
-        self._lock: threading.Lock = threading.Lock()
+        # Reentrant: lock-holding methods (adjust_part, consume_bom, _rebuild,
+        # …) call _get_cache(), whose lazy init re-acquires this same lock.
+        # A plain Lock would deadlock on the first cache access from those paths.
+        self._lock: threading.RLock = threading.RLock()
         self._last_migration_summary: dict[str, int] = {}
         self._distributors = DistributorManager(self.base_dir, self._get_cache)
 
     def _get_cache(self) -> sqlite3.Connection:
-        """Get or create the cache database connection."""
+        """Get or create the cache database connection.
+
+        Thread-safe lazy init (double-checked locking against the reentrant
+        self._lock): the PnP HTTP server thread and the pywebview UI thread can
+        both race into the first cache access. Without this guard, two
+        connections would be created (one leaked) and create_schema would run
+        twice. self._lock is an RLock, so this is safe even when a lock-holding
+        method triggers the very first init.
+        """
         if self._cache_conn is None:
-            self._cache_conn = cache_db.connect(self.cache_db_path)
-            cache_db.create_schema(self._cache_conn)
+            with self._lock:
+                if self._cache_conn is None:
+                    conn = cache_db.connect(self.cache_db_path)
+                    cache_db.create_schema(conn)
+                    self._cache_conn = conn  # publish only after fully initialized
         return self._cache_conn
 
     # ── Utility delegates ──────────────────────────────────────────────────
