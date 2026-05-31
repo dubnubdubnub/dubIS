@@ -86,6 +86,25 @@ class InventoryApi:
                     self._cache_conn = conn  # publish only after fully initialized
         return self._cache_conn
 
+    def shutdown(self) -> None:
+        """Commit and close the cache connection. Idempotent and best-effort.
+
+        Called from app.pyw during teardown so the SQLite WAL is flushed
+        before process exit. Safe to call when no connection exists or after a
+        prior shutdown. Any commit/close failure is logged, never raised — a
+        cleanup error must not prevent the process from exiting.
+        """
+        with self._lock:
+            if self._cache_conn is None:
+                return
+            try:
+                self._cache_conn.commit()
+                self._cache_conn.close()
+            except Exception as exc:
+                logger.warning("Error closing cache connection during shutdown: %s", exc)
+            finally:
+                self._cache_conn = None
+
     # ── Utility delegates ──────────────────────────────────────────────────
 
     @staticmethod
