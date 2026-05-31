@@ -21,6 +21,7 @@
 <link rel="stylesheet" href="css/components/console.css">
 <link rel="stylesheet" href="css/components/linking.css">
 <link rel="stylesheet" href="css/components/vendor.css">
+<link rel="stylesheet" href="css/components/label-export.css">
 </head>
 <body>
 
@@ -57,6 +58,7 @@
     <div class="panel-header">
       Inventory
       <button class="btn-md rebuild-btn" id="rebuild-inv" title="Rebuild Inventory">Rebuild Inventory</button>
+      <button class="btn-md label-mode-btn" id="label-mode-btn" title="Select parts and export Epson labels">Labels</button>
       <div class="inv-search-group">
         <input type="text" class="search-input" id="inv-search" placeholder="Search parts...">
         <button class="clear-filters-btn" id="clear-dist-filter" disabled title="Clear Filters"><span class="clear-label">Clear Filters</span><span class="clear-icon">&#x2715;</span></button>
@@ -67,6 +69,27 @@
           <button class="dist-filter-btn" data-distributor="pololu" title="Pololu"><img class="vendor-icon" src="data/pololu-icon.svg"><span class="dist-label">Pololu</span></button>
           <button class="dist-filter-btn dist-filter-btn-direct" data-distributor="direct" title="Direct from manufacturer"><span class="dist-icon-direct">★</span><span class="dist-label">Direct</span><span class="dist-vendor-caret" title="Show vendors">▾</span></button>
         </div>
+      </div>
+    </div>
+    <!-- Label-select toolbar (hidden unless in Labels mode) -->
+    <div class="label-toolbar hidden" id="label-toolbar">
+      <div class="label-toolbar-row">
+        <span class="label-selected-count" id="label-selected-count">0 selected</span>
+        <div class="label-tape-toggle" id="label-tape-toggle" role="radiogroup" aria-label="Tape width">
+          <label class="label-tape-opt">
+            <input type="radio" name="label-tape" value="6mm" checked> 6mm
+          </label>
+          <label class="label-tape-opt">
+            <input type="radio" name="label-tape" value="12mm"> 12mm
+          </label>
+        </div>
+        <button class="btn-md label-create-btn" id="label-create-btn" title="Create labels from selection">Create Labels</button>
+        <button class="btn-md label-done-btn" id="label-done-btn" title="Exit label mode">Done</button>
+      </div>
+      <!-- PO picker: select whole purchase orders at once -->
+      <div class="label-po-picker" id="label-po-picker">
+        <div class="label-po-picker-title">Purchase Orders</div>
+        <div class="label-po-list" id="label-po-list"></div>
       </div>
     </div>
     <div class="panel-body" id="inventory-body"></div>
