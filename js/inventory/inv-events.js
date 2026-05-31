@@ -29,6 +29,10 @@ export function setupEvents(handlers) {
     var compact = w < FILTER_BAR_MIN_WIDTH;
     state.distFilterBar.classList.toggle("compact", compact);
     state.clearFilterBtn.classList.toggle("compact", compact);
+    // The "Labels" mode button shares the header with the filter bar; in
+    // compact mode let the search input give up width so all distributor
+    // pills stay within the header bounds (see distributor-filter clipping test).
+    state.searchInput.classList.toggle("compact", compact);
   }).observe(state.body);
 
   // Log app dimensions on resize
