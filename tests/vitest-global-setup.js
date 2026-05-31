@@ -38,13 +38,17 @@ export async function setup() {
       timeout: 30_000,
     });
     // Fixtures are up-to-date
-  } catch {
-    // --check failed (exit code 1) → committed fixtures are stale.
+  } catch (err) {
+    // --check exited non-zero. Usually that means committed fixtures are stale,
+    // but the generator can also fail for other reasons (import error, backend bug).
     if (inCI) {
+      const detail = String((err && (err.stderr || err.stdout)) || '').trim();
       throw new Error(
-        'Committed test fixtures are stale. ' +
-          'Run `python scripts/generate-test-fixtures.py` and commit the result. ' +
-          '(Refusing to auto-regenerate in CI — that would hide the drift.)',
+        '`generate-test-fixtures.py --check` failed in CI. Either the committed test ' +
+          'fixtures are stale (run `python scripts/generate-test-fixtures.py` and commit ' +
+          'the result), or the generator itself errored. Refusing to auto-regenerate in ' +
+          'CI — that would hide the drift.' +
+          (detail ? `\n--- generator output ---\n${detail}` : ''),
       );
     }
     // Local convenience: regenerate so the developer can keep working.
