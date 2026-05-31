@@ -268,7 +268,11 @@ jobs:
       - run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
       - run: ~/dubis-venv/bin/ruff check .
       - name: Verify generated test fixtures are up to date
-        if: needs.parse-tags.outputs.run_python == 'true'
+        # Also run on JS-only changes: the JS tier consumes these committed fixtures,
+        # so a stale fixture must not pass CI even when no Python files changed. This
+        # job already runs on JS changes (gated on run_lint, always true) and has the
+        # venv installed, so this is the authoritative guard for the JS-only hole.
+        if: needs.parse-tags.outputs.run_python == 'true' || needs.parse-tags.outputs.run_js == 'true'
         run: ~/dubis-venv/bin/python scripts/generate-test-fixtures.py --check
       - name: Verify code map is up to date
         if: needs.parse-tags.outputs.run_python == 'true'
