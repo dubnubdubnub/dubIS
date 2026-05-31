@@ -94,6 +94,7 @@ Missing credentials cause a test failure with an actionable message — they do 
 python scripts/capture-distributor-fixtures.py
 git add tests/fixtures/generated/distributor-scrapes.json
 ```
+The public fixtures (LCSC + Pololu) self-refresh weekly via the scheduled `refresh-fixtures.yml` workflow, which opens a PR. DigiKey + Mouser are local-only (refresh them via `pytest -m live`); their credentials never run on CI.
 
 ## Testing & Linting
 

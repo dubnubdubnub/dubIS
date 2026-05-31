@@ -59,6 +59,12 @@ git add tests/fixtures/generated/distributor-scrapes.json
 
 The capture → commit → replay flow: `scripts/capture-distributor-fixtures.py` writes `tests/fixtures/generated/distributor-scrapes.json`; `tests/python/test_normalizers.py` replays all four distributors offline from that file. Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
 
+### Scheduled fixture auto-refresh (`refresh-fixtures.yml`)
+
+A scheduled workflow keeps the **public** fixtures (LCSC + Pololu) fresh without any credentials on CI. It runs weekly (Mondays 06:00 UTC) and on manual `workflow_dispatch`, invoking `capture-distributor-fixtures.py --refresh-if-stale --public-only` on the same internet-connected self-hosted runner as the Python job. Per-distributor `captured_at` timestamps drive it: the script re-captures only blocks older than 30 days (via `distributor_fixtures.stale_distributors`), so most weekly runs are a no-op.
+
+It uses **no secrets** — Mouser (API key) and DigiKey (cookies) are deliberately skipped and stay local-only (`pytest -m live`). When a public fixture does change, the job does **not** push to protected `main`; it force-updates the `automation/refresh-fixtures` branch and opens (or reuses) a PR, so the normal offline replay tests validate the captured data before a human merges. Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
