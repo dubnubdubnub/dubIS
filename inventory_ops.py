@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import csv
+import io
 import logging
 import os
 from datetime import datetime
 from typing import Any
 
+import csv_io
 from categorize import categorize, parse_capacitance, parse_inductance, parse_resistance
 from csv_io import append_csv_rows, fix_double_utf8
 from domain.pricing import derive_missing_price, parse_price, parse_qty
@@ -173,17 +175,18 @@ def write_organized(categorized: dict[str, list[dict[str, str]]],
                     output_csv: str, fieldnames: list[str],
                     flat_section_order: list[str]) -> None:
     """Write inventory.csv."""
-    with open(output_csv, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.writer(f)
-        writer.writerow(["Section"] + list(fieldnames))
-        for section in flat_section_order:
-            items = categorized.get(section)
-            if not items:
-                continue
-            writer.writerow([])
-            writer.writerow([f"=== {section} ==="] + [""] * len(fieldnames))
-            for item in items:
-                writer.writerow([section] + [item.get(fn, "") for fn in fieldnames])
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Section"] + list(fieldnames))
+    for section in flat_section_order:
+        items = categorized.get(section)
+        if not items:
+            continue
+        writer.writerow([])
+        writer.writerow([f"=== {section} ==="] + [""] * len(fieldnames))
+        for item in items:
+            writer.writerow([section] + [item.get(fn, "") for fn in fieldnames])
+    csv_io.atomic_write_text(output_csv, buf.getvalue(), encoding="utf-8-sig", newline="")
 
 
 def rebuild(purchase_csv: str, adjustments_csv: str, output_csv: str,
@@ -291,10 +294,7 @@ def rollback_source(adjustments_csv: str, source: str) -> list[dict]:
     if not removed:
         return []
 
-    with open(adjustments_csv, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(kept)
+    csv_io.atomic_write_rows(adjustments_csv, fieldnames, kept, encoding="utf-8-sig")
 
     logger.info("Rolled back %d adjustment(s) with source=%r", len(removed), source)
     return removed

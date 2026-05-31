@@ -12,7 +12,7 @@ from typing import Any
 import cache_db
 import domain.pricing
 import inventory_ops
-from csv_io import append_csv_rows
+from csv_io import append_csv_rows, atomic_write_rows
 
 logger = logging.getLogger(__name__)
 
@@ -415,10 +415,7 @@ def update_part_price(
             new_row["Ext.Price($)"] = f"{ext_price:.2f}"
         rows.append(new_row)
 
-    with open(input_csv, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=file_fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    atomic_write_rows(input_csv, file_fieldnames, rows, encoding="utf-8-sig")
 
     os.makedirs(events_dir, exist_ok=True)
     if unit_price is not None and unit_price > 0:
@@ -484,10 +481,7 @@ def update_part_fields(
     if not found:
         raise ValueError(f"Part {part_key!r} not found in purchase ledger")
 
-    with open(input_csv, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=file_fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    atomic_write_rows(input_csv, file_fieldnames, rows, encoding="utf-8-sig")
 
     result, _ = rebuild(
         base_dir=base_dir,
@@ -519,10 +513,7 @@ def truncate_and_rebuild(
     """Remove the last *count* rows from a CSV and rebuild.  Caller holds the lock."""
     file_fieldnames, rows = inventory_ops.truncate_csv(csv_path, count, label)
 
-    with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=file_fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    atomic_write_rows(csv_path, file_fieldnames, rows, encoding="utf-8-sig")
 
     result, _ = rebuild(
         base_dir=base_dir,

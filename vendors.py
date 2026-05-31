@@ -9,6 +9,8 @@ import re
 from typing import Any
 from urllib.parse import urlparse
 
+import csv_io
+
 PSEUDO_IDS = {"v_self", "v_salvage", "v_unknown"}
 
 BUILTINS = [
@@ -40,9 +42,13 @@ def _read(path: str) -> list[dict[str, Any]]:
 
 
 def _write(path: str, data: list[dict[str, Any]]) -> None:
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    directory = os.path.dirname(path)
+    if not directory:
+        raise ValueError(f"vendors path must be absolute or include a directory: {path!r}")
+    os.makedirs(directory, exist_ok=True)
+    csv_io.atomic_write_text(
+        path, json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8",
+    )
 
 
 def seed_builtins(path: str) -> None:

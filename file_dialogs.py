@@ -7,7 +7,7 @@ import logging
 import os
 from typing import Any
 
-from csv_io import convert_xls_to_csv, read_text
+from csv_io import atomic_write_text, convert_xls_to_csv, read_text
 from domain.pricing import ensure_parsed
 
 logger = logging.getLogger(__name__)
@@ -131,15 +131,13 @@ def save_file_dialog(content: str, default_name: str = "export.csv",
     )
     if result:
         path = result if isinstance(result, str) else result[0]
-        with open(path, "w", newline="", encoding="utf-8") as f:
-            f.write(content)
+        atomic_write_text(path, content, encoding="utf-8", newline="")
         # Write sidecar links file
         if links_json:
             links = ensure_parsed(links_json)
             if links:
                 links_path = os.path.splitext(path)[0] + ".links.json"
-                with open(links_path, "w", encoding="utf-8") as f:
-                    json.dump(links, f, indent=2)
+                atomic_write_text(links_path, json.dumps(links, indent=2), encoding="utf-8")
         return {"path": path}
     return None
 
