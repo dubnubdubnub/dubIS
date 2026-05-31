@@ -182,6 +182,11 @@ export function setupEvents(handlers) {
   // buttons for a selection checkbox (and back) — re-render to apply.
   EventBus.on(Events.LABEL_MODE, function () { render(); });
 
+  // Bulk selection (e.g. selecting a whole PO) flips many keys at once; the
+  // checkboxes already in the DOM are stale until re-rendered. Single toggles
+  // do NOT emit this event, so per-checkbox clicks avoid a full re-render.
+  EventBus.on(Events.LABEL_BULK_SELECTION, function () { render(); });
+
   EventBus.on(Events.FLYOUT_SEARCH_CHANGED, function (data) {
     if (state.searchInput && data && typeof data.searchText === "string") {
       state.searchInput.value = data.searchText;
