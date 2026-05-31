@@ -250,24 +250,84 @@ class TestIncrementalOps:
         assert abs(stock["ext_price"] - 2.00) < 0.01
 
 
+ADJ_FIELDS = ["timestamp", "type", "lcsc_part", "quantity",
+              "bom_file", "board_qty", "note", "source"]
+
+
+def _write_csv(path, fieldnames, rows):
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _adj_row(ts, qty, adj_type="remove", part="C1525"):
+    return {"timestamp": ts, "type": adj_type, "lcsc_part": part,
+            "quantity": str(qty), "bom_file": "", "board_qty": "",
+            "note": "", "source": ""}
+
+
 class TestCheckpoint:
-    def test_write_and_read_checkpoint(self, db):
-        cache_db.write_checkpoint(db, purchase_lines=10, adjustment_lines=5)
-        cp = cache_db.read_checkpoint(db)
-        assert cp["purchase_lines"] == 10
-        assert cp["adjustment_lines"] == 5
+    def test_write_and_read_checkpoint(self, db, tmp_path):
+        purchase_path = str(tmp_path / "purchase_ledger.csv")
+        _write_csv(purchase_path, ["a", "b"], [{"a": "1", "b": "2"}])
+        adj_path = str(tmp_path / "adjustments.csv")
+        _write_csv(adj_path, ADJ_FIELDS, [
+            _adj_row("2026-01-01T00:00:00", -10),
+            _adj_row("2026-01-01T00:01:00", -20),
+        ])
 
-    def test_read_checkpoint_missing_returns_zeros(self, db):
+        cache_db.write_checkpoint(db, purchase_path=purchase_path,
+                                  adjustments_path=adj_path)
         cp = cache_db.read_checkpoint(db)
-        assert cp["purchase_lines"] == 0
-        assert cp["adjustment_lines"] == 0
+        assert cp["purchase_hash"] == cache_db._file_hash(purchase_path)
+        assert cp["adjustment_count"] == 2
+        assert cp["adjustment_prefix_hash"] != ""
 
-    def test_update_checkpoint(self, db):
-        cache_db.write_checkpoint(db, purchase_lines=10, adjustment_lines=5)
-        cache_db.write_checkpoint(db, purchase_lines=20, adjustment_lines=12)
+    def test_read_checkpoint_missing_returns_empty(self, db):
         cp = cache_db.read_checkpoint(db)
-        assert cp["purchase_lines"] == 20
-        assert cp["adjustment_lines"] == 12
+        assert cp["purchase_hash"] == ""
+        assert cp["adjustment_count"] == 0
+        assert cp["adjustment_prefix_hash"] == ""
+
+    def test_update_checkpoint(self, db, tmp_path):
+        purchase_path = str(tmp_path / "purchase_ledger.csv")
+        adj_path = str(tmp_path / "adjustments.csv")
+        _write_csv(purchase_path, ["a", "b"], [{"a": "1", "b": "2"}])
+        _write_csv(adj_path, ADJ_FIELDS, [_adj_row("2026-01-01T00:00:00", -10)])
+        cache_db.write_checkpoint(db, purchase_path=purchase_path,
+                                  adjustments_path=adj_path)
+
+        # Change the files, rewrite the checkpoint
+        _write_csv(purchase_path, ["a", "b"],
+                   [{"a": "1", "b": "2"}, {"a": "3", "b": "4"}])
+        _write_csv(adj_path, ADJ_FIELDS, [
+            _adj_row("2026-01-01T00:00:00", -10),
+            _adj_row("2026-01-01T00:01:00", -20),
+        ])
+        cache_db.write_checkpoint(db, purchase_path=purchase_path,
+                                  adjustments_path=adj_path)
+        cp = cache_db.read_checkpoint(db)
+        assert cp["purchase_hash"] == cache_db._file_hash(purchase_path)
+        assert cp["adjustment_count"] == 2
+
+    def test_file_hash_missing_returns_empty(self, tmp_path):
+        assert cache_db._file_hash(str(tmp_path / "nope.csv")) == ""
+
+    def test_read_checkpoint_old_format_returns_empty(self, db):
+        """Old caches stored purchase_lines/adjustment_lines ints; new keys
+        come back empty so catch_up triggers a one-time full rebuild."""
+        db.execute(
+            "INSERT OR REPLACE INTO cache_meta (key, value) VALUES "
+            "('purchase_lines', '10')")
+        db.execute(
+            "INSERT OR REPLACE INTO cache_meta (key, value) VALUES "
+            "('adjustment_lines', '5')")
+        db.commit()
+        cp = cache_db.read_checkpoint(db)
+        assert cp["purchase_hash"] == ""
+        assert cp["adjustment_count"] == 0
+        assert cp["adjustment_prefix_hash"] == ""
 
 
 class TestCountLines:
@@ -293,118 +353,157 @@ class TestCountLines:
 
 
 class TestCatchUp:
-    def _write_csv(self, path, fieldnames, rows):
-        with open(path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(rows)
-
     def _write_purchase_ledger(self, path, merged):
         """Write a purchase ledger CSV matching the merged dict (2 data rows)."""
         from inventory_api import InventoryApi
         fieldnames = InventoryApi.FIELDNAMES
-        self._write_csv(path, fieldnames,
+        _write_csv(path, fieldnames,
             [{fn: row.get(fn, "") for fn in fieldnames} for row in merged.values()])
 
-    def test_catch_up_replays_new_adjustments(self, db, tmp_path):
-        # Populate cache with a part
+    def _setup(self, db, tmp_path, *, adj_rows, checkpoint_after):
+        """Populate the cache, write purchase ledger + adjustments, and write a
+        checkpoint covering the first ``checkpoint_after`` adjustment rows."""
         merged = TestPopulate._make_merged(self)
         categorized = TestPopulate._make_categorized(self, merged)
         cache_db.populate_full(db, merged, categorized)
 
-        # Write purchase ledger with 2 rows to match checkpoint
         purchase_path = str(tmp_path / "purchase_ledger.csv")
         self._write_purchase_ledger(purchase_path, merged)
-        cache_db.write_checkpoint(db, purchase_lines=2, adjustment_lines=0)
-
-        # Write adjustments file with 2 rows
         adj_path = str(tmp_path / "adjustments.csv")
-        adj_fields = ["timestamp", "type", "lcsc_part", "quantity",
-                       "bom_file", "board_qty", "note", "source"]
-        self._write_csv(adj_path, adj_fields, [
-            {"timestamp": "2026-01-01T00:00:00", "type": "remove",
-             "lcsc_part": "C1525", "quantity": "-10",
-             "bom_file": "", "board_qty": "", "note": "", "source": ""},
-            {"timestamp": "2026-01-01T00:01:00", "type": "remove",
-             "lcsc_part": "C1525", "quantity": "-20",
-             "bom_file": "", "board_qty": "", "note": "", "source": ""},
-        ])
+        _write_csv(adj_path, ADJ_FIELDS, adj_rows)
 
-        # Catch up — should apply both new adjustment rows
-        result = cache_db.catch_up(db, purchase_path, adj_path, adj_fields)
+        # Write a checkpoint as if only the first ``checkpoint_after`` rows were
+        # processed: temporarily truncate the file, checkpoint, restore.
+        _write_csv(adj_path, ADJ_FIELDS, adj_rows[:checkpoint_after])
+        cache_db.write_checkpoint(db, purchase_path=purchase_path,
+                                  adjustments_path=adj_path)
+        _write_csv(adj_path, ADJ_FIELDS, adj_rows)
+        return purchase_path, adj_path
+
+    def test_catch_up_replays_new_adjustments(self, db, tmp_path):
+        adj_rows = [
+            _adj_row("2026-01-01T00:00:00", -10),
+            _adj_row("2026-01-01T00:01:00", -20),
+        ]
+        purchase_path, adj_path = self._setup(
+            db, tmp_path, adj_rows=adj_rows, checkpoint_after=0)
+
+        result = cache_db.catch_up(db, purchase_path, adj_path, ADJ_FIELDS)
         assert result is True
         qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
         assert qty == 170  # 200 - 10 - 20
+        # Checkpoint advanced to cover all rows
+        cp = cache_db.read_checkpoint(db)
+        assert cp["adjustment_count"] == 2
 
     def test_catch_up_skips_already_processed(self, db, tmp_path):
-        merged = TestPopulate._make_merged(self)
-        categorized = TestPopulate._make_categorized(self, merged)
-        cache_db.populate_full(db, merged, categorized)
-
-        purchase_path = str(tmp_path / "purchase_ledger.csv")
-        self._write_purchase_ledger(purchase_path, merged)
-        # Mark 1 adjustment as already processed
-        cache_db.write_checkpoint(db, purchase_lines=2, adjustment_lines=1)
-
-        adj_path = str(tmp_path / "adjustments.csv")
-        adj_fields = ["timestamp", "type", "lcsc_part", "quantity",
-                       "bom_file", "board_qty", "note", "source"]
-        self._write_csv(adj_path, adj_fields, [
-            {"timestamp": "2026-01-01T00:00:00", "type": "remove",
-             "lcsc_part": "C1525", "quantity": "-10",
-             "bom_file": "", "board_qty": "", "note": "", "source": ""},
-            {"timestamp": "2026-01-01T00:01:00", "type": "remove",
-             "lcsc_part": "C1525", "quantity": "-20",
-             "bom_file": "", "board_qty": "", "note": "", "source": ""},
-        ])
+        adj_rows = [
+            _adj_row("2026-01-01T00:00:00", -10),
+            _adj_row("2026-01-01T00:01:00", -20),
+        ]
+        # Checkpoint covers the first row already
+        purchase_path, adj_path = self._setup(
+            db, tmp_path, adj_rows=adj_rows, checkpoint_after=1)
 
         result = cache_db.catch_up(db, purchase_path=purchase_path,
-                                   adjustments_path=adj_path, adj_fieldnames=adj_fields)
+                                   adjustments_path=adj_path, adj_fieldnames=ADJ_FIELDS)
         assert result is True
         qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
         # Only row 2 applied (row 1 was already processed)
         assert qty == 180  # 200 - 20
 
-    def test_catch_up_returns_false_on_purchase_change(self, db, tmp_path):
+    def test_catch_up_returns_false_on_purchase_append(self, db, tmp_path):
         """catch_up returns False when purchase ledger has new rows."""
-        merged = TestPopulate._make_merged(self)
-        categorized = TestPopulate._make_categorized(self, merged)
-        cache_db.populate_full(db, merged, categorized)
-        # Checkpoint says 1 purchase line, but we'll write 2
-        cache_db.write_checkpoint(db, purchase_lines=1, adjustment_lines=0)
+        purchase_path, adj_path = self._setup(
+            db, tmp_path, adj_rows=[], checkpoint_after=0)
+        # Append a row to the purchase ledger after the checkpoint
+        with open(purchase_path, "a", newline="", encoding="utf-8") as f:
+            f.write("EXTRA-ROW\n")
 
-        purchase_path = str(tmp_path / "purchase_ledger.csv")
-        self._write_purchase_ledger(purchase_path, merged)  # 2 data rows
-        adj_path = str(tmp_path / "adjustments.csv")
-        adj_fields = ["timestamp", "type", "lcsc_part", "quantity",
-                       "bom_file", "board_qty", "note", "source"]
-
-        result = cache_db.catch_up(db, purchase_path, adj_path, adj_fields)
+        result = cache_db.catch_up(db, purchase_path, adj_path, ADJ_FIELDS)
         assert result is False  # signals full rebuild needed
 
+    def test_catch_up_returns_false_on_purchase_inplace_edit(self, db, tmp_path):
+        """An in-place edit (same row count, changed value) must be detected."""
+        adj_rows = [_adj_row("2026-01-01T00:00:00", -10)]
+        purchase_path, adj_path = self._setup(
+            db, tmp_path, adj_rows=adj_rows, checkpoint_after=1)
+
+        # Edit a unit price in place — same number of rows
+        from inventory_api import InventoryApi
+        fieldnames = InventoryApi.FIELDNAMES
+        rows = []
+        with open(purchase_path, newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            for r in reader:
+                rows.append(r)
+        rows[0]["Unit Price($)"] = "9.99"  # was 0.0074
+        _write_csv(purchase_path, fieldnames,
+                   [{fn: r.get(fn, "") for fn in fieldnames} for r in rows])
+        assert cache_db.count_csv_data_lines(purchase_path) == 2  # unchanged count
+
+        result = cache_db.catch_up(db, purchase_path, adj_path, ADJ_FIELDS)
+        assert result is False  # in-place edit triggers full rebuild
+
+    def test_catch_up_returns_false_on_processed_adjustment_edit(self, db, tmp_path):
+        """Editing an already-processed adjustment row triggers full rebuild."""
+        adj_rows = [
+            _adj_row("2026-01-01T00:00:00", -10),
+            _adj_row("2026-01-01T00:01:00", -20),
+        ]
+        # Checkpoint covers both rows
+        purchase_path, adj_path = self._setup(
+            db, tmp_path, adj_rows=adj_rows, checkpoint_after=2)
+
+        # Edit the first (already-processed) row in place
+        edited = [_adj_row("2026-01-01T00:00:00", -999), adj_rows[1]]
+        _write_csv(adj_path, ADJ_FIELDS, edited)
+
+        result = cache_db.catch_up(db, purchase_path, adj_path, ADJ_FIELDS)
+        assert result is False
+
+    def test_catch_up_returns_false_on_processed_adjustment_removed(self, db, tmp_path):
+        """Removing an already-processed adjustment row (rollback) triggers rebuild."""
+        adj_rows = [
+            _adj_row("2026-01-01T00:00:00", -10),
+            _adj_row("2026-01-01T00:01:00", -20),
+        ]
+        purchase_path, adj_path = self._setup(
+            db, tmp_path, adj_rows=adj_rows, checkpoint_after=2)
+
+        # Remove the first processed row
+        _write_csv(adj_path, ADJ_FIELDS, [adj_rows[1]])
+
+        result = cache_db.catch_up(db, purchase_path, adj_path, ADJ_FIELDS)
+        assert result is False
+
+    def test_catch_up_returns_false_on_processed_adjustment_reorder(self, db, tmp_path):
+        """Reordering already-processed adjustment rows triggers rebuild."""
+        adj_rows = [
+            _adj_row("2026-01-01T00:00:00", -10),
+            _adj_row("2026-01-01T00:01:00", -20),
+        ]
+        purchase_path, adj_path = self._setup(
+            db, tmp_path, adj_rows=adj_rows, checkpoint_after=2)
+
+        # Swap the two processed rows
+        _write_csv(adj_path, ADJ_FIELDS, [adj_rows[1], adj_rows[0]])
+
+        result = cache_db.catch_up(db, purchase_path, adj_path, ADJ_FIELDS)
+        assert result is False
+
     def test_catch_up_noop_when_current(self, db, tmp_path):
-        merged = TestPopulate._make_merged(self)
-        categorized = TestPopulate._make_categorized(self, merged)
-        cache_db.populate_full(db, merged, categorized)
+        adj_rows = [
+            _adj_row("2026-01-01T00:00:00", -10),
+            _adj_row("2026-01-01T00:01:00", -20),
+        ]
+        # Checkpoint already covers all rows; nothing new
+        purchase_path, adj_path = self._setup(
+            db, tmp_path, adj_rows=adj_rows, checkpoint_after=2)
 
-        purchase_path = str(tmp_path / "purchase_ledger.csv")
-        self._write_purchase_ledger(purchase_path, merged)
-        cache_db.write_checkpoint(db, purchase_lines=2, adjustment_lines=2)
-
-        adj_path = str(tmp_path / "adjustments.csv")
-        adj_fields = ["timestamp", "type", "lcsc_part", "quantity",
-                       "bom_file", "board_qty", "note", "source"]
-        self._write_csv(adj_path, adj_fields, [
-            {"timestamp": "2026-01-01T00:00:00", "type": "remove",
-             "lcsc_part": "C1525", "quantity": "-10",
-             "bom_file": "", "board_qty": "", "note": "", "source": ""},
-            {"timestamp": "2026-01-01T00:01:00", "type": "remove",
-             "lcsc_part": "C1525", "quantity": "-20",
-             "bom_file": "", "board_qty": "", "note": "", "source": ""},
-        ])
-
-        cache_db.catch_up(db, purchase_path=str(tmp_path / "purchase_ledger.csv"),
-                          adjustments_path=adj_path, adj_fieldnames=adj_fields)
+        result = cache_db.catch_up(db, purchase_path=purchase_path,
+                                   adjustments_path=adj_path, adj_fieldnames=ADJ_FIELDS)
+        assert result is True
         qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
         assert qty == 200  # unchanged
 

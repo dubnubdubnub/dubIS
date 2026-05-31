@@ -15,6 +15,8 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+import csv_io
+
 logger = logging.getLogger(__name__)
 
 _JSON_FILE = "saved_searches.json"
@@ -42,8 +44,11 @@ def _persist(conn: sqlite3.Connection, data_dir: str) -> None:
             "created_at": row["created_at"],
         })
     os.makedirs(data_dir, exist_ok=True)
-    with open(_json_path(data_dir), "w", encoding="utf-8") as f:
-        json.dump(records, f, indent=2, ensure_ascii=False)
+    csv_io.atomic_write_text(
+        _json_path(data_dir),
+        json.dumps(records, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:

@@ -6,9 +6,78 @@ import csv
 import io
 import logging
 import os
-from typing import Any
+import tempfile
+from typing import Any, Callable, TextIO
 
 logger = logging.getLogger(__name__)
+
+
+def _atomic_write(path: str, *, encoding: str, newline: str | None,
+                  write_body: Callable[[TextIO], None]) -> None:
+    """Atomically write to *path* by staging in a same-dir temp file.
+
+    Creates a uniquely-named temp file in the same directory as *path* (so the
+    final ``os.replace`` stays on one filesystem and is atomic on NTFS and
+    POSIX alike), lets *write_body* fill it, flushes and fsyncs to durable
+    storage, then renames it over the destination. On any exception the temp
+    file is removed and the error is re-raised — the pre-existing destination
+    is never left truncated or half-written.
+
+    The temp name is unique (``tempfile.mkstemp``) rather than a fixed
+    ``<path>.tmp`` so two writers to the same destination can't clobber each
+    other's staging file.
+    """
+    dir_name = os.path.dirname(path) or "."
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name,
+                                    prefix=os.path.basename(path) + ".",
+                                    suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding=encoding, newline=newline) as f:
+            write_body(f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except BaseException:
+        _cleanup_temp(tmp_path)
+        raise
+
+
+def atomic_write_text(path: str, text: str, *, encoding: str,
+                      newline: str | None = None) -> None:
+    """Atomically write *text* to *path* (see :func:`_atomic_write`).
+
+    *newline* is passed straight through to ``open``: leave it as ``None``
+    (the default, matching a plain ``open(path, "w")``) for free-form text and
+    JSON; pass ``""`` when writing pre-rendered CSV text so the ``csv`` module's
+    own line terminators are not translated again.
+    """
+    _atomic_write(path, encoding=encoding, newline=newline,
+                  write_body=lambda f: f.write(text))
+
+
+def atomic_write_rows(path: str, fieldnames: list[str],
+                      rows: list[dict[str, Any]], *, encoding: str,
+                      newline: str = "") -> None:
+    """Atomically write a CSV header + *rows* to *path* via ``csv.DictWriter``.
+
+    Same temp-then-``os.replace`` durability guarantee as
+    :func:`atomic_write_text`.
+    """
+    def _write(f: TextIO) -> None:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    _atomic_write(path, encoding=encoding, newline=newline, write_body=_write)
+
+
+def _cleanup_temp(tmp_path: str) -> None:
+    """Best-effort removal of a leftover temp file after a failed atomic write."""
+    try:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+    except OSError as exc:
+        logger.warning("Failed to remove temp file %s: %s", tmp_path, exc)
 
 
 def append_csv_rows(path: str, fieldnames: list[str],
@@ -42,12 +111,11 @@ def migrate_csv_header(path: str, expected_fieldnames: list[str]) -> None:
         existing_rows = list(reader)
 
     # Rewrite with new header, filling missing fields with ""
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=expected_fieldnames)
-        writer.writeheader()
-        for row in existing_rows:
-            migrated = {fn: row.get(fn, "") for fn in expected_fieldnames}
-            writer.writerow(migrated)
+    migrated_rows = [
+        {fn: row.get(fn, "") for fn in expected_fieldnames}
+        for row in existing_rows
+    ]
+    atomic_write_rows(path, expected_fieldnames, migrated_rows, encoding="utf-8")
 
 
 def fix_double_utf8(text: str) -> str:
