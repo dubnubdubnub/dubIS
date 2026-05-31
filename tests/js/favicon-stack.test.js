@@ -15,6 +15,14 @@ vi.mock('../../js/store.js', () => ({
 
 vi.mock('../../js/ui-helpers.js', () => ({
   escHtml: vi.fn(s => String(s || '')),
+  vendorIconSrc: vi.fn((path) => {
+    if (!path) return '';
+    const p = String(path).replace(/\\/g, '/');
+    if (/^(https?:|data:|blob:|file:)/i.test(p)) return p;
+    if (/^[a-zA-Z]:\//.test(p) || p.startsWith('/')) return p;
+    if (p.startsWith('data/')) return p;
+    return 'data/' + p.replace(/^\/+/, '');
+  }),
 }));
 
 import { renderFanStack, buildHoverFlyout } from '../../js/inventory/favicon-stack.js';
