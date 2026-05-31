@@ -5,8 +5,6 @@ import json
 import os
 import types
 
-import pytest
-
 
 class TestLoadPreferences:
     def test_malformed_json_returns_empty(self, api):
@@ -124,16 +122,22 @@ class TestConfirmClose:
 
 class TestConvertXls:
     def test_mouser_cart_xls(self, api):
-        """Convert real Mouser cart XLS file to CSV."""
+        """Convert a committed Mouser-style cart XLS fixture to CSV.
+
+        The fixture (tests/fixtures/mouser_cart_sample.xls) is a small, valid
+        BIFF workbook generated once with xlwt and committed to the repo, so
+        this test runs unconditionally without depending on a non-committed
+        real export. xlrd (used by convert_xls_to_csv) is in requirements-dev.
+        """
         xls_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-            "data", "Cart_Mar25_0912PM.xls",
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "fixtures", "mouser_cart_sample.xls",
         )
-        if not os.path.exists(xls_path):
-            pytest.skip("Mouser XLS test file not available")
+        assert os.path.exists(xls_path), f"missing XLS fixture: {xls_path}"
         result = api.convert_xls_to_csv(xls_path)
         assert result is not None
         assert result["row_count"] >= 1
+        # Header detection found the Mouser cart header row.
         assert any("mouser" in h.lower() for h in result["headers"])
         assert result["csv_text"]  # non-empty
 
