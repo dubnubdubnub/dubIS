@@ -24,7 +24,7 @@ if sys.platform == "win32":
 
 import webview
 from inventory_api import InventoryApi
-from pnp_server import start_pnp_server
+from pnp_server import start_pnp_server, stop_pnp_server
 from poll_api import POLL_PORT, start_poll_server
 
 
@@ -36,9 +36,14 @@ def set_icon():
         from System import Action
         ico = DrawingIcon(ICON_PATH)
         for w in webview.windows:
+            deadline = time.time() + 5.0
             while w.native is None or not w.native.IsHandleCreated:
+                if time.time() > deadline:
+                    logger.warning("set_icon: native window handle not ready after 5s; skipping icon")
+                    break
                 time.sleep(0.05)
-            w.native.Invoke(Action(lambda: setattr(w.native, "Icon", ico)))
+            else:
+                w.native.Invoke(Action(lambda: setattr(w.native, "Icon", ico)))
 
 
 def main():
@@ -53,24 +58,50 @@ def main():
         min_size=(1200, 700),
     )
 
+    pnp_server = None
+
+    def _cleanup():
+        """Best-effort teardown before os._exit. Order matters: stop the PnP
+        server FIRST (no new requests; in-flight ones finish) so a mid-flight
+        adjust_part can't write to a connection we're about to close, THEN
+        commit+close the cache. Both steps log rather than raise so a cleanup
+        failure can't block process exit. Idempotent — safe to call repeatedly
+        (e.g. closing then closed both fire)."""
+        try:
+            stop_pnp_server(pnp_server)
+        except Exception as exc:
+            logger.warning("Cleanup: stopping PnP server failed: %s", exc)
+        try:
+            api.shutdown()
+        except Exception as exc:
+            logger.warning("Cleanup: api.shutdown failed: %s", exc)
+
     def on_closing():
         if api._force_close:
+            _cleanup()
             os._exit(0)
         if not api._bom_dirty:
+            _cleanup()
             os._exit(0)  # No unsaved changes — kill process immediately
         # Unsaved changes — show the confirmation modal
         try:
             window.evaluate_js("closeModal.open()")
         except Exception as exc:
             logger.warning("Could not show close modal: %s", exc)
+            _cleanup()
             os._exit(0)
         return False
 
+    def on_closed():
+        _cleanup()
+        os._exit(0)
+
     window.events.closing += on_closing
-    window.events.closed += lambda: os._exit(0)
+    window.events.closed += on_closed
     def on_ready():
+        nonlocal pnp_server
         set_icon()
-        start_pnp_server(api, window)
+        pnp_server = start_pnp_server(api, window)
         prefs = api.load_preferences()
         configured_port = prefs.get("pollApiPort")
         start_poll_server(api, port=configured_port if configured_port else POLL_PORT)

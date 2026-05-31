@@ -97,6 +97,31 @@ class TestGetCache:
         assert done.is_set(), "adjust_part deadlocked on first lazy cache init"
 
 
+class TestShutdown:
+    def test_closes_open_cache_connection(self, api):
+        import sqlite3
+
+        conn = api._get_cache()
+        api.shutdown()
+        assert api._cache_conn is None
+        # Operating on a closed connection raises ProgrammingError.
+        with pytest.raises(sqlite3.ProgrammingError):
+            conn.execute("SELECT 1")
+
+    def test_idempotent_after_cache_created(self, api):
+        api._get_cache()
+        api.shutdown()
+        # Second call must be a safe no-op.
+        api.shutdown()
+        assert api._cache_conn is None
+
+    def test_safe_when_no_cache_created(self, api):
+        # No _get_cache() call → connection never opened.
+        assert api._cache_conn is None
+        api.shutdown()  # must not raise
+        assert api._cache_conn is None
+
+
 class TestDetectColumns:
     def test_digikey_headers(self, api):
         headers = ["Digi-Key Part Number", "Manufacturer Part Number",
