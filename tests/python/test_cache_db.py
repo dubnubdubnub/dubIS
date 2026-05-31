@@ -760,6 +760,55 @@ def test_v5_to_v6_migration_adds_primary_vendor_id(tmp_path):
     conn.close()
 
 
+def test_populate_full_succeeds_when_generic_part_members_exist(tmp_path):
+    """populate_full must not fail when generic_part_members has rows.
+
+    Regression: DELETE FROM parts violated the FK from generic_part_members.part_id
+    to parts.part_id, leaving the cache in a half-deleted state. populate_full
+    is run on every full _rebuild, so any prior auto-generated passive group
+    triggered FOREIGN KEY constraint failed on the next price update.
+    """
+    import cache_db
+
+    db_path = str(tmp_path / "cache.db")
+    conn = cache_db.connect(db_path)
+    cache_db.create_schema(conn)
+
+    # Seed a part that has an auto-generated generic_part_member referencing it.
+    conn.execute(
+        "INSERT INTO parts (part_id, lcsc, mpn, section) "
+        "VALUES ('C96151', 'C96151', '', 'Passives - Resistors > Chip Resistors')"
+    )
+    conn.execute(
+        "INSERT INTO stock (part_id, quantity, unit_price, ext_price) "
+        "VALUES ('C96151', 10, 0.0, 0.0)"
+    )
+    conn.execute(
+        "INSERT INTO generic_parts (generic_part_id, name, part_type, "
+        "spec_json, strictness_json, source) "
+        "VALUES ('res_1.34ohm', '1.34Ω', 'resistor', '{}', '{}', 'auto')"
+    )
+    conn.execute(
+        "INSERT INTO generic_part_members (generic_part_id, part_id, source) "
+        "VALUES ('res_1.34ohm', 'C96151', 'auto')"
+    )
+    conn.commit()
+
+    # Re-running populate_full (as _rebuild does) must succeed even though the
+    # part is referenced by generic_part_members.
+    merged = {"C96151": {"LCSC Part Number": "C96151", "Quantity": "20",
+                          "Unit Price($)": "0.10", "Ext.Price($)": "2.00"}}
+    categorized = {"Passives - Resistors > Chip Resistors": list(merged.values())}
+    cache_db.populate_full(conn, merged, categorized)
+
+    # Member row survives because its referenced part_id was re-inserted.
+    member = conn.execute(
+        "SELECT * FROM generic_part_members WHERE part_id='C96151'"
+    ).fetchone()
+    assert member is not None
+    conn.close()
+
+
 def test_v5_to_v6_migration_populate_full_succeeds(tmp_path):
     """After migration, populate_full's INSERT with primary_vendor_id works."""
     import cache_db
