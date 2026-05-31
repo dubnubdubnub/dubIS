@@ -178,6 +178,10 @@ export function setupEvents(handlers) {
 
   EventBus.on(Events.LINKING_MODE, function () { render(); });
 
+  // Entering/exiting label-select mode swaps each row's right-edge action
+  // buttons for a selection checkbox (and back) — re-render to apply.
+  EventBus.on(Events.LABEL_MODE, function () { render(); });
+
   EventBus.on(Events.FLYOUT_SEARCH_CHANGED, function (data) {
     if (state.searchInput && data && typeof data.searchText === "string") {
       state.searchInput.value = data.searchText;

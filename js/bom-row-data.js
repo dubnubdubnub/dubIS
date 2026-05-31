@@ -3,7 +3,7 @@
    No DOM dependencies. Depends on: bomKey, STATUS_ICONS,
    STATUS_ROW_CLASS (from part-keys.js). */
 
-import { bomKey, STATUS_ICONS, STATUS_ROW_CLASS } from './part-keys.js';
+import { bomKey, invPartKey, STATUS_ICONS, STATUS_ROW_CLASS } from './part-keys.js';
 import { extractFootprintCode, invFootprintCode } from './matching.js';
 
 export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState, expandedMembers) {
@@ -148,6 +148,10 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
 
   return {
     partKey: partKey,
+    // Inventory part key (matches invPartKey on the inventory side) — used to
+    // key label-export selection checkboxes so a part selected on either side
+    // shares one key. Empty for missing rows (no inventory item).
+    invKey: hasInv ? invPartKey(r.inv) : "",
     status: st,
     rowClass: rowClass,
     icon: icon,
