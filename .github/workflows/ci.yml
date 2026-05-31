@@ -203,11 +203,10 @@ jobs:
             runner: [self-hosted, pnp-testbox]
             checkout-clean: true
             install-pw: true
-          # TODO(m4-air-offline): restore macos entry once the m4-air runner is back online
-          # - name: macos
-          #   runner: [self-hosted, m4-air]
-          #   checkout-clean: false
-          #   install-pw: false
+          - name: macos
+            runner: [self-hosted, m4-air]
+            checkout-clean: false
+            install-pw: false
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -258,10 +257,9 @@ jobs:
           - name: ubuntu
             runner: [self-hosted, pnp-testbox]
             checkout-clean: true
-          # TODO(m4-air-offline): restore macos entry once the m4-air runner is back online
-          # - name: macos
-          #   runner: [self-hosted, m4-air]
-          #   checkout-clean: false
+          - name: macos
+            runner: [self-hosted, m4-air]
+            checkout-clean: false
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -301,9 +299,8 @@ jobs:
         include:
           - name: ubuntu
             runner: [self-hosted, pnp-testbox, gui]
-          # TODO(m4-air-offline): restore macos entry once the m4-air runner is back online
-          # - name: macos
-          #   runner: [self-hosted, m4-air, gui]
+          - name: macos
+            runner: [self-hosted, m4-air, gui]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 5
     env:
@@ -363,11 +360,10 @@ jobs:
             runner: [self-hosted, pnp-testbox]
             checkout-clean: true
             install-pw: true
-          # TODO(m4-air-offline): restore macos entry once the m4-air runner is back online
-          # - name: macos
-          #   runner: [self-hosted, m4-air]
-          #   checkout-clean: false
-          #   install-pw: false
+          - name: macos
+            runner: [self-hosted, m4-air]
+            checkout-clean: false
+            install-pw: false
     runs-on: ${{ matrix.runner }}
     continue-on-error: true
     steps:
