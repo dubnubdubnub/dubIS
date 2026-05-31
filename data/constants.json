@@ -1,4 +1,14 @@
 {
+  "label_export": {
+    "tape6":  { "budget_mm": 115, "font_pt": 10 },
+    "tape12": { "budget_mm": 40, "preferred_mm": 30, "font_pt": 10, "rows": 3 },
+    "calibration_k": 0.085,
+    "char_width": { "narrow": 0.32, "wide": 0.95, "default": 0.6 },
+    "narrow_chars": "iIl.,:;'`|!()[]{} ",
+    "wide_chars": "mMW@%#",
+    "distributor_prefix": { "v_lcsc": "", "v_digikey": "", "v_mouser": "", "v_pololu": "" },
+    "header_row": false
+  },
   "SECTION_ORDER": [
     { "name": "Connectors", "children": ["High Speed", "SMD", "Through Hole"] },
     "Switches",

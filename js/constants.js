@@ -6,3 +6,4 @@ const _data = await resp.json();
 
 export const SECTION_ORDER = _data.SECTION_ORDER;
 export const FIELDNAMES = _data.FIELDNAMES;
+export const LABEL_EXPORT_CFG = _data.label_export;
