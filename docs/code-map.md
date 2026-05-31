@@ -246,6 +246,7 @@ graph LR
     "purchase_orders.py" --> "csv_io.py"
     "purchase_orders.py" --> "source_sanitizer.py"
     "saved_searches.py" --> "csv_io.py"
+    "scripts/capture-distributor-fixtures.py" --> "distributor_fixtures.py"
     "scripts/ci_watcher/listener.py" --> "scripts/ci_watcher/state.py"
     "scripts/ci_watcher/worker.py" --> "scripts/ci_watcher/triage_payload.py"
     "scripts/generate-test-fixtures.py" --> "inventory_api.py"
@@ -294,6 +295,7 @@ graph LR
     "tests/pnp-e2e/dubis_headless.py" --> "inventory_api.py"
     "tests/pnp-e2e/dubis_headless.py" --> "pnp_server.py"
     "tests/python/conftest.py" --> "cache_db.py"
+    "tests/python/conftest.py" --> "distributor_fixtures.py"
     "tests/python/conftest.py" --> "inventory_api.py"
     "tests/python/domain/test_pricing.py" --> "cache_db.py"
     "tests/python/domain/test_pricing.py" --> "domain/pricing.py"
@@ -327,6 +329,7 @@ graph LR
     "tests/python/test_distributor_api.py" --> "lcsc_client.py"
     "tests/python/test_distributor_api.py" --> "mouser_client.py"
     "tests/python/test_distributor_api.py" --> "pololu_client.py"
+    "tests/python/test_distributor_fixtures.py" --> "distributor_fixtures.py"
     "tests/python/test_distributor_live.py" --> "distributor_manager.py"
     "tests/python/test_distributor_manager.py" --> "distributor_manager.py"
     "tests/python/test_dubis_errors.py" --> "dubis_errors.py"
@@ -350,6 +353,7 @@ graph LR
     "tests/python/test_mfg_direct_import.py" --> "mfg_direct_import.py"
     "tests/python/test_mfg_direct_import.py" --> "vendors.py"
     "tests/python/test_normalizers.py" --> "digikey_client.py"
+    "tests/python/test_normalizers.py" --> "distributor_fixtures.py"
     "tests/python/test_normalizers.py" --> "mouser_client.py"
     "tests/python/test_normalizers.py" --> "pololu_client.py"
     "tests/python/test_pnp_server.py" --> "pnp_server.py"
@@ -436,6 +440,11 @@ graph LR
 
 - **Imports:** `digikey_cdp.py`
 - **Imported by:** `digikey_client.py`
+
+### distributor_fixtures.py
+
+- **Imports:** —
+- **Imported by:** `scripts/capture-distributor-fixtures.py`, `tests/python/conftest.py`, `tests/python/test_distributor_fixtures.py`, `tests/python/test_normalizers.py`
 
 ### distributor_manager.py
 
@@ -817,7 +826,7 @@ graph LR
 
 ### scripts/capture-distributor-fixtures.py
 
-- **Imports:** —
+- **Imports:** `distributor_fixtures.py`
 - **Imported by:** —
 
 ### scripts/check-layout-tokens.py
@@ -1066,7 +1075,7 @@ graph LR
 
 ### tests/python/conftest.py
 
-- **Imports:** `cache_db.py`, `inventory_api.py`
+- **Imports:** `cache_db.py`, `distributor_fixtures.py`, `inventory_api.py`
 - **Imported by:** —
 
 ### tests/python/domain/test_pricing.py
@@ -1087,6 +1096,11 @@ graph LR
 ### tests/python/test_cache_db.py
 
 - **Imports:** `cache_db.py`, `inventory_api.py`, `inventory_ops.py`
+- **Imported by:** —
+
+### tests/python/test_capture_refresh.py
+
+- **Imports:** —
 - **Imported by:** —
 
 ### tests/python/test_check_layout_tokens.py
@@ -1174,6 +1188,11 @@ graph LR
 - **Imports:** `digikey_client.py`, `distributor_manager.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`
 - **Imported by:** —
 
+### tests/python/test_distributor_fixtures.py
+
+- **Imports:** `distributor_fixtures.py`
+- **Imported by:** —
+
 ### tests/python/test_distributor_live.py
 
 - **Imports:** `distributor_manager.py`
@@ -1256,7 +1275,7 @@ graph LR
 
 ### tests/python/test_normalizers.py
 
-- **Imports:** `digikey_client.py`, `mouser_client.py`, `pololu_client.py`
+- **Imports:** `digikey_client.py`, `distributor_fixtures.py`, `mouser_client.py`, `pololu_client.py`
 - **Imported by:** —
 
 ### tests/python/test_pnp_server.py

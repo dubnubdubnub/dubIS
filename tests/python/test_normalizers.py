@@ -13,8 +13,12 @@ from __future__ import annotations
 
 import json
 import os
+import warnings
+from datetime import datetime
 
 import pytest
+
+import distributor_fixtures
 
 FIXTURE_PATH = os.path.join(
     os.path.dirname(__file__), "..", "fixtures", "generated", "distributor-scrapes.json"
@@ -31,6 +35,17 @@ if not os.path.exists(FIXTURE_PATH):
 if os.path.exists(FIXTURE_PATH):
     with open(FIXTURE_PATH, encoding="utf-8") as _f:
         _FIXTURES = json.load(_f)
+
+    # Per-distributor staleness warning (not a failure).
+    _stale = distributor_fixtures.stale_distributors(
+        _FIXTURES, distributor_fixtures.DISTRIBUTORS, datetime.now()
+    )
+    if _stale:
+        warnings.warn(
+            f"Distributor fixtures stale for: {sorted(_stale)} — "
+            "re-run: python scripts/capture-distributor-fixtures.py",
+            stacklevel=1,
+        )
 
     # ── Digikey normalizer tests ──
 
