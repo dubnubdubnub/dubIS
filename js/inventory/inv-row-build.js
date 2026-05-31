@@ -61,10 +61,12 @@ export function createPartRow(item, sectionKey, sectionChip) {
   }
 
   var adjBtn = row.querySelector(".adj-btn");
-  if (adjBtn) adjBtn.addEventListener("click", function (e) {
-    e.stopPropagation();
-    openAdjustModal(item);
-  });
+  if (adjBtn) {
+    adjBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      openAdjustModal(item);
+    });
+  }
   var warnBtn = row.querySelector(".price-warn-btn");
   if (warnBtn) {
     warnBtn.addEventListener("click", function (e) {

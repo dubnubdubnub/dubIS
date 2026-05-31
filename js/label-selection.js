@@ -99,7 +99,15 @@ export function selectPo(poId) {
       }
     }
   }
-  if (added > 0) notifySelectionChanged();
+  if (added > 0) {
+    notifySelectionChanged();
+    // Bulk select can flip many keys at once; checkboxes already in the DOM
+    // won't reflect the new state until the next re-render. Signal listeners
+    // (the inventory panel) to re-render so visible checkboxes update. Single
+    // toggles deliberately do NOT emit this — re-rendering on every checkbox
+    // click would hurt scroll/perf.
+    EventBus.emit(Events.LABEL_BULK_SELECTION, added);
+  }
   return added;
 }
 

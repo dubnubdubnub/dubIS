@@ -67,6 +67,7 @@
    Swaps in for the right-edge action buttons when label-select mode is on.
    Occupies the same right-edge space so rows don't shift or clip. */
 .label-select-checkbox {
+  display: inline-block;
   width: 16px;
   height: 16px;
   margin: 0;

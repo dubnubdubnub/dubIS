@@ -18,6 +18,8 @@
  * PO_CHANGED:           PurchaseOrder[]          — full purchase orders array
  * LABEL_MODE:           boolean                  — true when label-select mode is active
  * LABEL_SELECTION_CHANGED: number                — current selected part count
+ * LABEL_BULK_SELECTION: number                   — count added by a bulk op (e.g. PO select);
+ *                                                  signals listeners to re-render visible checkboxes
  */
 export const Events = Object.freeze({
   INVENTORY_LOADED:  "inventory-loaded",
@@ -38,6 +40,7 @@ export const Events = Object.freeze({
   PO_CHANGED:             "po-changed",
   LABEL_MODE:             "label-mode",
   LABEL_SELECTION_CHANGED: "label-selection-changed",
+  LABEL_BULK_SELECTION:    "label-bulk-selection",
 });
 
 export const EventBus = {
