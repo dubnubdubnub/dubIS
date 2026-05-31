@@ -22,6 +22,7 @@ import {
   renderFilterBarHtml,
   renderBomTableHeader,
 } from './inventory-renderer.js';
+import { toggleSelection } from '../label-selection.js';
 import state from './inv-state.js';
 import { isFlyoutDragActive } from './inv-events.js';
 
@@ -130,6 +131,18 @@ export function renderBomComparison(render, createReverseLink) {
 // ── Delegated tbody click handler ──
 
 function handleBomTableClick(e, render, createReverseLink) {
+  // NOTE: This module is currently legacy/unwired — the live BOM view is
+  // rendered by inv-bom-mode.js (which delegates to inv-mutations.js's
+  // handleBomTableClick). This local handler is kept in sync with that one so
+  // behaviour stays identical if this view is ever reactivated.
+  // Label-mode selection checkbox (swaps in for the action buttons).
+  const cb = e.target.closest(".label-select-checkbox");
+  if (cb) {
+    e.stopPropagation();
+    toggleSelection(cb.dataset.key);
+    return;
+  }
+
   // Alt badge toggle
   const badge = e.target.closest(".alt-badge");
   if (badge) {

@@ -5,6 +5,9 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import time
+import urllib.error
+import urllib.request
 from typing import Any
 from urllib.parse import quote
 
@@ -160,23 +163,122 @@ class DigikeyClient(BaseProductClient):
 
     # ── Public API ────────────────────────────────────────────────────────
 
+    def validate_session_http(self, cookies: list[dict]) -> bool:
+        """Lightweight, no-webview probe of whether a cached session is live.
+
+        Builds a ``Cookie:`` header from *cookies* (name=value pairs where both
+        are present) and HTTP GETs the MyDigiKey account page with a
+        browser-like User-Agent. urllib follows redirects by default.
+
+        Three-state contract — ``cf_clearance`` is fingerprint-bound, so a
+        plain urllib request can be blocked by Cloudflare (HTTP 403) even when
+        the session is perfectly valid. A 403 therefore must NOT be read as
+        "expired":
+
+        - Returns ``True`` when the response lands on the account page
+          (HTTP 200 and the FINAL url is not a login/signin page).
+        - Returns ``False`` ONLY on a definitive expiry signal: the final url
+          contains ``/login`` or ``/signin`` (DigiKey redirects unauthenticated
+          users there, served as 200). Empty/no cookies also returns ``False``.
+        - RAISES on inconclusive cases — HTTP 403 / other ``HTTPError``,
+          ``URLError``, ``TimeoutError``, socket errors — rather than swallowing
+          them into ``False``. The caller decides how to treat "don't know".
+        """
+        if not cookies:
+            return False
+        pairs = [
+            f"{c['name']}={c['value']}"
+            for c in cookies
+            if c.get("name") and c.get("value")
+        ]
+        if not pairs:
+            return False
+        cookie_header = "; ".join(pairs)
+
+        url = "https://www.digikey.com/MyDigiKey/Account"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Cookie": cookie_header,
+        }
+        req = urllib.request.Request(url, headers=headers)
+        # Inconclusive errors (HTTPError incl. 403, URLError, TimeoutError,
+        # socket errors) propagate to the caller — do NOT catch them here.
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            final_url = (resp.geturl() or "").lower()
+            status = getattr(resp, "status", None)
+
+        if "/login" in final_url or "/signin" in final_url:
+            logger.debug("DK http validate: redirected to %s — session expired", final_url)
+            return False
+        if status == 200:
+            logger.debug("DK http validate: session valid (final url=%s)", final_url)
+            return True
+        # 200-but-not-login is the only True case; anything else here is a
+        # non-definitive response — treat as inconclusive.
+        raise urllib.error.URLError(f"unexpected status {status} for {final_url}")
+
+    def ensure_session(self, interactive: bool = False) -> bool:
+        """Cache-first session orchestrator.
+
+        1. Validate saved cookies over plain HTTP (no webview). If they
+           validate, mark them as the active session and return ``True``.
+           Inconclusive probe errors (offline / Cloudflare) are treated as
+           "not validated" — fall through rather than crash.
+        2. If ``not interactive``, return ``False`` without opening a browser.
+        3. Interactive: launch the visible login browser and poll
+           ``sync_cookies`` for up to ~120s until login succeeds.
+        """
+        saved = self._load_cookies()
+        if saved:
+            try:
+                if self.validate_session_http(saved):
+                    self._set_logged_in(saved)
+                    return True
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                # Inconclusive (offline / Cloudflare) — not validated, but do
+                # not crash. Fall through to the interactive path if allowed.
+                logger.debug("DK ensure_session: validation inconclusive: %s", exc)
+
+        if not interactive:
+            return False
+
+        self.start_login()
+        deadline = time.time() + 120.0
+        while time.time() < deadline:
+            if self.sync_cookies().get("logged_in"):
+                return True
+            time.sleep(2)
+        return bool(self.sync_cookies().get("logged_in"))
+
     def check_session(self) -> dict[str, Any]:
         """Check if there's an existing Digikey session.
 
         Tries saved cookies first, then launches the browser headless
         with CDP to read fresh cookies.  Called on app startup.
         """
-        # 1. Try saved cookies from disk (instant)
+        # 1. Try saved cookies from disk (instant). Validate them over plain
+        #    HTTP so an expired session doesn't masquerade as logged-in.
         saved = self._load_cookies()
         if saved:
-            self._set_logged_in(saved)
-            logger.debug("Startup: loaded saved session (%d cookies)", len(saved))
-            return {"logged_in": True, "message": "Loaded saved session"}
+            try:
+                validated = self.validate_session_http(saved)
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                # Inconclusive (offline / Cloudflare 403) — never downgrade a
+                # saved session just because the network was unreachable.
+                logger.debug("Startup: session validation inconclusive: %s", exc)
+                self._set_logged_in(saved)
+                return {"logged_in": True, "message": "Loaded saved session"}
+            if validated:
+                self._set_logged_in(saved)
+                logger.debug("Startup: validated saved session (%d cookies)", len(saved))
+                return {"logged_in": True, "message": "Validated saved session"}
+            # Definitively expired — fall through to the headless CDP fallback
+            # so a fresh browser session can still be discovered.
+            logger.debug("Startup: saved session expired, trying headless CDP")
 
         # 2. Try headless browser CDP
         import random
         import subprocess
-        import time
 
         exe = find_default_browser_exe()
         if not exe:
@@ -339,7 +441,6 @@ class DigikeyClient(BaseProductClient):
                 logger.warning("DK probe: page load timed out")
                 return False
 
-            import time
             cf_deadline = time.time() + 25.0
             while time.time() < cf_deadline:
                 try:
@@ -434,7 +535,6 @@ class DigikeyClient(BaseProductClient):
             # "Just a moment..." challenge page, before CF's JS redirects to
             # the real product page. Poll the title and wait for the challenge
             # to clear (or the URL to leave /products/result).
-            import time
             cf_deadline = time.time() + 25.0
             cf_seen = False
             while time.time() < cf_deadline:

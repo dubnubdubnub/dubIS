@@ -1,0 +1,262 @@
+/* ── Labels mode toggle button ────────────────────────── */
+.label-mode-btn {
+  border-color: #a371f740;
+  background: #a371f720;
+  color: var(--color-purple);
+  font-weight: 600;
+}
+.label-mode-btn:hover { background: #a371f740; border-color: var(--color-purple); }
+.label-mode-btn.active {
+  background: var(--color-purple);
+  color: var(--bg-base);
+  border-color: var(--color-purple);
+}
+
+/* ── Label-select toolbar ─────────────────────────────── */
+.label-toolbar {
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  padding: 6px 10px;
+}
+
+.label-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.label-selected-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+/* ── Tape-width toggle ────────────────────────────────── */
+.label-tape-toggle {
+  display: inline-flex;
+  gap: 4px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  padding: 2px;
+}
+.label-tape-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.label-tape-opt input { cursor: pointer; margin: 0; }
+
+.label-create-btn {
+  border-color: #3fb95040;
+  background: #3fb95020;
+  color: var(--color-green);
+  font-weight: 600;
+}
+.label-create-btn:hover { background: #3fb95040; border-color: var(--color-green); }
+
+.label-done-btn { color: var(--text-secondary); }
+.label-done-btn:hover { border-color: var(--color-blue); color: var(--text-primary); }
+
+/* ── Row selection checkbox (label mode) ──────────────────
+   Swaps in for the right-edge action buttons when label-select mode is on.
+   Occupies the same right-edge space so rows don't shift or clip. */
+.label-select-checkbox {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-purple);
+  flex-shrink: 0;
+}
+/* Inventory rows: .part-actions already right-aligns; keep the box centred. */
+.inv-part-row .part-actions .label-select-checkbox {
+  margin-left: auto;
+}
+/* BOM comparison rows: btn-group is right-aligned + sticky. */
+td.btn-group .label-select-checkbox {
+  vertical-align: middle;
+}
+
+/* ── PO picker ────────────────────────────────────────── */
+.label-po-picker {
+  margin-top: 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-base);
+}
+.label-po-picker-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-default);
+}
+.label-po-list {
+  max-height: 180px;
+  overflow-y: auto;
+}
+.label-po-empty, .label-po-loading {
+  padding: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.label-po-row { border-bottom: 1px solid var(--border-default); }
+.label-po-row:last-child { border-bottom: none; }
+
+.label-po-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+}
+.label-po-expand {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 2px;
+}
+.label-po-expand:hover { color: var(--text-bright); }
+.label-po-select {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--color-purple);
+  cursor: pointer;
+}
+.label-po-select:hover { background: #a371f720; border-color: var(--color-purple); }
+.label-po-label {
+  font-size: 11px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.label-po-detail { padding: 4px 8px 8px 24px; }
+.label-po-items {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+.label-po-items th, .label-po-items td {
+  text-align: left;
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-secondary);
+}
+.label-po-items th { color: var(--text-muted); font-weight: 600; }
+.label-po-items td.num, .label-po-items th.num { text-align: right; }
+
+/* ── Export preview modal ─────────────────────────────── */
+.label-export-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.label-export-preview {
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-base);
+}
+
+.label-export-empty {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.label-export-group { border-bottom: 1px solid var(--border-default); }
+.label-export-group:last-child { border-bottom: none; }
+
+.label-export-group-head {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-purple);
+  padding: 4px 8px;
+  background: var(--bg-surface);
+  position: sticky;
+  top: 0;
+}
+
+.label-export-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.label-export-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border-default);
+}
+.label-export-table td {
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border-default);
+  vertical-align: top;
+}
+.label-export-row:last-child td { border-bottom: none; }
+
+.label-edit-cell {
+  min-width: 80px;
+  min-height: 18px;
+  padding: 2px 4px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  outline: none;
+}
+.label-edit-cell:focus { border-color: var(--color-blue); }
+
+.label-mm-head, .label-mm {
+  text-align: right;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.label-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.label-badge-red {
+  background: #f8514920;
+  color: var(--color-red);
+  border: 1px solid #f8514940;
+}
+.label-badge-amber {
+  background: #d2992220;
+  color: var(--color-yellow);
+  border: 1px solid #d2992240;
+}
+
+.label-export-help {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}

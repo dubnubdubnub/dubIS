@@ -15,5 +15,19 @@
       "Ext.: (USD)"
     ],
     "row_count": 2
+  },
+  "mouser_cart_sample.xls": {
+    "csv_text": ",Mouser #,Mfr. #,Manufacturer,Description,Order Qty.,Price (USD),Ext.: (USD)\r\n,595-TLV9061IDCKR,TLV9061IDCKR,Texas Instruments,Op Amp,10,0.45,4.5\r\n,81-GRM188R71H104K,GRM188R71H104KA93D,Murata,0.1uF Cap,100,0.012,1.2\r\n",
+    "headers": [
+      "",
+      "Mouser #",
+      "Mfr. #",
+      "Manufacturer",
+      "Description",
+      "Order Qty.",
+      "Price (USD)",
+      "Ext.: (USD)"
+    ],
+    "row_count": 2
   }
 }

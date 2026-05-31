@@ -71,6 +71,21 @@ describe('footprintsCompatible', () => {
       { package: 'SOT-363' }
     )).toBe(false);
   });
+
+  it('falls back to inventory description when package field is empty', () => {
+    // Real-world case: CL10A226MP8NUNE is a 0603 part, but its inventory row has an
+    // empty package field — the "0603" code is only present in the description. The
+    // matcher must still reject it for an 0805 BOM row.
+    expect(footprintsCompatible(
+      { footprint: 'Capacitor_SMD:C_0805_2012Metric' },
+      { package: '', description: '22uF ±20% 10V Ceramic Capacitor X5R 0603' }
+    )).toBe(false);
+    // And accept it when the BOM also wants 0603.
+    expect(footprintsCompatible(
+      { footprint: 'Capacitor_SMD:C_0603_1608Metric' },
+      { package: '', description: '22uF ±20% 10V Ceramic Capacitor X5R 0603' }
+    )).toBe(true);
+  });
 });
 
 describe('isFuzzyMatchValid (tightened to canonical footprint)', () => {
@@ -198,6 +213,31 @@ describe('matchBOM: near-miss tracking and new return shape', () => {
     expect(out.results).toHaveLength(1);
     expect(out.results[0].status).not.toBe('missing');
     expect(out.footprintNearMisses).toHaveLength(0);
+  });
+
+  it('rejects an inventory part whose footprint code lives only in the description', () => {
+    // Reproduces the osupad.csv bug: 22uF 0805 BOM row vs CL10A226MP8NUNE (22uF 0603,
+    // empty package field, "0603" only in description). Without the description
+    // fallback this would have been silently accepted as a value match.
+    const inv22uF_0603 = {
+      lcsc: 'C86295', mpn: 'CL10A226MP8NUNE', manufacturer: 'Samsung Electro-Mechanics',
+      section: 'Passives - Capacitors > MLCC',
+      package: '',
+      description: '22uF ±20% 10V Ceramic Capacitor X5R 0603',
+      qty: 3000, unit_price: 0.0082, ext_price: 24.6,
+    };
+    const agg = new Map();
+    agg.set('C34', {
+      lcsc: '', mpn: 'CL21A226MAQNNNE', qty: 6, refs: 'C34,C35,C36,C37,C38,C39',
+      value: '22uF', desc: '',
+      footprint: 'Capacitor_SMD:C_0805_2012Metric',
+      dnp: false,
+    });
+    const out = matchBOM(agg, [inv22uF_0603], [], [], []);
+    expect(out.results).toHaveLength(1);
+    expect(out.results[0].status).toBe('missing');
+    expect(out.footprintNearMisses).toHaveLength(1);
+    expect(out.footprintNearMisses[0].bomFootprintCode).toBe('0805');
   });
 });
 

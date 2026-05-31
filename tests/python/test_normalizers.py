@@ -4,8 +4,10 @@ These tests load real product data captured from Digikey and LCSC
 (via scripts/capture-distributor-fixtures.py) and verify that the
 normalization/parsing layer produces valid output.
 
-If the fixture file doesn't exist, this module defines no tests
-(pytest collects nothing). This avoids pytest.skip per project policy.
+The fixture file (tests/fixtures/generated/distributor-scrapes.json) is
+committed to the repo and required: if it is missing we fail loud at import
+time rather than silently collecting zero tests, per project test policy
+(tests must run, not be skipped/hidden).
 """
 from __future__ import annotations
 
@@ -16,27 +18,34 @@ from datetime import datetime
 
 import pytest
 
+import distributor_fixtures
+
 FIXTURE_PATH = os.path.join(
     os.path.dirname(__file__), "..", "fixtures", "generated", "distributor-scrapes.json"
 )
 
-# Module-level guard: no fixtures -> no tests collected
+# Fail loud if the required fixture is missing, instead of silently collecting
+# zero tests. With this guard the `if os.path.exists(...)` below is always true.
+if not os.path.exists(FIXTURE_PATH):
+    raise FileNotFoundError(
+        f"Required distributor fixture missing: {FIXTURE_PATH}. "
+        "Regenerate with: python scripts/capture-distributor-fixtures.py"
+    )
+
 if os.path.exists(FIXTURE_PATH):
     with open(FIXTURE_PATH, encoding="utf-8") as _f:
         _FIXTURES = json.load(_f)
 
-    # Staleness warning (not a failure)
-    _captured = _FIXTURES.get("captured_at", "")
-    try:
-        _age = (datetime.now() - datetime.fromisoformat(_captured)).days
-        if _age > 30:
-            warnings.warn(
-                f"Distributor fixtures are {_age} days old (captured {_captured}). "
-                "Re-run: python scripts/capture-distributor-fixtures.py",
-                stacklevel=1,
-            )
-    except (ValueError, TypeError):
-        pass
+    # Per-distributor staleness warning (not a failure).
+    _stale = distributor_fixtures.stale_distributors(
+        _FIXTURES, distributor_fixtures.DISTRIBUTORS, datetime.now()
+    )
+    if _stale:
+        warnings.warn(
+            f"Distributor fixtures stale for: {sorted(_stale)} — "
+            "re-run: python scripts/capture-distributor-fixtures.py",
+            stacklevel=1,
+        )
 
     # ── Digikey normalizer tests ──
 
@@ -149,11 +158,28 @@ if os.path.exists(FIXTURE_PATH):
 
     _dk_html_parts = [mpn for mpn, entry in _dk_parts.items() if "raw_html" in entry]
 
+    # The exact-roundtrip test only applies to nextdata-sourced captures.
+    # webview-sourced captures store a different `raw` shape, so excluding them
+    # from the param set (rather than early-returning inside the test) keeps the
+    # test from silently passing while leaving the other __NEXT_DATA__ checks
+    # running for every captured HTML part.
+    _dk_roundtrip_parts = [
+        mpn
+        for mpn, entry in _dk_parts.items()
+        if "raw_html" in entry and entry.get("source") != "webview"
+    ]
+
     class TestDigikeyExtraction:
         """Test HTML regex extraction and __NEXT_DATA__ parsing against captured HTML."""
 
         @pytest.fixture(params=_dk_html_parts, ids=_dk_html_parts)
         def dk_html_part(self, request):
+            mpn = request.param
+            entry = _dk_parts[mpn]
+            return mpn, entry
+
+        @pytest.fixture(params=_dk_roundtrip_parts, ids=_dk_roundtrip_parts)
+        def dk_roundtrip_part(self, request):
             mpn = request.param
             entry = _dk_parts[mpn]
             return mpn, entry
@@ -194,10 +220,8 @@ if os.path.exists(FIXTURE_PATH):
             page_props = parsed["props"]["pageProps"]
             assert "productOverview" in page_props["envelope"]["data"]
 
-        def test_extraction_roundtrip(self, dk_html_part):
-            mpn, entry = dk_html_part
-            if entry.get("source") == "webview":
-                return
+        def test_extraction_roundtrip(self, dk_roundtrip_part):
+            mpn, entry = dk_roundtrip_part
             html = entry["raw_html"]
             match = _re.search(
                 r'<script\s+id="__NEXT_DATA__"[^>]*>(.*?)</script>',
@@ -235,3 +259,88 @@ if os.path.exists(FIXTURE_PATH):
             _pn, entry = lcsc_response_part
             raw_response = entry["raw_response"]
             assert raw_response["result"] == entry["raw"]
+
+    # ── Mouser normalizer tests ──
+
+    _mouser_parts = _FIXTURES.get("mouser", {}).get("parts", {})
+
+    # Guard: only define the class when data exists. An empty params list makes
+    # pytest emit a SKIP ("got empty parameter set"), which project policy forbids.
+    if _mouser_parts:
+        from mouser_client import MouserClient
+
+        class TestMouserNormalizer:
+            """Test _normalize_api_part against every captured Mouser part."""
+
+            @pytest.fixture(
+                params=list(_mouser_parts.keys()), ids=list(_mouser_parts.keys())
+            )
+            def mouser_part(self, request):
+                mpn = request.param
+                entry = _mouser_parts[mpn]
+                return mpn, entry
+
+            def test_normalize_produces_valid_output(self, mouser_part):
+                mpn, entry = mouser_part
+                result = MouserClient._normalize_api_part(entry["raw"], mpn)
+
+                assert result["provider"] == "mouser"
+                assert isinstance(result["title"], str) and result["title"]
+                assert isinstance(result["productCode"], str) and result["productCode"]
+                assert isinstance(result["prices"], list)
+                for tier in result["prices"]:
+                    assert isinstance(tier["qty"], int)
+                    assert isinstance(tier["price"], (int, float))
+                assert isinstance(result["stock"], int)
+                assert result["stock"] >= 0
+                assert isinstance(result["manufacturer"], str)
+                assert isinstance(result["mpn"], str)
+                assert isinstance(result["description"], str)
+                assert isinstance(result["imageUrl"], str)
+                assert isinstance(result["attributes"], list)
+                for attr in result["attributes"]:
+                    assert isinstance(attr["name"], str) and attr["name"]
+                    assert isinstance(attr["value"], str) and attr["value"]
+
+    # ── Pololu normalizer tests ──
+
+    _pololu_parts = _FIXTURES.get("pololu", {}).get("parts", {})
+
+    if _pololu_parts:
+        from pololu_client import PololuClient
+
+        class TestPololuNormalizer:
+            """Test _parse_product_page against every captured Pololu page."""
+
+            @pytest.fixture(
+                params=list(_pololu_parts.keys()), ids=list(_pololu_parts.keys())
+            )
+            def pololu_part(self, request):
+                sku = request.param
+                entry = _pololu_parts[sku]
+                return sku, entry
+
+            def test_parse_produces_valid_output(self, pololu_part):
+                sku, entry = pololu_part
+                url = f"https://www.pololu.com/product/{sku}"
+                result = PololuClient._parse_product_page(entry["raw_html"], sku, url)
+
+                # Only successfully-parsed pages are captured into the fixture,
+                # so the result must be a dict with valid fields.
+                assert isinstance(result, dict)
+                assert result["provider"] == "pololu"
+                assert isinstance(result["title"], str) and result["title"]
+                assert isinstance(result["productCode"], str) and result["productCode"]
+                assert result["productCode"] == sku
+                assert isinstance(result["prices"], list)
+                for tier in result["prices"]:
+                    assert isinstance(tier["qty"], int)
+                    assert isinstance(tier["price"], (int, float))
+                assert isinstance(result["stock"], int)
+                assert result["stock"] >= 0
+                assert isinstance(result["manufacturer"], str)
+                assert isinstance(result["mpn"], str) and result["mpn"]
+                assert isinstance(result["description"], str)
+                assert isinstance(result["imageUrl"], str)
+                assert isinstance(result["pololuUrl"], str) and result["pololuUrl"]
+                assert isinstance(result["attributes"], list)

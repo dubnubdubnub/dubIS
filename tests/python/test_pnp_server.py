@@ -2,13 +2,19 @@
 
 import json
 import os
+import socket
 import threading
 import types
 import urllib.request
 
 import pytest
 
-from pnp_server import _load_part_map, _resolve_part_id, start_pnp_server
+from pnp_server import (
+    _load_part_map,
+    _resolve_part_id,
+    start_pnp_server,
+    stop_pnp_server,
+)
 
 from tests.python.helpers import make_part as _make_part
 from tests.python.helpers import write_ledger as _write_ledger
@@ -24,7 +30,7 @@ def pnp_server(api):
     port = server.server_address[1]
     base_url = f"http://127.0.0.1:{port}"
     yield server, base_url, mock_window
-    server.shutdown()
+    stop_pnp_server(server)
 
 
 def _write_part_map(api, mapping):
@@ -121,6 +127,44 @@ class TestResolvePartId:
 
     def test_empty_inventory_returns_none(self):
         assert _resolve_part_id("C123456", {}, []) is None
+
+
+# ── TestPnPServerStartup ──
+
+
+class TestPnPServerStartup:
+    def test_returns_none_when_port_taken(self, api):
+        """A second instance on an already-bound port must not raise — it
+        returns None so the caller can run without the PnP server."""
+        mock_window = types.SimpleNamespace(evaluate_js=lambda code: None)
+        # Bind a socket to grab a port, then keep it bound.
+        blocker = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        blocker.bind(("0.0.0.0", 0))
+        blocker.listen(1)
+        taken_port = blocker.getsockname()[1]
+        try:
+            result = start_pnp_server(api, mock_window, port=taken_port)
+            assert result is None
+        finally:
+            blocker.close()
+
+    def test_returns_server_on_free_port(self, api):
+        mock_window = types.SimpleNamespace(evaluate_js=lambda code: None)
+        server = start_pnp_server(api, mock_window, port=0)
+        try:
+            assert server is not None
+            # Server is actually listening.
+            status, body = _http_get(
+                f"http://127.0.0.1:{server.server_address[1]}/api/health"
+            )
+            assert status == 200
+            assert body == {"ok": True}
+        finally:
+            stop_pnp_server(server)
+
+    def test_stop_pnp_server_is_null_safe(self):
+        # Mirrors app.pyw calling stop on a None server (port collision path).
+        stop_pnp_server(None)  # must not raise
 
 
 # ── TestPnPServerGET ──
@@ -299,7 +343,10 @@ class TestPnPServerCORS:
 
 class TestThreadLock:
     def test_api_has_threading_lock(self, api):
-        assert isinstance(api._lock, type(threading.Lock()))
+        # Either a Lock or an RLock satisfies the thread-safety contract.
+        # _get_cache's lazy init re-acquires this lock from lock-holding
+        # methods, so it must be reentrant (RLock).
+        assert isinstance(api._lock, (type(threading.Lock()), type(threading.RLock())))
 
     def test_concurrent_adjustments(self, api):
         _write_ledger(api, [_make_part(lcsc="C100000", qty=0)])

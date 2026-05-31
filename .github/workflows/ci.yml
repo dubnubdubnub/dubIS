@@ -235,7 +235,9 @@ jobs:
         if: >-
           matrix.install-pw &&
           needs.parse-tags.outputs.run_js == 'true'
-        run: npx playwright test --project live --workers 1
+        # Single-worker isolation is pinned in playwright.config.mjs (live project),
+        # so the --workers 1 flag is no longer needed here.
+        run: npx playwright test --project live
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -266,7 +268,11 @@ jobs:
       - run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
       - run: ~/dubis-venv/bin/ruff check .
       - name: Verify generated test fixtures are up to date
-        if: needs.parse-tags.outputs.run_python == 'true'
+        # Also run on JS-only changes: the JS tier consumes these committed fixtures,
+        # so a stale fixture must not pass CI even when no Python files changed. This
+        # job already runs on JS changes (gated on run_lint, always true) and has the
+        # venv installed, so this is the authoritative guard for the JS-only hole.
+        if: needs.parse-tags.outputs.run_python == 'true' || needs.parse-tags.outputs.run_js == 'true'
         run: ~/dubis-venv/bin/python scripts/generate-test-fixtures.py --check
       - name: Verify code map is up to date
         if: needs.parse-tags.outputs.run_python == 'true'
@@ -274,6 +280,9 @@ jobs:
       - name: Verify module manifests are accurate
         if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/python scripts/check-manifests.py
+      - name: Guard against new hard-coded px layout values
+        if: needs.parse-tags.outputs.run_python == 'true'
+        run: ~/dubis-venv/bin/python scripts/check-layout-tokens.py --check
       - name: Unit tests
         if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/pytest tests/python/ -v

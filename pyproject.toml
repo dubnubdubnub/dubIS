@@ -1,6 +1,8 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests/python"]
+markers = ["live: hits real distributor endpoints / opens a browser; deselected by default"]
+addopts = ["-m", "not live"]
 
 [tool.ruff]
 line-length = 120

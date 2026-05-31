@@ -92,8 +92,11 @@ export function isPassiveSection(section) {
 
 // ── Canonical footprint extraction ──
 // Whitelist of known package codes. Word-boundary anchored so MPN-like strings
-// (e.g. "0603WAF0000T5E") do not match "0603". Only ever called on bom.footprint
-// and invItem.package — never on MPN or description fields.
+// (e.g. "0603WAF0000T5E") do not match "0603". Safe to call on bom.footprint,
+// invItem.package, and invItem.description (the word-boundary anchor handles
+// the package code that distributor descriptions reliably tack on, e.g.
+// "22uF ±20% 10V Ceramic Capacitor X5R 0603"). Never call on MPN strings —
+// they can contain raw digit runs that collide with chip-size codes.
 const FOOTPRINT_WHITELIST = [
   // Chip passives
   '0201', '0402', '0603', '0805', '1206', '1210', '1812', '2010', '2512',
@@ -134,9 +137,17 @@ export function extractFootprintCode(str) {
   return canonical || raw;
 }
 
+// Resolve inventory's footprint code, falling back to its description when the
+// package field is empty. Some inventory rows (e.g. older LCSC imports) have an
+// empty package column but reliably include the chip size in the description.
+export function invFootprintCode(invItem) {
+  if (!invItem) return null;
+  return extractFootprintCode(invItem.package) || extractFootprintCode(invItem.description);
+}
+
 export function footprintsCompatible(bom, invItem) {
   const bomCode = extractFootprintCode(bom.footprint);
-  const invCode = extractFootprintCode(invItem.package);
+  const invCode = invFootprintCode(invItem);
   if (!bomCode || !invCode) return true;
   return bomCode === invCode;
 }
@@ -402,7 +413,7 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, g
         const candidates = invByValue[k] || [];
         for (let i = 0; i < candidates.length; i++) {
           const cand = candidates[i];
-          const candCode = extractFootprintCode(cand.package);
+          const candCode = invFootprintCode(cand);
           if (candCode && candCode !== bomCode) {
             footprintNearMisses.push({
               bomKey: bk,
@@ -411,7 +422,7 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, g
               bomFootprintCode: bomCode,
               inv: cand,
               invPartKey: cand.lcsc || cand.mpn || "",
-              invPackage: cand.package || "",
+              invPackage: cand.package || candCode,
             });
           }
         }
