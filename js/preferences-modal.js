@@ -3,8 +3,7 @@
 
 import { api, AppLog } from './api.js';
 import { showToast, escHtml, Modal } from './ui-helpers.js';
-import { EventBus, Events } from './event-bus.js';
-import { store, getThreshold, savePreferences } from './store.js';
+import { store, getThreshold, savePreferences, preferencesSignal } from './store.js';
 
 var PREFS_MAX_THRESHOLD = 200;
 var PREFS_MIN_THRESHOLD = 5;
@@ -110,7 +109,30 @@ export function openPreferencesModal() {
   // Load Mouser API key status
   refreshMouserStatus();
 
+  // Load Poll API status
+  refreshPollApiStatus();
+
   prefsModal.open();
+}
+
+function refreshPollApiStatus() {
+  var urlEl = document.getElementById("poll-api-url");
+  var portEl = document.getElementById("poll-api-port");
+  var statusEl = document.getElementById("poll-api-status");
+  if (!urlEl || !portEl || !statusEl) return;
+  api("get_poll_api_info").then(function (info) {
+    if (info && info.running) {
+      urlEl.value = info.url;
+      portEl.value = info.port;
+      statusEl.textContent = "Running on " + info.host + ":" + info.port;
+      statusEl.style.color = "var(--color-green)";
+    } else {
+      urlEl.value = "";
+      portEl.value = (info && info.default_port) || "";
+      statusEl.textContent = "Server not running";
+      statusEl.style.color = "var(--color-red)";
+    }
+  });
 }
 
 function refreshMouserStatus() {
@@ -149,7 +171,7 @@ export function applyPreferences() {
 
   savePreferences();
   closePreferencesModal();
-  EventBus.emit(Events.PREFS_CHANGED);
+  preferencesSignal.set(store.preferences);
 }
 
 // ── Digikey login/logout button wiring ──
@@ -238,6 +260,49 @@ export function wireDigikeyButtons() {
       await api("clear_mouser_api_key");
       refreshMouserStatus();
       showToast("Mouser API key cleared");
+    });
+  }
+
+  // Poll API controls
+  var pollCopyBtn = document.getElementById("poll-api-copy");
+  var pollApplyBtn = document.getElementById("poll-api-apply");
+  var pollUrlInput = document.getElementById("poll-api-url");
+  var pollPortInput = document.getElementById("poll-api-port");
+
+  if (pollCopyBtn && pollUrlInput) {
+    pollCopyBtn.addEventListener("click", async () => {
+      var url = pollUrlInput.value;
+      if (!url) { showToast("No URL to copy"); return; }
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast("Copied " + url);
+      } catch {
+        // Fallback for environments without clipboard API
+        pollUrlInput.select();
+        document.execCommand("copy");
+        showToast("Copied " + url);
+      }
+    });
+  }
+
+  if (pollApplyBtn && pollPortInput) {
+    pollApplyBtn.addEventListener("click", async () => {
+      var port = parseInt(pollPortInput.value, 10);
+      if (isNaN(port) || port < 1024 || port > 65535) {
+        showToast("Port must be between 1024 and 65535");
+        return;
+      }
+      try {
+        await api("set_poll_api_port", port);
+        refreshPollApiStatus();
+        showToast("Poll API restarted on port " + port);
+      } catch (e) {
+        showToast("Failed to restart: " + (e && e.message ? e.message : e));
+        AppLog.error("Poll API restart failed: " + e);
+      }
+    });
+    pollPortInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); pollApplyBtn.click(); }
     });
   }
 }

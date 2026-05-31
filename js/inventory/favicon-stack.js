@@ -3,7 +3,7 @@
    hover flyout showing purchase-order history. */
 
 import { store } from '../store.js';
-import { escHtml } from '../ui-helpers.js';
+import { escHtml, vendorIconSrc } from '../ui-helpers.js';
 
 /**
  * Render a fanned-stack of vendor favicons for a part.
@@ -58,7 +58,7 @@ export function renderFanStack(part) {
     var iconHtml = v.icon
       ? '<span class="fan-icon fan-icon-emoji" style="left:' + offset + 'px">' + escHtml(v.icon) + '</span>'
       : (v.favicon_path
-        ? '<img class="fan-icon fan-icon-img" src="' + escHtml(v.favicon_path) + '" alt="" style="left:' + offset + 'px">'
+        ? '<img class="fan-icon fan-icon-img" src="' + escHtml(vendorIconSrc(v.favicon_path)) + '" alt="" style="left:' + offset + 'px">'
         : '<span class="fan-icon fan-icon-empty" style="left:' + offset + 'px"></span>');
     icons += iconHtml;
   }
@@ -112,7 +112,7 @@ export function buildHoverFlyout(part) {
       if (vendor.icon) {
         iconHtml = '<span class="flyout-favicon flyout-favicon-emoji">' + escHtml(vendor.icon) + '</span>';
       } else if (vendor.favicon_path) {
-        iconHtml = '<img class="flyout-favicon flyout-favicon-img" src="' + escHtml(vendor.favicon_path) + '" alt="">';
+        iconHtml = '<img class="flyout-favicon flyout-favicon-img" src="' + escHtml(vendorIconSrc(vendor.favicon_path)) + '" alt="">';
       }
     }
     rows += '<div class="flyout-po-row" data-po-id="' + escHtml(poId) + '">' +

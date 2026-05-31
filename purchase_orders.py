@@ -10,6 +10,7 @@ import csv
 import os
 import secrets
 
+import csv_io
 import source_sanitizer
 
 FIELDNAMES = ["po_id", "vendor_id", "source_file_hash", "source_file_ext",
@@ -37,11 +38,8 @@ def _read(csv_path: str) -> list[dict[str, str]]:
 
 def _write(csv_path: str, rows: list[dict[str, str]]) -> None:
     os.makedirs(os.path.dirname(csv_path) or ".", exist_ok=True)
-    with open(csv_path, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=FIELDNAMES)
-        w.writeheader()
-        for row in rows:
-            w.writerow({k: row.get(k, "") for k in FIELDNAMES})
+    normalized = [{k: row.get(k, "") for k in FIELDNAMES} for row in rows]
+    csv_io.atomic_write_rows(csv_path, FIELDNAMES, normalized, encoding="utf-8")
 
 
 def list_purchase_orders(csv_path: str) -> list[dict[str, str]]:

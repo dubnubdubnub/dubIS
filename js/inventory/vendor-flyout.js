@@ -1,9 +1,9 @@
 // @ts-check
 /* vendor-flyout.js — Popover anchored to a favicon for editing/merging/refreshing a vendor. */
 
-import { store } from '../store.js';
-import { api, apiVendors } from '../api.js';
-import { escHtml } from '../ui-helpers.js';
+import { store, onInventoryUpdated } from '../store.js';
+import { api, apiVendors, AppLog } from '../api.js';
+import { escHtml, showToast } from '../ui-helpers.js';
 
 var PSEUDO_IDS = new Set(['v_self', 'v_salvage', 'v_unknown']);
 
@@ -112,11 +112,12 @@ export function openVendorPopover(anchorEl, vendorId) {
       return api('rebuild_inventory');
     }).then(function (freshInventory) {
       if (freshInventory) {
-        store.onInventoryUpdated(freshInventory);
+        onInventoryUpdated(freshInventory);
       }
       closeVendorPopover();
     }).catch(function (err) {
-      console.error('[vendor-flyout] save failed:', err);
+      AppLog.error('[vendor-flyout] save failed: ' + (err && err.message ? err.message : err));
+      showToast('Failed to save vendor');
     });
   });
 
@@ -134,11 +135,12 @@ export function openVendorPopover(anchorEl, vendorId) {
         return api('rebuild_inventory');
       }).then(function (freshInventory) {
         if (freshInventory) {
-          store.onInventoryUpdated(freshInventory);
+          onInventoryUpdated(freshInventory);
         }
         closeVendorPopover();
       }).catch(function (err) {
-        console.error('[vendor-flyout] merge failed:', err);
+        AppLog.error('[vendor-flyout] merge failed: ' + (err && err.message ? err.message : err));
+        showToast('Failed to merge vendors');
         mergeSelect.value = '';
       });
     });
@@ -156,7 +158,8 @@ export function openVendorPopover(anchorEl, vendorId) {
       apiVendors.fetchFavicon(url).then(function () {
         closeVendorPopover();
       }).catch(function (err) {
-        console.error('[vendor-flyout] fetchFavicon failed:', err);
+        AppLog.error('[vendor-flyout] fetchFavicon failed: ' + (err && err.message ? err.message : err));
+        showToast('Failed to refresh favicon');
         refreshBtn.textContent = 'Refresh favicon';
         refreshBtn.removeAttribute('disabled');
       });

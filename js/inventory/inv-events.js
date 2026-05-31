@@ -2,9 +2,10 @@
    Extracted from init() to keep inventory-panel.js focused on rendering. */
 
 import { EventBus, Events } from '../event-bus.js';
+import { effect } from '../signals.js';
 import { AppLog } from '../api.js';
-import { store, saveInventoryView } from '../store.js';
-import { escHtml } from '../ui-helpers.js';
+import { store, saveInventoryView, preferencesSignal } from '../store.js';
+import { escHtml, vendorIconSrc } from '../ui-helpers.js';
 import { inferDistributor } from './inventory-logic.js';
 import state from './inv-state.js';
 import { nextScope } from './inv-sort-group.js';
@@ -28,6 +29,10 @@ export function setupEvents(handlers) {
     var compact = w < FILTER_BAR_MIN_WIDTH;
     state.distFilterBar.classList.toggle("compact", compact);
     state.clearFilterBtn.classList.toggle("compact", compact);
+    // The "Labels" mode button shares the header with the filter bar; in
+    // compact mode let the search input give up width so all distributor
+    // pills stay within the header bounds (see distributor-filter clipping test).
+    state.searchInput.classList.toggle("compact", compact);
   }).observe(state.body);
 
   // Log app dimensions on resize
@@ -148,7 +153,16 @@ export function setupEvents(handlers) {
   // ── EventBus subscriptions ──
   EventBus.on(Events.INVENTORY_LOADED, function () { render(); });
   EventBus.on(Events.INVENTORY_UPDATED, function () { render(); });
-  EventBus.on(Events.PREFS_CHANGED, function () { render(); });
+
+  // PREFS_CHANGED is now signal-driven (no longer uses EventBus).
+  // The effect runs immediately on creation; skip that initial call since
+  // render() will be triggered by INVENTORY_LOADED shortly after init.
+  var _prefsEffectFirstRun = true;
+  effect(function () {
+    preferencesSignal.get(); // subscribe
+    if (_prefsEffectFirstRun) { _prefsEffectFirstRun = false; return; }
+    render();
+  });
 
   EventBus.on(Events.BOM_LOADED, function (data) {
     state.bomData = data;
@@ -167,6 +181,15 @@ export function setupEvents(handlers) {
   });
 
   EventBus.on(Events.LINKING_MODE, function () { render(); });
+
+  // Entering/exiting label-select mode swaps each row's right-edge action
+  // buttons for a selection checkbox (and back) — re-render to apply.
+  EventBus.on(Events.LABEL_MODE, function () { render(); });
+
+  // Bulk selection (e.g. selecting a whole PO) flips many keys at once; the
+  // checkboxes already in the DOM are stale until re-rendered. Single toggles
+  // do NOT emit this event, so per-checkbox clicks avoid a full re-render.
+  EventBus.on(Events.LABEL_BULK_SELECTION, function () { render(); });
 
   EventBus.on(Events.FLYOUT_SEARCH_CHANGED, function (data) {
     if (state.searchInput && data && typeof data.searchText === "string") {
@@ -314,7 +337,7 @@ function renderVendorSubpills() {
     var iconHtml = v.icon
       ? '<span class="sub-favicon">' + escHtml(v.icon) + '</span>'
       : (v.favicon_path
-        ? '<img class="sub-favicon" src="' + escHtml(v.favicon_path) + '" alt="">'
+        ? '<img class="sub-favicon" src="' + escHtml(vendorIconSrc(v.favicon_path)) + '" alt="">'
         : '<span class="sub-favicon-empty"></span>');
     return '<button class="vendor-subpill ' + selected + '" data-vendor-id="' + escHtml(v.id) + '">' +
       iconHtml + '<span class="sub-name">' + escHtml(v.name) + '</span>' +

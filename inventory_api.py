@@ -61,16 +61,49 @@ class InventoryApi:
         self._closing: bool = False
         self._bom_dirty: bool = False
         self._debug: bool = debug
-        self._lock: threading.Lock = threading.Lock()
+        # Reentrant: lock-holding methods (adjust_part, consume_bom, _rebuild,
+        # …) call _get_cache(), whose lazy init re-acquires this same lock.
+        # A plain Lock would deadlock on the first cache access from those paths.
+        self._lock: threading.RLock = threading.RLock()
         self._last_migration_summary: dict[str, int] = {}
         self._distributors = DistributorManager(self.base_dir, self._get_cache)
 
     def _get_cache(self) -> sqlite3.Connection:
-        """Get or create the cache database connection."""
+        """Get or create the cache database connection.
+
+        Thread-safe lazy init (double-checked locking against the reentrant
+        self._lock): the PnP HTTP server thread and the pywebview UI thread can
+        both race into the first cache access. Without this guard, two
+        connections would be created (one leaked) and create_schema would run
+        twice. self._lock is an RLock, so this is safe even when a lock-holding
+        method triggers the very first init.
+        """
         if self._cache_conn is None:
-            self._cache_conn = cache_db.connect(self.cache_db_path)
-            cache_db.create_schema(self._cache_conn)
+            with self._lock:
+                if self._cache_conn is None:
+                    conn = cache_db.connect(self.cache_db_path)
+                    cache_db.create_schema(conn)
+                    self._cache_conn = conn  # publish only after fully initialized
         return self._cache_conn
+
+    def shutdown(self) -> None:
+        """Commit and close the cache connection. Idempotent and best-effort.
+
+        Called from app.pyw during teardown so the SQLite WAL is flushed
+        before process exit. Safe to call when no connection exists or after a
+        prior shutdown. Any commit/close failure is logged, never raised — a
+        cleanup error must not prevent the process from exiting.
+        """
+        with self._lock:
+            if self._cache_conn is None:
+                return
+            try:
+                self._cache_conn.commit()
+                self._cache_conn.close()
+            except Exception as exc:
+                logger.warning("Error closing cache connection during shutdown: %s", exc)
+            finally:
+                self._cache_conn = None
 
     # ── Utility delegates ──────────────────────────────────────────────────
 
@@ -308,8 +341,9 @@ class InventoryApi:
     def save_preferences(self, prefs_json: str | dict[str, Any]) -> None:
         """Write preferences JSON string to disk."""
         prefs = self._ensure_parsed(prefs_json)
-        with open(self.prefs_json, "w", encoding="utf-8") as f:
-            json.dump(prefs, f, indent=2)
+        csv_io.atomic_write_text(
+            self.prefs_json, json.dumps(prefs, indent=2), encoding="utf-8",
+        )
 
     def save_file_dialog(self, content: str, default_name: str = "export.csv",
                          default_dir: str | None = None,
@@ -385,6 +419,44 @@ class InventoryApi:
 
     def clear_mouser_api_key(self) -> dict[str, bool]:
         return self._distributors.clear_mouser_api_key()
+
+    # ── Poll API ───────────────────────────────────────────────────────────
+
+    def get_poll_api_info(self) -> dict[str, Any]:
+        """Return the local poll API URL and active port."""
+        import poll_api
+        server = getattr(self, "_poll_server", None)
+        prefs = self.load_preferences()
+        info: dict[str, Any] = {
+            "default_port": poll_api.POLL_PORT,
+            "configured_port": prefs.get("pollApiPort"),
+            "running": server is not None,
+        }
+        if server is not None:
+            host, port = server.server_address
+            info["host"] = host
+            info["port"] = port
+            info["url"] = f"http://{host}:{port}"
+        else:
+            info["host"] = ""
+            info["port"] = None
+            info["url"] = ""
+        return info
+
+    def set_poll_api_port(self, port: int | str) -> dict[str, Any]:
+        """Restart the poll API server on a new port and persist to preferences."""
+        import poll_api
+        try:
+            port_int = int(port)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"port must be an integer, got {port!r}") from exc
+        if port_int < 1024 or port_int > 65535:
+            raise ValueError(f"port out of range (1024-65535): {port_int}")
+        poll_api.restart_poll_server(self, port_int)
+        prefs = self.load_preferences()
+        prefs["pollApiPort"] = port_int
+        self.save_preferences(prefs)
+        return self.get_poll_api_info()
 
     # ── Generic parts ──────────────────────────────────────────────────────
 
@@ -521,13 +593,10 @@ class InventoryApi:
                 for r in rows:
                     if r["vendor_id"] == src_id:
                         r["vendor_id"] = dst_id
-                with open(self._po_csv, "w", newline="", encoding="utf-8") as f:
-                    w = _csv.DictWriter(f, fieldnames=[
-                        "po_id", "vendor_id", "source_file_hash", "source_file_ext",
-                        "purchase_date", "notes",
-                    ])
-                    w.writeheader()
-                    w.writerows(rows)
+                csv_io.atomic_write_rows(self._po_csv, [
+                    "po_id", "vendor_id", "source_file_hash", "source_file_ext",
+                    "purchase_date", "notes",
+                ], rows, encoding="utf-8")
             vendors.merge_vendors(self._vendors_json, src_id, dst_id)
             return self._rebuild()
 
@@ -666,10 +735,9 @@ class InventoryApi:
                     fn = csv.DictReader(f).fieldnames
                     f.seek(0)
                     rows = [r for r in csv.DictReader(f) if r.get("po_id") != po_id]
-                with open(self.input_csv, "w", newline="", encoding="utf-8") as f:
-                    w = csv.DictWriter(f, fieldnames=fn)
-                    w.writeheader()
-                    w.writerows(rows)
+                csv_io.atomic_write_rows(
+                    self.input_csv, list(fn or []), rows, encoding="utf-8",
+                )
             purchase_orders.delete_purchase_order(self._po_csv, self._sources_dir, po_id)
             return self._rebuild()
 

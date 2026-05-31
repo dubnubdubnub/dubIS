@@ -86,11 +86,13 @@ class TestDigikeySession:
         result = dist_mgr.logout_digikey()
         assert result == {"status": "ok"}
 
+    @pytest.mark.live
     @pytest.mark.skipif(sys.platform != "win32", reason="winreg only available on Windows")
     def test_check_session(self, dist_mgr):
         result = dist_mgr.check_digikey_session()
         assert "logged_in" in result
 
+    @pytest.mark.live
     @pytest.mark.skipif(sys.platform != "win32", reason="winreg only available on Windows")
     def test_start_login(self, dist_mgr):
         # start_login launches a browser process; it returns a dict with status

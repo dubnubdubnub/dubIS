@@ -10,6 +10,7 @@ import { store, snapshotLinks } from '../store.js';
 import { bomKey, invPartKey } from '../part-keys.js';
 import { openAdjustModal } from '../inventory-modals.js';
 import { openFlyout } from '../group-flyout/flyout-panel.js';
+import { toggleSelection } from '../label-selection.js';
 import state from './inv-state.js';
 
 // ── Reverse link helper ──
@@ -142,6 +143,14 @@ export async function autoCreateGroupAndOpenFlyout(btn, row) {
 // ── Delegated tbody click handler ──
 
 export function handleBomTableClick(e) {
+  // Label-mode selection checkbox (swaps in for the action buttons)
+  var cb = e.target.closest(".label-select-checkbox");
+  if (cb) {
+    e.stopPropagation();
+    toggleSelection(cb.dataset.key);
+    return;
+  }
+
   // Alt badge toggle
   var badge = e.target.closest(".alt-badge");
   if (badge) {

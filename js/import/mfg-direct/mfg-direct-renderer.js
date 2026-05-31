@@ -1,6 +1,6 @@
 /* mfg-direct-renderer.js — Pure HTML rendering for Direct import editor. */
 
-import { escHtml } from '../../ui-helpers.js';
+import { escHtml, vendorIconSrc } from '../../ui-helpers.js';
 import { formatMatchBadge } from './mfg-direct-logic.js';
 
 export function renderEditor(state) {
@@ -8,7 +8,7 @@ export function renderEditor(state) {
   const faviconHtml = vendor.icon
     ? `<span class="vendor-favicon-emoji">${escHtml(vendor.icon)}</span>`
     : (vendor.favicon_path
-        ? `<img class="vendor-favicon" src="${escHtml(vendor.favicon_path)}" alt="">`
+        ? `<img class="vendor-favicon" src="${escHtml(vendorIconSrc(vendor.favicon_path))}" alt="">`
         : `<span class="vendor-favicon-empty"></span>`);
   const isPseudo = vendor.type === 'self' || vendor.type === 'salvage' || vendor.type === 'unknown';
 

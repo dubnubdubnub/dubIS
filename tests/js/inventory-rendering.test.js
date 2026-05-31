@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../js/ui-helpers.js', () => ({
   escHtml: vi.fn(s => s || ''),
@@ -10,10 +11,22 @@ vi.mock('../../js/store.js', () => ({
   store: { purchaseOrders: [], vendors: [], inventory: [] },
 }));
 
+const labelMock = { mode: false, selected: new Set() };
+vi.mock('../../js/label-selection.js', () => ({
+  isLabelMode: () => labelMock.mode,
+  isSelected: (key) => labelMock.selected.has(key),
+}));
+
 import {
   renderPartRowHtml,
   renderFilterBarHtml,
+  createBomRowElement,
 } from '../../js/inventory/inventory-renderer.js';
+
+beforeEach(() => {
+  labelMock.mode = false;
+  labelMock.selected = new Set();
+});
 
 describe('renderPartRowHtml', () => {
   it('includes data attributes matching the inventory item', () => {
@@ -94,5 +107,106 @@ describe('renderPartRowHtml — unit price column', () => {
       { ...baseOpts, sectionChip: 'Resistors' }
     );
     expect(html).toMatch(/<span class="inv-section-chip">Resistors<\/span>/);
+  });
+});
+
+describe('renderPartRowHtml — label-select mode', () => {
+  const baseOpts = {
+    hideDescs: false, isBomMode: true, isLinkSource: false,
+    isReverseTarget: false, sectionKey: 'Connectors', threshold: 0, genericParts: [],
+  };
+
+  it('renders the normal action buttons (no checkbox) when label mode is OFF', () => {
+    labelMock.mode = false;
+    const html = renderPartRowHtml(
+      { lcsc: 'C2040', mpn: 'USB-C', qty: 10, unit_price: 0.5 }, baseOpts);
+    expect(html).toContain('adj-btn');
+    expect(html).toContain('link-btn');
+    expect(html).not.toContain('label-select-checkbox');
+  });
+
+  it('renders a checkbox in place of the action buttons when label mode is ON', () => {
+    labelMock.mode = true;
+    const html = renderPartRowHtml(
+      { lcsc: 'C2040', mpn: 'USB-C', qty: 10, unit_price: 0.5 }, baseOpts);
+    expect(html).toContain('label-select-checkbox');
+    // Action buttons are swapped out
+    expect(html).not.toContain('adj-btn');
+    expect(html).not.toContain('link-btn');
+  });
+
+  it('checkbox carries the invPartKey as data-key', () => {
+    labelMock.mode = true;
+    const html = renderPartRowHtml(
+      { lcsc: 'C2040', mpn: 'USB-C', qty: 10, unit_price: 0.5 }, baseOpts);
+    expect(html).toContain('data-key="C2040"');
+  });
+
+  it('checkbox reflects isSelected — unchecked when not selected', () => {
+    labelMock.mode = true;
+    const html = renderPartRowHtml(
+      { lcsc: 'C2040', mpn: 'USB-C', qty: 10, unit_price: 0.5 }, baseOpts);
+    expect(html).not.toContain('checked');
+  });
+
+  it('checkbox reflects isSelected — checked when selected', () => {
+    labelMock.mode = true;
+    labelMock.selected = new Set(['C2040']);
+    const html = renderPartRowHtml(
+      { lcsc: 'C2040', mpn: 'USB-C', qty: 10, unit_price: 0.5 }, baseOpts);
+    expect(html).toContain('checked');
+  });
+});
+
+describe('createBomRowElement — label-select mode', () => {
+  function baseDisplayData(overrides) {
+    return Object.assign({
+      partKey: 'C2040', invKey: 'C2040', status: 'ok', rowClass: 'row-green',
+      icon: '+', dispLcsc: 'C2040', dispDigikey: '', dispPololu: '', dispMouser: '',
+      dispMpn: 'USB-C', effectiveQty: 5, invQty: 10, invDesc: 'connector',
+      matchLabel: 'exact', qtyClass: '', refs: 'J1', isMissing: false,
+      altBadge: null, showConfirm: false, showUnconfirm: false, showAdjust: true,
+      showLink: true, linkActive: false, isLinkingSource: false,
+      isReverseLinkingSource: false, isReverseTarget: false, showAlts: false,
+      showMembers: false, memberBadge: null, genericPartName: '', genericMembers: null,
+      showGroupFlyout: false, genericPartId: null, bomValue: '', bomFootprint: '',
+      bomRefs: 'J1', hasInv: true, footprintConfirmed: false, footprintCode: '',
+    }, overrides);
+  }
+
+  it('renders action buttons (no checkbox) when label mode is OFF', () => {
+    labelMock.mode = false;
+    const tr = createBomRowElement(baseDisplayData());
+    expect(tr.querySelector('.adj-btn')).not.toBeNull();
+    expect(tr.querySelector('.link-btn')).not.toBeNull();
+    expect(tr.querySelector('.label-select-checkbox')).toBeNull();
+  });
+
+  it('renders a checkbox keyed by invKey when label mode is ON', () => {
+    labelMock.mode = true;
+    const tr = createBomRowElement(baseDisplayData());
+    const cb = tr.querySelector('.label-select-checkbox');
+    expect(cb).not.toBeNull();
+    expect(cb.dataset.key).toBe('C2040');
+    expect(cb.checked).toBe(false);
+    // Action buttons swapped out
+    expect(tr.querySelector('.adj-btn')).toBeNull();
+    expect(tr.querySelector('.link-btn')).toBeNull();
+  });
+
+  it('checkbox is checked when the invKey is selected', () => {
+    labelMock.mode = true;
+    labelMock.selected = new Set(['C2040']);
+    const tr = createBomRowElement(baseDisplayData());
+    const cb = tr.querySelector('.label-select-checkbox');
+    expect(cb.checked).toBe(true);
+  });
+
+  it('missing BOM rows (no invKey) show no checkbox in label mode', () => {
+    labelMock.mode = true;
+    const tr = createBomRowElement(baseDisplayData({
+      invKey: '', hasInv: false, isMissing: true, showAdjust: false, showLink: true,
+    }));
+    expect(tr.querySelector('.label-select-checkbox')).toBeNull();
   });
 });

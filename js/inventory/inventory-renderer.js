@@ -5,6 +5,19 @@
 import { escHtml, stockValueColor } from '../ui-helpers.js';
 import { invPartKey, colorizeRefs, countStatuses } from '../part-keys.js';
 import { renderFanStack } from './favicon-stack.js';
+import { isLabelMode, isSelected } from '../label-selection.js';
+
+/**
+ * Build the label-mode selection checkbox HTML for a given part key.
+ * Rendered in place of the row's right-edge action buttons when label mode is on.
+ * @param {string} key - invPartKey(item)
+ * @returns {string}
+ */
+function labelCheckboxHtml(key) {
+  var checked = isSelected(key) ? ' checked' : '';
+  return '<input type="checkbox" class="label-select-checkbox" data-key="' +
+    escHtml(key) + '"' + checked + ' title="Select for label export">';
+}
 
 // ── Section header HTML ──
 
@@ -130,8 +143,11 @@ export function renderPartRowHtml(item, options) {
     (options.hideDescs
       ? '<span class="part-desc-pad" aria-hidden="true"></span>'
       : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
-    '<span class="part-actions">' + groupBtnStr + '<button class="btn-sm adj-btn" title="Adjust qty">Adjust</button>' +
-    linkBtnStr + '</span>';
+    '<span class="part-actions">' +
+      (isLabelMode()
+        ? labelCheckboxHtml(invPartKey(item))
+        : groupBtnStr + '<button class="btn-sm adj-btn" title="Adjust qty">Adjust</button>' + linkBtnStr) +
+    '</span>';
 
   return html;
 }
@@ -179,6 +195,13 @@ export function createBomRowElement(d) {
     ? '<button class="group-flyout-btn group-flyout-create" title="Create group" data-bom-value="' + escHtml(d.bomValue) + '" data-bom-pkg="' + escHtml(d.bomFootprint) + '" data-bom-refs="' + escHtml(d.bomRefs) + '"><span class="generic-group-badge">+\u229B</span></button>'
     : '';
 
+  // In label mode, swap the action-button group for a selection checkbox.
+  // Missing BOM rows (no inventory item) have no printable part, so they show
+  // an empty cell rather than a checkbox.
+  var btnGroupContent = isLabelMode()
+    ? (d.invKey ? labelCheckboxHtml(d.invKey) : '')
+    : confirmBtnHtml + adjBtnHtml + linkBtnHtml + groupBtnHtml;
+
   tr.innerHTML =
     '<td class="refs-cell" title="' + escHtml(d.refs) + '"><div class="refs-scroll">' + colorizeRefs(d.refs) + '</div></td>' +
     '<td class="status">' + d.icon + '</td>' +
@@ -190,7 +213,7 @@ export function createBomRowElement(d) {
     '<td class="mono" style="text-align:center">' + d.matchLabel +
       (d.footprintConfirmed && d.footprintCode ? ' <span class="match-signal-footprint" title="Footprint also matches: ' + escHtml(d.footprintCode) + '">+' + escHtml(d.footprintCode) + '</span>' : '') +
     '</td>' +
-    '<td class="btn-group">' + confirmBtnHtml + adjBtnHtml + linkBtnHtml + groupBtnHtml + '</td>';
+    '<td class="btn-group">' + btnGroupContent + '</td>';
 
   return tr;
 }

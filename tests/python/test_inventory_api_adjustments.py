@@ -152,6 +152,44 @@ class TestAdjustPart:
         with pytest.raises(ValueError, match="empty"):
             api.adjust_part("add", "", 5)
 
+    def test_self_heals_divergence_on_existing_part(self, api):
+        """adjust_part on an existing part reconciles a corrupted cache value
+        against a full replay (mirrors consume_bom's verify_parts self-heal)."""
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        # Prime the cache so the part exists in the stock table.
+        api.adjust_part("add", "C100000", 0)
+        # Corrupt the cached delta to simulate divergence from a full replay.
+        conn = api._get_cache()
+        conn.execute("UPDATE stock SET quantity = 999 WHERE part_id = 'C100000'")
+        conn.commit()
+        # A further adjustment on the existing-part branch must self-heal:
+        # expected after replay = 10 (ledger) + 5 (this add) = 15, not 999 + 5.
+        result = api.adjust_part("add", "C100000", 5)
+        part = next(r for r in result if r["lcsc"] == "C100000")
+        assert part["qty"] == 15
+
+    def test_verify_parts_invoked_for_adjusted_part(self, api, monkeypatch):
+        """The existing-part branch calls verify_parts(fix=True) for the
+        adjusted key so divergence is reconciled, not silently trusted."""
+        import cache_db
+
+        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
+        api.adjust_part("add", "C100000", 0)  # prime cache (existing-part branch next)
+
+        calls = []
+        real_verify = cache_db.verify_parts
+
+        def spy(conn, part_ids, *args, **kwargs):
+            calls.append((list(part_ids), kwargs.get("fix")))
+            return real_verify(conn, part_ids, *args, **kwargs)
+
+        monkeypatch.setattr(cache_db, "verify_parts", spy)
+        result = api.adjust_part("add", "C100000", 5)
+
+        assert calls == [(["C100000"], True)]
+        part = next(r for r in result if r["lcsc"] == "C100000")
+        assert part["qty"] == 15
+
 
 class TestTruncateCsv:
     def test_remove_last_purchases(self, api):

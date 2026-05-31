@@ -89,9 +89,17 @@ def _ocr_available() -> bool:
         return False
 
 
+# Deliberate SYSTEM-dependency guard, NOT a hidden-pip-dep policy violation.
+# The pip deps (pytesseract, Pillow, reportlab) are declared in
+# requirements-dev.txt and always import; the only thing gated here is the
+# tesseract OCR engine, which is a system binary (not pip-installable),
+# analogous to the platform (winreg/AF_UNIX) guards elsewhere in this suite.
 @pytest.mark.skipif(
     not _ocr_available(),
-    reason="tesseract/pytesseract/readable font not available",
+    reason=(
+        "tesseract system binary not installed (OCR is optional; "
+        "the pip deps are in requirements-dev)"
+    ),
 )
 class TestParseImage:
     def test_png_ocr(self, tmp_path):

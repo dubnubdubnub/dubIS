@@ -18,6 +18,8 @@ import { init as initImportPanel } from './import/import-panel.js';
 import { init as initResizePanels } from './resize-panels.js';
 import { init as initPartPreview } from './part-preview.js';
 import { init as initGroupFlyout } from './group-flyout/flyout-panel.js';
+import { init as initLabelSelection } from './label-selection.js';
+import { init as initLabelExportModal } from './label-export-modal.js';
 
 // Expose globals for E2E tests and Python's evaluate_js
 window.store = store;
@@ -38,6 +40,8 @@ async function initApp() {
   initImportPanel();
   initPartPreview();
   initGroupFlyout();
+  initLabelSelection();
+  initLabelExportModal();
 
   // ── Close confirmation modal ────────────────────────────
   const closeModal = Modal("close-modal", { cancelId: "close-cancel" });

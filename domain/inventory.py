@@ -12,7 +12,7 @@ from typing import Any
 import cache_db
 import domain.pricing
 import inventory_ops
-from csv_io import append_csv_rows
+from csv_io import append_csv_rows, atomic_write_rows
 
 logger = logging.getLogger(__name__)
 
@@ -68,10 +68,8 @@ def rebuild(
         po_csv_path=os.path.join(base_dir, "purchase_orders.csv"),
         vendors_json_path=vendors_json,
     )
-    purchase_lines = cache_db.count_csv_data_lines(input_csv)
-    adj_lines = cache_db.count_csv_data_lines(adjustments_csv)
-    cache_db.write_checkpoint(conn, purchase_lines=purchase_lines,
-                              adjustment_lines=adj_lines)
+    cache_db.write_checkpoint(conn, purchase_path=input_csv,
+                              adjustments_path=adjustments_csv)
     if os.path.exists(events_dir):
         domain.pricing.populate_prices_cache(conn, events_dir)
     from domain import generic_parts as _gp  # noqa: PLC0415
@@ -126,7 +124,7 @@ def rebuild_or_catchup(
     """
     cp = cache_db.read_checkpoint(conn)
     has_cache = conn.execute("SELECT 1 FROM parts LIMIT 1").fetchone() is not None
-    if has_cache and (cp["purchase_lines"] > 0 or cp["adjustment_lines"] > 0):
+    if has_cache and cp["purchase_hash"]:
         if cache_db.catch_up(conn, input_csv, adjustments_csv, adj_fieldnames):
             return cache_db.query_inventory(conn), {}
     return rebuild(
@@ -243,10 +241,11 @@ def adjust_part(
     else:
         cache_db.apply_stock_delta(conn, part_key, record_qty)
 
-    adj_lines = cache_db.count_csv_data_lines(adjustments_csv)
-    cp = cache_db.read_checkpoint(conn)
-    cache_db.write_checkpoint(conn, purchase_lines=cp["purchase_lines"],
-                              adjustment_lines=adj_lines)
+    cache_db.write_checkpoint(conn, purchase_path=input_csv,
+                              adjustments_path=adjustments_csv)
+    cache_db.verify_parts(
+        conn, [part_key], input_csv, adjustments_csv, fieldnames, fix=True,
+    )
     return cache_db.query_inventory(conn)
 
 
@@ -316,10 +315,8 @@ def consume_bom(
         delta = int(row["quantity"])
         cache_db.apply_stock_delta(conn, pn, delta)
 
-    adj_lines = cache_db.count_csv_data_lines(adjustments_csv)
-    cp = cache_db.read_checkpoint(conn)
-    cache_db.write_checkpoint(conn, purchase_lines=cp["purchase_lines"],
-                              adjustment_lines=adj_lines)
+    cache_db.write_checkpoint(conn, purchase_path=input_csv,
+                              adjustments_path=adjustments_csv)
     cache_db.verify_parts(
         conn, affected_parts, input_csv, adjustments_csv, fieldnames, fix=True,
     )
@@ -415,10 +412,7 @@ def update_part_price(
             new_row["Ext.Price($)"] = f"{ext_price:.2f}"
         rows.append(new_row)
 
-    with open(input_csv, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=file_fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    atomic_write_rows(input_csv, file_fieldnames, rows, encoding="utf-8-sig")
 
     os.makedirs(events_dir, exist_ok=True)
     if unit_price is not None and unit_price > 0:
@@ -484,10 +478,7 @@ def update_part_fields(
     if not found:
         raise ValueError(f"Part {part_key!r} not found in purchase ledger")
 
-    with open(input_csv, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=file_fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    atomic_write_rows(input_csv, file_fieldnames, rows, encoding="utf-8-sig")
 
     result, _ = rebuild(
         base_dir=base_dir,
@@ -519,10 +510,7 @@ def truncate_and_rebuild(
     """Remove the last *count* rows from a CSV and rebuild.  Caller holds the lock."""
     file_fieldnames, rows = inventory_ops.truncate_csv(csv_path, count, label)
 
-    with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=file_fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    atomic_write_rows(csv_path, file_fieldnames, rows, encoding="utf-8-sig")
 
     result, _ = rebuild(
         base_dir=base_dir,
