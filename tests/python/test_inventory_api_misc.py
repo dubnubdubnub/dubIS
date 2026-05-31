@@ -5,6 +5,8 @@ import json
 import os
 import types
 
+import pytest
+
 
 class TestLoadPreferences:
     def test_malformed_json_returns_empty(self, api):
