@@ -89,6 +89,7 @@ css/panels/inventory.css:356:
 css/panels/inventory.css:363:
 css/panels/inventory.css:364:
 css/panels/inventory.css:379:
+css/panels/inventory.css:407:
 
 # ── css/buttons.css ──────────────────────────────────────────────────────────
 css/buttons.css:4:
@@ -124,6 +125,35 @@ css/components/badges.css:26:
 # ── css/components/console.css ───────────────────────────────────────────────
 css/components/console.css:7:
 css/components/console.css:17:
+
+# ── css/components/label-export.css ──────────────────────────────────────────
+css/components/label-export.css:19:
+css/components/label-export.css:25:
+css/components/label-export.css:38:
+css/components/label-export.css:46:
+css/components/label-export.css:50:
+css/components/label-export.css:71:
+css/components/label-export.css:72:
+css/components/label-export.css:89:
+css/components/label-export.css:98:
+css/components/label-export.css:102:
+css/components/label-export.css:106:
+css/components/label-export.css:117:
+css/components/label-export.css:118:
+css/components/label-export.css:131:
+css/components/label-export.css:147:
+css/components/label-export.css:155:
+css/components/label-export.css:166:
+css/components/label-export.css:167:
+css/components/label-export.css:179:
+css/components/label-export.css:191:
+css/components/label-export.css:206:
+css/components/label-export.css:210:
+css/components/label-export.css:217:
+css/components/label-export.css:218:
+css/components/label-export.css:219:
+css/components/label-export.css:242:
+css/components/label-export.css:258:
 
 # ── css/components/linking.css ───────────────────────────────────────────────
 css/components/linking.css:28:
