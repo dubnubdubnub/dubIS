@@ -236,7 +236,9 @@ jobs:
         if: >-
           matrix.install-pw &&
           needs.parse-tags.outputs.run_js == 'true'
-        run: npx playwright test --project live --workers 1
+        # Single-worker isolation is pinned in playwright.config.mjs (live project),
+        # so the --workers 1 flag is no longer needed here.
+        run: npx playwright test --project live
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
