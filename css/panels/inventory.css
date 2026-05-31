@@ -116,6 +116,9 @@
   outline: none;
 }
 .search-input:focus { border-color: var(--color-blue); }
+/* Compact (narrow panel): yield search width so the distributor filter pills
+   keep their full footprint within the header alongside the Labels button. */
+.search-input.compact { min-width: 48px; }
 
 /* ── Inventory Sections ──────────────────────────────── */
 .inv-section {
