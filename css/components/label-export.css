@@ -63,6 +63,26 @@
 .label-done-btn { color: var(--text-secondary); }
 .label-done-btn:hover { border-color: var(--color-blue); color: var(--text-primary); }
 
+/* ── Row selection checkbox (label mode) ──────────────────
+   Swaps in for the right-edge action buttons when label-select mode is on.
+   Occupies the same right-edge space so rows don't shift or clip. */
+.label-select-checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-purple);
+  flex-shrink: 0;
+}
+/* Inventory rows: .part-actions already right-aligns; keep the box centred. */
+.inv-part-row .part-actions .label-select-checkbox {
+  margin-left: auto;
+}
+/* BOM comparison rows: btn-group is right-aligned + sticky. */
+td.btn-group .label-select-checkbox {
+  vertical-align: middle;
+}
+
 /* ── PO picker ────────────────────────────────────────── */
 .label-po-picker {
   margin-top: 8px;
