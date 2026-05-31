@@ -5,7 +5,7 @@ import { EventBus, Events } from '../event-bus.js';
 import { effect } from '../signals.js';
 import { AppLog } from '../api.js';
 import { store, saveInventoryView, preferencesSignal } from '../store.js';
-import { escHtml } from '../ui-helpers.js';
+import { escHtml, vendorIconSrc } from '../ui-helpers.js';
 import { inferDistributor } from './inventory-logic.js';
 import state from './inv-state.js';
 import { nextScope } from './inv-sort-group.js';
@@ -324,7 +324,7 @@ function renderVendorSubpills() {
     var iconHtml = v.icon
       ? '<span class="sub-favicon">' + escHtml(v.icon) + '</span>'
       : (v.favicon_path
-        ? '<img class="sub-favicon" src="' + escHtml(v.favicon_path) + '" alt="">'
+        ? '<img class="sub-favicon" src="' + escHtml(vendorIconSrc(v.favicon_path)) + '" alt="">'
         : '<span class="sub-favicon-empty"></span>');
     return '<button class="vendor-subpill ' + selected + '" data-vendor-id="' + escHtml(v.id) + '">' +
       iconHtml + '<span class="sub-name">' + escHtml(v.name) + '</span>' +
