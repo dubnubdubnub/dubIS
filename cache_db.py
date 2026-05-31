@@ -375,12 +375,21 @@ def _hash_adjustment_rows(rows: list[dict[str, str]]) -> str:
     """Canonically hash a list of adjustment rows so the same rows always
     produce the same digest regardless of dict key ordering.
 
-    Serializes each row as a list of values keyed by the row's sorted field
-    names, then sha256-hashes the JSON of the whole list.  Used both when
-    writing the checkpoint and when verifying the already-processed prefix in
-    catch_up, so the two computations must stay identical.
+    Serializes each row as sorted ``[field, value]`` pairs (field names
+    included so a column rename is also detected), then sha256-hashes the JSON
+    of the whole list.  Used both when writing the checkpoint and when
+    verifying the already-processed prefix in catch_up, so the two computations
+    must stay identical.
+
+    Keys are coerced to ``str`` so a malformed CSV row with surplus columns
+    (which ``csv.DictReader`` stores under a ``None`` restkey) hashes cleanly
+    instead of raising on ``sorted`` — a stray column then simply changes the
+    digest and triggers a full rebuild rather than crashing.
     """
-    canonical = [[row.get(fn, "") for fn in sorted(row)] for row in rows]
+    canonical = [
+        sorted(([str(k), v] for k, v in row.items()), key=lambda kv: kv[0])
+        for row in rows
+    ]
     payload = json.dumps(canonical, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
 
