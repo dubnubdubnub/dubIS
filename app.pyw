@@ -36,13 +36,14 @@ def set_icon():
         from System import Action
         ico = DrawingIcon(ICON_PATH)
         for w in webview.windows:
-            deadline = time.time() + 5.0
+            deadline = time.monotonic() + 5.0
             while w.native is None or not w.native.IsHandleCreated:
-                if time.time() > deadline:
+                if time.monotonic() > deadline:
                     logger.warning("set_icon: native window handle not ready after 5s; skipping icon")
                     break
                 time.sleep(0.05)
             else:
+                # loop finished without timing out -> the native handle is ready
                 w.native.Invoke(Action(lambda: setattr(w.native, "Icon", ico)))
 
 
