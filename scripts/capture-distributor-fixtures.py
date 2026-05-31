@@ -454,18 +454,15 @@ def capture_mouser(parts: list[str]) -> dict:
 def fetch_pololu_part(sku: str) -> dict:
     """Fetch a raw Pololu product page for a given SKU.
 
-    GETs https://www.pololu.com/product/{sku} with a browser User-Agent
-    (mirrors PololuClient._fetch_raw).
+    GETs https://www.pololu.com/product/{sku} with the same headers as
+    PololuClient._fetch_raw so the captured HTML matches what production sees.
 
     Returns:
         {"raw_html": html}     on success
         {"error": "message"}   on failure
     """
     url = POLOLU_PRODUCT_URL.format(sku=sku)
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "text/html",
-    }
+    headers = {"User-Agent": "dubIS/1.0", "Accept": "text/html"}
     try:
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -558,6 +555,11 @@ def main() -> None:
     lcsc_only = "--lcsc-only" in args
     mouser_only = "--mouser-only" in args
     pololu_only = "--pololu-only" in args
+
+    only_flags = [f for f in ("--lcsc-only", "--digikey-only", "--mouser-only", "--pololu-only") if f in args]
+    if len(only_flags) > 1:
+        print(f"Error: pass at most one of {', '.join(only_flags)} — they are mutually exclusive.", file=sys.stderr)
+        sys.exit(1)
 
     # A distributor runs only when no OTHER --*-only flag excludes it.
     do_lcsc = not (digikey_only or mouser_only or pololu_only)
