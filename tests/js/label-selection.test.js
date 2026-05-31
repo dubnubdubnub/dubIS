@@ -152,6 +152,24 @@ describe('selectPo', () => {
     expect(isSelected('M3')).toBe(true);
     expect(isSelected('C2')).toBe(false);
   });
+
+  it('returns 0 when the PO id matches no inventory items', () => {
+    mockInventory = [
+      { lcsc: 'C1', po_history: ['po_x'] },
+      { lcsc: 'C2', po_history: ['po_y'] },
+    ];
+    const added = selectPo('po_z');
+    expect(added).toBe(0);
+    expect(selectedCount()).toBe(0);
+  });
+
+  it('returns 0 for a falsy poId without touching selection', () => {
+    mockInventory = [{ lcsc: 'C1', po_history: ['po_a'] }];
+    expect(selectPo('')).toBe(0);
+    expect(selectPo(null)).toBe(0);
+    expect(selectPo(undefined)).toBe(0);
+    expect(selectedCount()).toBe(0);
+  });
 });
 
 describe('getSelectedItems', () => {
