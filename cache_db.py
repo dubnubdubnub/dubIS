@@ -158,50 +158,59 @@ def populate_full(
     vendors_json_path: str | None = None,
 ) -> None:
     """Full population from merge + categorize results. Clears existing data."""
-    conn.execute("DELETE FROM prices")
-    conn.execute("DELETE FROM stock")
-    conn.execute("DELETE FROM parts")
+    # generic_part_members.part_id has a NOT NULL REFERENCES parts(part_id) FK.
+    # DELETE FROM parts would fail mid-transaction with foreign_keys=ON; defer
+    # the check to commit time so we can repopulate parts before validation.
+    conn.execute("BEGIN")
+    try:
+        conn.execute("PRAGMA defer_foreign_keys = ON")
+        conn.execute("DELETE FROM prices")
+        conn.execute("DELETE FROM stock")
+        conn.execute("DELETE FROM parts")
 
-    for section, parts_list in categorized.items():
-        for part in parts_list:
-            part_id = get_part_key(part)
-            if not part_id:
-                continue
-            sk = sort_key_for_section(section, part.get("Description", ""))
-            conn.execute(
-                """INSERT OR REPLACE INTO parts
-                   (part_id, lcsc, mpn, digikey, pololu, mouser,
-                    manufacturer, description, package, rohs, section, sort_key, date_code,
-                    primary_vendor_id)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (
-                    part_id,
-                    (part.get("LCSC Part Number") or "").strip(),
-                    (part.get("Manufacture Part Number") or "").strip(),
-                    (part.get("Digikey Part Number") or "").strip(),
-                    (part.get("Pololu Part Number") or "").strip(),
-                    (part.get("Mouser Part Number") or "").strip(),
-                    (part.get("Manufacturer") or "").strip(),
-                    (part.get("Description") or "").strip(),
-                    (part.get("Package") or "").strip(),
-                    (part.get("RoHS") or "").strip(),
-                    section,
-                    sk,
-                    (part.get("Date Code / Lot No.") or "").strip(),
-                    "",
-                ),
-            )
-            conn.execute(
-                """INSERT OR REPLACE INTO stock (part_id, quantity, unit_price, ext_price)
-                   VALUES (?,?,?,?)""",
-                (
-                    part_id,
-                    parse_qty(part.get("Quantity")),
-                    parse_price(part.get("Unit Price($)")),
-                    parse_price(part.get("Ext.Price($)")),
-                ),
-            )
-    conn.commit()
+        for section, parts_list in categorized.items():
+            for part in parts_list:
+                part_id = get_part_key(part)
+                if not part_id:
+                    continue
+                sk = sort_key_for_section(section, part.get("Description", ""))
+                conn.execute(
+                    """INSERT OR REPLACE INTO parts
+                       (part_id, lcsc, mpn, digikey, pololu, mouser,
+                        manufacturer, description, package, rohs, section, sort_key, date_code,
+                        primary_vendor_id)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        part_id,
+                        (part.get("LCSC Part Number") or "").strip(),
+                        (part.get("Manufacture Part Number") or "").strip(),
+                        (part.get("Digikey Part Number") or "").strip(),
+                        (part.get("Pololu Part Number") or "").strip(),
+                        (part.get("Mouser Part Number") or "").strip(),
+                        (part.get("Manufacturer") or "").strip(),
+                        (part.get("Description") or "").strip(),
+                        (part.get("Package") or "").strip(),
+                        (part.get("RoHS") or "").strip(),
+                        section,
+                        sk,
+                        (part.get("Date Code / Lot No.") or "").strip(),
+                        "",
+                    ),
+                )
+                conn.execute(
+                    """INSERT OR REPLACE INTO stock (part_id, quantity, unit_price, ext_price)
+                       VALUES (?,?,?,?)""",
+                    (
+                        part_id,
+                        parse_qty(part.get("Quantity")),
+                        parse_price(part.get("Unit Price($)")),
+                        parse_price(part.get("Ext.Price($)")),
+                    ),
+                )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
     # Build part_id → primary_vendor_id lookup and po_history per part
     primary_vendor: dict[str, str] = {}
