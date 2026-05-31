@@ -230,14 +230,18 @@ export async function sampleDashedFrame(page, opts = {}) {
   // (y = btnTop-8) and notch LEFT edge (x = btnLeft-8) would meet if extended —
   // the exact point (btnLeft-8, btnTop-8). A SQUARE corner has stroke right at
   // that L-vertex; a ROUNDED corner replaces it with a quarter-arc that bulges
-  // toward the button, leaving the vertex (and its orthogonal neighbours) empty
-  // while the arc passes a couple px away diagonally. So we test a PLUS shape
-  // (the vertex + its 4 orthogonal neighbours): rounded ⇔ all stroke-free, with
-  // both adjacent edges otherwise present (top & left margins finite).
+  // toward the button, leaving the vertex empty while the arc passes a couple
+  // px away diagonally.
+  //
+  // We check only the vertex pixel itself. The four orthogonal neighbours are
+  // deliberately excluded: at sub-integer device scales the +x neighbour lands
+  // on the notch top-edge stroke and the -y neighbour lands on the notch left-
+  // edge stroke, both producing false positives on a correctly-rounded corner.
+  // The vertex alone is sufficient: a SQUARE corner places stroke exactly ON the
+  // vertex, whereas a ROUNDED corner's arc passes ~2px away diagonally leaving
+  // the vertex pixel clear.
   const [cxImg, cyImg] = toImg(btnLeft - 8, btnTop - 8);
-  const d = Math.max(1, Math.round(scale)); // 1 CSS px in device px
-  const plus = [[0, 0], [d, 0], [-d, 0], [0, d], [0, -d]];
-  const vertexHasStroke = plus.some(([ox, oy]) => isStrokePixel(png, cxImg + ox, cyImg + oy));
+  const vertexHasStroke = isStrokePixel(png, cxImg, cyImg);
   const edgesPresent = stepTop != null && stepLeft != null;
   const cornerRounded = edgesPresent && !vertexHasStroke;
 
