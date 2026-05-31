@@ -9,6 +9,7 @@ import { renderPartRowHtml } from './inventory-renderer.js';
 import { isFlyoutDragActive } from './inv-events.js';
 import state from './inv-state.js';
 import { createReverseLink } from './inv-mutations.js';
+import { toggleSelection } from '../label-selection.js';
 
 export function createPartRow(item, sectionKey, sectionChip) {
   var row = document.createElement("div");
@@ -51,10 +52,21 @@ export function createPartRow(item, sectionKey, sectionChip) {
     mpnEl.addEventListener("dragstart", function (e) { e.preventDefault(); });
   }
 
-  row.querySelector(".adj-btn").addEventListener("click", function (e) {
-    e.stopPropagation();
-    openAdjustModal(item);
-  });
+  var checkbox = row.querySelector(".label-select-checkbox");
+  if (checkbox) {
+    checkbox.addEventListener("change", function (e) {
+      e.stopPropagation();
+      toggleSelection(checkbox.dataset.key);
+    });
+  }
+
+  var adjBtn = row.querySelector(".adj-btn");
+  if (adjBtn) {
+    adjBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      openAdjustModal(item);
+    });
+  }
   var warnBtn = row.querySelector(".price-warn-btn");
   if (warnBtn) {
     warnBtn.addEventListener("click", function (e) {
