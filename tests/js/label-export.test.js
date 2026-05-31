@@ -258,6 +258,11 @@ describe('buildLabels', () => {
     const results = buildLabels(items, "12mm", BASE_CFG);
     expect(results[0].columns).toHaveLength(3);
   });
+
+  it('throws on unknown tape type', () => {
+    const items = [item({ mpn: "X" })];
+    expect(() => buildLabels(items, "9mm", BASE_CFG)).toThrow("Unknown tape type: 9mm");
+  });
 });
 
 // ── toCsvByDistributor ──────────────────────────────────────────────────────
@@ -306,6 +311,15 @@ describe('toCsvByDistributor', () => {
     expect(map.size).toBe(2);
     expect(map.has("v_lcsc")).toBe(true);
     expect(map.has("v_digikey")).toBe(true);
+  });
+
+  it('CSV quote-doubles internal double-quotes (RFC-4180)', () => {
+    const items = [item({ mpn: 'A"B', description: "" })];
+    const results = buildLabels(items, "6mm", BASE_CFG);
+    const map = toCsvByDistributor(results, "6mm", BASE_CFG);
+    const csv = [...map.values()][0];
+    // The field A"B must appear as "A""B" in the CSV output
+    expect(csv).toContain('"A""B"');
   });
 
   it('CSV-escapes fields containing commas', () => {
