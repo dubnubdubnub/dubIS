@@ -11,6 +11,67 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def atomic_write_text(path: str, text: str, *, encoding: str,
+                      newline: str | None = None) -> None:
+    """Atomically write *text* to *path*.
+
+    Writes to a temporary file in the same directory as *path* (so the final
+    ``os.replace`` stays on one filesystem and is atomic), flushes and fsyncs
+    it to durable storage, then renames it over the destination. On any
+    exception the temp file is removed and the error is re-raised — the
+    pre-existing destination file is never left truncated or half-written.
+
+    *newline* is passed straight through to ``open``: leave it as ``None``
+    (the default, matching a plain ``open(path, "w")``) for free-form text and
+    JSON; pass ``""`` when writing pre-rendered CSV text so the ``csv`` module's
+    own line terminators are not translated again.
+    """
+    # tmp_path lives in the same directory as path, so os.replace stays on
+    # one filesystem and is atomic (on NTFS and POSIX alike).
+    tmp_path = f"{path}.tmp"
+    try:
+        with open(tmp_path, "w", encoding=encoding, newline=newline) as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except BaseException:
+        _cleanup_temp(tmp_path)
+        raise
+
+
+def atomic_write_rows(path: str, fieldnames: list[str],
+                      rows: list[dict[str, Any]], *, encoding: str,
+                      newline: str = "") -> None:
+    """Atomically write a CSV header + *rows* to *path* via ``csv.DictWriter``.
+
+    Same temp-then-``os.replace`` durability guarantee as
+    :func:`atomic_write_text`: on failure the temp file is removed and the
+    original destination is left untouched.
+    """
+    tmp_path = f"{path}.tmp"
+    try:
+        with open(tmp_path, "w", encoding=encoding, newline=newline) as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except BaseException:
+        _cleanup_temp(tmp_path)
+        raise
+
+
+def _cleanup_temp(tmp_path: str) -> None:
+    """Best-effort removal of a leftover temp file after a failed atomic write."""
+    try:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+    except OSError as exc:
+        logger.warning("Failed to remove temp file %s: %s", tmp_path, exc)
+
+
 def append_csv_rows(path: str, fieldnames: list[str],
                     rows: list[dict[str, Any]]) -> None:
     """Append rows to a CSV file, writing header if the file is new.
@@ -42,12 +103,11 @@ def migrate_csv_header(path: str, expected_fieldnames: list[str]) -> None:
         existing_rows = list(reader)
 
     # Rewrite with new header, filling missing fields with ""
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=expected_fieldnames)
-        writer.writeheader()
-        for row in existing_rows:
-            migrated = {fn: row.get(fn, "") for fn in expected_fieldnames}
-            writer.writerow(migrated)
+    migrated_rows = [
+        {fn: row.get(fn, "") for fn in expected_fieldnames}
+        for row in existing_rows
+    ]
+    atomic_write_rows(path, expected_fieldnames, migrated_rows, encoding="utf-8")
 
 
 def fix_double_utf8(text: str) -> str:

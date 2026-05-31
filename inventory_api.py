@@ -308,8 +308,9 @@ class InventoryApi:
     def save_preferences(self, prefs_json: str | dict[str, Any]) -> None:
         """Write preferences JSON string to disk."""
         prefs = self._ensure_parsed(prefs_json)
-        with open(self.prefs_json, "w", encoding="utf-8") as f:
-            json.dump(prefs, f, indent=2)
+        csv_io.atomic_write_text(
+            self.prefs_json, json.dumps(prefs, indent=2), encoding="utf-8",
+        )
 
     def save_file_dialog(self, content: str, default_name: str = "export.csv",
                          default_dir: str | None = None,
@@ -559,13 +560,10 @@ class InventoryApi:
                 for r in rows:
                     if r["vendor_id"] == src_id:
                         r["vendor_id"] = dst_id
-                with open(self._po_csv, "w", newline="", encoding="utf-8") as f:
-                    w = _csv.DictWriter(f, fieldnames=[
-                        "po_id", "vendor_id", "source_file_hash", "source_file_ext",
-                        "purchase_date", "notes",
-                    ])
-                    w.writeheader()
-                    w.writerows(rows)
+                csv_io.atomic_write_rows(self._po_csv, [
+                    "po_id", "vendor_id", "source_file_hash", "source_file_ext",
+                    "purchase_date", "notes",
+                ], rows, encoding="utf-8")
             vendors.merge_vendors(self._vendors_json, src_id, dst_id)
             return self._rebuild()
 
@@ -704,10 +702,9 @@ class InventoryApi:
                     fn = csv.DictReader(f).fieldnames
                     f.seek(0)
                     rows = [r for r in csv.DictReader(f) if r.get("po_id") != po_id]
-                with open(self.input_csv, "w", newline="", encoding="utf-8") as f:
-                    w = csv.DictWriter(f, fieldnames=fn)
-                    w.writeheader()
-                    w.writerows(rows)
+                csv_io.atomic_write_rows(
+                    self.input_csv, list(fn or []), rows, encoding="utf-8",
+                )
             purchase_orders.delete_purchase_order(self._po_csv, self._sources_dir, po_id)
             return self._rebuild()
 

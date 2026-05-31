@@ -1,8 +1,117 @@
 """Tests for csv_io module: CSV reading, writing, migration, encoding fixes."""
 
 import csv
+import os
 
-from csv_io import append_csv_rows, convert_xls_to_csv, fix_double_utf8, migrate_csv_header, read_text
+import pytest
+
+import csv_io
+from csv_io import (
+    append_csv_rows,
+    atomic_write_rows,
+    atomic_write_text,
+    convert_xls_to_csv,
+    fix_double_utf8,
+    migrate_csv_header,
+    read_text,
+)
+
+
+class TestAtomicWriteText:
+    """Tests for atomic_write_text()."""
+
+    def test_writes_content(self, tmp_path):
+        path = str(tmp_path / "out.txt")
+        atomic_write_text(path, "hello world\n", encoding="utf-8")
+        with open(path, encoding="utf-8") as f:
+            assert f.read() == "hello world\n"
+
+    def test_overwrites_existing_content(self, tmp_path):
+        path = str(tmp_path / "out.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("OLD CONTENT")
+        atomic_write_text(path, "NEW", encoding="utf-8")
+        with open(path, encoding="utf-8") as f:
+            assert f.read() == "NEW"
+
+    def test_preserves_utf8_sig_encoding(self, tmp_path):
+        path = str(tmp_path / "bom.txt")
+        atomic_write_text(path, "AΩ", encoding="utf-8-sig")
+        with open(path, "rb") as f:
+            raw = f.read()
+        # utf-8-sig prepends the BOM bytes
+        assert raw.startswith(b"\xef\xbb\xbf")
+        assert read_text(path) == "AΩ"
+
+    def test_leaves_original_intact_on_failure(self, tmp_path, monkeypatch):
+        path = str(tmp_path / "out.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("ORIGINAL")
+
+        def boom(src, dst):
+            raise RuntimeError("simulated rename failure")
+
+        monkeypatch.setattr(csv_io.os, "replace", boom)
+        with pytest.raises(RuntimeError, match="simulated rename failure"):
+            atomic_write_text(path, "REPLACEMENT", encoding="utf-8")
+
+        # Original content must be untouched
+        with open(path, encoding="utf-8") as f:
+            assert f.read() == "ORIGINAL"
+        # No leftover temp files in the directory
+        leftovers = [n for n in os.listdir(tmp_path) if n != "out.txt"]
+        assert leftovers == []
+
+    def test_no_leftover_temp_on_success(self, tmp_path):
+        path = str(tmp_path / "out.txt")
+        atomic_write_text(path, "data", encoding="utf-8")
+        assert os.listdir(tmp_path) == ["out.txt"]
+
+
+class TestAtomicWriteRows:
+    """Tests for atomic_write_rows()."""
+
+    def test_writes_header_and_rows(self, tmp_path):
+        path = str(tmp_path / "out.csv")
+        fields = ["A", "B"]
+        rows = [{"A": "1", "B": "2"}, {"A": "3", "B": "4"}]
+        atomic_write_rows(path, fields, rows, encoding="utf-8")
+        with open(path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            assert reader.fieldnames == fields
+            data = list(reader)
+        assert data == rows
+
+    def test_overwrites_existing_file(self, tmp_path):
+        path = str(tmp_path / "out.csv")
+        atomic_write_rows(path, ["A"], [{"A": "old"}], encoding="utf-8")
+        atomic_write_rows(path, ["A"], [{"A": "new"}], encoding="utf-8")
+        with open(path, newline="", encoding="utf-8") as f:
+            data = list(csv.DictReader(f))
+        assert data == [{"A": "new"}]
+
+    def test_preserves_utf8_sig_encoding(self, tmp_path):
+        path = str(tmp_path / "bom.csv")
+        atomic_write_rows(path, ["V"], [{"V": "Ω"}], encoding="utf-8-sig")
+        with open(path, "rb") as f:
+            assert f.read().startswith(b"\xef\xbb\xbf")
+
+    def test_leaves_original_intact_on_failure(self, tmp_path, monkeypatch):
+        path = str(tmp_path / "out.csv")
+        atomic_write_rows(path, ["A", "B"], [{"A": "keep", "B": "me"}], encoding="utf-8")
+
+        def boom(src, dst):
+            raise RuntimeError("simulated rename failure")
+
+        monkeypatch.setattr(csv_io.os, "replace", boom)
+        with pytest.raises(RuntimeError, match="simulated rename failure"):
+            atomic_write_rows(path, ["A", "B"], [{"A": "x", "B": "y"}], encoding="utf-8")
+
+        with open(path, newline="", encoding="utf-8") as f:
+            data = list(csv.DictReader(f))
+        assert data == [{"A": "keep", "B": "me"}]
+        leftovers = [n for n in os.listdir(tmp_path) if n != "out.csv"]
+        assert leftovers == []
 
 
 class TestAppendCsvRows:
