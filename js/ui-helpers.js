@@ -22,6 +22,25 @@ export function escHtml(s) {
   return d.innerHTML;
 }
 
+/**
+ * Resolve a vendor's stored favicon_path into a browser-usable img src.
+ *
+ * favicon_path is stored relative to the data/ dir using OS path separators
+ * (e.g. "sources\\favicons\\abc.png" on Windows, or "lcsc-icon.ico"). The page
+ * is served from the repo root, so paths need forward slashes and a "data/"
+ * prefix. URLs, data/blob URIs, and absolute paths are passed through untouched.
+ * @param {string} path
+ * @returns {string}
+ */
+export function vendorIconSrc(path) {
+  if (!path) return "";
+  const p = String(path).replace(/\\/g, "/");
+  if (/^(https?:|data:|blob:|file:)/i.test(p)) return p;
+  if (/^[a-zA-Z]:\//.test(p) || p.startsWith("/")) return p;
+  if (p.startsWith("data/")) return p;
+  return "data/" + p.replace(/^\/+/, "");
+}
+
 export function Modal(id, { onClose, cancelId } = {}) {
   const el = document.getElementById(id);
   function open()  { el.classList.remove("hidden"); }
