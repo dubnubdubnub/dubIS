@@ -150,7 +150,10 @@ test.describe('Epson label export', () => {
     await expect(mmCell).toContainText('mm');
     const mmBefore = await mmCell.textContent();
 
-    // No red badge yet for this freshly-built row.
+    // No red over-budget badge yet for this freshly-built row (true before-state
+    // so the post-edit badge assertion is a real transition, not just end-state).
+    await expect(targetRow.locator('.label-badge.label-badge-red')).toHaveCount(0);
+
     // ── 6. Edit a cell by REAL typing → mm changes + badge appears ───────
     // Type a long string that deterministically exceeds the 12 mm budget
     // (budget 40 mm; ~80 default-width chars ≈ 40.8 mm).
