@@ -68,10 +68,8 @@ def rebuild(
         po_csv_path=os.path.join(base_dir, "purchase_orders.csv"),
         vendors_json_path=vendors_json,
     )
-    purchase_lines = cache_db.count_csv_data_lines(input_csv)
-    adj_lines = cache_db.count_csv_data_lines(adjustments_csv)
-    cache_db.write_checkpoint(conn, purchase_lines=purchase_lines,
-                              adjustment_lines=adj_lines)
+    cache_db.write_checkpoint(conn, purchase_path=input_csv,
+                              adjustments_path=adjustments_csv)
     if os.path.exists(events_dir):
         domain.pricing.populate_prices_cache(conn, events_dir)
     import generic_parts  # noqa: PLC0415
@@ -126,7 +124,7 @@ def rebuild_or_catchup(
     """
     cp = cache_db.read_checkpoint(conn)
     has_cache = conn.execute("SELECT 1 FROM parts LIMIT 1").fetchone() is not None
-    if has_cache and (cp["purchase_lines"] > 0 or cp["adjustment_lines"] > 0):
+    if has_cache and cp["purchase_hash"]:
         if cache_db.catch_up(conn, input_csv, adjustments_csv, adj_fieldnames):
             return cache_db.query_inventory(conn), {}
     return rebuild(
@@ -243,10 +241,8 @@ def adjust_part(
     else:
         cache_db.apply_stock_delta(conn, part_key, record_qty)
 
-    adj_lines = cache_db.count_csv_data_lines(adjustments_csv)
-    cp = cache_db.read_checkpoint(conn)
-    cache_db.write_checkpoint(conn, purchase_lines=cp["purchase_lines"],
-                              adjustment_lines=adj_lines)
+    cache_db.write_checkpoint(conn, purchase_path=input_csv,
+                              adjustments_path=adjustments_csv)
     return cache_db.query_inventory(conn)
 
 
@@ -316,10 +312,8 @@ def consume_bom(
         delta = int(row["quantity"])
         cache_db.apply_stock_delta(conn, pn, delta)
 
-    adj_lines = cache_db.count_csv_data_lines(adjustments_csv)
-    cp = cache_db.read_checkpoint(conn)
-    cache_db.write_checkpoint(conn, purchase_lines=cp["purchase_lines"],
-                              adjustment_lines=adj_lines)
+    cache_db.write_checkpoint(conn, purchase_path=input_csv,
+                              adjustments_path=adjustments_csv)
     cache_db.verify_parts(
         conn, affected_parts, input_csv, adjustments_csv, fieldnames, fix=True,
     )
