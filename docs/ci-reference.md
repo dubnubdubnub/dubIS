@@ -43,6 +43,7 @@ Add a `[ci: <suite>]` tag to your commit message to override auto-detection:
 | "Branch already merged" error on push | Pushing to a branch whose PR was squash-merged | Run `bash scripts/push-pr.sh` — it auto-creates a new branch |
 | JS test fixture mismatch | Backend changed but fixtures not regenerated | `python scripts/generate-test-fixtures.py && git add tests/fixtures/generated/` |
 | Playwright tests fail only on ubuntu | Playwright browsers only installed on ubuntu runner | Check if test needs `install-pw: true` in CI matrix |
+| Visual snapshot "doesn't exist" / fails only on ubuntu | Golden-image baselines are per-platform; CI Linux runner lacks `-linux.png` | Regenerate on the runner — see [visual-testing.md](visual-testing.md) |
 | Quality suite "fails" | Quality tier uses `continue-on-error: true` | These are warnings, not blockers — quality failures don't block merge |
 | ruff or eslint fails after refactor | New file not covered by existing config | Check `pyproject.toml` excludes and `eslint.config.mjs` includes |
 
