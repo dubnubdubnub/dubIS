@@ -1,6 +1,10 @@
 // tests/vitest-global-setup.js
-// Auto-regenerate Python-generated fixtures if stale.
-// Gracefully skips if Python is not available (e.g., JS-only CI runners).
+// Verify Python-generated fixtures are up to date.
+//
+// LOCAL (non-CI): auto-regenerate stale fixtures as a convenience.
+// CI: NEVER auto-regenerate — fail loud so that stale COMMITTED fixtures cannot
+//     be silently overwritten at test time and pass against fresh fixtures,
+//     hiding the drift from review.
 import { execSync } from 'node:child_process';
 
 function findPython() {
@@ -16,11 +20,18 @@ function findPython() {
 }
 
 export async function setup() {
+  const inCI = !!process.env.CI;
   const python = findPython();
+
   if (!python) {
+    // The authoritative fixture-staleness guard in CI lives in .github/workflows/ci.yml
+    // (the Python-tier job runs `generate-test-fixtures.py --check`). The JS vitest step
+    // may run on a PATH without a discoverable `python`/`python3`, so a missing interpreter
+    // here is not in itself a masking hole — defer to the ci.yml guard and skip locally.
     console.log('[vitest-global-setup] Python not found, skipping fixture check.');
     return;
   }
+
   try {
     execSync(`${python} scripts/generate-test-fixtures.py --check`, {
       stdio: 'pipe',
@@ -28,7 +39,15 @@ export async function setup() {
     });
     // Fixtures are up-to-date
   } catch {
-    // --check failed (exit code 1) → fixtures are stale, regenerate
+    // --check failed (exit code 1) → committed fixtures are stale.
+    if (inCI) {
+      throw new Error(
+        'Committed test fixtures are stale. ' +
+          'Run `python scripts/generate-test-fixtures.py` and commit the result. ' +
+          '(Refusing to auto-regenerate in CI — that would hide the drift.)',
+      );
+    }
+    // Local convenience: regenerate so the developer can keep working.
     console.log('[vitest-global-setup] Fixtures stale, regenerating...');
     execSync(`${python} scripts/generate-test-fixtures.py`, {
       stdio: 'inherit',
