@@ -9,9 +9,9 @@ Run them explicitly with::
 
     pytest -m live
 
-Latency for each real fetch is printed to stdout and appended to a rolling
-JSON log at ``tests/python/.live_latencies.json`` (gitignored, human-inspection
-only — no assertions are made on it).
+Latency for each real fetch is printed to stdout and appended to
+``tests/python/.live_latencies.json`` (gitignored, appended to without
+rotation — trim manually if it grows; no assertions are made on it).
 
 Missing credentials do NOT skip — they ``pytest.fail`` with an actionable
 message, because the whole point of this tier is to exercise real fetches.
@@ -23,15 +23,12 @@ import contextlib
 import json
 import os
 import shutil
-import sys
 import time
 from datetime import datetime
 
 import pytest
 
-sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..")))
-
-from distributor_manager import DistributorManager  # noqa: E402
+from distributor_manager import DistributorManager
 
 # Repo root computed from this file's location (works in any checkout/worktree).
 REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -41,7 +38,7 @@ DATA_DIR = os.path.join(REPO_ROOT, "data")
 # a tmp data dir so any session-invalidation cleanup hits the COPY, not the original.
 SECRET_FILES = ("digikey_cookies.json", "mouser_credentials.json")
 
-# Rolling, human-inspection-only latency log (gitignored).
+# Append-only, human-inspection-only latency log (gitignored; no rotation — trim manually if it grows).
 LATENCY_LOG = os.path.join(os.path.dirname(__file__), ".live_latencies.json")
 
 # Real identifiers used by the live tests.
@@ -116,6 +113,10 @@ def _assert_sane_product(result, provider: str) -> None:
         "expected a non-empty mpn or productCode"
     )
     assert isinstance(result.get("prices"), list), "expected prices to be a list"
+    # A stocked part should expose at least one price break; stock==0 may have none.
+    assert result.get("prices") or result.get("stock", 0) == 0, (
+        "stocked part returned an empty prices list — likely a silent parse failure"
+    )
     assert isinstance(result.get("stock"), int), "expected stock to be an int"
 
 
@@ -169,11 +170,16 @@ def test_digikey_session_live(live_data):
     session is live. A warm cache returns instantly with no browser; a stale
     cache opens a browser to re-login (the intended behavior of this tier).
     """
-    if live_data._digikey._load_cookies() is None:
+    cookies_path = live_data._digikey._cookies_file
+    if not cookies_path or not os.path.exists(cookies_path):
         pytest.fail(
             "no DigiKey session cached (data/digikey_cookies.json) — "
             "log into DigiKey via the app first"
         )
+    # interactive=True is the intended "re-login when the cache is stale" behavior:
+    # a WARM cached session validates instantly with NO browser; a STALE/missing one
+    # opens a browser and polls up to ~120s for manual login. This test is opt-in only
+    # (deselected by default via the `live` marker), so it never runs/hangs in CI.
     with record_latency("digikey", "session"):
         live = live_data._digikey.ensure_session(interactive=True)
     assert live is True, (
