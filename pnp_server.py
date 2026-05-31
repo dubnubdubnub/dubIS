@@ -161,8 +161,20 @@ class _FastHTTPServer(HTTPServer):
 
 
 def start_pnp_server(api, window, port=PNP_PORT, source="openpnp"):
-    """Start the PnP HTTP server in a daemon thread."""
-    server = _FastHTTPServer(("0.0.0.0", port), PnPHandler)
+    """Start the PnP HTTP server in a daemon thread.
+
+    Returns the running server on success, or None if the port is unavailable
+    (e.g. another dubIS instance already bound it). Callers MUST handle None.
+    """
+    try:
+        server = _FastHTTPServer(("0.0.0.0", port), PnPHandler)
+    except OSError as exc:
+        logger.warning(
+            "PnP server disabled — port %d unavailable "
+            "(another dubIS instance already running?): %s",
+            port, exc,
+        )
+        return None
     server.api = api
     server.window = window
     server.source = source
@@ -171,3 +183,21 @@ def start_pnp_server(api, window, port=PNP_PORT, source="openpnp"):
     thread.start()
     logger.info("PnP server listening on port %d", port)
     return server
+
+
+def stop_pnp_server(server):
+    """Gracefully stop a PnP server returned by start_pnp_server().
+
+    Null-safe (no-op if server is None). shutdown() must be called from a
+    thread other than the one running serve_forever(); it blocks until any
+    in-flight request finishes (the graceful part), then server_close() frees
+    the socket. Best-effort: failures are logged, never raised, so process
+    teardown can proceed.
+    """
+    if server is None:
+        return
+    try:
+        server.shutdown()
+        server.server_close()
+    except Exception as exc:
+        logger.warning("Error stopping PnP server: %s", exc)
