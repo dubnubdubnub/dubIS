@@ -87,7 +87,7 @@ export function selectedCount() {
 
 /** Add every loaded inventory item whose po_history includes `poId`. */
 export function selectPo(poId) {
-  if (!poId) return;
+  if (!poId) return 0;
   let added = 0;
   for (const item of store.inventory) {
     const hist = item.po_history || [];
@@ -182,9 +182,17 @@ function fmtPoLabel(po) {
 
 async function renderPoList(listEl) {
   if (poListLoaded) return;
-  poListLoaded = true;
   listEl.innerHTML = "";
-  const pos = await api("list_purchase_orders");
+  /** @type {any[]} */
+  let pos;
+  try {
+    pos = await api("list_purchase_orders");
+  } catch (err) {
+    AppLog.error("renderPoList: failed to load purchase orders: " + (err && err.message || err));
+    listEl.innerHTML = '<div class="label-po-empty">Failed to load purchase orders</div>';
+    return;
+  }
+  poListLoaded = true;
   if (!Array.isArray(pos) || pos.length === 0) {
     listEl.innerHTML = '<div class="label-po-empty">No purchase orders</div>';
     return;
@@ -215,7 +223,15 @@ async function renderPoList(listEl) {
       if (willShow && !loadedItems) {
         loadedItems = true;
         detail.innerHTML = '<div class="label-po-loading">Loading…</div>';
-        const data = await api("get_po_with_items", poId);
+        /** @type {any} */
+        let data;
+        try {
+          data = await api("get_po_with_items", poId);
+        } catch (err) {
+          AppLog.error("renderPoList: failed to load items for PO " + poId + ": " + (err && err.message || err));
+          detail.innerHTML = '<div class="label-po-empty">Failed to load items</div>';
+          return;
+        }
         const items = (data && data.line_items) || [];
         if (items.length === 0) {
           detail.innerHTML = '<div class="label-po-empty">No line items</div>';
