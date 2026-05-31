@@ -8,6 +8,8 @@ and adjustments.csv on next startup.
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
 import logging
 import os
 import sqlite3
@@ -358,32 +360,91 @@ def update_stock_price(
     conn.commit()
 
 
+def _file_hash(path: str) -> str:
+    """Return the sha256 hex digest of a file's bytes, or "" if missing."""
+    if not os.path.exists(path):
+        return ""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _hash_adjustment_rows(rows: list[dict[str, str]]) -> str:
+    """Canonically hash a list of adjustment rows so the same rows always
+    produce the same digest regardless of dict key ordering.
+
+    Serializes each row as a list of values keyed by the row's sorted field
+    names, then sha256-hashes the JSON of the whole list.  Used both when
+    writing the checkpoint and when verifying the already-processed prefix in
+    catch_up, so the two computations must stay identical.
+    """
+    canonical = [[row.get(fn, "") for fn in sorted(row)] for row in rows]
+    payload = json.dumps(canonical, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _read_adjustment_rows(path: str) -> list[dict[str, str]]:
+    """Parse all adjustment data rows via DictReader (handles quoted newlines)."""
+    if not os.path.exists(path):
+        return []
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        return list(csv.DictReader(f))
+
+
 def write_checkpoint(
     conn: sqlite3.Connection,
-    purchase_lines: int,
-    adjustment_lines: int,
+    *,
+    purchase_path: str,
+    adjustments_path: str,
 ) -> None:
-    """Record how many CSV data lines the cache has processed."""
-    conn.execute(
-        "INSERT OR REPLACE INTO cache_meta (key, value) VALUES ('purchase_lines', ?)",
-        (str(purchase_lines),),
-    )
-    conn.execute(
-        "INSERT OR REPLACE INTO cache_meta (key, value) VALUES ('adjustment_lines', ?)",
-        (str(adjustment_lines),),
-    )
+    """Record content hashes of the source CSVs the cache has fully processed.
+
+    Stores the purchase ledger's content hash, the number of adjustment data
+    rows, and a canonical hash over ALL current adjustment rows (after a full
+    write/append+apply every row is processed, so the full set is the
+    processed prefix).
+    """
+    rows = _read_adjustment_rows(adjustments_path)
+    meta = {
+        "purchase_hash": _file_hash(purchase_path),
+        "adjustment_count": str(len(rows)),
+        "adjustment_prefix_hash": _hash_adjustment_rows(rows),
+    }
+    for key, value in meta.items():
+        conn.execute(
+            "INSERT OR REPLACE INTO cache_meta (key, value) VALUES (?, ?)",
+            (key, value),
+        )
     conn.commit()
 
 
-def read_checkpoint(conn: sqlite3.Connection) -> dict[str, int]:
-    """Read the checkpoint. Returns zeros if no checkpoint exists."""
-    result = {"purchase_lines": 0, "adjustment_lines": 0}
-    for key in ("purchase_lines", "adjustment_lines"):
+def read_checkpoint(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Read the checkpoint.
+
+    Returns ``{"purchase_hash": str, "adjustment_count": int,
+    "adjustment_prefix_hash": str}``.  Missing keys default to ""/0.  Old
+    caches (which stored only purchase_lines/adjustment_lines) therefore come
+    back with empty hashes, which makes catch_up trigger a one-time full
+    rebuild that writes the new-format checkpoint.
+    """
+    result: dict[str, Any] = {
+        "purchase_hash": "",
+        "adjustment_count": 0,
+        "adjustment_prefix_hash": "",
+    }
+    for key in ("purchase_hash", "adjustment_prefix_hash"):
         row = conn.execute(
             "SELECT value FROM cache_meta WHERE key = ?", (key,)
         ).fetchone()
         if row:
-            result[key] = int(row[0])
+            result[key] = row[0]
+    count_row = conn.execute(
+        "SELECT value FROM cache_meta WHERE key = ?", ("adjustment_count",)
+    ).fetchone()
+    if count_row:
+        result["adjustment_count"] = int(count_row[0])
     return result
 
 
@@ -413,41 +474,49 @@ def catch_up(
     """
     cp = read_checkpoint(conn)
 
-    # If purchase ledger changed, catch-up can't handle it — need full rebuild
-    purchase_total = count_csv_data_lines(purchase_path)
-    if purchase_total != cp["purchase_lines"]:
-        logger.info("Purchase ledger changed (%d -> %d lines), full rebuild needed",
-                     cp["purchase_lines"], purchase_total)
+    # If the purchase ledger content changed at all (append OR in-place edit),
+    # catch-up can't handle it — need a full rebuild.  A content hash catches
+    # same-row-count edits that a line count would miss.
+    if _file_hash(purchase_path) != cp["purchase_hash"]:
+        logger.info("Purchase ledger content changed, full rebuild needed")
         return False
 
-    # Catch up on new adjustments
-    adj_total = count_csv_data_lines(adjustments_path)
-    adj_seen = cp["adjustment_lines"]
-    if adj_total > adj_seen and os.path.exists(adjustments_path):
-        with open(adjustments_path, newline="", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            for i, row in enumerate(reader):
-                if i < adj_seen:
-                    continue  # skip already-processed rows
-                adj_type = (row.get("type") or "").strip()
-                pn = (row.get("lcsc_part") or "").strip()
-                if not pn or not adj_type:
-                    continue
-                try:
-                    qty = int(float(row.get("quantity", "0")))
-                except ValueError:
-                    continue
-                new_qty = compute_adjusted_qty(0, adj_type, qty)
-                if new_qty is None:
-                    continue
-                if adj_type == "set":
-                    set_stock_quantity(conn, pn, new_qty)
-                else:
-                    apply_stock_delta(conn, pn, qty)
-        logger.info("Cache catch-up: replayed %d new adjustments", adj_total - adj_seen)
+    # The already-processed region of adjustments.csv must be byte-for-byte the
+    # same as when we checkpointed.  If it was edited, reordered, or had rows
+    # removed (e.g. a test/source rollback), the ordinal replay would diverge —
+    # force a full rebuild instead.
+    rows = _read_adjustment_rows(adjustments_path)
+    adj_seen = cp["adjustment_count"]
+    if _hash_adjustment_rows(rows[:adj_seen]) != cp["adjustment_prefix_hash"]:
+        logger.info(
+            "Already-processed adjustments changed (edit/reorder/removal), "
+            "full rebuild needed")
+        return False
+
+    # Replay only the new adjustment rows using the existing apply logic.
+    new_rows = rows[adj_seen:]
+    if new_rows:
+        for row in new_rows:
+            adj_type = (row.get("type") or "").strip()
+            pn = (row.get("lcsc_part") or "").strip()
+            if not pn or not adj_type:
+                continue
+            try:
+                qty = int(float(row.get("quantity", "0")))
+            except ValueError:
+                continue
+            new_qty = compute_adjusted_qty(0, adj_type, qty)
+            if new_qty is None:
+                continue
+            if adj_type == "set":
+                set_stock_quantity(conn, pn, new_qty)
+            else:
+                apply_stock_delta(conn, pn, qty)
+        logger.info("Cache catch-up: replayed %d new adjustments", len(new_rows))
 
     # Update checkpoint
-    write_checkpoint(conn, purchase_lines=purchase_total, adjustment_lines=adj_total)
+    write_checkpoint(conn, purchase_path=purchase_path,
+                     adjustments_path=adjustments_path)
     return True
 
 
