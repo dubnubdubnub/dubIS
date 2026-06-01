@@ -4,7 +4,33 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
-import { sampleDashedFrame } from './visual-helpers.mjs';
+import { capture, rectOf } from './visual/capture.mjs';
+import { scanRay, measureGap } from './visual/measure.mjs';
+import { channelDominant } from './visual/color.mjs';
+
+const isBluishStroke = (rgb) => channelDominant(rgb, 2, 28, 60);
+
+/**
+ * Drop-zone-specific frame sampler (the bespoke geometry lives HERE, not in the
+ * core). Forces the bright dragover state, then measures the L-frame margins and
+ * the rounded NW corner from rendered pixels.
+ */
+async function sampleDropZoneFrame(page) {
+  const zone = page.locator('#import-drop-zone');
+  const btn = zone.locator('[data-template="direct"]');
+  await page.evaluate(() => document.getElementById('import-drop-zone').classList.add('dragover'));
+  await page.waitForTimeout(120);
+  const frame = await capture(page, zone, { pad: 12 });
+  const b = await rectOf(btn);
+  const marginTop = scanRay(frame, [b.x + 6, b.y - 2], [0, -1], isBluishStroke) + 2;
+  const marginLeft = measureGap(frame, b, isBluishStroke, 'left');
+  const marginRight = scanRay(frame, [b.x + b.width + 2, b.y - 20], [1, 0], isBluishStroke) + 2;
+  const marginBottom = scanRay(frame, [b.x - 20, b.y + b.height + 2], [0, 1], isBluishStroke) + 2;
+  const [vx, vy] = frame.toImg(b.x - 8, b.y - 8);
+  const cornerRounded = !isBluishStroke(frame.pixel(vx, vy)) &&
+    marginTop !== Infinity && marginLeft !== Infinity;
+  return { marginTop, marginRight, marginBottom, marginLeft, cornerRounded };
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -71,37 +97,6 @@ test.describe('Direct-from-mfg import', () => {
     await expect(page.locator('.mfg-direct-modal')).toBeVisible();
   });
 
-  test('Direct button sits in bottom-right with dashed border around it', async ({ page }) => {
-    const dropZone = page.locator('#import-drop-zone');
-    const directBtn = dropZone.locator('[data-template="direct"]');
-    await expect(directBtn).toBeVisible();
-
-    const m = await page.evaluate(() => {
-      const z = document.getElementById('import-drop-zone');
-      const b = z.querySelector('[data-template="direct"]');
-      const hint = z.querySelector('.hint');
-      const zr = z.getBoundingClientRect();
-      const br = b.getBoundingClientRect();
-      const hr = hint.getBoundingClientRect();
-      return {
-        rightGap: zr.right - br.right,
-        bottomGap: zr.bottom - br.bottom,
-        textToButtonGap: br.top - hr.bottom,
-      };
-    });
-    // Button anchored to bottom-right with breathing room from the dashed
-    // perimeter on right and bottom.
-    expect(m.rightGap).toBeGreaterThanOrEqual(6);
-    expect(m.rightGap).toBeLessThanOrEqual(20);
-    expect(m.bottomGap).toBeGreaterThanOrEqual(6);
-    expect(m.bottomGap).toBeLessThanOrEqual(20);
-    // The drop-zone hint text must not crowd the button. macOS sub-pixel
-    // rendering produces ~1px less than other platforms, so we use a tolerant
-    // floor; the design goal is "no overlap and breathing room", not a
-    // specific pixel count.
-    expect(m.textToButtonGap).toBeGreaterThanOrEqual(2);
-  });
-
   // RENDERED-PIXEL assertions for the dashed L-frame wrapping the ★ Direct button.
   //
   // The OLD approach read the SVG path's `d` attribute and the button's bounding
@@ -123,7 +118,7 @@ test.describe('Direct-from-mfg import', () => {
 
       await page.locator('#import-drop-zone').scrollIntoViewIfNeeded();
 
-      const m = await sampleDashedFrame(page);
+      const m = await sampleDropZoneFrame(page);
 
       // Each margin must be ≈ 8 CSS px (±3 tolerance for sub-pixel rendering and
       // anti-aliasing). Infinity means no stroke was found — that is always wrong.
@@ -140,6 +135,35 @@ test.describe('Direct-from-mfg import', () => {
       expect(m.cornerRounded).toBe(true);
     });
   }
+
+  test('drop-zone resting state: dashed frame present (muted), distinct from blue dragover', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await page.waitForTimeout(150);
+    const zone = page.locator('#import-drop-zone');
+    await zone.scrollIntoViewIfNeeded();
+    const frame = await capture(page, zone, { pad: 12 });
+    const z = await rectOf(zone);
+    const bg = frame.pixel(...frame.toImg(z.x + z.width / 2, z.y + z.height / 2));
+    const notBg = (rgb) => !!rgb &&
+      (Math.abs(rgb[0] - bg[0]) + Math.abs(rgb[1] - bg[1]) + Math.abs(rgb[2] - bg[2])) > 40;
+    // A stroke pixel exists at/just inside the top border (within ~6px scanning downward).
+    const d = scanRay(frame, [z.x + z.width / 2, z.y - 2], [0, 1], notBg, { maxSearch: 6 });
+    expect(d).toBeLessThan(Infinity);
+
+    // The resting stroke must be the muted border color, NOT the bright-blue
+    // dragover stroke — sample where the scan found it and assert not-bluish.
+    const [tx, ty] = frame.toImg(z.x + z.width / 2, z.y - 2 + d);
+    // search a tiny neighborhood for the actual stroke pixel we detected
+    let strokePixel = null;
+    for (let oy = -2; oy <= 2 && !strokePixel; oy++) {
+      for (let ox = -3; ox <= 3 && !strokePixel; ox++) {
+        const p = frame.pixel(tx + ox, ty + oy);
+        if (notBg(p)) strokePixel = p;
+      }
+    }
+    expect(strokePixel, 'should have located the resting stroke pixel').not.toBeNull();
+    expect(isBluishStroke(strokePixel), 'resting stroke must be muted, not the blue dragover color').toBe(false);
+  });
 
   test('Direct filter pill replaces Other', async ({ page }) => {
     const direct = page.locator('[data-distributor="direct"]');

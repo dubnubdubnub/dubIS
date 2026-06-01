@@ -11,7 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
-import { paddedClip, expectStrictScreenshot } from './visual-helpers.mjs';
+import { paddedClip, expectStrictScreenshot } from './visual/snapshot.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(

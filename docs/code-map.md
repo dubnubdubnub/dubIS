@@ -1053,6 +1053,11 @@ graph LR
 - **Imports:** `js/inventory/vendor-flyout.js`
 - **Imported by:** —
 
+### tests/js/visual-color.test.js
+
+- **Imports:** —
+- **Imported by:** —
+
 ### tests/openpnp-config/scripts/Events/Startup.py
 
 - **Imports:** —
