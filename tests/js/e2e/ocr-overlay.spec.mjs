@@ -77,19 +77,16 @@ const OCR_RESULT_2PAGE = {
   prefill_rows: PREFILL_ROWS,
 };
 
-/** Open the Direct-from-mfg flow and drop an image, landing in the OCR overlay. */
+/** Drop an image into the image/PDF zone, landing in the OCR overlay. */
 async function openOverlay(page) {
-  const directBtn = page.locator('[data-template="direct"]');
-  await directBtn.scrollIntoViewIfNeeded();
-  await directBtn.click();
-  await expect(page.locator('.mfg-direct-editor')).toBeVisible();
+  // Pick the lcsc template (image zone <select>) so the grid renders the LCSC# column.
+  const ocrZone = page.locator('#import-ocr-zone');
+  await ocrZone.scrollIntoViewIfNeeded();
+  await page.locator('#import-ocr-template').selectOption('lcsc');
 
-  // Pick the lcsc template so the grid renders the LCSC# column.
-  await page.locator('#mfg-scan-template').selectOption('lcsc');
-
-  // Real file chooser: hand a PNG buffer to the existing source input. Its
-  // onchange fires handleSourceFile → ocrOverlayB64 → openOverlay.
-  await page.locator('#mfg-source-input').setInputFiles({
+  // Real file chooser: hand a PNG buffer to the image-zone input. Its onchange
+  // fires openOcrImport → ocrOverlayB64 → openOverlay.
+  await page.locator('#import-ocr-input').setInputFiles({
     name: 'po-scan.png',
     mimeType: 'image/png',
     buffer: Buffer.from(PNG_1X1_B64, 'base64'),

@@ -23,7 +23,9 @@ def _png_b64() -> str:
 def test_ocr_overlay_returns_pages_and_prefill(monkeypatch):
     # Tesseract may be unavailable in CI; monkeypatch extract_page to a canned
     # page so the API shape is still exercised.
+    import ocr_engine
     import ocr_layout
+    monkeypatch.setattr(ocr_engine, "ensure_tesseract", lambda: True)
     monkeypatch.setattr(ocr_layout, "extract_page", lambda png: {
         "image_b64": "AAAA", "width": 200, "height": 80, "words": [], "lines": []})
 
@@ -41,7 +43,9 @@ def test_ocr_overlay_returns_pages_and_prefill(monkeypatch):
 def test_ocr_overlay_prefill_uses_template_heuristic(monkeypatch):
     # A canned line whose text is an LCSC-shaped row should produce a prefill
     # row tagged with the lcsc distributor — proving we reuse the real heuristic.
+    import ocr_engine
     import ocr_layout
+    monkeypatch.setattr(ocr_engine, "ensure_tesseract", lambda: True)
     monkeypatch.setattr(ocr_layout, "extract_page", lambda png: {
         "image_b64": "AAAA", "width": 200, "height": 80, "words": [],
         "lines": [{"text": "C429942 SN74LVC1G08 100 0.05", "x": 0, "y": 0,

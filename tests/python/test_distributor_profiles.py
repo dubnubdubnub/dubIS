@@ -160,3 +160,24 @@ class TestGeneric:
         text = "Just some prose with no part numbers here at all.\n"
         items = dp.parse_with_template("lcsc", text)
         assert items == []
+
+
+class TestGenericFreeform:
+    def _rows(self, text):
+        import distributor_profiles
+        return distributor_profiles.parse_with_template("generic", text)
+
+    def test_mpn_not_first_token(self):
+        rows = self._rows("1  KT-0603G  Kingbright  4000  0.0220")
+        assert any(r["mpn"] == "KT-0603G" for r in rows)
+        r = next(r for r in rows if r["mpn"] == "KT-0603G")
+        assert r["quantity"] == 4000
+        assert abs(r["unit_price"] - 0.022) < 1e-6
+
+    def test_integer_unit_price(self):
+        rows = self._rows("WS2812B-V5  Worldsemi  1000  6")
+        assert rows and rows[0]["quantity"] == 1000 and rows[0]["unit_price"] == 6.0
+
+    def test_label_noise_tolerated(self):
+        rows = self._rows("Part: STM32F103C8T6  Qty 50  Unit Price $3.10")
+        assert any("STM32F103C8T6" in r["mpn"] for r in rows)
