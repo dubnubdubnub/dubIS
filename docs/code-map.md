@@ -42,6 +42,7 @@ graph LR
     "inventory_api.py" --> "file_dialogs.py"
     "inventory_api.py" --> "inventory_ops.py"
     "inventory_api.py" --> "mfg_direct_import.py"
+    "inventory_api.py" --> "ocr_engine.py"
     "inventory_api.py" --> "ocr_layout.py"
     "inventory_api.py" --> "pnp_server.py"
     "inventory_api.py" --> "poll_api.py"
@@ -128,6 +129,7 @@ graph LR
     "js/import/import-renderer.js" --> "js/import/import-logic.js"
     "js/import/import-renderer.js" --> "js/ui-helpers.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/api.js"
+    "js/import/mfg-direct/mfg-direct-panel.js" --> "js/import/import-logic.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/import/mfg-direct/mfg-direct-logic.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/import/mfg-direct/mfg-direct-renderer.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js"
@@ -264,6 +266,7 @@ graph LR
     "mouser_client.py" --> "base_client.py"
     "mouser_client.py" --> "html_product_parser.py"
     "ocr_layout.py" --> "distributor_profiles.py"
+    "ocr_layout.py" --> "ocr_engine.py"
     "ocr_layout.py" --> "pdf_raster.py"
     "pololu_client.py" --> "base_client.py"
     "pololu_client.py" --> "html_product_parser.py"
@@ -289,6 +292,8 @@ graph LR
     "tests/js/favicon-stack.test.js" --> "js/inventory/favicon-stack.js"
     "tests/js/group-flyout-logic.test.js" --> "js/group-flyout/flyout-logic.js"
     "tests/js/import-logic.test.js" --> "js/import/import-logic.js"
+    "tests/js/import-two-zone.test.js" --> "js/import/import-logic.js"
+    "tests/js/import-two-zone.test.js" --> "js/import/import-renderer.js"
     "tests/js/inv-sort-group.test.js" --> "js/inventory/inv-sort-group.js"
     "tests/js/inventory-logic.test.js" --> "js/inventory/inventory-logic.js"
     "tests/js/inventory-rendering.test.js" --> "js/inventory/inventory-renderer.js"
@@ -387,6 +392,8 @@ graph LR
     "tests/python/test_normalizers.py" --> "distributor_fixtures.py"
     "tests/python/test_normalizers.py" --> "mouser_client.py"
     "tests/python/test_normalizers.py" --> "pololu_client.py"
+    "tests/python/test_ocr_engine.py" --> "ocr_engine.py"
+    "tests/python/test_ocr_layout.py" --> "ocr_engine.py"
     "tests/python/test_ocr_layout.py" --> "ocr_layout.py"
     "tests/python/test_ocr_overlay_api.py" --> "inventory_api.py"
     "tests/python/test_ocr_overlay_api.py" --> "ocr_layout.py"
@@ -529,7 +536,7 @@ graph LR
 
 ### inventory_api.py
 
-- **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `distributor_profiles.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `file_dialogs.py`, `inventory_ops.py`, `mfg_direct_import.py`, `ocr_layout.py`, `pnp_server.py`, `poll_api.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
+- **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `distributor_profiles.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `file_dialogs.py`, `inventory_ops.py`, `mfg_direct_import.py`, `ocr_engine.py`, `ocr_layout.py`, `pnp_server.py`, `poll_api.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
 - **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_real_data.py`
 
 ### inventory_ops.py
@@ -640,7 +647,7 @@ graph LR
 ### js/import/import-logic.js
 
 - **Imports:** —
-- **Imported by:** `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `tests/js/import-logic.test.js`
+- **Imported by:** `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `tests/js/import-logic.test.js`, `tests/js/import-two-zone.test.js`
 
 ### js/import/import-panel.js
 
@@ -650,7 +657,7 @@ graph LR
 ### js/import/import-renderer.js
 
 - **Imports:** `js/import/import-logic.js`, `js/ui-helpers.js`
-- **Imported by:** `js/import/import-panel.js`
+- **Imported by:** `js/import/import-panel.js`, `tests/js/import-two-zone.test.js`
 
 ### js/import/mfg-direct/mfg-direct-logic.js
 
@@ -659,7 +666,7 @@ graph LR
 
 ### js/import/mfg-direct/mfg-direct-panel.js
 
-- **Imports:** `js/api.js`, `js/import/mfg-direct/mfg-direct-logic.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/store.js`, `js/ui-helpers.js`, `js/vendor/qrcode.js`
+- **Imports:** `js/api.js`, `js/import/import-logic.js`, `js/import/mfg-direct/mfg-direct-logic.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/store.js`, `js/ui-helpers.js`, `js/vendor/qrcode.js`
 - **Imported by:** `js/app-init.js`
 
 ### js/import/mfg-direct/mfg-direct-renderer.js
@@ -865,9 +872,14 @@ graph LR
 - **Imports:** `base_client.py`, `html_product_parser.py`
 - **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_api.py`, `tests/python/test_normalizers.py`
 
+### ocr_engine.py
+
+- **Imports:** —
+- **Imported by:** `inventory_api.py`, `ocr_layout.py`, `tests/python/test_ocr_engine.py`, `tests/python/test_ocr_layout.py`
+
 ### ocr_layout.py
 
-- **Imports:** `distributor_profiles.py`, `pdf_raster.py`
+- **Imports:** `distributor_profiles.py`, `ocr_engine.py`, `pdf_raster.py`
 - **Imported by:** `inventory_api.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_ocr_overlay_api.py`
 
 ### pdf_raster.py
@@ -1038,6 +1050,11 @@ graph LR
 ### tests/js/import-logic.test.js
 
 - **Imports:** `js/import/import-logic.js`
+- **Imported by:** —
+
+### tests/js/import-two-zone.test.js
+
+- **Imports:** `js/import/import-logic.js`, `js/import/import-renderer.js`
 - **Imported by:** —
 
 ### tests/js/inv-sort-group.test.js
@@ -1389,9 +1406,14 @@ graph LR
 - **Imports:** `digikey_client.py`, `distributor_fixtures.py`, `mouser_client.py`, `pololu_client.py`
 - **Imported by:** —
 
+### tests/python/test_ocr_engine.py
+
+- **Imports:** `ocr_engine.py`
+- **Imported by:** —
+
 ### tests/python/test_ocr_layout.py
 
-- **Imports:** `ocr_layout.py`
+- **Imports:** `ocr_engine.py`, `ocr_layout.py`
 - **Imported by:** —
 
 ### tests/python/test_ocr_overlay_api.py
