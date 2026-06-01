@@ -92,15 +92,16 @@
 .dist-vendor-caret { margin-left: 4px; font-size: 10px; color: var(--text-muted); cursor: pointer; }
 .dist-vendor-caret:hover { color: var(--color-blue); }
 
-/* Favicon fan stack (inventory row) */
-.favicon-fan-stack { position: relative; display: inline-block; vertical-align: middle;
-  flex-shrink: 0; height: 16px; }
-.fan-icon { position: absolute; top: 0; width: 16px; height: 16px; border-radius: 3px;
+/* Favicon cascade stack (inventory row): most recent PO on top at (0,0), older
+   POs offset down-right and layered behind. Width/height are set inline to fit
+   the icon count. */
+.favicon-fan-stack { position: relative; display: inline-block; vertical-align: top;
+  flex-shrink: 0; }
+.fan-icon { position: absolute; left: 0; top: 0; width: 16px; height: 16px; border-radius: 3px;
   border: 1px solid var(--border-default); background: var(--bg-surface);
   display: inline-flex; align-items: center; justify-content: center; font-size: 10px; }
 .fan-icon-img { object-fit: contain; }
 .fan-icon-empty { background: var(--bg-tertiary); }
-.fan-icon-extra { font-size: 9px; color: var(--text-muted); background: var(--bg-surface); }
 
 /* Hover flyout */
 .favicon-fan-flyout { position: fixed; z-index: 9999; background: var(--bg-surface);

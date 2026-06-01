@@ -153,6 +153,12 @@ export function setupEvents(handlers) {
   // ── EventBus subscriptions ──
   EventBus.on(Events.INVENTORY_LOADED, function () { render(); });
   EventBus.on(Events.INVENTORY_UPDATED, function () { render(); });
+  // Vendors/POs load after INVENTORY_LOADED (loadInventory emits the latter
+  // before awaiting loadVendorsAndPOs), so the per-row PO icon stack
+  // (renderFanStack) needs a re-render once that data lands — otherwise the
+  // icons never appear on first paint.
+  EventBus.on(Events.VENDORS_CHANGED, function () { render(); });
+  EventBus.on(Events.PO_CHANGED, function () { render(); });
 
   // PREFS_CHANGED is now signal-driven (no longer uses EventBus).
   // The effect runs immediately on creation; skip that initial call since
