@@ -180,6 +180,41 @@
 .import-btn:hover { background: #23863640; border-color: var(--color-green); }
 .import-btn:disabled { opacity: 0.4; cursor: default; }
 
+/* ── Missing Tesseract OCR engine notice ─────────────────── */
+.ocr-engine-missing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--import-row-gap);
+  margin-bottom: var(--import-row-gap);
+  width: 100%;
+  text-align: center;
+}
+.ocr-engine-missing-msg {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+/* Inherits sizing/padding from .new-po-btn; emphasize as the primary action. */
+#install-tesseract-btn {
+  font-weight: 600;
+  border-color: var(--color-blue);
+  color: var(--color-blue);
+}
+#install-tesseract-btn:hover:not(:disabled) {
+  background: var(--bg-raised);
+}
+#install-tesseract-btn:disabled { opacity: 0.6; cursor: default; }
+.ocr-engine-missing-fallback {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.ocr-engine-missing-fallback code {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  color: var(--text-primary);
+  user-select: all;
+}
+
 /* ── PO picker placement ───────────────────────────────────
    While idle (drop-zone view), the import body sizes to its content and the
    PO picker grows to fill the panel — snapping it directly beneath the import
