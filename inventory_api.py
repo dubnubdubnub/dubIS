@@ -616,13 +616,23 @@ class InventoryApi:
         import vendors
         return vendors.fetch_favicon(url, self._favicons_dir)
 
-    def parse_source_file(self, path: str) -> list[dict[str, Any]]:
-        """Parse a CSV/PDF/image source file into candidate line items."""
-        import mfg_direct_import
-        return mfg_direct_import.parse_source_file(path)
+    def parse_source_file(self, path: str, template: str = "generic") -> list[dict[str, Any]]:
+        """Parse a CSV/PDF/image source file into candidate line items.
 
-    def parse_source_file_b64(self, file_b64: str, file_name: str) -> list[dict[str, Any]]:
-        """Decode base64, write to temp file, parse, and return rows."""
+        ``template`` selects a distributor profile ("generic"/"lcsc"/"digikey"/
+        "mouser"/"pololu") for OCR/PDF extraction; defaults to "generic".
+        """
+        import mfg_direct_import
+        return mfg_direct_import.parse_source_file(path, template)
+
+    def parse_source_file_b64(
+        self, file_b64: str, file_name: str, template: str = "generic",
+    ) -> list[dict[str, Any]]:
+        """Decode base64, write to temp file, parse, and return rows.
+
+        ``template`` selects a distributor profile; defaults to "generic" for
+        backward compatibility.
+        """
         import base64
         import tempfile
 
@@ -633,7 +643,7 @@ class InventoryApi:
             tf.write(data)
             tmp_path = tf.name
         try:
-            return mfg_direct_import.parse_source_file(tmp_path)
+            return mfg_direct_import.parse_source_file(tmp_path, template)
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
