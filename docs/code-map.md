@@ -982,6 +982,11 @@ graph LR
 - **Imports:** `inventory_api.py`, `inventory_ops.py`
 - **Imported by:** —
 
+### scripts/regen-layout-ignore.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### source_sanitizer.py
 
 - **Imports:** —

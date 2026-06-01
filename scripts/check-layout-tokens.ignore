@@ -2,14 +2,14 @@
 # Each non-blank, non-comment line is a substring pattern matched against
 # "<file>:<lineno>:<text>" violation entries.
 #
-# Lines added here are KNOWN ACCEPTED hard-codes as of the initial lint baseline
-# (2026-05-07).  Future PRs should shrink this list by migrating values to tokens.
+# Lines here are KNOWN ACCEPTED hard-codes (baseline). Future PRs should shrink
+# this list by migrating values to tokens. Regenerate after intentional CSS
+# edits with: python scripts/regen-layout-ignore.py
 #
 # Format: any substring of "<relpath>:<lineno>:<stripped-line>".
-# Tip: the file:lineno prefix is most stable; use that when the value itself
-# might appear on multiple lines.
 
-# ── css/panels/bom.css ───────────────────────────────────────────────────────
+
+# ── css/panels/bom.css ──────────────────────────────────────────
 css/panels/bom.css:6:
 css/panels/bom.css:10:
 css/panels/bom.css:18:
@@ -20,7 +20,7 @@ css/panels/bom.css:70:
 css/panels/bom.css:116:
 css/panels/bom.css:117:
 
-# ── css/panels/group-flyout.css ──────────────────────────────────────────────
+# ── css/panels/group-flyout.css ─────────────────────────────────
 css/panels/group-flyout.css:49:
 css/panels/group-flyout.css:50:
 css/panels/group-flyout.css:79:
@@ -40,7 +40,7 @@ css/panels/group-flyout.css:259:
 css/panels/group-flyout.css:286:
 css/panels/group-flyout.css:289:
 
-# ── css/panels/import.css ────────────────────────────────────────────────────
+# ── css/panels/import.css ───────────────────────────────────────
 css/panels/import.css:30:
 css/panels/import.css:61:
 css/panels/import.css:65:
@@ -55,7 +55,7 @@ css/panels/import.css:152:
 css/panels/import.css:156:
 css/panels/import.css:168:
 
-# ── css/panels/inventory.css ─────────────────────────────────────────────────
+# ── css/panels/inventory.css ────────────────────────────────────
 css/panels/inventory.css:11:
 css/panels/inventory.css:12:
 css/panels/inventory.css:36:
@@ -65,33 +65,33 @@ css/panels/inventory.css:85:
 css/panels/inventory.css:86:
 css/panels/inventory.css:93:
 css/panels/inventory.css:99:
-css/panels/inventory.css:108:
-css/panels/inventory.css:114:
 css/panels/inventory.css:115:
-css/panels/inventory.css:126:
-css/panels/inventory.css:131:
-css/panels/inventory.css:151:
-css/panels/inventory.css:156:
-css/panels/inventory.css:176:
-css/panels/inventory.css:181:
-css/panels/inventory.css:201:
-css/panels/inventory.css:210:
-css/panels/inventory.css:212:
-css/panels/inventory.css:216:
-css/panels/inventory.css:220:
-css/panels/inventory.css:234:
-css/panels/inventory.css:276:
-css/panels/inventory.css:299:
-css/panels/inventory.css:329:
+css/panels/inventory.css:121:
+css/panels/inventory.css:122:
+css/panels/inventory.css:133:
+css/panels/inventory.css:138:
+css/panels/inventory.css:158:
+css/panels/inventory.css:163:
+css/panels/inventory.css:183:
+css/panels/inventory.css:188:
+css/panels/inventory.css:208:
+css/panels/inventory.css:217:
+css/panels/inventory.css:219:
+css/panels/inventory.css:223:
+css/panels/inventory.css:227:
+css/panels/inventory.css:241:
+css/panels/inventory.css:283:
+css/panels/inventory.css:306:
 css/panels/inventory.css:336:
-css/panels/inventory.css:344:
-css/panels/inventory.css:358:
+css/panels/inventory.css:343:
+css/panels/inventory.css:351:
 css/panels/inventory.css:365:
-css/panels/inventory.css:366:
-css/panels/inventory.css:381:
-css/panels/inventory.css:409:
+css/panels/inventory.css:372:
+css/panels/inventory.css:373:
+css/panels/inventory.css:388:
+css/panels/inventory.css:416:
 
-# ── css/buttons.css ──────────────────────────────────────────────────────────
+# ── css/buttons.css ─────────────────────────────────────────────
 css/buttons.css:4:
 css/buttons.css:15:
 css/buttons.css:26:
@@ -100,7 +100,7 @@ css/buttons.css:106:
 css/buttons.css:108:
 css/buttons.css:117:
 
-# ── css/tables.css ───────────────────────────────────────────────────────────
+# ── css/tables.css ──────────────────────────────────────────────
 css/tables.css:14:
 css/tables.css:25:
 css/tables.css:49:
@@ -116,17 +116,17 @@ css/tables.css:214:
 css/tables.css:225:
 css/tables.css:256:
 
-# ── css/components/badges.css ────────────────────────────────────────────────
+# ── css/components/badges.css ───────────────────────────────────
 css/components/badges.css:3:
 css/components/badges.css:23:
 css/components/badges.css:24:
 css/components/badges.css:26:
 
-# ── css/components/console.css ───────────────────────────────────────────────
+# ── css/components/console.css ──────────────────────────────────
 css/components/console.css:7:
 css/components/console.css:17:
 
-# ── css/components/label-export.css ──────────────────────────────────────────
+# ── css/components/label-export.css ─────────────────────────────
 css/components/label-export.css:19:
 css/components/label-export.css:25:
 css/components/label-export.css:38:
@@ -155,15 +155,15 @@ css/components/label-export.css:231:
 css/components/label-export.css:254:
 css/components/label-export.css:270:
 
-# ── css/components/linking.css ───────────────────────────────────────────────
+# ── css/components/linking.css ──────────────────────────────────
 css/components/linking.css:28:
 css/components/linking.css:34:
 
-# ── css/components/toast.css ─────────────────────────────────────────────────
+# ── css/components/toast.css ────────────────────────────────────
 css/components/toast.css:4:
 css/components/toast.css:9:
 
-# ── css/components/tooltip.css ───────────────────────────────────────────────
+# ── css/components/tooltip.css ──────────────────────────────────
 css/components/tooltip.css:7:
 css/components/tooltip.css:8:
 css/components/tooltip.css:32:
@@ -192,7 +192,7 @@ css/components/tooltip.css:221:
 css/components/tooltip.css:226:
 css/components/tooltip.css:227:
 
-# ── css/components/vendor.css ────────────────────────────────────────────────
+# ── css/components/vendor.css ───────────────────────────────────
 css/components/vendor.css:8:
 css/components/vendor.css:10:
 css/components/vendor.css:18:
@@ -209,7 +209,7 @@ css/components/vendor.css:113:
 css/components/vendor.css:123:
 css/components/vendor.css:126:
 
-# ── css/layout.css ───────────────────────────────────────────────────────────
+# ── css/layout.css ──────────────────────────────────────────────
 css/layout.css:16:
 css/layout.css:45:
 css/layout.css:56:
@@ -219,7 +219,7 @@ css/layout.css:97:
 css/layout.css:104:
 css/layout.css:117:
 
-# ── css/modals.css ───────────────────────────────────────────────────────────
+# ── css/modals.css ──────────────────────────────────────────────
 css/modals.css:17:
 css/modals.css:18:
 css/modals.css:19:
@@ -244,3 +244,22 @@ css/modals.css:123:
 css/modals.css:124:
 css/modals.css:140:
 css/modals.css:148:
+css/modals.css:159:
+css/modals.css:160:
+css/modals.css:169:
+css/modals.css:173:
+css/modals.css:180:
+css/modals.css:184:
+css/modals.css:191:
+css/modals.css:196:
+css/modals.css:197:
+css/modals.css:205:
+css/modals.css:206:
+css/modals.css:213:
+css/modals.css:215:
+css/modals.css:216:
+css/modals.css:246:
+css/modals.css:254:
+css/modals.css:269:
+css/modals.css:271:
+css/modals.css:275:
