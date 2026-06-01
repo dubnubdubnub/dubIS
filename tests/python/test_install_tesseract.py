@@ -84,6 +84,8 @@ def test_winget_success_redetects_engine(monkeypatch):
     assert "UB-Mannheim.TesseractOCR" in captured["cmd"]
     assert "--accept-package-agreements" in captured["cmd"]
     assert "--accept-source-agreements" in captured["cmd"]
+    assert captured["kwargs"]["timeout"] == 600
+    assert captured["kwargs"]["capture_output"] is True
 
 
 def test_winget_nonzero_exit(monkeypatch):
