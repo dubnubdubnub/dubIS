@@ -112,12 +112,15 @@ test.describe('Epson label export', () => {
 
     await page.locator('#label-mode-btn').click();
 
-    // Toolbar appears, and the picker pops out (gains the active class).
+    // Toolbar appears, the picker pops out, and the mode button reads "Cancel".
     await expect(page.locator('#label-toolbar')).toBeVisible();
     await expect(picker).toHaveClass(/is-label-active/);
-    // The row's right-edge action buttons are replaced by a real checkbox.
-    const firstCheckbox = firstRow.locator('.label-select-checkbox');
-    await expect(firstCheckbox).toBeVisible();
+    await expect(page.locator('#label-mode-btn')).toHaveText('Cancel');
+    // The row's action buttons are replaced by a checkbox on BOTH edges:
+    // one in the left Group cell, one in the right-edge actions cell.
+    await expect(firstRow.locator('.inv-row-group-cell .label-select-checkbox')).toBeVisible();
+    await expect(firstRow.locator('.part-actions .label-select-checkbox')).toBeVisible();
+    await expect(firstRow.locator('.label-select-checkbox')).toHaveCount(2);
     await expect(firstRow.locator('.adj-btn')).toHaveCount(0);
     await expect(firstRow.locator('.link-btn')).toHaveCount(0);
 
@@ -125,11 +128,13 @@ test.describe('Epson label export', () => {
 
     // ── 2. Tick a row checkbox ───────────────────────────────────────────
     // Pick a checkbox for a row NOT in the PO (index >= 3) so the PO step
-    // adds a clean, predictable delta on top.
-    const standaloneCheckbox = page.locator('.inv-part-row').nth(5)
-      .locator('.label-select-checkbox');
+    // adds a clean, predictable delta on top. Tick the left-edge box and
+    // confirm its right-edge pair mirrors the checked state.
+    const standaloneRow = page.locator('.inv-part-row').nth(5);
+    const standaloneCheckbox = standaloneRow.locator('.inv-row-group-cell .label-select-checkbox');
     await standaloneCheckbox.check();
     await expect(standaloneCheckbox).toBeChecked();
+    await expect(standaloneRow.locator('.part-actions .label-select-checkbox')).toBeChecked();
     await expect(page.locator('#label-selected-count')).toHaveText('1 selected');
 
     // ── 3. Select a PO from the picker ───────────────────────────────────
@@ -200,6 +205,7 @@ test.describe('Epson label export', () => {
     await page.locator('#label-done-btn').click();
 
     await expect(page.locator('#label-toolbar')).toBeHidden();
+    await expect(page.locator('#label-mode-btn')).toHaveText('Print Labels');
     const rowAfter = page.locator('.inv-part-row').first();
     await expect(rowAfter.locator('.adj-btn')).toBeVisible();
     await expect(rowAfter.locator('.label-select-checkbox')).toHaveCount(0);
@@ -216,16 +222,18 @@ test.describe('Epson label export', () => {
     const firstRow = page.locator('.inv-part-row').first();
     await expect(firstRow.locator('.adj-btn')).toBeVisible();
     await expect(firstRow.locator('.label-select-checkbox')).toHaveCount(0);
+    await expect(page.locator('#label-mode-btn')).toHaveText('Print Labels');
 
     // Clicking "Select PO" straight from the dimmed history activates the mode.
     await page.locator('.label-po-row').first().locator('.label-po-select').click();
 
-    // Label mode is now on: toolbar visible, picker popped out, the PO's 3 parts
-    // selected, and row action buttons replaced by checkboxes.
+    // Label mode is now on: toolbar visible, picker popped out, mode button
+    // reads "Cancel", the PO's 3 parts selected, and rows show both checkboxes.
     await expect(page.locator('#label-toolbar')).toBeVisible();
     await expect(picker).toHaveClass(/is-label-active/);
+    await expect(page.locator('#label-mode-btn')).toHaveText('Cancel');
     await expect(page.locator('#label-selected-count')).toHaveText('3 selected');
-    await expect(firstRow.locator('.label-select-checkbox')).toBeVisible();
+    await expect(firstRow.locator('.label-select-checkbox')).toHaveCount(2);
     await expect(firstRow.locator('.adj-btn')).toHaveCount(0);
   });
 });
