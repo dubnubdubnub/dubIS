@@ -75,6 +75,24 @@ test('detectClipping: clean button is visible; off-screen / overflow is caught',
   expect(broken.visibleRatio).toBeLessThan(0.99);
 });
 
+test('detectClipping: catches an element occluding the button', async ({ page }) => {
+  await setup(page);
+  const btn = page.locator('#import-drop-zone [data-template="direct"]');
+  const clean = await detectClipping(page, btn);
+  expect(clean.occluded).toBe(false);
+
+  // INJECT BREAK: drop an opaque overlay exactly over the button's center.
+  await page.evaluate(() => {
+    const b = document.querySelector('#import-drop-zone [data-template="direct"]').getBoundingClientRect();
+    const o = document.createElement('div');
+    o.id = '__occluder__';
+    o.style.cssText = `position:fixed; left:${b.left}px; top:${b.top}px; width:${b.width}px; height:${b.height}px; background:#f00; z-index:99999;`;
+    document.body.appendChild(o);
+  });
+  const occ = await detectClipping(page, btn);
+  expect(occ.occluded, 'overlay over button center should be detected as occlusion').toBe(true);
+});
+
 test('measureAlignment: aligned edges ~0; nudged edge detected', async ({ page }) => {
   await setup(page);
   const a = { x: 100, y: 0, width: 50, height: 10 };

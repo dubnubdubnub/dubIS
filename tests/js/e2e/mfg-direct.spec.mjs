@@ -149,6 +149,20 @@ test.describe('Direct-from-mfg import', () => {
     // A stroke pixel exists at/just inside the top border (within ~6px scanning downward).
     const d = scanRay(frame, [z.x + z.width / 2, z.y - 2], [0, 1], notBg, { maxSearch: 6 });
     expect(d).toBeLessThan(Infinity);
+
+    // The resting stroke must be the muted border color, NOT the bright-blue
+    // dragover stroke — sample where the scan found it and assert not-bluish.
+    const [tx, ty] = frame.toImg(z.x + z.width / 2, z.y - 2 + d);
+    // search a tiny neighborhood for the actual stroke pixel we detected
+    let strokePixel = null;
+    for (let oy = -2; oy <= 2 && !strokePixel; oy++) {
+      for (let ox = -3; ox <= 3 && !strokePixel; ox++) {
+        const p = frame.pixel(tx + ox, ty + oy);
+        if (notBg(p)) strokePixel = p;
+      }
+    }
+    expect(strokePixel, 'should have located the resting stroke pixel').not.toBeNull();
+    expect(isBluishStroke(strokePixel), 'resting stroke must be muted, not the blue dragover color').toBe(false);
   });
 
   test('Direct filter pill replaces Other', async ({ page }) => {
