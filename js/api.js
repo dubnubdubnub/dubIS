@@ -74,8 +74,10 @@ export const apiPurchaseOrders = {
 
 export const apiMfgDirect = {
   parseFile: (path) => api('parse_source_file', path),
-  parseFileB64: (b64, name) => api('parse_source_file_b64', b64, name),
+  parseFileB64: (b64, name, template = 'generic') =>
+    api('parse_source_file_b64', b64, name, template),
   matchPart: (mpn, mfg) => api('match_part', mpn, mfg),
+  startScanSession: (template) => api('start_scan_session', template),
 };
 
 export const apiWarnings = { get: () => api('get_warnings') };

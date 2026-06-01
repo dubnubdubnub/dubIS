@@ -26,6 +26,13 @@ export function addMockSetup(page, inventory, options = {}) {
   return page.addInitScript(({ inv, opts, colDetections }) => {
     const productMocks = opts.productMocks || {};
 
+    // Test-visible call recorder so specs can assert what the backend received
+    // (e.g. that the scanned photo bytes flowed into the create-PO call).
+    window.__apiCalls = {};
+    const record = (name, args) => {
+      (window.__apiCalls[name] = window.__apiCalls[name] || []).push(args);
+    };
+
     window.pywebview = {
       api: {
         load_inventory: async () => inv,
@@ -99,7 +106,21 @@ export function addMockSetup(page, inventory, options = {}) {
         match_part: async () => ({ status: 'new' }),
         get_warnings: async () => ({ migration: { inferred_count: 0, unknown_count: 0 },
                                      duplicates: [], inferred_only: 0 }),
-        create_purchase_order_with_items: async () => inv,
+        start_scan_session: async (template) => {
+          const session = opts.scanSession || {
+            session_id: 'sess-test-1',
+            template: template || 'generic',
+            port: 7890,
+            urls: [`http://192.168.1.50:7890/scan?s=sess-test-1`],
+          };
+          // Honor the template the user actually picked.
+          return { ...session, template: template || session.template };
+        },
+        create_purchase_order_with_items: async (vendorId, fileB64, fileName, date, notes, itemsJson) => {
+          record('create_purchase_order_with_items',
+            { vendorId, fileB64, fileName, date, notes, itemsJson });
+          return inv;
+        },
         update_purchase_order: async () => inv,
         delete_purchase_order: async () => inv,
         open_source_file: async () => ({ opened: true, path: '/dev/null' }),

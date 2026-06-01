@@ -6,8 +6,34 @@ vi.mock('../../js/ui-helpers.js', () => ({
   escHtml: vi.fn(s => s || ''),
 }));
 
-import { AppLog, api, whenPywebviewReady } from '../../js/api.js';
+import { AppLog, api, whenPywebviewReady, apiMfgDirect } from '../../js/api.js';
 import { showToast } from '../../js/ui-helpers.js';
+
+describe('apiMfgDirect', () => {
+  beforeEach(() => { AppLog.clear(); });
+
+  it('startScanSession passes the template through', async () => {
+    const start = vi.fn().mockResolvedValue({ session_id: 's1', urls: ['http://x'] });
+    window.pywebview = { api: { start_scan_session: start } };
+    const res = await apiMfgDirect.startScanSession('lcsc');
+    expect(start).toHaveBeenCalledWith('lcsc');
+    expect(res.session_id).toBe('s1');
+  });
+
+  it('parseFileB64 defaults template to generic (backward compatible)', async () => {
+    const parse = vi.fn().mockResolvedValue([]);
+    window.pywebview = { api: { parse_source_file_b64: parse } };
+    await apiMfgDirect.parseFileB64('b64', 'po.pdf');
+    expect(parse).toHaveBeenCalledWith('b64', 'po.pdf', 'generic');
+  });
+
+  it('parseFileB64 forwards an explicit template', async () => {
+    const parse = vi.fn().mockResolvedValue([]);
+    window.pywebview = { api: { parse_source_file_b64: parse } };
+    await apiMfgDirect.parseFileB64('b64', 'po.pdf', 'digikey');
+    expect(parse).toHaveBeenCalledWith('b64', 'po.pdf', 'digikey');
+  });
+});
 
 describe('AppLog', () => {
   beforeEach(() => {

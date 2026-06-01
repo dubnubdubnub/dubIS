@@ -88,9 +88,31 @@ def _heuristic_parse_lines(text: str) -> list[dict[str, Any]]:
     return rows
 
 
-def _extract_pdf(path: str) -> list[dict[str, Any]]:
+def _parse_text_with_template(text: str, template: str) -> list[dict[str, Any]]:
+    """Run the distributor profile for ``template`` over ``text``.
+
+    Falls back to the shared generic heuristic parser when ``template`` is
+    "generic" or the distributor profile extracts nothing (so behaviour never
+    regresses vs. the original generic-only pipeline). Heuristic rows produced by
+    the fallback are tagged with distributor="generic"/distributor_pn="" so all
+    line items share one shape.
+    """
+    import distributor_profiles
+    items = distributor_profiles.parse_with_template(template, text)
+    if items:
+        return items
+    if template != "generic":
+        logger.warning(
+            "template %r extracted no line items; falling back to generic", template,
+        )
+    return [
+        {**row, "distributor": "generic", "distributor_pn": ""}
+        for row in _heuristic_parse_lines(text)
+    ]
+
+
+def _extract_pdf(path: str, template: str = "generic") -> list[dict[str, Any]]:
     import pdfplumber
-    rows: list[dict[str, Any]] = []
     text_chunks: list[str] = []
     with pdfplumber.open(path) as pdf:
         for page in pdf.pages:
@@ -103,22 +125,30 @@ def _extract_pdf(path: str) -> list[dict[str, Any]]:
                     text_chunks.append(line)
             page_text = page.extract_text() or ""
             text_chunks.append(page_text)
-    rows = _heuristic_parse_lines("\n".join(text_chunks))
-    return rows
+    return _parse_text_with_template("\n".join(text_chunks), template)
 
 
-def _extract_image(path: str) -> list[dict[str, Any]]:
+def _extract_image(path: str, template: str = "generic") -> list[dict[str, Any]]:
     import pytesseract
     from PIL import Image
     text = pytesseract.image_to_string(Image.open(path))
-    return _heuristic_parse_lines(text)
+    return _parse_text_with_template(text, template)
 
 
-def parse_source_file(path: str) -> list[dict[str, Any]]:
+def parse_source_file(path: str, template: str = "generic") -> list[dict[str, Any]]:
     """Best-effort extraction of line items from a source file.
 
-    Returns a list of dicts with keys: mpn, manufacturer, package, quantity, unit_price.
-    Empty list if the format is unsupported or no rows could be extracted.
+    Args:
+        path: source file (csv/tsv/xls/xlsx/pdf/image).
+        template: distributor template key ("generic"/"lcsc"/"digikey"/
+            "mouser"/"pololu"). For PDF/image sources the matching distributor
+            profile attempts to extract its part-number column; on no match (or
+            template="generic") it falls back to the shared heuristic parser.
+            CSV/XLS sources have explicit headers and ignore the template.
+
+    Returns a list of dicts with keys: mpn, manufacturer, package, quantity,
+    unit_price, distributor, distributor_pn. Empty list if the format is
+    unsupported or no rows could be extracted.
     """
     ext = os.path.splitext(path)[1].lower()
     try:
@@ -140,9 +170,9 @@ def parse_source_file(path: str) -> list[dict[str, Any]]:
                 if os.path.isfile(tmp_path):
                     os.remove(tmp_path)
         if ext == ".pdf":
-            return _extract_pdf(path)
+            return _extract_pdf(path, template)
         if ext in (".png", ".jpg", ".jpeg", ".gif"):
-            return _extract_image(path)
+            return _extract_image(path, template)
     except Exception as exc:
         logger.warning("parse_source_file(%s) failed: %s", path, exc)
         return []
@@ -295,6 +325,24 @@ def import_po(
             row.update(ids)
         if not row.get("Manufacture Part Number"):
             row["Manufacture Part Number"] = li.get("mpn", "")
+        # If the line item carries a distributor part number (from a template
+        # scan), populate the matching ledger PN column so infer_distributor
+        # classifies the row correctly. The matched-part identifiers above take
+        # precedence (don't clobber an inherited code with a fresh scan).
+        distributor_pn = (li.get("distributor_pn") or "").strip()
+        distributor = (li.get("distributor") or "").strip().lower()
+        if distributor_pn and distributor and distributor != "generic":
+            import distributor_profiles
+            try:
+                pn_column = distributor_profiles.get_profile(distributor).pn_column
+            except ValueError:
+                logger.warning(
+                    "line item has unknown distributor %r; skipping PN column",
+                    distributor,
+                )
+                pn_column = None
+            if pn_column and not (row.get(pn_column) or "").strip():
+                row[pn_column] = distributor_pn
         row["Manufacturer"] = li.get("manufacturer", "")
         row["Package"] = li.get("package", "")
         qty = int(li.get("quantity") or 0)

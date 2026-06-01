@@ -119,6 +119,49 @@ class TestParseImage:
         assert any("TMR" in r.get("mpn", "") for r in rows)
 
 
+class TestParseCSVWithTemplate:
+    def test_csv_ignores_template_and_still_parses(self, tmp_path):
+        csv_text = (
+            "Manufacture Part Number,Manufacturer,Quantity,Unit Price($)\n"
+            "TMR2615,MDT,50,4.20\n"
+        )
+        path = tmp_path / "po.csv"
+        path.write_bytes(csv_text.encode("utf-8"))
+        rows = mdi.parse_source_file(str(path), template="lcsc")
+        assert len(rows) == 1
+        assert rows[0]["mpn"] == "TMR2615"
+
+
+class TestTemplatePDF:
+    def test_lcsc_template_pdf_populates_distributor_pn(self, tmp_path):
+        from reportlab.lib.pagesizes import letter
+        from reportlab.pdfgen import canvas
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf, pagesize=letter)
+        c.setFont("Helvetica", 10)
+        c.drawString(50, 750, "LCSC      MPN                  Qty   Unit")
+        c.drawString(50, 730, "C429942   DF40C-30DP-0.4V(51)  100   0.4521")
+        c.save()
+        path = tmp_path / "lcsc.pdf"
+        path.write_bytes(buf.getvalue())
+        rows = mdi.parse_source_file(str(path), template="lcsc")
+        assert any(r.get("distributor_pn") == "C429942" for r in rows)
+
+    def test_generic_template_pdf_falls_back(self, tmp_path):
+        data = _make_text_pdf([("TMR2615", "MDT", 50, 4.20)])
+        path = tmp_path / "invoice.pdf"
+        path.write_bytes(data)
+        rows = mdi.parse_source_file(str(path), template="generic")
+        assert any(r["mpn"] == "TMR2615" for r in rows)
+
+    def test_default_template_is_generic_backwards_compatible(self, tmp_path):
+        data = _make_text_pdf([("TMR2615", "MDT", 50, 4.20)])
+        path = tmp_path / "invoice.pdf"
+        path.write_bytes(data)
+        rows = mdi.parse_source_file(str(path))  # no template arg
+        assert any(r["mpn"] == "TMR2615" for r in rows)
+
+
 class TestUnknownExtension:
     def test_returns_empty(self, tmp_path):
         path = tmp_path / "foo.xyz"
@@ -264,6 +307,77 @@ class TestImportPO:
         # New row inherits the matched LCSC code so cache merges them
         new_row = next(r for r in rows if r["po_id"] == new_po["po_id"])
         assert new_row["LCSC Part Number"] == "C12345"
+
+    def test_import_distributor_pn_lands_in_correct_column(self, tmp_path):
+        # A line item carrying a distributor PN should populate the matching
+        # ledger PN column so infer_distributor classifies the row correctly.
+        import csv as _csv
+
+        import vendors
+        from distributor_manager import DistributorManager
+
+        base_dir = tmp_path / "data"
+        base_dir.mkdir()
+        (base_dir / "sources").mkdir()
+        vjson = str(base_dir / "vendors.json")
+        po_csv = str(base_dir / "purchase_orders.csv")
+        ledger_csv = str(base_dir / "purchase_ledger.csv")
+
+        vendors.seed_builtins(vjson)
+        v = vendors.create_vendor(vjson, name="LCSC", url="https://lcsc.com")
+
+        line_items = [{
+            "mpn": "DF40C-30DP-0.4V(51)", "manufacturer": "HRS", "package": "",
+            "quantity": 100, "unit_price": 0.4521,
+            "distributor": "lcsc", "distributor_pn": "C429942", "match": "new",
+        }]
+        new_po = mdi.import_po(
+            ledger_csv=ledger_csv, po_csv=po_csv,
+            sources_dir=str(base_dir / "sources"),
+            vendor_id=v["id"], source_file_bytes=None, source_file_ext=None,
+            purchase_date="2026-04-15", notes="", line_items=line_items,
+        )
+        with open(ledger_csv, encoding="utf-8-sig") as f:
+            rows = list(_csv.DictReader(f))
+        row = next(r for r in rows if r["po_id"] == new_po["po_id"])
+        assert row["LCSC Part Number"] == "C429942"
+        # MPN column still populated as before
+        assert row["Manufacture Part Number"] == "DF40C-30DP-0.4V(51)"
+        assert DistributorManager.infer_distributor(row) == "lcsc"
+
+    def test_import_mouser_pn_lands_in_mouser_column(self, tmp_path):
+        import csv as _csv
+
+        import vendors
+        from distributor_manager import DistributorManager
+
+        base_dir = tmp_path / "data"
+        base_dir.mkdir()
+        (base_dir / "sources").mkdir()
+        vjson = str(base_dir / "vendors.json")
+        po_csv = str(base_dir / "purchase_orders.csv")
+        ledger_csv = str(base_dir / "purchase_ledger.csv")
+
+        vendors.seed_builtins(vjson)
+        v = vendors.create_vendor(vjson, name="Mouser", url="https://mouser.com")
+
+        line_items = [{
+            "mpn": "SN74LVC1G08DBVR", "manufacturer": "TI", "package": "",
+            "quantity": 25, "unit_price": 0.45,
+            "distributor": "mouser", "distributor_pn": "595-SN74LVC1G08DBVR",
+            "match": "new",
+        }]
+        new_po = mdi.import_po(
+            ledger_csv=ledger_csv, po_csv=po_csv,
+            sources_dir=str(base_dir / "sources"),
+            vendor_id=v["id"], source_file_bytes=None, source_file_ext=None,
+            purchase_date="2026-04-15", notes="", line_items=line_items,
+        )
+        with open(ledger_csv, encoding="utf-8-sig") as f:
+            rows = list(_csv.DictReader(f))
+        row = next(r for r in rows if r["po_id"] == new_po["po_id"])
+        assert row["Mouser Part Number"] == "595-SN74LVC1G08DBVR"
+        assert DistributorManager.infer_distributor(row) == "mouser"
 
     def test_import_empty_line_items_raises(self, tmp_path):
         import vendors
