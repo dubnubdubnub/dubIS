@@ -1,4 +1,5 @@
 """Tests for vendors module: CRUD on vendors.json + similarity detection."""
+import base64
 import itertools
 import json
 import os
@@ -146,6 +147,29 @@ class TestNameFromUrl:
 
     def test_empty_returns_empty(self):
         assert vendors.name_from_url("") == ""
+
+
+class TestFaviconDataUri:
+    def test_encodes_png_with_mime(self, tmp_path):
+        png = tmp_path / "icon.png"
+        png.write_bytes(b"\x89PNG\r\n\x1a\nhello")
+        uri = vendors.favicon_data_uri(str(png))
+        assert uri.startswith("data:image/png;base64,")
+        # Round-trips back to the original bytes.
+        b64 = uri.split(",", 1)[1]
+        assert base64.b64decode(b64) == b"\x89PNG\r\n\x1a\nhello"
+
+    def test_ico_and_svg_mimes(self, tmp_path):
+        ico = tmp_path / "f.ico"
+        ico.write_bytes(b"\x00\x00\x01\x00")
+        svg = tmp_path / "f.svg"
+        svg.write_bytes(b"<svg/>")
+        assert vendors.favicon_data_uri(str(ico)).startswith("data:image/x-icon;base64,")
+        assert vendors.favicon_data_uri(str(svg)).startswith("data:image/svg+xml;base64,")
+
+    def test_missing_or_empty_returns_empty(self, tmp_path):
+        assert vendors.favicon_data_uri("") == ""
+        assert vendors.favicon_data_uri(str(tmp_path / "nope.png")) == ""
 
 
 class TestSimilarity:

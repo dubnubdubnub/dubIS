@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -321,3 +322,30 @@ def fetch_favicon(url: str, cache_dir: str) -> str:
     with open(target, "wb") as f:
         f.write(content)
     return target
+
+
+_FAVICON_MIME = {
+    ".ico": "image/x-icon",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+}
+
+
+def favicon_data_uri(path: str) -> str:
+    """Read a cached favicon file into a base64 ``data:`` URI for direct <img> use.
+
+    Returns "" if the path is empty or the file is missing. Using a data URI (rather
+    than a filesystem path) means favicons render identically in the packaged app,
+    the static test server, and the live test bridge, and avoids Windows backslash
+    issues in img ``src`` attributes.
+    """
+    if not path or not os.path.isfile(path):
+        return ""
+    ext = os.path.splitext(path)[1].lower()
+    mime = _FAVICON_MIME.get(ext, "application/octet-stream")
+    with open(path, "rb") as f:
+        data = base64.b64encode(f.read()).decode("ascii")
+    return f"data:{mime};base64,{data}"
