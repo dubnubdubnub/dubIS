@@ -7,7 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { addMockSetup, waitForInventoryRows } from '../helpers.mjs';
 import { capture, rectOf } from './capture.mjs';
-import { scanRay, measureGap } from './measure.mjs';
+import { scanRay, measureGap, detectClipping, measureAlignment } from './measure.mjs';
 import { channelDominant } from './color.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -49,4 +49,37 @@ test('measureGap finds the dashed frame ~8px from the button; Infinity when fram
   const frame2 = await capture(page, zone, { pad: 12 });
   const gapBroken = measureGap(frame2, await rectOf(btn), isBluishStroke, 'left');
   expect(gapBroken).toBe(Infinity);
+});
+
+test('detectClipping: clean button is visible; off-screen / overflow is caught', async ({ page }) => {
+  await setup(page);
+  const btn = page.locator('#import-drop-zone [data-template="direct"]');
+  const clean = await detectClipping(page, btn);
+  expect(clean.clipped).toBe(false);
+  expect(clean.visibleRatio).toBeGreaterThanOrEqual(0.99);
+
+  // INJECT BREAK: wrap the drop-zone in a tiny overflow:hidden container so the
+  // button (which sits near the zone bottom) is pushed entirely off-screen of
+  // the wrapper, making it clipped.
+  await page.evaluate(() => {
+    const z = document.getElementById('import-drop-zone');
+    const wrapper = document.createElement('div');
+    wrapper.style.overflow = 'hidden';
+    wrapper.style.height = '20px';
+    wrapper.style.position = 'relative';
+    z.parentElement.insertBefore(wrapper, z);
+    wrapper.appendChild(z);
+  });
+  const broken = await detectClipping(page, btn);
+  expect(broken.clipped).toBe(true);
+  expect(broken.visibleRatio).toBeLessThan(0.99);
+});
+
+test('measureAlignment: aligned edges ~0; nudged edge detected', async ({ page }) => {
+  await setup(page);
+  const a = { x: 100, y: 0, width: 50, height: 10 };
+  const b = { x: 100, y: 20, width: 50, height: 10 };
+  expect(Math.abs(measureAlignment(a, b, 'left'))).toBeLessThanOrEqual(0.5);
+  const bn = { ...b, x: 107 };
+  expect(measureAlignment(a, bn, 'left')).toBeCloseTo(-7, 0);
 });
