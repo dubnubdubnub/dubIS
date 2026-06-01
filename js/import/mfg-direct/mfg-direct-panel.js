@@ -3,8 +3,10 @@
 import { api, AppLog, apiVendors, apiPurchaseOrders, apiMfgDirect } from '../../api.js';
 import { showToast } from '../../ui-helpers.js';
 import { onInventoryUpdated, store, loadVendorsAndPOs } from '../../store.js';
-import { renderEditor } from './mfg-direct-renderer.js';
-import { canonicalizeUrl, emptyLineItem, validateLineItems } from './mfg-direct-logic.js';
+import { renderEditor, renderScanModal } from './mfg-direct-renderer.js';
+import { canonicalizeUrl, emptyLineItem, validateLineItems,
+  mapScanLineItems, scanSourceFile } from './mfg-direct-logic.js';
+import { renderQrToCanvas } from '../../vendor/qrcode.js';
 
 const state = {
   active: false,
@@ -13,6 +15,7 @@ const state = {
   vendor: { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' },
   sourceFile: null,  // { name, path? } once user attaches
   lineItems: [],
+  scanTemplate: 'generic',  // distributor template chosen for phone scan
 };
 
 let mountEl = null;
@@ -108,6 +111,12 @@ function bindEvents(root) {
   const replaceBtn = root.querySelector('#mfg-source-replace');
   if (replaceBtn) replaceBtn.onclick = () => { state.sourceFile = null; rerender(); };
 
+  const scanTemplate = root.querySelector('#mfg-scan-template');
+  if (scanTemplate) scanTemplate.onchange = () => { state.scanTemplate = scanTemplate.value; };
+
+  const scanBtn = root.querySelector('#mfg-scan-btn');
+  if (scanBtn) scanBtn.onclick = startScanSession;
+
   const nameInput = root.querySelector('#mfg-vendor-name-input');
   if (nameInput) nameInput.onblur = () => onVendorNameBlur(nameInput.value);
 
@@ -192,9 +201,123 @@ async function handleSourceFile(file) {
   reader.readAsDataURL(file);
 }
 
+// ── Phone-scan session ────────────────────────────────────────────────
+async function startScanSession() {
+  const template = state.scanTemplate || 'generic';
+  const session = await apiMfgDirect.startScanSession(template);
+  if (!session || !session.urls || !session.urls.length) {
+    AppLog.warn('start_scan_session returned no URLs');
+    showToast('Could not start scan session');
+    return;
+  }
+  openScanModal(session);
+}
+
+function openScanModal(session) {
+  let overlay = document.getElementById('mfg-scan-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'mfg-scan-overlay';
+    overlay.className = 'modal-overlay';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = renderScanModal(session);
+  overlay.classList.remove('hidden');
+  bindScanModal(overlay, session);
+}
+
+function closeScanModal() {
+  const overlay = document.getElementById('mfg-scan-overlay');
+  if (overlay) overlay.remove();
+}
+
+function bindScanModal(root, session) {
+  const canvas = root.querySelector('#mfg-scan-qr-canvas');
+  const urls = session.urls || [];
+  if (canvas && urls.length) {
+    try {
+      renderQrToCanvas(canvas, urls[0], { size: 240 });
+    } catch (exc) {
+      AppLog.error('QR render failed: ' + exc);
+    }
+  }
+  // Clicking a URL re-renders the QR for that interface (lets the user pick the
+  // reachable one) and copies it to the clipboard.
+  root.querySelectorAll('.mfg-scan-url-btn').forEach(btn => {
+    btn.onclick = () => {
+      const url = btn.dataset.url;
+      if (canvas && url) {
+        try { renderQrToCanvas(canvas, url, { size: 240 }); }
+        catch (exc) { AppLog.error('QR render failed: ' + exc); }
+      }
+      if (url && navigator.clipboard) {
+        navigator.clipboard.writeText(url).then(
+          () => showToast('Copied URL'),
+          () => { /* clipboard denied — non-fatal */ });
+      }
+    };
+  });
+
+  const closeBtn = root.querySelector('#mfg-scan-close');
+  if (closeBtn) closeBtn.onclick = closeScanModal;
+
+  const fallbackBtn = root.querySelector('#mfg-scan-fallback');
+  if (fallbackBtn) {
+    fallbackBtn.onclick = () => {
+      closeScanModal();
+      // Return the user to the existing file-picker path.
+      const input = (mountEl && mountEl.querySelector('#mfg-source-input'))
+        || document.querySelector('#mfg-source-input');
+      if (input) input.click();
+    };
+  }
+}
+
+/**
+ * Backend → frontend push: called via evaluate_js when the phone uploads a PO
+ * photo. Mirrors window._pnpConsume. Lands OCR'd line items into the existing
+ * mfg-direct staging editor, stores the photo as the PO source file, runs the
+ * existing match-and-confirm loop, then lets the user review + click the
+ * EXISTING Import button.
+ * @param {{line_items: Array, image_b64: string, filename: string, template: string}} payload
+ */
+async function scanReceived(payload) {
+  if (!payload) {
+    AppLog.warn('_scanReceived called with empty payload');
+    return;
+  }
+  // The push can arrive while the flow isn't active (e.g. modal closed, or a
+  // race) — start it so the items have somewhere to land.
+  if (!state.active) {
+    startDirectFlow(mountEl || document.getElementById('import-body'));
+  }
+  closeScanModal();
+
+  state.scanTemplate = payload.template || state.scanTemplate;
+  state.lineItems = mapScanLineItems(payload.line_items, payload.template);
+  const src = scanSourceFile(payload);
+  if (src) state.sourceFile = src;
+  rerender();
+
+  // Run the existing match-and-confirm loop.
+  await Promise.all(state.lineItems.map(async (li) => {
+    if (li.mpn) li.match = await apiMfgDirect.matchPart(li.mpn, li.manufacturer);
+  }));
+  rerender();
+
+  AppLog.info(`Scan: received ${state.lineItems.length} line items (${payload.template || 'generic'})`);
+  showToast(`Scan: ${state.lineItems.length} rows received — review and import`);
+}
+
+/** Register the global push handler (called once from app-init). */
+export function registerScanHandler() {
+  window._scanReceived = scanReceived;
+}
+
 function cancelFlow() {
   state.active = false;
   state.popout = false;
+  closeScanModal();
   const overlay = document.getElementById('mfg-direct-overlay');
   if (overlay) overlay.remove();
   // Re-init the regular import panel
@@ -236,6 +359,8 @@ async function importPO() {
   const items = state.lineItems.map(li => ({
     mpn: li.mpn, manufacturer: li.manufacturer, package: li.package,
     quantity: li.quantity, unit_price: li.unit_price,
+    distributor: li.distributor || '',
+    distributor_pn: li.distributor_pn || '',
     match: (li.match && li.match.status) || 'new',
     match_part_id: (li.match && li.match.status === 'definite') ? li.match.part_id : '',
   }));

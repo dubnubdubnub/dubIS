@@ -20,6 +20,7 @@ import { init as initPartPreview } from './part-preview.js';
 import { init as initGroupFlyout } from './group-flyout/flyout-panel.js';
 import { init as initLabelSelection } from './label-selection.js';
 import { init as initLabelExportModal } from './label-export-modal.js';
+import { registerScanHandler } from './import/mfg-direct/mfg-direct-panel.js';
 
 // Expose globals for E2E tests and Python's evaluate_js
 window.store = store;
@@ -65,6 +66,11 @@ async function initApp() {
     AppLog.info("PnP: consumed " + detail.qty + "x " + detail.part_key + " (new_qty=" + detail.new_qty + ")");
     showToast("PnP: -" + detail.qty + " " + detail.part_key);
   };
+
+  // ── Phone-scan PO handler (called by the scan server via evaluate_js) ──
+  // Registers window._scanReceived to land OCR'd line items in the mfg-direct
+  // staging editor (mirrors the _pnpConsume push pattern above).
+  registerScanHandler();
 
   // ── Cross-panel designator hover highlighting ──────────
   var highlightedRef = null;
