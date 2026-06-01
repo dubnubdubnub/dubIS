@@ -69,10 +69,12 @@ def _heuristic_parse_lines(text: str) -> list[dict[str, Any]]:
 
 
 # Trailing "<qty> <unit-price>" pair anchored to end-of-line. Qty is an integer;
-# price has a decimal point (optionally currency-prefixed). This lets us pull
-# the two rightmost numbers off a noisy invoice line.
+# price is currency-like (optionally currency-prefixed). The decimal portion is
+# OPTIONAL so whole-dollar prices ("... 3 6") and OCR that drops the decimal
+# point still capture instead of silently dropping the whole line. This lets us
+# pull the two rightmost numbers off a noisy invoice line.
 _TRAILING_QTY_PRICE = re.compile(
-    r"(?P<qty>\d{1,6})\s+(?P<price>\$?\s*\d+\.\d{1,4})\s*$"
+    r"(?P<qty>\d{1,6})\s+(?P<price>\$?\s*\d+(?:\.\d{1,4})?)\s*$"
 )
 # An MPN-like token (same shape as mfg_direct_import._LINE_RE group 1).
 _MPN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/+()\-]{1,40}")
@@ -85,6 +87,10 @@ class DistributorProfile:
     key: str
     pn_column: str | None
     pn_re: re.Pattern[str] | None
+    # Optional line-parsing override. When set, ``_parse_line`` uses this to
+    # locate the PN in the line head (and reads capture group 1, if present)
+    # instead of ``pn_re``. ``match_pn`` always uses ``pn_re`` (token validation).
+    pn_line_re: re.Pattern[str] | None = None
 
     def match_pn(self, token: str) -> str | None:
         """Return the normalized distributor PN if ``token`` matches this
@@ -121,24 +127,40 @@ class DistributorProfile:
         return items
 
     def _parse_line(self, line: str) -> dict[str, Any] | None:
-        """Parse one noisy OCR line: locate this distributor's PN anywhere in the
-        line, then take the trailing two numeric tokens as qty + unit price and
-        the token immediately after the PN as the MPN (best-effort)."""
+        """Parse one noisy OCR line: take the trailing two numeric tokens as
+        qty + unit price, then locate this distributor's PN in the HEAD of the
+        line (before that trailing region) and the token after the PN as the
+        MPN (best-effort).
+
+        Searching the PN only in the head matters for bare-numeric SKUs (Pololu):
+        a whole-line ``search`` would otherwise grab a leading year / order number
+        or the trailing qty as the SKU. Constraining to the head and excluding the
+        qty/price span makes a wrong match much less likely — and we prefer NO
+        match over a confidently-wrong one, since the user reviews each row."""
         if self.pn_re is None:
             return None
-        pn_match = self.pn_re.search(line)
-        if not pn_match:
-            return None
-        pn = pn_match.group(0).strip()
-        if self.key == "lcsc":
-            pn = pn.upper()
 
-        # Trailing qty + unit price: the last two number-like tokens.
+        # Trailing qty + unit price: the last two number-like tokens. Locate this
+        # first so the PN search can exclude it (otherwise a bare-numeric SKU
+        # regex matches the qty).
         price_m = _TRAILING_QTY_PRICE.search(line)
         if not price_m:
             return None
         qty = _to_qty(price_m.group("qty"))
         price = _to_price(price_m.group("price"))
+
+        # Search for the distributor PN only in the head of the line, before the
+        # trailing qty/price region.
+        head = line[: price_m.start()]
+        line_re = self.pn_line_re or self.pn_re
+        pn_match = line_re.search(head)
+        if not pn_match:
+            return None
+        # If the line regex captures the PN in group 1 (e.g. Pololu strips
+        # leading whitespace), prefer it; otherwise use the whole match.
+        pn = (pn_match.group(1) if pn_match.lastindex else pn_match.group(0)).strip()
+        if self.key == "lcsc":
+            pn = pn.upper()
 
         # MPN: first MPN-like token AFTER the distributor PN, excluding the
         # trailing qty/price region.
@@ -168,10 +190,17 @@ _LCSC_PN = re.compile(r"C\d{2,9}", re.IGNORECASE)
 _DIGIKEY_PN = re.compile(r"[A-Z0-9][A-Z0-9.\-]{2,40}-(?:ND|CT|DKR|TR)", re.IGNORECASE)
 # Mouser: numeric vendor prefix, dash, then the manufacturer part.
 _MOUSER_PN = re.compile(r"\d{2,4}-[A-Z0-9][A-Z0-9./\-]{2,40}", re.IGNORECASE)
-# Pololu: bare numeric SKU (1-5 digits). Anchored so we don't match a stray
-# digit inside a longer token; used with fullmatch in match_pn and as a
-# standalone token via \b in line parsing.
-_POLOLU_PN = re.compile(r"\b\d{1,5}\b")
+# Pololu: bare numeric SKU (1-5 digits). A bare numeric SKU is dangerously easy
+# to confuse with a year, order number, or quantity, so line parsing only trusts
+# it at the START of the line's head region (Pololu invoices lead each row with
+# the item number) — see ``_POLOLU_LINE_PN``. ``match_pn`` (token validation,
+# used by callers that already isolated a token) keeps the loose 1-5 digit shape.
+_POLOLU_PN = re.compile(r"\d{1,5}")
+# Line-parsing variant: anchored to the start of the head (optional leading
+# whitespace), and the token must be a standalone 1-5 digit run (so an 8-digit
+# leading token like "12345678" does NOT match a 5-digit prefix of it). Prefers
+# NO match over grabbing a leading year / order number further into the line.
+_POLOLU_LINE_PN = re.compile(r"^\s*(\d{1,5})\b")
 
 
 # ── Profile registry ──────────────────────────────────────────────────────────
@@ -192,6 +221,7 @@ def _make_profiles() -> dict[str, DistributorProfile]:
         ),
         "pololu": DistributorProfile(
             key="pololu", pn_column="Pololu Part Number", pn_re=_POLOLU_PN,
+            pn_line_re=_POLOLU_LINE_PN,
         ),
     }
 
