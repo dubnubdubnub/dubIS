@@ -79,6 +79,118 @@ _TRAILING_QTY_PRICE = re.compile(
 # An MPN-like token (same shape as mfg_direct_import._LINE_RE group 1).
 _MPN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/+()\-]{1,40}")
 
+# ── Generic free-form heuristic ───────────────────────────────────────────────
+# Manufacturer invoices vary wildly and have no distributor PN to anchor on, so
+# the generic path is a best-effort heuristic: the user reviews/edits every row
+# in the OCR modal, so we prefer NO extraction over a confidently-wrong one.
+#
+# Trailing "<int qty> <unit price>" region anchored to end-of-line. Unlike the
+# legacy MPN-first regex this tolerates the free-form noise real manufacturer
+# invoices carry:
+#   * the price may be an integer ("... 1000 6") OR decimal ("... 4000 0.0220"),
+#     optionally prefixed with a currency symbol ("$3.10");
+#   * "Qty"/"Unit Price"/"Price"/"Each" label words may sit immediately before
+#     either number (OCR/template noise) and are skipped.
+# We grab the two RIGHTMOST numbers so a leading line-index ("1 ...") or label
+# text in the head never gets mistaken for qty/price.
+_GENERIC_LABEL = r"(?:qty|quantity|unit\s*price|price|each|ea|@|x)?\s*[:.]?\s*"
+_GENERIC_QTY_PRICE = re.compile(
+    r"(?:^|\s)" + _GENERIC_LABEL + r"(?P<qty>\d{1,7})\s+"
+    + _GENERIC_LABEL + r"(?P<price>\$?\s*\d+(?:\.\d{1,4})?)\s*$",
+    re.IGNORECASE,
+)
+# Leading line-index number to strip ("1 ", "12 "), so it isn't taken as the MPN.
+_GENERIC_LEADING_INDEX = re.compile(r"^\s*\d{1,3}\s+")
+# Common label words that prefix an MPN ("Part:", "P/N", "MPN", "Item") and must
+# not themselves be matched as the MPN. Stripped from the head before MPN search.
+_GENERIC_HEAD_LABEL = re.compile(
+    r"^\s*(?:part|p/?n|mpn|item|no|#|description|desc)\b\s*[:.#]?\s*",
+    re.IGNORECASE,
+)
+# An MPN-like token for the generic path: must contain a digit OR a hyphen so we
+# never confuse a plain alphabetic word ("Part", "Green", "Resistor") for a PN.
+_GENERIC_MPN_RE = re.compile(
+    r"(?P<mpn>[A-Za-z0-9][A-Za-z0-9._/+()\-]{2,40})"
+)
+# A capitalized alphabetic word (best-effort manufacturer following the MPN).
+_GENERIC_MFR_RE = re.compile(r"\s+([A-Z][A-Za-z&.\-]{1,30})\b")
+
+
+def _looks_like_mpn(token: str) -> bool:
+    """A generic MPN candidate must contain a digit or a hyphen (so plain words
+    like 'Part' / 'Green' are rejected) — we prefer no match over a wrong one."""
+    return bool(re.search(r"\d", token)) or "-" in token
+
+
+def _parse_generic_line(line: str) -> dict[str, Any] | None:
+    """Heuristic free-form line parser for the ``generic`` template.
+
+    Strategy (documented, intentionally conservative):
+      1. Find the trailing ``<int qty> <price>`` region (label/currency noise
+         tolerated, integer prices allowed). No region -> no row.
+      2. Strip a leading line-index number and any leading label word ("Part:")
+         from the head.
+      3. Take the first MPN-like token (must contain a digit or hyphen) as the
+         MPN. No MPN-like token -> no row.
+      4. If a capitalized alphabetic word follows the MPN, capture it as the
+         manufacturer (best-effort; OK to leave blank).
+    """
+    qp = _GENERIC_QTY_PRICE.search(line)
+    if not qp:
+        return None
+    qty = _to_qty(qp.group("qty"))
+    price = _to_price(qp.group("price"))
+
+    head = line[: qp.start()]
+    head = _GENERIC_LEADING_INDEX.sub("", head)
+    head = _GENERIC_HEAD_LABEL.sub("", head)
+
+    mtok = _GENERIC_MPN_RE.search(head)
+    while mtok and not _looks_like_mpn(mtok.group("mpn")):
+        # Skip a non-PN-looking token (e.g. a residual label) and keep scanning.
+        nxt = _GENERIC_MPN_RE.search(head, mtok.end())
+        if nxt is None:
+            mtok = None
+            break
+        mtok = nxt
+    if not mtok:
+        return None
+    mpn = mtok.group("mpn").strip()
+
+    manufacturer = ""
+    mfr = _GENERIC_MFR_RE.match(head, mtok.end())
+    if mfr:
+        manufacturer = mfr.group(1).strip()
+
+    return {
+        "mpn": mpn,
+        "manufacturer": manufacturer,
+        "package": "",
+        "quantity": qty,
+        "unit_price": price,
+        "distributor": "generic",
+        "distributor_pn": "",
+    }
+
+
+def _parse_generic(text: str) -> list[dict[str, Any]]:
+    """Parse all lines of free-form text for the generic template, falling back
+    to the legacy MPN-first heuristic for any line the free-form parser can't
+    handle (so behaviour never regresses vs. the original generic pipeline)."""
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        row = _parse_generic_line(line)
+        if row is not None:
+            rows.append(row)
+            continue
+        # Fall back to the legacy MPN-first parser for this single line so any
+        # row the original generic pipeline extracted still extracts.
+        for lrow in _heuristic_parse_lines(line):
+            rows.append(
+                {**lrow, "distributor": "generic", "distributor_pn": ""}
+            )
+    return rows
+
 
 @dataclass
 class DistributorProfile:
@@ -115,10 +227,7 @@ class DistributorProfile:
         that fails to find its PN on any line returns an empty list, signalling
         the caller to fall back to the generic heuristic parser."""
         if self.key == "generic" or self.pn_re is None:
-            return [
-                {**row, "distributor": "generic", "distributor_pn": ""}
-                for row in _heuristic_parse_lines(text)
-            ]
+            return _parse_generic(text)
         items: list[dict[str, Any]] = []
         for line in text.splitlines():
             item = self._parse_line(line)
