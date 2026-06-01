@@ -19,7 +19,7 @@
 
 import { test, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,10 +39,12 @@ let serverProc;
 let baseUrl;
 let sessionId;
 let recordPath;
+let recordDir;
 
 test.describe('Phone-scan capture page → upload', () => {
   test.beforeAll(async () => {
-    recordPath = join(mkdtempSync(join(tmpdir(), 'dubis-scan-')), 'record.json');
+    recordDir = mkdtempSync(join(tmpdir(), 'dubis-scan-'));
+    recordPath = join(recordDir, 'record.json');
     serverProc = spawn(PYTHON, [SCAN_SERVER, '--template', 'lcsc', '--record', recordPath], {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -78,6 +80,7 @@ test.describe('Phone-scan capture page → upload', () => {
 
   test.afterAll(async () => {
     if (serverProc && !serverProc.killed) serverProc.kill();
+    if (recordDir) rmSync(recordDir, { recursive: true, force: true });
   });
 
   test('valid session renders camera input, real upload reaches the success state', async ({ page }) => {
