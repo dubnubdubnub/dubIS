@@ -165,7 +165,7 @@ function wireInstallTesseract() {
     }
     btn.disabled = false;
     btn.textContent = label;
-    const msg = (res && res.message) || "Install failed. " + escHtml("winget install UB-Mannheim.TesseractOCR");
+    const msg = (res && res.message) || "Install failed — run: winget install UB-Mannheim.TesseractOCR";
     showToast(msg);
     AppLog.warn("Tesseract install failed: " + msg);
   });
