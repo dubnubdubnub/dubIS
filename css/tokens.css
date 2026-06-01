@@ -57,4 +57,11 @@
   --ocr-header-pad:      8px;  /* Vertical padding around the modal header / footer */
   --ocr-footer-gap:      8px;  /* Gap between footer controls */
   --ocr-cell-pad:        6px;  /* Padding inside grid cells */
+
+  /* ── Two-zone import drop area ──────────────────────────────────────────────
+     Layout for the side-by-side CSV | image/PDF/phone drop zones.
+     Consumed by: css/panels/import.css */
+  --import-zone-gap:     12px;  /* Gap between the CSV and image/PDF drop zones */
+  --import-zone-min-w:  120px;  /* Min-width before the two zones wrap */
+  --import-row-gap:       8px;  /* Vertical spacing below in-zone controls (new-po row, scan button) */
 }

@@ -91,39 +91,6 @@ body {
 .drop-zone .hint { font-size: 11px; margin-top: 6px; color: var(--text-muted); }
 .drop-zone.loaded p { color: var(--color-green); }
 
-/* The import drop-zone has the ★ Direct button anchored in its bottom-right
-   corner. When the .has-direct-frame class is present, the dashed perimeter
-   is drawn by an inline <svg> as an L-shape with rounded corners and a
-   constant margin from the button. The path is computed at runtime from the
-   button's bounding rect (see updateDropZoneFrame in import-panel.js). */
-.drop-zone.has-direct-frame {
-  border-color: transparent;
-}
-.drop-zone .drop-zone-frame {
-  position: absolute;
-  inset: -2px;
-  width: calc(100% + 4px);
-  height: calc(100% + 4px);
-  pointer-events: none;
-  overflow: visible;
-  display: none;
-}
-.drop-zone.has-direct-frame .drop-zone-frame {
-  display: block;
-}
-.drop-zone-frame-path {
-  fill: none;
-  stroke: var(--border-default);
-  stroke-width: 2;
-  stroke-dasharray: 6 4;
-  stroke-linejoin: round;
-  transition: stroke 0.15s;
-}
-.drop-zone:hover .drop-zone-frame-path,
-.drop-zone.dragover .drop-zone-frame-path {
-  stroke: var(--color-blue);
-}
-
 /* ── Hidden Utility ───────────────────────────────────── */
 .hidden { display: none !important; }
 

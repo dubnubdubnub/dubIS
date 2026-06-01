@@ -9,20 +9,41 @@ import { classifyRow, countWarnings } from './import-logic.js';
  * @returns {string} HTML string
  */
 export function renderDropZone(templates) {
+  const ocrTemplates = {
+    generic: 'Generic — direct from mfg',
+    lcsc: 'LCSC',
+    digikey: 'DigiKey',
+    mouser: 'Mouser',
+    pololu: 'Pololu',
+  };
   return `
     <div class="import-section">
-      <div class="drop-zone has-direct-frame" id="import-drop-zone">
-        <svg class="drop-zone-frame" aria-hidden="true"><path class="drop-zone-frame-path"></path></svg>
-        <p>Drop a purchase CSV here</p>
-        <div class="hint">LCSC orders, cart exports, packing lists, DigiKey, Pololu, Mouser</div>
-        <input type="file" id="import-file-input" accept=".csv,.tsv,.txt,.xls">
-        <button class="new-po-btn new-po-btn-direct" data-template="direct" title="Direct from manufacturer (no distributor CSV)">★ Direct from mfg</button>
-      </div>
-      <div class="new-po-row" id="new-po-row">
-        <span class="new-po-label">or create blank PO:</span>
-        ${Object.entries(templates).map(([key, t]) =>
-          `<button class="new-po-btn" data-template="${key}">${t.label}</button>`
-        ).join("")}
+      <div class="import-zones">
+        <div class="drop-zone import-zone-csv" id="import-drop-zone">
+          <p>Drop a purchase CSV here</p>
+          <div class="hint">LCSC orders, cart exports, packing lists, DigiKey, Pololu, Mouser</div>
+          <input type="file" id="import-file-input" accept=".csv,.tsv,.txt,.xls">
+          <div class="new-po-row" id="new-po-row">
+            <span class="new-po-label">or create blank PO:</span>
+            ${Object.entries(templates).map(([key, t]) =>
+              `<button class="new-po-btn" data-template="${escHtml(key)}">${escHtml(t.label)}</button>`
+            ).join("")}
+            <button class="new-po-btn" id="import-add-row">+ add row manually</button>
+          </div>
+        </div>
+        <div class="drop-zone import-zone-ocr" id="import-ocr-zone">
+          <label class="ocr-template-label">Template:
+            <select id="import-ocr-template">
+              ${Object.entries(ocrTemplates).map(([key, label]) =>
+                `<option value="${escHtml(key)}"${key === 'generic' ? ' selected' : ''}>${escHtml(label)}</option>`
+              ).join("")}
+            </select>
+          </label>
+          <div class="hint">Generic = a manufacturer invoice with no distributor packing list</div>
+          <p>Drop an image / PDF here</p>
+          <input type="file" id="import-ocr-input" accept=".png,.jpg,.jpeg,.pdf">
+          <button class="new-po-btn" id="import-scan-btn">📷 Scan with phone</button>
+        </div>
       </div>
       <div id="import-mapper" class="hidden"></div>
     </div>
