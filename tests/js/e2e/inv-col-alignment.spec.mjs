@@ -20,6 +20,7 @@ async function measureAlignment(page) {
       ['inv-col-group',  '.inv-row-group-cell'],
       ['inv-col-partid', '.part-ids'],
       ['inv-col-mpn',    '.part-mpn'],
+      ['inv-col-vendor', '.part-vendor'],
       ['inv-col-unit',   '.part-unit-price'],
       ['inv-col-value',  '.part-value'],
       ['inv-col-qty',    '.part-qty'],
