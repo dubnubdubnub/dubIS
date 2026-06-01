@@ -1,4 +1,6 @@
 """Tests for vendors module: CRUD on vendors.json + similarity detection."""
+import base64
+import itertools
 import json
 import os
 
@@ -147,6 +149,29 @@ class TestNameFromUrl:
         assert vendors.name_from_url("") == ""
 
 
+class TestFaviconDataUri:
+    def test_encodes_png_with_mime(self, tmp_path):
+        png = tmp_path / "icon.png"
+        png.write_bytes(b"\x89PNG\r\n\x1a\nhello")
+        uri = vendors.favicon_data_uri(str(png))
+        assert uri.startswith("data:image/png;base64,")
+        # Round-trips back to the original bytes.
+        b64 = uri.split(",", 1)[1]
+        assert base64.b64decode(b64) == b"\x89PNG\r\n\x1a\nhello"
+
+    def test_ico_and_svg_mimes(self, tmp_path):
+        ico = tmp_path / "f.ico"
+        ico.write_bytes(b"\x00\x00\x01\x00")
+        svg = tmp_path / "f.svg"
+        svg.write_bytes(b"<svg/>")
+        assert vendors.favicon_data_uri(str(ico)).startswith("data:image/x-icon;base64,")
+        assert vendors.favicon_data_uri(str(svg)).startswith("data:image/svg+xml;base64,")
+
+    def test_missing_or_empty_returns_empty(self, tmp_path):
+        assert vendors.favicon_data_uri("") == ""
+        assert vendors.favicon_data_uri(str(tmp_path / "nope.png")) == ""
+
+
 class TestSimilarity:
     def test_levenshtein_under_3(self, vjson):
         vendors.seed_builtins(vjson)
@@ -172,6 +197,28 @@ class TestSimilarity:
         pairs = vendors.find_possible_duplicates(vjson)
         # Self/Salvage/Unknown vs each other should not flag
         assert all(p[0]["type"] != "self" and p[1]["type"] != "self" for p in pairs)
+
+    def test_short_acronyms_not_fuzzy_matched(self, vjson):
+        # Distinct short manufacturer codes within a few edits of each other must
+        # NOT be flagged — a fixed Levenshtein threshold spammed every such pair
+        # (TI/ST, HRE/HRS, d/AOS, …). Only exact case-insensitive matches count.
+        vendors.seed_builtins(vjson)
+        codes = ["TI", "ST", "FH", "HRE", "HRS", "JST", "JSCJ", "d", "AOS"]
+        ids = {c: vendors.create_vendor(vjson, name=c, url=f"https://{c}.example")["id"]
+               for c in codes}
+        pairs = vendors.find_possible_duplicates(vjson)
+        flagged = {frozenset((p[0]["id"], p[1]["id"])) for p in pairs}
+        for c1, c2 in itertools.combinations(codes, 2):
+            assert frozenset((ids[c1], ids[c2])) not in flagged, \
+                f"{c1!r} and {c2!r} should not be flagged as duplicates"
+
+    def test_typo_in_long_name_flagged(self, vjson):
+        vendors.seed_builtins(vjson)
+        a = vendors.create_vendor(vjson, name="Hirose", url="https://hirose-a.com")
+        b = vendors.create_vendor(vjson, name="Hirise", url="https://hirose-b.com")
+        pairs = vendors.find_possible_duplicates(vjson)
+        flagged = {frozenset((p[0]["id"], p[1]["id"])) for p in pairs}
+        assert frozenset((a["id"], b["id"])) in flagged
 
 
 class TestMerge:
