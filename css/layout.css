@@ -70,9 +70,8 @@ body {
   position: relative;
   border: 2px dashed var(--border-default);
   border-radius: 8px;
-  /* Top/bottom padding redistributed (14/34) to give the absolutely-positioned
-     ★ Direct button room in the bottom-right without enlarging the box.
-     Total vertical padding stays 48px so resize-visibility geometry is preserved. */
+  /* Total vertical padding stays 48px (14 + 34) so resize-visibility geometry
+     is preserved; do not change these values without re-running that spec. */
   padding: 14px 12px 34px;
   text-align: center;
   margin: 12px;

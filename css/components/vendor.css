@@ -76,32 +76,6 @@
 .mfg-scan-fallback { color: var(--text-secondary); }
 .mfg-scan-fallback:hover { border-color: var(--color-yellow); color: var(--color-yellow); }
 
-.new-po-btn-direct { color: var(--color-blue); border-color: var(--color-blue); }
-.new-po-btn-direct:hover { background: rgba(10, 132, 255, 0.1); }
-
-/* Prominent placement inside the import drop-zone bottom-right. 8px constant
-   margin: this matches the radius of the SVG inner-arc that wraps around the
-   button's NW corner — so the dashed line is exactly 8px from every facing
-   edge of the button (top, left, right, bottom, NW corner). */
-.drop-zone .new-po-btn-direct {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  font-size: 11px;
-  padding: 2px 12px;
-  font-weight: 600;
-  background: var(--color-blue);
-  color: #fff;
-  border-color: var(--color-blue);
-  border-radius: 4px;
-  z-index: 1;
-}
-.drop-zone .new-po-btn-direct:hover {
-  background: #0973e0;
-  color: #fff;
-  border-color: #0973e0;
-}
-
 /* Vendor sub-pill expansion panel */
 .vendor-subpills-panel { display: flex; gap: 4px; flex-wrap: wrap; padding: 6px 12px;
   background: var(--bg-surface); border-bottom: 1px solid var(--border-default); }
