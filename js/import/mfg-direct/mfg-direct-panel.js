@@ -6,6 +6,7 @@ import { onInventoryUpdated, store, loadVendorsAndPOs } from '../../store.js';
 import { renderEditor, renderScanModal } from './mfg-direct-renderer.js';
 import { emptyLineItem, validateLineItems,
   mapScanLineItems, scanSourceFile } from './mfg-direct-logic.js';
+import { isOcrFile } from '../import-logic.js';
 import { createVendorPicker } from './vendor-picker.js';
 import { renderQrToCanvas } from '../../vendor/qrcode.js';
 import { openOverlay } from './ocr-overlay/ocr-overlay-panel.js';
@@ -209,11 +210,6 @@ function bindEvents(root) {
   if (urlInput) urlInput.onblur = () => vendorPicker.onVendorUrlBlur(urlInput.value);
 }
 
-/** True for inputs that should go through the OCR side-by-side overlay. */
-function isOcrSource(name) {
-  return /\.(png|jpe?g|pdf)$/i.test(name || '');
-}
-
 async function handleSourceFile(file) {
   const reader = new FileReader();
   reader.onload = async () => {
@@ -224,7 +220,7 @@ async function handleSourceFile(file) {
     rerender();
 
     // Image/PDF inputs route through the OCR overlay for token-driven review.
-    if (isOcrSource(file.name)) {
+    if (isOcrFile(file.name)) {
       try {
         const payload = await apiMfgDirect.ocrOverlayB64(b64, file.name, state.scanTemplate || 'generic');
         if (payload && payload.pages && payload.pages.length) {
@@ -330,8 +326,11 @@ function bindScanModal(root, session) {
   if (fallbackBtn) {
     fallbackBtn.onclick = () => {
       closeScanModal();
-      // Return the user to the existing file-picker path.
-      const input = (mountEl && mountEl.querySelector('#mfg-source-input'))
+      // Return the user to a file picker. Prefer the import panel's image/PDF
+      // zone input (the new two-zone entry); fall back to the legacy editor's
+      // source input if the standalone editor is what's currently mounted.
+      const input = document.querySelector('#import-ocr-input')
+        || (mountEl && mountEl.querySelector('#mfg-source-input'))
         || document.querySelector('#mfg-source-input');
       if (input) input.click();
     };

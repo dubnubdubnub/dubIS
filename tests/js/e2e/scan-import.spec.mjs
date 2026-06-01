@@ -5,15 +5,15 @@
 // Uses the existing mocked-pywebview harness (addMockSetup) — the same one
 // mfg-direct.spec.mjs uses — so the assertions match the established style.
 // All USER actions are real interactions (real .click()/.fill()/.selectOption()):
-//   - open the Direct-from-mfg flow, pick a vendor, choose a scan template
-//   - click "Scan with phone" → assert the QR modal + rendered canvas + URL btn
+//   - pick a scan template in the image/PDF zone, click "Scan with phone"
+//   - assert the QR modal + rendered canvas + URL btn
 //   - simulate ONLY the backend→frontend push by calling the REAL
 //     window._scanReceived(payload) entry point (this IS the documented
 //     backend contract; everything the user does stays a real interaction)
-//   - assert the modal closes and the staging table populates (incl. dist PN)
-//   - drive the EXISTING Import button and assert the create-PO call received
-//     the scanned photo bytes (via the harness api-call recorder)
-//   - exercise the "Choose a file instead" fallback → existing #mfg-source-input
+//   - assert the modal closes and the staging editor populates (incl. dist PN)
+//   - pick a vendor in the editor, drive the EXISTING Import button and assert
+//     the create-PO call received the scanned photo bytes (via the recorder)
+//   - exercise the "Choose a file instead" fallback → the #import-ocr-input
 
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
@@ -58,19 +58,12 @@ test.describe('Phone-scan desktop modal → end-to-end import', () => {
   });
 
   test('scan modal renders QR + URLs; push populates staging; import carries the photo', async ({ page }) => {
-    // 1. Open the Direct-from-mfg flow.
-    const directBtn = page.locator('[data-template="direct"]');
-    await directBtn.scrollIntoViewIfNeeded();
-    await directBtn.click();
-    await expect(page.locator('.mfg-direct-editor')).toBeVisible();
-
-    // 2. Pick a vendor (real chip click) so the eventual import has a vendor id.
-    await page.locator('.mfg-pseudo-chip[data-pseudo="v_self"]').click();
-    await expect(page.locator('#mfg-vendor-name-input')).toHaveValue('Self');
-
-    // 3. Choose a distributor template (real select) + click Scan with phone.
-    await page.locator('#mfg-scan-template').selectOption('lcsc');
-    await page.locator('#mfg-scan-btn').click();
+    // 1. Choose a distributor template in the image/PDF zone (real select) and
+    //    click "Scan with phone" → startPhoneScan opens the QR modal.
+    const ocrZone = page.locator('#import-ocr-zone');
+    await ocrZone.scrollIntoViewIfNeeded();
+    await page.locator('#import-ocr-template').selectOption('lcsc');
+    await page.locator('#import-scan-btn').click();
 
     // 4. Modal appears with a rendered QR canvas and at least one URL button.
     await expect(page.locator('#mfg-scan-overlay')).toBeVisible();
@@ -96,6 +89,10 @@ test.describe('Phone-scan desktop modal → end-to-end import', () => {
     await expect(rows.nth(0).locator('.mfg-cell-distpn')).toHaveValue('C25744');
     await expect(rows.nth(1).locator('.mfg-cell-distpn')).toHaveValue('C15525');
 
+    // 7b. Pick a vendor in the editor (real chip click) so the import has a vendor id.
+    await page.locator('.mfg-pseudo-chip[data-pseudo="v_self"]').click();
+    await expect(page.locator('#mfg-vendor-name-input')).toHaveValue('Self');
+
     // 8. Drive the EXISTING Import button (real click).
     await page.locator('#mfg-import').click();
     await expect(page.locator('.toast')).toContainText('Imported');
@@ -114,21 +111,18 @@ test.describe('Phone-scan desktop modal → end-to-end import', () => {
   });
 
   test('fallback "choose a file" closes the modal and opens the file picker path', async ({ page }) => {
-    await page.locator('[data-template="direct"]').click();
-    await expect(page.locator('.mfg-direct-editor')).toBeVisible();
-
-    await page.locator('#mfg-scan-template').selectOption('lcsc');
-    await page.locator('#mfg-scan-btn').click();
+    await page.locator('#import-ocr-template').selectOption('lcsc');
+    await page.locator('#import-scan-btn').click();
     await expect(page.locator('#mfg-scan-overlay')).toBeVisible();
 
-    // The fallback click triggers the hidden #mfg-source-input file chooser;
-    // assert that interaction by catching the native file-chooser event.
+    // The fallback click triggers the image/PDF zone's file chooser; assert that
+    // interaction by catching the native file-chooser event.
     const chooserPromise = page.waitForEvent('filechooser');
     await page.locator('#mfg-scan-fallback').click();
     const chooser = await chooserPromise;
 
-    // Modal closed and the surfaced picker targets the existing source input.
+    // Modal closed and the surfaced picker targets the image-zone input.
     await expect(page.locator('#mfg-scan-overlay')).toHaveCount(0);
-    expect(await chooser.element().getAttribute('id')).toBe('mfg-source-input');
+    expect(await chooser.element().getAttribute('id')).toBe('import-ocr-input');
   });
 });

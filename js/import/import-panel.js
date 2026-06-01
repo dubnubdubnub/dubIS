@@ -5,7 +5,7 @@ import { showToast, escHtml, setupDropZone, resetDropZoneInput } from '../ui-hel
 import { UndoRedo } from '../undo-redo.js';
 import { store, onInventoryUpdated, savePreferences } from '../store.js';
 import { parseCSV, generateCSV } from '../csv-parser.js';
-import { TARGET_FIELDS, PO_TEMPLATES, classifyRow, countWarnings, transformImportRows } from './import-logic.js';
+import { TARGET_FIELDS, PO_TEMPLATES, classifyRow, countWarnings, transformImportRows, seedManualRows } from './import-logic.js';
 import { renderDropZone, renderMapper as renderMapperHtml } from './import-renderer.js';
 
 const body = document.getElementById("import-body");
@@ -122,18 +122,12 @@ export function init() {
  * table so the user can type and import via the existing path.
  */
 function seedManualRow() {
-  const headers = [...PO_TEMPLATES.generic.headers];
-  parsedHeaders = headers;
-  parsedRows = [headers.map(() => "")];
+  const seed = seedManualRows(PO_TEMPLATES.generic);
+  parsedHeaders = seed.parsedHeaders;
+  parsedRows = seed.parsedRows;
+  columnMapping = seed.columnMapping;
   importFileName = "Manual entry";
   lastImportMeta = null;
-
-  // Identity mapping: each header that is itself a TARGET_FIELD maps to itself,
-  // otherwise it is skipped.
-  columnMapping = {};
-  headers.forEach((h, i) => {
-    if (TARGET_FIELDS.includes(h)) columnMapping[i] = h;
-  });
 
   const newPoRow = document.getElementById("new-po-row");
   if (newPoRow) newPoRow.classList.add("hidden");
@@ -262,6 +256,13 @@ function updateImportButton() {
 function renderMapper() {
   const mapper = document.getElementById("import-mapper");
   mapper.classList.remove("hidden");
+
+  // Once a CSV/manual staging session is active, the image/PDF zone is no longer
+  // relevant — collapse it so the staging table and Import button stay reachable
+  // within the (scrollable) import panel at short viewports. init() re-renders the
+  // panel fresh, restoring both zones.
+  const ocrZone = document.getElementById("import-ocr-zone");
+  if (ocrZone) ocrZone.classList.add("hidden");
 
   const html = renderMapperHtml(parsedHeaders, parsedRows, columnMapping, TARGET_FIELDS, importFileName);
   mapper.innerHTML = html;
