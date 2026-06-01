@@ -121,6 +121,35 @@ test.describe('Phone-scan capture page → upload', () => {
     expect(rec.js_calls[0]).toContain('window._scanReceived(');
   });
 
+  test('library input (no capture) lets you upload an existing photo', async ({ page }) => {
+    await page.goto(`${baseUrl}/scan?s=${sessionId}`);
+
+    // The library <input> accepts images but deliberately has NO capture
+    // attribute, so the phone offers the gallery/file picker instead of forcing
+    // the camera.
+    const libraryInput = page.locator('#file-library');
+    await expect(libraryInput).toHaveCount(1);
+    await expect(libraryInput).toHaveAttribute('accept', 'image/*');
+    expect(await libraryInput.getAttribute('capture')).toBeNull();
+
+    const sendBtn = page.locator('#send');
+    await expect(sendBtn).toBeDisabled();
+
+    // Real file-chooser path on the library input.
+    await libraryInput.setInputFiles({ name: 'existing.png', mimeType: 'image/png', buffer: PNG_1X1 });
+    await expect(sendBtn).toBeEnabled();
+    await expect(page.locator('#preview')).toBeVisible();
+
+    await sendBtn.click();
+    await expect(page.locator('#msg.ok')).toContainText('Sent — check the desktop app');
+
+    // The upload from the library input also reaches OCR with its filename.
+    await expect.poll(() => {
+      const rec = JSON.parse(readFileSync(recordPath, 'utf8'));
+      return rec.ocr_calls.some((c) => c.filename === 'existing.png');
+    }).toBe(true);
+  });
+
   test('unknown session shows the expired page (404)', async ({ page }) => {
     const resp = await page.goto(`${baseUrl}/scan?s=bogus-session`);
     expect(resp?.status()).toBe(404);
