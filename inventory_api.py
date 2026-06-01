@@ -648,6 +648,21 @@ class InventoryApi:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
 
+    def ocr_overlay_b64(
+        self, file_b64: str, file_name: str, template: str = "generic",
+    ) -> dict[str, Any]:
+        """Decode base64, rasterize+OCR all pages, heuristic-prefill the grid.
+
+        Returns {pages:[{image_b64,width,height,words,lines}], prefill_rows, template}.
+        """
+        import base64
+
+        import ocr_layout
+
+        ext = os.path.splitext(file_name)[1].lower()
+        data = base64.b64decode(file_b64)
+        return ocr_layout.extract_pages(data, ext, template)
+
     def start_scan_session(self, template: str = "generic") -> dict[str, Any]:
         """Mint a phone-scan session and return connection details.
 

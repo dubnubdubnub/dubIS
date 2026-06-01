@@ -1,17 +1,14 @@
 /* mfg-direct-renderer.js — Pure HTML rendering for Direct import editor. */
 
-import { escHtml, vendorIconSrc } from '../../ui-helpers.js';
+import { escHtml } from '../../ui-helpers.js';
 import { formatMatchBadge } from './mfg-direct-logic.js';
+import { isPseudoVendor, vendorFaviconHtml } from './vendor-picker.js';
 import { PO_TEMPLATES } from '../import-logic.js';
 
 export function renderEditor(state) {
   const { vendor, sourceFile, lineItems, popout } = state;
-  const faviconHtml = vendor.icon
-    ? `<span class="vendor-favicon-emoji">${escHtml(vendor.icon)}</span>`
-    : (vendor.favicon_path
-        ? `<img class="vendor-favicon" src="${escHtml(vendorIconSrc(vendor.favicon_path))}" alt="">`
-        : `<span class="vendor-favicon-empty"></span>`);
-  const isPseudo = vendor.type === 'self' || vendor.type === 'salvage' || vendor.type === 'unknown';
+  const faviconHtml = vendorFaviconHtml(vendor);
+  const isPseudo = isPseudoVendor(vendor);
 
   return `
     <div class="mfg-direct-editor ${popout ? 'mfg-direct-popout' : ''}">
