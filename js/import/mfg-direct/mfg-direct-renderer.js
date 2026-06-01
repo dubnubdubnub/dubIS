@@ -76,7 +76,7 @@ function renderSourceDrop(sourceFile) {
 /**
  * Render the QR + URL scan modal body. The QR canvas is filled in by the panel
  * after insertion (canvas drawing isn't a string operation).
- * @param {{session_id: string, template: string, port: number, urls: string[]}} session
+ * @param {{session_id: string, template: string, urls: string[]}} session
  * @returns {string} HTML for the modal contents (caller wraps in overlay)
  */
 export function renderScanModal(session) {
