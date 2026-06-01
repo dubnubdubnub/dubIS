@@ -28,17 +28,6 @@ const vendorPicker = createVendorPicker({
   onChange: () => rerender(),
 });
 
-export function startDirectFlow(mountElement) {
-  mountEl = mountElement;
-  state.active = true;
-  state.popout = false;
-  state.editingPoId = null;
-  state.vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
-  state.sourceFile = null;
-  state.lineItems = [emptyLineItem()];
-  rerender();
-}
-
 // ── New two-zone entry points (image/PDF → OCR overlay; phone → scan modal) ──
 
 /** Read a File into raw base64 (no data-URL prefix). */
