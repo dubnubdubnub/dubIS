@@ -183,18 +183,40 @@ def _levenshtein(a: str, b: str) -> int:
     return prev[-1]
 
 
+def _names_look_similar(name_a: str, name_b: str) -> bool:
+    """Decide whether two vendor names are similar enough to suggest merging.
+
+    A fixed edit-distance threshold is useless for short names: among 2–3 letter
+    manufacturer codes (TI, ST, FH, HRS, …) almost every pair lands within a few
+    edits, producing combinatorial false-positive spam. So:
+
+    - Exact match (case-insensitive) always flags — catches pure case variants
+      like "MDT"/"MDt".
+    - Otherwise both names must be reasonably long (≥4 chars) AND differ by only a
+      small *fraction* of their length, so genuine typos in real names still flag
+      while short acronyms never fuzzy-match each other.
+    """
+    a, b = name_a.lower().strip(), name_b.lower().strip()
+    if a == b:
+        return True
+    if min(len(a), len(b)) < 4:
+        return False
+    dist = _levenshtein(a, b)
+    return dist <= 3 and dist / max(len(a), len(b)) <= 0.34
+
+
 def find_possible_duplicates(path: str) -> list[tuple[dict[str, Any], dict[str, Any]]]:
     """Find vendor pairs that look like duplicates.
 
-    Criteria: name Levenshtein ≤3 (ignoring case) OR shared URL domain.
-    Pseudo-vendors are excluded.
+    Criteria: names look similar (see ``_names_look_similar``) OR shared URL
+    domain. Pseudo-vendors are excluded.
     """
     real = [v for v in _read(path) if v["id"] not in PSEUDO_IDS]
     pairs: list[tuple[dict, dict]] = []
     for i in range(len(real)):
         for j in range(i + 1, len(real)):
             a, b = real[i], real[j]
-            name_close = _levenshtein(a["name"].lower(), b["name"].lower()) <= 3
+            name_close = _names_look_similar(a["name"], b["name"])
             domain_a = urlparse(a.get("url", "")).netloc.lower()
             domain_b = urlparse(b.get("url", "")).netloc.lower()
             domain_match = bool(domain_a) and domain_a == domain_b

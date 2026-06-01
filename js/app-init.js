@@ -9,6 +9,7 @@ import { processBOM } from './csv-parser.js';
 import { matchBOM } from './matching.js';
 import { colorizeRefs, REF_COLOR_MAP } from './part-keys.js';
 import { openPreferencesModal, applyPreferences, wireDigikeyButtons } from './preferences-modal.js';
+import { wireVendorsModal } from './vendors-modal.js';
 
 // Explicit panel imports (no side effects until init() is called)
 import { init as initInventoryModals } from './inventory-modals.js';
@@ -117,6 +118,9 @@ async function initApp() {
   if (prefsSave) prefsSave.addEventListener("click", applyPreferences);
 
   wireDigikeyButtons();
+
+  // Vendors manager modal
+  wireVendorsModal();
 
   const rebuildBtn = document.getElementById("rebuild-inv");
   if (rebuildBtn) rebuildBtn.addEventListener("click", async () => {

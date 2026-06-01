@@ -1,4 +1,5 @@
 """Tests for vendors module: CRUD on vendors.json + similarity detection."""
+import itertools
 import json
 import os
 
@@ -172,6 +173,28 @@ class TestSimilarity:
         pairs = vendors.find_possible_duplicates(vjson)
         # Self/Salvage/Unknown vs each other should not flag
         assert all(p[0]["type"] != "self" and p[1]["type"] != "self" for p in pairs)
+
+    def test_short_acronyms_not_fuzzy_matched(self, vjson):
+        # Distinct short manufacturer codes within a few edits of each other must
+        # NOT be flagged — a fixed Levenshtein threshold spammed every such pair
+        # (TI/ST, HRE/HRS, d/AOS, …). Only exact case-insensitive matches count.
+        vendors.seed_builtins(vjson)
+        codes = ["TI", "ST", "FH", "HRE", "HRS", "JST", "JSCJ", "d", "AOS"]
+        ids = {c: vendors.create_vendor(vjson, name=c, url=f"https://{c}.example")["id"]
+               for c in codes}
+        pairs = vendors.find_possible_duplicates(vjson)
+        flagged = {frozenset((p[0]["id"], p[1]["id"])) for p in pairs}
+        for c1, c2 in itertools.combinations(codes, 2):
+            assert frozenset((ids[c1], ids[c2])) not in flagged, \
+                f"{c1!r} and {c2!r} should not be flagged as duplicates"
+
+    def test_typo_in_long_name_flagged(self, vjson):
+        vendors.seed_builtins(vjson)
+        a = vendors.create_vendor(vjson, name="Hirose", url="https://hirose-a.com")
+        b = vendors.create_vendor(vjson, name="Hirise", url="https://hirose-b.com")
+        pairs = vendors.find_possible_duplicates(vjson)
+        flagged = {frozenset((p[0]["id"], p[1]["id"])) for p in pairs}
+        assert frozenset((a["id"], b["id"])) in flagged
 
 
 class TestMerge:

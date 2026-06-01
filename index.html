@@ -65,6 +65,7 @@
     <div class="panel-header">
       Inventory
       <button class="btn-md rebuild-btn" id="rebuild-inv" title="Rebuild Inventory">Rebuild Inventory</button>
+      <button class="btn-md vendors-btn" id="vendors-btn" title="View and manage vendors">Vendors</button>
       <button class="btn-md label-mode-btn" id="label-mode-btn" title="Select parts and export Epson labels">Print Labels</button>
       <div class="inv-search-group">
         <input type="text" class="search-input" id="inv-search" placeholder="Search parts...">
@@ -254,6 +255,28 @@
     <div class="modal-actions">
       <button class="btn-lg btn btn-cancel" id="label-export-cancel">Cancel</button>
       <button class="btn-lg btn btn-apply" id="label-export-do">Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- Vendors Modal -->
+<div class="modal-overlay hidden" id="vendors-modal">
+  <div class="modal vendors-modal">
+    <div class="vendors-modal-head">
+      <div class="modal-title">Vendors</div>
+      <button class="btn-md" id="vendor-add-btn" title="Add a new vendor">+ Add</button>
+    </div>
+    <div class="vendors-modal-body">
+      <div class="vendors-list-col">
+        <input type="text" class="search-input vendors-search" id="vendor-search" placeholder="Search vendors...">
+        <div class="vendors-list" id="vendor-list"></div>
+      </div>
+      <div class="vendors-detail-col" id="vendor-detail">
+        <div class="vendors-detail-empty">Select a vendor to view details</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-lg btn btn-cancel" id="vendors-close">Close</button>
     </div>
   </div>
 </div>
