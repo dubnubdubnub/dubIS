@@ -30,8 +30,10 @@ function hostOf(url) {
 }
 
 function iconHtml(v) {
-  if (v.favicon_path) {
-    return `<img src="${escHtml(v.favicon_path)}" alt="" onerror="this.remove()">`;
+  // Backend serves favicons as base64 data URIs (works in the app, the static
+  // test server, and the live bridge — no filesystem path resolution needed).
+  if (v.favicon_data_uri) {
+    return `<img src="${escHtml(v.favicon_data_uri)}" alt="" onerror="this.remove()">`;
   }
   if (v.icon) return escHtml(v.icon);
   const letter = (v.name || "?").trim().charAt(0).toUpperCase() || "?";

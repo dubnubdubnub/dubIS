@@ -553,10 +553,17 @@ class InventoryApi:
         return d
 
     def list_vendors(self) -> list[dict[str, Any]]:
-        """Return all vendors. Seeds built-ins on first call."""
+        """Return all vendors, each enriched with a favicon ``data:`` URI when one
+        is cached. Seeds built-ins on first call."""
         import vendors
         vendors.seed_builtins(self._vendors_json)
-        return vendors.list_vendors(self._vendors_json)
+        result = vendors.list_vendors(self._vendors_json)
+        for v in result:
+            fp = v.get("favicon_path")
+            if fp:
+                abs_fp = fp if os.path.isabs(fp) else os.path.join(self.base_dir, fp)
+                v["favicon_data_uri"] = vendors.favicon_data_uri(abs_fp)
+        return result
 
     def update_vendor(self, vendor_id: str = "", name: str = "",
                        url: str = "", favicon_path: str = "") -> dict[str, Any]:
