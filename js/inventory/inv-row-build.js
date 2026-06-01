@@ -52,13 +52,18 @@ export function createPartRow(item, sectionKey, sectionChip) {
     mpnEl.addEventListener("dragstart", function (e) { e.preventDefault(); });
   }
 
-  var checkbox = row.querySelector(".label-select-checkbox");
-  if (checkbox) {
-    checkbox.addEventListener("change", function (e) {
+  // A row in label mode has two checkboxes (left + right edge) sharing one key.
+  // A single toggle does not re-render, so mirror the new state onto its pair.
+  var checkboxes = row.querySelectorAll(".label-select-checkbox");
+  checkboxes.forEach(function (cb) {
+    cb.addEventListener("change", function (e) {
       e.stopPropagation();
-      toggleSelection(checkbox.dataset.key);
+      toggleSelection(cb.dataset.key);
+      checkboxes.forEach(function (other) {
+        if (other !== cb) other.checked = cb.checked;
+      });
     });
-  }
+  });
 
   var adjBtn = row.querySelector(".adj-btn");
   if (adjBtn) {
