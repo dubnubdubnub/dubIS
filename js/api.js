@@ -81,6 +81,7 @@ export const apiMfgDirect = {
   matchPart: (mpn, mfg) => api('match_part', mpn, mfg),
   startScanSession: (template) => api('start_scan_session', template),
   ocrEngineAvailable: () => api('ocr_engine_available'),
+  installTesseract: () => api('install_tesseract'),
 };
 
 export const apiWarnings = { get: () => api('get_warnings') };
