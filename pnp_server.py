@@ -375,13 +375,20 @@ class PnPHandler(BaseHTTPRequestHandler):
         template = session["template"]
 
         try:
-            line_items = api.parse_source_file_b64(image_b64, filename, template)
+            overlay = api.ocr_overlay_b64(image_b64, filename, template)
         except Exception as exc:
             logger.error("Scan OCR failed: %s", exc)
             self._send_json(500, {"ok": False, "error": f"OCR failed: {exc}"})
             return
 
+        pages = overlay.get("pages") or []
+        prefill_rows = overlay.get("prefill_rows") or []
+        # line_items mirrors prefill_rows so the legacy flat-staging branch still
+        # has data if `pages` were ever absent on the frontend.
+        line_items = prefill_rows
         payload = {
+            "pages": pages,
+            "prefill_rows": prefill_rows,
             "line_items": line_items,
             "image_b64": image_b64,
             "filename": filename,

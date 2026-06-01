@@ -46,20 +46,27 @@ def _post_json(url, data):
 
 
 class _FakeApi:
-    """Minimal api stand-in: records the OCR call, returns canned line items."""
+    """Minimal api stand-in: records the OCR call, returns a canned overlay."""
 
-    def __init__(self, base_dir, line_items=None):
+    def __init__(self, base_dir, prefill_rows=None):
         self.base_dir = base_dir
         self.calls = []
-        self._line_items = line_items if line_items is not None else [
+        self._prefill_rows = prefill_rows if prefill_rows is not None else [
             {"mpn": "RC0402FR-0710KL", "manufacturer": "Yageo", "package": "0402",
              "quantity": 100, "unit_price": 0.01, "distributor": "LCSC",
              "distributor_pn": "C25744"},
         ]
+        self._pages = [
+            {"image_b64": "AAAA", "width": 10, "height": 10, "words": [], "lines": []},
+        ]
 
-    def parse_source_file_b64(self, file_b64, file_name, template="generic"):
+    def ocr_overlay_b64(self, file_b64, file_name, template="generic"):
         self.calls.append((file_b64, file_name, template))
-        return self._line_items
+        return {
+            "pages": self._pages,
+            "prefill_rows": self._prefill_rows,
+            "template": template,
+        }
 
 
 @pytest.fixture
@@ -159,7 +166,12 @@ class TestScanUpload:
         assert payload["template"] == "lcsc"
         assert payload["filename"] == "po.png"
         assert payload["image_b64"] == _PNG_1X1_B64
-        assert payload["line_items"] == scan_server.api._line_items
+        assert payload["line_items"] == scan_server.api._prefill_rows
+        # Overlay payload present so the frontend opens the overlay modal.
+        assert payload["prefill_rows"] == scan_server.api._prefill_rows
+        assert isinstance(payload["pages"], list) and payload["pages"]
+        assert all(isinstance(p, dict) for p in payload["pages"])
+        assert payload["pages"] == scan_server.api._pages
 
     def test_unknown_session_rejected(self, scan_server):
         status, body = _post_json(
