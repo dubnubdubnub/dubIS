@@ -112,6 +112,37 @@ class TestPololu:
         assert prof.match_pn("1182") == "1182"
         assert prof.match_pn("C429942") is None
 
+    def test_leading_year_or_order_number_not_taken_as_sku(self):
+        # A leading year / order number before the real SKU must NOT be matched
+        # as the SKU. We prefer no match over a confidently-wrong value, since
+        # the user reviews each row. The buggy regex grabbed the first numeric
+        # token (2026) as the SKU.
+        text = "Order date 2026 item 2820 qty 3 5.95\n"
+        items = dp.parse_with_template("pololu", text)
+        pns = {i["distributor_pn"] for i in items}
+        assert "2026" not in pns
+        # Never the trailing qty either.
+        assert "3" not in pns
+
+    def test_whole_dollar_integer_price_is_extracted(self):
+        # A whole-dollar unit price (no decimal point), or OCR that dropped the
+        # decimal, must still extract the row instead of silently dropping it.
+        text = "2820 A4988 Driver 3 6\n"
+        items = dp.parse_with_template("pololu", text)
+        first = next(i for i in items if i["distributor_pn"] == "2820")
+        assert first["distributor"] == "pololu"
+        assert first["quantity"] == 3
+        assert abs(first["unit_price"] - 6.0) < 1e-6
+
+    def test_eight_digit_leading_token_does_not_mis_extract_qty_as_sku(self):
+        # An 8+ digit leading token exceeds the 1-5 digit SKU bound. The buggy
+        # parser fell through and grabbed the trailing qty (10) as the SKU.
+        text = "12345678 Some Product 10 1.39\n"
+        items = dp.parse_with_template("pololu", text)
+        pns = {i["distributor_pn"] for i in items}
+        assert "10" not in pns
+        assert "12345" not in pns  # not a 5-digit prefix of the 8-digit token
+
 
 class TestGeneric:
     def test_generic_has_no_pn_column_and_no_distributor_pn(self):
