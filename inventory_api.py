@@ -675,6 +675,44 @@ class InventoryApi:
         import ocr_engine
         return ocr_engine.ensure_tesseract()
 
+    def install_tesseract(self) -> dict[str, Any]:
+        """Best-effort install of the Tesseract OCR engine via winget (Windows).
+
+        Runs winget non-interactively (machine scope; Windows shows a UAC prompt
+        the user approves). Returns {ok: bool, message: str, available: bool}.
+        On success the engine is re-detected so OCR works without an app restart.
+        Never raises; always returns the dict.
+        """
+        import shutil
+        import subprocess
+
+        import ocr_engine
+
+        if ocr_engine.ensure_tesseract():
+            return {"ok": True, "message": "Tesseract is already installed.", "available": True}
+        if sys.platform != "win32":
+            return {"ok": False, "message": ocr_engine.INSTALL_HINT, "available": False}
+        if not shutil.which("winget"):
+            return {"ok": False, "message": "winget not found. " + ocr_engine.INSTALL_HINT, "available": False}
+        try:
+            proc = subprocess.run(
+                ["winget", "install", "-e", "--id", "UB-Mannheim.TesseractOCR",
+                 "--accept-package-agreements", "--accept-source-agreements"],
+                capture_output=True, text=True, timeout=600,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            logger.warning("Tesseract install failed to start: %s", exc)
+            return {"ok": False,
+                    "message": f"Install failed to start: {exc}. " + ocr_engine.INSTALL_HINT,
+                    "available": False}
+        available = ocr_engine.ensure_tesseract()
+        if proc.returncode == 0 and available:
+            return {"ok": True, "message": "Tesseract installed.", "available": True}
+        tail = (proc.stderr or proc.stdout or "").strip()[-400:]
+        logger.warning("winget Tesseract install exited %s: %s", proc.returncode, tail)
+        return {"ok": False, "available": available,
+                "message": f"winget exited {proc.returncode}. {tail}".strip() + " " + ocr_engine.INSTALL_HINT}
+
     def start_scan_session(self, template: str = "generic") -> dict[str, Any]:
         """Mint a phone-scan session and return connection details.
 

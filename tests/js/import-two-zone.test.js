@@ -6,7 +6,7 @@ import {
   TARGET_FIELDS,
   PO_TEMPLATES,
 } from '../../js/import/import-logic.js';
-import { renderDropZone } from '../../js/import/import-renderer.js';
+import { renderDropZone, renderOcrEngineNotice, TESSERACT_WINGET_COMMAND } from '../../js/import/import-renderer.js';
 
 describe('isOcrFile — drop-zone routing predicate', () => {
   it('returns true for image / PDF names', () => {
@@ -114,5 +114,29 @@ describe('renderDropZone — two-zone layout', () => {
   it('has NO ★ Direct button (data-template="direct") and NO new-po-btn-direct class', () => {
     expect(html).not.toContain('data-template="direct"');
     expect(html).not.toContain('new-po-btn-direct');
+  });
+});
+
+describe('renderOcrEngineNotice — missing-engine notice', () => {
+  const html = renderOcrEngineNotice();
+
+  it('contains the Install Tesseract button', () => {
+    expect(html).toContain('id="install-tesseract-btn"');
+    expect(html).toContain('Install Tesseract');
+  });
+
+  it('explains why the engine is needed', () => {
+    expect(html).toContain('Tesseract OCR engine');
+  });
+
+  it('includes the copyable winget command fallback', () => {
+    expect(TESSERACT_WINGET_COMMAND).toContain('UB-Mannheim.TesseractOCR');
+    expect(html).toContain('<code>');
+    expect(html).toContain(TESSERACT_WINGET_COMMAND);
+  });
+
+  it('wraps the notice in an identifiable container', () => {
+    expect(html).toContain('id="ocr-engine-missing"');
+    expect(html).toContain('class="ocr-engine-missing"');
   });
 });

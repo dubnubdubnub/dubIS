@@ -71,7 +71,7 @@ describe('renderFanStack', () => {
     expect(html).toContain('fan-icon-empty');
   });
 
-  it('deduplicates vendors across multiple POs from same vendor', () => {
+  it('renders one icon per PO (no vendor dedup) when same vendor supplies multiple recent POs', () => {
     _mockVendors = [{ id: 'v1', name: 'LCSC', favicon_path: 'data/lcsc.ico', icon: '' }];
     _mockPOs = [
       { po_id: 'PO-001', vendor_id: 'v1', purchase_date: '2025-01-01' },
@@ -79,12 +79,45 @@ describe('renderFanStack', () => {
     ];
     var part = { lcsc: 'C789', mpn: 'IND', po_history: ['PO-001', 'PO-002'] };
     var html = renderFanStack(part);
-    // Should only show one icon for v1
+    // Each PO gets its own icon even though both are from v1
     var count = (html.match(/fan-icon-img/g) || []).length;
-    expect(count).toBe(1);
+    expect(count).toBe(2);
   });
 
-  it('shows +N overflow badge for more than 3 vendors', () => {
+  it('orders newest-first: the most recent PO is rendered first (on top)', () => {
+    _mockVendors = [
+      { id: 'v_old', name: 'Old', icon: 'O', favicon_path: '' },
+      { id: 'v_new', name: 'New', icon: 'N', favicon_path: '' },
+    ];
+    _mockPOs = [
+      { po_id: 'PO-old', vendor_id: 'v_old' },
+      { po_id: 'PO-new', vendor_id: 'v_new' },
+    ];
+    // po_history is chronological oldest->newest
+    var part = { lcsc: 'C1', mpn: 'M1', po_history: ['PO-old', 'PO-new'] };
+    var html = renderFanStack(part);
+    // The most recent (N) is emitted before the older (O)
+    expect(html.indexOf('>N<')).toBeLessThan(html.indexOf('>O<'));
+  });
+
+  it('cascades with increasing offset and decreasing z-index (most recent on top at 0,0)', () => {
+    _mockVendors = [
+      { id: 'v_old', name: 'Old', icon: 'O', favicon_path: '' },
+      { id: 'v_new', name: 'New', icon: 'N', favicon_path: '' },
+    ];
+    _mockPOs = [
+      { po_id: 'PO-old', vendor_id: 'v_old' },
+      { po_id: 'PO-new', vendor_id: 'v_new' },
+    ];
+    var part = { lcsc: 'C1', mpn: 'M1', po_history: ['PO-old', 'PO-new'] };
+    var html = renderFanStack(part);
+    // Front icon (most recent) anchored at 0,0 with the highest z-index
+    expect(html).toContain('left:0px;top:0px;z-index:2');
+    // Older icon offset 6px down-right, behind
+    expect(html).toContain('left:6px;top:6px;z-index:1');
+  });
+
+  it('caps at the 3 most recent POs with no overflow badge', () => {
     _mockVendors = [
       { id: 'v1', name: 'V1', icon: 'A', favicon_path: '' },
       { id: 'v2', name: 'V2', icon: 'B', favicon_path: '' },
@@ -97,10 +130,18 @@ describe('renderFanStack', () => {
       { po_id: 'PO-3', vendor_id: 'v3' },
       { po_id: 'PO-4', vendor_id: 'v4' },
     ];
+    // Chronological: PO-1 oldest ... PO-4 newest
     var part = { lcsc: 'C1', mpn: 'M1', po_history: ['PO-1', 'PO-2', 'PO-3', 'PO-4'] };
     var html = renderFanStack(part);
-    expect(html).toContain('fan-icon-extra');
-    expect(html).toContain('+1');
+    // Exactly 3 icons, no overflow badge
+    var count = (html.match(/fan-icon-emoji/g) || []).length;
+    expect(count).toBe(3);
+    expect(html).not.toContain('fan-icon-extra');
+    // The 3 most recent (D, C, B) are shown; the oldest (A) is dropped
+    expect(html).toContain('>D<');
+    expect(html).toContain('>C<');
+    expect(html).toContain('>B<');
+    expect(html).not.toContain('>A<');
   });
 
   it('falls back to primary_vendor_id when po_history is empty', () => {
