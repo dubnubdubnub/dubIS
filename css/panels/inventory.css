@@ -49,6 +49,7 @@
 .inv-col-group   { width: var(--inv-col-group-w);    flex-shrink: 1; min-width: 0; overflow: hidden; }
 .inv-col-partid  { width: var(--inv-col-pn-w);        flex-shrink: 1; min-width: 40px; }
 .inv-col-mpn     { width: var(--inv-col-mfgpn-w);     flex-shrink: 1; min-width: 40px; }
+.inv-col-vendor  { width: var(--inv-col-vendor-w);    flex-shrink: 1; min-width: 0; overflow: hidden; display: inline-flex; align-items: center; }
 .inv-col-unit    { width: var(--inv-col-unit-w);      flex-shrink: 1; min-width: 0; text-align: right; justify-content: flex-end; }
 .inv-col-value   { width: var(--inv-col-extprice-w);  flex-shrink: 1; min-width: 20px; text-align: right; justify-content: flex-end; }
 .inv-col-qty     { width: var(--inv-col-stock-w);     flex-shrink: 1; min-width: 30px; text-align: right; justify-content: flex-end; }
@@ -218,6 +219,7 @@
 .inv-part-row:hover { background: var(--bg-hover); }
 .inv-part-row .part-id { width: 90px; flex-shrink: 0; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: var(--color-blue); }
 .inv-part-row .part-mpn { width: var(--inv-col-mfgpn-w); min-width: 40px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
+.inv-part-row .part-vendor { width: var(--inv-col-vendor-w); min-width: 0; flex-shrink: 1; display: inline-flex; align-items: center; overflow: hidden; }
 /* The Group column slot. Always present so the row's first content
    aligns with the column header's Group cell, even when the drag handle
    inside is display:none (default; toggled by group-flyout.css). At very

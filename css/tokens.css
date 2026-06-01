@@ -12,6 +12,7 @@
   --inv-col-group-w:   50px;   /* Group / drag-handle cell */
   --inv-col-pn-w:     100px;   /* Part number (vendor IDs) */
   --inv-col-mfgpn-w:  160px;   /* Manufacturer PN */
+  --inv-col-vendor-w:  54px;   /* Purchase-source vendor favicon stack */
   --inv-col-unit-w:    70px;   /* Unit price */
   --inv-col-extprice-w: 70px;  /* Extended (total) price */
   --inv-col-stock-w:   60px;   /* Stock qty */

@@ -20,12 +20,17 @@ vi.mock('../../js/label-selection.js', () => ({
 import {
   renderPartRowHtml,
   renderFilterBarHtml,
+  renderInvColHeader,
   createBomRowElement,
 } from '../../js/inventory/inventory-renderer.js';
+import { store } from '../../js/store.js';
 
 beforeEach(() => {
   labelMock.mode = false;
   labelMock.selected = new Set();
+  store.purchaseOrders = [];
+  store.vendors = [];
+  store.inventory = [];
 });
 
 describe('renderPartRowHtml', () => {
@@ -63,6 +68,47 @@ describe('renderPartRowHtml', () => {
     expect(htmls[2]).toContain('data-lcsc="C3333"');
     expect(htmls[0]).not.toContain('C2222');
     expect(htmls[1]).not.toContain('C1111');
+  });
+});
+
+describe('renderPartRowHtml — vendor favicon column', () => {
+  const baseOpts = {
+    hideDescs: false, isBomMode: false, isLinkSource: false,
+    isReverseTarget: false, sectionKey: 'Connectors', threshold: 0, genericParts: [],
+  };
+
+  it('renders the vendor favicon stack in its own .part-vendor cell', () => {
+    store.vendors = [{ id: 'v_lcsc', name: 'LCSC', icon: '🟢' }];
+    const item = { mpn: 'WIDGET-1', qty: 5, unit_price: 0.5, primary_vendor_id: 'v_lcsc' };
+    const html = renderPartRowHtml(item, baseOpts);
+    // The favicon stack lives inside the dedicated vendor cell.
+    expect(html).toMatch(/<span class="part-vendor"><span class="favicon-fan-stack"/);
+  });
+
+  it('does NOT render the favicon inside the .part-mpn cell', () => {
+    store.vendors = [{ id: 'v_lcsc', name: 'LCSC', icon: '🟢' }];
+    const item = { mpn: 'WIDGET-1', qty: 5, unit_price: 0.5, primary_vendor_id: 'v_lcsc' };
+    const html = renderPartRowHtml(item, baseOpts);
+    const mpnCell = html.match(/<span class="part-mpn"[^>]*>.*?<\/span>/)[0];
+    expect(mpnCell).toContain('WIDGET-1');
+    expect(mpnCell).not.toContain('favicon-fan-stack');
+  });
+
+  it('renders an (empty) .part-vendor cell even when the part has no PO history', () => {
+    const item = { mpn: 'WIDGET-2', qty: 5, unit_price: 0.5 };
+    const html = renderPartRowHtml(item, baseOpts);
+    expect(html).toContain('<span class="part-vendor"></span>');
+  });
+
+  it('column header includes a Src cell between MPN and Unit $', () => {
+    const html = renderInvColHeader({
+      sortColumn: null, sortScope: null, vendorGroupScope: null,
+      groupLevel: 0, hideDescs: false,
+    });
+    expect(html).toContain('inv-col-vendor');
+    // Ordering: MPN header precedes the vendor (Src) header, which precedes Unit $.
+    expect(html.indexOf('inv-col-mpn')).toBeLessThan(html.indexOf('inv-col-vendor'));
+    expect(html.indexOf('inv-col-vendor')).toBeLessThan(html.indexOf('inv-col-unit'));
   });
 });
 
