@@ -133,6 +133,17 @@ class TestCategorize:
         row = {"Description": "Magnetic encoder", "Manufacture Part Number": "MT6835"}
         assert categorize(row) == "ICs - Sensors"
 
+    def test_tmr_magnetic_sensor_by_description(self):
+        row = {"Description": "Low Power Large Range TMR Linear Magnetic Sensor ±500Gs",
+               "Manufacture Part Number": ""}
+        assert categorize(row) == "ICs - Sensors"
+
+    def test_tmr_sensor_by_mpn_without_description(self):
+        """MDT manufacturer-direct parts arrive with no description; MPN must still sort it."""
+        row = {"Description": "", "Manufacture Part Number": "TMR2615F-AAC-1.500-500",
+               "Manufacturer": "MultiDimension Technology Co., Ltd."}
+        assert categorize(row) == "ICs - Sensors"
+
 
 class TestParseResistance:
     def test_kilo_ohm(self):
