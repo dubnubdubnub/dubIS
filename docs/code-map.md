@@ -383,7 +383,7 @@ graph LR
 | `FLYOUT_SEARCH_CHANGED` | `js/group-flyout/flyout-events.js` | `js/inventory/inv-events.js` |
 | `GENERIC_PARTS_LOADED` | `js/inventory/inv-mutations.js`, `js/store.js` | — |
 | `INVENTORY_LOADED` | `js/store.js` | `js/bom/bom-events.js`, `js/inventory/inv-events.js` |
-| `INVENTORY_UPDATED` | `js/store.js` | `js/app-init.js`, `js/bom/bom-events.js`, `js/inventory/inv-events.js` |
+| `INVENTORY_UPDATED` | `js/store.js` | `js/app-init.js`, `js/bom/bom-events.js`, `js/inventory/inv-events.js`, `js/label-selection.js` |
 | `LABEL_BULK_SELECTION` | `js/label-selection.js` | `js/inventory/inv-events.js` |
 | `LABEL_MODE` | `js/label-selection.js` | `js/inventory/inv-events.js`, `js/label-selection.js`, `tests/js/label-selection.test.js` |
 | `LABEL_SELECTION_CHANGED` | `js/label-selection.js` | `js/label-selection.js`, `tests/js/label-selection.test.js` |
@@ -720,7 +720,7 @@ graph LR
 - **Imports:** `js/api.js`, `js/event-bus.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/app-init.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-renderer.js`, `js/label-export-modal.js`, `tests/js/label-selection.test.js`
 - **Emits:** `LABEL_BULK_SELECTION`, `LABEL_MODE`, `LABEL_SELECTION_CHANGED`
-- **Listens:** `LABEL_MODE`, `LABEL_SELECTION_CHANGED`
+- **Listens:** `INVENTORY_UPDATED`, `LABEL_MODE`, `LABEL_SELECTION_CHANGED`
 
 ### js/layout-tokens.js
 
