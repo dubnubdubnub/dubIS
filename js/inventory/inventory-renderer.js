@@ -136,7 +136,8 @@ export function renderPartRowHtml(item, options) {
     '</span>' +
     partIdsHtml +
     nearMissBadgeHtml +
-    '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + renderFanStack(item) + '</span>' +
+    '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + '</span>' +
+    '<span class="part-vendor">' + renderFanStack(item) + '</span>' +
     '<span class="part-unit-price">' + unitPriceStr + '</span>' +
     '<span class="part-value">' + valueStr + '</span>' +
     '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data \u2014 click to set">\u26A0</button>' : '') + item.qty + '</span>' +
@@ -419,6 +420,7 @@ export function renderInvColHeader(viewState) {
     '</button>' +
     '<button class="inv-col-cell inv-col-partid" data-col="partid" title="Group by vendor">Part # ' + vendorIndicator() + '</button>' +
     '<button class="inv-col-cell inv-col-mpn" data-col="mpn">MPN ' + sortIndicator('mpn') + '</button>' +
+    '<span class="inv-col-vendor" title="Purchase source vendor(s)">Src</span>' +
     '<button class="inv-col-cell inv-col-unit"  data-col="unit_price">Unit $ ' + sortIndicator('unit_price') + '</button>' +
     '<button class="inv-col-cell inv-col-value" data-col="value">Total $ ' + sortIndicator('value') + '</button>' +
     '<button class="inv-col-cell inv-col-qty"   data-col="qty">Qty ' + sortIndicator('qty') + '</button>' +

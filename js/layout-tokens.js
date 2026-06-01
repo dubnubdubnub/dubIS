@@ -33,6 +33,9 @@ export var INV_COL_PN_W        = getLayoutTokenPx("--inv-col-pn-w");
 /** Width of the Manufacturer PN column (px). */
 export var INV_COL_MFGPN_W    = getLayoutTokenPx("--inv-col-mfgpn-w");
 
+/** Width of the purchase-source vendor favicon column (px). */
+export var INV_COL_VENDOR_W   = getLayoutTokenPx("--inv-col-vendor-w");
+
 /** Width of the Unit Price column (px). */
 export var INV_COL_UNIT_W      = getLayoutTokenPx("--inv-col-unit-w");
 
