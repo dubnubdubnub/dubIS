@@ -5,9 +5,22 @@
 import { store } from '../store.js';
 import { escHtml, vendorIconSrc } from '../ui-helpers.js';
 
+/** Number of most-recent POs shown in the inline grid stack. */
+var MAX_VISIBLE = 3;
+/** Per-icon cascade offset (px), applied both right and down. */
+var STACK_OFFSET_PX = 6;
+/** Icon edge length (px); mirrors `.fan-icon` width/height in vendor.css. */
+var ICON_SIZE_PX = 16;
+
 /**
- * Render a fanned-stack of vendor favicons for a part.
- * Uses po_history (list of po_ids) to find which vendors supplied this part.
+ * Render a cascading stack of vendor favicons for a part's most recent POs.
+ *
+ * Shows up to MAX_VISIBLE icons — one per PO (no vendor dedup), the most recent
+ * PO on top. po_history is chronological oldest→newest, so the last entries are
+ * the most recent. Icons cascade down-right with the most recent at (0,0) and
+ * the highest z-index, so each older icon's bottom+right edges peek out behind
+ * the one in front. The full per-PO history lives in the hover flyout
+ * (buildHoverFlyout); this is the at-a-glance view.
  * @param {Object} part - inventory item with po_history, primary_vendor_id
  * @returns {string} HTML string
  */
@@ -17,10 +30,6 @@ export function renderFanStack(part) {
     return '';
   }
 
-  // Collect unique vendor ids, preserving chronological order (latest first)
-  var seen = new Set();
-  var vendorIds = [];
-
   // Build po_id → vendor_id lookup from store
   var pos = store.purchaseOrders || [];
   var poVendorMap = {};
@@ -28,13 +37,14 @@ export function renderFanStack(part) {
     poVendorMap[pos[i].po_id] = pos[i].vendor_id;
   }
 
-  // Walk po_history (which is chronological / append order), collect unique vendor ids
-  for (var j = 0; j < poHistory.length; j++) {
-    var vid = poVendorMap[poHistory[j]];
-    if (vid && !seen.has(vid)) {
-      seen.add(vid);
-      vendorIds.push(vid);
-    }
+  // Take the MAX_VISIBLE most recent POs (end of the chronological list) and
+  // reverse so the newest is first (index 0 = front of the stack). One vendor
+  // id per PO — the same vendor may legitimately appear more than once.
+  var recent = poHistory.slice(-MAX_VISIBLE).reverse();
+  var vendorIds = [];
+  for (var j = 0; j < recent.length; j++) {
+    var vid = poVendorMap[recent[j]];
+    if (vid) vendorIds.push(vid);
   }
 
   // Fall back to primary_vendor_id if no PO history resolved
@@ -48,30 +58,27 @@ export function renderFanStack(part) {
   var vendorMap = {};
   (store.vendors || []).forEach(function (v) { vendorMap[v.id] = v; });
 
-  // Render stacked icons (max 3 visible, rest hidden under the stack)
-  var maxVisible = 3;
+  // Render the cascade. Index 0 (most recent) sits at (0,0) with the highest
+  // z-index; each older icon is offset down-right and layered behind.
+  var n = vendorIds.length;
   var icons = '';
-  for (var k = 0; k < vendorIds.length && k < maxVisible; k++) {
+  for (var k = 0; k < n; k++) {
     var v = vendorMap[vendorIds[k]];
     if (!v) continue;
-    var offset = k * 6; // fan offset in px
+    var off = k * STACK_OFFSET_PX;
+    var style = 'left:' + off + 'px;top:' + off + 'px;z-index:' + (n - k);
     var iconHtml = v.icon
-      ? '<span class="fan-icon fan-icon-emoji" style="left:' + offset + 'px">' + escHtml(v.icon) + '</span>'
+      ? '<span class="fan-icon fan-icon-emoji" style="' + style + '">' + escHtml(v.icon) + '</span>'
       : (v.favicon_path
-        ? '<img class="fan-icon fan-icon-img" src="' + escHtml(vendorIconSrc(v.favicon_path)) + '" alt="" style="left:' + offset + 'px">'
-        : '<span class="fan-icon fan-icon-empty" style="left:' + offset + 'px"></span>');
+        ? '<img class="fan-icon fan-icon-img" src="' + escHtml(vendorIconSrc(v.favicon_path)) + '" alt="" style="' + style + '">'
+        : '<span class="fan-icon fan-icon-empty" style="' + style + '"></span>');
     icons += iconHtml;
   }
 
-  var extraCount = vendorIds.length > maxVisible ? vendorIds.length - maxVisible : 0;
-  var extraHtml = extraCount > 0
-    ? '<span class="fan-icon fan-icon-extra" style="left:' + (maxVisible * 6) + 'px">+' + extraCount + '</span>'
-    : '';
+  var span = (n - 1) * STACK_OFFSET_PX + ICON_SIZE_PX;
 
-  var totalWidth = Math.min(vendorIds.length, maxVisible) * 6 + 16 + (extraCount > 0 ? 14 : 0);
-
-  return '<span class="favicon-fan-stack" data-part-key="' + escHtml((part.lcsc || part.mpn || '')) + '" style="width:' + totalWidth + 'px">' +
-    icons + extraHtml +
+  return '<span class="favicon-fan-stack" data-part-key="' + escHtml((part.lcsc || part.mpn || '')) + '" style="width:' + span + 'px;height:' + span + 'px">' +
+    icons +
     '</span>';
 }
 

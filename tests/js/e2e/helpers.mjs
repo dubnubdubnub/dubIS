@@ -85,7 +85,7 @@ export function addMockSetup(page, inventory, options = {}) {
           { id: 'v_salvage', name: 'Salvage', type: 'salvage', icon: '♻️',
             url: '', favicon_path: '' },
         ],
-        list_purchase_orders: async () => [],
+        list_purchase_orders: async () => opts.purchaseOrders || [],
         update_vendor: async (id, name, url) => {
           if (opts.mfgDirectVendors) {
             const existing = opts.mfgDirectVendors.find(v =>
