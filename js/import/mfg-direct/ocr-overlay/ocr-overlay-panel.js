@@ -6,10 +6,9 @@
    pseudo-vendor chips and the same apiVendors/canonicalizeUrl logic that
    mfg-direct uses, wired to a local `vendor` selection. */
 
-import { AppLog, apiVendors } from '../../../api.js';
-import { escHtml, showToast, vendorIconSrc } from '../../../ui-helpers.js';
-import { store } from '../../../store.js';
-import { canonicalizeUrl } from '../mfg-direct-logic.js';
+import { AppLog } from '../../../api.js';
+import { escHtml, showToast } from '../../../ui-helpers.js';
+import { createVendorPicker, isPseudoVendor, vendorFaviconHtml } from '../vendor-picker.js';
 import { renderModal } from './ocr-overlay-renderer.js';
 import {
   createState, selectToken, selectTokens, selectCell,
@@ -21,6 +20,12 @@ let state = null;
 let onConfirmCb = null;
 let vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
 let escHandler = null;
+
+const vendorPicker = createVendorPicker({
+  getVendor: () => vendor,
+  setVendor: (v) => { vendor = v; },
+  onChange: () => rerender(),
+});
 
 /** Open the overlay for a payload {pages, prefill_rows, template}. */
 export function openOverlay(payload, { onConfirm } = {}) {
@@ -58,6 +63,7 @@ function closeOverlay() {
   }
   state = null;
   onConfirmCb = null;
+  vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
 }
 
 function rerender() {
@@ -76,12 +82,8 @@ function rerender() {
 function mountVendorPicker(root) {
   const mount = root.querySelector('#ocr-vendor-mount');
   if (!mount) return;
-  const isPseudo = vendor.type === 'self' || vendor.type === 'salvage' || vendor.type === 'unknown';
-  const faviconHtml = vendor.icon
-    ? `<span class="vendor-favicon-emoji">${escHtml(vendor.icon)}</span>`
-    : (vendor.favicon_path
-        ? `<img class="vendor-favicon" src="${escHtml(vendorIconSrc(vendor.favicon_path))}" alt="">`
-        : `<span class="vendor-favicon-empty"></span>`);
+  const isPseudo = isPseudoVendor(vendor);
+  const faviconHtml = vendorFaviconHtml(vendor);
   mount.innerHTML = `
     <span class="ocr-vendor-picker mfg-direct-vendor-row">
       ${faviconHtml}
@@ -99,55 +101,12 @@ function mountVendorPicker(root) {
     </span>`;
 
   const nameInput = mount.querySelector('#ocr-vendor-name-input');
-  if (nameInput) nameInput.onblur = () => onVendorNameBlur(nameInput.value);
+  if (nameInput) nameInput.onblur = () => vendorPicker.onVendorNameBlur(nameInput.value);
   const urlInput = mount.querySelector('#ocr-vendor-url-input');
-  if (urlInput) urlInput.onblur = () => onVendorUrlBlur(urlInput.value);
+  if (urlInput) urlInput.onblur = () => vendorPicker.onVendorUrlBlur(urlInput.value);
   mount.querySelectorAll('.ocr-pseudo-chip').forEach(btn => {
-    btn.onclick = () => selectPseudoVendor(btn.dataset.pseudo);
+    btn.onclick = () => vendorPicker.selectPseudoVendor(btn.dataset.pseudo);
   });
-}
-
-function selectPseudoVendor(id) {
-  const v = (store.vendors || []).find(x => x.id === id);
-  if (!v) return;
-  vendor = { ...v };
-  rerender();
-}
-
-async function onVendorNameBlur(text) {
-  const trimmed = (text || '').trim();
-  if (!trimmed) return;
-  if (vendor.id && vendor.name.toLowerCase() === trimmed.toLowerCase()) return;
-  const pendingUrl = vendor.url || '';
-  const existing = (store.vendors || []).find(
-    v => v.name.toLowerCase() === trimmed.toLowerCase());
-  if (existing) {
-    vendor = { ...existing };
-    if (pendingUrl && !vendor.url && vendor.type !== 'self'
-        && vendor.type !== 'salvage' && vendor.type !== 'unknown') {
-      const v = await apiVendors.upsert(vendor.id, '', pendingUrl);
-      if (v) vendor = { ...v };
-    }
-  } else {
-    const v = await apiVendors.upsert('', trimmed, pendingUrl);
-    if (!v) return;
-    vendor = { ...v };
-  }
-  rerender();
-}
-
-async function onVendorUrlBlur(text) {
-  const canonical = canonicalizeUrl(text || '');
-  if (!vendor.id) {
-    vendor = { ...vendor, url: canonical };
-    return;
-  }
-  if (canonical === (vendor.url || '')) return;
-  if (!canonical) return;
-  const v = await apiVendors.upsert(vendor.id, '', canonical);
-  if (!v) return;
-  vendor = { ...v };
-  rerender();
 }
 
 // ── Event wiring ────────────────────────────────────────────────────────
@@ -218,6 +177,7 @@ function onConfirmClick() {
       onConfirmCb(state.rows, { ...vendor });
     } catch (exc) {
       AppLog.error('OCR overlay confirm failed: ' + exc);
+      showToast('Import failed — see log');
     }
   }
   closeOverlay();
