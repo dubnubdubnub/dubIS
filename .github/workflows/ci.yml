@@ -20,6 +20,7 @@ on:
           - pnp-e2e
           - pnp-cross
           - quality
+          - visual-baselines
 
 # Cancel superseded PR runs; push/dispatch runs get unique groups so they never conflict
 concurrency:
@@ -378,3 +379,19 @@ jobs:
         run: npx vitest run --project quality
       - name: Quality E2E (accessibility, resize-visibility)
         run: npx playwright test --project quality
+
+  # ── Visual baseline regeneration (dispatch-only) ─────────────────────
+  update-visual-baselines:
+    name: Update visual baselines (Linux)
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'visual-baselines'
+    runs-on: [self-hosted, pnp-testbox]
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install
+      - run: npx playwright install chromium
+      - name: Regenerate visual baselines
+        run: npx playwright test drop-zone-visual --project functional --update-snapshots
+      - uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines-linux
+          path: tests/js/e2e/**/*-linux.png
