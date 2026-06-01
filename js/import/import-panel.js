@@ -5,7 +5,7 @@ import { showToast, escHtml, setupDropZone, resetDropZoneInput } from '../ui-hel
 import { UndoRedo } from '../undo-redo.js';
 import { store, onInventoryUpdated, savePreferences } from '../store.js';
 import { parseCSV, generateCSV } from '../csv-parser.js';
-import { TARGET_FIELDS, PO_TEMPLATES, classifyRow, countWarnings, transformImportRows } from './import-logic.js';
+import { TARGET_FIELDS, PO_TEMPLATES, classifyRow, countWarnings, transformImportRows, seedManualRows } from './import-logic.js';
 import { renderDropZone, renderMapper as renderMapperHtml } from './import-renderer.js';
 
 const body = document.getElementById("import-body");
@@ -32,7 +32,6 @@ async function handleImportUndo(data) {
   zone.innerHTML = `<p>${escHtml(importFileName)}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
     <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`;
   zone.classList.add("loaded");
-  zone.classList.remove("has-direct-frame");
   resetDropZoneInput("import-file-input", handleImportFile);
   renderMapper();
   showToast("Undid import of " + data.importedCount + " rows");
@@ -77,99 +76,64 @@ UndoRedo.register("import", async (action, data) => {
   }
 });
 
+/** Current OCR template selection (defaults to 'generic'). */
+function ocrTemplate() {
+  const sel = document.getElementById("import-ocr-template");
+  return (sel && sel.value) || "generic";
+}
+
 export function init() {
   body.innerHTML = renderDropZone(PO_TEMPLATES);
+
+  // ── CSV / TSV / TXT / XLS zone (existing inline flow) ──
   setupDropZone("import-drop-zone", "import-file-input", browseImportFile, handleImportFile);
-  document.querySelectorAll(".new-po-btn").forEach(btn => {
+  document.querySelectorAll("#new-po-row .new-po-btn[data-template]").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (btn.dataset.template === 'direct') {
-        import('./mfg-direct/mfg-direct-panel.js').then(m => {
-          m.startDirectFlow(body);
-        });
-      } else {
-        createNewPO(btn.dataset.template);
-      }
+      createNewPO(btn.dataset.template);
     });
   });
-  setupDropZoneFrame();
+
+  const addRowBtn = document.getElementById("import-add-row");
+  if (addRowBtn) {
+    addRowBtn.addEventListener("click", (e) => { e.stopPropagation(); seedManualRow(); });
+  }
+
+  // ── Image / PDF / Phone zone (OCR overlay + phone scan) ──
+  setupDropZone(
+    "import-ocr-zone",
+    "import-ocr-input",
+    () => document.getElementById("import-ocr-input").click(),
+    (file) => import('./mfg-direct/mfg-direct-panel.js').then(m => m.openOcrImport(body, file, ocrTemplate())),
+  );
+
+  const scanBtn = document.getElementById("import-scan-btn");
+  if (scanBtn) {
+    scanBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      import('./mfg-direct/mfg-direct-panel.js').then(m => m.startPhoneScan(body, ocrTemplate()));
+    });
+  }
 }
 
-// ── Drop-zone L-shape frame (SVG path computed from button position) ─────
-//
-// The import drop-zone has the ★ Direct button anchored in its bottom-right
-// corner. We render the dashed perimeter as an L-shape with rounded corners
-// and a constant 8px margin from the button. The path is computed at runtime
-// from the button's bounding rect and re-computed on resize.
-const FRAME_MARGIN = 8;        // px between button and dashed perimeter
-const FRAME_OUTER_R = 8;       // outer corner radius (matches drop-zone border-radius)
-const FRAME_NOTCH_R = 4;       // notch convex corner radius (C, D)
-let frameObserver = null;
+/**
+ * Seed an inline manual-entry session: one blank row using the generic PO
+ * headers, with an identity column mapping, then render the editable staging
+ * table so the user can type and import via the existing path.
+ */
+function seedManualRow() {
+  const seed = seedManualRows(PO_TEMPLATES.generic);
+  parsedHeaders = seed.parsedHeaders;
+  parsedRows = seed.parsedRows;
+  columnMapping = seed.columnMapping;
+  importFileName = "Manual entry";
+  lastImportMeta = null;
 
-function buildFramePath(W, H, btnLeft, btnTop) {
-  const M = FRAME_MARGIN;
-  const R = FRAME_OUTER_R;
-  const r = FRAME_NOTCH_R;
-  // Stroke is centered on the path with stroke-width 2; leave 1px so dashes
-  // aren't clipped by the SVG bounds.
-  const x0 = 1, y0 = 1, x1 = W - 1, y1 = H - 1;
-  // Notch top/left edges sit M away from the button on those sides; clamp
-  // them to leave room for the outer rounded corners (R) plus the notch's
-  // own convex corner (r) so the path is well-formed even at narrow widths.
-  const notchTop = Math.max(y0 + R + r + 2, btnTop - M);
-  const notchLeft = Math.max(x0 + R + r + 2, btnLeft - M);
-  // Convex corners use sweep=1 (clockwise traversal). The concave F corner
-  // is a quarter-arc of radius M centered on the button's NW corner — the
-  // perimeter wraps around the button's corner at constant distance M
-  // (sweep=0, CCW around its center).
-  return [
-    `M ${x0 + R} ${y0}`,
-    `H ${x1 - R}`,
-    `A ${R} ${R} 0 0 1 ${x1} ${y0 + R}`,                 // B: TR convex
-    `V ${notchTop - r}`,
-    `A ${r} ${r} 0 0 1 ${x1 - r} ${notchTop}`,           // C: right→notch-top
-    `H ${btnLeft}`,
-    `A ${M} ${M} 0 0 0 ${notchLeft} ${btnTop}`,          // F: concave, wraps button NW
-    `V ${y1 - r}`,
-    `A ${r} ${r} 0 0 1 ${notchLeft - r} ${y1}`,          // D: notch-left→bottom
-    `H ${x0 + R}`,
-    `A ${R} ${R} 0 0 1 ${x0} ${y1 - R}`,                 // E: BL
-    `V ${y0 + R}`,
-    `A ${R} ${R} 0 0 1 ${x0 + R} ${y0}`,                 // A: TL
-    'Z',
-  ].join(' ');
-}
+  const newPoRow = document.getElementById("new-po-row");
+  if (newPoRow) newPoRow.classList.add("hidden");
 
-function updateDropZoneFrame() {
-  const zone = document.getElementById('import-drop-zone');
-  if (!zone || !zone.classList.contains('has-direct-frame')) return;
-  const svg = zone.querySelector('.drop-zone-frame');
-  const path = zone.querySelector('.drop-zone-frame-path');
-  const button = zone.querySelector('[data-template="direct"]');
-  if (!svg || !path || !button) return;
-  const zr = zone.getBoundingClientRect();
-  const br = button.getBoundingClientRect();
-  if (zr.width === 0 || zr.height === 0) return;
-  // SVG has inset:-2 + width/height calc(100% + 4) so it covers the drop-zone's
-  // BORDER box exactly (the 2px transparent border on #import-drop-zone). In
-  // pixel terms the SVG's rendered size equals zr.width × zr.height. Setting
-  // viewBox to those pixel dims makes user units = pixels and SVG (0,0) =
-  // (zr.left, zr.top), so button position in SVG userspace is br - zr.
-  const W = zr.width;
-  const H = zr.height;
-  const btnLeft = br.left - zr.left;
-  const btnTop = br.top - zr.top;
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  path.setAttribute('d', buildFramePath(W, H, btnLeft, btnTop));
-}
-
-function setupDropZoneFrame() {
-  if (frameObserver) { frameObserver.disconnect(); frameObserver = null; }
-  const zone = document.getElementById('import-drop-zone');
-  if (!zone) return;
-  updateDropZoneFrame();
-  frameObserver = new ResizeObserver(updateDropZoneFrame);
-  frameObserver.observe(zone);
+  AppLog.info("Started manual entry import");
+  renderMapper();
 }
 
 async function browseImportFile() {
@@ -223,7 +187,6 @@ async function createNewPO(templateKey = "generic") {
   zone.innerHTML = `<p>${escHtml(fileName)}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
     <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`;
   zone.classList.add("loaded");
-  zone.classList.remove("has-direct-frame");
   resetDropZoneInput("import-file-input", handleImportFile);
 
   const newPoRow = document.getElementById("new-po-row");
@@ -258,7 +221,6 @@ async function loadImportText(text, fileName) {
   zone.innerHTML = `<p>${escHtml(fileName)}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
     <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`;
   zone.classList.add("loaded");
-  zone.classList.remove("has-direct-frame");
   resetDropZoneInput("import-file-input", handleImportFile);
 
   const newPoRow = document.getElementById("new-po-row");
@@ -294,6 +256,13 @@ function updateImportButton() {
 function renderMapper() {
   const mapper = document.getElementById("import-mapper");
   mapper.classList.remove("hidden");
+
+  // Once a CSV/manual staging session is active, the image/PDF zone is no longer
+  // relevant — collapse it so the staging table and Import button stay reachable
+  // within the (scrollable) import panel at short viewports. init() re-renders the
+  // panel fresh, restoring both zones.
+  const ocrZone = document.getElementById("import-ocr-zone");
+  if (ocrZone) ocrZone.classList.add("hidden");
 
   const html = renderMapperHtml(parsedHeaders, parsedRows, columnMapping, TARGET_FIELDS, importFileName);
   mapper.innerHTML = html;

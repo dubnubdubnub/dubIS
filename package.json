@@ -10,7 +10,7 @@
     "test:e2e:quality": "playwright test --project quality",
     "lint": "eslint js/",
     "lint:fix": "eslint js/ --fix",
-    "visual:baselines": "playwright test drop-zone-visual --project functional --update-snapshots"
+    "visual:baselines": "playwright test inv-alignment-visual sticky-clip-visual --project functional --update-snapshots"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.1",

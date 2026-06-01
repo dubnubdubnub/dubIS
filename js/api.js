@@ -80,6 +80,7 @@ export const apiMfgDirect = {
     api('ocr_overlay_b64', b64, name, template),
   matchPart: (mpn, mfg) => api('match_part', mpn, mfg),
   startScanSession: (template) => api('start_scan_session', template),
+  ocrEngineAvailable: () => api('ocr_engine_available'),
 };
 
 export const apiWarnings = { get: () => api('get_warnings') };
