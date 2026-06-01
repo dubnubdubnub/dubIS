@@ -22,6 +22,7 @@ graph LR
     "distributor_manager.py" --> "lcsc_client.py"
     "distributor_manager.py" --> "mouser_client.py"
     "distributor_manager.py" --> "pololu_client.py"
+    "distributor_profiles.py" --> "mfg_direct_import.py"
     "domain/generic_parts.py" --> "spec_extractor.py"
     "domain/inventory.py" --> "cache_db.py"
     "domain/inventory.py" --> "csv_io.py"
@@ -34,12 +35,14 @@ graph LR
     "inventory_api.py" --> "cache_db.py"
     "inventory_api.py" --> "csv_io.py"
     "inventory_api.py" --> "distributor_manager.py"
+    "inventory_api.py" --> "distributor_profiles.py"
     "inventory_api.py" --> "domain/generic_parts.py"
     "inventory_api.py" --> "domain/inventory.py"
     "inventory_api.py" --> "domain/pricing.py"
     "inventory_api.py" --> "file_dialogs.py"
     "inventory_api.py" --> "inventory_ops.py"
     "inventory_api.py" --> "mfg_direct_import.py"
+    "inventory_api.py" --> "pnp_server.py"
     "inventory_api.py" --> "poll_api.py"
     "inventory_api.py" --> "purchase_orders.py"
     "inventory_api.py" --> "saved_searches.py"
@@ -56,6 +59,7 @@ graph LR
     "js/app-init.js" --> "js/event-bus.js"
     "js/app-init.js" --> "js/group-flyout/flyout-panel.js"
     "js/app-init.js" --> "js/import/import-panel.js"
+    "js/app-init.js" --> "js/import/mfg-direct/mfg-direct-panel.js"
     "js/app-init.js" --> "js/inventory-modals.js"
     "js/app-init.js" --> "js/inventory/inventory-panel.js"
     "js/app-init.js" --> "js/label-export-modal.js"
@@ -127,6 +131,8 @@ graph LR
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/import/mfg-direct/mfg-direct-renderer.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/store.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/ui-helpers.js"
+    "js/import/mfg-direct/mfg-direct-panel.js" --> "js/vendor/qrcode.js"
+    "js/import/mfg-direct/mfg-direct-renderer.js" --> "js/import/import-logic.js"
     "js/import/mfg-direct/mfg-direct-renderer.js" --> "js/import/mfg-direct/mfg-direct-logic.js"
     "js/import/mfg-direct/mfg-direct-renderer.js" --> "js/ui-helpers.js"
     "js/inventory-modals.js" --> "js/api.js"
@@ -237,6 +243,7 @@ graph LR
     "js/undo-redo.js" --> "js/api.js"
     "lcsc_client.py" --> "base_client.py"
     "mfg_direct_import.py" --> "csv_io.py"
+    "mfg_direct_import.py" --> "distributor_profiles.py"
     "mfg_direct_import.py" --> "inventory_api.py"
     "mfg_direct_import.py" --> "purchase_orders.py"
     "mouser_client.py" --> "base_client.py"
@@ -260,6 +267,7 @@ graph LR
     "tests/js/bom-renderer.test.js" --> "js/bom/bom-renderer.js"
     "tests/js/bom-row-display.test.js" --> "js/bom-row-data.js"
     "tests/js/csv-parser.test.js" --> "js/csv-parser.js"
+    "tests/js/e2e/scan-server.py" --> "pnp_server.py"
     "tests/js/event-bus.test.js" --> "js/event-bus.js"
     "tests/js/favicon-stack.test.js" --> "js/inventory/favicon-stack.js"
     "tests/js/group-flyout-logic.test.js" --> "js/group-flyout/flyout-logic.js"
@@ -282,6 +290,7 @@ graph LR
     "tests/js/matching.test.js" --> "js/part-keys.js"
     "tests/js/mfg-direct-logic.test.js" --> "js/import/mfg-direct/mfg-direct-logic.js"
     "tests/js/part-keys.test.js" --> "js/part-keys.js"
+    "tests/js/qrcode.test.js" --> "js/vendor/qrcode.js"
     "tests/js/real-data.test.js" --> "js/csv-parser.js"
     "tests/js/real-data.test.js" --> "js/matching.js"
     "tests/js/real-data.test.js" --> "js/part-keys.js"
@@ -335,6 +344,7 @@ graph LR
     "tests/python/test_distributor_fixtures.py" --> "distributor_fixtures.py"
     "tests/python/test_distributor_live.py" --> "distributor_manager.py"
     "tests/python/test_distributor_manager.py" --> "distributor_manager.py"
+    "tests/python/test_distributor_profiles.py" --> "distributor_profiles.py"
     "tests/python/test_dubis_errors.py" --> "dubis_errors.py"
     "tests/python/test_file_dialogs.py" --> "file_dialogs.py"
     "tests/python/test_html_product_parser.py" --> "html_product_parser.py"
@@ -350,6 +360,7 @@ graph LR
     "tests/python/test_inventory_api_pricing.py" --> "domain/pricing.py"
     "tests/python/test_inventory_api_pricing.py" --> "tests/python/helpers.py"
     "tests/python/test_inventory_ops.py" --> "inventory_ops.py"
+    "tests/python/test_mfg_direct_import.py" --> "distributor_manager.py"
     "tests/python/test_mfg_direct_import.py" --> "mfg_direct_import.py"
     "tests/python/test_mfg_direct_import.py" --> "vendors.py"
     "tests/python/test_normalizers.py" --> "digikey_client.py"
@@ -364,6 +375,7 @@ graph LR
     "tests/python/test_real_data.py" --> "inventory_api.py"
     "tests/python/test_saved_searches.py" --> "cache_db.py"
     "tests/python/test_saved_searches.py" --> "saved_searches.py"
+    "tests/python/test_scan_session.py" --> "pnp_server.py"
     "tests/python/test_source_sanitizer.py" --> "source_sanitizer.py"
     "tests/python/test_spec_extractor.py" --> "spec_extractor.py"
     "tests/python/test_vendors.py" --> "vendors.py"
@@ -449,7 +461,12 @@ graph LR
 ### distributor_manager.py
 
 - **Imports:** `base_client.py`, `digikey_client.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`
-- **Imported by:** `inventory_api.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_live.py`, `tests/python/test_distributor_manager.py`, `tests/python/test_inventory_api_pricing.py`
+- **Imported by:** `inventory_api.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_live.py`, `tests/python/test_distributor_manager.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_mfg_direct_import.py`
+
+### distributor_profiles.py
+
+- **Imports:** `mfg_direct_import.py`
+- **Imported by:** `inventory_api.py`, `mfg_direct_import.py`, `tests/python/test_distributor_profiles.py`
 
 ### domain/__init__.py
 
@@ -488,7 +505,7 @@ graph LR
 
 ### inventory_api.py
 
-- **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `file_dialogs.py`, `inventory_ops.py`, `mfg_direct_import.py`, `poll_api.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
+- **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `distributor_profiles.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `file_dialogs.py`, `inventory_ops.py`, `mfg_direct_import.py`, `pnp_server.py`, `poll_api.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
 - **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_real_data.py`
 
 ### inventory_ops.py
@@ -503,7 +520,7 @@ graph LR
 
 ### js/app-init.js
 
-- **Imports:** `js/api.js`, `js/bom/bom-panel.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/inventory-modals.js`, `js/inventory/inventory-panel.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
+- **Imports:** `js/api.js`, `js/bom/bom-panel.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory-modals.js`, `js/inventory/inventory-panel.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
 - **Imported by:** —
 - **Emits:** `CONFIRMED_CHANGED`, `LINKS_CHANGED`, `SAVE_AND_CLOSE`
 - **Listens:** `BOM_LOADED`, `INVENTORY_UPDATED`
@@ -599,7 +616,7 @@ graph LR
 ### js/import/import-logic.js
 
 - **Imports:** —
-- **Imported by:** `js/import/import-panel.js`, `js/import/import-renderer.js`, `tests/js/import-logic.test.js`
+- **Imported by:** `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `tests/js/import-logic.test.js`
 
 ### js/import/import-panel.js
 
@@ -618,12 +635,12 @@ graph LR
 
 ### js/import/mfg-direct/mfg-direct-panel.js
 
-- **Imports:** `js/api.js`, `js/import/mfg-direct/mfg-direct-logic.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/store.js`, `js/ui-helpers.js`
-- **Imported by:** —
+- **Imports:** `js/api.js`, `js/import/mfg-direct/mfg-direct-logic.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/store.js`, `js/ui-helpers.js`, `js/vendor/qrcode.js`
+- **Imported by:** `js/app-init.js`
 
 ### js/import/mfg-direct/mfg-direct-renderer.js
 
-- **Imports:** `js/import/mfg-direct/mfg-direct-logic.js`, `js/ui-helpers.js`
+- **Imports:** `js/import/import-logic.js`, `js/import/mfg-direct/mfg-direct-logic.js`, `js/ui-helpers.js`
 - **Imported by:** `js/import/mfg-direct/mfg-direct-panel.js`
 
 ### js/inventory-modals.js
@@ -779,6 +796,11 @@ graph LR
 - **Imports:** `js/api.js`
 - **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/import/import-panel.js`, `js/inventory-modals.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-mutations.js`, `tests/js/undo-redo.test.js`
 
+### js/vendor/qrcode.js
+
+- **Imports:** —
+- **Imported by:** `js/import/mfg-direct/mfg-direct-panel.js`, `tests/js/qrcode.test.js`
+
 ### lcsc_client.py
 
 - **Imports:** `base_client.py`
@@ -786,8 +808,8 @@ graph LR
 
 ### mfg_direct_import.py
 
-- **Imports:** `csv_io.py`, `inventory_api.py`, `purchase_orders.py`
-- **Imported by:** `inventory_api.py`, `tests/python/test_mfg_direct_import.py`
+- **Imports:** `csv_io.py`, `distributor_profiles.py`, `inventory_api.py`, `purchase_orders.py`
+- **Imported by:** `distributor_profiles.py`, `inventory_api.py`, `tests/python/test_mfg_direct_import.py`
 
 ### mouser_client.py
 
@@ -797,7 +819,7 @@ graph LR
 ### pnp_server.py
 
 - **Imports:** —
-- **Imported by:** `tests/pnp-e2e/dubis_headless.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `inventory_api.py`, `tests/js/e2e/scan-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
 
 ### poll_api.py
 
@@ -929,6 +951,11 @@ graph LR
 - **Imports:** `js/csv-parser.js`
 - **Imported by:** —
 
+### tests/js/e2e/scan-server.py
+
+- **Imports:** `pnp_server.py`
+- **Imported by:** —
+
 ### tests/js/event-bus.test.js
 
 - **Imports:** `js/event-bus.js`
@@ -1014,6 +1041,11 @@ graph LR
 ### tests/js/part-keys.test.js
 
 - **Imports:** `js/part-keys.js`
+- **Imported by:** —
+
+### tests/js/qrcode.test.js
+
+- **Imports:** `js/vendor/qrcode.js`
 - **Imported by:** —
 
 ### tests/js/real-data.test.js
@@ -1208,6 +1240,11 @@ graph LR
 - **Imports:** `distributor_manager.py`
 - **Imported by:** —
 
+### tests/python/test_distributor_profiles.py
+
+- **Imports:** `distributor_profiles.py`
+- **Imported by:** —
+
 ### tests/python/test_dubis_errors.py
 
 - **Imports:** `dubis_errors.py`
@@ -1265,7 +1302,7 @@ graph LR
 
 ### tests/python/test_mfg_direct_import.py
 
-- **Imports:** `mfg_direct_import.py`, `vendors.py`
+- **Imports:** `distributor_manager.py`, `mfg_direct_import.py`, `vendors.py`
 - **Imported by:** —
 
 ### tests/python/test_normalizers.py
@@ -1296,6 +1333,11 @@ graph LR
 ### tests/python/test_saved_searches.py
 
 - **Imports:** `cache_db.py`, `saved_searches.py`
+- **Imported by:** —
+
+### tests/python/test_scan_session.py
+
+- **Imports:** `pnp_server.py`
 - **Imported by:** —
 
 ### tests/python/test_source_sanitizer.py
