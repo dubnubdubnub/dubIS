@@ -663,6 +663,11 @@ class InventoryApi:
         data = base64.b64decode(file_b64)
         return ocr_layout.extract_pages(data, ext, template)
 
+    def ocr_engine_available(self) -> bool:
+        """True if the Tesseract OCR binary can be located (PATH or common dirs)."""
+        import ocr_engine
+        return ocr_engine.ensure_tesseract()
+
     def start_scan_session(self, template: str = "generic") -> dict[str, Any]:
         """Mint a phone-scan session and return connection details.
 

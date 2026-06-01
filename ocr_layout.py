@@ -18,6 +18,10 @@ def extract_page(png_bytes: bytes) -> dict[str, Any]:
     import pytesseract
     from PIL import Image
 
+    import ocr_engine
+
+    ocr_engine.require_tesseract()
+
     with Image.open(io.BytesIO(png_bytes)) as im:
         im = im.convert("RGB")
         width, height = im.width, im.height
