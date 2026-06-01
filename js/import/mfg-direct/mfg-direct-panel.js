@@ -39,6 +39,94 @@ export function startDirectFlow(mountElement) {
   rerender();
 }
 
+// ── New two-zone entry points (image/PDF → OCR overlay; phone → scan modal) ──
+
+/** Read a File into raw base64 (no data-URL prefix). */
+function _fileToB64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(typeof r.result === 'string' ? r.result.split(',')[1] : '');
+    r.onerror = () => reject(new Error('read failed'));
+    r.readAsDataURL(file);
+  });
+}
+
+/** Reset module state for a fresh import (no editor render). */
+function _resetForImport(mountElement, template) {
+  mountEl = mountElement || document.getElementById('import-body');
+  state.active = true;
+  state.editingPoId = null;
+  state.vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
+  state.lineItems = [];
+  state.sourceFile = null;
+  state.scanTemplate = template || 'generic';
+}
+
+/**
+ * Open the OCR side-by-side review overlay for an image/PDF — no standalone
+ * editor. On confirm, the reviewed rows + vendor flow straight into importPO().
+ */
+export async function openOcrImport(mountElement, file, template = 'generic') {
+  _resetForImport(mountElement, template);
+  let b64;
+  try {
+    b64 = await _fileToB64(file);
+  } catch {
+    showToast('Could not read that file');
+    return;
+  }
+  // Proactively surface a missing OCR engine before the heavier call.
+  try {
+    const ok = await apiMfgDirect.ocrEngineAvailable();
+    if (ok === false) {
+      showToast('OCR engine not available — install Tesseract');
+      AppLog.warn('ocr_engine_available returned false');
+      return;
+    }
+  } catch (exc) {
+    // Non-fatal: fall through to the OCR call, whose catch is the real safety net.
+    AppLog.warn('ocr_engine_available check failed: ' + exc);
+  }
+  try {
+    const payload = await apiMfgDirect.ocrOverlayB64(b64, file.name, template);
+    if (payload && payload.pages && payload.pages.length) {
+      openOverlay(payload, {
+        onConfirm: (rows, vendor) => {
+          state.lineItems = rows;
+          state.vendor = vendor;
+          state.sourceFile = { name: file.name, bytes: b64 };
+          importPO();
+        },
+      });
+      return;
+    }
+    showToast('No text found in that file — try a clearer photo or a CSV');
+    AppLog.warn('ocr_overlay_b64 returned no pages');
+  } catch (exc) {
+    // The pywebview bridge surfaces Python exceptions as the JS error message;
+    // TesseractMissingError text contains "Tesseract" + a winget install hint.
+    const msg = String((exc && exc.message) || exc);
+    if (/tesseract/i.test(msg)) {
+      showToast(msg);
+    } else {
+      AppLog.error('OCR import failed: ' + exc);
+      showToast('OCR failed — see log');
+    }
+  }
+}
+
+/** Start a phone-scan session and open the QR modal — no standalone editor. */
+export async function startPhoneScan(mountElement, template = 'generic') {
+  _resetForImport(mountElement, template);
+  const session = await apiMfgDirect.startScanSession(template);
+  if (!session || !session.urls || !session.urls.length) {
+    AppLog.warn('start_scan_session returned no URLs');
+    showToast('Could not start scan session');
+    return;
+  }
+  openScanModal(session);
+}
+
 function rerender() {
   if (!mountEl) return;
   if (state.popout) {
@@ -277,7 +365,7 @@ async function scanReceived(payload) {
   // The push can arrive while the flow isn't active (e.g. modal closed, or a
   // race) — start it so the items have somewhere to land.
   if (!state.active) {
-    startDirectFlow(mountEl || document.getElementById('import-body'));
+    _resetForImport(mountEl, payload.template || 'generic');
   }
   closeScanModal();
 
