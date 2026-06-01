@@ -132,6 +132,8 @@ def _capture_page_html(template, session_id):
     font-size: 1.1rem; text-align: center; border-radius: 12px; border: none;
     margin-bottom: 16px; cursor: pointer; }}
   label.btn {{ background: #2563eb; color: #fff; }}
+  label.btn.secondary {{ background: transparent; color: #2563eb;
+    border: 1px solid #2563eb; }}
   button.send {{ background: #16a34a; color: #fff; }}
   button:disabled {{ opacity: 0.5; }}
   input[type=file] {{ display: none; }}
@@ -150,18 +152,23 @@ def _capture_page_html(template, session_id):
 
 <div id="msg" class="msg"></div>
 
-<label class="btn" for="file">Take / choose a photo</label>
+<label class="btn" for="file">Take a photo</label>
 <input id="file" type="file" accept="image/*" capture="environment">
+
+<label class="btn secondary" for="file-library">Upload an existing photo</label>
+<input id="file-library" type="file" accept="image/*">
+
 <img id="preview" alt="preview">
 <button id="send" class="send" disabled>Send to desktop</button>
 
-<p class="hint">Point your camera at the printed purchase order, take a clear
-photo, then tap <em>Send to desktop</em>.</p>
+<p class="hint">Take a clear photo of the printed purchase order — or upload one
+you already have — then tap <em>Send to desktop</em>.</p>
 
 <script>
 (function () {{
   var SESSION = {json.dumps(session_id)};
-  var fileInput = document.getElementById("file");
+  var cameraInput = document.getElementById("file");
+  var libraryInput = document.getElementById("file-library");
   var preview = document.getElementById("preview");
   var sendBtn = document.getElementById("send");
   var msg = document.getElementById("msg");
@@ -176,8 +183,8 @@ photo, then tap <em>Send to desktop</em>.</p>
       + "'Choose a file' on the desktop instead.");
   }}
 
-  fileInput.addEventListener("change", function () {{
-    var f = fileInput.files && fileInput.files[0];
+  function handleSelection(input) {{
+    var f = input.files && input.files[0];
     if (!f) return;
     filename = f.name || "scan.jpg";
     var reader = new FileReader();
@@ -190,7 +197,10 @@ photo, then tap <em>Send to desktop</em>.</p>
     }};
     reader.onerror = function () {{ show("err", "Could not read the photo."); }};
     reader.readAsDataURL(f);
-  }});
+  }}
+
+  cameraInput.addEventListener("change", function () {{ handleSelection(cameraInput); }});
+  libraryInput.addEventListener("change", function () {{ handleSelection(libraryInput); }});
 
   sendBtn.addEventListener("click", function () {{
     if (!dataUrl) return;
