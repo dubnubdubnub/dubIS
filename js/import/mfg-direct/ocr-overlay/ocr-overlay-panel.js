@@ -12,7 +12,7 @@ import { createVendorPicker, isPseudoVendor, vendorFaviconHtml } from '../vendor
 import { renderModal } from './ocr-overlay-renderer.js';
 import {
   createState, selectToken, selectTokens, selectCell,
-  applyPending, setCellValue, setPage, clearPending,
+  applyPending, setCellValue, setPage, clearPending, setTokenMode,
 } from './ocr-overlay-state.js';
 import { normalizeRect, tokensInRect } from './ocr-overlay-hittest.js';
 
@@ -128,6 +128,11 @@ function bindEvents(root) {
     };
     td.ondblclick = () => editCell(td, row, field);
   });
+
+  const modeWords = root.querySelector('#ocr-mode-words');
+  if (modeWords) modeWords.onclick = () => { state = setTokenMode(state, 'w'); rerender(); };
+  const modeLines = root.querySelector('#ocr-mode-lines');
+  if (modeLines) modeLines.onclick = () => { state = setTokenMode(state, 'l'); rerender(); };
 
   const prev = root.querySelector('#ocr-prev');
   if (prev) prev.onclick = () => { state = setPage(state, state.pageIdx - 1); rerender(); };

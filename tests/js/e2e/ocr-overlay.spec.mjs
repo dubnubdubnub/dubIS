@@ -55,9 +55,16 @@ const PREFILL_ROWS = [
   { distributor_pn: '', mpn: '', manufacturer: 'Generic', description: '', package: '0402', quantity: 50, unit_price: 0.02 },
 ];
 
+// Whole-line OCR tokens, exposed when the user toggles to "Lines" mode.
+const LINES = [
+  { text: 'C12624 100nF', x: 8, y: 8, w: 60, h: 14, conf: 0.96 },
+  { text: 'KT-0603G 0603', x: 8, y: 52, w: 70, h: 14, conf: 0.94 },
+  { text: 'Generic resistor', x: 8, y: 80, w: 80, h: 14, conf: 0.9 },
+];
+
 const OCR_RESULT_1PAGE = {
   template: 'lcsc',
-  pages: [{ image_b64: PNG_1X1_B64, width: 100, height: 100, words: WORDS, lines: [] }],
+  pages: [{ image_b64: PNG_1X1_B64, width: 100, height: 100, words: WORDS, lines: LINES }],
   prefill_rows: PREFILL_ROWS,
 };
 
@@ -109,6 +116,30 @@ test.describe('OCR overlay PO review modal', () => {
     // Tokens carry their text in title/textContent.
     await expect(page.locator('.ocr-token[data-token="0:w:0"]')).toHaveAttribute('title', 'C12624');
     await expect(page.locator('.ocr-token[data-token="0:w:1"]')).toHaveAttribute('title', 'KT-0603G');
+  });
+
+  test('Lines toggle: switch to line mode renders one token per OCR line', async ({ page }) => {
+    await openOverlay(page);
+    // Default mode is words: two word tokens.
+    await expect(page.locator('#ocr-overlay .ocr-token')).toHaveCount(2);
+    await expect(page.locator('#ocr-mode-words')).toHaveAttribute('aria-pressed', 'true');
+
+    // Click Lines: now three line tokens with :l: ids, no word tokens.
+    await page.locator('#ocr-mode-lines').click();
+    await expect(page.locator('#ocr-overlay .ocr-token')).toHaveCount(3);
+    await expect(page.locator('.ocr-token[data-token="0:l:0"]')).toHaveAttribute('title', 'C12624 100nF');
+    await expect(page.locator('.ocr-token[data-token="0:w:0"]')).toHaveCount(0);
+    await expect(page.locator('#ocr-mode-lines')).toHaveAttribute('aria-pressed', 'true');
+
+    // A line token fills a cell just like a word token (the :l: branch).
+    await page.locator('.ocr-token[data-token="0:l:0"]').click();
+    await page.locator('.ocr-cell[data-row="0"][data-field="distributor_pn"]').click();
+    await expect(page.locator('.ocr-cell[data-row="0"][data-field="distributor_pn"]'))
+      .toHaveText('C12624 100nF');
+
+    // Toggle back to Words restores the word tokens.
+    await page.locator('#ocr-mode-words').click();
+    await expect(page.locator('#ocr-overlay .ocr-token')).toHaveCount(2);
   });
 
   test('word → cell fill: click a token then a cell', async ({ page }) => {

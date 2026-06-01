@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   createState, selectToken, selectCell, applyPending,
   combineTokens, setCellValue, tokenText,
-  selectTokens, setPage, clearPending,
+  selectTokens, setPage, clearPending, setTokenMode,
 } from '../../js/import/mfg-direct/ocr-overlay/ocr-overlay-state.js';
 
 const payload = {
@@ -82,6 +82,28 @@ describe('ocr-overlay-state', () => {
     const after = applyPending(s);
     expect(after).toBe(s);
     expect(after.rows[0].distributor_pn).toBe('');
+  });
+
+  it('createState defaults tokenMode to words', () => {
+    expect(createState(payload).tokenMode).toBe('w');
+  });
+
+  it('setTokenMode switches mode and clears pending', () => {
+    let s = createState(payload);
+    s = selectToken(s, '0:w:0');
+    expect(s.pending.kind).toBe('source');
+    s = setTokenMode(s, 'l');
+    expect(s.tokenMode).toBe('l');
+    expect(s.pending.kind).toBe(null);
+    expect(s.pending.tokenIds).toEqual([]);
+    s = setTokenMode(s, 'w');
+    expect(s.tokenMode).toBe('w');
+  });
+
+  it('setTokenMode defaults invalid modes to words', () => {
+    let s = createState(payload);
+    s = setTokenMode(s, 'bogus');
+    expect(s.tokenMode).toBe('w');
   });
 
   it('clearPending resets the pending selection', () => {
