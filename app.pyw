@@ -103,6 +103,9 @@ def main():
         nonlocal pnp_server
         set_icon()
         pnp_server = start_pnp_server(api, window)
+        # Expose the running server so api.start_scan_session() can mint sessions
+        # on it (phone-scan transport). May be None if the port was unavailable.
+        api._pnp_server = pnp_server
         prefs = api.load_preferences()
         configured_port = prefs.get("pollApiPort")
         start_poll_server(api, port=configured_port if configured_port else POLL_PORT)
