@@ -55,6 +55,21 @@ class _FakeApi:
                            "b64_len": len(file_b64)})
         return self.line_items
 
+    def ocr_overlay_b64(self, file_b64, file_name, template="generic"):
+        # The phone upload handler now calls this (one OCR pass producing the
+        # overlay payload). Record the call like the old OCR path and return a
+        # canned overlay so the capture-page E2E still exercises the real route.
+        self.calls.append({"filename": file_name, "template": template,
+                           "b64_len": len(file_b64)})
+        return {
+            "pages": [{
+                "image_b64": "AAAA", "width": 10, "height": 10,
+                "words": [], "lines": [],
+            }],
+            "prefill_rows": self.line_items,
+            "template": template,
+        }
+
 
 def main():
     parser = argparse.ArgumentParser()
