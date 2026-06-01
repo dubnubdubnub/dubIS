@@ -8,6 +8,7 @@ export function createState(payload) {
     rows: (payload.prefill_rows || []).map(r => ({ ...r })),
     lowConf: (payload.prefill_rows || []).map(r => new Set(r._low_conf || [])),
     pending: { kind: null, tokenIds: [], cell: null },
+    tokenMode: 'w',
   };
 }
 
@@ -74,6 +75,12 @@ export function setCellValue(state, row, field, value) {
 
 export function setPage(state, pageIdx) {
   return { ...state, pageIdx, pending: { kind: null, tokenIds: [], cell: null } };
+}
+
+/** Switch the token rendering mode ('w' = words, 'l' = lines). Clears pending. */
+export function setTokenMode(state, mode) {
+  const tokenMode = mode === 'l' ? 'l' : 'w';
+  return { ...state, tokenMode, pending: { kind: null, tokenIds: [], cell: null } };
 }
 
 export function clearPending(state) {

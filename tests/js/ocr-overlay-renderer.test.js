@@ -42,6 +42,7 @@ function makeState() {
     ],
     lowConf: [new Set(['manufacturer']), new Set()],
     pending: { kind: null, tokenIds: [], cell: null },
+    tokenMode: 'w',
   };
 }
 
@@ -61,6 +62,35 @@ describe('renderModal', () => {
     // 100/1000 = 10% left, 200/2000 = 10% top
     expect(html).toContain('left:10%;top:10%');
     expect(html).toContain('data-token="0:w:0"');
+  });
+
+  it('renders the Words/Lines mode toggle with active state from tokenMode', () => {
+    const html = renderModal(makeState());
+    expect(html).toContain('id="ocr-mode-words"');
+    expect(html).toContain('id="ocr-mode-lines"');
+    // In word mode, the Words button is active/pressed and Lines is not.
+    expect(html).toMatch(/id="ocr-mode-words"[^>]*class="[^"]*\bactive\b/);
+    expect(html).toMatch(/id="ocr-mode-words"[^>]*aria-pressed="true"/);
+    expect(html).toMatch(/id="ocr-mode-lines"[^>]*aria-pressed="false"/);
+  });
+
+  it('in tokenMode "l" renders one .ocr-token per line with :l: ids', () => {
+    const state = makeState();
+    state.tokenMode = 'l';
+    state.pages[0].lines = [
+      { text: 'C123 STM32', x: 100, y: 200, w: 200, h: 20, conf: 0.9 },
+      { text: 'LQFP48', x: 100, y: 240, w: 120, h: 20, conf: 0.8 },
+    ];
+    const html = renderModal(state);
+    const tokens = html.match(/class="ocr-token"/g) || [];
+    expect(tokens.length).toBe(2);
+    expect(html).toContain('data-token="0:l:0"');
+    expect(html).toContain('data-token="0:l:1"');
+    // No word tokens should be rendered in line mode.
+    expect(html).not.toContain('data-token="0:w:0"');
+    // Lines button is now the active one.
+    expect(html).toMatch(/id="ocr-mode-lines"[^>]*class="[^"]*\bactive\b/);
+    expect(html).toMatch(/id="ocr-mode-lines"[^>]*aria-pressed="true"/);
   });
 
   it('renders one .ocr-cell per field per row', () => {

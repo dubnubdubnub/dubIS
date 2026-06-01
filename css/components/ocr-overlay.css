@@ -30,6 +30,7 @@
   cursor: pointer;
 }
 .ocr-header button:disabled { color: var(--text-muted); cursor: default; }
+.ocr-mode-toggle { display: inline-flex; gap: var(--ocr-header-gap); }
 
 .ocr-split {
   display: flex;

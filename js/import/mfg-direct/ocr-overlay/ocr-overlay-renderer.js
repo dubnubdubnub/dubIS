@@ -5,7 +5,8 @@
    flows straight into innerHTML.
 
    Token data-token ids match ocr-overlay-state.js: "<pageIdx>:<kind>:<idx>"
-   where kind is "w" for words. */
+   where kind is "w" for words or "l" for lines. The scan pane renders tokens
+   for the current state.tokenMode only (a Words/Lines toggle switches modes). */
 
 import { escHtml } from '../../../ui-helpers.js';
 
@@ -16,7 +17,7 @@ export function renderModal(state) {
     <div class="modal ocr-overlay-modal">
       ${renderHeader(state)}
       <div class="ocr-split">
-        <div class="ocr-scan-pane">${renderScan(page, state.pageIdx, selected)}</div>
+        <div class="ocr-scan-pane">${renderScan(page, state.pageIdx, state, selected)}</div>
         <div class="ocr-grid-pane">${renderGrid(state)}</div>
       </div>
       ${renderFooter()}
@@ -31,10 +32,17 @@ function renderHeader(state) {
        <span>Page ${state.pageIdx + 1} / ${n}</span>
        <button id="ocr-next" type="button" ${state.pageIdx === n - 1 ? 'disabled' : ''}>›</button>`
     : '';
-  return `<div class="ocr-header">Review scan — template: ${escHtml(state.template)} ${nav}</div>`;
+  const wActive = state.tokenMode !== 'l';
+  const modeToggle = `<span class="ocr-mode-toggle" role="group" aria-label="Token mode">
+    <button id="ocr-mode-words" type="button" class="btn-sm filter-btn${wActive ? ' active' : ''}"
+      aria-pressed="${wActive}">Words</button>
+    <button id="ocr-mode-lines" type="button" class="btn-sm filter-btn${wActive ? '' : ' active'}"
+      aria-pressed="${!wActive}">Lines</button>
+  </span>`;
+  return `<div class="ocr-header">Review scan — template: ${escHtml(state.template)} ${modeToggle} ${nav}</div>`;
 }
 
-function renderScan(page, pageIdx, selected = new Set()) {
+function renderScan(page, pageIdx, state, selected = new Set()) {
   if (!page) return '';
   const tok = (kind, arr) => (arr || []).map((t, i) => {
     const id = `${pageIdx}:${kind}:${i}`;
@@ -47,9 +55,10 @@ function renderScan(page, pageIdx, selected = new Set()) {
       style="left:${left}%;top:${top}%;width:${w}%;height:${h}%"
       title="${escHtml(t.text)}">${escHtml(t.text)}</button>`;
   }).join('');
+  const tokens = state.tokenMode === 'l' ? tok('l', page.lines) : tok('w', page.words);
   return `<div class="ocr-img-wrap">
     <img src="data:image/png;base64,${escHtml(page.image_b64)}" alt="scan">
-    ${tok('w', page.words)}
+    ${tokens}
   </div>`;
 }
 
