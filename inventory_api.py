@@ -13,10 +13,10 @@ from typing import Any
 
 import cache_db
 import csv_io
+import domain.generic_parts
 import domain.inventory
 import domain.pricing
 import file_dialogs
-import generic_parts
 import inventory_ops
 from distributor_manager import DistributorManager
 
@@ -462,46 +462,46 @@ class InventoryApi:
 
     def create_generic_part(self, name: str, part_type: str,
                              spec_json: str, strictness_json: str) -> dict[str, Any]:
-        return generic_parts.create_generic_part_api(
+        return domain.generic_parts.create_generic_part_api(
             self._get_cache(), self.events_dir, name, part_type, spec_json, strictness_json,
         )
 
     def resolve_bom_spec(self, part_type: str, value: float,
                           package: str) -> dict[str, Any] | None:
-        return generic_parts.resolve_bom_spec(self._get_cache(), part_type, float(value), package)
+        return domain.generic_parts.resolve_bom_spec(self._get_cache(), part_type, float(value), package)
 
     def list_generic_parts(self) -> list[dict[str, Any]]:
-        return generic_parts.list_generic_parts_with_member_specs(self._get_cache())
+        return domain.generic_parts.list_generic_parts_with_member_specs(self._get_cache())
 
     def add_generic_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
-        return generic_parts.add_member_api(
+        return domain.generic_parts.add_member_api(
             self._get_cache(), self.events_dir, generic_part_id, part_id,
         )
 
     def remove_generic_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
-        return generic_parts.remove_member_api(
+        return domain.generic_parts.remove_member_api(
             self._get_cache(), self.events_dir, generic_part_id, part_id,
         )
 
     def exclude_generic_member(self, generic_part_id: str, part_id: str) -> None:
-        return generic_parts.exclude_member(
+        return domain.generic_parts.exclude_member(
             self._get_cache(), self.events_dir, generic_part_id, part_id,
         )
 
     def set_preferred_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
-        return generic_parts.set_preferred_api(
+        return domain.generic_parts.set_preferred_api(
             self._get_cache(), self.events_dir, generic_part_id, part_id,
         )
 
     def update_generic_part(self, generic_part_id: str, name: str,
                              spec_json: str, strictness_json: str) -> dict[str, Any]:
-        return generic_parts.update_generic_part_api(
+        return domain.generic_parts.update_generic_part_api(
             self._get_cache(), self.events_dir, generic_part_id, name,
             spec_json, strictness_json,
         )
 
     def extract_spec(self, part_key: str) -> dict[str, Any]:
-        return generic_parts.extract_spec_for_part(self._get_cache(), part_key)
+        return domain.generic_parts.extract_spec_for_part(self._get_cache(), part_key)
 
     def extract_spec_from_value(self, part_type: str, value_str: str, package_str: str) -> dict[str, Any]:
         import spec_extractor
