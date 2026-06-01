@@ -75,9 +75,14 @@ while IFS=$'\t' read -r num title branch; do
     echo "  -> Would merge (dry run)"
     merged+=("#${num}: ${title}")
   else
-    # Merge
+    # Merge (remote-side squash). --delete-branch also removes the remote
+    # branch, but its *local* branch cleanup fails harmlessly when the branch
+    # is checked out in a worktree (gh tries to switch to main, which the main
+    # worktree already holds). So we judge success by the PR's actual state,
+    # not by grepping the noisy command output.
     merge_output=$(gh pr merge "$num" --squash --delete-branch --admin 2>&1) || true
-    if echo "$merge_output" | grep -q "Merged\|already been merged\|failed to delete local branch"; then
+    pr_state=$(gh pr view "$num" --json state --jq .state 2>/dev/null || echo "")
+    if [[ "$pr_state" == "MERGED" ]]; then
       echo "  -> Merged"
       merged+=("#${num}: ${title}")
     else
@@ -87,11 +92,19 @@ while IFS=$'\t' read -r num title branch; do
   fi
 done <<< "$prs"
 
-# Pull latest main
+# Pull latest main — only when this checkout is actually on main. From a
+# feature-branch worktree there is nothing sensible to fast-forward, and a
+# blind `git pull origin main` would merge main into the feature branch.
 if [[ ${#merged[@]} -gt 0 ]] && ! $DRY_RUN; then
-  echo ""
-  echo "Pulling latest main..."
-  git pull origin main 2>&1 | tail -3
+  current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+  if [[ "$current_branch" == "main" ]]; then
+    echo ""
+    echo "Pulling latest main..."
+    git pull origin main 2>&1 | tail -3
+  else
+    echo ""
+    echo "On branch '$current_branch' (not main) — skipping 'git pull origin main'."
+  fi
 fi
 
 # Summary
