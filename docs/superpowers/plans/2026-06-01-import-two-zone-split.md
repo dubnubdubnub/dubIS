@@ -25,6 +25,85 @@
 
 ---
 
+## Task 0: Tesseract engine detection + missing-engine UX (do first — unblocks OCR)
+
+**Files:** new `ocr_engine.py`; modify `ocr_layout.py` + `inventory_api.py`; modify `js/import/mfg-direct/mfg-direct-panel.js` (and the import-panel OCR zone). Test `tests/python/test_ocr_engine.py`.
+
+Problem: the OCR depends on the Tesseract system binary, which may not be on PATH (e.g. the UB Mannheim Windows installer doesn't always add it). Today pytesseract raises a cryptic "tesseract is not installed or it's not in your PATH" and the app silently falls back. Fix: auto-detect Tesseract in common locations, and when truly missing surface a clear, actionable message.
+
+- [ ] **Step 1: Write failing tests** `tests/python/test_ocr_engine.py` (no real binary needed — monkeypatch):
+```python
+import ocr_engine
+
+def test_ensure_uses_path_when_available(monkeypatch):
+    monkeypatch.setattr(ocr_engine.shutil, "which", lambda n: "/usr/bin/tesseract")
+    assert ocr_engine.ensure_tesseract() is True
+
+def test_ensure_probes_common_paths(monkeypatch, tmp_path):
+    fake = tmp_path / "Tesseract-OCR" / "tesseract.exe"
+    fake.parent.mkdir(parents=True); fake.write_text("x")
+    monkeypatch.setattr(ocr_engine.shutil, "which", lambda n: None)
+    monkeypatch.setattr(ocr_engine, "_CANDIDATES", [str(fake)])
+    import pytesseract
+    assert ocr_engine.ensure_tesseract() is True
+    assert pytesseract.pytesseract.tesseract_cmd == str(fake)
+
+def test_missing_returns_false(monkeypatch):
+    monkeypatch.setattr(ocr_engine.shutil, "which", lambda n: None)
+    monkeypatch.setattr(ocr_engine, "_CANDIDATES", [])
+    assert ocr_engine.ensure_tesseract() is False
+```
+
+- [ ] **Step 2:** Run → FAIL (no module).
+
+- [ ] **Step 3: Implement `ocr_engine.py`:**
+```python
+"""Locate the Tesseract OCR binary (it isn't always on PATH after a default
+Windows install) and point pytesseract at it. Throw a clear, actionable error
+when it's genuinely missing rather than pytesseract's cryptic message."""
+from __future__ import annotations
+import os
+import shutil
+
+_CANDIDATES = [
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe"),
+]
+INSTALL_HINT = ("Tesseract OCR engine not found. Install it to use image/PDF "
+                "import — on Windows: winget install UB-Mannheim.TesseractOCR")
+
+
+class TesseractMissingError(RuntimeError):
+    def __init__(self, msg: str = INSTALL_HINT):
+        super().__init__(msg)
+
+
+def ensure_tesseract() -> bool:
+    """Return True and set pytesseract.tesseract_cmd if Tesseract is available."""
+    if shutil.which("tesseract"):
+        return True
+    for path in _CANDIDATES:
+        if path and os.path.isfile(path):
+            import pytesseract
+            pytesseract.pytesseract.tesseract_cmd = path
+            return True
+    return False
+
+
+def require_tesseract() -> None:
+    if not ensure_tesseract():
+        raise TesseractMissingError()
+```
+
+- [ ] **Step 4:** In `ocr_layout.extract_page` (and/or `extract_pages`), call `ocr_engine.require_tesseract()` before `pytesseract.image_to_data` so a missing engine raises `TesseractMissingError` (clean) instead of pytesseract's raw error. Add `inventory_api.ocr_engine_available() -> bool` (returns `ocr_engine.ensure_tesseract()`) for the frontend to gate the zone.
+
+- [ ] **Step 5: Frontend** — in `openOcrImport` (Task 2) catch the missing-engine case: if the error/message indicates Tesseract is missing (or `ocr_engine_available()` is false), `showToast(INSTALL_HINT)` and AppLog.warn, rather than the silent flat-parse fallback. Optionally, on import-panel init, call `api('ocr_engine_available')` and if false show a small hint in the image zone ("OCR needs Tesseract — install to enable"). Wire `apiMfgDirect.ocrEngineAvailable = () => api('ocr_engine_available')` in `js/api.js`.
+
+- [ ] **Step 6:** `python -m pytest tests/python/test_ocr_engine.py -q` green; `ruff check .`; `npx eslint js/`. Commit `feat(import): detect Tesseract + clear missing-engine message`.
+
+---
+
 ## Task 1: Smarter generic OCR heuristic (backend)
 
 **Files:** Modify `distributor_profiles.py`; Test `tests/python/test_distributor_profiles.py` (extend).
