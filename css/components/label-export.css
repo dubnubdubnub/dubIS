@@ -84,12 +84,24 @@ td.btn-group .label-select-checkbox {
   vertical-align: middle;
 }
 
-/* ── PO picker ────────────────────────────────────────── */
+/* ── PO picker ──────────────────────────────────────────
+   Lives in the Purchase Import panel as a running history of past POs.
+   Default state is dimmed (lower contrast) but fully interactable — you can
+   scroll the list and expand any PO to view its line items. When Print Labels
+   mode is active it "pops out" (full contrast + purple accent). */
 .label-po-picker {
-  margin-top: 8px;
+  margin: 8px 10px;
   border: 1px solid var(--border-default);
   border-radius: 6px;
   background: var(--bg-base);
+  opacity: 0.55;
+  transition: opacity 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.label-po-picker:hover { opacity: 0.85; }
+.label-po-picker.is-label-active {
+  opacity: 1;
+  border-color: var(--color-purple);
+  box-shadow: 0 0 0 1px var(--color-purple), 0 2px 8px #0006;
 }
 .label-po-picker-title {
   font-size: 11px;
