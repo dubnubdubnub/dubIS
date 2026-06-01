@@ -129,8 +129,14 @@ export function renderPartRowHtml(item, options) {
   if (!item.lcsc && !item.digikey && !item.pololu && !item.mouser) partIdsHtml += '<button class="no-dist-warn" title="No distributor PN \u2014 click to add">\u26A0 NO DIST. PN</button>';
   partIdsHtml += '</span>';
 
+  // In label mode each inventory row carries a selection checkbox on BOTH the
+  // left edge (in the Group cell) and the right edge (in .part-actions), so it
+  // can be ticked from either side without scrolling the wide row across.
+  var leftCheckboxHtml = isLabelMode() ? labelCheckboxHtml(invPartKey(item)) : '';
+
   var html =
     '<span class="inv-row-group-cell">' +
+      leftCheckboxHtml +
       '<span class="inv-drag-handle" title="Drag to add to group">&#x2261;</span>' +
       sectionChipHtml +
     '</span>' +
