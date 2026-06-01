@@ -1,12 +1,14 @@
 /* mfg-direct-panel.js — Direct-from-mfg import flow: state, events, API. */
 
-import { api, AppLog, apiVendors, apiPurchaseOrders, apiMfgDirect } from '../../api.js';
+import { api, AppLog, apiPurchaseOrders, apiMfgDirect } from '../../api.js';
 import { showToast } from '../../ui-helpers.js';
 import { onInventoryUpdated, store, loadVendorsAndPOs } from '../../store.js';
 import { renderEditor, renderScanModal } from './mfg-direct-renderer.js';
-import { canonicalizeUrl, emptyLineItem, validateLineItems,
+import { emptyLineItem, validateLineItems,
   mapScanLineItems, scanSourceFile } from './mfg-direct-logic.js';
+import { createVendorPicker } from './vendor-picker.js';
 import { renderQrToCanvas } from '../../vendor/qrcode.js';
+import { openOverlay } from './ocr-overlay/ocr-overlay-panel.js';
 
 const state = {
   active: false,
@@ -19,6 +21,12 @@ const state = {
 };
 
 let mountEl = null;
+
+const vendorPicker = createVendorPicker({
+  getVendor: () => state.vendor,
+  setVendor: (v) => { state.vendor = v; },
+  onChange: () => rerender(),
+});
 
 export function startDirectFlow(mountElement) {
   mountEl = mountElement;
@@ -88,7 +96,7 @@ function bindEvents(root) {
   });
 
   root.querySelectorAll('.mfg-pseudo-chip').forEach(btn => {
-    btn.onclick = () => selectPseudoVendor(btn.dataset.pseudo);
+    btn.onclick = () => vendorPicker.selectPseudoVendor(btn.dataset.pseudo);
   });
 
   const drop = root.querySelector('#mfg-source-drop');
@@ -118,58 +126,15 @@ function bindEvents(root) {
   if (scanBtn) scanBtn.onclick = startScanSession;
 
   const nameInput = root.querySelector('#mfg-vendor-name-input');
-  if (nameInput) nameInput.onblur = () => onVendorNameBlur(nameInput.value);
+  if (nameInput) nameInput.onblur = () => vendorPicker.onVendorNameBlur(nameInput.value);
 
   const urlInput = root.querySelector('#mfg-vendor-url-input');
-  if (urlInput) urlInput.onblur = () => onVendorUrlBlur(urlInput.value);
+  if (urlInput) urlInput.onblur = () => vendorPicker.onVendorUrlBlur(urlInput.value);
 }
 
-function selectPseudoVendor(id) {
-  const v = (store.vendors || []).find(x => x.id === id);
-  if (!v) return;
-  state.vendor = { ...v };
-  rerender();
-}
-
-async function onVendorNameBlur(text) {
-  const trimmed = (text || '').trim();
-  if (!trimmed) return;
-  // Already pointing at this vendor — nothing to do.
-  if (state.vendor.id && state.vendor.name.toLowerCase() === trimmed.toLowerCase()) return;
-
-  // If the user typed a URL before naming the vendor, carry it through.
-  const pendingUrl = state.vendor.url || '';
-
-  const existing = (store.vendors || []).find(
-    v => v.name.toLowerCase() === trimmed.toLowerCase());
-  if (existing) {
-    state.vendor = { ...existing };
-    if (pendingUrl && !state.vendor.url && state.vendor.type !== 'self'
-        && state.vendor.type !== 'salvage' && state.vendor.type !== 'unknown') {
-      const v = await apiVendors.upsert(state.vendor.id, '', pendingUrl);
-      if (v) state.vendor = { ...v };
-    }
-  } else {
-    const v = await apiVendors.upsert('', trimmed, pendingUrl);
-    if (!v) return;
-    state.vendor = { ...v };
-  }
-  rerender();
-}
-
-async function onVendorUrlBlur(text) {
-  const canonical = canonicalizeUrl(text || '');
-  if (!state.vendor.id) {
-    // No backend record yet — keep the URL locally so onVendorNameBlur picks it up.
-    state.vendor = { ...state.vendor, url: canonical };
-    return;
-  }
-  if (canonical === (state.vendor.url || '')) return;
-  if (!canonical) return;  // ignore clears here; vendor flyout handles deletes
-  const v = await apiVendors.upsert(state.vendor.id, '', canonical);
-  if (!v) return;
-  state.vendor = { ...v };
-  rerender();
+/** True for inputs that should go through the OCR side-by-side overlay. */
+function isOcrSource(name) {
+  return /\.(png|jpe?g|pdf)$/i.test(name || '');
 }
 
 async function handleSourceFile(file) {
@@ -180,6 +145,29 @@ async function handleSourceFile(file) {
     const b64 = (typeof dataUrl === 'string') ? dataUrl.split(',')[1] : '';
     state.sourceFile = { name: file.name, bytes: b64 };
     rerender();
+
+    // Image/PDF inputs route through the OCR overlay for token-driven review.
+    if (isOcrSource(file.name)) {
+      try {
+        const payload = await apiMfgDirect.ocrOverlayB64(b64, file.name, state.scanTemplate || 'generic');
+        if (payload && payload.pages && payload.pages.length) {
+          openOverlay(payload, {
+            onConfirm: (rows, vendor) => {
+              state.lineItems = rows;
+              state.vendor = vendor;
+              state.sourceFile = { name: file.name, bytes: b64 };
+              importPO();
+            },
+          });
+          return;
+        }
+        AppLog.warn('ocr_overlay_b64 returned no pages — falling back to flat parse');
+      } catch (exc) {
+        AppLog.warn('ocr_overlay_b64 failed, falling back to flat parse: ' + exc);
+      }
+      // fall through to the flat parse path below
+    }
+
     try {
       const parsed = await apiMfgDirect.parseFileB64(b64, file.name, state.scanTemplate || 'generic');
       if (parsed && parsed.length) {
@@ -292,6 +280,24 @@ async function scanReceived(payload) {
     startDirectFlow(mountEl || document.getElementById('import-body'));
   }
   closeScanModal();
+
+  // New OCR-overlay path: the phone payload carries page/token data. Route it
+  // through the side-by-side review modal. Backward compatible — when `pages`
+  // is absent we keep the legacy flat-staging behavior below.
+  if (payload.pages && payload.pages.length) {
+    state.scanTemplate = payload.template || state.scanTemplate;
+    const src = scanSourceFile(payload);
+    openOverlay(payload, {
+      onConfirm: (rows, vendor) => {
+        state.lineItems = rows;
+        state.vendor = vendor;
+        if (src) state.sourceFile = src;
+        importPO();
+      },
+    });
+    AppLog.info(`Scan: OCR overlay with ${payload.pages.length} page(s) (${payload.template || 'generic'})`);
+    return;
+  }
 
   state.scanTemplate = payload.template || state.scanTemplate;
   state.lineItems = mapScanLineItems(payload.line_items, payload.template);

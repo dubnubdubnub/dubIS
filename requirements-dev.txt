@@ -9,3 +9,4 @@ pdfplumber>=0.10
 requests>=2.31
 pytesseract>=0.3
 Pillow>=10
+PyMuPDF>=1.24

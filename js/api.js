@@ -76,6 +76,8 @@ export const apiMfgDirect = {
   parseFile: (path) => api('parse_source_file', path),
   parseFileB64: (b64, name, template = 'generic') =>
     api('parse_source_file_b64', b64, name, template),
+  ocrOverlayB64: (b64, name, template = 'generic') =>
+    api('ocr_overlay_b64', b64, name, template),
   matchPart: (mpn, mfg) => api('match_part', mpn, mfg),
   startScanSession: (template) => api('start_scan_session', template),
 };

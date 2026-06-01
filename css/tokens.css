@@ -44,4 +44,17 @@
   --flyout-max-h:        420px;  /* Default flyout panel max-height */
   --flyout-saved-tabs-w:  28px;  /* Width of the saved-searches sidebar */
   --flyout-gap:            8px;  /* Gap between flyout and source row, and between stacked flyouts */
+
+  /* ── OCR overlay modal ─────────────────────────────────────────────────────
+     Geometry for the OCR-overlay PO import modal (left scan pane + right grid).
+     Token-positioned word boxes use inline % styles set in JS (not scanned).
+     Consumed by: css/components/ocr-overlay.css */
+  --ocr-modal-w:        min(1200px, 95vw);  /* Wide split-pane modal width */
+  --ocr-pane-gap:       12px;  /* Gap between scan pane and grid pane */
+  --ocr-token-pad:       1px;  /* Padding inside an OCR word token box */
+  --ocr-token-font:     11px;  /* Font size of OCR word token text */
+  --ocr-header-gap:      8px;  /* Gap between header title and page-nav controls */
+  --ocr-header-pad:      8px;  /* Vertical padding around the modal header / footer */
+  --ocr-footer-gap:      8px;  /* Gap between footer controls */
+  --ocr-cell-pad:        6px;  /* Padding inside grid cells */
 }
