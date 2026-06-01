@@ -19,6 +19,7 @@ silent failure: any setup error aborts the process with a non-zero exit.
 
 import argparse
 import json
+import os
 import sys
 import threading
 import time
@@ -72,10 +73,14 @@ def main():
             _dump()
 
     def _dump():
-        record_path.write_text(
+        # Atomic write: write to a temp file in the same dir then replace, so a
+        # concurrent reader (the spec) never sees a truncated/partial file.
+        tmp_path = record_path.with_name(record_path.name + ".tmp")
+        tmp_path.write_text(
             json.dumps({"ocr_calls": api.calls, "js_calls": js_calls}),
             encoding="utf-8",
         )
+        os.replace(tmp_path, record_path)
 
     server = start_pnp_server(api, _FakeWindow(), port=0)
     if server is None:
