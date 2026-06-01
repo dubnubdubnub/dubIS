@@ -84,9 +84,11 @@ CATEGORY_RULES: list[dict[str, Any]] = [
     {"category": "ICs - Motor Drivers", "mpn": ["drv8", "l6226"]},
     # Interface
     {"category": "ICs - Interface", "desc": ["transceiver", "driver"]},
-    # Sensors (position / angle)
-    {"category": "ICs - Sensors", "desc": ["position", "angle"]},
-    {"category": "ICs - Sensors", "mpn": ["mt6835"]},
+    # Sensors (position / angle / magnetic)
+    {"category": "ICs - Sensors", "desc": [
+        "position", "angle", "magnetic sensor", "magnetoresistive",
+    ]},
+    {"category": "ICs - Sensors", "mpn": ["mt6835", "tmr2615"]},
     # USB
     {"category": "ICs - USB", "desc": ["port ctlr usb", "usb hub"]},
     {"category": "ICs - USB", "mpn": ["usb57", "husb238", "utc2000"]},
