@@ -82,6 +82,11 @@ def test_extract_page_mocked(monkeypatch):
         Output=types.SimpleNamespace(DICT="dict"),
     )
     monkeypatch.setitem(sys.modules, "pytesseract", fake_pt)
+    # extract_page now gates on the real Tesseract binary via
+    # ocr_engine.require_tesseract(); this test mocks pytesseract directly, so
+    # stub the engine check to keep it binary-independent.
+    import ocr_engine
+    monkeypatch.setattr(ocr_engine, "ensure_tesseract", lambda: True)
     png = _text_png(["x"])
     page = ocr_layout.extract_page(png)
     assert [w["text"] for w in page["words"]] == ["C12624", "4000", "Emerald", "Green"]
