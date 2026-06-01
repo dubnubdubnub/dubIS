@@ -377,6 +377,8 @@ graph LR
     "tests/python/test_dubis_errors.py" --> "dubis_errors.py"
     "tests/python/test_file_dialogs.py" --> "file_dialogs.py"
     "tests/python/test_html_product_parser.py" --> "html_product_parser.py"
+    "tests/python/test_install_tesseract.py" --> "inventory_api.py"
+    "tests/python/test_install_tesseract.py" --> "ocr_engine.py"
     "tests/python/test_inventory_api_adjustments.py" --> "cache_db.py"
     "tests/python/test_inventory_api_adjustments.py" --> "inventory_api.py"
     "tests/python/test_inventory_api_adjustments.py" --> "tests/python/helpers.py"
@@ -437,10 +439,10 @@ graph LR
 | `LABEL_SELECTION_CHANGED` | `js/label-selection.js` | `js/label-selection.js`, `tests/js/label-selection.test.js` |
 | `LINKING_MODE` | `js/store.js` | `js/bom/bom-events.js`, `js/inventory/inv-events.js`, `tests/js/store.test.js` |
 | `LINKS_CHANGED` | `js/app-init.js`, `js/store.js` | `js/bom/bom-events.js`, `tests/js/store.test.js` |
-| `PO_CHANGED` | `js/store.js` | — |
+| `PO_CHANGED` | `js/store.js` | `js/inventory/inv-events.js` |
 | `PREFS_CHANGED` | `js/store.js` | — |
 | `SAVE_AND_CLOSE` | `js/app-init.js` | `js/bom/bom-events.js` |
-| `VENDORS_CHANGED` | `js/store.js` | — |
+| `VENDORS_CHANGED` | `js/store.js` | `js/inventory/inv-events.js` |
 
 ## Per-file index
 
@@ -542,7 +544,7 @@ graph LR
 ### inventory_api.py
 
 - **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `distributor_profiles.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `file_dialogs.py`, `inventory_ops.py`, `mfg_direct_import.py`, `ocr_engine.py`, `ocr_layout.py`, `pnp_server.py`, `poll_api.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
-- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_real_data.py`
+- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_real_data.py`
 
 ### inventory_ops.py
 
@@ -729,7 +731,7 @@ graph LR
 - **Imports:** `js/api.js`, `js/event-bus.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-sort-group.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-logic.js`, `js/inventory/vendor-flyout.js`, `js/signals.js`, `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`
 - **Emits:** —
-- **Listens:** `BOM_CLEARED`, `BOM_LOADED`, `FLYOUT_ACTIVE_CHANGED`, `FLYOUT_CLOSED`, `FLYOUT_OPENED`, `FLYOUT_SEARCH_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LABEL_BULK_SELECTION`, `LABEL_MODE`, `LINKING_MODE`
+- **Listens:** `BOM_CLEARED`, `BOM_LOADED`, `FLYOUT_ACTIVE_CHANGED`, `FLYOUT_CLOSED`, `FLYOUT_OPENED`, `FLYOUT_SEARCH_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LABEL_BULK_SELECTION`, `LABEL_MODE`, `LINKING_MODE`, `PO_CHANGED`, `VENDORS_CHANGED`
 
 ### js/inventory/inv-groups-view.js
 
@@ -885,7 +887,7 @@ graph LR
 ### ocr_engine.py
 
 - **Imports:** —
-- **Imported by:** `inventory_api.py`, `ocr_layout.py`, `tests/python/test_ocr_engine.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_ocr_overlay_api.py`
+- **Imported by:** `inventory_api.py`, `ocr_layout.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_ocr_engine.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_ocr_overlay_api.py`
 
 ### ocr_layout.py
 
@@ -1374,6 +1376,11 @@ graph LR
 ### tests/python/test_html_product_parser.py
 
 - **Imports:** `html_product_parser.py`
+- **Imported by:** —
+
+### tests/python/test_install_tesseract.py
+
+- **Imports:** `inventory_api.py`, `ocr_engine.py`
 - **Imported by:** —
 
 ### tests/python/test_inventory_api_adjustments.py
