@@ -1,0 +1,95 @@
+/* ── OCR overlay modal ───────────────────────────────────────────────────────
+   Wide split-pane modal: left = scanned page with OCR word tokens overlaid as
+   absolutely-positioned buttons (positions are inline % set by the renderer,
+   so they scale with the responsive image); right = auto-filled grid.
+   Colors come from css/variables.css; geometry from css/tokens.css (--ocr-*). */
+
+.ocr-overlay-modal {
+  width: var(--ocr-modal-w);
+  max-width: var(--ocr-modal-w);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.ocr-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ocr-header-gap);
+  padding-bottom: var(--ocr-header-pad);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+.ocr-header span { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+.ocr-header button {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ocr-header button:disabled { color: var(--text-muted); cursor: default; }
+
+.ocr-split {
+  display: flex;
+  gap: var(--ocr-pane-gap);
+  flex: 1;
+  min-height: 0;
+}
+.ocr-scan-pane,
+.ocr-grid-pane {
+  flex: 1;
+  overflow: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+}
+
+.ocr-img-wrap { position: relative; }
+.ocr-img-wrap img { display: block; width: 100%; }
+
+.ocr-token {
+  position: absolute;
+  font-size: var(--ocr-token-font);
+  padding: var(--ocr-token-pad);
+  background: rgba(88, 166, 255, 0.12);
+  border: 1px solid transparent;
+  border-radius: 2px;
+  cursor: pointer;
+  color: transparent;
+  overflow: hidden;
+}
+.ocr-token:hover { border-color: var(--color-blue); background: rgba(88, 166, 255, 0.25); }
+.ocr-token.selected { border-color: var(--color-blue); background: rgba(88, 166, 255, 0.35); }
+
+.ocr-grid { width: 100%; border-collapse: collapse; }
+.ocr-grid th {
+  padding: var(--ocr-cell-pad);
+  text-align: left;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  position: sticky;
+  top: 0;
+}
+
+.ocr-cell {
+  padding: var(--ocr-cell-pad);
+  font-size: 12px;
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+}
+.ocr-cell.target { border-color: var(--color-blue); box-shadow: 0 0 0 1px var(--color-blue); }
+.ocr-cell.low-conf { border-color: var(--color-yellow); background: rgba(210, 153, 34, 0.12); }
+.ocr-cell.blank { color: var(--text-muted); font-style: italic; }
+
+.ocr-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--ocr-footer-gap);
+  padding-top: var(--ocr-header-pad);
+}
+.ocr-footer #ocr-vendor-mount { flex: 1; }
