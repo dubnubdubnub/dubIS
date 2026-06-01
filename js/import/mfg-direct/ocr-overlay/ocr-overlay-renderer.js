@@ -11,11 +11,12 @@ import { escHtml } from '../../../ui-helpers.js';
 
 export function renderModal(state) {
   const page = state.pages[state.pageIdx];
+  const selected = new Set(state.pending.tokenIds || []);
   return `<div class="modal-overlay" id="ocr-overlay">
     <div class="modal ocr-overlay-modal">
       ${renderHeader(state)}
       <div class="ocr-split">
-        <div class="ocr-scan-pane">${renderScan(page, state.pageIdx)}</div>
+        <div class="ocr-scan-pane">${renderScan(page, state.pageIdx, selected)}</div>
         <div class="ocr-grid-pane">${renderGrid(state)}</div>
       </div>
       ${renderFooter()}
@@ -33,14 +34,16 @@ function renderHeader(state) {
   return `<div class="ocr-header">Review scan — template: ${escHtml(state.template)} ${nav}</div>`;
 }
 
-function renderScan(page, pageIdx) {
+function renderScan(page, pageIdx, selected = new Set()) {
   if (!page) return '';
   const tok = (kind, arr) => (arr || []).map((t, i) => {
+    const id = `${pageIdx}:${kind}:${i}`;
     const left = (t.x / page.width) * 100;
     const top = (t.y / page.height) * 100;
     const w = (t.w / page.width) * 100;
     const h = (t.h / page.height) * 100;
-    return `<button class="ocr-token" type="button" data-token="${pageIdx}:${kind}:${i}"
+    const cls = selected.has(id) ? 'ocr-token selected' : 'ocr-token';
+    return `<button class="${cls}" type="button" data-token="${id}"
       style="left:${left}%;top:${top}%;width:${w}%;height:${h}%"
       title="${escHtml(t.text)}">${escHtml(t.text)}</button>`;
   }).join('');

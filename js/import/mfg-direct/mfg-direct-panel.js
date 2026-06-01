@@ -7,6 +7,7 @@ import { renderEditor, renderScanModal } from './mfg-direct-renderer.js';
 import { canonicalizeUrl, emptyLineItem, validateLineItems,
   mapScanLineItems, scanSourceFile } from './mfg-direct-logic.js';
 import { renderQrToCanvas } from '../../vendor/qrcode.js';
+import { openOverlay } from './ocr-overlay/ocr-overlay-panel.js';
 
 const state = {
   active: false,
@@ -172,6 +173,11 @@ async function onVendorUrlBlur(text) {
   rerender();
 }
 
+/** True for inputs that should go through the OCR side-by-side overlay. */
+function isOcrSource(name) {
+  return /\.(png|jpe?g|pdf)$/i.test(name || '');
+}
+
 async function handleSourceFile(file) {
   const reader = new FileReader();
   reader.onload = async () => {
@@ -180,6 +186,29 @@ async function handleSourceFile(file) {
     const b64 = (typeof dataUrl === 'string') ? dataUrl.split(',')[1] : '';
     state.sourceFile = { name: file.name, bytes: b64 };
     rerender();
+
+    // Image/PDF inputs route through the OCR overlay for token-driven review.
+    if (isOcrSource(file.name)) {
+      try {
+        const payload = await apiMfgDirect.ocrOverlayB64(b64, file.name, state.scanTemplate || 'generic');
+        if (payload && payload.pages && payload.pages.length) {
+          openOverlay(payload, {
+            onConfirm: (rows, vendor) => {
+              state.lineItems = rows;
+              state.vendor = vendor;
+              state.sourceFile = { name: file.name, bytes: b64 };
+              importPO();
+            },
+          });
+          return;
+        }
+        AppLog.warn('ocr_overlay_b64 returned no pages — falling back to flat parse');
+      } catch (exc) {
+        AppLog.warn('ocr_overlay_b64 failed, falling back to flat parse: ' + exc);
+      }
+      // fall through to the flat parse path below
+    }
+
     try {
       const parsed = await apiMfgDirect.parseFileB64(b64, file.name, state.scanTemplate || 'generic');
       if (parsed && parsed.length) {
@@ -292,6 +321,24 @@ async function scanReceived(payload) {
     startDirectFlow(mountEl || document.getElementById('import-body'));
   }
   closeScanModal();
+
+  // New OCR-overlay path: the phone payload carries page/token data. Route it
+  // through the side-by-side review modal. Backward compatible — when `pages`
+  // is absent we keep the legacy flat-staging behavior below.
+  if (payload.pages && payload.pages.length) {
+    state.scanTemplate = payload.template || state.scanTemplate;
+    const src = scanSourceFile(payload);
+    openOverlay(payload, {
+      onConfirm: (rows, vendor) => {
+        state.lineItems = rows;
+        state.vendor = vendor;
+        if (src) state.sourceFile = src;
+        importPO();
+      },
+    });
+    AppLog.info(`Scan: OCR overlay with ${payload.pages.length} page(s) (${payload.template || 'generic'})`);
+    return;
+  }
 
   state.scanTemplate = payload.template || state.scanTemplate;
   state.lineItems = mapScanLineItems(payload.line_items, payload.template);
