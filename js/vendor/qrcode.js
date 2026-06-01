@@ -141,14 +141,20 @@ function maskFunc(maskPattern, i, j) {
   }
 }
 
+// Byte-mode char-count indicator width: 8 bits for versions 1–9, 16 bits for 10+.
+function byteCountBits(typeNumber) {
+  return typeNumber < 10 ? 8 : 16;
+}
+
 // ── QR model ──────────────────────────────────────────────────────────────
 function createData(typeNumber, ecLevel, dataBytes) {
   const blocks = getRsBlocks(typeNumber, ecLevel);
   const buffer = BitBuffer();
   // Mode indicator for 8-bit byte mode = 4 (0b0100)
   buffer.put(4, 4);
-  // Char count: 8 bits for type 1-9
-  buffer.put(dataBytes.length, 8);
+  // Char count indicator width is version-dependent for byte mode:
+  // 8 bits at versions 1–9, 16 bits at versions 10+ (per QR spec).
+  buffer.put(dataBytes.length, byteCountBits(typeNumber));
   for (const b of dataBytes) buffer.put(b, 8);
 
   let totalDataCount = 0;
@@ -292,17 +298,20 @@ function makeMatrix(typeNumber, ecLevel, data, maskPattern) {
   return modules;
 }
 
-// pick the smallest type number (1..9) that fits the data for the given EC level
+// pick the smallest type number (1..10) that fits the data for the given EC level
 function bestTypeNumber(byteLen, ecLevel) {
   for (let t = 1; t <= 10; t++) {
     const blocks = getRsBlocks(t, ecLevel);
     let dataCount = 0;
     for (const b of blocks) dataCount += b.data;
-    // header = 4 (mode) + 8 (char count) bits = 12 bits = 1.5 bytes
-    const capacityBytes = dataCount - 2; // conservative for header + terminator
+    // Header = 4 (mode indicator) + char-count indicator (8 bits for t<10,
+    // 16 bits for t>=10). Round the header up to whole bytes so the data
+    // payload (each byte = 8 bits) fits within the data codeword budget.
+    const headerBytes = Math.ceil((4 + byteCountBits(t)) / 8);
+    const capacityBytes = dataCount - headerBytes;
     if (byteLen <= capacityBytes) return t;
   }
-  throw new Error('data too long for supported QR types (max ~ type 10 byte mode)');
+  throw new Error('data too long for supported QR types (max type 10 byte mode)');
 }
 
 function maskPenalty(modules) {

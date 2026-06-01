@@ -68,10 +68,10 @@ function bindEvents(root) {
 
   root.querySelectorAll('.mfg-cell').forEach(inp => {
     inp.onchange = () => {
-      const idx = parseInt(inp.dataset.idx);
+      const idx = parseInt(inp.dataset.idx, 10);
       const field = inp.dataset.field;
       const li = state.lineItems[idx];
-      li[field] = (field === 'quantity') ? parseInt(inp.value || '0')
+      li[field] = (field === 'quantity') ? parseInt(inp.value || '0', 10)
                 : (field === 'unit_price') ? parseFloat(inp.value || '0')
                 : inp.value;
       if (field === 'mpn' && li.mpn) {
@@ -84,7 +84,7 @@ function bindEvents(root) {
   });
 
   root.querySelectorAll('.mfg-row-delete').forEach(btn => {
-    btn.onclick = () => { state.lineItems.splice(parseInt(btn.dataset.idx), 1); rerender(); };
+    btn.onclick = () => { state.lineItems.splice(parseInt(btn.dataset.idx, 10), 1); rerender(); };
   });
 
   root.querySelectorAll('.mfg-pseudo-chip').forEach(btn => {
@@ -181,7 +181,7 @@ async function handleSourceFile(file) {
     state.sourceFile = { name: file.name, bytes: b64 };
     rerender();
     try {
-      const parsed = await apiMfgDirect.parseFileB64(b64, file.name);
+      const parsed = await apiMfgDirect.parseFileB64(b64, file.name, state.scanTemplate || 'generic');
       if (parsed && parsed.length) {
         state.lineItems = parsed.map(p => ({
           ...p,
