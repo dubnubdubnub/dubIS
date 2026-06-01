@@ -10,7 +10,7 @@ import { EventBus, Events } from './event-bus.js';
 import { store } from './store.js';
 import { invPartKey } from './part-keys.js';
 import { showToast, escHtml } from './ui-helpers.js';
-import { api, AppLog } from './api.js';
+import { api, AppLog, whenPywebviewReady } from './api.js';
 
 // ── Private state ─────────────────────────────────────────
 let labelMode = false;
@@ -259,6 +259,10 @@ async function renderPoList(listEl) {
     });
 
     head.querySelector(".label-po-select").addEventListener("click", () => {
+      // Selecting a PO from the (possibly dimmed) history auto-activates Print
+      // Labels mode so the selection is visible and actionable — the picker
+      // pops out and the row checkboxes appear.
+      if (!isLabelMode()) enterLabelMode();
       const n = selectPo(poId);
       showToast(n + " part" + (n === 1 ? "" : "s") + " added from " + poId);
     });
@@ -275,6 +279,7 @@ export function init() {
   const doneBtn = document.getElementById("label-done-btn");
   const tapeToggle = document.getElementById("label-tape-toggle");
   const poList = document.getElementById("label-po-list");
+  const poPicker = document.getElementById("label-po-picker");
 
   if (!modeBtn || !toolbar) return; // not on this page
 
@@ -282,7 +287,16 @@ export function init() {
     const on = isLabelMode();
     toolbar.classList.toggle("hidden", !on);
     modeBtn.classList.toggle("active", on);
-    if (on) renderPoList(poList);
+    // The PO picker lives in the import panel and is always visible (dimmed) as
+    // a PO history; it "pops out" while Print Labels mode is active.
+    if (poPicker) poPicker.classList.toggle("is-label-active", on);
+  }
+
+  // Re-pull the PO list after an import so newly added POs appear in the
+  // history. (renderPoList no-ops while already loaded, so reset the guard.)
+  function refreshPoList() {
+    poListLoaded = false;
+    if (poList) renderPoList(poList);
   }
 
   function syncCount() {
@@ -306,7 +320,12 @@ export function init() {
 
   EventBus.on(Events.LABEL_MODE, syncToolbar);
   EventBus.on(Events.LABEL_SELECTION_CHANGED, syncCount);
+  EventBus.on(Events.INVENTORY_UPDATED, refreshPoList);
 
   syncToolbar();
   syncCount();
+
+  // Populate the PO history once the pywebview bridge is hydrated. api() would
+  // otherwise swallow the pre-ready error and cache an empty list.
+  if (poList) whenPywebviewReady().then(() => renderPoList(poList));
 }

@@ -44,6 +44,12 @@
   <div class="panel panel-import" id="panel-import">
     <div class="panel-header">Purchase Import</div>
     <div class="panel-body" id="import-body"></div>
+    <!-- PO history / picker: browse past purchase orders here; in Print Labels
+         mode it pops out and "Select PO" adds that PO's parts to the selection. -->
+    <div class="label-po-picker" id="label-po-picker">
+      <div class="label-po-picker-title">Purchase Orders</div>
+      <div class="label-po-list" id="label-po-list"></div>
+    </div>
     <div id="console-log">
       <div class="console-header">
         <span>Log</span>
@@ -58,7 +64,7 @@
     <div class="panel-header">
       Inventory
       <button class="btn-md rebuild-btn" id="rebuild-inv" title="Rebuild Inventory">Rebuild Inventory</button>
-      <button class="btn-md label-mode-btn" id="label-mode-btn" title="Select parts and export Epson labels">Labels</button>
+      <button class="btn-md label-mode-btn" id="label-mode-btn" title="Select parts and export Epson labels">Print Labels</button>
       <div class="inv-search-group">
         <input type="text" class="search-input" id="inv-search" placeholder="Search parts...">
         <button class="clear-filters-btn" id="clear-dist-filter" disabled title="Clear Filters"><span class="clear-label">Clear Filters</span><span class="clear-icon">&#x2715;</span></button>
@@ -85,11 +91,6 @@
         </div>
         <button class="btn-md label-create-btn" id="label-create-btn" title="Create labels from selection">Create Labels</button>
         <button class="btn-md label-done-btn" id="label-done-btn" title="Exit label mode">Done</button>
-      </div>
-      <!-- PO picker: select whole purchase orders at once -->
-      <div class="label-po-picker" id="label-po-picker">
-        <div class="label-po-picker-title">Purchase Orders</div>
-        <div class="label-po-list" id="label-po-list"></div>
       </div>
     </div>
     <div class="panel-body" id="inventory-body"></div>
