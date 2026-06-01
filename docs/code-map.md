@@ -396,6 +396,7 @@ graph LR
     "tests/python/test_ocr_layout.py" --> "ocr_engine.py"
     "tests/python/test_ocr_layout.py" --> "ocr_layout.py"
     "tests/python/test_ocr_overlay_api.py" --> "inventory_api.py"
+    "tests/python/test_ocr_overlay_api.py" --> "ocr_engine.py"
     "tests/python/test_ocr_overlay_api.py" --> "ocr_layout.py"
     "tests/python/test_pdf_raster.py" --> "pdf_raster.py"
     "tests/python/test_pnp_server.py" --> "pnp_server.py"
@@ -875,7 +876,7 @@ graph LR
 ### ocr_engine.py
 
 - **Imports:** —
-- **Imported by:** `inventory_api.py`, `ocr_layout.py`, `tests/python/test_ocr_engine.py`, `tests/python/test_ocr_layout.py`
+- **Imported by:** `inventory_api.py`, `ocr_layout.py`, `tests/python/test_ocr_engine.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_ocr_overlay_api.py`
 
 ### ocr_layout.py
 
@@ -1418,7 +1419,7 @@ graph LR
 
 ### tests/python/test_ocr_overlay_api.py
 
-- **Imports:** `inventory_api.py`, `ocr_layout.py`
+- **Imports:** `inventory_api.py`, `ocr_engine.py`, `ocr_layout.py`
 - **Imported by:** —
 
 ### tests/python/test_pdf_raster.py
