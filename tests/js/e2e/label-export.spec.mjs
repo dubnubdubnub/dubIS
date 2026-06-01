@@ -102,10 +102,19 @@ test.describe('Epson label export', () => {
     await expect(firstRow.locator('.adj-btn')).toBeVisible();
     await expect(firstRow.locator('.label-select-checkbox')).toHaveCount(0);
 
+    // The PO picker now lives in the Purchase Import panel and is always
+    // visible (dimmed) as a PO history — its rows render on load, before
+    // label mode is ever entered, and it carries no pop-out class yet.
+    const picker = page.locator('#panel-import #label-po-picker');
+    await expect(picker).toBeVisible();
+    await expect(picker).not.toHaveClass(/is-label-active/);
+    await expect(page.locator('.label-po-row').first()).toBeVisible();
+
     await page.locator('#label-mode-btn').click();
 
-    // Toolbar appears.
+    // Toolbar appears, and the picker pops out (gains the active class).
     await expect(page.locator('#label-toolbar')).toBeVisible();
+    await expect(picker).toHaveClass(/is-label-active/);
     // The row's right-edge action buttons are replaced by a real checkbox.
     const firstCheckbox = firstRow.locator('.label-select-checkbox');
     await expect(firstCheckbox).toBeVisible();
@@ -124,8 +133,8 @@ test.describe('Epson label export', () => {
     await expect(page.locator('#label-selected-count')).toHaveText('1 selected');
 
     // ── 3. Select a PO from the picker ───────────────────────────────────
-    // The PO list renders when the toolbar shows. Three inventory items carry
-    // po_history === [PO_ID], so selecting the PO should add 3 more.
+    // The PO list is already rendered (it loads on page init). Three inventory
+    // items carry po_history === [PO_ID], so selecting the PO should add 3 more.
     const poRow = page.locator('.label-po-row').first();
     await expect(poRow).toBeVisible();
     await poRow.locator('.label-po-select').click();
@@ -194,5 +203,29 @@ test.describe('Epson label export', () => {
     const rowAfter = page.locator('.inv-part-row').first();
     await expect(rowAfter.locator('.adj-btn')).toBeVisible();
     await expect(rowAfter.locator('.label-select-checkbox')).toHaveCount(0);
+  });
+
+  test('Select PO from the dimmed picker auto-enters label mode', async ({ page }) => {
+    // Not in label mode yet: toolbar hidden, rows show normal action buttons,
+    // and the picker sits dimmed in the import panel as a browsable history.
+    await expect(page.locator('#label-toolbar')).toBeHidden();
+    const picker = page.locator('#panel-import #label-po-picker');
+    await expect(picker).toBeVisible();
+    await expect(picker).not.toHaveClass(/is-label-active/);
+
+    const firstRow = page.locator('.inv-part-row').first();
+    await expect(firstRow.locator('.adj-btn')).toBeVisible();
+    await expect(firstRow.locator('.label-select-checkbox')).toHaveCount(0);
+
+    // Clicking "Select PO" straight from the dimmed history activates the mode.
+    await page.locator('.label-po-row').first().locator('.label-po-select').click();
+
+    // Label mode is now on: toolbar visible, picker popped out, the PO's 3 parts
+    // selected, and row action buttons replaced by checkboxes.
+    await expect(page.locator('#label-toolbar')).toBeVisible();
+    await expect(picker).toHaveClass(/is-label-active/);
+    await expect(page.locator('#label-selected-count')).toHaveText('3 selected');
+    await expect(firstRow.locator('.label-select-checkbox')).toBeVisible();
+    await expect(firstRow.locator('.adj-btn')).toHaveCount(0);
   });
 });
