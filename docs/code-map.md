@@ -42,6 +42,7 @@ graph LR
     "inventory_api.py" --> "file_dialogs.py"
     "inventory_api.py" --> "inventory_ops.py"
     "inventory_api.py" --> "mfg_direct_import.py"
+    "inventory_api.py" --> "ocr_layout.py"
     "inventory_api.py" --> "pnp_server.py"
     "inventory_api.py" --> "poll_api.py"
     "inventory_api.py" --> "purchase_orders.py"
@@ -129,12 +130,26 @@ graph LR
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/api.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/import/mfg-direct/mfg-direct-logic.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/import/mfg-direct/mfg-direct-renderer.js"
+    "js/import/mfg-direct/mfg-direct-panel.js" --> "js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js"
+    "js/import/mfg-direct/mfg-direct-panel.js" --> "js/import/mfg-direct/vendor-picker.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/store.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/ui-helpers.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/vendor/qrcode.js"
     "js/import/mfg-direct/mfg-direct-renderer.js" --> "js/import/import-logic.js"
     "js/import/mfg-direct/mfg-direct-renderer.js" --> "js/import/mfg-direct/mfg-direct-logic.js"
+    "js/import/mfg-direct/mfg-direct-renderer.js" --> "js/import/mfg-direct/vendor-picker.js"
     "js/import/mfg-direct/mfg-direct-renderer.js" --> "js/ui-helpers.js"
+    "js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js" --> "js/api.js"
+    "js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js" --> "js/import/mfg-direct/ocr-overlay/ocr-overlay-hittest.js"
+    "js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js" --> "js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js"
+    "js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js" --> "js/import/mfg-direct/ocr-overlay/ocr-overlay-state.js"
+    "js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js" --> "js/import/mfg-direct/vendor-picker.js"
+    "js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js" --> "js/ui-helpers.js"
+    "js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js" --> "js/ui-helpers.js"
+    "js/import/mfg-direct/vendor-picker.js" --> "js/api.js"
+    "js/import/mfg-direct/vendor-picker.js" --> "js/import/mfg-direct/mfg-direct-logic.js"
+    "js/import/mfg-direct/vendor-picker.js" --> "js/store.js"
+    "js/import/mfg-direct/vendor-picker.js" --> "js/ui-helpers.js"
     "js/inventory-modals.js" --> "js/api.js"
     "js/inventory-modals.js" --> "js/part-keys.js"
     "js/inventory-modals.js" --> "js/store.js"
@@ -248,6 +263,8 @@ graph LR
     "mfg_direct_import.py" --> "purchase_orders.py"
     "mouser_client.py" --> "base_client.py"
     "mouser_client.py" --> "html_product_parser.py"
+    "ocr_layout.py" --> "distributor_profiles.py"
+    "ocr_layout.py" --> "pdf_raster.py"
     "pololu_client.py" --> "base_client.py"
     "pololu_client.py" --> "html_product_parser.py"
     "purchase_orders.py" --> "csv_io.py"
@@ -289,6 +306,9 @@ graph LR
     "tests/js/matching.test.js" --> "js/matching.js"
     "tests/js/matching.test.js" --> "js/part-keys.js"
     "tests/js/mfg-direct-logic.test.js" --> "js/import/mfg-direct/mfg-direct-logic.js"
+    "tests/js/ocr-overlay-hittest.test.js" --> "js/import/mfg-direct/ocr-overlay/ocr-overlay-hittest.js"
+    "tests/js/ocr-overlay-renderer.test.js" --> "js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js"
+    "tests/js/ocr-overlay-state.test.js" --> "js/import/mfg-direct/ocr-overlay/ocr-overlay-state.js"
     "tests/js/part-keys.test.js" --> "js/part-keys.js"
     "tests/js/qrcode.test.js" --> "js/vendor/qrcode.js"
     "tests/js/real-data.test.js" --> "js/csv-parser.js"
@@ -367,6 +387,10 @@ graph LR
     "tests/python/test_normalizers.py" --> "distributor_fixtures.py"
     "tests/python/test_normalizers.py" --> "mouser_client.py"
     "tests/python/test_normalizers.py" --> "pololu_client.py"
+    "tests/python/test_ocr_layout.py" --> "ocr_layout.py"
+    "tests/python/test_ocr_overlay_api.py" --> "inventory_api.py"
+    "tests/python/test_ocr_overlay_api.py" --> "ocr_layout.py"
+    "tests/python/test_pdf_raster.py" --> "pdf_raster.py"
     "tests/python/test_pnp_server.py" --> "pnp_server.py"
     "tests/python/test_pnp_server.py" --> "tests/python/helpers.py"
     "tests/python/test_poll_api.py" --> "poll_api.py"
@@ -466,7 +490,7 @@ graph LR
 ### distributor_profiles.py
 
 - **Imports:** `mfg_direct_import.py`
-- **Imported by:** `inventory_api.py`, `mfg_direct_import.py`, `tests/python/test_distributor_profiles.py`
+- **Imported by:** `inventory_api.py`, `mfg_direct_import.py`, `ocr_layout.py`, `tests/python/test_distributor_profiles.py`
 
 ### domain/__init__.py
 
@@ -505,8 +529,8 @@ graph LR
 
 ### inventory_api.py
 
-- **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `distributor_profiles.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `file_dialogs.py`, `inventory_ops.py`, `mfg_direct_import.py`, `pnp_server.py`, `poll_api.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
-- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_real_data.py`
+- **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `distributor_profiles.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `file_dialogs.py`, `inventory_ops.py`, `mfg_direct_import.py`, `ocr_layout.py`, `pnp_server.py`, `poll_api.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
+- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_real_data.py`
 
 ### inventory_ops.py
 
@@ -516,7 +540,7 @@ graph LR
 ### js/api.js
 
 - **Imports:** `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory-modals.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-mutations.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/store.js`, `js/undo-redo.js`, `tests/js/api.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-mutations.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/store.js`, `js/undo-redo.js`, `tests/js/api.test.js`
 
 ### js/app-init.js
 
@@ -631,17 +655,42 @@ graph LR
 ### js/import/mfg-direct/mfg-direct-logic.js
 
 - **Imports:** —
-- **Imported by:** `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `tests/js/mfg-direct-logic.test.js`
+- **Imported by:** `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/vendor-picker.js`, `tests/js/mfg-direct-logic.test.js`
 
 ### js/import/mfg-direct/mfg-direct-panel.js
 
-- **Imports:** `js/api.js`, `js/import/mfg-direct/mfg-direct-logic.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/store.js`, `js/ui-helpers.js`, `js/vendor/qrcode.js`
+- **Imports:** `js/api.js`, `js/import/mfg-direct/mfg-direct-logic.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/store.js`, `js/ui-helpers.js`, `js/vendor/qrcode.js`
 - **Imported by:** `js/app-init.js`
 
 ### js/import/mfg-direct/mfg-direct-renderer.js
 
-- **Imports:** `js/import/import-logic.js`, `js/import/mfg-direct/mfg-direct-logic.js`, `js/ui-helpers.js`
+- **Imports:** `js/import/import-logic.js`, `js/import/mfg-direct/mfg-direct-logic.js`, `js/import/mfg-direct/vendor-picker.js`, `js/ui-helpers.js`
 - **Imported by:** `js/import/mfg-direct/mfg-direct-panel.js`
+
+### js/import/mfg-direct/ocr-overlay/ocr-overlay-hittest.js
+
+- **Imports:** —
+- **Imported by:** `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `tests/js/ocr-overlay-hittest.test.js`
+
+### js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js
+
+- **Imports:** `js/api.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-hittest.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-state.js`, `js/import/mfg-direct/vendor-picker.js`, `js/ui-helpers.js`
+- **Imported by:** `js/import/mfg-direct/mfg-direct-panel.js`
+
+### js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js
+
+- **Imports:** `js/ui-helpers.js`
+- **Imported by:** `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `tests/js/ocr-overlay-renderer.test.js`
+
+### js/import/mfg-direct/ocr-overlay/ocr-overlay-state.js
+
+- **Imports:** —
+- **Imported by:** `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `tests/js/ocr-overlay-state.test.js`
+
+### js/import/mfg-direct/vendor-picker.js
+
+- **Imports:** `js/api.js`, `js/import/mfg-direct/mfg-direct-logic.js`, `js/store.js`, `js/ui-helpers.js`
+- **Imported by:** `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`
 
 ### js/inventory-modals.js
 
@@ -777,7 +826,7 @@ graph LR
 ### js/store.js
 
 - **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/signals.js`
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory-modals.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/preferences-modal.js`, `tests/js/inventory-rendering.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/preferences-modal.js`, `tests/js/inventory-rendering.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
 - **Emits:** `CONFIRMED_CHANGED`, `GENERIC_PARTS_LOADED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LINKING_MODE`, `LINKS_CHANGED`, `PO_CHANGED`, `PREFS_CHANGED`, `VENDORS_CHANGED`
 - **Listens:** —
 
@@ -789,7 +838,7 @@ graph LR
 ### js/ui-helpers.js
 
 - **Imports:** —
-- **Imported by:** `js/api.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/group-flyout/flyout-renderer.js`, `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/inventory-modals.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inventory-renderer.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `tests/js/api.test.js`, `tests/js/ui-helpers.test.js`
+- **Imported by:** `js/api.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/group-flyout/flyout-renderer.js`, `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inventory-renderer.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `tests/js/api.test.js`, `tests/js/ui-helpers.test.js`
 
 ### js/undo-redo.js
 
@@ -815,6 +864,16 @@ graph LR
 
 - **Imports:** `base_client.py`, `html_product_parser.py`
 - **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_api.py`, `tests/python/test_normalizers.py`
+
+### ocr_layout.py
+
+- **Imports:** `distributor_profiles.py`, `pdf_raster.py`
+- **Imported by:** `inventory_api.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_ocr_overlay_api.py`
+
+### pdf_raster.py
+
+- **Imports:** —
+- **Imported by:** `ocr_layout.py`, `tests/python/test_pdf_raster.py`
 
 ### pnp_server.py
 
@@ -1036,6 +1095,21 @@ graph LR
 ### tests/js/mfg-direct-logic.test.js
 
 - **Imports:** `js/import/mfg-direct/mfg-direct-logic.js`
+- **Imported by:** —
+
+### tests/js/ocr-overlay-hittest.test.js
+
+- **Imports:** `js/import/mfg-direct/ocr-overlay/ocr-overlay-hittest.js`
+- **Imported by:** —
+
+### tests/js/ocr-overlay-renderer.test.js
+
+- **Imports:** `js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js`
+- **Imported by:** —
+
+### tests/js/ocr-overlay-state.test.js
+
+- **Imports:** `js/import/mfg-direct/ocr-overlay/ocr-overlay-state.js`
 - **Imported by:** —
 
 ### tests/js/part-keys.test.js
@@ -1313,6 +1387,21 @@ graph LR
 ### tests/python/test_normalizers.py
 
 - **Imports:** `digikey_client.py`, `distributor_fixtures.py`, `mouser_client.py`, `pololu_client.py`
+- **Imported by:** —
+
+### tests/python/test_ocr_layout.py
+
+- **Imports:** `ocr_layout.py`
+- **Imported by:** —
+
+### tests/python/test_ocr_overlay_api.py
+
+- **Imports:** `inventory_api.py`, `ocr_layout.py`
+- **Imported by:** —
+
+### tests/python/test_pdf_raster.py
+
+- **Imports:** `pdf_raster.py`
 - **Imported by:** —
 
 ### tests/python/test_pnp_server.py
