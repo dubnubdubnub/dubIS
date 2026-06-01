@@ -59,6 +59,37 @@ export const PO_TEMPLATES = {
 };
 
 /**
+ * True for file names that should route through the image/PDF OCR overlay
+ * (the right-hand zone) rather than the CSV staging mapper (left-hand zone).
+ * Pure/testable — used by the panel's drop-zone routing.
+ * @param {string} name - file name
+ * @returns {boolean}
+ */
+export function isOcrFile(name) {
+  return /\.(png|jpe?g|pdf)$/i.test(name || "");
+}
+
+/**
+ * Build the staging state for a blank manual-entry session: one empty row over
+ * the given template's headers, plus an identity column mapping (each header
+ * that is itself a valid target field maps to itself). Pure/testable.
+ * @param {{headers: string[]}} template - a PO_TEMPLATES entry (defaults to generic)
+ * @returns {{parsedHeaders: string[], parsedRows: string[][], columnMapping: Object<number,string>}}
+ */
+export function seedManualRows(template = PO_TEMPLATES.generic) {
+  const headers = [...(template && template.headers ? template.headers : [])];
+  const columnMapping = {};
+  headers.forEach((h, i) => {
+    if (TARGET_FIELDS.includes(h)) columnMapping[i] = h;
+  });
+  return {
+    parsedHeaders: headers,
+    parsedRows: [headers.map(() => "")],
+    columnMapping,
+  };
+}
+
+/**
  * Classify a row for validation (subtotal, warn, or ok).
  * @param {string[]} row - parsed CSV row values
  * @param {Object<number, string>} columnMapping - source column index -> target field name
