@@ -109,6 +109,12 @@ export function addMockSetup(page, inventory, options = {}) {
           if (!opts.ocrOverlayResult) return null;
           return { ...opts.ocrOverlayResult, template: template || opts.ocrOverlayResult.template };
         },
+        ocr_engine_available: async () =>
+          (opts.ocrEngineAvailable === undefined ? true : opts.ocrEngineAvailable),
+        install_tesseract: async () => {
+          record('install_tesseract', {});
+          return opts.installTesseractResult || { ok: true, message: 'Tesseract installed.', available: true };
+        },
         match_part: async () => ({ status: 'new' }),
         get_warnings: async () => ({ migration: { inferred_count: 0, unknown_count: 0 },
                                      duplicates: [], inferred_only: 0 }),

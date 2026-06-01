@@ -50,6 +50,28 @@ export function renderDropZone(templates) {
   `;
 }
 
+/** The copyable fallback command shown when in-app install isn't possible. */
+export const TESSERACT_WINGET_COMMAND = 'winget install UB-Mannheim.TesseractOCR';
+
+/**
+ * Render the missing-OCR-engine notice with an in-app Install button and a
+ * copyable winget command fallback. Inserted into #import-ocr-zone when the
+ * engine is unavailable.
+ * @returns {string} HTML string
+ */
+export function renderOcrEngineNotice() {
+  return `
+    <div class="ocr-engine-missing" id="ocr-engine-missing">
+      <p class="ocr-engine-missing-msg">Image/PDF import needs the Tesseract OCR engine.</p>
+      <button class="new-po-btn" id="install-tesseract-btn">Install Tesseract</button>
+      <div class="ocr-engine-missing-fallback">
+        <span>or run this command yourself:</span>
+        <code>${escHtml(TESSERACT_WINGET_COMMAND)}</code>
+      </div>
+    </div>
+  `;
+}
+
 /**
  * Render the column mapping UI + staging table + import/clear buttons.
  * @param {string[]} headers - parsed CSV headers
