@@ -1,12 +1,12 @@
 /* import/import-panel.js — Thin wiring: DOM events, API calls, undo/redo */
 
-import { api, AppLog } from '../api.js';
+import { api, AppLog, apiMfgDirect } from '../api.js';
 import { showToast, escHtml, setupDropZone, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
 import { store, onInventoryUpdated, savePreferences } from '../store.js';
 import { parseCSV, generateCSV } from '../csv-parser.js';
 import { TARGET_FIELDS, PO_TEMPLATES, classifyRow, countWarnings, transformImportRows, seedManualRows } from './import-logic.js';
-import { renderDropZone, renderMapper as renderMapperHtml } from './import-renderer.js';
+import { renderDropZone, renderMapper as renderMapperHtml, renderOcrEngineNotice } from './import-renderer.js';
 
 const body = document.getElementById("import-body");
 
@@ -114,6 +114,61 @@ export function init() {
       import('./mfg-direct/mfg-direct-panel.js').then(m => m.startPhoneScan(body, ocrTemplate()));
     });
   }
+
+  // Async: if the Tesseract OCR engine is missing, surface an in-app install
+  // affordance in the image/PDF zone. Best-effort — failure to check is logged.
+  refreshOcrEngineNotice();
+}
+
+/**
+ * Check whether the OCR engine is available and, if not, render the missing-
+ * engine notice (with Install button + copyable command) into the OCR zone.
+ */
+async function refreshOcrEngineNotice() {
+  let available = false;
+  try {
+    available = await apiMfgDirect.ocrEngineAvailable();
+  } catch (exc) {
+    AppLog.warn('ocr_engine_available check failed: ' + exc);
+    return;
+  }
+  if (available) return;
+
+  const ocrZone = document.getElementById("import-ocr-zone");
+  if (!ocrZone || document.getElementById("ocr-engine-missing")) return;
+  ocrZone.insertAdjacentHTML("afterbegin", renderOcrEngineNotice());
+  wireInstallTesseract();
+}
+
+/** Wire the in-zone "Install Tesseract" button to the backend install method. */
+function wireInstallTesseract() {
+  const btn = document.getElementById("install-tesseract-btn");
+  if (!btn) return;
+  btn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Installing… approve the Windows prompt";
+    let res;
+    try {
+      res = await apiMfgDirect.installTesseract();
+    } catch (exc) {
+      AppLog.error('install_tesseract call failed: ' + exc);
+      res = undefined;
+    }
+    if (res && (res.ok || res.available)) {
+      showToast("Tesseract installed");
+      AppLog.info("Tesseract OCR engine installed via in-app button");
+      const notice = document.getElementById("ocr-engine-missing");
+      if (notice) notice.remove();
+      return;
+    }
+    btn.disabled = false;
+    btn.textContent = label;
+    const msg = (res && res.message) || "Install failed. " + escHtml("winget install UB-Mannheim.TesseractOCR");
+    showToast(msg);
+    AppLog.warn("Tesseract install failed: " + msg);
+  });
 }
 
 /**
