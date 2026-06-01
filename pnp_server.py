@@ -5,6 +5,8 @@ in-memory session registry, a mobile-friendly HTML capture page, and an upload
 endpoint that OCRs the photo and pushes results to the desktop UI.
 """
 
+import base64
+import binascii
 import html
 import json
 import logging
@@ -294,8 +296,24 @@ class PnPHandler(BaseHTTPRequestHandler):
         session_id = (query.get("s") or [""])[0]
         session = _get_scan_session(self.server, session_id)
 
+        # Parse Content-Length defensively; a non-numeric header must not escape
+        # the handler thread.
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except (TypeError, ValueError):
+            length = 0
+
+        # Reject oversized requests BEFORE reading the whole body into memory.
+        # The JSON envelope + base64 inflate the raw image by ~4/3 plus framing;
+        # SCAN_MAX_IMAGE_BYTES * 2 is a generous bound for that overhead.
+        if length > SCAN_MAX_IMAGE_BYTES * 2:
+            # Don't read the (claimed) huge body — that's the whole point of the
+            # early reject. Close the connection instead of trying to drain it.
+            self.close_connection = True
+            self._send_json(413, {"ok": False, "error": "Image too large"})
+            return
+
         # Always drain the body so the connection isn't reset mid-request.
-        length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length) if length else b""
 
         if session is None:
@@ -325,6 +343,20 @@ class PnPHandler(BaseHTTPRequestHandler):
         # Reject oversized payloads. base64 inflates by ~4/3; checking the
         # encoded length first avoids decoding a huge blob.
         if len(image_b64) * 3 // 4 > SCAN_MAX_IMAGE_BYTES:
+            self._send_json(413, {"ok": False, "error": "Image too large"})
+            return
+
+        # Decode the base64 ourselves so malformed input is a client error (400)
+        # rather than surfacing as an internal "OCR failed" 500 when the OCR path
+        # re-decodes. The decoded bytes are used only for the size check here;
+        # the original image_b64 string is still passed to OCR (re-decodes) and
+        # to the _scanReceived UI push.
+        try:
+            decoded = base64.b64decode(image_b64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            self._send_json(400, {"ok": False, "error": f"Invalid base64 image data: {exc}"})
+            return
+        if len(decoded) > SCAN_MAX_IMAGE_BYTES:
             self._send_json(413, {"ok": False, "error": "Image too large"})
             return
 

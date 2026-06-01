@@ -2,6 +2,7 @@
 inventory_api.start_scan_session."""
 
 import json
+import socket
 import types
 import urllib.error
 import urllib.request
@@ -187,6 +188,52 @@ class TestScanUpload:
             {"image_b64": big, "filename": "po.jpg"},
         )
         assert status == 413
+        assert not scan_server.api.calls
+
+    def test_malformed_base64_rejected_400_without_ocr(self, scan_server):
+        sid = pnp_server.create_scan_session(scan_server.server, "generic")
+        status, body = _post_json(
+            f"{scan_server.base_url}/api/scan/upload?s={sid}",
+            {"image_b64": "!!!not base64!!!", "filename": "po.jpg"},
+        )
+        assert status == 400
+        assert body["ok"] is False
+        # Malformed base64 is a client error — OCR must not be invoked.
+        assert not scan_server.api.calls
+
+    def test_oversized_content_length_header_rejected_413(self, scan_server):
+        sid = pnp_server.create_scan_session(scan_server.server, "generic")
+        # Spoof a Content-Length larger than the early-reject bound while
+        # sending only a tiny body: the server must respond 413 from the header
+        # alone, before reading the (claimed) huge body into memory.
+        host, port = scan_server.server.server_address
+        if not host or host == "0.0.0.0":
+            host = "127.0.0.1"
+        spoof_len = pnp_server.SCAN_MAX_IMAGE_BYTES * 2 + 1
+        path = f"/api/scan/upload?s={sid}"
+        request = (
+            f"POST {path} HTTP/1.1\r\n"
+            f"Host: {host}:{port}\r\n"
+            "Content-Type: application/json\r\n"
+            f"Content-Length: {spoof_len}\r\n"
+            "\r\n"
+        ).encode("ascii")
+
+        sock = socket.create_connection((host, port), timeout=5)
+        try:
+            sock.sendall(request)  # headers only; never send the huge body
+            sock.settimeout(5)
+            data = b""
+            while b"\r\n\r\n" not in data:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                data += chunk
+        finally:
+            sock.close()
+
+        status_line = data.split(b"\r\n", 1)[0].decode("ascii", "replace")
+        assert "413" in status_line
         assert not scan_server.api.calls
 
     def test_missing_image_rejected(self, scan_server):
