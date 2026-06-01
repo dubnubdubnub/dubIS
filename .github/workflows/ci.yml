@@ -390,7 +390,7 @@ jobs:
       - run: npm install
       - run: npx playwright install chromium
       - name: Regenerate visual baselines
-        run: npx playwright test drop-zone-visual --project functional --update-snapshots
+        run: npx playwright test inv-alignment-visual sticky-clip-visual --project functional --update-snapshots
       - uses: actions/upload-artifact@v4
         with:
           name: visual-baselines-linux

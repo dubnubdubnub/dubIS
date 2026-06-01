@@ -63,7 +63,12 @@ def extract_pages(file_bytes: bytes, ext: str, template: str = "generic") -> dic
     over all line text concatenated.
     """
     import distributor_profiles
+    import ocr_engine
     import pdf_raster
+
+    # Fail fast: surface a clear TesseractMissingError before doing the
+    # (potentially expensive) PDF rasterization work.
+    ocr_engine.require_tesseract()
 
     pages = [extract_page(png) for (png, _w, _h) in pdf_raster.rasterize(file_bytes, ext)]
     full_text = "\n".join(ln["text"] for pg in pages for ln in pg["lines"])

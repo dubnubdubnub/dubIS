@@ -116,7 +116,6 @@ which checks `isColorNear` and `channelDominant` against known RGB values.
 | Spec | Primitives used | What it guards |
 |------|----------------|----------------|
 | `mfg-direct.spec.mjs` | `capture`, `rectOf`, `scanRay`, `measureGap`, `channelDominant` | Drop-zone L-frame margins (top/right/bottom/left ≈ 8px) and rounded NW corner; surface-specific `sampleDropZoneFrame` lives here, close to the geometry it expresses |
-| `drop-zone-visual.spec.mjs` | `paddedClip`, `expectStrictScreenshot` | Drop-zone resting-state pixel anchor at narrow (1280×720) and medium (1600×900) |
 | `inv-alignment-visual.spec.mjs` | `rectOf`, `measureAlignment` | Column headers align with first-row cells (left edge ≤ 1.5 CSS px) at 1280 and 1920px wide |
 | `sticky-clip-visual.spec.mjs` | `detectClipping` | Action buttons (`.adj-btn`) not clipped/occluded at 1024/1280/1600px; BOM sticky `td.btn-group` survives horizontal scroll; header buttons (`#prefs-btn`, undo/redo, inv-count) not clipped |
 
@@ -140,21 +139,22 @@ platform, keep the semantic tests and treat snapshots as a bonus.
 
 1. Push your branch.
 2. In GitHub Actions, trigger the `Update visual baselines (Linux)` workflow
-   with `suite = visual-baselines`. This runs `drop-zone-visual` with
-   `--update-snapshots` on the self-hosted runner.
+   with `suite = visual-baselines`. This runs `inv-alignment-visual` and
+   `sticky-clip-visual` with `--update-snapshots` on the self-hosted runner.
 3. Download the `visual-baselines-linux` artifact from the completed run.
-4. Unzip the `*-linux.png` files into
-   `tests/js/e2e/drop-zone-visual.spec.mjs-snapshots/`.
+4. Unzip the `*-linux.png` files into the matching snapshot dirs:
+   `tests/js/e2e/inv-alignment-visual.spec.mjs-snapshots/` and
+   `tests/js/e2e/sticky-clip-visual.spec.mjs-snapshots/`.
 5. Commit them.
 
 **Local shortcut (generates win32 baselines on your dev machine):**
 
 ```bash
-npm run visual:baselines   # playwright test drop-zone-visual --project functional --update-snapshots
+npm run visual:baselines   # playwright test inv-alignment-visual sticky-clip-visual --project functional --update-snapshots
 ```
 
 **Fallback — harvest from a CI failure artifact:**
 
 When the snapshot test fails in CI, Playwright uploads a diff artifact. Download
 it, inspect the `*-actual.png`, and if the change is intentional commit that
-file renamed to the expected baseline name (e.g. `drop-zone-medium-linux.png`).
+file renamed to the expected baseline name (e.g. `inv-alignment-1280-linux.png`).
