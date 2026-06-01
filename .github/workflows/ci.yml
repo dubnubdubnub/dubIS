@@ -222,13 +222,14 @@ jobs:
         if: needs.parse-tags.outputs.run_js == 'true'
         run: npx vitest run --project core
 
-  # ── JS: functional E2E, sharded across runners ───────────────────────
-  #   17 functional specs split into 2 shards per OS; with 3 plain runners
-  #   per box the two shards + js-live run concurrently. Per-runner
-  #   SERVE_PORT (.env on each runner) keeps the static web servers from
-  #   colliding when shards land on the same physical host.
+  # ── JS: functional E2E (runs parallel to js-live on a separate runner) ─
+  #   Not sharded: the suite's wall-time is dominated by a handful of slow
+  #   specs, so count-based --shard just piles them into one imbalanced
+  #   shard (measured ~2x the other) while doubling the job count and the
+  #   queue pressure on the 4-runner boxes. One unsharded job per OS, run
+  #   in parallel with js-live, is the actual win here.
   js-e2e:
-    name: JS Functional E2E (${{ matrix.name }} shard ${{ matrix.shard }})
+    name: JS Functional E2E (${{ matrix.name }})
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
@@ -236,8 +237,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [ubuntu, macos]
-        shard: [1, 2]
         include:
           - name: ubuntu
             runner: [self-hosted, pnp-testbox]
@@ -256,12 +255,12 @@ jobs:
       - name: Install Playwright browsers
         if: matrix.install-pw
         run: npx playwright install chromium
-      - name: Functional E2E (shard ${{ matrix.shard }}/2)
-        run: npx playwright test --project functional --shard=${{ matrix.shard }}/2
+      - name: Functional E2E
+        run: npx playwright test --project functional
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report-${{ matrix.name }}-functional-shard${{ matrix.shard }}
+          name: playwright-report-${{ matrix.name }}-functional
           path: test-results/
 
   # ── JS: live-backend E2E (Linux only; serialized via playwright config) ─
