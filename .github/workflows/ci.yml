@@ -190,14 +190,52 @@ jobs:
             exit 1
           fi
 
-  # ── JS: lint + type-check + unit tests + E2E ─────────────────────────
+  # ── JS: lint + type-check + unit tests ───────────────────────────────
+  #   E2E is split into js-e2e (functional, sharded) and js-live (live
+  #   backend) so they run on separate runners in parallel instead of
+  #   serially inside one job. The js-required gate below aggregates all
+  #   three back into the single protected "JS Lint & Test (ubuntu)" check.
   js:
-    name: JS Lint & Test (${{ matrix.name }})
+    name: JS Lint & Type (${{ matrix.name }})
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
       (needs.parse-tags.outputs.run_lint == 'true' || needs.parse-tags.outputs.run_js == 'true')
     strategy:
+      matrix:
+        include:
+          - name: ubuntu
+            runner: [self-hosted, pnp-testbox]
+            checkout-clean: true
+          - name: macos
+            runner: [self-hosted, m4-air]
+            checkout-clean: false
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: ${{ matrix.checkout-clean }}
+      - run: npm install
+      - run: npx eslint js/
+      - run: npx tsc --noEmit
+      - name: Unit tests
+        if: needs.parse-tags.outputs.run_js == 'true'
+        run: npx vitest run --project core
+
+  # ── JS: functional E2E (runs parallel to js-live on a separate runner) ─
+  #   Not sharded: the suite's wall-time is dominated by a handful of slow
+  #   specs, so count-based --shard just piles them into one imbalanced
+  #   shard (measured ~2x the other) while doubling the job count and the
+  #   queue pressure on the 4-runner boxes. One unsharded job per OS, run
+  #   in parallel with js-live, is the actual win here.
+  js-e2e:
+    name: JS Functional E2E (${{ matrix.name }})
+    needs: [parse-tags, guard]
+    if: >-
+      always() && !failure() &&
+      needs.parse-tags.outputs.run_js == 'true'
+    strategy:
+      fail-fast: false
       matrix:
         include:
           - name: ubuntu
@@ -214,36 +252,72 @@ jobs:
         with:
           clean: ${{ matrix.checkout-clean }}
       - run: npm install
-      - run: npx eslint js/
-      - run: npx tsc --noEmit
-      - name: Unit tests
-        if: needs.parse-tags.outputs.run_js == 'true'
-        run: npx vitest run --project core
       - name: Install Playwright browsers
-        if: >-
-          matrix.install-pw &&
-          needs.parse-tags.outputs.run_js == 'true'
+        if: matrix.install-pw
         run: npx playwright install chromium
-      - name: Playwright E2E
-        if: needs.parse-tags.outputs.run_js == 'true'
+      - name: Functional E2E
         run: npx playwright test --project functional
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.name }}-functional
+          path: test-results/
+
+  # ── JS: live-backend E2E (Linux only; serialized via playwright config) ─
+  js-live:
+    name: JS Live-backend E2E (ubuntu)
+    needs: [parse-tags, guard]
+    if: >-
+      always() && !failure() &&
+      needs.parse-tags.outputs.run_js == 'true'
+    runs-on: [self-hosted, pnp-testbox]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+      - run: npm install
+      - run: npx playwright install chromium
       - name: Install Python deps for live E2E
-        if: >-
-          matrix.install-pw &&
-          needs.parse-tags.outputs.run_js == 'true'
         run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
       - name: Live-backend E2E
-        if: >-
-          matrix.install-pw &&
-          needs.parse-tags.outputs.run_js == 'true'
-        # Single-worker isolation is pinned in playwright.config.mjs (live project),
-        # so the --workers 1 flag is no longer needed here.
+        # Single-worker isolation is pinned in playwright.config.mjs (live project).
         run: npx playwright test --project live
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report-${{ matrix.name }}
+          name: playwright-report-live
           path: test-results/
+
+  # ── Required-check gate ──────────────────────────────────────────────
+  #   Keeps the "JS Lint & Test (ubuntu)" context that branch protection
+  #   requires, now aggregating the split JS jobs so a failure in lint/type,
+  #   any functional shard, or live E2E blocks merge. Always runs (so non-JS
+  #   PRs still report this context) and treats skipped jobs as a pass.
+  js-required:
+    name: JS Lint & Test (ubuntu)
+    needs: [parse-tags, guard, js, js-e2e, js-live]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate JS job results
+        run: |
+          echo "parse-tags          = ${{ needs.parse-tags.result }}"
+          echo "guard               = ${{ needs.guard.result }}"
+          echo "js (lint/type/unit) = ${{ needs.js.result }}"
+          echo "js-e2e (functional) = ${{ needs.js-e2e.result }}"
+          echo "js-live             = ${{ needs.js-live.result }}"
+          for r in \
+            "${{ needs.parse-tags.result }}" \
+            "${{ needs.guard.result }}" \
+            "${{ needs.js.result }}" \
+            "${{ needs.js-e2e.result }}" \
+            "${{ needs.js-live.result }}"; do
+            if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
+              echo "::error::A required JS job did not pass (result: $r)"
+              exit 1
+            fi
+          done
+          echo "All required JS jobs passed or were skipped."
 
   # ── Python: lint + unit tests ─────────────────────────────────────────
   python:
