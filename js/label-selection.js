@@ -287,6 +287,9 @@ export function init() {
     const on = isLabelMode();
     toolbar.classList.toggle("hidden", !on);
     modeBtn.classList.toggle("active", on);
+    // Pressing the button again exits the mode, so label it "Cancel" while on.
+    modeBtn.textContent = on ? "Cancel" : "Print Labels";
+    modeBtn.title = on ? "Exit label mode" : "Select parts and export Epson labels";
     // The PO picker lives in the import panel and is always visible (dimmed) as
     // a PO history; it "pops out" while Print Labels mode is active.
     if (poPicker) poPicker.classList.toggle("is-label-active", on);
