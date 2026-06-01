@@ -433,10 +433,10 @@ graph LR
 | `LABEL_SELECTION_CHANGED` | `js/label-selection.js` | `js/label-selection.js`, `tests/js/label-selection.test.js` |
 | `LINKING_MODE` | `js/store.js` | `js/bom/bom-events.js`, `js/inventory/inv-events.js`, `tests/js/store.test.js` |
 | `LINKS_CHANGED` | `js/app-init.js`, `js/store.js` | `js/bom/bom-events.js`, `tests/js/store.test.js` |
-| `PO_CHANGED` | `js/store.js` | — |
+| `PO_CHANGED` | `js/store.js` | `js/inventory/inv-events.js` |
 | `PREFS_CHANGED` | `js/store.js` | — |
 | `SAVE_AND_CLOSE` | `js/app-init.js` | `js/bom/bom-events.js` |
-| `VENDORS_CHANGED` | `js/store.js` | — |
+| `VENDORS_CHANGED` | `js/store.js` | `js/inventory/inv-events.js` |
 
 ## Per-file index
 
@@ -725,7 +725,7 @@ graph LR
 - **Imports:** `js/api.js`, `js/event-bus.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-sort-group.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-logic.js`, `js/inventory/vendor-flyout.js`, `js/signals.js`, `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`
 - **Emits:** —
-- **Listens:** `BOM_CLEARED`, `BOM_LOADED`, `FLYOUT_ACTIVE_CHANGED`, `FLYOUT_CLOSED`, `FLYOUT_OPENED`, `FLYOUT_SEARCH_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LABEL_BULK_SELECTION`, `LABEL_MODE`, `LINKING_MODE`
+- **Listens:** `BOM_CLEARED`, `BOM_LOADED`, `FLYOUT_ACTIVE_CHANGED`, `FLYOUT_CLOSED`, `FLYOUT_OPENED`, `FLYOUT_SEARCH_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LABEL_BULK_SELECTION`, `LABEL_MODE`, `LINKING_MODE`, `PO_CHANGED`, `VENDORS_CHANGED`
 
 ### js/inventory/inv-groups-view.js
 
