@@ -24,7 +24,7 @@ def extract_page(png_bytes: bytes) -> dict[str, Any]:
         data = pytesseract.image_to_data(im, output_type=pytesseract.Output.DICT)
 
     words: list[dict[str, Any]] = []
-    groups: dict[tuple, list[int]] = {}
+    groups: dict[tuple, int] = {}
     n = len(data["text"])
     for i in range(n):
         text = (data["text"][i] or "").strip()
@@ -51,10 +51,10 @@ def extract_page(png_bytes: bytes) -> dict[str, Any]:
     }
 
 
-def _line_index(groups: dict[tuple, list[int]], key: tuple) -> int:
+def _line_index(groups: dict[tuple, int], key: tuple) -> int:
     if key not in groups:
-        groups[key] = [len(groups)]
-    return groups[key][0]
+        groups[key] = len(groups)
+    return groups[key]
 
 
 def _group_lines(words: list[dict[str, Any]]) -> list[dict[str, Any]]:
