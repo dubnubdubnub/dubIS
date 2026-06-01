@@ -51,6 +51,22 @@ def extract_page(png_bytes: bytes) -> dict[str, Any]:
     }
 
 
+def extract_pages(file_bytes: bytes, ext: str, template: str = "generic") -> dict[str, Any]:
+    """Rasterize -> OCR each page -> heuristic prefill.
+
+    Returns {pages, prefill_rows, template}. ``pages`` is one extract_page() dict
+    per rasterized page; ``prefill_rows`` is the distributor-profile heuristic run
+    over all line text concatenated.
+    """
+    import distributor_profiles
+    import pdf_raster
+
+    pages = [extract_page(png) for (png, _w, _h) in pdf_raster.rasterize(file_bytes, ext)]
+    full_text = "\n".join(ln["text"] for pg in pages for ln in pg["lines"])
+    prefill_rows = distributor_profiles.parse_with_template(template, full_text)
+    return {"pages": pages, "prefill_rows": prefill_rows, "template": template}
+
+
 def _line_index(groups: dict[tuple, int], key: tuple) -> int:
     if key not in groups:
         groups[key] = len(groups)
