@@ -103,6 +103,12 @@ export function addMockSetup(page, inventory, options = {}) {
         fetch_favicon: async () => '/data/sources/favicons/test.ico',
         parse_source_file: async () => [],
         parse_source_file_b64: async () => opts.mdtInvoiceParseResult || [],
+        ocr_overlay_b64: async (b64, name, template) => {
+          // The OCR-overlay payload is supplied per-test (opts.ocrOverlayResult).
+          // Default to null so non-OCR specs keep the legacy flat-parse path.
+          if (!opts.ocrOverlayResult) return null;
+          return { ...opts.ocrOverlayResult, template: template || opts.ocrOverlayResult.template };
+        },
         match_part: async () => ({ status: 'new' }),
         get_warnings: async () => ({ migration: { inferred_count: 0, unknown_count: 0 },
                                      duplicates: [], inferred_only: 0 }),
