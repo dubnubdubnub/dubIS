@@ -7,8 +7,9 @@ import { escHtml, vendorIconSrc } from '../ui-helpers.js';
 
 /** Number of most-recent POs shown in the inline grid stack. */
 var MAX_VISIBLE = 3;
-/** Per-icon cascade offset (px), applied both right and down. */
-var STACK_OFFSET_PX = 6;
+/** Per-icon cascade offset (px): each older icon shifts right and down. */
+var STACK_OFFSET_X_PX = 5;
+var STACK_OFFSET_Y_PX = 3;
 /** Icon edge length (px); mirrors `.fan-icon` width/height in vendor.css. */
 var ICON_SIZE_PX = 16;
 
@@ -65,8 +66,9 @@ export function renderFanStack(part) {
   for (var k = 0; k < n; k++) {
     var v = vendorMap[vendorIds[k]];
     if (!v) continue;
-    var off = k * STACK_OFFSET_PX;
-    var style = 'left:' + off + 'px;top:' + off + 'px;z-index:' + (n - k);
+    var offX = k * STACK_OFFSET_X_PX;
+    var offY = k * STACK_OFFSET_Y_PX;
+    var style = 'left:' + offX + 'px;top:' + offY + 'px;z-index:' + (n - k);
     var iconHtml = v.icon
       ? '<span class="fan-icon fan-icon-emoji" style="' + style + '">' + escHtml(v.icon) + '</span>'
       : (v.favicon_path
@@ -75,9 +77,10 @@ export function renderFanStack(part) {
     icons += iconHtml;
   }
 
-  var span = (n - 1) * STACK_OFFSET_PX + ICON_SIZE_PX;
+  var width = (n - 1) * STACK_OFFSET_X_PX + ICON_SIZE_PX;
+  var height = (n - 1) * STACK_OFFSET_Y_PX + ICON_SIZE_PX;
 
-  return '<span class="favicon-fan-stack" data-part-key="' + escHtml((part.lcsc || part.mpn || '')) + '" style="width:' + span + 'px;height:' + span + 'px">' +
+  return '<span class="favicon-fan-stack" data-part-key="' + escHtml((part.lcsc || part.mpn || '')) + '" style="width:' + width + 'px;height:' + height + 'px">' +
     icons +
     '</span>';
 }

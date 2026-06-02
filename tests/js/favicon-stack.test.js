@@ -113,8 +113,8 @@ describe('renderFanStack', () => {
     var html = renderFanStack(part);
     // Front icon (most recent) anchored at 0,0 with the highest z-index
     expect(html).toContain('left:0px;top:0px;z-index:2');
-    // Older icon offset 6px down-right, behind
-    expect(html).toContain('left:6px;top:6px;z-index:1');
+    // Older icon offset 5px right and 3px down, behind
+    expect(html).toContain('left:5px;top:3px;z-index:1');
   });
 
   it('caps at the 3 most recent POs with no overflow badge', () => {
