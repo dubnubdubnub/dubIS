@@ -40,7 +40,8 @@ const INVENTORY = [
   },
 ];
 
-const STACK_OFFSET = 6;
+const STACK_OFFSET_X = 5;
+const STACK_OFFSET_Y = 3;
 
 /** Index of the .fan-icon under a viewport CSS-px point, or -1. */
 function iconIndexAt(page, x, y) {
@@ -70,13 +71,13 @@ test('most-recent PO is on top; older POs cascade down-right and stay visible', 
   expect(clip.occluded, `front icon occluded: ${clip.reason}`).toBe(false);
   expect(clip.clipped, `front icon clipped: ${clip.reason}`).toBe(false);
 
-  // Cascade geometry: each older icon is offset ~6px right AND down.
+  // Cascade geometry: each older icon is offset ~5px right and ~3px down.
   const rects = [];
   for (let i = 0; i < 3; i++) rects.push(await rectOf(icons.nth(i)));
   for (let i = 1; i < 3; i++) {
-    expect(Math.abs((rects[i].x - rects[i - 1].x) - STACK_OFFSET),
+    expect(Math.abs((rects[i].x - rects[i - 1].x) - STACK_OFFSET_X),
       `icon ${i} horizontal offset wrong`).toBeLessThanOrEqual(1.5);
-    expect(Math.abs((rects[i].y - rects[i - 1].y) - STACK_OFFSET),
+    expect(Math.abs((rects[i].y - rects[i - 1].y) - STACK_OFFSET_Y),
       `icon ${i} vertical offset wrong`).toBeLessThanOrEqual(1.5);
   }
 
@@ -87,7 +88,7 @@ test('most-recent PO is on top; older POs cascade down-right and stay visible', 
     'top-left should hit the most-recent icon').toBe(0);
 
   // In the overlap zone the most-recent icon is layered ON TOP of the next.
-  expect(await iconIndexAt(page, r.x + STACK_OFFSET + 2, r.y + STACK_OFFSET + 2),
+  expect(await iconIndexAt(page, r.x + STACK_OFFSET_X + 2, r.y + STACK_OFFSET_Y + 2),
     'most-recent icon should cover the older one in the overlap region').toBe(0);
 
   // The bottom-right sliver belongs to an OLDER icon — it peeks out, visible.
@@ -122,8 +123,8 @@ test('the older icon is actually painted in the bottom-right sliver', async ({ p
     Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]), Math.abs(a[3] - b[3]),
   );
   let painted = false;
-  for (let dx = 1; dx <= STACK_OFFSET && !painted; dx++) {
-    for (let dy = 1; dy <= STACK_OFFSET && !painted; dy++) {
+  for (let dx = 1; dx <= STACK_OFFSET_X && !painted; dx++) {
+    for (let dy = 1; dy <= STACK_OFFSET_Y && !painted; dy++) {
       const [px, py] = frame.toImg(r.x + r.width - dx, r.y + r.height - dy);
       const p = frame.pixel(px, py);
       if (p && channelDelta(p, /** @type {number[]} */(ref)) > 24) painted = true;
