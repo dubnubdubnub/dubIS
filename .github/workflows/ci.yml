@@ -205,7 +205,7 @@ jobs:
       matrix:
         include:
           - name: ubuntu
-            runner: [self-hosted, pnp-testbox]
+            runner: arc-dubis
             checkout-clean: true
           - name: macos
             runner: [self-hosted, m4-air]
@@ -239,7 +239,7 @@ jobs:
       matrix:
         include:
           - name: ubuntu
-            runner: [self-hosted, pnp-testbox]
+            runner: arc-dubis
             checkout-clean: true
             install-pw: true
           - name: macos
@@ -270,7 +270,7 @@ jobs:
     if: >-
       always() && !failure() &&
       needs.parse-tags.outputs.run_js == 'true'
-    runs-on: [self-hosted, pnp-testbox]
+    runs-on: arc-dubis
     steps:
       - uses: actions/checkout@v4
         with:
@@ -330,7 +330,7 @@ jobs:
       matrix:
         include:
           - name: ubuntu
-            runner: [self-hosted, pnp-testbox]
+            runner: arc-dubis
             checkout-clean: true
           - name: macos
             runner: [self-hosted, m4-air]
@@ -432,7 +432,7 @@ jobs:
       matrix:
         include:
           - name: ubuntu
-            runner: [self-hosted, pnp-testbox]
+            runner: arc-dubis
             checkout-clean: true
             install-pw: true
           - name: macos
@@ -458,7 +458,7 @@ jobs:
   update-visual-baselines:
     name: Update visual baselines (Linux)
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'visual-baselines'
-    runs-on: [self-hosted, pnp-testbox]
+    runs-on: arc-dubis
     steps:
       - uses: actions/checkout@v4
       - run: npm install
