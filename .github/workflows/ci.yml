@@ -53,6 +53,25 @@ jobs:
             echo "run_cross=true"   >> "$GITHUB_OUTPUT"
             echo "run_quality=true" >> "$GITHUB_OUTPUT"
           }
+          set_none() {
+            for f in run_lint run_js run_python run_pnp run_cross run_quality; do
+              echo "$f=false" >> "$GITHUB_OUTPUT"
+            done
+          }
+
+          # --- 0. SECURITY: never run self-hosted CI for fork PRs ---
+          #   dubIS is a public repo with self-hosted runners (cluster on the
+          #   home LAN). A fork PR must NOT execute on our hardware. All the
+          #   self-hosted jobs gate on these run_* flags, so zeroing them makes
+          #   every self-hosted job skip. parse-tags itself runs on GitHub-hosted
+          #   ubuntu and only reads metadata (never the PR's code), so this is safe.
+          #   To run full CI on a trusted fork PR: push the branch into this repo.
+          if [[ "${{ github.event_name }}" == "pull_request" \
+                && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+            echo "::notice::Fork PR detected — self-hosted CI skipped. A maintainer must review and push the branch into the repo to run full CI."
+            set_none
+            exit 0
+          fi
 
           # --- 1. Push to main always runs everything (squash-merge commits
           #        inherit ci tags from PR branches — ignore them on main) ---
