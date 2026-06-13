@@ -407,11 +407,11 @@ jobs:
       matrix:
         include:
           - name: ubuntu
-            runner: [self-hosted, pnp-testbox, gui]
+            runner: arc-dubis
           - name: macos
             runner: [self-hosted, m4-air, gui]
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 5
+    timeout-minutes: 10
     env:
       OPENPNP_BIN: /usr/local/bin/openpnp.sh
     steps:
