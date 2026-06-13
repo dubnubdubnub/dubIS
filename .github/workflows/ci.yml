@@ -288,6 +288,40 @@ jobs:
           name: playwright-report-live
           path: test-results/
 
+  # ── JS on Windows (win11 VM): lint/type/unit + functional E2E ────────
+  #   dubIS ships on Windows (pywebview/WebView2), so this leg exercises the
+  #   frontend on a real Windows runner — catching Windows-only path/render
+  #   issues the ubuntu+macos legs miss. Runs on the single self-hosted win11
+  #   VM (blhx370/KVM). Deliberately NOT part of the js-required gate: it's a
+  #   single VM, so an outage must not block merges. Gated on run_js.
+  js-windows:
+    name: JS Windows E2E (win11)
+    needs: [parse-tags, guard]
+    if: >-
+      always() && !failure() &&
+      needs.parse-tags.outputs.run_js == 'true'
+    runs-on: [self-hosted, win11]
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install
+      - run: npx eslint js/
+      - run: npx tsc --noEmit
+      - name: Unit tests
+        run: npx vitest run --project core
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+      - name: Functional E2E
+        run: npx playwright test --project functional
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-win11-functional
+          path: test-results/
+
   # ── Required-check gate ──────────────────────────────────────────────
   #   Keeps the "JS Lint & Test (ubuntu)" context that branch protection
   #   requires, now aggregating the split JS jobs so a failure in lint/type,
