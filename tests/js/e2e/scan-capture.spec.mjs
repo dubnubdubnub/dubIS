@@ -19,7 +19,7 @@
 
 import { test, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +40,7 @@ let baseUrl;
 let sessionId;
 let recordPath;
 let recordDir;
+let dataDir;
 
 test.describe('Phone-scan capture page → upload', () => {
   test.beforeAll(async () => {
@@ -58,10 +59,10 @@ test.describe('Phone-scan capture page → upload', () => {
       let buf = '';
       serverProc.stdout.on('data', (chunk) => {
         buf += chunk.toString();
-        const m = buf.match(/READY port=(\d+) sid=(\S+)/);
+        const m = buf.match(/READY port=(\d+) sid=(\S+) data_dir=(.+)/);
         if (m) {
           clearTimeout(timeout);
-          resolve({ port: m[1], sid: m[2] });
+          resolve({ port: m[1], sid: m[2], dataDir: m[3].trim() });
         }
       });
       serverProc.on('exit', (code) => {
@@ -76,6 +77,7 @@ test.describe('Phone-scan capture page → upload', () => {
 
     baseUrl = `http://127.0.0.1:${handshake.port}`;
     sessionId = handshake.sid;
+    dataDir = handshake.dataDir;
   });
 
   test.afterAll(async () => {
@@ -106,6 +108,10 @@ test.describe('Phone-scan capture page → upload', () => {
     // Real click → real POST to /api/scan/upload.
     await sendBtn.click();
 
+    // The progress UI appears and the bar completes at 100%.
+    await expect(page.locator('#progress-wrap')).toBeVisible();
+    await expect(page.locator('#progress-bar')).toHaveAttribute('style', /width:\s*100%/);
+
     // Success state: the page reports the upload landed.
     await expect(page.locator('#msg.ok')).toContainText('Sent — check the desktop app');
 
@@ -119,6 +125,48 @@ test.describe('Phone-scan capture page → upload', () => {
     expect(rec.ocr_calls[0]).toMatchObject({ filename: 'po.png', template: 'lcsc' });
     expect(rec.js_calls.length).toBeGreaterThan(0);
     expect(rec.js_calls[0]).toContain('window._scanReceived(');
+
+    // The raw photo was saved to <data_dir>/scans the moment it was uploaded.
+    const scansDir = join(dataDir, 'scans');
+    expect(existsSync(scansDir)).toBe(true);
+    const saved = readdirSync(scansDir).filter((f) => f.endsWith('.png'));
+    expect(saved.length).toBeGreaterThan(0);
+  });
+
+  test('"Save to Photos" button appears when sharing is available and shares the file', async ({ page }) => {
+    // iOS Safari supports navigator.share with files; headless Chromium does
+    // not. Stub the Web Share API before navigation so this exercises the page
+    // wiring deterministically on any platform (the spec asserts the button is
+    // revealed and that clicking it calls share() with the captured file).
+    await page.addInitScript(() => {
+      const shared = [];
+      // @ts-ignore - augment for assertion
+      window.__sharedFiles = shared;
+      Object.defineProperty(navigator, 'canShare', {
+        configurable: true,
+        value: (data) => !!(data && data.files && data.files.length),
+      });
+      Object.defineProperty(navigator, 'share', {
+        configurable: true,
+        value: (data) => {
+          (data.files || []).forEach((f) => shared.push(f.name));
+          return Promise.resolve();
+        },
+      });
+    });
+
+    await page.goto(`${baseUrl}/scan?s=${sessionId}`);
+
+    const saveBtn = page.locator('#save-photos');
+    await expect(saveBtn).toBeHidden();
+
+    // Select a photo → the Save to Photos button is revealed.
+    await page.locator('#file').setInputFiles({ name: 'po.png', mimeType: 'image/png', buffer: PNG_1X1 });
+    await expect(saveBtn).toBeVisible();
+
+    // Clicking it shares the captured file (our stub records the filename).
+    await saveBtn.click();
+    await expect.poll(() => page.evaluate(() => window.__sharedFiles)).toContain('po.png');
   });
 
   test('library input (no capture) lets you upload an existing photo', async ({ page }) => {
