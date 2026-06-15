@@ -113,7 +113,7 @@ test.describe('Phone-scan capture page → upload', () => {
     await expect(page.locator('#progress-bar')).toHaveAttribute('style', /width:\s*100%/);
 
     // Success state: the page reports the upload landed.
-    await expect(page.locator('#msg.ok')).toContainText('Sent — check the desktop app');
+    await expect(page.locator('#msg.ok')).toContainText('Found 1 item');
 
     // The backend actually ran OCR and fired the desktop UI push.
     await expect.poll(() => {
@@ -131,6 +131,29 @@ test.describe('Phone-scan capture page → upload', () => {
     expect(existsSync(scansDir)).toBe(true);
     const saved = readdirSync(scansDir).filter((f) => f.endsWith('.png'));
     expect(saved.length).toBeGreaterThan(0);
+  });
+
+  test('after upload, the OCR tokens are overlaid on the captured photo with a verdict', async ({ page }) => {
+    await page.goto(`${baseUrl}/scan?s=${sessionId}`);
+    await page.locator('#file').setInputFiles({ name: 'po.png', mimeType: 'image/png', buffer: PNG_1X1 });
+    await expect(page.locator('#send')).toBeEnabled();
+
+    // No overlay boxes before the OCR result comes back.
+    await expect(page.locator('#ocr-overlay-layer .ocr-box')).toHaveCount(0);
+
+    await page.locator('#send').click();
+
+    // The verdict reports the parsed item count (the mock returns 1 row).
+    await expect(page.locator('#msg.ok')).toContainText('Found 1 item');
+
+    // The two detected tokens from the mock OCR are overlaid on the preview, and
+    // each box is positioned as a percentage of the page dimensions.
+    const boxes = page.locator('#ocr-overlay-layer .ocr-box');
+    await expect(boxes).toHaveCount(2);
+    await expect(page.locator('#preview-wrap')).toBeVisible();
+    // First word: x=1,y=1,w=4,h=2 of a 10x10 page → 10%/10%/40%/20%.
+    await expect(boxes.first()).toHaveAttribute('style', /left:\s*10%/);
+    await expect(boxes.first()).toHaveAttribute('style', /width:\s*40%/);
   });
 
   test('"Save to Photos" button appears when sharing is available and shares the file', async ({ page }) => {
@@ -189,7 +212,7 @@ test.describe('Phone-scan capture page → upload', () => {
     await expect(page.locator('#preview')).toBeVisible();
 
     await sendBtn.click();
-    await expect(page.locator('#msg.ok')).toContainText('Sent — check the desktop app');
+    await expect(page.locator('#msg.ok')).toContainText('Found 1 item');
 
     // The upload from the library input also reaches OCR with its filename.
     await expect.poll(() => {

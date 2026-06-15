@@ -67,7 +67,13 @@ class _FakeApi:
         return {
             "pages": [{
                 "image_b64": "AAAA", "width": 10, "height": 10,
-                "words": [], "lines": [],
+                "words": [
+                    {"text": "C25744", "x": 1, "y": 1, "w": 4, "h": 2,
+                     "conf": 95, "line_id": 0},
+                    {"text": "RC0402", "x": 1, "y": 5, "w": 5, "h": 2,
+                     "conf": 90, "line_id": 1},
+                ],
+                "lines": [],
             }],
             "prefill_rows": self.line_items,
             "template": template,
