@@ -13,6 +13,7 @@ import { renderModal } from './ocr-overlay-renderer.js';
 import {
   createState, selectToken, selectTokens, selectCell,
   applyPending, setCellValue, setPage, clearPending, setTokenMode,
+  setZoom, tokenText,
 } from './ocr-overlay-state.js';
 import { normalizeRect, tokensInRect } from './ocr-overlay-hittest.js';
 
@@ -20,6 +21,11 @@ let state = null;
 let onConfirmCb = null;
 let vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
 let escHandler = null;
+// Active token→field drag (pointer-based). `moved` flips once the pointer travels
+// past DRAG_THRESHOLD so a plain click still falls through to click-to-assign.
+let drag = null;
+let suppressClick = false;
+const DRAG_THRESHOLD = 6;  // px before a press becomes a drag
 
 const vendorPicker = createVendorPicker({
   getVendor: () => vendor,
@@ -61,6 +67,11 @@ function closeOverlay() {
     document.removeEventListener('keydown', escHandler);
     escHandler = null;
   }
+  // Tear down any in-flight drag artifacts so a re-open starts clean.
+  document.querySelectorAll('.ocr-drag-ghost').forEach(g => g.remove());
+  clearDropHighlight();
+  drag = null;
+  suppressClick = false;
   state = null;
   onConfirmCb = null;
   vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
@@ -113,10 +124,27 @@ function mountVendorPicker(root) {
 function bindEvents(root) {
   root.querySelectorAll('.ocr-token').forEach(btn => {
     btn.onclick = () => {
+      // A real drag already handled this press — swallow the synthetic click.
+      if (suppressClick) { suppressClick = false; return; }
       state = applyPending(selectToken(state, btn.dataset.token));
       rerender();
     };
+    btn.onpointerdown = (e) => onTokenPointerDown(e, btn);
+    btn.onpointermove = (e) => onTokenPointerMove(e, btn);
+    btn.onpointerup = (e) => onTokenPointerUp(e, btn);
   });
+
+  const zoomRange = root.querySelector('#ocr-zoom-range');
+  if (zoomRange) {
+    // Update the CSS var live (smooth) without a full rerender, but persist the
+    // value into state so the next rerender keeps the chosen zoom.
+    zoomRange.oninput = () => {
+      const z = parseFloat(zoomRange.value);
+      const wrap = root.querySelector('.ocr-img-wrap');
+      if (wrap) wrap.style.setProperty('--ocr-zoom', String(z));
+      state = setZoom(state, z);
+    };
+  }
 
   root.querySelectorAll('.ocr-cell').forEach(td => {
     const row = parseInt(td.dataset.row, 10);
@@ -246,4 +274,86 @@ function bindRubberBand(root) {
     state = applyPending(selectTokens(state, ids));
     rerender();
   };
+}
+
+// ── Token → field drag (drop a scanned box onto a grid cell or vendor name) ──
+function onTokenPointerDown(e, btn) {
+  // Left button / primary pointer only; let the rubber-band handle empty areas.
+  if (e.button && e.button !== 0) return;
+  // Clear any stale suppression: the click from a prior drag (if any) has already
+  // fired by now, so a fresh press must start with clicks enabled again.
+  suppressClick = false;
+  drag = { id: btn.dataset.token, x0: e.clientX, y0: e.clientY, moved: false, ghost: null };
+  try { btn.setPointerCapture(e.pointerId); } catch { /* capture optional */ }
+}
+
+function onTokenPointerMove(e, btn) {
+  if (!drag || drag.id !== btn.dataset.token) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > DRAG_THRESHOLD) {
+    drag.moved = true;
+    drag.ghost = makeDragGhost(tokenText(state.pages, drag.id));
+    btn.classList.add('dragging');
+  }
+  if (drag.moved) {
+    moveDragGhost(drag.ghost, e.clientX, e.clientY);
+    highlightDropTarget(e.clientX, e.clientY);
+  }
+}
+
+function onTokenPointerUp(e, btn) {
+  if (!drag || drag.id !== btn.dataset.token) return;
+  const { moved, id, ghost } = drag;
+  if (ghost) ghost.remove();
+  btn.classList.remove('dragging');
+  clearDropHighlight();
+  try { btn.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+  drag = null;
+  if (!moved) return;          // it was a click — onclick handles selection
+  suppressClick = true;        // a real drag — swallow the click that follows
+  dropTokenAt(id, e.clientX, e.clientY);
+}
+
+/** Assign token `id`'s text to whatever droppable sits under (x, y). */
+function dropTokenAt(id, x, y) {
+  const target = document.elementFromPoint(x, y);
+  if (!target) return;
+  const cell = target.closest('.ocr-cell');
+  if (cell) {
+    const row = parseInt(cell.dataset.row, 10);
+    const field = cell.dataset.field;
+    // Reuse the tested applyPending path (combines + clears the low-conf flag).
+    state = applyPending({ ...state, pending: { kind: 'source', tokenIds: [id], cell: { row, field } } });
+    rerender();
+    return;
+  }
+  if (target.closest('#ocr-vendor-name-input')) {
+    // onVendorNameBlur upserts + selects the vendor, then re-renders via onChange.
+    vendorPicker.onVendorNameBlur(tokenText(state.pages, id));
+  }
+}
+
+function makeDragGhost(text) {
+  const g = document.createElement('div');
+  g.className = 'ocr-drag-ghost';
+  g.textContent = text;
+  document.body.appendChild(g);
+  return g;
+}
+
+function moveDragGhost(ghost, x, y) {
+  if (!ghost) return;
+  ghost.style.left = `${x + 12}px`;
+  ghost.style.top = `${y + 12}px`;
+}
+
+function highlightDropTarget(x, y) {
+  clearDropHighlight();
+  const el = document.elementFromPoint(x, y);
+  if (!el) return;
+  const target = el.closest('.ocr-cell') || el.closest('#ocr-vendor-name-input');
+  if (target) target.classList.add('ocr-drop-target');
+}
+
+function clearDropHighlight() {
+  document.querySelectorAll('.ocr-drop-target').forEach(el => el.classList.remove('ocr-drop-target'));
 }

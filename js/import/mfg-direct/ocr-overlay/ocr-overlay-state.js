@@ -9,7 +9,15 @@ export function createState(payload) {
     lowConf: (payload.prefill_rows || []).map(r => new Set(r._low_conf || [])),
     pending: { kind: null, tokenIds: [], cell: null },
     tokenMode: 'w',
+    zoom: 1,
   };
+}
+
+/** Clamp and store the scan-image zoom factor (1× .. 4×). Non-numbers → 1. */
+export function setZoom(state, zoom) {
+  const z = Number(zoom);
+  const clamped = Number.isFinite(z) ? Math.max(1, Math.min(4, z)) : 1;
+  return { ...state, zoom: clamped };
 }
 
 function tokenFromId(pages, id) {
