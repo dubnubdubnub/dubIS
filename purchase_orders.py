@@ -9,12 +9,16 @@ from __future__ import annotations
 import csv
 import os
 import secrets
+from datetime import datetime
 
 import csv_io
 import source_sanitizer
 
+# imported_at: local timestamp (YYYY-MM-DDTHH:MM:SS) recorded when the PO is
+# first created/imported — distinct from purchase_date, which is the order's
+# own date. Older PO rows predating this column read back as "".
 FIELDNAMES = ["po_id", "vendor_id", "source_file_hash", "source_file_ext",
-              "purchase_date", "notes"]
+              "purchase_date", "notes", "imported_at"]
 
 
 def _make_po_id() -> str:
@@ -58,8 +62,12 @@ def create_purchase_order(
     source_file_ext: str | None,
     purchase_date: str,
     notes: str = "",
+    imported_at: str | None = None,
 ) -> dict[str, str]:
-    """Create a PO; if source file is provided, sanitize+hash+store it."""
+    """Create a PO; if source file is provided, sanitize+hash+store it.
+
+    imported_at stamps when the PO entered the system; defaults to now.
+    """
     if not vendor_id:
         raise ValueError("vendor_id required")
 
@@ -82,6 +90,7 @@ def create_purchase_order(
         "source_file_ext": file_ext,
         "purchase_date": purchase_date,
         "notes": notes,
+        "imported_at": imported_at or datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
     _ensure_csv(csv_path)
     rows = _read(csv_path)
