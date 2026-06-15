@@ -204,6 +204,24 @@ class TestScanUpload:
         assert all(isinstance(p, dict) for p in payload["pages"])
         assert payload["pages"] == scan_server.api._pages
 
+    def test_upload_response_returns_overlay_for_phone(self, scan_server):
+        # The phone overlays the detected tokens on its captured image, so the
+        # upload RESPONSE (not just the desktop push) must carry the OCR pages and
+        # prefill rows. The heavy per-page image_b64 is dropped — the phone already
+        # holds the photo it captured.
+        sid = pnp_server.create_scan_session(scan_server.server, "lcsc")
+        status, body = _post_json(
+            f"{scan_server.base_url}/api/scan/upload?s={sid}",
+            {"image_b64": _PNG_1X1_B64, "filename": "po.png"},
+        )
+        assert status == 200
+        assert body["prefill_rows"] == scan_server.api._prefill_rows
+        assert isinstance(body["pages"], list) and body["pages"]
+        page = body["pages"][0]
+        assert "image_b64" not in page          # stripped to keep the response lean
+        for key in ("width", "height", "words", "lines"):
+            assert key in page
+
     def test_unknown_session_rejected(self, scan_server):
         status, body = _post_json(
             f"{scan_server.base_url}/api/scan/upload?s=nope",
