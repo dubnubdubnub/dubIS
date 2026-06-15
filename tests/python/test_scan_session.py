@@ -117,6 +117,35 @@ class TestScanHealth:
         assert json.loads(raw) == {"ok": True}
 
 
+class TestServerConcurrency:
+    """The server must handle connections concurrently. iOS Safari opens
+    speculative preconnect sockets that send no request; on a single-threaded
+    server one such idle socket head-of-line blocks the page load for seconds
+    (or, with no read timeout, indefinitely)."""
+
+    def test_idle_connection_does_not_block_other_requests(self, scan_server):
+        host = "127.0.0.1"
+        port = scan_server.server.server_address[1]
+
+        # Open a connection and send NOTHING — mimics a browser preconnect.
+        idle = socket.create_connection((host, port), timeout=5)
+        try:
+            # A concurrent request must still complete promptly. On the old
+            # single-threaded server this urlopen would hang until the idle
+            # socket's read timed out.
+            resp = urllib.request.urlopen(
+                f"{scan_server.base_url}/api/scan/health", timeout=5
+            )
+            assert resp.status == 200
+            assert json.loads(resp.read()) == {"ok": True}
+        finally:
+            idle.close()
+
+    def test_server_is_threaded(self):
+        from socketserver import ThreadingMixIn
+        assert issubclass(pnp_server._FastHTTPServer, ThreadingMixIn)
+
+
 class TestScanPage:
     def test_valid_session_returns_html_with_camera_input(self, scan_server):
         sid = pnp_server.create_scan_session(scan_server.server, "mouser")
