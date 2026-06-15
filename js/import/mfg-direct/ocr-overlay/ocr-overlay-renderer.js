@@ -39,7 +39,14 @@ function renderHeader(state) {
     <button id="ocr-mode-lines" type="button" class="btn-sm filter-btn${wActive ? '' : ' active'}"
       aria-pressed="${!wActive}">Lines</button>
   </span>`;
-  return `<div class="ocr-header">Review scan — template: ${escHtml(state.template)} ${modeToggle} ${nav}</div>`;
+  const zoom = state.zoom || 1;
+  const zoomCtl = `<span class="ocr-zoom" title="Zoom the scan image">
+    <span class="ocr-zoom-icon" aria-hidden="true">🔍</span>
+    <input id="ocr-zoom-range" type="range" min="1" max="4" step="0.25"
+      value="${zoom}" aria-label="Zoom scan image">
+  </span>`;
+  return `<div class="ocr-header">Review scan — template: ${escHtml(state.template)} ${modeToggle} ${zoomCtl} ${nav}
+    <span class="ocr-header-hint">Click or drag a box onto a cell or the vendor name.</span></div>`;
 }
 
 function renderScan(page, pageIdx, state, selected = new Set()) {
@@ -51,13 +58,13 @@ function renderScan(page, pageIdx, state, selected = new Set()) {
     const w = (t.w / page.width) * 100;
     const h = (t.h / page.height) * 100;
     const cls = selected.has(id) ? 'ocr-token selected' : 'ocr-token';
-    return `<button class="${cls}" type="button" data-token="${id}"
+    return `<button class="${cls}" type="button" data-token="${id}" draggable="false"
       style="left:${left}%;top:${top}%;width:${w}%;height:${h}%"
       title="${escHtml(t.text)}">${escHtml(t.text)}</button>`;
   }).join('');
   const tokens = state.tokenMode === 'l' ? tok('l', page.lines) : tok('w', page.words);
-  return `<div class="ocr-img-wrap">
-    <img src="data:image/png;base64,${escHtml(page.image_b64)}" alt="scan">
+  return `<div class="ocr-img-wrap" style="--ocr-zoom:${state.zoom || 1}">
+    <img src="data:image/png;base64,${escHtml(page.image_b64)}" alt="scan" draggable="false">
     ${tokens}
   </div>`;
 }

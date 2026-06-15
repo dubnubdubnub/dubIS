@@ -227,7 +227,22 @@ class DistributorProfile:
         that fails to find its PN on any line returns an empty list, signalling
         the caller to fall back to the generic heuristic parser."""
         if self.key == "generic" or self.pn_re is None:
-            return _parse_generic(text)
+            rows = _parse_generic(text)
+            # Rescue a DigiKey packing list dropped on the default "generic"
+            # template: its labels/PNs are unmistakable, so extract them rather
+            # than autofilling nothing.
+            if not rows and _looks_like_digikey_packlist(text):
+                return _parse_digikey_packlist(text)
+            return rows
+        # DigiKey packing lists / certificates of compliance are label-prefixed
+        # (PART:/MFG#:/MFG:/QTY:) with no prices — the per-line tabular parser
+        # finds nothing. Detect that layout by its labels and extract column-wise.
+        if self.key == "digikey" and _DK_PACKLIST_MARKER.search(text):
+            rows = _parse_digikey_packlist(text)
+            if rows:
+                return rows
+            # Labels present but nothing extracted — fall through to the line
+            # parser (e.g. an invoice that merely mentions "PART:" in prose).
         items: list[dict[str, Any]] = []
         for line in text.splitlines():
             item = self._parse_line(line)
@@ -310,6 +325,61 @@ _POLOLU_PN = re.compile(r"\d{1,5}")
 # leading token like "12345678" does NOT match a 5-digit prefix of it). Prefers
 # NO match over grabbing a leading year / order number further into the line.
 _POLOLU_LINE_PN = re.compile(r"^\s*(\d{1,5})\b")
+
+
+# ── DigiKey packing-list / certificate-of-compliance (label-prefixed) ─────────
+# A DigiKey packing list is NOT a tabular invoice: it carries no prices and lays
+# each field on its own labelled line (PART:/MFG#:/MFG:/QTY:). Photographed scans
+# also scramble word order within a line ("490-9961-1-ND PART:"), so we can't rely
+# on line structure. Instead we collect each field type across the whole document
+# in order of appearance and zip them into rows (item N = Nth PN + Nth MFG# + …).
+# We prefer leaving a field blank over a confidently-wrong value — the user
+# reviews and drag-corrects every row in the OCR overlay before import.
+
+# Detects the packing-list layout: an "MFG#" or a "PART:" label anywhere.
+_DK_PACKLIST_MARKER = re.compile(r"MFG\s*#|PART\s*:", re.IGNORECASE)
+# "MFG#:" (M or N — OCR misreads 'M' as 'N') → first token after it is the MPN.
+_DK_MFG_NUM = re.compile(
+    r"[MN]FG\s*#\s*:?\s*([A-Za-z0-9][A-Za-z0-9._/+\-]{1,40})", re.IGNORECASE)
+# "MFG :" / "NFG :" (a colon NOT preceded by '#') introduces the manufacturer
+# name; capture the rest of that line. The negative-lookbehind-free "[MN]FG\s*:"
+# can't match "MFG#:" because '#' is neither whitespace nor ':'.
+_DK_MFG_NAME = re.compile(r"(?:^|\s)[MN]FG\s*:\s*([^\n]+)", re.IGNORECASE)
+# "QTY:" then (optionally past a "LOT" word) the integer quantity on the SAME line.
+_DK_QTY = re.compile(r"QTY\s*:[^\d\n]*(\d+)", re.IGNORECASE)
+
+
+def _looks_like_digikey_packlist(text: str) -> bool:
+    """True only for the unmistakable DigiKey packing-list shape: an ``MFG#``
+    label AND at least one DigiKey-format (``-ND``/``-CT``/…) part number. Used to
+    rescue autofill when the user left the template on "generic". Deliberately
+    strict so ordinary generic invoices are never hijacked."""
+    return bool(re.search(r"MFG\s*#", text, re.IGNORECASE)) and bool(_DIGIKEY_PN.search(text))
+
+
+def _parse_digikey_packlist(text: str) -> list[dict[str, Any]]:
+    """Column-wise extractor for a DigiKey packing list (see notes above).
+
+    Anchors on the DigiKey part numbers (one per line item) and zips the other
+    label columns by appearance order. Quantity comes from the "QTY:" label;
+    unit price is always 0.0 (packing lists have no prices).
+    """
+    pns = list(dict.fromkeys(_DIGIKEY_PN.findall(text)))
+    mpns = _DK_MFG_NUM.findall(text)
+    names = [m.strip() for m in _DK_MFG_NAME.findall(text)]
+    qtys = _DK_QTY.findall(text)
+    rows: list[dict[str, Any]] = []
+    for i, pn in enumerate(pns):
+        rows.append({
+            "mpn": mpns[i].strip() if i < len(mpns) else "",
+            "manufacturer": names[i] if i < len(names) else "",
+            "package": "",
+            "quantity": _to_qty(qtys[i]) if i < len(qtys) else 0,
+            "unit_price": 0.0,
+            "distributor": "digikey",
+            "distributor_pn": pn,
+        })
+    return rows
 
 
 # ── Profile registry ──────────────────────────────────────────────────────────
