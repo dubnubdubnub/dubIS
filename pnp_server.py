@@ -113,42 +113,61 @@ def _get_scan_session(server, session_id):
 
 
 def _capture_page_html(template, session_id):
-    """Build the mobile capture page. All CSS/JS inline; no external assets."""
-    t = html.escape(template)
-    return f"""<!DOCTYPE html>
+    """Build the mobile capture page. All CSS/JS inline; no external assets.
+
+    The two dynamic values (template label, session id) are substituted via
+    sentinel replacement rather than an f-string so the page's CSS/JS braces
+    don't need doubling — keeping the embedded JavaScript readable.
+    """
+    return (
+        _CAPTURE_PAGE_TEMPLATE
+        .replace("@@TEMPLATE@@", html.escape(template))
+        .replace("@@SESSION_JSON@@", json.dumps(session_id))
+    )
+
+
+_CAPTURE_PAGE_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>dubIS — Scan a PO</title>
 <style>
-  :root {{ color-scheme: light dark; }}
-  * {{ box-sizing: border-box; }}
-  body {{ font-family: -apple-system, system-ui, sans-serif; margin: 0;
-    padding: 24px; line-height: 1.5; }}
-  h1 {{ font-size: 1.3rem; margin: 0 0 4px; }}
-  .tmpl {{ color: #666; font-size: 0.9rem; margin-bottom: 24px; }}
-  label.btn, button {{ display: block; width: 100%; padding: 18px;
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0;
+    padding: 24px; line-height: 1.5; }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  .tmpl { color: #666; font-size: 0.9rem; margin-bottom: 24px; }
+  label.btn, button { display: block; width: 100%; padding: 18px;
     font-size: 1.1rem; text-align: center; border-radius: 12px; border: none;
-    margin-bottom: 16px; cursor: pointer; }}
-  label.btn {{ background: #2563eb; color: #fff; }}
-  label.btn.secondary {{ background: transparent; color: #2563eb;
-    border: 1px solid #2563eb; }}
-  button.send {{ background: #16a34a; color: #fff; }}
-  button:disabled {{ opacity: 0.5; }}
-  input[type=file] {{ display: none; }}
-  #preview {{ max-width: 100%; border-radius: 12px; margin-bottom: 16px;
-    display: none; }}
-  .msg {{ padding: 14px; border-radius: 10px; margin-bottom: 16px;
-    display: none; }}
-  .msg.ok {{ background: #dcfce7; color: #166534; display: block; }}
-  .msg.err {{ background: #fee2e2; color: #991b1b; display: block; }}
-  .hint {{ font-size: 0.85rem; color: #666; }}
+    margin-bottom: 16px; cursor: pointer; }
+  label.btn { background: #2563eb; color: #fff; }
+  label.btn.secondary, button.ghost { background: transparent; color: #2563eb;
+    border: 1px solid #2563eb; }
+  button.send { background: #16a34a; color: #fff; }
+  button:disabled { opacity: 0.5; }
+  input[type=file] { display: none; }
+  #preview { max-width: 100%; border-radius: 12px; margin-bottom: 16px;
+    display: none; }
+  .msg { padding: 14px; border-radius: 10px; margin-bottom: 16px;
+    display: none; }
+  .msg.ok { background: #dcfce7; color: #166534; display: block; }
+  .msg.err { background: #fee2e2; color: #991b1b; display: block; }
+  .hint { font-size: 0.85rem; color: #666; }
+  #save-photos { display: none; }
+  #progress-wrap { display: none; margin-bottom: 16px; }
+  #progress-track { background: #e5e7eb; border-radius: 8px; height: 14px;
+    overflow: hidden; }
+  #progress-bar { background: #2563eb; height: 100%; width: 0%;
+    transition: width 0.1s linear; }
+  #progress-text { font-size: 0.85rem; color: #666; margin-top: 6px;
+    text-align: center; }
 </style>
 </head>
 <body>
 <h1>Scan a Purchase Order</h1>
-<div class="tmpl">Template: <strong>{t}</strong></div>
+<div class="tmpl">Template: <strong>@@TEMPLATE@@</strong></div>
 
 <div id="msg" class="msg"></div>
 
@@ -159,80 +178,156 @@ def _capture_page_html(template, session_id):
 <input id="file-library" type="file" accept="image/*">
 
 <img id="preview" alt="preview">
+<button id="save-photos" class="ghost" type="button">📥 Save to Photos</button>
+
+<div id="progress-wrap">
+  <div id="progress-track"><div id="progress-bar"></div></div>
+  <div id="progress-text"></div>
+</div>
+
 <button id="send" class="send" disabled>Send to desktop</button>
 
 <p class="hint">Take a clear photo of the printed purchase order — or upload one
 you already have — then tap <em>Send to desktop</em>.</p>
 
 <script>
-(function () {{
-  var SESSION = {json.dumps(session_id)};
+(function () {
+  var SESSION = @@SESSION_JSON@@;
   var cameraInput = document.getElementById("file");
   var libraryInput = document.getElementById("file-library");
   var preview = document.getElementById("preview");
   var sendBtn = document.getElementById("send");
   var msg = document.getElementById("msg");
-  var dataUrl = null, filename = null;
+  var savePhotosBtn = document.getElementById("save-photos");
+  var progressWrap = document.getElementById("progress-wrap");
+  var progressBar = document.getElementById("progress-bar");
+  var progressText = document.getElementById("progress-text");
+  var dataUrl = null, filename = null, currentFile = null;
 
-  function show(kind, text) {{
+  function show(kind, text) {
     msg.className = "msg " + kind;
     msg.textContent = text;
-  }}
-  function fallback() {{
+  }
+  function fallback() {
     show("err", "Couldn't reach the app. Save the photo and use "
       + "'Choose a file' on the desktop instead.");
-  }}
+  }
+  function fmtBytes(n) {
+    if (n >= 1048576) return (n / 1048576).toFixed(1) + " MB";
+    if (n >= 1024) return Math.round(n / 1024) + " KB";
+    return n + " B";
+  }
+  function fmtSpeed(bps) {
+    if (!isFinite(bps) || bps <= 0) return "";
+    if (bps >= 1048576) return (bps / 1048576).toFixed(1) + " MB/s";
+    return Math.round(bps / 1024) + " KB/s";
+  }
+  // iOS can't auto-save a web-captured photo to the camera roll; the share
+  // sheet (navigator.share with a file) is the only route, and the user taps
+  // "Save Image" there. Feature-detect so we only show the button when usable.
+  function canSharePhoto() {
+    try {
+      return !!(navigator.canShare && currentFile
+        && navigator.canShare({ files: [currentFile] }));
+    } catch (e) {
+      return false;
+    }
+  }
 
-  function handleSelection(input) {{
+  function handleSelection(input) {
     var f = input.files && input.files[0];
     if (!f) return;
+    currentFile = f;
     filename = f.name || "scan.jpg";
     var reader = new FileReader();
-    reader.onload = function () {{
+    reader.onload = function () {
       dataUrl = reader.result;
       preview.src = dataUrl;
       preview.style.display = "block";
       sendBtn.disabled = false;
       msg.className = "msg";
-    }};
-    reader.onerror = function () {{ show("err", "Could not read the photo."); }};
+      progressWrap.style.display = "none";
+      savePhotosBtn.style.display = canSharePhoto() ? "block" : "none";
+    };
+    reader.onerror = function () { show("err", "Could not read the photo."); };
     reader.readAsDataURL(f);
-  }}
+  }
 
-  cameraInput.addEventListener("change", function () {{ handleSelection(cameraInput); }});
-  libraryInput.addEventListener("change", function () {{ handleSelection(libraryInput); }});
+  cameraInput.addEventListener("change", function () { handleSelection(cameraInput); });
+  libraryInput.addEventListener("change", function () { handleSelection(libraryInput); });
 
-  sendBtn.addEventListener("click", function () {{
+  savePhotosBtn.addEventListener("click", function () {
+    if (!currentFile || !navigator.share) return;
+    navigator.share({ files: [currentFile], title: "Purchase order scan" })
+      .catch(function () { /* user cancelled or share unavailable — non-fatal */ });
+  });
+
+  function uploadWithProgress(payload) {
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/scan/upload?s=" + encodeURIComponent(SESSION));
+    xhr.setRequestHeader("Content-Type", "application/json");
+    var startTime = Date.now();
+    var lastTime = startTime, lastLoaded = 0;
+    xhr.upload.onprogress = function (e) {
+      if (!e.lengthComputable) return;
+      var pct = Math.round((e.loaded / e.total) * 100);
+      progressBar.style.width = pct + "%";
+      var now = Date.now();
+      var dt = (now - lastTime) / 1000;
+      var speed = dt > 0 ? (e.loaded - lastLoaded) / dt : 0;
+      if (dt > 0) { lastTime = now; lastLoaded = e.loaded; }
+      var speedStr = fmtSpeed(speed);
+      progressText.textContent = pct + "% \\u00b7 " + fmtBytes(e.loaded)
+        + " / " + fmtBytes(e.total) + (speedStr ? " \\u00b7 " + speedStr : "");
+    };
+    xhr.onload = function () {
+      progressBar.style.width = "100%";
+      var body = null;
+      try { body = JSON.parse(xhr.responseText); } catch (e) { body = null; }
+      if (xhr.status >= 200 && xhr.status < 300 && body && body.ok) {
+        var secs = (Date.now() - startTime) / 1000;
+        progressText.textContent = "Uploaded" + (secs > 0 ? " in " + secs.toFixed(1) + "s" : "");
+        show("ok", "Sent — check the desktop app.");
+      } else {
+        sendBtn.disabled = false;
+        progressWrap.style.display = "none";
+        show("err", (body && body.error) || "Upload failed.");
+      }
+    };
+    xhr.onerror = function () {
+      sendBtn.disabled = false;
+      progressWrap.style.display = "none";
+      fallback();
+    };
+    xhr.send(payload);
+  }
+
+  sendBtn.addEventListener("click", function () {
     if (!dataUrl) return;
     sendBtn.disabled = true;
     show("ok", "Sending…");
     var comma = dataUrl.indexOf(",");
     var b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-    fetch("/api/scan/health").then(function (r) {{
+    var payload = JSON.stringify({ image_b64: b64, filename: filename });
+
+    progressWrap.style.display = "block";
+    progressBar.style.width = "0%";
+    progressText.textContent = "Starting\\u2026";
+
+    // Reachability check first so an unreachable app fails fast with the hint.
+    fetch("/api/scan/health").then(function (r) {
       if (!r.ok) throw new Error("health");
-      return fetch("/api/scan/upload?s=" + encodeURIComponent(SESSION), {{
-        method: "POST",
-        headers: {{ "Content-Type": "application/json" }},
-        body: JSON.stringify({{ image_b64: b64, filename: filename }})
-      }});
-    }}).then(function (r) {{
-      return r.json().then(function (body) {{ return {{ r: r, body: body }}; }});
-    }}).then(function (res) {{
-      if (res.r.ok && res.body.ok) {{
-        show("ok", "Sent — check the desktop app.");
-      }} else {{
-        sendBtn.disabled = false;
-        show("err", (res.body && res.body.error) || "Upload failed.");
-      }}
-    }}).catch(function () {{
+      uploadWithProgress(payload);
+    }).catch(function () {
       sendBtn.disabled = false;
+      progressWrap.style.display = "none";
       fallback();
-    }});
-  }});
+    });
+  });
 
   // Reachability check on load so the user sees the fallback early.
-  fetch("/api/scan/health").catch(function () {{ fallback(); }});
-}})();
+  fetch("/api/scan/health").catch(function () { fallback(); });
+})();
 </script>
 </body>
 </html>"""
@@ -249,6 +344,23 @@ line-height:1.5}h1{font-size:1.3rem}</style></head>
 <body><h1>Scan session expired</h1>
 <p>This scan link is no longer valid. Start a new scan from the desktop app to
 get a fresh QR code.</p></body></html>"""
+
+
+def _save_scan_image(base_dir, image_bytes, ext):
+    """Persist an uploaded scan image to ``<base_dir>/scans`` and return its path.
+
+    Called the moment a phone upload arrives (before OCR) so the original photo
+    is always kept on the desktop, even if OCR fails or the user never finishes
+    the import. Filenames are timestamped with a short random suffix so two
+    uploads in the same second can't collide.
+    """
+    scans_dir = os.path.join(base_dir, "scans")
+    os.makedirs(scans_dir, exist_ok=True)
+    name = f"scan_{time.strftime('%Y%m%d-%H%M%S')}_{secrets.token_hex(3)}{ext}"
+    path = os.path.join(scans_dir, name)
+    with open(path, "wb") as f:
+        f.write(image_bytes)
+    return path
 
 
 class PnPHandler(BaseHTTPRequestHandler):
@@ -379,6 +491,16 @@ class PnPHandler(BaseHTTPRequestHandler):
         window = self.server.window
         template = session["template"]
 
+        # Persist the raw photo to data/scans/ immediately — before OCR — so the
+        # upload is never lost even if OCR fails or the import is abandoned.
+        saved = False
+        try:
+            saved_path = _save_scan_image(api.base_dir, decoded, ext)
+            saved = True
+            logger.info("Scan upload saved to %s", saved_path)
+        except OSError as exc:
+            logger.error("Failed to save scan upload to disk: %s", exc)
+
         try:
             overlay = api.ocr_overlay_b64(image_b64, filename, template)
         except Exception as exc:
@@ -406,7 +528,7 @@ class PnPHandler(BaseHTTPRequestHandler):
 
         logger.info("Scan upload OCR'd %d line item(s) (template=%s)",
                     len(line_items), template)
-        self._send_json(200, {"ok": True, "count": len(line_items)})
+        self._send_json(200, {"ok": True, "count": len(line_items), "saved": saved})
 
     def do_POST(self):
         parts = urlsplit(self.path)

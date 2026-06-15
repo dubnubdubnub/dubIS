@@ -21,7 +21,7 @@ import argparse
 import json
 import os
 import sys
-import threading
+import tempfile
 import time
 from pathlib import Path
 
@@ -36,7 +36,10 @@ from pnp_server import create_scan_session, start_pnp_server  # noqa: E402
 class _FakeApi:
     """Minimal api stand-in: records the OCR call, returns a canned line item."""
 
-    def __init__(self):
+    def __init__(self, base_dir):
+        # The real upload handler saves the raw photo to <base_dir>/scans before
+        # OCR; the spec asserts a file lands there.
+        self.base_dir = base_dir
         self.calls = []
         self.line_items = [
             {
@@ -76,10 +79,15 @@ def main():
     parser.add_argument("--template", default="lcsc")
     parser.add_argument("--record", required=True,
                         help="path to write recorded api/window calls as JSON")
+    parser.add_argument("--data-dir",
+                        help="base dir uploads are saved under (<dir>/scans); "
+                             "defaults to a fresh temp dir reported in READY")
     args = parser.parse_args()
 
     record_path = Path(args.record)
-    api = _FakeApi()
+    data_dir = args.data_dir or tempfile.mkdtemp(prefix="dubis-scan-data-")
+    os.makedirs(data_dir, exist_ok=True)
+    api = _FakeApi(data_dir)
     js_calls = []
 
     class _FakeWindow:
@@ -106,7 +114,7 @@ def main():
     _dump()  # write an initial (empty) record so the file always exists
 
     # Machine-readable handshake line the spec waits for.
-    print(f"READY port={port} sid={sid}", flush=True)
+    print(f"READY port={port} sid={sid} data_dir={data_dir}", flush=True)
 
     try:
         while True:

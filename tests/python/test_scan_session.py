@@ -1,7 +1,9 @@
 """Tests for the phone-scan transport: pnp_server scan routes +
 inventory_api.start_scan_session."""
 
+import base64
 import json
+import os
 import socket
 import types
 import urllib.error
@@ -286,6 +288,22 @@ class TestScanUpload:
         assert status == 400
         assert not scan_server.api.calls
 
+    def test_upload_saves_photo_to_scans_dir(self, scan_server, tmp_path):
+        sid = pnp_server.create_scan_session(scan_server.server, "lcsc")
+        status, body = _post_json(
+            f"{scan_server.base_url}/api/scan/upload?s={sid}",
+            {"image_b64": _PNG_1X1_B64, "filename": "po.png"},
+        )
+        assert status == 200
+        assert body["ok"] is True
+        assert body["saved"] is True
+
+        # The raw photo landed in <base_dir>/scans with the original bytes.
+        scans_dir = tmp_path / "scans"
+        saved = list(scans_dir.glob("scan_*.png"))
+        assert len(saved) == 1
+        assert saved[0].read_bytes() == base64.b64decode(_PNG_1X1_B64)
+
     def test_ui_push_failure_still_200(self, tmp_path):
         api = _FakeApi(str(tmp_path))
 
@@ -305,6 +323,22 @@ class TestScanUpload:
             assert body["ok"] is True
         finally:
             stop_pnp_server(server)
+
+
+class TestSaveScanImage:
+    def test_creates_scans_dir_and_writes_bytes(self, tmp_path):
+        path = pnp_server._save_scan_image(str(tmp_path), b"\x89PNG\r\n", ".png")
+        assert os.path.dirname(path) == str(tmp_path / "scans")
+        assert os.path.basename(path).startswith("scan_")
+        assert path.endswith(".png")
+        with open(path, "rb") as f:
+            assert f.read() == b"\x89PNG\r\n"
+
+    def test_two_saves_do_not_collide(self, tmp_path):
+        p1 = pnp_server._save_scan_image(str(tmp_path), b"a", ".jpg")
+        p2 = pnp_server._save_scan_image(str(tmp_path), b"b", ".jpg")
+        assert p1 != p2
+        assert len(list((tmp_path / "scans").glob("*.jpg"))) == 2
 
 
 # ── inventory_api.start_scan_session ──
