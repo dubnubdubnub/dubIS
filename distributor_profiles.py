@@ -227,10 +227,18 @@ class DistributorProfile:
         that fails to find its PN on any line returns an empty list, signalling
         the caller to fall back to the generic heuristic parser."""
         if self.key == "generic" or self.pn_re is None:
+            # Rescue an LCSC packing list dropped on the default "generic"
+            # template: a C-number + "Mfr. Part#:" combination is unmistakable, so
+            # extract it column-wise rather than autofilling nothing (or letting a
+            # stray "Total <n> <n>" line masquerade as a generic qty/price row).
+            if _looks_like_lcsc_packlist(text):
+                rows = _parse_lcsc_packlist(text)
+                if rows:
+                    return rows
             rows = _parse_generic(text)
-            # Rescue a DigiKey packing list dropped on the default "generic"
-            # template: its labels/PNs are unmistakable, so extract them rather
-            # than autofilling nothing.
+            # Likewise rescue a DigiKey packing list (label-prefixed, no prices)
+            # when the generic heuristic finds nothing — its labels/PNs are
+            # unmistakable, so extract them rather than autofilling nothing.
             if not rows and _looks_like_digikey_packlist(text):
                 return _parse_digikey_packlist(text)
             return rows
@@ -243,6 +251,14 @@ class DistributorProfile:
                 return rows
             # Labels present but nothing extracted — fall through to the line
             # parser (e.g. an invoice that merely mentions "PART:" in prose).
+        # LCSC packing lists / shipping manifests are label-prefixed tables with no
+        # prices — the per-line tabular parser finds nothing. Detect that layout by
+        # its markers and extract column-wise.
+        if self.key == "lcsc" and _LCSC_PACKLIST_MARKER.search(text):
+            rows = _parse_lcsc_packlist(text)
+            if rows:
+                return rows
+            # Markers present but nothing extracted — fall through to the line parser.
         items: list[dict[str, Any]] = []
         for line in text.splitlines():
             item = self._parse_line(line)
@@ -378,6 +394,77 @@ def _parse_digikey_packlist(text: str) -> list[dict[str, Any]]:
             "unit_price": 0.0,
             "distributor": "digikey",
             "distributor_pn": pn,
+        })
+    return rows
+
+
+# ── LCSC packing list (table, no prices) ──────────────────────────────────────
+# An LCSC packing list / shipping manifest is a multi-column table:
+#   No. | LCSC Part# | Full Description (incl. "Mfr. Part#: <MPN>") | Qty. Ordered
+#       | Qty. Shipped | Net Weight (G) | COO
+# It carries NO unit prices, so the per-line "trailing qty+price" parser finds
+# nothing. We extract column-wise, anchored on the two reliable per-item signals:
+# the LCSC C-number and the "Mfr. Part#:" label. Quantity comes from the equal
+# Ordered/Shipped pair (the one number layout we can identify without confusing it
+# with a net weight or a measurement embedded in the description).
+
+# Detects the layout: a "Mfr. Part#" label or an "LCSC Part" column header.
+_LCSC_PACKLIST_MARKER = re.compile(r"Mfr\.?\s*Par?t?\.?\s*#|LCSC\s*Part", re.IGNORECASE)
+# "Mfr. Part#: <MPN>" — tolerant of OCR noise ("Mfr," / "Pat #" / missing dot).
+_LCSC_MFG_PART = re.compile(
+    r"(?:Mfr|Mfg)[.,]?\s*Pa\w{0,2}\.?\s*#\s*:?\s*([A-Za-z0-9][\w./()\-]{2,40})",
+    re.IGNORECASE,
+)
+# A standalone integer (optionally comma-grouped), NOT glued to a letter or a
+# decimal point — so part-number digits ("C12624"), measurements ("525nm",
+# "3.1V", "1.68W") and SKU fragments are skipped, leaving the qty/weight columns.
+_LCSC_INT = re.compile(r"(?<![\w.,])(\d{1,3}(?:,\d{3})+|\d{1,7})(?![\w.])")
+
+
+def _lcsc_qty_pairs(text: str) -> list[int]:
+    """Quantities read from the equal Ordered/Shipped column pairs.
+
+    LCSC prints Qty. Ordered and Qty. Shipped adjacently and they are normally
+    equal, so a run of two consecutive equal integers is a strong quantity signal
+    that net weights / description measurements don't mimic. Returns the values in
+    document order (one per item; a trailing "Total <n> <n>" pair is harmless as
+    items are zipped by index)."""
+    vals = [int(n.replace(",", "")) for n in _LCSC_INT.findall(text)]
+    qtys: list[int] = []
+    i = 0
+    while i < len(vals) - 1:
+        if vals[i] == vals[i + 1]:
+            qtys.append(vals[i])
+            i += 2
+        else:
+            i += 1
+    return qtys
+
+
+def _looks_like_lcsc_packlist(text: str) -> bool:
+    """True only for the unmistakable LCSC packing-list shape: a ``Mfr. Part#:``
+    label AND an LCSC ``C``-number. Used to rescue autofill when the user left the
+    template on "generic". Strict so ordinary generic invoices are never hijacked."""
+    return bool(_LCSC_MFG_PART.search(text)) and bool(_LCSC_PN.search(text))
+
+
+def _parse_lcsc_packlist(text: str) -> list[dict[str, Any]]:
+    """Column-wise extractor for an LCSC packing list (see notes above)."""
+    pns = [p.upper() for p in dict.fromkeys(_LCSC_PN.findall(text))]
+    # Strip trailing OCR noise (stray underscores/dots/dashes from table borders);
+    # real MPNs end in an alphanumeric or a closing paren ("...0.4V(51)").
+    mpns = [m.strip().rstrip("_-./ ") for m in _LCSC_MFG_PART.findall(text)]
+    qtys = _lcsc_qty_pairs(text)
+    rows: list[dict[str, Any]] = []
+    for i in range(max(len(pns), len(mpns))):
+        rows.append({
+            "mpn": mpns[i] if i < len(mpns) else "",
+            "manufacturer": "",
+            "package": "",
+            "quantity": qtys[i] if i < len(qtys) else 0,
+            "unit_price": 0.0,
+            "distributor": "lcsc",
+            "distributor_pn": pns[i] if i < len(pns) else "",
         })
     return rows
 
