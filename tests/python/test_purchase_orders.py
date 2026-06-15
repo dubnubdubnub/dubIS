@@ -49,6 +49,38 @@ class TestCreatePO:
                               new_po["source_file_hash"] + ".png")
         assert os.path.isfile(target)
 
+    def test_create_stamps_imported_at(self, base_dir, csv_path):
+        new_po = po.create_purchase_order(
+            csv_path=csv_path,
+            sources_dir=os.path.join(base_dir, "sources"),
+            vendor_id="v_unknown",
+            source_file_bytes=None,
+            source_file_ext=None,
+            purchase_date="2026-04-15",
+            notes="",
+        )
+        # Default stamp is an ISO-ish local timestamp, distinct from the
+        # order's own purchase_date, and round-trips through the CSV.
+        assert new_po["imported_at"]
+        assert new_po["imported_at"] != new_po["purchase_date"]
+        from datetime import datetime
+        datetime.strptime(new_po["imported_at"], "%Y-%m-%dT%H:%M:%S")
+        rows = po.list_purchase_orders(csv_path)
+        assert rows[0]["imported_at"] == new_po["imported_at"]
+
+    def test_create_accepts_explicit_imported_at(self, base_dir, csv_path):
+        new_po = po.create_purchase_order(
+            csv_path=csv_path,
+            sources_dir=os.path.join(base_dir, "sources"),
+            vendor_id="v_unknown",
+            source_file_bytes=None,
+            source_file_ext=None,
+            purchase_date="2026-04-15",
+            notes="",
+            imported_at="2026-06-15T09:30:00",
+        )
+        assert new_po["imported_at"] == "2026-06-15T09:30:00"
+
     def test_create_po_without_source_file(self, base_dir, csv_path):
         new_po = po.create_purchase_order(
             csv_path=csv_path,
