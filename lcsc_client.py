@@ -31,7 +31,12 @@ class LcscClient(BaseProductClient):
 
         url = f"https://wmsc.lcsc.com/ftps/wm/product/detail?productCode={product_code}"
         try:
-            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            # LCSC's API returns HTTP 403 for the default ``Python-urllib`` agent,
+            # so send an explicit User-Agent (matches the mouser/pololu clients).
+            req = urllib.request.Request(
+                url,
+                headers={"Accept": "application/json", "User-Agent": "dubIS/1.0"},
+            )
             with urllib.request.urlopen(req, timeout=8) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
