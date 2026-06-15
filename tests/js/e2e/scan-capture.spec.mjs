@@ -123,8 +123,9 @@ test.describe('Phone-scan capture page → upload', () => {
 
     const rec = JSON.parse(readFileSync(recordPath, 'utf8'));
     expect(rec.ocr_calls[0]).toMatchObject({ filename: 'po.png', template: 'lcsc' });
-    expect(rec.js_calls.length).toBeGreaterThan(0);
-    expect(rec.js_calls[0]).toContain('window._scanReceived(');
+    // Two pushes fire: an instant "_scanReceiving" ack, then the OCR result.
+    expect(rec.js_calls.some((c) => c.includes('window._scanReceiving('))).toBe(true);
+    expect(rec.js_calls.some((c) => c.includes('window._scanReceived('))).toBe(true);
 
     // The raw photo was saved to <data_dir>/scans the moment it was uploaded.
     const scansDir = join(dataDir, 'scans');

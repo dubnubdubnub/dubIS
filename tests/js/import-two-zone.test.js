@@ -101,6 +101,18 @@ describe('renderDropZone — two-zone layout', () => {
     expect(selectedCount).toBe(1);
   });
 
+  it('preserves a passed-in OCR template selection (no reset to generic)', () => {
+    const dk = renderDropZone(PO_TEMPLATES, 'digikey');
+    expect(dk).toMatch(/<option value="digikey" selected>/);
+    expect(dk).not.toMatch(/<option value="generic" selected>/);
+    expect((dk.match(/ selected>/g) || []).length).toBe(1);
+  });
+
+  it('falls back to generic for an unknown/blank selection', () => {
+    expect(renderDropZone(PO_TEMPLATES, 'bogus')).toMatch(/<option value="generic" selected>/);
+    expect(renderDropZone(PO_TEMPLATES, '')).toMatch(/<option value="generic" selected>/);
+  });
+
   it('offers the "+ add row manually" entry', () => {
     expect(html).toContain('id="import-add-row"');
   });

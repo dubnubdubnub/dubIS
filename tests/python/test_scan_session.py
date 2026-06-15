@@ -189,11 +189,11 @@ class TestScanUpload:
         # OCR was invoked with the session's template.
         assert scan_server.api.calls == [(_PNG_1X1_B64, "po.png", "lcsc")]
 
-        # UI push fired with the expected payload shape.
-        assert len(scan_server.js_calls) == 1
-        code = scan_server.js_calls[0]
-        assert code.startswith("window._scanReceived(")
-        payload = json.loads(code[len("window._scanReceived("):-1])
+        # Two UI pushes fire: an instant "receiving" ack, then the OCR result.
+        assert len(scan_server.js_calls) == 2
+        code = next(c for c in scan_server.js_calls if "_scanReceived(" in c)
+        payload = json.loads(code[code.index("window._scanReceived(")
+                                   + len("window._scanReceived("):-1])
         assert payload["template"] == "lcsc"
         assert payload["filename"] == "po.png"
         assert payload["image_b64"] == _PNG_1X1_B64
@@ -203,6 +203,22 @@ class TestScanUpload:
         assert isinstance(payload["pages"], list) and payload["pages"]
         assert all(isinstance(p, dict) for p in payload["pages"])
         assert payload["pages"] == scan_server.api._pages
+
+    def test_instant_receiving_push_fires_before_ocr_result(self, scan_server):
+        sid = pnp_server.create_scan_session(scan_server.server, "lcsc")
+        status, _ = _post_json(
+            f"{scan_server.base_url}/api/scan/upload?s={sid}",
+            {"image_b64": _PNG_1X1_B64, "filename": "po.png"},
+        )
+        assert status == 200
+        calls = scan_server.js_calls
+        # The instant "receiving" ack is pushed first, the OCR'd result second.
+        assert "_scanReceiving(" in calls[0]
+        assert "_scanReceived(" in calls[1]
+        # The ack carries enough for the UI to show a "reading <template>" hint.
+        start = calls[0].index("window._scanReceiving(") + len("window._scanReceiving(")
+        ack = json.loads(calls[0][start:-1])
+        assert ack == {"filename": "po.png", "template": "lcsc"}
 
     def test_upload_response_returns_overlay_for_phone(self, scan_server):
         # The phone overlays the detected tokens on its captured image, so the
