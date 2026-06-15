@@ -213,7 +213,11 @@ def fetch_lcsc_part(product_code: str) -> dict:
     """
     url = f"https://wmsc.lcsc.com/ftps/wm/product/detail?productCode={product_code}"
     try:
-        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        # LCSC's API 403s the default Python-urllib agent; send an explicit UA.
+        req = urllib.request.Request(
+            url,
+            headers={"Accept": "application/json", "User-Agent": "dubIS/1.0"},
+        )
         with urllib.request.urlopen(req, timeout=10) as resp:
             raw_bytes = resp.read()
         full_response = json.loads(raw_bytes.decode("utf-8"))

@@ -1,7 +1,6 @@
 """Tests for LcscClient."""
 
 import json
-
 import urllib.request
 
 import pytest
@@ -52,6 +51,38 @@ class TestLcscClient:
             assert call_count[0] == 1  # only one network call
         finally:
             urllib.request.urlopen = original
+
+    def test_request_sends_user_agent(self):
+        """Request must carry an explicit User-Agent.
+
+        LCSC's API returns HTTP 403 for the default ``Python-urllib/x.y``
+        agent, which surfaces as a "Product not found" tooltip. A non-default
+        User-Agent header avoids the block.
+        """
+        client = LcscClient()
+        original = urllib.request.urlopen
+        captured = {}
+
+        class FakeResp:
+            def read(self):
+                return json.dumps({"result": {"productCode": "C2040"}}).encode()
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                pass
+
+        def fake_urlopen(req, *a, **kw):
+            captured["ua"] = req.get_header("User-agent")
+            return FakeResp()
+
+        urllib.request.urlopen = fake_urlopen
+        try:
+            client.fetch_product("C2040")
+        finally:
+            urllib.request.urlopen = original
+
+        assert captured["ua"], "request sent no User-Agent header"
+        assert "python-urllib" not in captured["ua"].lower()
 
     def test_successful_fetch(self):
         """Successful API response is normalized correctly."""
