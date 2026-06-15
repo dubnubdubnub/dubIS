@@ -23,6 +23,7 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 data/events/*.csv
+data/scans/
 data-backup-*/
 data_backup
 test-results/
