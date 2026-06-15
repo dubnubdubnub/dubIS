@@ -148,8 +148,12 @@ _CAPTURE_PAGE_TEMPLATE = """<!DOCTYPE html>
   button.send { background: #16a34a; color: #fff; }
   button:disabled { opacity: 0.5; }
   input[type=file] { display: none; }
-  #preview { max-width: 100%; border-radius: 12px; margin-bottom: 16px;
-    display: none; }
+  #preview-wrap { position: relative; display: none; max-width: 100%;
+    margin-bottom: 16px; }
+  #preview { display: block; width: 100%; border-radius: 12px; }
+  #ocr-overlay-layer { position: absolute; inset: 0; pointer-events: none; }
+  .ocr-box { position: absolute; border: 1.5px solid rgba(37, 99, 235, 0.9);
+    background: rgba(37, 99, 235, 0.12); border-radius: 2px; }
   .msg { padding: 14px; border-radius: 10px; margin-bottom: 16px;
     display: none; }
   .msg.ok { background: #dcfce7; color: #166534; display: block; }
@@ -177,7 +181,10 @@ _CAPTURE_PAGE_TEMPLATE = """<!DOCTYPE html>
 <label class="btn secondary" for="file-library">Upload an existing photo</label>
 <input id="file-library" type="file" accept="image/*">
 
-<img id="preview" alt="preview">
+<div id="preview-wrap">
+  <img id="preview" alt="preview">
+  <div id="ocr-overlay-layer"></div>
+</div>
 <button id="save-photos" class="ghost" type="button">📥 Save to Photos</button>
 
 <div id="progress-wrap">
@@ -196,6 +203,8 @@ you already have — then tap <em>Send to desktop</em>.</p>
   var cameraInput = document.getElementById("file");
   var libraryInput = document.getElementById("file-library");
   var preview = document.getElementById("preview");
+  var previewWrap = document.getElementById("preview-wrap");
+  var overlayLayer = document.getElementById("ocr-overlay-layer");
   var sendBtn = document.getElementById("send");
   var msg = document.getElementById("msg");
   var savePhotosBtn = document.getElementById("save-photos");
@@ -234,6 +243,25 @@ you already have — then tap <em>Send to desktop</em>.</p>
     }
   }
 
+  // Draw the OCR-detected token boxes over the captured photo. Coordinates are
+  // in the OCR image's pixel space; the preview is that same image, so we place
+  // each box as a percentage of the page width/height.
+  function renderOcrOverlay(page) {
+    overlayLayer.innerHTML = "";
+    if (!page || !page.width || !page.height) return;
+    var toks = (page.words && page.words.length) ? page.words : (page.lines || []);
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i];
+      var box = document.createElement("div");
+      box.className = "ocr-box";
+      box.style.left = (t.x / page.width * 100) + "%";
+      box.style.top = (t.y / page.height * 100) + "%";
+      box.style.width = (t.w / page.width * 100) + "%";
+      box.style.height = (t.h / page.height * 100) + "%";
+      overlayLayer.appendChild(box);
+    }
+  }
+
   function handleSelection(input) {
     var f = input.files && input.files[0];
     if (!f) return;
@@ -243,7 +271,8 @@ you already have — then tap <em>Send to desktop</em>.</p>
     reader.onload = function () {
       dataUrl = reader.result;
       preview.src = dataUrl;
-      preview.style.display = "block";
+      previewWrap.style.display = "inline-block";
+      overlayLayer.innerHTML = "";  // clear any boxes from a prior upload
       sendBtn.disabled = false;
       msg.className = "msg";
       progressWrap.style.display = "none";
@@ -287,7 +316,18 @@ you already have — then tap <em>Send to desktop</em>.</p>
       if (xhr.status >= 200 && xhr.status < 300 && body && body.ok) {
         var secs = (Date.now() - startTime) / 1000;
         progressText.textContent = "Uploaded" + (secs > 0 ? " in " + secs.toFixed(1) + "s" : "");
-        show("ok", "Sent — check the desktop app.");
+        // Overlay the detected tokens on the photo and report a verdict so the
+        // user can confirm (or retake) right here on the phone.
+        var pages = body.pages || [];
+        if (pages.length) renderOcrOverlay(pages[0]);
+        var count = body.count || 0;
+        if (count > 0) {
+          show("ok", "Found " + count + " item" + (count === 1 ? "" : "s")
+            + " - review on the desktop app.");
+        } else {
+          show("err", "Couldn't read any parts. Retake with more light, fill the "
+            + "frame, and hold the page flat.");
+        }
       } else {
         sendBtn.disabled = false;
         progressWrap.style.display = "none";
@@ -528,7 +568,19 @@ class PnPHandler(BaseHTTPRequestHandler):
 
         logger.info("Scan upload OCR'd %d line item(s) (template=%s)",
                     len(line_items), template)
-        self._send_json(200, {"ok": True, "count": len(line_items), "saved": saved})
+        # Return the OCR result to the PHONE too, so it can overlay the detected
+        # token boxes on the photo it just captured and show a verdict. Drop each
+        # page's image_b64 (the phone already holds the photo) to keep it lean.
+        phone_pages = [
+            {k: v for k, v in pg.items() if k != "image_b64"} for pg in pages
+        ]
+        self._send_json(200, {
+            "ok": True,
+            "count": len(line_items),
+            "saved": saved,
+            "pages": phone_pages,
+            "prefill_rows": prefill_rows,
+        })
 
     def do_POST(self):
         parts = urlsplit(self.path)
