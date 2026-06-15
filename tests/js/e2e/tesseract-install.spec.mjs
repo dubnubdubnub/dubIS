@@ -43,6 +43,22 @@ test.describe('Install Tesseract button', () => {
     await expect(page.locator('#ocr-engine-missing')).toHaveCount(0);
   });
 
+  test('inconclusive check (swallowed bridge error): no false notice renders', async ({ page }) => {
+    // Regression: refreshOcrEngineNotice runs during startup, before the
+    // pywebview bridge is hydrated. The engine check then fails and api()
+    // swallows the error to undefined. The notice must only render on a
+    // *definitive* "engine absent" (false) — never on an inconclusive result,
+    // or the Install Tesseract button reappears on every launch even though
+    // Tesseract is installed.
+    await addMockSetup(page, MOCK_INVENTORY, { ocrEngineCheckThrows: true });
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+
+    await expect(page.locator('#import-ocr-zone')).toBeVisible();
+    await expect(page.locator('#ocr-engine-missing')).toHaveCount(0);
+  });
+
   test('success path: real click installs and removes the notice', async ({ page }) => {
     await addMockSetup(page, MOCK_INVENTORY, {
       ocrEngineAvailable: false,

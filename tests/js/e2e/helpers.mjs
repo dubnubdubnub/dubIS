@@ -109,8 +109,14 @@ export function addMockSetup(page, inventory, options = {}) {
           if (!opts.ocrOverlayResult) return null;
           return { ...opts.ocrOverlayResult, template: template || opts.ocrOverlayResult.template };
         },
-        ocr_engine_available: async () =>
-          (opts.ocrEngineAvailable === undefined ? true : opts.ocrEngineAvailable),
+        ocr_engine_available: async () => {
+          // Simulate a check that fails and gets swallowed to undefined — the
+          // real-world case where the bridge isn't hydrated yet and api()
+          // catches the "not a function" error (see api.js). The install
+          // notice must NOT render on an inconclusive check.
+          if (opts.ocrEngineCheckThrows) throw new Error('bridge not ready (simulated)');
+          return opts.ocrEngineAvailable === undefined ? true : opts.ocrEngineAvailable;
+        },
         install_tesseract: async () => {
           record('install_tesseract', {});
           return opts.installTesseractResult || { ok: true, message: 'Tesseract installed.', available: true };
