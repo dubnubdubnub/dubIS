@@ -239,6 +239,25 @@ export function setupEvents(handlers) {
     }
   });
 
+  // ── Ctrl/Cmd+F focuses the search bar; Esc clears + leaves it ──
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey &&
+        (e.key === "f" || e.key === "F")) {
+      e.preventDefault();
+      state.searchInput.focus();
+      state.searchInput.select();
+      return;
+    }
+    if (e.key === "Escape" && document.activeElement === state.searchInput) {
+      if (state.searchInput.value) {
+        state.searchInput.value = "";
+        updateDistFilterUI();
+        render();
+      }
+      state.searchInput.blur();
+    }
+  });
+
   // ── Vendor sub-pill filter ──
   window.addEventListener('inv-filter-changed', function () {
     render();
