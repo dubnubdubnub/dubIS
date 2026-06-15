@@ -84,6 +84,22 @@ test.describe('Two-zone import panel', () => {
     await expect(page.locator('#import-mapper')).toHaveClass(/hidden/);
   });
 
+  test('clicking the OCR template dropdown does NOT also open the file picker', async ({ page }) => {
+    // Regression: the OCR zone's click handler used to open the file dialog for
+    // any click that wasn't on an <input>. Clicking the template <select> would
+    // bubble to the zone and trigger BOTH the dropdown and the file explorer.
+    await page.locator('#import-ocr-zone').scrollIntoViewIfNeeded();
+
+    // A real click on the dropdown must not surface a native file chooser.
+    const chooserPromise = page.waitForEvent('filechooser', { timeout: 1000 }).catch(() => null);
+    await page.locator('#import-ocr-template').click();
+    expect(await chooserPromise).toBeNull();
+
+    // The dropdown itself still works: selecting an option updates its value.
+    await page.locator('#import-ocr-template').selectOption('lcsc');
+    await expect(page.locator('#import-ocr-template')).toHaveValue('lcsc');
+  });
+
   test('scan button: real click opens the QR scan modal', async ({ page }) => {
     await page.locator('#import-scan-btn').click();
     await expect(page.locator('#mfg-scan-overlay')).toBeVisible();
