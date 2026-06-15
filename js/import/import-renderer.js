@@ -8,7 +8,7 @@ import { classifyRow, countWarnings } from './import-logic.js';
  * @param {Object} templates - PO_TEMPLATES object
  * @returns {string} HTML string
  */
-export function renderDropZone(templates) {
+export function renderDropZone(templates, selectedOcrTemplate = 'generic') {
   const ocrTemplates = {
     generic: 'Generic — direct from mfg',
     lcsc: 'LCSC',
@@ -16,6 +16,9 @@ export function renderDropZone(templates) {
     mouser: 'Mouser',
     pololu: 'Pololu',
   };
+  // Preserve the last-used distributor template across re-renders so repeated
+  // scans/imports don't keep snapping the dropdown back to "generic".
+  const selectedKey = selectedOcrTemplate in ocrTemplates ? selectedOcrTemplate : 'generic';
   return `
     <div class="import-section">
       <div class="import-zones">
@@ -35,7 +38,7 @@ export function renderDropZone(templates) {
           <label class="ocr-template-label">Template:
             <select id="import-ocr-template">
               ${Object.entries(ocrTemplates).map(([key, label]) =>
-                `<option value="${escHtml(key)}"${key === 'generic' ? ' selected' : ''}>${escHtml(label)}</option>`
+                `<option value="${escHtml(key)}"${key === selectedKey ? ' selected' : ''}>${escHtml(label)}</option>`
               ).join("")}
             </select>
           </label>

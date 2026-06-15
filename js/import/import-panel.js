@@ -83,7 +83,17 @@ function ocrTemplate() {
 }
 
 export function init() {
-  body.innerHTML = renderDropZone(PO_TEMPLATES);
+  body.innerHTML = renderDropZone(PO_TEMPLATES, store.preferences.lastOcrTemplate || "generic");
+
+  // Persist the OCR-template choice so it survives the re-init after each
+  // import (otherwise the dropdown snaps back to "generic" every time).
+  const ocrSel = document.getElementById("import-ocr-template");
+  if (ocrSel) {
+    ocrSel.addEventListener("change", () => {
+      store.preferences.lastOcrTemplate = ocrSel.value;
+      savePreferences();
+    });
+  }
 
   // ── CSV / TSV / TXT / XLS zone (existing inline flow) ──
   setupDropZone("import-drop-zone", "import-file-input", browseImportFile, handleImportFile);

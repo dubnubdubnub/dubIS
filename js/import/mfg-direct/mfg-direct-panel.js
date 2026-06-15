@@ -391,9 +391,27 @@ async function scanReceived(payload) {
   showToast(`Scan: ${state.lineItems.length} rows received — review and import`);
 }
 
-/** Register the global push handler (called once from app-init). */
+/**
+ * Backend → frontend push: the phone's photo has landed but OCR is still
+ * running. Gives the user instant acknowledgement on the desktop instead of a
+ * silent wait while OCR works. The OCR'd rows arrive shortly after via
+ * window._scanReceived.
+ * @param {{filename?: string, template?: string}} payload
+ */
+function scanReceiving(payload) {
+  // If the QR modal is still open, swap its hint to a "reading" message so the
+  // feedback lands where the user is already looking.
+  const hint = document.querySelector('#mfg-scan-overlay .mfg-scan-hint');
+  if (hint) hint.textContent = '📸 Photo received — reading it now…';
+  showToast('📸 Photo received — reading…');
+  const tmpl = (payload && payload.template) || '';
+  AppLog.info('Scan: photo received, OCR in progress' + (tmpl ? ` (${tmpl})` : ''));
+}
+
+/** Register the global push handlers (called once from app-init). */
 export function registerScanHandler() {
   window._scanReceived = scanReceived;
+  window._scanReceiving = scanReceiving;
 }
 
 function cancelFlow() {

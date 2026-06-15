@@ -541,6 +541,18 @@ class PnPHandler(BaseHTTPRequestHandler):
         except OSError as exc:
             logger.error("Failed to save scan upload to disk: %s", exc)
 
+        # Instant desktop acknowledgement: tell the UI the photo arrived BEFORE
+        # the (slower) OCR pass, so the user sees feedback the moment the upload
+        # lands instead of waiting out OCR. Best-effort — never blocks the upload.
+        try:
+            window.evaluate_js(
+                "window._scanReceiving && window._scanReceiving("
+                + json.dumps({"filename": filename, "template": template})
+                + ")"
+            )
+        except Exception as exc:
+            logger.warning("Scan 'receiving' UI push failed (window may be closed): %s", exc)
+
         try:
             overlay = api.ocr_overlay_b64(image_b64, filename, template)
         except Exception as exc:
