@@ -60,6 +60,10 @@
   --ocr-header-pad:      8px;  /* Vertical padding around the modal header / footer */
   --ocr-footer-gap:      8px;  /* Gap between footer controls */
   --ocr-cell-pad:        6px;  /* Padding inside grid cells */
+  --ocr-zoom-gap:        4px;  /* Gap between the zoom icon and its slider */
+  --ocr-zoom-w:         90px;  /* Width of the scan-image zoom slider */
+  --ocr-ghost-pad:       6px;  /* Horizontal padding of the drag ghost label */
+  --ocr-ghost-max-w:   320px;  /* Max width of the drag ghost label */
 
   /* ── Two-zone import drop area ──────────────────────────────────────────────
      Layout for the side-by-side CSV | image/PDF/phone drop zones.
