@@ -205,6 +205,18 @@ async function renderPoList(listEl) {
     listEl.innerHTML = '<div class="label-po-empty">No purchase orders</div>';
     return;
   }
+  // Show most recent POs at the top. Dates are ISO (YYYY-MM-DD) so they sort
+  // lexically; blanks fall to the bottom. The backend returns POs in CSV
+  // append order (oldest first), so reverse() first makes the newest-added PO
+  // win ties on equal/blank dates (sort is stable since ES2019).
+  pos = pos.slice().reverse().sort((a, b) => {
+    const da = a.purchase_date || a.date || "";
+    const db = b.purchase_date || b.date || "";
+    if (da === db) return 0;
+    if (!da) return 1;
+    if (!db) return -1;
+    return da < db ? 1 : -1;
+  });
   for (const po of pos) {
     const poId = po.po_id || po.id || "";
     const row = document.createElement("div");
