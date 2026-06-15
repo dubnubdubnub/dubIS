@@ -1,6 +1,6 @@
 /* import/import-panel.js — Thin wiring: DOM events, API calls, undo/redo */
 
-import { api, AppLog, apiMfgDirect } from '../api.js';
+import { api, AppLog, apiMfgDirect, whenPywebviewReady } from '../api.js';
 import { showToast, escHtml, setupDropZone, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
 import { store, onInventoryUpdated, savePreferences } from '../store.js';
@@ -125,14 +125,24 @@ export function init() {
  * engine notice (with Install button + copyable command) into the OCR zone.
  */
 async function refreshOcrEngineNotice() {
-  let available = false;
+  // The panel inits before the pywebview bridge is hydrated (app-init.js calls
+  // initImportPanel() synchronously, ahead of its own whenPywebviewReady()).
+  // Without this gate the engine check fires against the empty placeholder
+  // bridge; api() swallows the resulting "not a function" error to undefined,
+  // and the missing-engine notice renders on every launch even when Tesseract
+  // is installed.
+  await whenPywebviewReady();
+  let available;
   try {
     available = await apiMfgDirect.ocrEngineAvailable();
   } catch (exc) {
     AppLog.warn('ocr_engine_available check failed: ' + exc);
     return;
   }
-  if (available) return;
+  // Only surface the install affordance when the engine is *definitively*
+  // absent. undefined/null means the check was inconclusive (e.g. a swallowed
+  // bridge error) — don't show a false "engine missing" notice.
+  if (available !== false) return;
 
   const ocrZone = document.getElementById("import-ocr-zone");
   if (!ocrZone || document.getElementById("ocr-engine-missing")) return;
