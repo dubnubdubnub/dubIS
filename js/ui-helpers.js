@@ -57,7 +57,18 @@ export function Modal(id, { onClose, cancelId } = {}) {
 export function setupDropZone(zoneId, inputId, onBrowse, onFile) {
   const zone = document.getElementById(zoneId);
   const input = document.getElementById(inputId);
-  zone.addEventListener("click", (e) => { if (e.target.tagName !== "INPUT") onBrowse(); });
+  // Only treat clicks on the zone's empty space as a "browse" gesture. Clicks on
+  // interactive controls inside the zone (the file input, the OCR template
+  // <select> and its <label>, scan/template buttons) must not also open the file
+  // dialog — otherwise picking from the dropdown would trigger both at once.
+  // Only treat clicks on the zone's empty space as a "browse" gesture. Clicks on
+  // interactive controls inside the zone (the file input, the OCR template
+  // <select> and its <label>, scan/template buttons) must not also open the file
+  // dialog — otherwise picking from the dropdown would trigger both at once.
+  zone.addEventListener("click", (e) => {
+    if (e.target instanceof Element && e.target.closest("input, select, option, label, button")) return;
+    onBrowse();
+  });
   zone.addEventListener("dragover", (e) => { e.preventDefault(); e.stopPropagation(); zone.classList.add("dragover"); });
   zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
   zone.addEventListener("drop", (e) => {
