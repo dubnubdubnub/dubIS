@@ -14,7 +14,7 @@ import os
 import secrets
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 logger = logging.getLogger(__name__)
@@ -254,6 +254,11 @@ get a fresh QR code.</p></body></html>"""
 class PnPHandler(BaseHTTPRequestHandler):
     """HTTP request handler for PnP consumption events."""
 
+    # Idle sockets must not pin a worker thread forever. iOS Safari opens
+    # speculative "preconnect" TCP connections that may never send a request
+    # line; without a timeout, readline() on such a socket blocks indefinitely.
+    timeout = 10
+
     def log_message(self, format, *args):
         """Route request logging through Python logging instead of stderr."""
         logger.info("PnP server: " + format, *args)
@@ -487,8 +492,17 @@ class PnPHandler(BaseHTTPRequestHandler):
         })
 
 
-class _FastHTTPServer(HTTPServer):
-    """HTTPServer that skips the slow FQDN reverse-DNS lookup in server_bind()."""
+class _FastHTTPServer(ThreadingHTTPServer):
+    """Threaded HTTPServer that skips the slow FQDN reverse-DNS lookup in server_bind().
+
+    Threaded (one worker thread per connection) so a single slow or idle client
+    connection can't head-of-line block every other request on the accept loop.
+    iOS Safari routinely opens speculative preconnect sockets that send no
+    request; on the old single-threaded server those stalled the page load for
+    seconds. Daemon threads so they never block process teardown.
+    """
+
+    daemon_threads = True
 
     def server_bind(self):
         if self.allow_reuse_address and hasattr(self.socket, 'setsockopt'):
