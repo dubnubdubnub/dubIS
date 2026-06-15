@@ -108,6 +108,24 @@ test.describe('Phone-scan desktop modal → end-to-end import', () => {
     // Distributor PNs are carried in the serialized items payload.
     const items = JSON.parse(call.itemsJson);
     expect(items.map((i) => i.distributor_pn)).toEqual(['C25744', 'C15525']);
+
+    // 10. After import the panel re-renders, but the OCR-template dropdown keeps
+    //     the user's choice (lcsc) instead of snapping back to "generic".
+    await expect(page.locator('#import-ocr-template')).toHaveValue('lcsc');
+  });
+
+  test('_scanReceiving gives instant feedback before OCR completes', async ({ page }) => {
+    // Open the scan modal so the "reading" hint swap has somewhere to land.
+    await page.locator('#import-ocr-template').selectOption('lcsc');
+    await page.locator('#import-scan-btn').click();
+    await expect(page.locator('#mfg-scan-overlay')).toBeVisible();
+
+    // The real backend fires this the moment the photo lands (before OCR).
+    await page.evaluate(() => window._scanReceiving({ filename: 'po.png', template: 'lcsc' }));
+
+    // Instant acknowledgement: a toast plus the modal hint flips to "reading".
+    await expect(page.locator('.toast')).toContainText('Photo received');
+    await expect(page.locator('#mfg-scan-overlay .mfg-scan-hint')).toContainText('reading');
   });
 
   test('fallback "choose a file" closes the modal and opens the file picker path', async ({ page }) => {
