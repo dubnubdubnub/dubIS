@@ -237,3 +237,48 @@ test.describe('Epson label export', () => {
     await expect(firstRow.locator('.adj-btn')).toHaveCount(0);
   });
 });
+
+test.describe('Purchase Orders picker ordering', () => {
+  // POs deliberately supplied out of chronological order, including a blank
+  // date and two POs sharing a date, so the test pins every branch of the
+  // sort: newest-first, blanks-last, and newest-added-wins on equal dates.
+  // The backend returns CSV append order; here that order is the array order.
+  const UNSORTED_POS = [
+    { po_id: 'PO-OLD',     purchase_date: '2026-01-10', vendor_id: 'v_lcsc' },
+    { po_id: 'PO-NEW',     purchase_date: '2026-06-15', vendor_id: 'v_lcsc' },
+    { po_id: 'PO-MID-A',   purchase_date: '2026-03-01', vendor_id: 'v_lcsc' },
+    { po_id: 'PO-MID-B',   purchase_date: '2026-03-01', vendor_id: 'v_lcsc' },
+    { po_id: 'PO-NODATE',  purchase_date: '',           vendor_id: 'v_lcsc' },
+  ];
+  // Expected top→bottom: newest date first; the later-added of the two
+  // 2026-03-01 POs (PO-MID-B) wins the tie; the blank-date PO sinks last.
+  const EXPECTED_ORDER = ['PO-NEW', 'PO-MID-B', 'PO-MID-A', 'PO-OLD', 'PO-NODATE'];
+
+  test.beforeEach(async ({ page }) => {
+    await addMockSetup(page, MOCK_INVENTORY);
+    await page.addInitScript((pos) => {
+      const patch = () => {
+        if (!window.pywebview || !window.pywebview.api) return false;
+        window.pywebview.api.list_purchase_orders = async () => pos;
+        return true;
+      };
+      if (!patch()) {
+        const t = setInterval(() => { if (patch()) clearInterval(t); }, 5);
+        setTimeout(() => clearInterval(t), 2000);
+      }
+    }, UNSORTED_POS);
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+  });
+
+  test('POs render most-recent first, blanks last', async ({ page }) => {
+    const labels = page.locator('.label-po-row .label-po-label');
+    await expect(labels).toHaveCount(EXPECTED_ORDER.length);
+    // Each rendered label is "<po_id> · <date> · <vendor>"; assert the po_id
+    // prefix of each row matches the expected newest-first ordering.
+    for (let i = 0; i < EXPECTED_ORDER.length; i++) {
+      await expect(labels.nth(i)).toContainText(EXPECTED_ORDER[i]);
+    }
+  });
+});
