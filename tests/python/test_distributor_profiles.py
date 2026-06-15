@@ -45,6 +45,75 @@ class TestLCSC:
         assert prof.match_pn("c1525") == "C1525"
         assert prof.match_pn("DF40C-30DP") is None  # MPN, not an LCSC code
 
+    # A representative LCSC packing list: a multi-column table (No. | LCSC Part# |
+    # Full Description incl. "Mfr. Part#: <MPN>" | Qty Ordered | Qty Shipped | Net
+    # Weight | COO) with NO prices. The per-line "trailing qty+price" parser finds
+    # nothing, so it must be extracted column-wise: C-numbers + "Mfr. Part#:" MPNs,
+    # with quantity taken from the equal ordered/shipped pair.
+    _PACKLIST = (
+        "PACKING LIST\n"
+        "Ship From: Shenzhen LCSC Electronics Tech\n"
+        "No. LCSC Part # Full Description of Goods Qty. Ordered Qty. Shipped Net Weight (G) COO\n"
+        "1 C12624 Mfr. Part#: KT-0603G Emerald Green 525nm LED Indication - Discrete 3.1V 0603 4,000 4,000 88 CN\n"
+        "2 C377861 Mfr. Part#: WSD4066DN33 N-Channel Array 40V 28A 1.68W Surface Mount DFN3x3-8L 200 200 25.6 CN\n"
+        "3 C424643 Mfr. Part#: DF40C-40DP-0.4V(51) nan 500 500 52.5 JP\n"
+        "4 C424644 Mfr. Part#: DF40C-40DS-0.4V(51) nan 100 100 18.9 JP\n"
+        "6 C2874885 Mfr. Part#: WS2812B-V5/W SMD5050-4P LED Addressable, Specialty RoHS 1,000 1,000 160 CN\n"
+        "Total 5800 5800 360.00\n"
+        "LCSC Order No. Reference: WM2605160154\n"
+    )
+
+    def test_extracts_packing_list_table(self):
+        items = dp.parse_with_template("lcsc", self._PACKLIST)
+        assert len(items) == 5
+        first = next(i for i in items if i["distributor_pn"] == "C12624")
+        assert first["distributor"] == "lcsc"
+        assert first["mpn"] == "KT-0603G"
+        assert first["quantity"] == 4000
+        assert first["unit_price"] == 0.0
+        led = next(i for i in items if i["distributor_pn"] == "C2874885")
+        assert led["mpn"] == "WS2812B-V5/W"
+        assert led["quantity"] == 1000
+        fet = next(i for i in items if i["distributor_pn"] == "C377861")
+        assert fet["mpn"] == "WSD4066DN33"
+        assert fet["quantity"] == 200
+
+    def test_packing_list_strips_trailing_ocr_noise_from_mpn(self):
+        # Table borders bleed stray underscores/dashes onto the OCR'd MPN
+        # ("WSD4066DN33__"); they must be trimmed (real MPNs end alnum or ")").
+        text = (
+            "1 C377861 Mfr. Part#: WSD4066DN33__ N-Channel Array 200 200 25.6 CN\n"
+            "2 C424643 Mfr. Part#: DF40C-40DP-0.4V(51) nan 500 500 52.5 JP\n"
+        )
+        items = dp.parse_with_template("lcsc", text)
+        assert next(i for i in items if i["distributor_pn"] == "C377861")["mpn"] == "WSD4066DN33"
+        # A legitimate trailing ")" is preserved.
+        assert next(i for i in items if i["distributor_pn"] == "C424643")["mpn"] == "DF40C-40DP-0.4V(51)"
+
+    def test_generic_template_autodetects_lcsc_packing_list(self):
+        # Dropped on the default "generic" template, the C-number + "Mfr. Part#:"
+        # combination is unmistakably an LCSC packing list and should still fill.
+        items = dp.parse_with_template("generic", self._PACKLIST)
+        assert len(items) == 5
+        assert any(i["distributor_pn"] == "C12624" and i["mpn"] == "KT-0603G" for i in items)
+
+    def test_generic_invoice_without_lcsc_markers_not_hijacked(self):
+        items = dp.parse_with_template("generic", "TMR2615 MDT 50 4.20\n")
+        assert items[0]["distributor"] == "generic"
+        assert items[0]["distributor_pn"] == ""
+
+    def test_tabular_invoice_still_parses_when_no_packlist_markers(self):
+        # Regression guard: the legacy LCSC tabular invoice (with prices, no
+        # "Mfr. Part#:" label) keeps using the per-line parser.
+        text = (
+            "Line  LCSC#     MPN                 Mfr   Qty   Unit\n"
+            "1     C429942   DF40C-30DP-0.4V(51) HRS   100   0.4521\n"
+        )
+        items = dp.parse_with_template("lcsc", text)
+        first = next(i for i in items if i["distributor_pn"] == "C429942")
+        assert first["quantity"] == 100
+        assert abs(first["unit_price"] - 0.4521) < 1e-6
+
 
 class TestDigiKey:
     def test_extracts_digikey_pn(self):
