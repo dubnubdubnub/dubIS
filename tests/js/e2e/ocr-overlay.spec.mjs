@@ -187,6 +187,49 @@ test.describe('OCR overlay PO review modal', () => {
     expect(text).toContain('KT-0603G');
   });
 
+  // Real pointer drag from a token's center to a target element's center. The
+  // intermediate move past the 6px threshold is what turns the press into a drag
+  // (mirrors a real user dragging a scanned box onto a field).
+  async function dragToken(page, tokenSel, target) {
+    const tb = await page.locator(tokenSel).boundingBox();
+    const cb = await target.boundingBox();
+    if (!tb || !cb) throw new Error('missing bounding box for drag');
+    const sx = tb.x + tb.width / 2, sy = tb.y + tb.height / 2;
+    const dx = cb.x + cb.width / 2, dy = cb.y + cb.height / 2;
+    await page.mouse.move(sx, sy);
+    await page.mouse.down();
+    await page.mouse.move(sx + 10, sy + 10, { steps: 3 });  // exceed drag threshold
+    await page.mouse.move(dx, dy, { steps: 10 });
+    await page.mouse.up();
+  }
+
+  test('drag a token onto a grid cell fills that cell', async ({ page }) => {
+    await openOverlay(page);
+    const cell = page.locator('.ocr-cell[data-row="0"][data-field="mpn"]');
+    await dragToken(page, '.ocr-token[data-token="0:w:0"]', cell);
+    await expect(cell).toHaveText('C12624');
+  });
+
+  test('drag a token onto the vendor name input selects that vendor', async ({ page }) => {
+    await openOverlay(page);
+    const vendorInput = page.locator('#ocr-vendor-name-input');
+    await expect(vendorInput).toHaveValue('');
+    await dragToken(page, '.ocr-token[data-token="0:w:0"]', vendorInput);
+    // onVendorNameBlur upserts by name; the mock update_vendor echoes the name.
+    await expect(vendorInput).toHaveValue('C12624');
+  });
+
+  test('zoom slider scales the scan image wrap beyond 100%', async ({ page }) => {
+    await openOverlay(page);
+    const wrap = page.locator('#ocr-overlay .ocr-img-wrap');
+    const before = (await wrap.boundingBox()).width;
+    // Real range interaction: Playwright fill dispatches a native input event.
+    await page.locator('#ocr-zoom-range').fill('3');
+    await expect(wrap).toHaveAttribute('style', /--ocr-zoom:\s*3/);
+    const after = (await wrap.boundingBox()).width;
+    expect(after).toBeGreaterThan(before * 2);
+  });
+
   test('confirm → import carries the corrected rows', async ({ page }) => {
     await openOverlay(page);
 

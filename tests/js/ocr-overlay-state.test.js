@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   createState, selectToken, selectCell, applyPending,
   combineTokens, setCellValue, tokenText,
-  selectTokens, setPage, clearPending, setTokenMode,
+  selectTokens, setPage, clearPending, setTokenMode, setZoom,
 } from '../../js/import/mfg-direct/ocr-overlay/ocr-overlay-state.js';
 
 const payload = {
@@ -104,6 +104,19 @@ describe('ocr-overlay-state', () => {
     let s = createState(payload);
     s = setTokenMode(s, 'bogus');
     expect(s.tokenMode).toBe('w');
+  });
+
+  it('createState defaults zoom to 1', () => {
+    expect(createState(payload).zoom).toBe(1);
+  });
+
+  it('setZoom clamps to the 1..4 range and ignores non-numbers', () => {
+    let s = createState(payload);
+    s = setZoom(s, 2.5);
+    expect(s.zoom).toBe(2.5);
+    expect(setZoom(s, 0.2).zoom).toBe(1);   // below min clamps up
+    expect(setZoom(s, 99).zoom).toBe(4);    // above max clamps down
+    expect(setZoom(s, 'x').zoom).toBe(1);   // non-numeric → 1
   });
 
   it('clearPending resets the pending selection', () => {

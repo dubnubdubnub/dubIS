@@ -68,6 +68,76 @@ class TestDigiKey:
         assert prof.match_pn("311-1.00KHRCT-ND") == "311-1.00KHRCT-ND"
         assert prof.match_pn("C429942") is None
 
+    def test_extracts_packing_list_label_format(self):
+        # A DigiKey packing list / certificate of compliance has NO prices and is
+        # label-prefixed across separate lines (PART:/MFG#:/MFG:/QTY:), not a
+        # tabular invoice. The per-line "trailing qty+price" parser matches none of
+        # it. This text is real OCR output (word order within some lines is
+        # scrambled by the scan), so the parser must extract column-wise rather
+        # than line-wise. Fields per item must zip by appearance order.
+        text = (
+            "PART: 497-18216-ND\n"
+            "MFG#: STLINK-V3SET 8471.90.0000 HTSUS:\n"
+            "NFG : STMicroelectronics\n"            # OCR read 'M' as 'N'
+            "ROHS3 COMP REACH UNAFFECTED Jan-2025\n"
+            "COO: VIETNAM QTY: LOT 4\n"
+            "490-9961-1-ND PART:\n"                 # value-before-label (scrambled)
+            "MFG#: GRM21BR61A476ME15L\n"
+            "MFG : Murata Electronics (VA)\n"
+            "coo: JAPAN QTY: LoT 500\n"
+        )
+        items = dp.parse_with_template("digikey", text)
+        assert len(items) == 2
+        first = next(i for i in items if i["distributor_pn"] == "497-18216-ND")
+        assert first["distributor"] == "digikey"
+        assert first["mpn"] == "STLINK-V3SET"
+        assert first["manufacturer"] == "STMicroelectronics"
+        assert first["quantity"] == 4
+        assert first["unit_price"] == 0.0
+        second = next(i for i in items if i["distributor_pn"] == "490-9961-1-ND")
+        assert second["mpn"] == "GRM21BR61A476ME15L"
+        assert "Murata" in second["manufacturer"]
+        assert second["quantity"] == 500
+
+    def test_generic_template_autodetects_digikey_packing_list(self):
+        # If the user drops a DigiKey packing list but leaves the template on the
+        # default "generic", the unmistakable DigiKey markers (MFG#: labels + -ND
+        # part numbers) should still trigger the packing-list extractor rather than
+        # autofilling nothing. Guarded so ordinary generic invoices are untouched.
+        text = (
+            "DigiKey packing list\n"
+            "PART: 497-18216-ND\n"
+            "MFG#: STLINK-V3SET\n"
+            "MFG : STMicroelectronics\n"
+            "COO: VIETNAM QTY: LOT 4\n"
+        )
+        items = dp.parse_with_template("generic", text)
+        assert len(items) == 1
+        assert items[0]["distributor_pn"] == "497-18216-ND"
+        assert items[0]["mpn"] == "STLINK-V3SET"
+        assert items[0]["quantity"] == 4
+
+    def test_generic_template_ignores_ordinary_invoice_without_digikey_markers(self):
+        # Regression guard: a plain generic invoice (no MFG#: / -ND markers) must
+        # NOT be hijacked by the DigiKey packing-list path.
+        text = "TMR2615 MDT 50 4.20\n"
+        items = dp.parse_with_template("generic", text)
+        assert items[0]["distributor"] == "generic"
+        assert items[0]["distributor_pn"] == ""
+
+    def test_tabular_invoice_still_parses_when_no_packlist_labels(self):
+        # Regression guard: the tabular-invoice path (with prices, no PART:/MFG#:
+        # labels) must keep using the per-line parser, not the packing-list one.
+        text = (
+            "DigiKey Part Number    Manufacturer Part Number   Qty   Unit Price\n"
+            "296-1234-1-ND          SN74LVC1G08DBVR            25    0.4500\n"
+        )
+        items = dp.parse_with_template("digikey", text)
+        first = next(i for i in items if i["distributor_pn"] == "296-1234-1-ND")
+        assert first["quantity"] == 25
+        assert abs(first["unit_price"] - 0.45) < 1e-6
+        assert "SN74LVC1G08DBVR" in first["mpn"]
+
 
 class TestMouser:
     def test_extracts_mouser_pn(self):

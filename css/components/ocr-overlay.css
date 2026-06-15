@@ -6,8 +6,15 @@
 
 .ocr-overlay-modal {
   width: var(--ocr-modal-w);
-  max-width: var(--ocr-modal-w);
-  max-height: 90vh;
+  height: var(--ocr-modal-h);
+  /* User-resizable so the scan image can be scaled up to read fine print.
+     `resize` needs a non-visible overflow and an explicit size to grab onto. */
+  resize: both;
+  overflow: hidden;
+  min-width: var(--ocr-modal-min-w);
+  min-height: var(--ocr-modal-min-h);
+  max-width: 98vw;
+  max-height: 95vh;
   display: flex;
   flex-direction: column;
 }
@@ -31,6 +38,15 @@
 }
 .ocr-header button:disabled { color: var(--text-muted); cursor: default; }
 .ocr-mode-toggle { display: inline-flex; gap: var(--ocr-header-gap); }
+.ocr-zoom { display: inline-flex; align-items: center; gap: 4px; }
+.ocr-zoom-icon { font-size: 12px; }
+.ocr-zoom input[type="range"] { width: 90px; cursor: pointer; }
+.ocr-header-hint {
+  margin-left: auto;
+  font-size: 11px !important;
+  font-weight: 400;
+  color: var(--text-muted) !important;
+}
 
 .ocr-split {
   display: flex;
@@ -47,8 +63,30 @@
   border-radius: 6px;
 }
 
-.ocr-img-wrap { position: relative; }
+/* Zoom scales the wrap width past 100% of the (scrollable) scan pane; the image
+   fills the wrap and the %-positioned tokens scale with it automatically. */
+.ocr-img-wrap { position: relative; width: calc(var(--ocr-zoom, 1) * 100%); }
 .ocr-img-wrap img { display: block; width: 100%; }
+
+/* Floating label that follows the cursor while dragging a token to a field. */
+.ocr-drag-ghost {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  padding: 2px 6px;
+  font-size: 12px;
+  background: var(--color-blue);
+  color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  max-width: 320px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ocr-token.dragging { opacity: 0.4; }
+/* The cell or vendor input currently under a dragged token. */
+.ocr-drop-target { outline: 2px solid var(--color-blue); outline-offset: -1px; }
 
 .ocr-token {
   position: absolute;
