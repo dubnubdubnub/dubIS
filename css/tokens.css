@@ -49,7 +49,10 @@
      Geometry for the OCR-overlay PO import modal (left scan pane + right grid).
      Token-positioned word boxes use inline % styles set in JS (not scanned).
      Consumed by: css/components/ocr-overlay.css */
-  --ocr-modal-w:        min(1200px, 95vw);  /* Wide split-pane modal width */
+  --ocr-modal-w:        min(1200px, 95vw);  /* Initial split-pane modal width (user-resizable) */
+  --ocr-modal-h:        min(800px, 90vh);   /* Initial modal height (user-resizable) */
+  --ocr-modal-min-w:    480px;  /* Floor when shrinking the resizable modal */
+  --ocr-modal-min-h:    360px;  /* Floor when shrinking the resizable modal */
   --ocr-pane-gap:       12px;  /* Gap between scan pane and grid pane */
   --ocr-token-pad:       1px;  /* Padding inside an OCR word token box */
   --ocr-token-font:     11px;  /* Font size of OCR word token text */
@@ -57,6 +60,10 @@
   --ocr-header-pad:      8px;  /* Vertical padding around the modal header / footer */
   --ocr-footer-gap:      8px;  /* Gap between footer controls */
   --ocr-cell-pad:        6px;  /* Padding inside grid cells */
+  --ocr-zoom-gap:        4px;  /* Gap between the zoom icon and its slider */
+  --ocr-zoom-w:         90px;  /* Width of the scan-image zoom slider */
+  --ocr-ghost-pad:       6px;  /* Horizontal padding of the drag ghost label */
+  --ocr-ghost-max-w:   320px;  /* Max width of the drag ghost label */
 
   /* ── Two-zone import drop area ──────────────────────────────────────────────
      Layout for the side-by-side CSV | image/PDF/phone drop zones.
