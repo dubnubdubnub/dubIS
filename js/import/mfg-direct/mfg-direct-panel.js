@@ -10,6 +10,9 @@ import { isOcrFile } from '../import-logic.js';
 import { createVendorPicker } from './vendor-picker.js';
 import { renderQrToCanvas } from '../../vendor/qrcode.js';
 import { openOverlay } from './ocr-overlay/ocr-overlay-panel.js';
+import { UndoRedo } from '../../undo-redo.js';
+import { invPartKey } from '../../part-keys.js';
+import { recordImportGeneration, popImportGeneration } from '../../inventory/inv-state.js';
 
 const state = {
   active: false,
@@ -23,10 +26,72 @@ const state = {
 
 let mountEl = null;
 
+/** Key matching inv-row-build's data-part-id, derived from a PO line item. */
+function lineItemPartKey(li) {
+  const dp = (li.distributor_pn || '').trim();
+  const dist = (li.distributor || '').toLowerCase();
+  return invPartKey({
+    lcsc: /^C\d/i.test(dp) ? dp : (li.lcsc || ''),
+    mpn: li.mpn || '',
+    digikey: dist === 'digikey' ? dp : '',
+    pololu: dist === 'pololu' ? dp : '',
+    mouser: dist === 'mouser' ? dp : '',
+  });
+}
+
 const vendorPicker = createVendorPicker({
   getVendor: () => state.vendor,
   setVendor: (v) => { state.vendor = v; },
   onChange: () => rerender(),
+});
+
+async function reopenReviewForUndo(data) {
+  if (!data.sourceBytes) {
+    showToast('Removed import (no source image to re-review)');
+    return;
+  }
+  try {
+    const payload = await apiMfgDirect.ocrOverlayB64(data.sourceBytes, data.sourceName, data.template);
+    if (payload && payload.pages && payload.pages.length) {
+      _resetForImport(mountEl, data.template);
+      openOverlay(payload, {
+        initialRows: data.rows,
+        initialVendor: data.vendor,
+        onConfirm: (rows, vendor) => {
+          state.lineItems = rows;
+          state.vendor = vendor;
+          state.sourceFile = { name: data.sourceName, bytes: data.sourceBytes };
+          importPO();
+        },
+      });
+      return;
+    }
+  } catch (exc) {
+    AppLog.warn('Undo reopen OCR failed: ' + exc);
+  }
+  showToast('Removed import — could not reopen review');
+}
+
+UndoRedo.register('po-import', async (action, data) => {
+  if (action === 'snapshot') {
+    return { _undoType: 'po-import-redo', rows: data?.rows, vendor: data?.vendor,
+      template: data?.template, sourceBytes: data?.sourceBytes, sourceName: data?.sourceName };
+  }
+  if (data && data._undoType === 'po-import') {
+    const fresh = await apiPurchaseOrders.deleteLast();
+    if (!fresh) throw new Error('Failed to undo PO import');
+    onInventoryUpdated(fresh);
+    popImportGeneration();
+    showToast(`Undid import of ${data.importedCount} rows`);
+    await reopenReviewForUndo(data);
+  } else if (data && data._undoType === 'po-import-redo') {
+    // Redo: re-import the same rows as a fresh PO.
+    state.lineItems = (data.rows || []).map(li => ({ ...li }));
+    state.vendor = { ...(data.vendor || {}) };
+    state.scanTemplate = data.template || 'generic';
+    state.sourceFile = data.sourceBytes ? { name: data.sourceName, bytes: data.sourceBytes } : null;
+    await importPO();
+  }
 });
 
 // ── New two-zone entry points (image/PDF → OCR overlay; phone → scan modal) ──
@@ -468,8 +533,28 @@ async function importPO() {
   try {
     const fresh = await apiPurchaseOrders.create(
       state.vendor.id, fileB64, fileName, '', '', items);
+
+    // Record the import generation BEFORE the inventory re-renders, so the
+    // first render after import already paints the green gutter dots. (The
+    // INVENTORY_UPDATED render is what calls refreshImportMarkers; recording
+    // the generation afterward leaves the dots un-rendered until some later,
+    // incidental refresh.)
+    const keys = state.lineItems.map(lineItemPartKey).filter(Boolean);
+    recordImportGeneration(keys);
+
     onInventoryUpdated(fresh);
     await loadVendorsAndPOs();
+
+    UndoRedo.save('po-import', {
+      _undoType: 'po-import',
+      rows: state.lineItems.map(li => ({ ...li })),
+      vendor: { ...state.vendor },
+      template: state.scanTemplate || 'generic',
+      sourceBytes: (state.sourceFile && state.sourceFile.bytes) || '',
+      sourceName: (state.sourceFile && state.sourceFile.name) || '',
+      importedCount: items.length,
+    });
+
     showToast(`Imported ${items.length} rows from ${state.vendor.name || 'vendor'}`);
     AppLog.info(`Direct PO: ${items.length} rows from ${state.vendor.name}`);
     cancelFlow();

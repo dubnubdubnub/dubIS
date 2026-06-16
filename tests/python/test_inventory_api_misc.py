@@ -355,3 +355,25 @@ def test_create_purchase_order_writes_files(api):
     )
     # Returns fresh inventory
     assert any(p["mpn"] == "TMR2615" for p in inv)
+
+
+def test_delete_last_purchase_order_removes_most_recent(api):
+    """delete_last_purchase_order removes the most-recently-created PO."""
+    new_v = api.update_vendor("", name="Acme", url="https://acme.example.com")
+    api.create_purchase_order_with_items(
+        vendor_id=new_v["id"],
+        source_file_b64="", source_file_name="",
+        purchase_date="2026-01-01", notes="",
+        line_items_json='[{"mpn":"PART-A","manufacturer":"Acme","package":"",'
+                         '"quantity":5,"unit_price":1.0,"match":"new"}]',
+    )
+    # Part is visible in inventory
+    assert any(p["mpn"] == "PART-A" for p in api.rebuild_inventory())
+    inv = api.delete_last_purchase_order()
+    assert not any(p["mpn"] == "PART-A" for p in inv)
+
+
+def test_delete_last_purchase_order_raises_when_none(api):
+    """delete_last_purchase_order raises when there are no POs."""
+    with pytest.raises(Exception):
+        api.delete_last_purchase_order()
