@@ -102,28 +102,51 @@
 .ocr-token:hover { border-color: var(--color-blue); background: rgba(88, 166, 255, 0.25); }
 .ocr-token.selected { border-color: var(--color-blue); background: rgba(88, 166, 255, 0.35); }
 
-.ocr-grid { width: 100%; border-collapse: collapse; }
+.ocr-grid { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
 .ocr-grid th {
-  padding: var(--ocr-cell-pad);
-  text-align: left;
-  font-size: 12px;
-  color: var(--text-secondary);
+  position: sticky; top: 0; z-index: 2;
   background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-default);
-  position: sticky;
-  top: 0;
+  border-bottom: 2px solid var(--border-default);
+  padding: 6px 8px;
+  text-align: left;
+  color: var(--text-secondary);
+  font-weight: 600; font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  white-space: nowrap;
 }
+.ocr-th-label { vertical-align: middle; }
+.ocr-col-shift { display: inline-flex; flex-direction: column; margin-left: 4px; vertical-align: middle; }
+.ocr-col-shift button {
+  line-height: 0.8; font-size: 8px; padding: 0 2px;
+  background: transparent; border: none; color: var(--text-muted); cursor: pointer;
+}
+.ocr-col-shift button:hover { color: var(--color-blue); }
 
 .ocr-cell {
-  padding: var(--ocr-cell-pad);
-  font-size: 12px;
-  background: var(--bg-raised);
-  color: var(--text-primary);
-  border: 1px solid var(--border-default);
+  padding: 5px 8px; font-size: 12px;
+  background: var(--bg-raised); color: var(--text-primary);
+  border-bottom: 1px solid var(--bg-raised);
+  border-right: 1px solid var(--border-default);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.ocr-cell.target { border-color: var(--color-blue); box-shadow: 0 0 0 1px var(--color-blue); }
-.ocr-cell.low-conf { border-color: var(--color-yellow); background: rgba(210, 153, 34, 0.12); }
+.ocr-grid tbody tr:hover { background: var(--bg-hover); }
+.ocr-cell.target { outline: 2px solid var(--color-blue); outline-offset: -2px; }
+.ocr-cell.low-conf { border-bottom-color: var(--color-yellow); background: rgba(210, 153, 34, 0.12); }
 .ocr-cell.blank { color: var(--text-muted); font-style: italic; }
+
+.ocr-row-delete {
+  width: var(--bom-row-delete-w); text-align: center;
+  color: var(--text-muted); cursor: pointer; user-select: none;
+}
+td.ocr-row-delete:hover { color: var(--color-red); }
+th.ocr-row-delete { cursor: default; }
+
+.ocr-add-row {
+  margin: 8px 0 0; padding: 4px 10px;
+  background: transparent; border: 1px solid var(--border-default);
+  border-radius: 6px; color: var(--text-secondary); cursor: pointer; font-size: 12px;
+}
+.ocr-add-row:hover { border-color: var(--color-green); color: var(--color-green); }
 
 .ocr-footer {
   display: flex;
@@ -132,3 +155,26 @@
   padding-top: var(--ocr-header-pad);
 }
 .ocr-footer #ocr-vendor-mount { flex: 1; }
+
+.ocr-cell-edit {
+  width: 100%; box-sizing: border-box;
+  margin: -5px -8px; padding: 5px 8px; /* fill the cell's own padding box */
+  font: inherit; font-size: 12px;
+  color: var(--text-primary); background: var(--bg-base);
+  border: 1px solid var(--color-blue); border-radius: 2px;
+  outline: none;
+}
+
+.ocr-fullscreen-btn { font-size: 13px; padding: 0 6px; }
+.ocr-overlay-modal.ocr-fullscreen {
+  width: 100vw; height: 100vh;
+  max-width: 100vw; max-height: 100vh;
+  resize: none; border-radius: 0;
+}
+.ocr-confirm-final {
+  background: #238636; color: #fff;
+  border: 1px solid var(--color-green);
+  font-weight: 600; padding: 7px 16px; border-radius: 6px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.3);
+}
+.ocr-confirm-final:hover { background: #2ea043; }
