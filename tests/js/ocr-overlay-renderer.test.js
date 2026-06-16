@@ -122,3 +122,35 @@ describe('renderModal', () => {
     expect(renderModal(multi)).toContain('id="ocr-prev"');
   });
 });
+
+describe('ocr-overlay-renderer affordances', () => {
+  const state = {
+    template: 'lcsc', pageIdx: 0, zoom: 1, tokenMode: 'w', fullscreen: false,
+    pages: [{ image_b64: 'A', width: 10, height: 10, words: [], lines: [] }],
+    rows: [{ mpn: 'X', quantity: 1 }, { mpn: 'Y', quantity: 2 }],
+    lowConf: [new Set(), new Set()],
+    pending: { kind: null, tokenIds: [], cell: null },
+  };
+
+  it('renders a fullscreen toggle button', () => {
+    expect(renderModal(state)).toContain('id="ocr-fullscreen"');
+  });
+  it('renders per-column shift buttons', () => {
+    const html = renderModal(state);
+    expect(html).toContain('class="ocr-col-up" data-field="mpn"');
+    expect(html).toContain('class="ocr-col-down" data-field="mpn"');
+  });
+  it('renders a per-row delete cell and an add-row button', () => {
+    const html = renderModal(state);
+    expect(html).toContain('class="ocr-row-delete" data-row="0"');
+    expect(html).toContain('class="ocr-add-row"');
+  });
+  it('confirm button shows the row count and a final class', () => {
+    const html = renderModal(state);
+    expect(html).toContain('ocr-confirm-final');
+    expect(html).toContain('Import 2 rows');
+  });
+  it('applies fullscreen class when state.fullscreen', () => {
+    expect(renderModal({ ...state, fullscreen: true })).toContain('ocr-overlay-modal ocr-fullscreen');
+  });
+});
