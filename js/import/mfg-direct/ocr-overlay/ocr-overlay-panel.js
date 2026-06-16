@@ -27,6 +27,11 @@ let drag = null;
 let suppressClick = false;
 let loadingActive = false;   // true while the scanning skeleton is shown
 let onCancelCb = null;       // invoked if the user cancels the skeleton
+// Monotonic id for each skeleton open. resolveOverlay/failOverlay carry the token
+// from their openOverlayLoading() call and no-op if a newer skeleton has since
+// opened — so a stale OCR result (after cancel + re-drop) can't tear down or
+// resolve into the wrong modal.
+let loadToken = 0;
 const DRAG_THRESHOLD = 6;  // px before a press becomes a drag
 
 const vendorPicker = createVendorPicker({
@@ -54,8 +59,13 @@ export function openOverlay(payload, { onConfirm } = {}) {
   rerender();
 }
 
-/** Open the scanning skeleton immediately; OCR runs while it is shown. */
+/**
+ * Open the scanning skeleton immediately; OCR runs while it is shown. Returns a
+ * token to pass to resolveOverlay/failOverlay so a stale call (after the user
+ * cancels and re-drops) can't act on the newer skeleton.
+ */
 export function openOverlayLoading(images, { onCancel } = {}) {
+  const token = ++loadToken;
   state = createLoadingState(images);
   loadingActive = true;
   onCancelCb = onCancel || null;
@@ -74,10 +84,15 @@ export function openOverlayLoading(images, { onCancel } = {}) {
   document.addEventListener('keydown', escHandler);
 
   rerender();
+  return token;
 }
 
-/** Swap an open skeleton into the full review. No-op if it was cancelled/closed. */
-export function resolveOverlay(payload, { onConfirm } = {}) {
+/**
+ * Swap an open skeleton into the full review. No-op if it was cancelled/closed,
+ * or if `token` is stale (a newer skeleton has since opened).
+ */
+export function resolveOverlay(token, payload, { onConfirm } = {}) {
+  if (token !== loadToken) return;
   if (!loadingActive || !document.getElementById('ocr-overlay')) return;
   loadingActive = false;
   onCancelCb = null;
@@ -88,8 +103,12 @@ export function resolveOverlay(payload, { onConfirm } = {}) {
   rerender();
 }
 
-/** Tear down the skeleton (e.g. OCR failed / no text). Toasts `message` if open. */
-export function failOverlay(message) {
+/**
+ * Tear down the skeleton (e.g. OCR failed / no text). Toasts `message` if open.
+ * No-op if `token` is stale, so a stale call can't close a newer skeleton.
+ */
+export function failOverlay(token, message) {
+  if (token !== loadToken) return;
   const wasOpen = loadingActive || !!document.getElementById('ocr-overlay');
   closeOverlay();
   if (wasOpen && message) showToast(message);

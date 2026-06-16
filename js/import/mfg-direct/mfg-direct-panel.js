@@ -66,15 +66,15 @@ export async function openOcrImport(mountElement, file, template = 'generic') {
     return;
   }
   // Open the scanning skeleton immediately so the dropped image is shown being
-  // "read" while the (blocking) OCR call runs.
-  let cancelled = false;
-  openOverlayLoading([{ b64, name: file.name }], { onCancel: () => { cancelled = true; } });
+  // "read" while the (blocking) OCR call runs. The token lets resolve/fail no-op
+  // if the user cancels and re-drops before this OCR call returns.
+  const token = openOverlayLoading([{ b64, name: file.name }]);
 
   // Proactively surface a missing OCR engine before the heavier call.
   try {
     const ok = await apiMfgDirect.ocrEngineAvailable();
     if (ok === false) {
-      failOverlay('OCR engine not available — install Tesseract');
+      failOverlay(token, 'OCR engine not available — install Tesseract');
       AppLog.warn('ocr_engine_available returned false');
       return;
     }
@@ -82,12 +82,10 @@ export async function openOcrImport(mountElement, file, template = 'generic') {
     // Non-fatal: fall through to the OCR call, whose catch is the real safety net.
     AppLog.warn('ocr_engine_available check failed: ' + exc);
   }
-  if (cancelled) return;
   try {
     const payload = await apiMfgDirect.ocrOverlayB64(b64, file.name, template);
-    if (cancelled) return;
     if (payload && payload.pages && payload.pages.length) {
-      resolveOverlay(payload, {
+      resolveOverlay(token, payload, {
         onConfirm: (rows, vendor) => {
           state.lineItems = rows;
           state.vendor = vendor;
@@ -97,17 +95,17 @@ export async function openOcrImport(mountElement, file, template = 'generic') {
       });
       return;
     }
-    failOverlay('No text found in that file — try a clearer photo or a CSV');
+    failOverlay(token, 'No text found in that file — try a clearer photo or a CSV');
     AppLog.warn('ocr_overlay_b64 returned no pages');
   } catch (exc) {
     // The pywebview bridge surfaces Python exceptions as the JS error message;
     // TesseractMissingError text contains "Tesseract" + a winget install hint.
     const msg = String((exc && exc.message) || exc);
     if (/tesseract/i.test(msg)) {
-      failOverlay(msg);
+      failOverlay(token, msg);
     } else {
       AppLog.error('OCR import failed: ' + exc);
-      failOverlay('OCR failed — see log');
+      failOverlay(token, 'OCR failed — see log');
     }
   }
 }
@@ -228,13 +226,16 @@ async function handleSourceFile(file) {
 
     // Image/PDF inputs route through the OCR overlay for token-driven review.
     if (isOcrFile(file.name)) {
+      // `cancelled` gates the flat-parse fallback (a user cancel means stop, not
+      // silently flat-parse); `token` keeps a stale OCR result from tearing down
+      // a newer skeleton if the user cancels and re-drops.
       let cancelled = false;
-      openOverlayLoading([{ b64, name: file.name }], { onCancel: () => { cancelled = true; } });
+      const token = openOverlayLoading([{ b64, name: file.name }], { onCancel: () => { cancelled = true; } });
       try {
         const payload = await apiMfgDirect.ocrOverlayB64(b64, file.name, state.scanTemplate || 'generic');
         if (cancelled) return;
         if (payload && payload.pages && payload.pages.length) {
-          resolveOverlay(payload, {
+          resolveOverlay(token, payload, {
             onConfirm: (rows, vendor) => {
               state.lineItems = rows;
               state.vendor = vendor;
@@ -248,7 +249,7 @@ async function handleSourceFile(file) {
       } catch (exc) {
         AppLog.warn('ocr_overlay_b64 failed, falling back to flat parse: ' + exc);
       }
-      failOverlay();  // close the skeleton silently before the flat-parse path
+      failOverlay(token);  // close the skeleton silently before the flat-parse path
       if (cancelled) return;
       // fall through to the flat parse path below
     }
