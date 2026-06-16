@@ -283,6 +283,147 @@ test.describe('OCR overlay PO review modal', () => {
     expect(String(items[1].quantity)).toBe('77');
   });
 
+  test('full-cell editor fills the cell (not a cramped box)', async ({ page }) => {
+    await openOverlay(page);
+    // Use the widest column (description) so the "fills the cell" geometry is
+    // unambiguous and not dominated by per-cell padding on a narrow column.
+    const cell = page.locator('.ocr-cell[data-row="0"][data-field="description"]');
+    const cellBox = await cell.boundingBox();
+    if (!cellBox) throw new Error('description cell has no bounding box');
+
+    // Measure the cell's text area (content box = width minus horizontal
+    // padding). The full-cell editor should span this entire area, unlike the
+    // old cramped inline box. Reading it before opening the editor avoids the
+    // input's own box confusing the measurement.
+    const contentWidth = await cell.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    });
+
+    await cell.dblclick();
+    const input = cell.locator('input.ocr-cell-edit');
+    await expect(input).toBeVisible();
+    // The editor fills the cell's text area (not a small fixed-width box). Require
+    // it to span essentially the whole content box and the bulk of the cell.
+    const inputBox = await input.boundingBox();
+    if (!inputBox) throw new Error('editor input has no bounding box');
+    expect(inputBox.width).toBeGreaterThanOrEqual(contentWidth - 2);
+    expect(inputBox.width).toBeGreaterThan(cellBox.width * 0.7);
+
+    await input.fill('EDITED');
+    await input.press('Enter');
+    await expect(cell).toHaveText('EDITED');
+  });
+
+  test('add row then delete it returns to the original count', async ({ page }) => {
+    await openOverlay(page);
+    const rows = page.locator('.ocr-grid tbody tr');
+    const before = await rows.count();
+
+    await page.locator('.ocr-add-row').click();
+    await expect(rows).toHaveCount(before + 1);
+
+    await page.locator('.ocr-row-delete[data-row="0"]').click();
+    await expect(rows).toHaveCount(before);
+  });
+
+  test('column shift down moves row-0 value to row-1', async ({ page }) => {
+    await openOverlay(page);
+    // Set up two known values in the mpn column via real inline edits, so the
+    // shift has something to move regardless of the (blank-mpn) prefill.
+    const cell0 = page.locator('.ocr-cell[data-row="0"][data-field="mpn"]');
+    await cell0.dblclick();
+    await cell0.locator('input.ocr-cell-edit').fill('TOP');
+    await cell0.locator('input.ocr-cell-edit').press('Enter');
+    await expect(cell0).toHaveText('TOP');
+
+    const cell1 = page.locator('.ocr-cell[data-row="1"][data-field="mpn"]');
+    await cell1.dblclick();
+    await cell1.locator('input.ocr-cell-edit').fill('BOTTOM');
+    await cell1.locator('input.ocr-cell-edit').press('Enter');
+    await expect(cell1).toHaveText('BOTTOM');
+
+    // Shift the mpn column down: row-0 empties, its old value lands in row-1.
+    await page.locator('.ocr-col-down[data-field="mpn"]').click();
+    await expect(page.locator('.ocr-cell[data-row="0"][data-field="mpn"]')).toHaveText('');
+    await expect(page.locator('.ocr-cell[data-row="1"][data-field="mpn"]')).toHaveText('TOP');
+  });
+
+  test('fullscreen button toggles the ocr-fullscreen class', async ({ page }) => {
+    await openOverlay(page);
+    const modal = page.locator('.ocr-overlay-modal');
+    await expect(modal).not.toHaveClass(/ocr-fullscreen/);
+
+    await page.locator('#ocr-fullscreen').click();
+    await expect(modal).toHaveClass(/ocr-fullscreen/);
+
+    await page.locator('#ocr-fullscreen').click();
+    await expect(modal).not.toHaveClass(/ocr-fullscreen/);
+  });
+
+  // Complete a full OCR import → inventory. Fills both rows with a real MPN
+  // (validateLineItems requires one per row), picks the Self vendor, and clicks
+  // Import. `row0Dpn` becomes row-0's distributor_pn (an LCSC C-number → the
+  // import generation key), so callers can assert a matching green dot.
+  async function completeImport(page, { row0Dpn = 'C429942' } = {}) {
+    await openOverlay(page);
+
+    const dpn0 = page.locator('.ocr-cell[data-row="0"][data-field="distributor_pn"]');
+    await dpn0.dblclick();
+    await dpn0.locator('input.ocr-cell-edit').fill(row0Dpn);
+    await dpn0.locator('input.ocr-cell-edit').press('Enter');
+    await expect(dpn0).toHaveText(row0Dpn);
+
+    const mpn0 = page.locator('.ocr-cell[data-row="0"][data-field="mpn"]');
+    await mpn0.dblclick();
+    await mpn0.locator('input.ocr-cell-edit').fill('KT-0603G');
+    await mpn0.locator('input.ocr-cell-edit').press('Enter');
+    await expect(mpn0).toHaveText('KT-0603G');
+
+    const mpn1 = page.locator('.ocr-cell[data-row="1"][data-field="mpn"]');
+    await mpn1.dblclick();
+    await mpn1.locator('input.ocr-cell-edit').fill('RC0402');
+    await mpn1.locator('input.ocr-cell-edit').press('Enter');
+    await expect(mpn1).toHaveText('RC0402');
+
+    await page.locator('#ocr-vendor-mount .ocr-pseudo-chip[data-pseudo="v_self"]').click();
+    await expect(page.locator('#ocr-vendor-name-input')).toHaveValue('Self');
+
+    await page.locator('#ocr-confirm').click();
+    await expect(page.locator('#ocr-overlay')).toHaveCount(0);
+    await expect(page.locator('.toast')).toContainText('Imported');
+  }
+
+  test('Ctrl+Z after import reopens the overlay pre-filled', async ({ page }) => {
+    await completeImport(page, { row0Dpn: 'C429942' });
+
+    // Global Ctrl+Z (app-init.js) → UndoRedo.undo → delete_last_purchase_order →
+    // reopenReviewForUndo → ocr_overlay_b64 (mock) → overlay reopens pre-filled.
+    await page.keyboard.press('Control+z');
+
+    await expect(page.locator('#ocr-overlay')).toBeVisible();
+    // The user's previously-entered values are pre-filled into the grid.
+    await expect(page.locator('.ocr-cell[data-row="0"][data-field="distributor_pn"]'))
+      .toHaveText('C429942');
+    await expect(page.locator('.ocr-cell[data-row="0"][data-field="mpn"]'))
+      .toHaveText('KT-0603G');
+
+    // The undo actually called the delete-last-PO backend.
+    const called = await page.evaluate(
+      () => (window.__apiCalls.delete_last_purchase_order || []).length);
+    expect(called).toBeGreaterThan(0);
+  });
+
+  test('completed import marks imported parts with green gutter dots', async ({ page }) => {
+    // row0Dpn matches an LCSC part already in the mock inventory, so its row is
+    // rendered with a matching data-part-id and earns a dot.
+    await completeImport(page, { row0Dpn: 'C429942' });
+
+    const dots = page.locator('.inv-import-gutter .inv-import-dot');
+    await expect(dots.first()).toBeVisible();
+    expect(await dots.count()).toBeGreaterThanOrEqual(1);
+  });
+
   test('multi-page: next button switches the page image', async ({ page }) => {
     // beforeEach installed the 1-page mock + navigated. Install a 2-page mock as
     // a later init script (last writer wins for window.pywebview) and reload so

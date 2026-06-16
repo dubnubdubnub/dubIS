@@ -69,6 +69,7 @@ export const apiPurchaseOrders = {
   update: (poId, vendorId, date, notes) =>
     api('update_purchase_order', poId, vendorId, date, notes),
   delete: (poId) => api('delete_purchase_order', poId),
+  deleteLast: () => api('delete_last_purchase_order'),
   openSource: (poId) => api('open_source_file', poId),
 };
 

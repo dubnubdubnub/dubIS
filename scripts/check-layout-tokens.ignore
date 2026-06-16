@@ -90,6 +90,7 @@ css/panels/inventory.css:372:
 css/panels/inventory.css:373:
 css/panels/inventory.css:388:
 css/panels/inventory.css:416:
+css/panels/inventory.css:427:
 
 # ── css/buttons.css ─────────────────────────────────────────────
 css/buttons.css:4:
@@ -158,6 +159,13 @@ css/components/label-export.css:270:
 # ── css/components/linking.css ──────────────────────────────────
 css/components/linking.css:28:
 css/components/linking.css:34:
+
+# ── css/components/ocr-overlay.css ──────────────────────────────
+css/components/ocr-overlay.css:110:
+css/components/ocr-overlay.css:124:
+css/components/ocr-overlay.css:137:
+css/components/ocr-overlay.css:156:
+css/components/ocr-overlay.css:172:
 
 # ── css/components/toast.css ────────────────────────────────────
 css/components/toast.css:4:
