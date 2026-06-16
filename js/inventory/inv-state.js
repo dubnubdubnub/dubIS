@@ -40,6 +40,9 @@ var state = {
   sortColumn: null,        // null | "mpn" | "description" | "qty" | "unit_price" | "value"
   sortScope: null,         // null | "subsection" | "section" | "global"
   vendorGroupScope: null,  // null | "subsection" | "section" | "global"
+
+  // ── Import-generation markers (scrollbar fade dots) ──
+  importGenerations: [],   // [{ keys: Set<string> }, ...] newest-first, capped at MAX_IMPORT_GENERATIONS
 };
 
 export default state;
@@ -52,4 +55,32 @@ export function hydrateFromPreferences(view) {
   state.sortColumn       = view.sort_column || null;
   state.sortScope        = view.sort_scope  || null;
   state.vendorGroupScope = view.vendor_group_scope || null;
+}
+
+export const MAX_IMPORT_GENERATIONS = 5;
+// Opacity per generation age (index 0 = newest). Beyond the list → 0 (no dot).
+const GEN_OPACITY = [1, 0.7, 0.5, 0.35, 0.2];
+
+/** Record a new import as the newest generation (de-duplicated key set). */
+export function recordImportGeneration(keys) {
+  const set = new Set((keys || []).filter(Boolean).map(k => String(k).toUpperCase()));
+  if (!set.size) return;
+  state.importGenerations.unshift({ keys: set });
+  if (state.importGenerations.length > MAX_IMPORT_GENERATIONS) {
+    state.importGenerations.length = MAX_IMPORT_GENERATIONS;
+  }
+}
+
+export function clearImportGenerations() { state.importGenerations = []; }
+
+/** Drop the newest generation (used by import undo). */
+export function popImportGeneration() { state.importGenerations.shift(); }
+
+/** Opacity for a part key: brightest (newest) generation containing it, else 0. */
+export function generationOpacityFor(key) {
+  const k = String(key || '').toUpperCase();
+  for (let i = 0; i < state.importGenerations.length; i++) {
+    if (state.importGenerations[i].keys.has(k)) return GEN_OPACITY[i] ?? 0;
+  }
+  return 0;
 }

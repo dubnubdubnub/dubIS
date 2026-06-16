@@ -26,8 +26,12 @@ PNP_PORT = 7890
 SCAN_SESSION_TTL = 15 * 60
 
 # Max accepted decoded image size for an upload (bytes). Phone photos are a few
-# MB; 15 MB gives generous headroom while rejecting abuse.
+# MB; 15 MB gives generous headroom while rejecting abuse. Enforced PER IMAGE.
 SCAN_MAX_IMAGE_BYTES = 15 * 1024 * 1024
+
+# Max number of images in a single multi-photo upload (one PO can span several
+# printed pages). Bounds memory + OCR work per request.
+SCAN_MAX_IMAGES = 12
 
 # Filename extensions accepted for scan uploads.
 SCAN_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
@@ -154,6 +158,25 @@ _CAPTURE_PAGE_TEMPLATE = """<!DOCTYPE html>
   #ocr-overlay-layer { position: absolute; inset: 0; pointer-events: none; }
   .ocr-box { position: absolute; border: 1.5px solid rgba(37, 99, 235, 0.9);
     background: rgba(37, 99, 235, 0.12); border-radius: 2px; }
+  #thumbs { margin-bottom: 16px; }
+  .po-group { border: 1px dashed #cbd5e1; border-radius: 10px; padding: 8px;
+    margin-bottom: 10px; }
+  .po-group-label { font-size: 0.8rem; color: #666; margin-bottom: 6px; }
+  .po-group-thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .thumb { position: relative; width: 84px; height: 84px; border-radius: 8px;
+    overflow: hidden; border: 1px solid #cbd5e1; cursor: pointer; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb.selected { outline: 3px solid #2563eb; outline-offset: -3px; }
+  .thumb-check { position: absolute; top: 2px; left: 2px; width: 22px;
+    height: 22px; border-radius: 50%; background: #2563eb; color: #fff;
+    font-size: 13px; line-height: 22px; text-align: center; display: none; }
+  .thumb.selected .thumb-check { display: block; }
+  .thumb-remove { position: absolute; top: 2px; right: 2px; width: 24px;
+    height: 24px; min-width: 0; padding: 0; margin: 0; border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 16px;
+    line-height: 24px; border: none; }
+  #group-controls { display: none; gap: 8px; margin-bottom: 16px; }
+  #group-controls button { margin-bottom: 0; padding: 12px; font-size: 0.95rem; }
   .msg { padding: 14px; border-radius: 10px; margin-bottom: 16px;
     display: none; }
   .msg.ok { background: #dcfce7; color: #166534; display: block; }
@@ -178,8 +201,14 @@ _CAPTURE_PAGE_TEMPLATE = """<!DOCTYPE html>
 <label class="btn" for="file">Take a photo</label>
 <input id="file" type="file" accept="image/*" capture="environment">
 
-<label class="btn secondary" for="file-library">Upload an existing photo</label>
-<input id="file-library" type="file" accept="image/*">
+<label class="btn secondary" for="file-library">Upload existing photo(s)</label>
+<input id="file-library" type="file" accept="image/*" multiple>
+
+<div id="thumbs"></div>
+<div id="group-controls">
+  <button id="group-sel" class="ghost" type="button">Group selected</button>
+  <button id="ungroup-sel" class="ghost" type="button">Ungroup</button>
+</div>
 
 <div id="preview-wrap">
   <img id="preview" alt="preview">
@@ -194,8 +223,8 @@ _CAPTURE_PAGE_TEMPLATE = """<!DOCTYPE html>
 
 <button id="send" class="send" disabled>Send to desktop</button>
 
-<p class="hint">Take a clear photo of the printed purchase order — or upload one
-you already have — then tap <em>Send to desktop</em>.</p>
+<p class="hint">Snap each page of the purchase order — tap <em>Take a photo</em>
+again to add more — or upload existing photos, then tap <em>Send</em>.</p>
 
 <script>
 (function () {
@@ -205,13 +234,20 @@ you already have — then tap <em>Send to desktop</em>.</p>
   var preview = document.getElementById("preview");
   var previewWrap = document.getElementById("preview-wrap");
   var overlayLayer = document.getElementById("ocr-overlay-layer");
+  var thumbs = document.getElementById("thumbs");
   var sendBtn = document.getElementById("send");
   var msg = document.getElementById("msg");
   var savePhotosBtn = document.getElementById("save-photos");
   var progressWrap = document.getElementById("progress-wrap");
   var progressBar = document.getElementById("progress-bar");
   var progressText = document.getElementById("progress-text");
-  var dataUrl = null, filename = null, currentFile = null;
+  var groupControls = document.getElementById("group-controls");
+  var groupSelBtn = document.getElementById("group-sel");
+  var ungroupSelBtn = document.getElementById("ungroup-sel");
+  // Each photo is its own PO by default; the user groups same-order pages.
+  var photos = [];  // [{ id, file, dataUrl, name, group }]
+  var selected = {};  // photo id -> true (tap-select for grouping)
+  var nextId = 0, nextGroup = 0;
 
   function show(kind, text) {
     msg.className = "msg " + kind;
@@ -232,15 +268,116 @@ you already have — then tap <em>Send to desktop</em>.</p>
     return Math.round(bps / 1024) + " KB/s";
   }
   // iOS can't auto-save a web-captured photo to the camera roll; the share
-  // sheet (navigator.share with a file) is the only route, and the user taps
+  // sheet (navigator.share with files) is the only route, and the user taps
   // "Save Image" there. Feature-detect so we only show the button when usable.
-  function canSharePhoto() {
+  function canSharePhotos() {
     try {
-      return !!(navigator.canShare && currentFile
-        && navigator.canShare({ files: [currentFile] }));
+      if (!navigator.canShare || !photos.length) return false;
+      return navigator.canShare({ files: photos.map(function (p) { return p.file; }) });
     } catch (e) {
       return false;
     }
+  }
+
+  // Distinct PO groups as arrays of photo refs, ordered by first appearance.
+  function orderedGroups() {
+    var byGroup = {};
+    var order = [];
+    photos.forEach(function (p) {
+      if (!(p.group in byGroup)) { byGroup[p.group] = []; order.push(p.group); }
+      byGroup[p.group].push(p);
+    });
+    return order.map(function (g) { return byGroup[g]; });
+  }
+
+  function selectedIds() {
+    return photos.filter(function (p) { return selected[p.id]; });
+  }
+
+  function toggleSelect(id) {
+    if (selected[id]) delete selected[id]; else selected[id] = true;
+    afterPhotosChanged();
+  }
+
+  function removePhoto(id) {
+    photos = photos.filter(function (p) { return p.id !== id; });
+    delete selected[id];
+    afterPhotosChanged();
+  }
+
+  function groupSelected() {
+    var sel = selectedIds();
+    if (sel.length < 2) return;
+    var gid = nextGroup++;
+    sel.forEach(function (p) { p.group = gid; });
+    selected = {};
+    afterPhotosChanged();
+  }
+
+  function ungroupSelected() {
+    var sel = selectedIds();
+    if (!sel.length) return;
+    sel.forEach(function (p) { p.group = nextGroup++; });  // each → its own PO
+    selected = {};
+    afterPhotosChanged();
+  }
+
+  // Render captured pages grouped into PO sections; tap a thumb to select it.
+  function renderGroups() {
+    thumbs.innerHTML = "";
+    orderedGroups().forEach(function (grp, k) {
+      var section = document.createElement("div");
+      section.className = "po-group";
+      var label = document.createElement("div");
+      label.className = "po-group-label";
+      label.textContent = "PO " + (k + 1);
+      section.appendChild(label);
+      var row = document.createElement("div");
+      row.className = "po-group-thumbs";
+      grp.forEach(function (p) {
+        var cell = document.createElement("div");
+        cell.className = "thumb" + (selected[p.id] ? " selected" : "");
+        var img = document.createElement("img");
+        img.src = p.dataUrl;
+        img.alt = p.name;
+        var check = document.createElement("span");
+        check.className = "thumb-check";
+        check.textContent = "\\u2713";
+        var rm = document.createElement("button");
+        rm.type = "button";
+        rm.className = "thumb-remove";
+        rm.setAttribute("aria-label", "Remove photo");
+        rm.textContent = "\\u00d7";
+        rm.addEventListener("click", function (e) { e.stopPropagation(); removePhoto(p.id); });
+        cell.addEventListener("click", function () { toggleSelect(p.id); });
+        cell.appendChild(img);
+        cell.appendChild(check);
+        cell.appendChild(rm);
+        row.appendChild(cell);
+      });
+      section.appendChild(row);
+      thumbs.appendChild(section);
+    });
+  }
+
+  // Refresh all UI that depends on the current photo set.
+  function afterPhotosChanged() {
+    renderGroups();
+    var orders = orderedGroups().length;
+    sendBtn.disabled = photos.length === 0;
+    sendBtn.textContent = photos.length
+      ? "Send " + photos.length + " photo" + (photos.length === 1 ? "" : "s")
+        + (orders > 1 ? " \\u00b7 " + orders + " orders" : "") + " to desktop"
+      : "Send to desktop";
+    savePhotosBtn.style.display = canSharePhotos() ? "block" : "none";
+    groupControls.style.display = photos.length >= 2 ? "flex" : "none";
+    var selCount = selectedIds().length;
+    groupSelBtn.disabled = selCount < 2;
+    ungroupSelBtn.disabled = selCount < 1;
+    previewWrap.style.display = "none";
+    overlayLayer.innerHTML = "";
+    progressWrap.style.display = "none";
+    msg.className = "msg";
   }
 
   // Draw the OCR-detected token boxes over the captured photo. Coordinates are
@@ -262,32 +399,47 @@ you already have — then tap <em>Send to desktop</em>.</p>
     }
   }
 
-  function handleSelection(input) {
-    var f = input.files && input.files[0];
-    if (!f) return;
-    currentFile = f;
-    filename = f.name || "scan.jpg";
-    var reader = new FileReader();
-    reader.onload = function () {
-      dataUrl = reader.result;
-      preview.src = dataUrl;
-      previewWrap.style.display = "inline-block";
-      overlayLayer.innerHTML = "";  // clear any boxes from a prior upload
-      sendBtn.disabled = false;
-      msg.className = "msg";
-      progressWrap.style.display = "none";
-      savePhotosBtn.style.display = canSharePhoto() ? "block" : "none";
-    };
-    reader.onerror = function () { show("err", "Could not read the photo."); };
-    reader.readAsDataURL(f);
+  // Append every chosen file (camera capture is one at a time; the library
+  // picker can return several) to the photo set, reading each as a data URL.
+  function addFiles(fileList) {
+    var files = Array.prototype.slice.call(fileList || []);
+    if (!files.length) return;
+    var remaining = files.length;
+    files.forEach(function (f) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        photos.push({ id: nextId++, file: f, dataUrl: reader.result,
+          name: f.name || ("scan" + (photos.length + 1) + ".jpg"), group: nextGroup++ });
+        remaining -= 1;
+        if (remaining === 0) afterPhotosChanged();
+      };
+      reader.onerror = function () {
+        remaining -= 1;
+        show("err", "Could not read a photo.");
+        if (remaining === 0) afterPhotosChanged();
+      };
+      reader.readAsDataURL(f);
+    });
   }
 
-  cameraInput.addEventListener("change", function () { handleSelection(cameraInput); });
-  libraryInput.addEventListener("change", function () { handleSelection(libraryInput); });
+  // Clear input.value after reading so picking the SAME file again (or another
+  // camera shot) still fires 'change'.
+  cameraInput.addEventListener("change", function () {
+    addFiles(cameraInput.files);
+    cameraInput.value = "";
+  });
+  libraryInput.addEventListener("change", function () {
+    addFiles(libraryInput.files);
+    libraryInput.value = "";
+  });
+
+  groupSelBtn.addEventListener("click", groupSelected);
+  ungroupSelBtn.addEventListener("click", ungroupSelected);
 
   savePhotosBtn.addEventListener("click", function () {
-    if (!currentFile || !navigator.share) return;
-    navigator.share({ files: [currentFile], title: "Purchase order scan" })
+    if (!photos.length || !navigator.share) return;
+    navigator.share({ files: photos.map(function (p) { return p.file; }),
+      title: "Purchase order scan" })
       .catch(function () { /* user cancelled or share unavailable — non-fatal */ });
   });
 
@@ -316,14 +468,20 @@ you already have — then tap <em>Send to desktop</em>.</p>
       if (xhr.status >= 200 && xhr.status < 300 && body && body.ok) {
         var secs = (Date.now() - startTime) / 1000;
         progressText.textContent = "Uploaded" + (secs > 0 ? " in " + secs.toFixed(1) + "s" : "");
-        // Overlay the detected tokens on the photo and report a verdict so the
-        // user can confirm (or retake) right here on the phone.
+        // Overlay the first page's detected tokens on its photo and report a
+        // verdict so the user can confirm (or retake) right here on the phone.
         var pages = body.pages || [];
-        if (pages.length) renderOcrOverlay(pages[0]);
+        if (pages.length && photos.length) {
+          preview.src = photos[0].dataUrl;
+          previewWrap.style.display = "inline-block";
+          renderOcrOverlay(pages[0]);
+        }
         var count = body.count || 0;
+        var orders = body.orders || 1;
         if (count > 0) {
-          show("ok", "Found " + count + " item" + (count === 1 ? "" : "s")
-            + " - review on the desktop app.");
+          var itemStr = count + " item" + (count === 1 ? "" : "s");
+          var orderStr = orders > 1 ? (" in " + orders + " orders") : "";
+          show("ok", "Found " + itemStr + orderStr + " - review on the desktop app.");
         } else {
           show("err", "Couldn't read any parts. Retake with more light, fill the "
             + "frame, and hold the page flat.");
@@ -343,12 +501,19 @@ you already have — then tap <em>Send to desktop</em>.</p>
   }
 
   sendBtn.addEventListener("click", function () {
-    if (!dataUrl) return;
+    if (!photos.length) return;
     sendBtn.disabled = true;
     show("ok", "Sending…");
-    var comma = dataUrl.indexOf(",");
-    var b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-    var payload = JSON.stringify({ image_b64: b64, filename: filename });
+    var images = photos.map(function (p) {
+      var comma = p.dataUrl.indexOf(",");
+      return { image_b64: comma >= 0 ? p.dataUrl.slice(comma + 1) : p.dataUrl,
+        filename: p.name };
+    });
+    // Map the on-screen PO grouping to photo indices for the backend.
+    var groups = orderedGroups().map(function (grp) {
+      return grp.map(function (p) { return photos.indexOf(p); });
+    });
+    var payload = JSON.stringify({ images: images, groups: groups });
 
     progressWrap.style.display = "block";
     progressBar.style.width = "0%";
@@ -401,6 +566,71 @@ def _save_scan_image(base_dir, image_bytes, ext):
     with open(path, "wb") as f:
         f.write(image_bytes)
     return path
+
+
+class _ScanUploadError(Exception):
+    """Client-error during scan-upload validation, carrying the HTTP status."""
+
+    def __init__(self, status, message):
+        super().__init__(message)
+        self.status = status
+        self.message = message
+
+
+def _validate_scan_image(entry):
+    """Validate one upload image dict; return {image_b64, filename, ext, decoded}.
+
+    Raises _ScanUploadError(status, message) on any client-side problem so the
+    handler can surface the same 400/413 responses it always has.
+    """
+    image_b64 = (entry.get("image_b64") if isinstance(entry, dict) else "") or ""
+    filename = ((entry.get("filename") if isinstance(entry, dict) else "") or "").strip()
+    if not image_b64:
+        raise _ScanUploadError(400, "image_b64 is required")
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in SCAN_IMAGE_EXTS:
+        raise _ScanUploadError(400, f"Unsupported file type: {ext or '(none)'}")
+    # base64 inflates by ~4/3; check the encoded length before decoding a blob.
+    if len(image_b64) * 3 // 4 > SCAN_MAX_IMAGE_BYTES:
+        raise _ScanUploadError(413, "Image too large")
+    try:
+        decoded = base64.b64decode(image_b64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise _ScanUploadError(400, f"Invalid base64 image data: {exc}") from exc
+    if len(decoded) > SCAN_MAX_IMAGE_BYTES:
+        raise _ScanUploadError(413, "Image too large")
+    return {"image_b64": image_b64, "filename": filename, "ext": ext, "decoded": decoded}
+
+
+def _normalize_groups(raw, n):
+    """Coerce a client-supplied photo grouping into a clean partition of range(n).
+
+    Each inner list is one PO (photo indices). Out-of-range, duplicate, and
+    non-integer indices are dropped; any photo not covered becomes its own group;
+    empty groups are removed. Falls back to one-group-per-photo when *raw* isn't a
+    usable list. Groups are ordered by their first photo index for stable output.
+    """
+    default = [[i] for i in range(n)]
+    if not isinstance(raw, list):
+        return default
+    seen = set()
+    groups = []
+    for grp in raw:
+        if not isinstance(grp, list):
+            continue
+        members = []
+        for idx in grp:
+            if (isinstance(idx, int) and not isinstance(idx, bool)
+                    and 0 <= idx < n and idx not in seen):
+                seen.add(idx)
+                members.append(idx)
+        if members:
+            groups.append(sorted(members))
+    for i in range(n):  # uncovered photos each become their own PO
+        if i not in seen:
+            groups.append([i])
+    groups.sort(key=lambda g: g[0])
+    return groups or default
 
 
 class PnPHandler(BaseHTTPRequestHandler):
@@ -471,13 +701,13 @@ class PnPHandler(BaseHTTPRequestHandler):
             length = 0
 
         # Reject oversized requests BEFORE reading the whole body into memory.
-        # The JSON envelope + base64 inflate the raw image by ~4/3 plus framing;
-        # SCAN_MAX_IMAGE_BYTES * 2 is a generous bound for that overhead.
-        if length > SCAN_MAX_IMAGE_BYTES * 2:
+        # A multi-photo upload can carry several images; bound the early reject
+        # by the per-image cap × the max image count (plus base64/JSON overhead).
+        if length > SCAN_MAX_IMAGES * SCAN_MAX_IMAGE_BYTES * 2:
             # Don't read the (claimed) huge body — that's the whole point of the
             # early reject. Close the connection instead of trying to drain it.
             self.close_connection = True
-            self._send_json(413, {"ok": False, "error": "Image too large"})
+            self._send_json(413, {"ok": False, "error": "Upload too large"})
             return
 
         # Always drain the body so the connection isn't reset mid-request.
@@ -493,105 +723,130 @@ class PnPHandler(BaseHTTPRequestHandler):
             self._send_json(400, {"ok": False, "error": f"Bad JSON: {exc}"})
             return
 
-        image_b64 = body.get("image_b64") or ""
-        filename = (body.get("filename") or "").strip()
-        if not image_b64:
+        # Accept either a multi-image upload ({"images": [...]}) or a single
+        # legacy image ({"image_b64", "filename"}) for backward compatibility.
+        raw_images = body.get("images")
+        if not isinstance(raw_images, list):
+            raw_images = [{"image_b64": body.get("image_b64") or "",
+                           "filename": body.get("filename") or ""}]
+        if not raw_images:
             self._send_json(400, {"ok": False, "error": "image_b64 is required"})
             return
-
-        ext = os.path.splitext(filename)[1].lower()
-        if ext not in SCAN_IMAGE_EXTS:
-            self._send_json(400, {
+        if len(raw_images) > SCAN_MAX_IMAGES:
+            self._send_json(413, {
                 "ok": False,
-                "error": f"Unsupported file type: {ext or '(none)'}",
+                "error": f"Too many images (max {SCAN_MAX_IMAGES})",
             })
             return
 
-        # Reject oversized payloads. base64 inflates by ~4/3; checking the
-        # encoded length first avoids decoding a huge blob.
-        if len(image_b64) * 3 // 4 > SCAN_MAX_IMAGE_BYTES:
-            self._send_json(413, {"ok": False, "error": "Image too large"})
-            return
-
-        # Decode the base64 ourselves so malformed input is a client error (400)
-        # rather than surfacing as an internal "OCR failed" 500 when the OCR path
-        # re-decodes. The decoded bytes are used only for the size check here;
-        # the original image_b64 string is still passed to OCR (re-decodes) and
-        # to the _scanReceived UI push.
+        # Validate + decode every image before doing any work; surface the first
+        # problem with the same 400/413 semantics as the single-image path.
         try:
-            decoded = base64.b64decode(image_b64, validate=True)
-        except (binascii.Error, ValueError) as exc:
-            self._send_json(400, {"ok": False, "error": f"Invalid base64 image data: {exc}"})
-            return
-        if len(decoded) > SCAN_MAX_IMAGE_BYTES:
-            self._send_json(413, {"ok": False, "error": "Image too large"})
+            images = [_validate_scan_image(e) for e in raw_images]
+        except _ScanUploadError as exc:
+            self._send_json(exc.status, {"ok": False, "error": exc.message})
             return
 
         api = self.server.api
         window = self.server.window
         template = session["template"]
 
-        # Persist the raw photo to data/scans/ immediately — before OCR — so the
-        # upload is never lost even if OCR fails or the import is abandoned.
+        # Persist every raw photo to data/scans/ immediately — before OCR — so
+        # the upload is never lost even if OCR fails or the import is abandoned.
         saved = False
         try:
-            saved_path = _save_scan_image(api.base_dir, decoded, ext)
+            for img in images:
+                saved_path = _save_scan_image(api.base_dir, img["decoded"], img["ext"])
+                logger.info("Scan upload saved to %s", saved_path)
             saved = True
-            logger.info("Scan upload saved to %s", saved_path)
         except OSError as exc:
             logger.error("Failed to save scan upload to disk: %s", exc)
 
-        # Instant desktop acknowledgement: tell the UI the photo arrived BEFORE
-        # the (slower) OCR pass, so the user sees feedback the moment the upload
-        # lands instead of waiting out OCR. Best-effort — never blocks the upload.
+        # Instant desktop acknowledgement: tell the UI the photo(s) arrived
+        # BEFORE the (slower) OCR pass, so the user sees feedback the moment the
+        # upload lands instead of waiting out OCR. Best-effort — never blocks.
         try:
             window.evaluate_js(
                 "window._scanReceiving && window._scanReceiving("
-                + json.dumps({"filename": filename, "template": template})
+                + json.dumps({"filename": images[0]["filename"],
+                              "template": template, "count": len(images)})
                 + ")"
             )
         except Exception as exc:
             logger.warning("Scan 'receiving' UI push failed (window may be closed): %s", exc)
 
+        # OCR each image INDEPENDENTLY and keep the per-photo results separate so
+        # the desktop can group photos into POs (each group → one PO). Also build
+        # flat concatenations for the single-PO back-compat fields + phone verdict.
+        photos = []
+        all_pages = []
+        all_rows = []
         try:
-            overlay = api.ocr_overlay_b64(image_b64, filename, template)
+            for idx, img in enumerate(images):
+                overlay = api.ocr_overlay_b64(img["image_b64"], img["filename"], template)
+                pg = overlay.get("pages") or []
+                rows = overlay.get("prefill_rows") or []
+                photos.append({
+                    "index": idx,
+                    "filename": img["filename"],
+                    "image_b64": img["image_b64"],
+                    "pages": pg,
+                    "prefill_rows": rows,
+                })
+                all_pages.extend(pg)
+                all_rows.extend(rows)
         except Exception as exc:
             logger.error("Scan OCR failed: %s", exc)
             self._send_json(500, {"ok": False, "error": f"OCR failed: {exc}"})
             return
 
-        pages = overlay.get("pages") or []
-        prefill_rows = overlay.get("prefill_rows") or []
+        # The grouping the desktop opens its editor with (explicit from the phone,
+        # else one PO per photo).
+        groups = _normalize_groups(body.get("groups"), len(images))
+
         # line_items mirrors prefill_rows so the legacy flat-staging branch still
         # has data if `pages` were ever absent on the frontend.
-        line_items = prefill_rows
+        line_items = all_rows
         payload = {
-            "pages": pages,
-            "prefill_rows": prefill_rows,
+            # Back-compat single-PO fields (concatenation across all photos).
+            "pages": all_pages,
+            "prefill_rows": all_rows,
             "line_items": line_items,
-            "image_b64": image_b64,
-            "filename": filename,
+            "image_b64": images[0]["image_b64"],
+            "filename": images[0]["filename"],
             "template": template,
+            "image_count": len(images),
+            # Multi-photo grouping: per-photo OCR + the grouping to start from.
+            "photos": photos,
+            "groups": groups,
         }
         try:
             window.evaluate_js("window._scanReceived(" + json.dumps(payload) + ")")
         except Exception as exc:
             logger.warning("Scan UI push failed (window may be closed): %s", exc)
 
-        logger.info("Scan upload OCR'd %d line item(s) (template=%s)",
-                    len(line_items), template)
+        logger.info(
+            "Scan upload OCR'd %d line item(s) from %d image(s) into %d order(s) (template=%s)",
+            len(line_items), len(images), len(groups), template)
         # Return the OCR result to the PHONE too, so it can overlay the detected
         # token boxes on the photo it just captured and show a verdict. Drop each
         # page's image_b64 (the phone already holds the photo) to keep it lean.
         phone_pages = [
-            {k: v for k, v in pg.items() if k != "image_b64"} for pg in pages
+            {k: v for k, v in pg.items() if k != "image_b64"} for pg in all_pages
+        ]
+        # Per-order item counts for the phone verdict ("N orders · M items").
+        group_counts = [
+            sum(len(photos[i]["prefill_rows"]) for i in grp) for grp in groups
         ]
         self._send_json(200, {
             "ok": True,
             "count": len(line_items),
             "saved": saved,
+            "images": len(images),
+            "orders": len(groups),
+            "group_counts": group_counts,
             "pages": phone_pages,
-            "prefill_rows": prefill_rows,
+            "prefill_rows": all_rows,
         })
 
     def do_POST(self):

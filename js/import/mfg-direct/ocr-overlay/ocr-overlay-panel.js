@@ -13,7 +13,7 @@ import { renderModal } from './ocr-overlay-renderer.js';
 import {
   createState, createLoadingState, selectToken, selectTokens, selectCell,
   applyPending, setCellValue, setPage, clearPending, setTokenMode,
-  setZoom, tokenText,
+  setZoom, tokenText, addRow, deleteRow, shiftColumn,
 } from './ocr-overlay-state.js';
 import { normalizeRect, tokensInRect } from './ocr-overlay-hittest.js';
 
@@ -41,12 +41,17 @@ const vendorPicker = createVendorPicker({
 });
 
 /** Open the overlay for a payload {pages, prefill_rows, template}. */
-export function openOverlay(payload, { onConfirm } = {}) {
+export function openOverlay(payload, { onConfirm, initialRows, initialVendor } = {}) {
   state = createState(payload);
   loadingActive = false;
   onCancelCb = null;
+  if (initialRows) {
+    state.rows = initialRows.map(r => ({ ...r }));
+    state.lowConf = initialRows.map(() => new Set());
+  }
   onConfirmCb = onConfirm || null;
-  vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
+  vendor = initialVendor ? { ...initialVendor }
+    : { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
 
   let overlay = document.getElementById('ocr-overlay');
   if (overlay) overlay.remove();
@@ -238,6 +243,20 @@ function bindEvents(root) {
     };
     td.ondblclick = () => editCell(td, row, field);
   });
+
+  root.querySelectorAll('.ocr-row-delete[data-row]').forEach(td => {
+    td.onclick = () => { state = deleteRow(state, parseInt(td.dataset.row, 10)); rerender(); };
+  });
+  root.querySelectorAll('.ocr-col-up').forEach(btn => {
+    btn.onclick = () => { state = shiftColumn(state, btn.dataset.field, 'up'); rerender(); };
+  });
+  root.querySelectorAll('.ocr-col-down').forEach(btn => {
+    btn.onclick = () => { state = shiftColumn(state, btn.dataset.field, 'down'); rerender(); };
+  });
+  const addRowBtn = root.querySelector('.ocr-add-row');
+  if (addRowBtn) addRowBtn.onclick = () => { state = addRow(state); rerender(); };
+  const fsBtn = root.querySelector('#ocr-fullscreen');
+  if (fsBtn) fsBtn.onclick = () => { state = { ...state, fullscreen: !state.fullscreen }; rerender(); };
 
   const modeWords = root.querySelector('#ocr-mode-words');
   if (modeWords) modeWords.onclick = () => { state = setTokenMode(state, 'w'); rerender(); };
