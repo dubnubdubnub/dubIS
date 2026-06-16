@@ -250,6 +250,7 @@ graph LR
     "js/label-selection.js" --> "js/api.js"
     "js/label-selection.js" --> "js/event-bus.js"
     "js/label-selection.js" --> "js/part-keys.js"
+    "js/label-selection.js" --> "js/po-image-lightbox.js"
     "js/label-selection.js" --> "js/store.js"
     "js/label-selection.js" --> "js/ui-helpers.js"
     "js/matching.js" --> "js/part-keys.js"
@@ -283,6 +284,7 @@ graph LR
     "pololu_client.py" --> "base_client.py"
     "pololu_client.py" --> "html_product_parser.py"
     "purchase_orders.py" --> "csv_io.py"
+    "purchase_orders.py" --> "pdf_raster.py"
     "purchase_orders.py" --> "source_sanitizer.py"
     "saved_searches.py" --> "csv_io.py"
     "scripts/bench-floor.py" --> "bench.py"
@@ -818,7 +820,7 @@ graph LR
 
 ### js/label-selection.js
 
-- **Imports:** `js/api.js`, `js/event-bus.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`
+- **Imports:** `js/api.js`, `js/event-bus.js`, `js/part-keys.js`, `js/po-image-lightbox.js`, `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/app-init.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-renderer.js`, `js/label-export-modal.js`, `tests/js/label-selection.test.js`
 - **Emits:** `LABEL_BULK_SELECTION`, `LABEL_MODE`, `LABEL_SELECTION_CHANGED`
 - **Listens:** `INVENTORY_UPDATED`, `LABEL_MODE`, `LABEL_SELECTION_CHANGED`
@@ -842,6 +844,11 @@ graph LR
 
 - **Imports:** `js/api.js`, `js/ui-helpers.js`
 - **Imported by:** `js/app-init.js`
+
+### js/po-image-lightbox.js
+
+- **Imports:** —
+- **Imported by:** `js/label-selection.js`
 
 ### js/preferences-modal.js
 
@@ -923,7 +930,7 @@ graph LR
 ### pdf_raster.py
 
 - **Imports:** —
-- **Imported by:** `ocr_layout.py`, `tests/python/test_pdf_raster.py`
+- **Imported by:** `ocr_layout.py`, `purchase_orders.py`, `tests/python/test_pdf_raster.py`
 
 ### pnp_server.py
 
@@ -942,7 +949,7 @@ graph LR
 
 ### purchase_orders.py
 
-- **Imports:** `csv_io.py`, `source_sanitizer.py`
+- **Imports:** `csv_io.py`, `pdf_raster.py`, `source_sanitizer.py`
 - **Imported by:** `inventory_api.py`, `mfg_direct_import.py`, `tests/python/test_purchase_orders.py`
 
 ### saved_searches.py

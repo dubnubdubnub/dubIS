@@ -171,6 +171,40 @@ td.btn-group .label-select-checkbox {
 .label-po-items th { color: var(--text-muted); font-weight: 600; }
 .label-po-items td.num, .label-po-items th.num { text-align: right; }
 
+/* Detail body: line items on the left, source thumbnail on the right edge. */
+.label-po-detail-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.label-po-detail-items { flex: 1 1 auto; min-width: 0; }
+.label-po-thumb {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+}
+.label-po-thumb-img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  cursor: zoom-in;
+  display: block;
+}
+.label-po-thumb-img:hover { border-color: var(--color-purple); }
+
+/* Full-size blow-up lightbox (reuses .modal-overlay backdrop). */
+.po-image-modal-img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+  cursor: zoom-out;
+}
+
 /* ── Export preview modal ─────────────────────────────── */
 .label-export-controls {
   display: flex;

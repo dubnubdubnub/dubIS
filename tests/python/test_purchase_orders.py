@@ -193,3 +193,57 @@ class TestResolveSourcePath:
     def test_resolve_missing_returns_none(self, base_dir, csv_path):
         assert po.resolve_source_path(
             os.path.join(base_dir, "sources"), "po_nonexistent", csv_path) is None
+
+
+def _pdf_bytes() -> bytes:
+    import fitz
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "PO 12345")
+    return doc.tobytes()
+
+
+class TestSourcePreview:
+    def _create(self, base_dir, csv_path, data, ext):
+        return po.create_purchase_order(
+            csv_path=csv_path, sources_dir=os.path.join(base_dir, "sources"),
+            vendor_id="v_mdt", source_file_bytes=data, source_file_ext=ext,
+            purchase_date="2026-04-15", notes="")
+
+    def test_image_source_returns_data_uri(self, base_dir, csv_path):
+        new_po = self._create(base_dir, csv_path, _png_bytes(), ".png")
+        out = po.source_preview(
+            os.path.join(base_dir, "sources"), new_po["po_id"], csv_path)
+        assert out["kind"] == "image"
+        assert out["mime"] == "image/png"
+        assert out["data_uri"].startswith("data:image/png;base64,")
+        assert out["width"] == 1 and out["height"] == 1
+        assert out["page_count"] == 1
+
+    def test_pdf_source_rasterized_to_png(self, base_dir, csv_path):
+        new_po = self._create(base_dir, csv_path, _pdf_bytes(), ".pdf")
+        out = po.source_preview(
+            os.path.join(base_dir, "sources"), new_po["po_id"], csv_path)
+        assert out["kind"] == "image"
+        # PDFs are rasterized — the preview is always a PNG, never a PDF URI.
+        assert out["mime"] == "image/png"
+        assert out["data_uri"].startswith("data:image/png;base64,")
+        assert out["width"] > 0 and out["height"] > 0
+        assert out["page_count"] == 1
+
+    def test_non_image_source_returns_none(self, base_dir, csv_path):
+        new_po = self._create(base_dir, csv_path, b"a,b,c\n1,2,3\n", ".csv")
+        out = po.source_preview(
+            os.path.join(base_dir, "sources"), new_po["po_id"], csv_path)
+        assert out["kind"] == "none"
+
+    def test_po_without_source_returns_none(self, base_dir, csv_path):
+        new_po = self._create(base_dir, csv_path, None, None)
+        out = po.source_preview(
+            os.path.join(base_dir, "sources"), new_po["po_id"], csv_path)
+        assert out["kind"] == "none"
+
+    def test_unknown_po_returns_none(self, base_dir, csv_path):
+        out = po.source_preview(
+            os.path.join(base_dir, "sources"), "po_nope", csv_path)
+        assert out["kind"] == "none"
