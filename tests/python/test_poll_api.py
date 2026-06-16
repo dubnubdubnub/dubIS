@@ -43,6 +43,24 @@ def _http_get_json(url):
     return status, headers, json.loads(raw)
 
 
+class TestPortGuard:
+    def test_bind_failure_returns_none_not_raises(self, api, monkeypatch):
+        # When the bind fails (port held by a lingering dubIS instance), the
+        # poll server must return None — like start_pnp_server — rather than
+        # raising an uncaught OSError out of on_ready and trapping the user on
+        # the startup skeleton. (SO_REUSEADDR can mask a real double-bind on
+        # Windows, so force the failure directly to test the guard itself.)
+        import poll_api
+
+        def _boom(*_args, **_kwargs):
+            raise OSError(98, "Address already in use")
+
+        monkeypatch.setattr(poll_api, "_FastHTTPServer", _boom)
+        api._poll_server = None
+        assert start_poll_server(api, port=12345) is None
+        assert api._poll_server is None  # never published a broken server
+
+
 # ── TestInventoryToCsv ──
 
 

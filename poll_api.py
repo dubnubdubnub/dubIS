@@ -146,8 +146,21 @@ def start_poll_server(api, port=POLL_PORT):
 
     Bound to 127.0.0.1 — local-only by design. Stores the server on
     `api._poll_server` so it can be restarted via `restart_poll_server`.
+
+    Returns the running server, or None if the port is unavailable (e.g. a
+    lingering dubIS instance already bound it). Mirrors start_pnp_server so a
+    busy port can never raise an uncaught OSError out of the on_ready callback
+    — the poll API is non-essential and must never block app startup.
     """
-    server = _FastHTTPServer(("127.0.0.1", port), PollHandler)
+    try:
+        server = _FastHTTPServer(("127.0.0.1", port), PollHandler)
+    except OSError as exc:
+        logger.warning(
+            "Poll API disabled — port %d unavailable "
+            "(another dubIS instance already running?): %s",
+            port, exc,
+        )
+        return None
     server.api = api
 
     thread = threading.Thread(
