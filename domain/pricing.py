@@ -132,8 +132,13 @@ def populate_prices_cache(conn: Any, events_dir: str) -> None:
         dist = obs.get("distributor", "").strip()
         if not pid or not dist:
             continue
-        # Resolve distributor PN to inventory part_id
-        if known_pids and pid not in known_pids:
+        # Resolve distributor PN to inventory part_id.
+        # When known_pids is non-empty we can validate; when empty (no parts in
+        # inventory) every part_id is unknown so skip all observations to avoid
+        # FK constraint failures on the prices table.
+        if not known_pids:
+            continue
+        if pid not in known_pids:
             resolved = dist_to_pid.get(pid)
             if resolved:
                 pid = resolved
