@@ -145,6 +145,44 @@ describe('aggregateBomRows', () => {
     expect(part.qty).toBe(5);
     expect(part.refs).toBe('R1, R2, R3, R4, R5');
   });
+
+  it('derives qty from the designator count when there is no Qty column', () => {
+    // Grouped KiCad BOM: one row per part, quantity implied by the designators.
+    const headers = ['Value', 'Reference', 'Footprint', 'LCSC', 'DNP', 'Exclude from BOM'];
+    const cols = detectBOMColumns(headers);
+    expect(cols.qty).toBe(-1);
+    expect(cols.ref).toBe(1);
+    const rows = [
+      ['0402WGF5101TCE', 'R2,R3,R4,R5,R7,R8,R10,R11', 'Resistor_SMD:R_0402_1005Metric', 'C25905', '', ''],
+      ['WS2812B-V5/W', 'D1,D2,D3,D4', 'LED:WS2812B', 'C2874885', '', ''],
+      ['WSD4066DN', 'U1', 'DFN-8', 'C377861', '', ''],
+    ];
+    const { aggregated } = aggregateBomRows(rows, headers, cols);
+    expect(aggregated.get('C25905').qty).toBe(8);
+    expect(aggregated.get('C2874885').qty).toBe(4);
+    expect(aggregated.get('C377861').qty).toBe(1);
+  });
+
+  it('sums designator counts across rows that share a part (no Qty column)', () => {
+    const headers = ['Value', 'Reference', 'LCSC'];
+    const cols = detectBOMColumns(headers);
+    expect(cols.qty).toBe(-1);
+    const rows = [
+      ['10k', 'R1,R2', 'C123456'],
+      ['10k', 'R3 R4 R5', 'C123456'], // whitespace-separated designators
+    ];
+    const { aggregated } = aggregateBomRows(rows, headers, cols);
+    expect(aggregated.get('C123456').qty).toBe(5);
+  });
+
+  it('falls back to qty 1 when there is neither a Qty nor a Reference column', () => {
+    const headers = ['Value', 'LCSC'];
+    const cols = detectBOMColumns(headers);
+    expect(cols.qty).toBe(-1);
+    expect(cols.ref).toBe(-1);
+    const { aggregated } = aggregateBomRows([['10k', 'C123456']], headers, cols);
+    expect(aggregated.get('C123456').qty).toBe(1);
+  });
 });
 
 describe('processBOM', () => {
