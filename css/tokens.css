@@ -73,4 +73,16 @@
                                    zone is too cramped to hold its label + control row, so
                                    they stack full-width instead of squeezing side by side. */
   --import-row-gap:       8px;  /* Vertical spacing below in-zone controls (new-po row, scan button) */
+
+  /* ── Scan-photo grouping editor ─────────────────────────────────────────────
+     Desktop modal that groups uploaded scan photos into purchase orders.
+     Consumed by: css/components/scan-grouping.css */
+  --scan-gap:             8px;  /* General gap / vertical padding inside a PO group */
+  --scan-sm:              6px;  /* Small spacing (labels) */
+  --scan-md:             10px;  /* Medium spacing (group padding-right, group margin) */
+  --scan-lg:             12px;  /* Spacing below the group/ungroup action row */
+  --scan-xl:             16px;  /* Spacing below the scrollable group list */
+  --scan-thumb-size:     88px;  /* Photo thumbnail square */
+  --scan-check-size:     22px;  /* Selection check badge */
+  --scan-check-pos:       3px;  /* Selection check badge offset from the corner */
 }
