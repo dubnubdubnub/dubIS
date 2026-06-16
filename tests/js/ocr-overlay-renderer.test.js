@@ -122,3 +122,55 @@ describe('renderModal', () => {
     expect(renderModal(multi)).toContain('id="ocr-prev"');
   });
 });
+
+describe('renderModal loading skeleton', () => {
+  const loading = (images, imageIdx = 0) => ({
+    loading: true, images, imageIdx,
+    template: '', pages: [], pageIdx: 0, rows: [], lowConf: [],
+    pending: { kind: null, tokenIds: [], cell: null }, tokenMode: 'w', zoom: 1,
+  });
+
+  it('renders the overlay shell with the loading class and scan sweep', () => {
+    const html = renderModal(loading([{ b64: 'AAAA', name: 'po.png' }]));
+    expect(html).toContain('id="ocr-overlay"');
+    expect(html).toContain('ocr-loading');
+    expect(html).toContain('ocr-scan-sweep');
+    expect(html).toContain('aria-busy="true"');
+  });
+
+  it('shows the dropped image under the sweep when bytes are present', () => {
+    const html = renderModal(loading([{ b64: 'AAAA', name: 'po.png' }]));
+    expect(html).toContain('class="ocr-skel-img"');
+    expect(html).toContain('data:image/png;base64,AAAA');
+    expect(html).not.toContain('ocr-skel-doc');
+  });
+
+  it('falls back to a document placeholder when no image bytes', () => {
+    const html = renderModal(loading([]));
+    expect(html).toContain('ocr-skel-doc');
+    expect(html).not.toContain('class="ocr-skel-img"');
+  });
+
+  it('status reads "Reading image…" for a single image', () => {
+    expect(renderModal(loading([{ b64: 'A', name: 'a.png' }]))).toContain('Reading image…');
+  });
+
+  it('status counts "Reading image N of M…" for multiple images', () => {
+    const imgs = [{ b64: 'A', name: 'a' }, { b64: 'B', name: 'b' }, { b64: 'C', name: 'c' }];
+    expect(renderModal(loading(imgs, 0))).toContain('Reading image 1 of 3…');
+  });
+
+  it('renders shimmering skeleton rows and a disabled confirm + working cancel', () => {
+    const html = renderModal(loading([{ b64: 'A', name: 'a' }]));
+    expect((html.match(/class="ocr-skel-row"/g) || []).length).toBeGreaterThanOrEqual(3);
+    expect(html).toMatch(/id="ocr-confirm"[^>]*disabled/);
+    expect(html).toContain('id="ocr-cancel"');
+    expect(html).not.toContain('ocr-token');
+    expect(html).not.toContain('ocr-vendor-mount');
+  });
+
+  it('escapes the image b64 so it cannot break out of the data URL', () => {
+    const html = renderModal(loading([{ b64: '"><img onerror=x>', name: 'x' }]));
+    expect(html).not.toContain('"><img onerror=x>');
+  });
+});
