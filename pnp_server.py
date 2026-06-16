@@ -158,14 +158,25 @@ _CAPTURE_PAGE_TEMPLATE = """<!DOCTYPE html>
   #ocr-overlay-layer { position: absolute; inset: 0; pointer-events: none; }
   .ocr-box { position: absolute; border: 1.5px solid rgba(37, 99, 235, 0.9);
     background: rgba(37, 99, 235, 0.12); border-radius: 2px; }
-  #thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  #thumbs { margin-bottom: 16px; }
+  .po-group { border: 1px dashed #cbd5e1; border-radius: 10px; padding: 8px;
+    margin-bottom: 10px; }
+  .po-group-label { font-size: 0.8rem; color: #666; margin-bottom: 6px; }
+  .po-group-thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
   .thumb { position: relative; width: 84px; height: 84px; border-radius: 8px;
-    overflow: hidden; border: 1px solid #cbd5e1; }
+    overflow: hidden; border: 1px solid #cbd5e1; cursor: pointer; }
   .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb.selected { outline: 3px solid #2563eb; outline-offset: -3px; }
+  .thumb-check { position: absolute; top: 2px; left: 2px; width: 22px;
+    height: 22px; border-radius: 50%; background: #2563eb; color: #fff;
+    font-size: 13px; line-height: 22px; text-align: center; display: none; }
+  .thumb.selected .thumb-check { display: block; }
   .thumb-remove { position: absolute; top: 2px; right: 2px; width: 24px;
     height: 24px; min-width: 0; padding: 0; margin: 0; border-radius: 50%;
     background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 16px;
     line-height: 24px; border: none; }
+  #group-controls { display: none; gap: 8px; margin-bottom: 16px; }
+  #group-controls button { margin-bottom: 0; padding: 12px; font-size: 0.95rem; }
   .msg { padding: 14px; border-radius: 10px; margin-bottom: 16px;
     display: none; }
   .msg.ok { background: #dcfce7; color: #166534; display: block; }
@@ -194,6 +205,10 @@ _CAPTURE_PAGE_TEMPLATE = """<!DOCTYPE html>
 <input id="file-library" type="file" accept="image/*" multiple>
 
 <div id="thumbs"></div>
+<div id="group-controls">
+  <button id="group-sel" class="ghost" type="button">Group selected</button>
+  <button id="ungroup-sel" class="ghost" type="button">Ungroup</button>
+</div>
 
 <div id="preview-wrap">
   <img id="preview" alt="preview">
@@ -226,7 +241,13 @@ again to add more — or upload existing photos, then tap <em>Send</em>.</p>
   var progressWrap = document.getElementById("progress-wrap");
   var progressBar = document.getElementById("progress-bar");
   var progressText = document.getElementById("progress-text");
-  var photos = [];  // [{ file, dataUrl, name }] — one per captured/picked page
+  var groupControls = document.getElementById("group-controls");
+  var groupSelBtn = document.getElementById("group-sel");
+  var ungroupSelBtn = document.getElementById("ungroup-sel");
+  // Each photo is its own PO by default; the user groups same-order pages.
+  var photos = [];  // [{ id, file, dataUrl, name, group }]
+  var selected = {};  // photo id -> true (tap-select for grouping)
+  var nextId = 0, nextGroup = 0;
 
   function show(kind, text) {
     msg.className = "msg " + kind;
@@ -258,38 +279,101 @@ again to add more — or upload existing photos, then tap <em>Send</em>.</p>
     }
   }
 
-  // Render the thumbnail strip of captured pages, each with a remove button.
-  function renderThumbs() {
+  // Distinct PO groups as arrays of photo refs, ordered by first appearance.
+  function orderedGroups() {
+    var byGroup = {};
+    var order = [];
+    photos.forEach(function (p) {
+      if (!(p.group in byGroup)) { byGroup[p.group] = []; order.push(p.group); }
+      byGroup[p.group].push(p);
+    });
+    return order.map(function (g) { return byGroup[g]; });
+  }
+
+  function selectedIds() {
+    return photos.filter(function (p) { return selected[p.id]; });
+  }
+
+  function toggleSelect(id) {
+    if (selected[id]) delete selected[id]; else selected[id] = true;
+    afterPhotosChanged();
+  }
+
+  function removePhoto(id) {
+    photos = photos.filter(function (p) { return p.id !== id; });
+    delete selected[id];
+    afterPhotosChanged();
+  }
+
+  function groupSelected() {
+    var sel = selectedIds();
+    if (sel.length < 2) return;
+    var gid = nextGroup++;
+    sel.forEach(function (p) { p.group = gid; });
+    selected = {};
+    afterPhotosChanged();
+  }
+
+  function ungroupSelected() {
+    var sel = selectedIds();
+    if (!sel.length) return;
+    sel.forEach(function (p) { p.group = nextGroup++; });  // each → its own PO
+    selected = {};
+    afterPhotosChanged();
+  }
+
+  // Render captured pages grouped into PO sections; tap a thumb to select it.
+  function renderGroups() {
     thumbs.innerHTML = "";
-    photos.forEach(function (p, idx) {
-      var cell = document.createElement("div");
-      cell.className = "thumb";
-      var img = document.createElement("img");
-      img.src = p.dataUrl;
-      img.alt = p.name;
-      var rm = document.createElement("button");
-      rm.type = "button";
-      rm.className = "thumb-remove";
-      rm.setAttribute("aria-label", "Remove photo");
-      rm.textContent = "\\u00d7";
-      rm.addEventListener("click", function () {
-        photos.splice(idx, 1);
-        afterPhotosChanged();
+    orderedGroups().forEach(function (grp, k) {
+      var section = document.createElement("div");
+      section.className = "po-group";
+      var label = document.createElement("div");
+      label.className = "po-group-label";
+      label.textContent = "PO " + (k + 1);
+      section.appendChild(label);
+      var row = document.createElement("div");
+      row.className = "po-group-thumbs";
+      grp.forEach(function (p) {
+        var cell = document.createElement("div");
+        cell.className = "thumb" + (selected[p.id] ? " selected" : "");
+        var img = document.createElement("img");
+        img.src = p.dataUrl;
+        img.alt = p.name;
+        var check = document.createElement("span");
+        check.className = "thumb-check";
+        check.textContent = "\\u2713";
+        var rm = document.createElement("button");
+        rm.type = "button";
+        rm.className = "thumb-remove";
+        rm.setAttribute("aria-label", "Remove photo");
+        rm.textContent = "\\u00d7";
+        rm.addEventListener("click", function (e) { e.stopPropagation(); removePhoto(p.id); });
+        cell.addEventListener("click", function () { toggleSelect(p.id); });
+        cell.appendChild(img);
+        cell.appendChild(check);
+        cell.appendChild(rm);
+        row.appendChild(cell);
       });
-      cell.appendChild(img);
-      cell.appendChild(rm);
-      thumbs.appendChild(cell);
+      section.appendChild(row);
+      thumbs.appendChild(section);
     });
   }
 
   // Refresh all UI that depends on the current photo set.
   function afterPhotosChanged() {
-    renderThumbs();
+    renderGroups();
+    var orders = orderedGroups().length;
     sendBtn.disabled = photos.length === 0;
     sendBtn.textContent = photos.length
-      ? "Send " + photos.length + " photo" + (photos.length === 1 ? "" : "s") + " to desktop"
+      ? "Send " + photos.length + " photo" + (photos.length === 1 ? "" : "s")
+        + (orders > 1 ? " \\u00b7 " + orders + " orders" : "") + " to desktop"
       : "Send to desktop";
     savePhotosBtn.style.display = canSharePhotos() ? "block" : "none";
+    groupControls.style.display = photos.length >= 2 ? "flex" : "none";
+    var selCount = selectedIds().length;
+    groupSelBtn.disabled = selCount < 2;
+    ungroupSelBtn.disabled = selCount < 1;
     previewWrap.style.display = "none";
     overlayLayer.innerHTML = "";
     progressWrap.style.display = "none";
@@ -324,8 +408,8 @@ again to add more — or upload existing photos, then tap <em>Send</em>.</p>
     files.forEach(function (f) {
       var reader = new FileReader();
       reader.onload = function () {
-        photos.push({ file: f, dataUrl: reader.result,
-          name: f.name || ("scan" + (photos.length + 1) + ".jpg") });
+        photos.push({ id: nextId++, file: f, dataUrl: reader.result,
+          name: f.name || ("scan" + (photos.length + 1) + ".jpg"), group: nextGroup++ });
         remaining -= 1;
         if (remaining === 0) afterPhotosChanged();
       };
@@ -348,6 +432,9 @@ again to add more — or upload existing photos, then tap <em>Send</em>.</p>
     addFiles(libraryInput.files);
     libraryInput.value = "";
   });
+
+  groupSelBtn.addEventListener("click", groupSelected);
+  ungroupSelBtn.addEventListener("click", ungroupSelected);
 
   savePhotosBtn.addEventListener("click", function () {
     if (!photos.length || !navigator.share) return;
@@ -422,7 +509,11 @@ again to add more — or upload existing photos, then tap <em>Send</em>.</p>
       return { image_b64: comma >= 0 ? p.dataUrl.slice(comma + 1) : p.dataUrl,
         filename: p.name };
     });
-    var payload = JSON.stringify({ images: images });
+    // Map the on-screen PO grouping to photo indices for the backend.
+    var groups = orderedGroups().map(function (grp) {
+      return grp.map(function (p) { return photos.indexOf(p); });
+    });
+    var payload = JSON.stringify({ images: images, groups: groups });
 
     progressWrap.style.display = "block";
     progressBar.style.width = "0%";
