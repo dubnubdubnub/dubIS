@@ -11,6 +11,42 @@ import { store } from './store.js';
 import { invPartKey } from './part-keys.js';
 import { showToast, escHtml } from './ui-helpers.js';
 import { api, AppLog, whenPywebviewReady } from './api.js';
+import { openPoImageLightbox } from './po-image-lightbox.js';
+
+// Source extensions the backend can return as an inline image (images render
+// directly; PDFs are rasterized first-page). Spreadsheet/CSV sources have no
+// image preview, so we skip the fetch entirely for them.
+const RENDERABLE_SOURCE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".pdf"]);
+
+/** True if a PO has an archived source file we can show as a thumbnail. */
+function poHasRenderableSource(po) {
+  const ext = String(po.source_file_ext || "").toLowerCase();
+  return !!po.source_file_hash && RENDERABLE_SOURCE_EXTS.has(ext);
+}
+
+/**
+ * Fetch a PO's source image and render a clickable thumbnail into `thumbEl`.
+ * Clicking blows it up in the shared lightbox. No-op (leaves thumb empty) when
+ * the backend reports no renderable preview.
+ */
+async function loadPoThumbnail(thumbEl, poId) {
+  /** @type {any} */
+  let preview;
+  try {
+    preview = await api("get_po_source_preview", poId);
+  } catch (err) {
+    AppLog.warn("loadPoThumbnail: preview failed for " + poId + ": " + (err && err.message || err));
+    return;
+  }
+  if (!preview || preview.kind !== "image" || !preview.data_uri) return;
+  const img = document.createElement("img");
+  img.className = "label-po-thumb-img";
+  img.src = preview.data_uri;
+  img.alt = "PO source";
+  img.title = "Click to enlarge";
+  img.addEventListener("click", () => openPoImageLightbox(preview.data_uri, "Source for " + poId));
+  thumbEl.appendChild(img);
+}
 
 // ── Private state ─────────────────────────────────────────
 let labelMode = false;
@@ -253,20 +289,28 @@ async function renderPoList(listEl) {
           return;
         }
         const items = (data && data.line_items) || [];
-        if (items.length === 0) {
-          detail.innerHTML = '<div class="label-po-empty">No line items</div>';
-          return;
-        }
-        const rows = items.map(li =>
-          '<tr><td>' + escHtml(li.mpn || "") + '</td>' +
-          '<td>' + escHtml(li.manufacturer || "") + '</td>' +
-          '<td>' + escHtml(li.package || "") + '</td>' +
-          '<td class="num">' + escHtml(String(li.quantity ?? "")) + '</td></tr>'
-        ).join("");
+        // Body = line items on the left, source thumbnail floated to the right
+        // edge. The thumbnail loads independently so a slow/absent image never
+        // blocks the items from rendering.
+        const itemsHtml = items.length === 0
+          ? '<div class="label-po-empty">No line items</div>'
+          : '<table class="label-po-items"><thead><tr>' +
+            '<th>MPN</th><th>Mfr</th><th>Pkg</th><th class="num">Qty</th>' +
+            '</tr></thead><tbody>' + items.map(li =>
+              '<tr><td>' + escHtml(li.mpn || "") + '</td>' +
+              '<td>' + escHtml(li.manufacturer || "") + '</td>' +
+              '<td>' + escHtml(li.package || "") + '</td>' +
+              '<td class="num">' + escHtml(String(li.quantity ?? "")) + '</td></tr>'
+            ).join("") + '</tbody></table>';
         detail.innerHTML =
-          '<table class="label-po-items"><thead><tr>' +
-          '<th>MPN</th><th>Mfr</th><th>Pkg</th><th class="num">Qty</th>' +
-          '</tr></thead><tbody>' + rows + '</tbody></table>';
+          '<div class="label-po-detail-body">' +
+          '<div class="label-po-detail-items">' + itemsHtml + '</div>' +
+          '<div class="label-po-thumb"></div>' +
+          '</div>';
+        if (poHasRenderableSource(po)) {
+          const thumbEl = detail.querySelector(".label-po-thumb");
+          if (thumbEl) loadPoThumbnail(thumbEl, poId);
+        }
       }
     });
 

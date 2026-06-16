@@ -6,7 +6,9 @@ Source files are content-addressed at data/sources/<sha256>.<ext>.
 
 from __future__ import annotations
 
+import base64
 import csv
+import io
 import os
 import secrets
 from datetime import datetime
@@ -138,3 +140,53 @@ def resolve_source_path(sources_dir: str, po_id: str, csv_path: str) -> str | No
         return None
     candidate = os.path.join(sources_dir, po["source_file_hash"] + (po.get("source_file_ext") or ""))
     return candidate if os.path.isfile(candidate) else None
+
+
+# Source extensions we can turn into an inline <img>. Images render directly;
+# PDFs are rasterized (first page) via pdf_raster. Everything else (.csv/.xls/…)
+# has no image representation, so the picker shows no thumbnail.
+_IMAGE_MIME = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+}
+
+
+def source_preview(sources_dir: str, po_id: str, csv_path: str) -> dict:
+    """Return a renderable image preview of a PO's archived source file.
+
+    {"kind": "image", "data_uri", "mime", "width", "height", "page_count"} for
+    image and PDF sources (PDFs rasterized to PNG, first page); otherwise
+    {"kind": "none", "reason"} for missing/spreadsheet/CSV/unknown-PO cases.
+
+    A corrupt image/PDF raises from the decoder — that is a real failure, not a
+    "no preview" state, so we let it propagate rather than swallow it.
+    """
+    path = resolve_source_path(sources_dir, po_id, csv_path)
+    if not path:
+        return {"kind": "none", "reason": "no source file"}
+    ext = os.path.splitext(path)[1].lower()
+    with open(path, "rb") as f:
+        data = f.read()
+
+    if ext == ".pdf":
+        import pdf_raster
+        pages = pdf_raster.rasterize(data, ext)
+        png, width, height = pages[0]
+        b64 = base64.b64encode(png).decode("ascii")
+        return {"kind": "image", "mime": "image/png",
+                "data_uri": f"data:image/png;base64,{b64}",
+                "width": width, "height": height, "page_count": len(pages)}
+
+    mime = _IMAGE_MIME.get(ext)
+    if mime:
+        from PIL import Image
+        with Image.open(io.BytesIO(data)) as im:
+            width, height = im.width, im.height
+        b64 = base64.b64encode(data).decode("ascii")
+        return {"kind": "image", "mime": mime,
+                "data_uri": f"data:{mime};base64,{b64}",
+                "width": width, "height": height, "page_count": 1}
+
+    return {"kind": "none", "reason": f"unsupported source type {ext or '(none)'}"}

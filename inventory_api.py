@@ -953,6 +953,17 @@ class InventoryApi:
             })
         return out
 
+    def get_po_source_preview(self, po_id: str) -> dict[str, Any]:
+        """Return a renderable image preview of a PO's archived source file.
+
+        {"kind": "image", "data_uri", "mime", "width", "height", "page_count"}
+        for image/PDF sources (PDFs rasterized to PNG); {"kind": "none"} for
+        spreadsheet/CSV/missing sources. The frontend uses this to show an
+        inline thumbnail (and click-to-zoom lightbox) in the PO picker.
+        """
+        import purchase_orders
+        return purchase_orders.source_preview(self._sources_dir, po_id, self._po_csv)
+
     def open_source_file(self, po_id: str) -> dict[str, str]:
         """Open the archived source file for a PO in the OS default app."""
         import purchase_orders
