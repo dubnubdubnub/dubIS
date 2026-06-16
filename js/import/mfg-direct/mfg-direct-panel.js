@@ -461,16 +461,19 @@ async function scanReceived(payload) {
  * running. Gives the user instant acknowledgement on the desktop instead of a
  * silent wait while OCR works. The OCR'd rows arrive shortly after via
  * window._scanReceived.
- * @param {{filename?: string, template?: string}} payload
+ * @param {{filename?: string, template?: string, count?: number}} payload
  */
 function scanReceiving(payload) {
+  const count = (payload && payload.count) || 1;
+  const noun = count > 1 ? `${count} photos` : 'Photo';
+  const verb = count > 1 ? 'them' : 'it';
   // If the QR modal is still open, swap its hint to a "reading" message so the
   // feedback lands where the user is already looking.
   const hint = document.querySelector('#mfg-scan-overlay .mfg-scan-hint');
-  if (hint) hint.textContent = '📸 Photo received — reading it now…';
-  showToast('📸 Photo received — reading…');
+  if (hint) hint.textContent = `📸 ${noun} received — reading ${verb} now…`;
+  showToast(`📸 ${noun} received — reading…`);
   const tmpl = (payload && payload.template) || '';
-  AppLog.info('Scan: photo received, OCR in progress' + (tmpl ? ` (${tmpl})` : ''));
+  AppLog.info(`Scan: ${count} photo(s) received, OCR in progress` + (tmpl ? ` (${tmpl})` : ''));
 }
 
 /** Register the global push handlers (called once from app-init). */

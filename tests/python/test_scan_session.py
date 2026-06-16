@@ -218,7 +218,66 @@ class TestScanUpload:
         # The ack carries enough for the UI to show a "reading <template>" hint.
         start = calls[0].index("window._scanReceiving(") + len("window._scanReceiving(")
         ack = json.loads(calls[0][start:-1])
-        assert ack == {"filename": "po.png", "template": "lcsc"}
+        assert ack == {"filename": "po.png", "template": "lcsc", "count": 1}
+
+    def test_multi_image_upload_concats_and_saves_all(self, scan_server, tmp_path):
+        sid = pnp_server.create_scan_session(scan_server.server, "lcsc")
+        status, body = _post_json(
+            f"{scan_server.base_url}/api/scan/upload?s={sid}",
+            {"images": [
+                {"image_b64": _PNG_1X1_B64, "filename": "po1.png"},
+                {"image_b64": _PNG_1X1_B64, "filename": "po2.png"},
+            ]},
+        )
+        assert status == 200
+        assert body["ok"] is True
+        assert body["images"] == 2
+        # OCR ran once per image; rows + pages concatenated across both.
+        assert [c[1] for c in scan_server.api.calls] == ["po1.png", "po2.png"]
+        assert body["count"] == 2
+        assert len(body["pages"]) == 2
+        # Both photos persisted to <base_dir>/scans.
+        assert len(list((tmp_path / "scans").glob("scan_*.png"))) == 2
+        # The merged desktop push carries both pages.
+        received = next(c for c in scan_server.js_calls if "_scanReceived(" in c)
+        payload = json.loads(received[received.index("window._scanReceived(")
+                                      + len("window._scanReceived("):-1])
+        assert len(payload["pages"]) == 2
+        assert payload["image_count"] == 2
+
+    def test_single_image_back_compat_still_works(self, scan_server):
+        sid = pnp_server.create_scan_session(scan_server.server, "lcsc")
+        status, body = _post_json(
+            f"{scan_server.base_url}/api/scan/upload?s={sid}",
+            {"image_b64": _PNG_1X1_B64, "filename": "po.png"},
+        )
+        assert status == 200
+        assert body["images"] == 1
+        assert body["count"] == 1
+
+    def test_too_many_images_rejected(self, scan_server):
+        sid = pnp_server.create_scan_session(scan_server.server, "generic")
+        imgs = [{"image_b64": _PNG_1X1_B64, "filename": f"p{i}.png"}
+                for i in range(pnp_server.SCAN_MAX_IMAGES + 1)]
+        status, _ = _post_json(
+            f"{scan_server.base_url}/api/scan/upload?s={sid}",
+            {"images": imgs},
+        )
+        assert status == 413
+        assert not scan_server.api.calls
+
+    def test_multi_image_invalid_member_rejected_without_ocr(self, scan_server):
+        sid = pnp_server.create_scan_session(scan_server.server, "generic")
+        status, _ = _post_json(
+            f"{scan_server.base_url}/api/scan/upload?s={sid}",
+            {"images": [
+                {"image_b64": _PNG_1X1_B64, "filename": "ok.png"},
+                {"image_b64": _PNG_1X1_B64, "filename": "bad.exe"},
+            ]},
+        )
+        assert status == 400
+        # Validation happens before any OCR/save work.
+        assert not scan_server.api.calls
 
     def test_upload_response_returns_overlay_for_phone(self, scan_server):
         # The phone overlays the detected tokens on its captured image, so the
@@ -286,7 +345,7 @@ class TestScanUpload:
         host, port = scan_server.server.server_address
         if not host or host == "0.0.0.0":
             host = "127.0.0.1"
-        spoof_len = pnp_server.SCAN_MAX_IMAGE_BYTES * 2 + 1
+        spoof_len = pnp_server.SCAN_MAX_IMAGES * pnp_server.SCAN_MAX_IMAGE_BYTES * 2 + 1
         path = f"/api/scan/upload?s={sid}"
         request = (
             f"POST {path} HTTP/1.1\r\n"
