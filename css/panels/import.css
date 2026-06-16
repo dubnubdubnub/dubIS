@@ -24,7 +24,7 @@
 .ocr-template-label {
   display: flex; align-items: center; gap: 6px;
   font-size: 11px; color: var(--text-muted);
-  width: 100%; justify-content: center;
+  width: 100%; min-width: 0; justify-content: center;
 }
 #import-ocr-template {
   padding: 3px 6px;
@@ -33,6 +33,12 @@
   background: var(--bg-base);
   color: var(--text-bright);
   font-size: 11px;
+  /* A <select>'s intrinsic width is its longest option label and the browser
+     will not shrink it below that without min-width:0. In the narrow side-by-side
+     zone layout that burst the dashed box on both sides; clamp it so it shrinks to
+     fit (the selected label ellipsizes) and never overflows the zone. */
+  min-width: 0;
+  max-width: 100%;
 }
 #import-scan-btn { margin-top: var(--import-row-gap); }
 

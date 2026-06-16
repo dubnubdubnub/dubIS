@@ -834,6 +834,47 @@ test.describe('Import panel elements on resize', () => {
     console.log(clearBtn.reason);
     expect(clearBtn.visible, clearBtn.reason).toBe(true);
   });
+
+  /**
+   * Drop-zone content must stay INSIDE its dashed box at every window width.
+   * Regression: at narrow panel widths the two zones sit side by side (~120-180px
+   * each) and the OCR "Template:" <select> — whose intrinsic width is fixed by its
+   * longest option label and which the browser will not shrink without min-width:0
+   * — burst out of both sides of the box ("text sticking out of the drag zone").
+   * These widths land the panel in the cramped side-by-side regime (panel ~280-400px).
+   */
+  for (const width of [1280, 1366, 1440, 1600, 1800]) {
+    test(`drop-zone content stays inside its box at ${width}px`, async ({ page }) => {
+      await addMockSetup(page, MOCK_INVENTORY);
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/index.html');
+      await waitForInventoryRows(page);
+
+      const result = await page.evaluate(() => {
+        const issues = [];
+        for (const id of ['import-drop-zone', 'import-ocr-zone']) {
+          const zone = document.getElementById(id);
+          if (!zone) { issues.push(`${id}: missing`); continue; }
+          const zr = zone.getBoundingClientRect();
+          zone.querySelectorAll('*').forEach((el) => {
+            const r = el.getBoundingClientRect();
+            if (r.width === 0 || r.height === 0) return;
+            const rightOver = Math.round(r.right - zr.right);
+            const leftOver = Math.round(zr.left - r.left);
+            // Allow 1px for sub-pixel rounding; borders are part of the box.
+            if (rightOver > 1 || leftOver > 1) {
+              const label = el.id || el.className || el.tagName.toLowerCase();
+              issues.push(`${id}: <${el.tagName.toLowerCase()}.${label}> "${(el.textContent || '').trim().slice(0, 24)}" overflows (right +${rightOver}px, left +${leftOver}px)`);
+            }
+          });
+        }
+        return issues;
+      });
+
+      result.forEach((i) => console.log('  ' + i));
+      expect(result, `Drop-zone content must not overflow its box at ${width}px`).toEqual([]);
+    });
+  }
 });
 
 
