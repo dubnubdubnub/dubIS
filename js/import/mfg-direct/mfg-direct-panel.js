@@ -13,6 +13,7 @@ import { openOverlay } from './ocr-overlay/ocr-overlay-panel.js';
 import { UndoRedo } from '../../undo-redo.js';
 import { invPartKey } from '../../part-keys.js';
 import { recordImportGeneration, popImportGeneration } from '../../inventory/inv-state.js';
+import { openGroupingEditor } from './scan-grouping.js';
 
 const state = {
   active: false,
@@ -422,6 +423,17 @@ async function scanReceived(payload) {
   }
   closeScanModal();
 
+  // Multi-photo: each photo defaults to its own PO. Open the grouping editor so
+  // the user can group photos of the same order, then import each group as a PO
+  // via the sequential queue. Single-photo scans skip straight to the overlay.
+  if (payload.photos && payload.photos.length > 1) {
+    state.scanTemplate = payload.template || state.scanTemplate;
+    openGroupingEditor(payload.photos, payload.groups, payload.template || 'generic',
+      (groupPayloads) => startImportQueue(groupPayloads));
+    AppLog.info(`Scan: grouping editor for ${payload.photos.length} photo(s)`);
+    return;
+  }
+
   // New OCR-overlay path: the phone payload carries page/token data. Route it
   // through the side-by-side review modal. Backward compatible — when `pages`
   // is absent we keep the legacy flat-staging behavior below.
@@ -461,16 +473,19 @@ async function scanReceived(payload) {
  * running. Gives the user instant acknowledgement on the desktop instead of a
  * silent wait while OCR works. The OCR'd rows arrive shortly after via
  * window._scanReceived.
- * @param {{filename?: string, template?: string}} payload
+ * @param {{filename?: string, template?: string, count?: number}} payload
  */
 function scanReceiving(payload) {
+  const count = (payload && payload.count) || 1;
+  const noun = count > 1 ? `${count} photos` : 'Photo';
+  const verb = count > 1 ? 'them' : 'it';
   // If the QR modal is still open, swap its hint to a "reading" message so the
   // feedback lands where the user is already looking.
   const hint = document.querySelector('#mfg-scan-overlay .mfg-scan-hint');
-  if (hint) hint.textContent = '📸 Photo received — reading it now…';
-  showToast('📸 Photo received — reading…');
+  if (hint) hint.textContent = `📸 ${noun} received — reading ${verb} now…`;
+  showToast(`📸 ${noun} received — reading…`);
   const tmpl = (payload && payload.template) || '';
-  AppLog.info('Scan: photo received, OCR in progress' + (tmpl ? ` (${tmpl})` : ''));
+  AppLog.info(`Scan: ${count} photo(s) received, OCR in progress` + (tmpl ? ` (${tmpl})` : ''));
 }
 
 /** Register the global push handlers (called once from app-init). */
@@ -489,6 +504,39 @@ function cancelFlow() {
   if (mountEl && mountEl.id === 'import-body') {
     import('../import-panel.js').then(m => m.init());
   }
+}
+
+// ── Sequential multi-PO import queue ──────────────────────────────────────
+// When a grouped scan yields several POs, review + import them one at a time:
+// open the overlay for PO 1 → import → open PO 2 → … The overlay is a singleton,
+// so the queue keeps them strictly sequential (never concurrent).
+let _importQueue = null;  // { payloads: [groupPayload], idx } | null
+
+function startImportQueue(groupPayloads) {
+  if (!groupPayloads || !groupPayloads.length) return;
+  _importQueue = { payloads: groupPayloads, idx: 0 };
+  _openNextInQueue();
+}
+
+function _openNextInQueue() {
+  if (!_importQueue || _importQueue.idx >= _importQueue.payloads.length) {
+    _importQueue = null;
+    cancelFlow();
+    return;
+  }
+  const gp = _importQueue.payloads[_importQueue.idx];
+  _resetForImport(mountEl, gp.template);
+  state.scanTemplate = gp.template || state.scanTemplate;
+  openOverlay(gp, {
+    onConfirm: (rows, vendor) => {
+      state.lineItems = rows;
+      state.vendor = vendor;
+      const src = scanSourceFile(gp);
+      if (src) state.sourceFile = src;
+      importPO();
+    },
+  });
+  if (gp.poLabel) showToast(`Reviewing ${gp.poLabel}`);
 }
 
 async function importPO() {
@@ -557,7 +605,13 @@ async function importPO() {
 
     showToast(`Imported ${items.length} rows from ${state.vendor.name || 'vendor'}`);
     AppLog.info(`Direct PO: ${items.length} rows from ${state.vendor.name}`);
-    cancelFlow();
+    if (_importQueue) {
+      // Advance to the next PO in the grouped batch (or finish + re-init).
+      _importQueue.idx += 1;
+      _openNextInQueue();
+    } else {
+      cancelFlow();
+    }
   } catch (exc) {
     AppLog.error('Direct PO import failed: ' + exc);
   }

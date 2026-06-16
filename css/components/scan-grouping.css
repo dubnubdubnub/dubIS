@@ -1,0 +1,80 @@
+/* scan-grouping.css — desktop editor for grouping scan photos into POs.
+   Spacing/size tokens live in css/tokens.css (--scan-*). */
+
+.scan-grouping-actions {
+  display: flex;
+  gap: var(--scan-gap);
+  margin-bottom: var(--scan-lg);
+}
+
+.scan-grouping-list {
+  max-height: 56vh;
+  overflow-y: auto;
+  margin-bottom: var(--scan-xl);
+}
+
+.scan-po-group {
+  border: 1px dashed var(--color-border, #cbd5e1);
+  border-radius: 10px;
+  padding: var(--scan-gap) var(--scan-md);
+  margin-bottom: var(--scan-md);
+}
+
+.scan-po-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: var(--scan-sm);
+}
+
+.scan-po-meta {
+  font-weight: 400;
+  color: var(--color-text-muted, #666);
+  margin-left: var(--scan-sm);
+}
+
+.scan-po-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--scan-gap);
+}
+
+.scan-thumb {
+  position: relative;
+  width: var(--scan-thumb-size);
+  height: var(--scan-thumb-size);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--color-border, #cbd5e1);
+  cursor: pointer;
+}
+
+.scan-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.scan-thumb.selected {
+  outline: 3px solid var(--color-blue, #2563eb);
+  outline-offset: -3px;
+}
+
+.scan-thumb-check {
+  position: absolute;
+  top: var(--scan-check-pos);
+  left: var(--scan-check-pos);
+  width: var(--scan-check-size);
+  height: var(--scan-check-size);
+  border-radius: 50%;
+  background: var(--color-blue, #2563eb);
+  color: #fff;
+  font-size: 14px;
+  line-height: var(--scan-check-size);
+  text-align: center;
+  display: none;
+}
+
+.scan-thumb.selected .scan-thumb-check {
+  display: block;
+}

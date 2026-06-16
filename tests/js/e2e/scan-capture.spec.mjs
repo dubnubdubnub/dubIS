@@ -101,9 +101,9 @@ test.describe('Phone-scan capture page → upload', () => {
     // Real file-chooser path: attach a tiny PNG (buffer, no temp file needed).
     await fileInput.setInputFiles({ name: 'po.png', mimeType: 'image/png', buffer: PNG_1X1 });
 
-    // Preview shows and Send enables once the FileReader resolves.
+    // A thumbnail appears and Send enables once the FileReader resolves.
     await expect(sendBtn).toBeEnabled();
-    await expect(page.locator('#preview')).toBeVisible();
+    await expect(page.locator('#thumbs .thumb')).toHaveCount(1);
 
     // Real click → real POST to /api/scan/upload.
     await sendBtn.click();
@@ -210,7 +210,7 @@ test.describe('Phone-scan capture page → upload', () => {
     // Real file-chooser path on the library input.
     await libraryInput.setInputFiles({ name: 'existing.png', mimeType: 'image/png', buffer: PNG_1X1 });
     await expect(sendBtn).toBeEnabled();
-    await expect(page.locator('#preview')).toBeVisible();
+    await expect(page.locator('#thumbs .thumb')).toHaveCount(1);
 
     await sendBtn.click();
     await expect(page.locator('#msg.ok')).toContainText('Found 1 item');
@@ -220,6 +220,42 @@ test.describe('Phone-scan capture page → upload', () => {
       const rec = JSON.parse(readFileSync(recordPath, 'utf8'));
       return rec.ocr_calls.some((c) => c.filename === 'existing.png');
     }).toBe(true);
+  });
+
+  test('multiple photos: thumbnails add/remove, then one multi-image upload', async ({ page }) => {
+    await page.goto(`${baseUrl}/scan?s=${sessionId}`);
+
+    // Pick two photos at once via the library input (multiple).
+    await page.locator('#file-library').setInputFiles([
+      { name: 'pg1.png', mimeType: 'image/png', buffer: PNG_1X1 },
+      { name: 'pg2.png', mimeType: 'image/png', buffer: PNG_1X1 },
+    ]);
+    await expect(page.locator('#thumbs .thumb')).toHaveCount(2);
+
+    // Remove one → strip shrinks; add another via the camera input → grows.
+    await page.locator('#thumbs .thumb .thumb-remove').first().click();
+    await expect(page.locator('#thumbs .thumb')).toHaveCount(1);
+    await page.locator('#file').setInputFiles({ name: 'pg3.png', mimeType: 'image/png', buffer: PNG_1X1 });
+    await expect(page.locator('#thumbs .thumb')).toHaveCount(2);
+
+    // The Send button reflects the count.
+    const sendBtn = page.locator('#send');
+    await expect(sendBtn).toHaveText(/Send 2 photos/);
+
+    // One upload carries both images; OCR runs once per image (capture the
+    // running count first since the recorder accumulates across tests).
+    const before = JSON.parse(readFileSync(recordPath, 'utf8')).ocr_calls.length;
+    await sendBtn.click();
+
+    // Verdict reports the combined item count (mock returns 1 row per image).
+    await expect(page.locator('#msg.ok')).toContainText('Found 2 items');
+    await expect.poll(() =>
+      JSON.parse(readFileSync(recordPath, 'utf8')).ocr_calls.length,
+    ).toBe(before + 2);
+
+    // Both photos were persisted to data/scans.
+    const savedPngs = readdirSync(join(dataDir, 'scans')).filter((f) => f.endsWith('.png'));
+    expect(savedPngs.length).toBeGreaterThanOrEqual(2);
   });
 
   test('unknown session shows the expired page (404)', async ({ page }) => {
