@@ -5,6 +5,60 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>dubIS</title>
 <link rel="icon" href="data/dubIS.png" type="image/png">
+<!-- Critical inline styles for the startup skeleton. Inlined (no fetch) and placed
+     before the 18 render-blocking <link> stylesheets so it paints on the first
+     frame — the window shell appears ~400ms before the JS module graph + inventory
+     render finish, and without this it sits blank that whole time. The skeleton
+     mirrors the real chrome (header + Import / Inventory / BOM panels) with shimmer
+     placeholders so the app looks like it's materializing rather than hanging.
+     Removed by app-init.js once INVENTORY_LOADED fires. Self-contained: depends on
+     no external CSS, so it renders correctly even before css/*.css load. -->
+<style>
+  html, body { background: #0d1117; margin: 0; }
+  #startup-splash {
+    position: fixed; inset: 0; z-index: 99999;
+    display: flex; flex-direction: column;
+    background: #0d1117; color: #c9d1d9;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    transition: opacity .2s ease;
+  }
+  #startup-splash.hide { opacity: 0; pointer-events: none; }
+  /* shimmer block — base must stay lighter than the #161b22 panel so the
+     placeholder is visible at every frame of the animation, not just mid-sweep */
+  #startup-splash .sk {
+    border-radius: 6px;
+    background: linear-gradient(90deg, #21262d 25%, #30404f 50%, #21262d 75%);
+    background-size: 400% 100%;
+    animation: sk-shimmer 1.4s ease infinite;
+  }
+  @keyframes sk-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+  /* header strip */
+  #startup-splash .sk-header {
+    display: flex; align-items: center; gap: 12px;
+    height: 48px; padding: 0 14px;
+    background: #161b22; border-bottom: 1px solid #21262d; flex: 0 0 auto;
+  }
+  #startup-splash .sk-header .sk { height: 26px; }
+  #startup-splash .sk-spacer { flex: 1; }
+  /* panels row */
+  #startup-splash .sk-panels { flex: 1; display: flex; gap: 10px; padding: 10px; min-height: 0; }
+  #startup-splash .sk-panel {
+    background: #161b22; border: 1px solid #21262d; border-radius: 8px;
+    padding: 12px; display: flex; flex-direction: column; gap: 12px; min-height: 0;
+  }
+  #startup-splash .sk-col-left { flex: 0 0 20%; }
+  #startup-splash .sk-col-mid { flex: 1; }
+  #startup-splash .sk-col-right { flex: 0 0 24%; }
+  #startup-splash .sk-title { height: 20px; width: 45%; }
+  #startup-splash .sk-toolbar { display: flex; gap: 8px; }
+  #startup-splash .sk-toolbar .sk { height: 28px; flex: 1; }
+  #startup-splash .sk-rows { display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+  #startup-splash .sk-row { height: 30px; }
+  #startup-splash .wordmark {
+    position: absolute; bottom: 18px; right: 22px;
+    font-size: 13px; color: #484f58; letter-spacing: .5px;
+  }
+</style>
 <link rel="stylesheet" href="css/variables.css">
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/layout.css">
@@ -25,6 +79,55 @@
 <link rel="stylesheet" href="css/components/ocr-overlay.css">
 </head>
 <body>
+
+<!-- Startup skeleton: mirrors the header + Import/Inventory/BOM panels so launching
+     the app gives instant structural feedback. Removed in app-init.js on
+     INVENTORY_LOADED. Decorative only — aria-hidden so it's skipped by a11y tools. -->
+<div id="startup-splash" aria-hidden="true">
+  <div class="sk-header">
+    <div class="sk" style="width:96px"></div>
+    <div class="sk-spacer"></div>
+    <div class="sk" style="width:36px"></div>
+    <div class="sk" style="width:36px"></div>
+    <div class="sk-spacer"></div>
+    <div class="sk" style="width:120px"></div>
+  </div>
+  <div class="sk-panels">
+    <!-- Purchase Import -->
+    <div class="sk-panel sk-col-left">
+      <div class="sk sk-title"></div>
+      <div class="sk" style="height:90px"></div>
+      <div class="sk" style="height:28px"></div>
+      <div class="sk" style="height:28px"></div>
+      <div class="sk-spacer"></div>
+      <div class="sk" style="height:120px"></div>
+    </div>
+    <!-- Inventory grid -->
+    <div class="sk-panel sk-col-mid">
+      <div class="sk-toolbar">
+        <div class="sk" style="flex:0 0 130px"></div>
+        <div class="sk" style="flex:0 0 90px"></div>
+        <div class="sk-spacer"></div>
+        <div class="sk" style="flex:0 0 220px"></div>
+      </div>
+      <div class="sk-rows">
+        <div class="sk sk-row" style="height:34px"></div>
+        <div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div>
+        <div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div>
+        <div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div>
+        <div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div>
+        <div class="sk sk-row"></div><div class="sk sk-row"></div>
+      </div>
+    </div>
+    <!-- BOM Comparison -->
+    <div class="sk-panel sk-col-right">
+      <div class="sk sk-title"></div>
+      <div class="sk" style="height:60px"></div>
+      <div class="sk-spacer"></div>
+    </div>
+  </div>
+  <div class="wordmark">dubIS</div>
+</div>
 
 <div class="header">
   <div class="header-left">

@@ -32,6 +32,7 @@ graph LR
     "domain/inventory.py" --> "saved_searches.py"
     "file_dialogs.py" --> "csv_io.py"
     "file_dialogs.py" --> "domain/pricing.py"
+    "inventory_api.py" --> "bench.py"
     "inventory_api.py" --> "cache_db.py"
     "inventory_api.py" --> "csv_io.py"
     "inventory_api.py" --> "distributor_manager.py"
@@ -277,6 +278,7 @@ graph LR
     "purchase_orders.py" --> "csv_io.py"
     "purchase_orders.py" --> "source_sanitizer.py"
     "saved_searches.py" --> "csv_io.py"
+    "scripts/bench-floor.py" --> "bench.py"
     "scripts/capture-distributor-fixtures.py" --> "distributor_fixtures.py"
     "scripts/ci_watcher/listener.py" --> "scripts/ci_watcher/state.py"
     "scripts/ci_watcher/worker.py" --> "scripts/ci_watcher/triage_payload.py"
@@ -432,7 +434,7 @@ graph LR
 | `FLYOUT_OPENED` | `js/group-flyout/flyout-panel.js` | `js/inventory/inv-events.js` |
 | `FLYOUT_SEARCH_CHANGED` | `js/group-flyout/flyout-events.js` | `js/inventory/inv-events.js` |
 | `GENERIC_PARTS_LOADED` | `js/inventory/inv-mutations.js`, `js/store.js` | — |
-| `INVENTORY_LOADED` | `js/store.js` | `js/bom/bom-events.js`, `js/inventory/inv-events.js` |
+| `INVENTORY_LOADED` | `js/store.js` | `js/app-init.js`, `js/bom/bom-events.js`, `js/inventory/inv-events.js` |
 | `INVENTORY_UPDATED` | `js/store.js` | `js/app-init.js`, `js/bom/bom-events.js`, `js/inventory/inv-events.js`, `js/label-selection.js` |
 | `LABEL_BULK_SELECTION` | `js/label-selection.js` | `js/inventory/inv-events.js` |
 | `LABEL_MODE` | `js/label-selection.js` | `js/inventory/inv-events.js`, `js/label-selection.js`, `tests/js/label-selection.test.js` |
@@ -450,6 +452,11 @@ graph LR
 
 - **Imports:** `dubis_errors.py`
 - **Imported by:** `digikey_client.py`, `distributor_manager.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`, `tests/python/test_base_client.py`
+
+### bench.py
+
+- **Imports:** —
+- **Imported by:** `inventory_api.py`, `scripts/bench-floor.py`
 
 ### cache_db.py
 
@@ -543,7 +550,7 @@ graph LR
 
 ### inventory_api.py
 
-- **Imports:** `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `distributor_profiles.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `file_dialogs.py`, `inventory_ops.py`, `mfg_direct_import.py`, `ocr_engine.py`, `ocr_layout.py`, `pnp_server.py`, `poll_api.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
+- **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `distributor_profiles.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `file_dialogs.py`, `inventory_ops.py`, `mfg_direct_import.py`, `ocr_engine.py`, `ocr_layout.py`, `pnp_server.py`, `poll_api.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
 - **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_real_data.py`
 
 ### inventory_ops.py
@@ -561,7 +568,7 @@ graph LR
 - **Imports:** `js/api.js`, `js/bom/bom-panel.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory-modals.js`, `js/inventory/inventory-panel.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`, `js/vendors-modal.js`
 - **Imported by:** —
 - **Emits:** `CONFIRMED_CHANGED`, `LINKS_CHANGED`, `SAVE_AND_CLOSE`
-- **Listens:** `BOM_LOADED`, `INVENTORY_UPDATED`
+- **Listens:** `BOM_LOADED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`
 
 ### js/bom-row-data.js
 
@@ -925,6 +932,16 @@ graph LR
 - **Imported by:** `domain/inventory.py`, `inventory_api.py`, `tests/python/test_saved_searches.py`
 
 ### scripts/__init__.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### scripts/bench-floor.py
+
+- **Imports:** `bench.py`
+- **Imported by:** —
+
+### scripts/bench-startup.py
 
 - **Imports:** —
 - **Imported by:** —

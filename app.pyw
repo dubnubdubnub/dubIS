@@ -5,6 +5,10 @@ import logging
 import os
 import sys
 
+import bench  # fixes t0 at first import; no-op unless DUBIS_BENCH_OUT is set
+
+bench.mark("py_start")
+
 logger = logging.getLogger(__name__)
 
 # Ensure the app directory is on the path
@@ -26,6 +30,8 @@ import webview
 from inventory_api import InventoryApi
 from pnp_server import start_pnp_server, stop_pnp_server
 from poll_api import POLL_PORT, start_poll_server
+
+bench.mark("imports_done")
 
 
 def set_icon():
@@ -50,6 +56,7 @@ def set_icon():
 def main():
     debug = "--debug" in sys.argv
     api = InventoryApi(debug=debug)
+    bench.mark("api_constructed")
     window = webview.create_window(
         "dubIS",
         url=os.path.join(APP_DIR, "index.html"),
@@ -57,6 +64,7 @@ def main():
         width=1600,
         height=900,
         min_size=(1200, 700),
+        background_color="#0d1117",  # match the dark theme so the shell doesn't flash white before first paint
     )
 
     pnp_server = None
@@ -101,6 +109,7 @@ def main():
     window.events.closed += on_closed
     def on_ready():
         nonlocal pnp_server
+        bench.mark("on_ready")  # native window shown; WebView2 runtime up
         set_icon()
         pnp_server = start_pnp_server(api, window)
         # Expose the running server so api.start_scan_session() can mint sessions
@@ -110,7 +119,25 @@ def main():
         configured_port = prefs.get("pollApiPort")
         start_poll_server(api, port=configured_port if configured_port else POLL_PORT)
 
-    start_kwargs = {"func": on_ready, "debug": debug}
+    # Persist the WebView2 profile across launches. pywebview defaults to
+    # private_mode=True with no storage_path, which makes it allocate a *fresh*
+    # temp UserDataFolder every launch (winforms.init_storage) — so WebView2's
+    # HTTP cache, V8 code cache and shader cache are thrown away each time and
+    # every start is fully cold. Pinning a stable folder + private_mode=False
+    # lets the runtime reuse those caches, cutting cold-start meaningfully.
+    # The folder is a deletable cache (like cache.db); it lives under data/ and
+    # is gitignored.
+    webview2_profile = os.path.join(APP_DIR, "data", "webview2")
+    # DUBIS_WEBVIEW_PROFILE=ephemeral restores pywebview's old fresh-temp-folder
+    # behavior — used by scripts/bench-startup.py to A/B the persistent profile.
+    persist_profile = os.environ.get("DUBIS_WEBVIEW_PROFILE") != "ephemeral"
+    start_kwargs = {
+        "func": on_ready,
+        "debug": debug,
+        "private_mode": not persist_profile,
+    }
+    if persist_profile:
+        start_kwargs["storage_path"] = webview2_profile
     if sys.platform != "win32" and os.path.isfile(PNG_ICON_PATH):
         start_kwargs["icon"] = PNG_ICON_PATH
     webview.start(**start_kwargs)

@@ -105,6 +105,20 @@ class InventoryApi:
             finally:
                 self._cache_conn = None
 
+    def bench_mark(self, label: str, detail: str = "") -> bool:
+        """Record a startup-timing mark from the frontend.
+
+        No-op unless DUBIS_BENCH_OUT is set (see bench.py). Timestamps are taken
+        on the Python clock here, so JS marks share one timeline with the
+        backend marks in app.pyw — no JS/Python clock skew to reconcile.
+        ``detail`` carries optional JS-side data (e.g. navigation timing JSON).
+        Returns True when bench mode is active so the frontend knows whether to
+        emit further marks / trigger auto-close.
+        """
+        import bench
+        bench.mark(label, detail)
+        return bench.ENABLED
+
     # ── Utility delegates ──────────────────────────────────────────────────
 
     @staticmethod

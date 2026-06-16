@@ -34,6 +34,17 @@ window.REF_COLOR_MAP = REF_COLOR_MAP;
 
 // ── Init on pywebview ready ────────────────────────────
 async function initApp() {
+  // Dismiss the startup splash once the grid has data (or after a safety timeout,
+  // so a failed load never traps the user behind the overlay).
+  const dismissSplash = () => {
+    const el = document.getElementById("startup-splash");
+    if (!el) return;
+    el.classList.add("hide");
+    setTimeout(() => el.remove(), 250);
+  };
+  EventBus.on(Events.INVENTORY_LOADED, dismissSplash);
+  setTimeout(dismissSplash, 8000);
+
   // Initialize panels (explicit, no side-effect imports)
   initResizePanels();
   initInventoryModals();
@@ -180,7 +191,26 @@ async function initApp() {
   });
 
   await whenPywebviewReady();
+  // Startup-timing probe. The backend returns true only when DUBIS_BENCH_OUT is
+  // set, so a single bridge round-trip gates all further marks — normal launches
+  // pay one no-op call and emit nothing else. See bench.py / scripts/bench-startup.py.
+  // Attach navigation timing so the harness can split document/module load from
+  // the pywebview bridge handshake within the "window shown → bridge ready" gap.
+  let navDetail = "";
+  try {
+    const nav = performance.getEntriesByType("navigation")[0];
+    if (nav) navDetail = JSON.stringify({
+      now: Math.round(performance.now()),
+      responseEnd: Math.round(nav.responseEnd),
+      domContentLoaded: Math.round(nav.domContentLoadedEventEnd),
+      domComplete: Math.round(nav.domComplete),
+      loadEnd: Math.round(nav.loadEventEnd),
+    });
+  } catch { /* navigation timing unavailable */ }
+  const benchOn = await api("bench_mark", "js_pywebview_ready", navDetail).catch(() => false);
+  if (benchOn) EventBus.on(Events.INVENTORY_LOADED, () => api("bench_mark", "js_inventory_loaded"));
   await loadPreferences();
+  if (benchOn) api("bench_mark", "js_prefs_loaded");
   const { hydrateFromPreferences: hydrateInvView } = await import('./inventory/inv-state.js');
   hydrateInvView(store.preferences.inventory_view);
   loadInventory();
