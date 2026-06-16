@@ -9,6 +9,7 @@ import state from './inv-state.js';
 import { setupEvents } from './inv-events.js';
 import { renderNormalInventory } from './inv-render.js';
 import { renderBomComparison, renderRemainingInventory } from './inv-bom-mode.js';
+import { refreshImportMarkers } from './inv-import-markers.js';
 
 // ── Init ──
 
@@ -22,6 +23,10 @@ export function init() {
   state._render = render;
 
   setupEvents({ render: render, updateDistFilterUI: updateDistFilterUI });
+
+  if (window.ResizeObserver && state.body) {
+    new ResizeObserver(() => refreshImportMarkers()).observe(state.body);
+  }
 }
 
 // ── Distributor filter UI state ──
@@ -67,4 +72,5 @@ function render() {
     while (headerWrap.firstChild) state.body.appendChild(headerWrap.firstChild);
     renderNormalInventory();
   }
+  refreshImportMarkers();
 }
