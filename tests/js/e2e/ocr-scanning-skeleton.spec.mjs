@@ -85,4 +85,23 @@ test.describe('OCR scanning skeleton (drop zone)', () => {
     await page.waitForTimeout(900);
     await expect(page.locator('#ocr-overlay')).toHaveCount(0);
   });
+
+  test('cancel then re-drop: the first scan’s late result cannot tear down the second skeleton', async ({ page }) => {
+    // Drop A → cancel it → immediately drop B. A's delayed OCR result lands while
+    // B's skeleton is still up; the invocation token must make A's stale resolve/
+    // fail a no-op so B survives and resolves normally.
+    await dropImage(page);
+    await expect(page.locator('#ocr-overlay .ocr-overlay-modal.ocr-loading')).toBeVisible();
+    await page.locator('#ocr-overlay #ocr-cancel').click();
+    await expect(page.locator('#ocr-overlay')).toHaveCount(0);
+
+    await dropImage(page);  // second scan (B)
+    await expect(page.locator('#ocr-overlay .ocr-overlay-modal.ocr-loading')).toBeVisible();
+
+    // B resolves to the real review; A's late result (fired ~now) must NOT have
+    // closed it — if the race were unguarded, the overlay would be gone here.
+    await expect(page.locator('#ocr-overlay .ocr-token')).toHaveCount(2);
+    await expect(page.locator('#ocr-overlay .ocr-overlay-modal.ocr-loading')).toHaveCount(0);
+    await expect(page.locator('#ocr-overlay')).toHaveCount(1);
+  });
 });
