@@ -114,8 +114,19 @@
   text-transform: uppercase; letter-spacing: 0.5px;
   white-space: nowrap;
 }
-.ocr-th-label { vertical-align: middle; }
-.ocr-col-shift { display: inline-flex; flex-direction: column; margin-left: 4px; vertical-align: middle; }
+/* Keep the label and the shift buttons INSIDE the (fixed-width) th. Without a
+   width cap on the label, table-layout:fixed + nowrap let the inline
+   .ocr-col-shift overflow the th's right edge into the next sticky th, which
+   then intercepts clicks and makes the shift buttons unclickable. Capping the
+   label and giving the shift a fixed footprint keeps both within the th box. */
+.ocr-th-label {
+  display: inline-block; vertical-align: middle;
+  max-width: calc(100% - 18px); overflow: hidden; text-overflow: ellipsis;
+}
+.ocr-col-shift {
+  display: inline-flex; flex-direction: column; margin-left: 4px;
+  vertical-align: middle; width: 12px;
+}
 .ocr-col-shift button {
   line-height: 0.8; font-size: 8px; padding: 0 2px;
   background: transparent; border: none; color: var(--text-muted); cursor: pointer;

@@ -141,6 +141,14 @@ export function addMockSetup(page, inventory, options = {}) {
         },
         update_purchase_order: async () => inv,
         delete_purchase_order: async () => inv,
+        delete_last_purchase_order: async () => {
+          record('delete_last_purchase_order', {});
+          // Undo of the most recent PO import: return a fresh inventory WITHOUT
+          // the just-imported part so green-dot / inventory assertions stay
+          // coherent. opts.deleteLastResult lets a spec supply that array; the
+          // default echoes the unchanged inventory.
+          return opts.deleteLastResult || inv;
+        },
         open_source_file: async () => ({ opened: true, path: '/dev/null' }),
       },
     };
