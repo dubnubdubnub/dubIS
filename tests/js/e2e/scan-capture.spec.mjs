@@ -258,6 +258,29 @@ test.describe('Phone-scan capture page → upload', () => {
     expect(savedPngs.length).toBeGreaterThanOrEqual(2);
   });
 
+  test('phone-side grouping: group two of three photos → one upload, two orders', async ({ page }) => {
+    await page.goto(`${baseUrl}/scan?s=${sessionId}`);
+
+    await page.locator('#file-library').setInputFiles([
+      { name: 'g1.png', mimeType: 'image/png', buffer: PNG_1X1 },
+      { name: 'g2.png', mimeType: 'image/png', buffer: PNG_1X1 },
+      { name: 'g3.png', mimeType: 'image/png', buffer: PNG_1X1 },
+    ]);
+    // Each photo is its own PO by default → three groups.
+    await expect(page.locator('.po-group')).toHaveCount(3);
+    await expect(page.locator('#thumbs .thumb')).toHaveCount(3);
+
+    // Tap the first two photos and group them → two POs (one with 2, one with 1).
+    await page.locator('#thumbs .thumb').nth(0).click();
+    await page.locator('#thumbs .thumb').nth(1).click();
+    await page.locator('#group-sel').click();
+    await expect(page.locator('.po-group')).toHaveCount(2);
+
+    // Send → the backend groups accordingly and reports two orders.
+    await page.locator('#send').click();
+    await expect(page.locator('#msg.ok')).toContainText('2 orders');
+  });
+
   test('unknown session shows the expired page (404)', async ({ page }) => {
     const resp = await page.goto(`${baseUrl}/scan?s=bogus-session`);
     expect(resp?.status()).toBe(404);
