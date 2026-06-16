@@ -11,7 +11,7 @@ import { escHtml, showToast } from '../../../ui-helpers.js';
 import { createVendorPicker, isPseudoVendor, vendorFaviconHtml } from '../vendor-picker.js';
 import { renderModal } from './ocr-overlay-renderer.js';
 import {
-  createState, selectToken, selectTokens, selectCell,
+  createState, createLoadingState, selectToken, selectTokens, selectCell,
   applyPending, setCellValue, setPage, clearPending, setTokenMode,
   setZoom, tokenText,
 } from './ocr-overlay-state.js';
@@ -25,6 +25,8 @@ let escHandler = null;
 // past DRAG_THRESHOLD so a plain click still falls through to click-to-assign.
 let drag = null;
 let suppressClick = false;
+let loadingActive = false;   // true while the scanning skeleton is shown
+let onCancelCb = null;       // invoked if the user cancels the skeleton
 const DRAG_THRESHOLD = 6;  // px before a press becomes a drag
 
 const vendorPicker = createVendorPicker({
@@ -36,6 +38,8 @@ const vendorPicker = createVendorPicker({
 /** Open the overlay for a payload {pages, prefill_rows, template}. */
 export function openOverlay(payload, { onConfirm } = {}) {
   state = createState(payload);
+  loadingActive = false;
+  onCancelCb = null;
   onConfirmCb = onConfirm || null;
   vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
 
@@ -46,9 +50,62 @@ export function openOverlay(payload, { onConfirm } = {}) {
   overlay = tmp.firstElementChild;
   document.body.appendChild(overlay);
 
+  installEscHandler();
+  rerender();
+}
+
+/** Open the scanning skeleton immediately; OCR runs while it is shown. */
+export function openOverlayLoading(images, { onCancel } = {}) {
+  state = createLoadingState(images);
+  loadingActive = true;
+  onCancelCb = onCancel || null;
+  onConfirmCb = null;
+  vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
+
+  let overlay = document.getElementById('ocr-overlay');
+  if (overlay) overlay.remove();
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderModal(state);
+  overlay = tmp.firstElementChild;
+  document.body.appendChild(overlay);
+
+  if (escHandler) document.removeEventListener('keydown', escHandler);
+  escHandler = (e) => { if (e.key === 'Escape') cancelLoading(); };
+  document.addEventListener('keydown', escHandler);
+
+  rerender();
+}
+
+/** Swap an open skeleton into the full review. No-op if it was cancelled/closed. */
+export function resolveOverlay(payload, { onConfirm } = {}) {
+  if (!loadingActive || !document.getElementById('ocr-overlay')) return;
+  loadingActive = false;
+  onCancelCb = null;
+  state = createState(payload);
+  onConfirmCb = onConfirm || null;
+  vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
+  installEscHandler();
+  rerender();
+}
+
+/** Tear down the skeleton (e.g. OCR failed / no text). Toasts `message` if open. */
+export function failOverlay(message) {
+  const wasOpen = loadingActive || !!document.getElementById('ocr-overlay');
+  closeOverlay();
+  if (wasOpen && message) showToast(message);
+}
+
+function cancelLoading() {
+  const cb = onCancelCb;
+  closeOverlay();
+  if (cb) cb();
+}
+
+function installEscHandler() {
+  if (escHandler) document.removeEventListener('keydown', escHandler);
   escHandler = (e) => {
     if (e.key !== 'Escape') return;
-    if (state.pending.kind) {
+    if (state && state.pending && state.pending.kind) {
       state = clearPending(state);
       rerender();
     } else {
@@ -56,8 +113,6 @@ export function openOverlay(payload, { onConfirm } = {}) {
     }
   };
   document.addEventListener('keydown', escHandler);
-
-  rerender();
 }
 
 function closeOverlay() {
@@ -72,6 +127,8 @@ function closeOverlay() {
   clearDropHighlight();
   drag = null;
   suppressClick = false;
+  loadingActive = false;
+  onCancelCb = null;
   state = null;
   onConfirmCb = null;
   vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
@@ -122,6 +179,12 @@ function mountVendorPicker(root) {
 
 // ── Event wiring ────────────────────────────────────────────────────────
 function bindEvents(root) {
+  if (state && state.loading) {
+    const cancel = root.querySelector('#ocr-cancel');
+    if (cancel) cancel.onclick = cancelLoading;
+    return;  // skeleton has no tokens/cells/vendor to wire
+  }
+
   root.querySelectorAll('.ocr-token').forEach(btn => {
     btn.onclick = () => {
       // A real drag already handled this press — swallow the synthetic click.
