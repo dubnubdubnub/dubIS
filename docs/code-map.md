@@ -936,6 +936,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** —
 
+### scripts/bench-close.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### scripts/bench-floor.py
 
 - **Imports:** `bench.py`

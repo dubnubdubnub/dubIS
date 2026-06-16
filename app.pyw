@@ -34,6 +34,31 @@ from poll_api import POLL_PORT, start_poll_server
 bench.mark("imports_done")
 
 
+def _hard_exit(code: int = 0) -> None:
+    """Terminate the process immediately, skipping the ~2s teardown a normal exit
+    incurs. Even os._exit() runs DLL_PROCESS_DETACH for the in-process Chromium/
+    WebView2 runtime and the .NET CLR as the process unwinds — that detach is what
+    makes closing take seconds (see scripts/bench-close.py: ~2s of the ~2.3s close
+    is spent here). We've already flushed everything we own in _cleanup() (PnP
+    server stopped, SQLite committed + closed), so there is nothing left to clean
+    up gracefully. TerminateProcess skips the detach entirely; orphaned WebView2
+    child processes are reaped by the OS. Falls back to os._exit off Windows."""
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+        k = ctypes.windll.kernel32
+        # Set signatures explicitly: GetCurrentProcess returns the pseudo-handle
+        # (HANDLE)-1; without restype=HANDLE ctypes truncates it to a 32-bit int,
+        # producing an invalid handle so TerminateProcess fails and we fall through
+        # to the slow os._exit. That truncation is exactly what made the first
+        # attempt no-op.
+        k.GetCurrentProcess.restype = wintypes.HANDLE
+        k.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+        k.TerminateProcess.restype = wintypes.BOOL
+        k.TerminateProcess(k.GetCurrentProcess(), code)
+    os._exit(code)
+
+
 def set_icon():
     """Set window icon via native WinForms API (pywebview 6.1 ignores the icon param on Windows)."""
     import time
@@ -80,30 +105,38 @@ def main():
             stop_pnp_server(pnp_server)
         except Exception as exc:
             logger.warning("Cleanup: stopping PnP server failed: %s", exc)
+        bench.mark("pnp_stopped")
         try:
             api.shutdown()
         except Exception as exc:
             logger.warning("Cleanup: api.shutdown failed: %s", exc)
+        bench.mark("cache_closed")
 
     def on_closing():
+        bench.mark("closing_enter")
         if api._force_close:
             _cleanup()
-            os._exit(0)
+            bench.mark("pre_exit")
+            _hard_exit(0)
         if not api._bom_dirty:
             _cleanup()
-            os._exit(0)  # No unsaved changes — kill process immediately
+            bench.mark("pre_exit")
+            _hard_exit(0)  # No unsaved changes — kill process immediately
         # Unsaved changes — show the confirmation modal
         try:
             window.evaluate_js("closeModal.open()")
         except Exception as exc:
             logger.warning("Could not show close modal: %s", exc)
             _cleanup()
-            os._exit(0)
+            bench.mark("pre_exit")
+            _hard_exit(0)
         return False
 
     def on_closed():
+        bench.mark("closed_enter")
         _cleanup()
-        os._exit(0)
+        bench.mark("pre_exit")
+        _hard_exit(0)
 
     window.events.closing += on_closing
     window.events.closed += on_closed
@@ -118,6 +151,29 @@ def main():
         prefs = api.load_preferences()
         configured_port = prefs.get("pollApiPort")
         start_poll_server(api, port=configured_port if configured_port else POLL_PORT)
+        # Bench harness hook: once the grid is interactive, trigger a close so
+        # scripts/bench-close.py can time the teardown. Mirrors the user clicking
+        # X (destroy() raises FormClosing → on_closing, like the real path).
+        if os.environ.get("DUBIS_BENCH_CLOSE"):
+            import threading
+            import time as _t
+
+            def _auto_close():
+                out = os.environ.get("DUBIS_BENCH_OUT", "")
+                deadline = _t.monotonic() + 30.0
+                while _t.monotonic() < deadline:
+                    try:
+                        with open(out, encoding="utf-8") as f:
+                            if "js_inventory_loaded" in f.read():
+                                break
+                    except OSError:
+                        pass
+                    _t.sleep(0.05)
+                _t.sleep(0.3)  # let first render settle
+                bench.mark("close_trigger")
+                window.destroy()
+
+            threading.Thread(target=_auto_close, name="bench-close", daemon=True).start()
 
     # Persist the WebView2 profile across launches. pywebview defaults to
     # private_mode=True with no storage_path, which makes it allocate a *fresh*

@@ -719,7 +719,13 @@ def start_pnp_server(api, window, port=PNP_PORT, source="openpnp"):
     server.window = window
     server.source = source
 
-    thread = threading.Thread(target=server.serve_forever, name="pnp-server", daemon=True)
+    # poll_interval=0.05 (vs the 0.5s default): server.shutdown() in stop_pnp_server
+    # blocks until serve_forever's loop next checks the stop flag, which it only does
+    # once per poll interval. The default 0.5s dominated app close (~280ms median);
+    # 0.05s makes graceful shutdown near-instant at a negligible idle-wakeup cost.
+    thread = threading.Thread(
+        target=lambda: server.serve_forever(poll_interval=0.05), name="pnp-server", daemon=True,
+    )
     thread.start()
     logger.info("PnP server listening on port %d", port)
     return server
