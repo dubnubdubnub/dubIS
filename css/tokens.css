@@ -69,6 +69,8 @@
      Layout for the side-by-side CSV | image/PDF/phone drop zones.
      Consumed by: css/panels/import.css */
   --import-zone-gap:     12px;  /* Gap between the CSV and image/PDF drop zones */
-  --import-zone-min-w:  120px;  /* Min-width before the two zones wrap */
+  --import-zone-min-w:  170px;  /* Min-width before the two zones wrap. Below this each
+                                   zone is too cramped to hold its label + control row, so
+                                   they stack full-width instead of squeezing side by side. */
   --import-row-gap:       8px;  /* Vertical spacing below in-zone controls (new-po row, scan button) */
 }
