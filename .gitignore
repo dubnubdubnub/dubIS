@@ -24,6 +24,7 @@ data/*.db-shm
 data/*.db-wal
 data/events/*.csv
 data/scans/
+data/webview2/
 data-backup-*/
 data_backup
 test-results/
