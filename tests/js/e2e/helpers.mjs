@@ -40,6 +40,7 @@ export function addMockSetup(page, inventory, options = {}) {
         adjust_part: async () => inv,
         update_part_price: async () => inv,
         load_preferences: async () => ({ thresholds: {} }),
+        notify_webview_ready: async () => true,
         save_preferences: async () => true,
         get_digikey_login_status: async () => ({ logged_in: false }),
         check_digikey_session: async () => ({ logged_in: false }),

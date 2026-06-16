@@ -191,6 +191,11 @@ async function initApp() {
   });
 
   await whenPywebviewReady();
+  // Tell the backend the JS↔Python bridge is live. This clears the WebView2
+  // launch sentinel and stands the startup self-heal watchdog down (see app.pyw /
+  // webview_profile.py) — proof the profile loaded cleanly, so the next launch
+  // won't wipe it and this launch won't get relaunched. Fire-and-forget.
+  api("notify_webview_ready");
   // Startup-timing probe. The backend returns true only when DUBIS_BENCH_OUT is
   // set, so a single bridge round-trip gates all further marks — normal launches
   // pay one no-op call and emit nothing else. See bench.py / scripts/bench-startup.py.

@@ -9,6 +9,7 @@ import os
 import sqlite3
 import sys
 import threading
+from collections.abc import Callable
 from typing import Any
 
 import cache_db
@@ -60,6 +61,10 @@ class InventoryApi:
         self._force_close: bool = False
         self._closing: bool = False
         self._bom_dirty: bool = False
+        # Set by app.pyw: invoked when the frontend confirms the JS bridge is
+        # live (see notify_webview_ready) to clear the WebView2 launch sentinel
+        # and stand the startup self-heal watchdog down.
+        self._on_webview_ready: Callable[[], None] | None = None
         self._debug: bool = debug
         # Reentrant: lock-holding methods (adjust_part, consume_bom, _rebuild,
         # …) call _get_cache(), whose lazy init re-acquires this same lock.
@@ -118,6 +123,22 @@ class InventoryApi:
         import bench
         bench.mark(label, detail)
         return bench.ENABLED
+
+    def notify_webview_ready(self) -> bool:
+        """Called by the frontend once the JS↔Python bridge is confirmed live.
+
+        app.pyw installs ``self._on_webview_ready`` to clear the WebView2 launch
+        sentinel and signal the startup watchdog. A live bridge is proof the
+        WebView2 profile loaded cleanly, so the watchdog must stand down and the
+        next launch must not pre-emptively wipe the profile. Best-effort.
+        """
+        cb = self._on_webview_ready
+        if cb is not None:
+            try:
+                cb()
+            except Exception as exc:  # never let a frontend ping raise back across the bridge
+                logger.warning("on_webview_ready callback failed: %s", exc)
+        return True
 
     # ── Utility delegates ──────────────────────────────────────────────────
 

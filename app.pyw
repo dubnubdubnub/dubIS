@@ -3,7 +3,10 @@
 
 import logging
 import os
+import shutil
+import subprocess
 import sys
+import threading
 
 import bench  # fixes t0 at first import; no-op unless DUBIS_BENCH_OUT is set
 
@@ -27,11 +30,23 @@ if sys.platform == "win32":
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("gehub.dubIS")
 
 import webview
+
+import webview_profile
 from inventory_api import InventoryApi
 from pnp_server import start_pnp_server, stop_pnp_server
 from poll_api import POLL_PORT, start_poll_server
 
 bench.mark("imports_done")
+
+# Persistent WebView2 profile (see the storage_path block in main()). A hard-kill
+# close can corrupt it; webview_profile self-heals via a launch sentinel + a
+# startup watchdog so a corrupt profile never traps the user on the skeleton.
+WEBVIEW_PROFILE_DIR = os.path.join(APP_DIR, "data", "webview2")
+WEBVIEW_SENTINEL = os.path.join(APP_DIR, "data", webview_profile.SENTINEL_FILENAME)
+# Seconds to wait for the JS bridge before assuming a corrupt profile and
+# self-healing. A normal cold start reaches the bridge in ~1s; 15s is well clear
+# of that while still recovering a hung launch quickly.
+WEBVIEW_READY_TIMEOUT = 15.0
 
 
 def _hard_exit(code: int = 0) -> None:
@@ -94,6 +109,28 @@ def main():
 
     pnp_server = None
 
+    # DUBIS_WEBVIEW_PROFILE=ephemeral restores pywebview's old fresh-temp-folder
+    # behavior — used by scripts/bench-startup.py to A/B the persistent profile.
+    persist_profile = os.environ.get("DUBIS_WEBVIEW_PROFILE") != "ephemeral"
+    # A self-heal relaunch sets this so a fresh profile that *still* hangs can't
+    # trigger an endless relaunch loop (see the ready watchdog below).
+    already_healed = os.environ.get("DUBIS_PROFILE_HEALED") == "1"
+    # Set by the frontend (via api.notify_webview_ready) the moment the JS bridge
+    # is live — proof the WebView2 profile loaded cleanly. The watchdog waits on it.
+    ready_event = threading.Event()
+
+    def _on_webview_ready():
+        webview_profile.mark_ready(WEBVIEW_SENTINEL)
+        ready_event.set()
+
+    api._on_webview_ready = _on_webview_ready
+
+    # If a sentinel from a prior launch is still present, that launch never
+    # reached a live bridge — its profile is suspect, so wipe it before we open
+    # the window. Writes a fresh sentinel that _on_webview_ready clears on success.
+    if persist_profile:
+        webview_profile.prepare_for_launch(WEBVIEW_PROFILE_DIR, WEBVIEW_SENTINEL)
+
     def _cleanup():
         """Best-effort teardown before os._exit. Order matters: stop the PnP
         server FIRST (no new requests; in-flight ones finish) so a mid-flight
@@ -111,6 +148,11 @@ def main():
         except Exception as exc:
             logger.warning("Cleanup: api.shutdown failed: %s", exc)
         bench.mark("cache_closed")
+        # The _hard_exit below TerminateProcesses *this* process only; WebView2's
+        # child processes would otherwise survive as orphans, keeping the
+        # persistent profile locked for the next launch. Reap them here so the
+        # profile is always free (and stray msedgewebview2 processes don't pile up).
+        webview_profile.kill_child_webview_processes(os.getpid())
 
     def on_closing():
         bench.mark("closing_enter")
@@ -151,11 +193,44 @@ def main():
         prefs = api.load_preferences()
         configured_port = prefs.get("pollApiPort")
         start_poll_server(api, port=configured_port if configured_port else POLL_PORT)
+
+        # Startup self-heal watchdog. The window is up, but a corrupt persistent
+        # profile makes WebView2 hang loading the page so the JS bridge never
+        # signals ready — trapping the user on the skeleton. If ready doesn't fire
+        # within the timeout, wipe the profile and relaunch a fresh instance.
+        if persist_profile and not already_healed:
+            def _ready_watchdog():
+                ready = ready_event.wait(WEBVIEW_READY_TIMEOUT)
+                if not webview_profile.should_heal_and_relaunch(
+                    ready=ready, persist_profile=persist_profile, already_healed=already_healed,
+                ):
+                    return
+                logger.warning(
+                    "JS bridge did not come up within %.0fs — WebView2 profile is "
+                    "likely corrupt. Self-healing: wiping profile and relaunching.",
+                    WEBVIEW_READY_TIMEOUT,
+                )
+                # Free the profile lock (our WebView2 children), wipe the corrupt
+                # profile, then relaunch flagged so the fresh instance won't loop.
+                webview_profile.kill_child_webview_processes(os.getpid())
+                shutil.rmtree(WEBVIEW_PROFILE_DIR, ignore_errors=True)
+                try:
+                    subprocess.Popen(
+                        [sys.executable, os.path.join(APP_DIR, "app.pyw")],
+                        cwd=APP_DIR,
+                        env=dict(os.environ, DUBIS_PROFILE_HEALED="1"),
+                        close_fds=True,
+                    )
+                except OSError as exc:
+                    logger.error("Self-heal relaunch failed: %s", exc)
+                _hard_exit(0)
+
+            threading.Thread(target=_ready_watchdog, name="webview-ready-watchdog", daemon=True).start()
+
         # Bench harness hook: once the grid is interactive, trigger a close so
         # scripts/bench-close.py can time the teardown. Mirrors the user clicking
         # X (destroy() raises FormClosing → on_closing, like the real path).
         if os.environ.get("DUBIS_BENCH_CLOSE"):
-            import threading
             import time as _t
 
             def _auto_close():
@@ -182,18 +257,15 @@ def main():
     # every start is fully cold. Pinning a stable folder + private_mode=False
     # lets the runtime reuse those caches, cutting cold-start meaningfully.
     # The folder is a deletable cache (like cache.db); it lives under data/ and
-    # is gitignored.
-    webview2_profile = os.path.join(APP_DIR, "data", "webview2")
-    # DUBIS_WEBVIEW_PROFILE=ephemeral restores pywebview's old fresh-temp-folder
-    # behavior — used by scripts/bench-startup.py to A/B the persistent profile.
-    persist_profile = os.environ.get("DUBIS_WEBVIEW_PROFILE") != "ephemeral"
+    # is gitignored. `persist_profile` is decided at the top of main() so the
+    # self-heal setup can share it.
     start_kwargs = {
         "func": on_ready,
         "debug": debug,
         "private_mode": not persist_profile,
     }
     if persist_profile:
-        start_kwargs["storage_path"] = webview2_profile
+        start_kwargs["storage_path"] = WEBVIEW_PROFILE_DIR
     if sys.platform != "win32" and os.path.isfile(PNG_ICON_PATH):
         start_kwargs["icon"] = PNG_ICON_PATH
     webview.start(**start_kwargs)
