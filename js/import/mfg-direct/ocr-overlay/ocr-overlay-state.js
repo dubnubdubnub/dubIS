@@ -11,6 +11,7 @@ export function createState(payload) {
     pending: { kind: null, tokenIds: [], cell: null },
     tokenMode: 'w',
     zoom: 1,
+    fullscreen: false,
   };
 }
 
@@ -115,4 +116,60 @@ export function setTokenMode(state, mode) {
 
 export function clearPending(state) {
   return { ...state, pending: { kind: null, tokenIds: [], cell: null } };
+}
+
+/** Append a blank row (all grid fields empty). */
+export function addRow(state) {
+  return {
+    ...state,
+    rows: [...state.rows, {}],
+    lowConf: [...state.lowConf, new Set()],
+  };
+}
+
+/** Remove row `ri`; drop its lowConf and clear a pending cell at/after it. */
+export function deleteRow(state, ri) {
+  if (ri < 0 || ri >= state.rows.length) return state;
+  const rows = state.rows.slice(); rows.splice(ri, 1);
+  const lowConf = state.lowConf.slice(); lowConf.splice(ri, 1);
+  let pending = state.pending;
+  if (pending.cell && pending.cell.row >= ri) {
+    pending = { kind: null, tokenIds: [], cell: null };
+  }
+  return { ...state, rows, lowConf, pending };
+}
+
+/**
+ * Shift one column's values up or down by one with blank-fill (no data loss).
+ * down: insert blank at top, push down; grow a row if the bottom value would
+ * fall off. up: drop the top value, pull up, blank the bottom. Other columns
+ * are untouched. lowConf flags for that column move with their values.
+ */
+export function shiftColumn(state, field, dir) {
+  const n = state.rows.length;
+  if (n === 0) return state;
+  const rows = state.rows.map(r => ({ ...r }));
+  const lowConf = state.lowConf.map(s => new Set(s));
+  const moveFlag = (toIdx, fromIdx) => {
+    if (lowConf[fromIdx] && lowConf[fromIdx].has(field)) lowConf[toIdx].add(field);
+    else lowConf[toIdx].delete(field);
+  };
+  if (dir === 'down') {
+    const bottom = String(rows[n - 1][field] ?? '').trim();
+    if (bottom !== '') { rows.push({}); lowConf.push(new Set()); }
+    for (let i = rows.length - 1; i > 0; i--) {
+      rows[i][field] = rows[i - 1][field] ?? '';
+      moveFlag(i, i - 1);
+    }
+    rows[0][field] = '';
+    lowConf[0].delete(field);
+  } else {
+    for (let i = 0; i < n - 1; i++) {
+      rows[i][field] = rows[i + 1][field] ?? '';
+      moveFlag(i, i + 1);
+    }
+    rows[n - 1][field] = '';
+    lowConf[n - 1].delete(field);
+  }
+  return { ...state, rows, lowConf };
 }

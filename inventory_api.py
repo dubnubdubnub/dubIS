@@ -936,6 +936,15 @@ class InventoryApi:
             purchase_orders.delete_purchase_order(self._po_csv, self._sources_dir, po_id)
             return self._rebuild()
 
+    def delete_last_purchase_order(self) -> list[dict[str, Any]]:
+        """Delete the most-recently-created PO (and its ledger rows). Returns
+        fresh inventory. Raises if there is no PO to remove."""
+        import purchase_orders
+        pos = purchase_orders.list_purchase_orders(self._po_csv)
+        if not pos:
+            raise ValueError("no purchase order to remove")
+        return self.delete_purchase_order(pos[-1]["po_id"])
+
     def get_warnings(self) -> dict[str, Any]:
         """Return a dict of console warnings for the frontend to display."""
         import vendors
@@ -952,6 +961,17 @@ class InventoryApi:
                 "dst": {"id": b["id"], "name": b["name"]},
             })
         return out
+
+    def get_po_source_preview(self, po_id: str) -> dict[str, Any]:
+        """Return a renderable image preview of a PO's archived source file.
+
+        {"kind": "image", "data_uri", "mime", "width", "height", "page_count"}
+        for image/PDF sources (PDFs rasterized to PNG); {"kind": "none"} for
+        spreadsheet/CSV/missing sources. The frontend uses this to show an
+        inline thumbnail (and click-to-zoom lightbox) in the PO picker.
+        """
+        import purchase_orders
+        return purchase_orders.source_preview(self._sources_dir, po_id, self._po_csv)
 
     def open_source_file(self, po_id: str) -> dict[str, str]:
         """Open the archived source file for a PO in the OS default app."""

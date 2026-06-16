@@ -15,13 +15,13 @@ export function renderModal(state) {
   const page = state.pages[state.pageIdx];
   const selected = new Set(state.pending.tokenIds || []);
   return `<div class="modal-overlay" id="ocr-overlay">
-    <div class="modal ocr-overlay-modal">
+    <div class="modal ocr-overlay-modal${state.fullscreen ? ' ocr-fullscreen' : ''}">
       ${renderHeader(state)}
       <div class="ocr-split">
         <div class="ocr-scan-pane">${renderScan(page, state.pageIdx, state, selected)}</div>
         <div class="ocr-grid-pane">${renderGrid(state)}</div>
       </div>
-      ${renderFooter()}
+      ${renderFooter(state)}
     </div>
   </div>`;
 }
@@ -78,7 +78,10 @@ function renderHeader(state) {
     <input id="ocr-zoom-range" type="range" min="1" max="4" step="0.25"
       value="${zoom}" aria-label="Zoom scan image">
   </span>`;
-  return `<div class="ocr-header">Review scan — template: ${escHtml(state.template)} ${modeToggle} ${zoomCtl} ${nav}
+  const fsBtn = `<button id="ocr-fullscreen" type="button" class="ocr-fullscreen-btn"
+    title="${state.fullscreen ? 'Exit fullscreen' : 'Fullscreen'}"
+    aria-pressed="${!!state.fullscreen}">${state.fullscreen ? '🗗' : '⛶'}</button>`;
+  return `<div class="ocr-header">Review scan — template: ${escHtml(state.template)} ${modeToggle} ${zoomCtl} ${fsBtn} ${nav}
     <span class="ocr-header-hint">Click or drag a box onto a cell or the vendor name.</span></div>`;
 }
 
@@ -104,8 +107,14 @@ function renderScan(page, pageIdx, state, selected = new Set()) {
 
 function renderGrid(state) {
   const fields = gridFields(state.template);
-  const head = fields.map(f => `<th>${escHtml(f.label)}</th>`).join('');
+  const head = '<th class="ocr-row-delete"></th>' + fields.map(f => `<th>
+    <span class="ocr-th-label">${escHtml(f.label)}</span>
+    <span class="ocr-col-shift">
+      <button class="ocr-col-up" data-field="${escHtml(f.key)}" type="button" title="Shift column up">▲</button>
+      <button class="ocr-col-down" data-field="${escHtml(f.key)}" type="button" title="Shift column down">▼</button>
+    </span></th>`).join('');
   const body = state.rows.map((row, ri) => {
+    const del = `<td class="ocr-row-delete" data-row="${ri}" title="Delete row">×</td>`;
     const cells = fields.map(f => {
       const v = row[f.key] ?? '';
       const cls = ['ocr-cell'];
@@ -114,16 +123,18 @@ function renderGrid(state) {
       if (v === '' || v === 0) cls.push('blank');
       return `<td class="${cls.join(' ')}" data-row="${ri}" data-field="${escHtml(f.key)}" tabindex="0">${escHtml(String(v || ''))}</td>`;
     }).join('');
-    return `<tr>${cells}</tr>`;
+    return `<tr>${del}${cells}</tr>`;
   }).join('');
-  return `<table class="ocr-grid"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  return `<table class="ocr-grid"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+    <button class="ocr-add-row" type="button">+ Add row</button>`;
 }
 
-function renderFooter() {
+function renderFooter(state) {
+  const n = state.rows.length;
   return `<div class="ocr-footer">
     <span id="ocr-vendor-mount"></span>
     <button id="ocr-cancel" class="btn btn-cancel" type="button">Cancel</button>
-    <button id="ocr-confirm" class="btn btn-primary" type="button">Continue to import</button>
+    <button id="ocr-confirm" class="btn ocr-confirm-final" type="button">✓ Import ${n} rows →</button>
   </div>`;
 }
 

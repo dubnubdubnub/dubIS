@@ -3,6 +3,7 @@ import {
   createState, createLoadingState, selectToken, selectCell, applyPending,
   combineTokens, setCellValue, tokenText,
   selectTokens, setPage, clearPending, setTokenMode, setZoom,
+  addRow, deleteRow, shiftColumn,
 } from '../../js/import/mfg-direct/ocr-overlay/ocr-overlay-state.js';
 
 const payload = {
@@ -151,5 +152,62 @@ describe('createLoadingState', () => {
   it('normalizes missing b64/name to empty strings', () => {
     const s = createLoadingState([{}]);
     expect(s.images[0]).toEqual({ b64: '', name: '' });
+  });
+});
+
+describe('ocr-overlay-state row/column ops', () => {
+  const base = () => createState({
+    template: 'lcsc',
+    pages: [{ image_b64: 'A', width: 10, height: 10, words: [], lines: [] }],
+    prefill_rows: [
+      { mpn: 'A', quantity: 1 },
+      { mpn: 'B', quantity: 2 },
+      { mpn: 'C', quantity: 3 },
+    ],
+  });
+
+  it('addRow appends a blank row', () => {
+    const s = addRow(base());
+    expect(s.rows.length).toBe(4);
+    expect(s.rows[3].mpn ?? '').toBe('');
+    expect(s.lowConf.length).toBe(4);
+  });
+
+  it('deleteRow removes the row and its lowConf', () => {
+    const s = deleteRow(base(), 1);
+    expect(s.rows.map(r => r.mpn)).toEqual(['A', 'C']);
+    expect(s.lowConf.length).toBe(2);
+  });
+
+  it('deleteRow clears a pending cell pointing at/after the removed row', () => {
+    let s = base();
+    s = { ...s, pending: { kind: 'target', tokenIds: [], cell: { row: 2, field: 'mpn' } } };
+    s = deleteRow(s, 1);
+    expect(s.pending.cell).toBe(null);
+  });
+
+  it('shiftColumn down inserts blank at top and grows when bottom is non-empty', () => {
+    const s = shiftColumn(base(), 'mpn', 'down');
+    expect(s.rows.map(r => r.mpn ?? '')).toEqual(['', 'A', 'B', 'C']);
+    expect(s.rows.length).toBe(4);
+    expect(s.rows[1].quantity).toBe(2); // other columns untouched — row 1 keeps its own quantity
+  });
+
+  it('shiftColumn down does not grow when bottom cell is empty', () => {
+    let s = base();
+    s = setCellValue(s, 2, 'mpn', '');
+    s = shiftColumn(s, 'mpn', 'down');
+    expect(s.rows.map(r => r.mpn ?? '')).toEqual(['', 'A', 'B']);
+    expect(s.rows.length).toBe(3);
+  });
+
+  it('shiftColumn up pulls values up and blanks the bottom', () => {
+    const s = shiftColumn(base(), 'mpn', 'up');
+    expect(s.rows.map(r => r.mpn ?? '')).toEqual(['B', 'C', '']);
+    expect(s.rows[0].quantity).toBe(1); // other columns untouched
+  });
+
+  it('createState defaults fullscreen to false', () => {
+    expect(base().fullscreen).toBe(false);
   });
 });

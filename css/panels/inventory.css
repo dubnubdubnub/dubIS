@@ -414,3 +414,18 @@
 /* Compact (narrow panel): yield search width so the distributor filter pills
    keep their full footprint within the header alongside the Labels button. */
 .search-input.compact { min-width: 48px; }
+
+/* Recent-import markers: thin gutter of green dots over the scroll container's
+   right edge (narrower than a VSCode minimap). Display-only. */
+#panel-inventory { position: relative; }
+.inv-import-gutter {
+  position: absolute; right: 1px; width: 6px;
+  pointer-events: none; z-index: 5;
+}
+.inv-import-dot {
+  position: absolute; right: 0;
+  width: 6px; height: 5px; margin-top: -2px;
+  border-radius: 2px;
+  background: var(--color-green);
+  box-shadow: 0 0 3px rgba(63, 185, 80, 0.7);
+}
