@@ -10,3 +10,5 @@ requests>=2.31
 pytesseract>=0.3
 Pillow>=10
 PyMuPDF>=1.24
+opencv-python-headless>=4.9
+numpy>=1.26
