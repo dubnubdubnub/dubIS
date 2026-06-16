@@ -533,11 +533,17 @@ async function importPO() {
   try {
     const fresh = await apiPurchaseOrders.create(
       state.vendor.id, fileB64, fileName, '', '', items);
-    onInventoryUpdated(fresh);
-    await loadVendorsAndPOs();
 
+    // Record the import generation BEFORE the inventory re-renders, so the
+    // first render after import already paints the green gutter dots. (The
+    // INVENTORY_UPDATED render is what calls refreshImportMarkers; recording
+    // the generation afterward leaves the dots un-rendered until some later,
+    // incidental refresh.)
     const keys = state.lineItems.map(lineItemPartKey).filter(Boolean);
     recordImportGeneration(keys);
+
+    onInventoryUpdated(fresh);
+    await loadVendorsAndPOs();
 
     UndoRedo.save('po-import', {
       _undoType: 'po-import',
