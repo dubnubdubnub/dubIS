@@ -272,7 +272,9 @@ graph LR
     "mouser_client.py" --> "html_product_parser.py"
     "ocr_layout.py" --> "distributor_profiles.py"
     "ocr_layout.py" --> "ocr_engine.py"
+    "ocr_layout.py" --> "ocr_table.py"
     "ocr_layout.py" --> "pdf_raster.py"
+    "ocr_table.py" --> "ocr_engine.py"
     "pololu_client.py" --> "base_client.py"
     "pololu_client.py" --> "html_product_parser.py"
     "purchase_orders.py" --> "csv_io.py"
@@ -406,6 +408,7 @@ graph LR
     "tests/python/test_ocr_overlay_api.py" --> "inventory_api.py"
     "tests/python/test_ocr_overlay_api.py" --> "ocr_engine.py"
     "tests/python/test_ocr_overlay_api.py" --> "ocr_layout.py"
+    "tests/python/test_ocr_table.py" --> "ocr_table.py"
     "tests/python/test_pdf_raster.py" --> "pdf_raster.py"
     "tests/python/test_pnp_server.py" --> "pnp_server.py"
     "tests/python/test_pnp_server.py" --> "tests/python/helpers.py"
@@ -894,12 +897,17 @@ graph LR
 ### ocr_engine.py
 
 - **Imports:** —
-- **Imported by:** `inventory_api.py`, `ocr_layout.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_ocr_engine.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_ocr_overlay_api.py`
+- **Imported by:** `inventory_api.py`, `ocr_layout.py`, `ocr_table.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_ocr_engine.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_ocr_overlay_api.py`
 
 ### ocr_layout.py
 
-- **Imports:** `distributor_profiles.py`, `ocr_engine.py`, `pdf_raster.py`
+- **Imports:** `distributor_profiles.py`, `ocr_engine.py`, `ocr_table.py`, `pdf_raster.py`
 - **Imported by:** `inventory_api.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_ocr_overlay_api.py`
+
+### ocr_table.py
+
+- **Imports:** `ocr_engine.py`
+- **Imported by:** `ocr_layout.py`, `tests/python/test_ocr_table.py`
 
 ### pdf_raster.py
 
@@ -1463,6 +1471,11 @@ graph LR
 ### tests/python/test_ocr_overlay_api.py
 
 - **Imports:** `inventory_api.py`, `ocr_engine.py`, `ocr_layout.py`
+- **Imported by:** —
+
+### tests/python/test_ocr_table.py
+
+- **Imports:** `ocr_table.py`
 - **Imported by:** —
 
 ### tests/python/test_pdf_raster.py
