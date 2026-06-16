@@ -433,6 +433,7 @@ graph LR
     "tests/python/test_source_sanitizer.py" --> "source_sanitizer.py"
     "tests/python/test_spec_extractor.py" --> "spec_extractor.py"
     "tests/python/test_vendors.py" --> "vendors.py"
+    "tests/python/test_webview_profile.py" --> "webview_profile.py"
     "vendors.py" --> "csv_io.py"
 ```
 
@@ -1564,6 +1565,11 @@ graph LR
 - **Imports:** `vendors.py`
 - **Imported by:** —
 
+### tests/python/test_webview_profile.py
+
+- **Imports:** `webview_profile.py`
+- **Imported by:** —
+
 ### tests/vitest-global-setup.js
 
 - **Imports:** —
@@ -1578,3 +1584,8 @@ graph LR
 
 - **Imports:** —
 - **Imported by:** —
+
+### webview_profile.py
+
+- **Imports:** —
+- **Imported by:** `tests/python/test_webview_profile.py`
