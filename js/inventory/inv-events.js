@@ -7,7 +7,7 @@ import { AppLog } from '../api.js';
 import { store, saveInventoryView, preferencesSignal } from '../store.js';
 import { escHtml, vendorIconSrc } from '../ui-helpers.js';
 import { inferDistributor } from './inventory-logic.js';
-import state from './inv-state.js';
+import state, { clearImportGenerations } from './inv-state.js';
 import { nextScope } from './inv-sort-group.js';
 import { buildHoverFlyout } from './favicon-stack.js';
 import { openVendorPopover } from './vendor-flyout.js';
@@ -151,7 +151,7 @@ export function setupEvents(handlers) {
 
 
   // ── EventBus subscriptions ──
-  EventBus.on(Events.INVENTORY_LOADED, function () { render(); });
+  EventBus.on(Events.INVENTORY_LOADED, function () { clearImportGenerations(); render(); });
   EventBus.on(Events.INVENTORY_UPDATED, function () { render(); });
   // Vendors/POs load after INVENTORY_LOADED (loadInventory emits the latter
   // before awaiting loadVendorsAndPOs), so the per-row PO icon stack
