@@ -49,6 +49,24 @@ const VENDORS = [
   { id: 'v_salvage', name: 'Salvage', icon: '♻️', type: 'salvage', url: '', favicon_path: '' },
 ];
 
+// A multi-photo scan push: two photos, each its own PO by default. Each photo
+// carries a page (for the overlay) and one prefilled, importable row.
+function multiPhoto(idx, mpn, distpn) {
+  return {
+    index: idx, filename: `p${idx}.png`, image_b64: PNG_1X1_B64,
+    pages: [{ image_b64: PNG_1X1_B64, width: 100, height: 100, words: [], lines: [] }],
+    prefill_rows: [{ mpn, manufacturer: 'Acme', package: '0402', quantity: 100,
+      unit_price: 0.01, distributor: 'LCSC', distributor_pn: distpn }],
+  };
+}
+const MULTI_PHOTO = {
+  template: 'lcsc',
+  image_b64: PNG_1X1_B64,
+  filename: 'p0.png',
+  groups: [[0], [1]],
+  photos: [multiPhoto(0, 'PARTA', 'C1'), multiPhoto(1, 'PARTB', 'C2')],
+};
+
 test.describe('Phone-scan desktop modal → end-to-end import', () => {
   test.beforeEach(async ({ page }) => {
     await addMockSetup(page, MOCK_INVENTORY, { mfgDirectVendors: VENDORS });
@@ -142,5 +160,50 @@ test.describe('Phone-scan desktop modal → end-to-end import', () => {
     // Modal closed and the surfaced picker targets the image-zone input.
     await expect(page.locator('#mfg-scan-overlay')).toHaveCount(0);
     expect(await chooser.element().getAttribute('id')).toBe('import-ocr-input');
+  });
+
+  test('multi-photo scan opens the grouping editor; group/ungroup adjusts the PO count', async ({ page }) => {
+    await page.evaluate((p) => window._scanReceived(p), MULTI_PHOTO);
+
+    // Two photos → two POs by default.
+    await expect(page.locator('#scan-grouping-overlay')).toBeVisible();
+    await expect(page.locator('.scan-po-group')).toHaveCount(2);
+
+    // Select both photos and group → one PO.
+    await page.locator('.scan-thumb[data-idx="0"]').click();
+    await page.locator('.scan-thumb[data-idx="1"]').click();
+    await page.locator('#scan-group-btn').click();
+    await expect(page.locator('.scan-po-group')).toHaveCount(1);
+
+    // Select both again and ungroup → back to two POs.
+    await page.locator('.scan-thumb[data-idx="0"]').click();
+    await page.locator('.scan-thumb[data-idx="1"]').click();
+    await page.locator('#scan-ungroup-btn').click();
+    await expect(page.locator('.scan-po-group')).toHaveCount(2);
+  });
+
+  test('separate-PO batch imports each PO via the sequential overlay queue', async ({ page }) => {
+    await page.evaluate((p) => window._scanReceived(p), MULTI_PHOTO);
+    await expect(page.locator('#scan-grouping-overlay')).toBeVisible();
+
+    // Default grouping = two separate POs → review + import each in turn.
+    await page.locator('#scan-group-import').click();
+    await expect(page.locator('#scan-grouping-overlay')).toHaveCount(0);
+
+    // PO 1 of 2: overlay opens; pick a vendor and confirm.
+    await expect(page.locator('#ocr-overlay')).toBeVisible();
+    await page.locator('#ocr-vendor-mount .ocr-pseudo-chip[data-pseudo="v_self"]').click();
+    await expect(page.locator('#ocr-vendor-name-input')).toHaveValue('Self');
+    await page.locator('#ocr-confirm').click();
+
+    // PO 2 of 2: the queue opens the next overlay automatically.
+    await expect(page.locator('#ocr-overlay .ocr-img-wrap img')).toBeVisible();
+    await page.locator('#ocr-vendor-mount .ocr-pseudo-chip[data-pseudo="v_self"]').click();
+    await page.locator('#ocr-confirm').click();
+
+    // Both POs were created via the create-PO API, then the flow ends.
+    await expect.poll(() => page.evaluate(() =>
+      (window.__apiCalls.create_purchase_order_with_items || []).length)).toBe(2);
+    await expect(page.locator('#ocr-overlay')).toHaveCount(0);
   });
 });
