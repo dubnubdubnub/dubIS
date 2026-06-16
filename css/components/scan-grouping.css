@@ -1,0 +1,79 @@
+/* scan-grouping.css — desktop editor for grouping scan photos into POs. */
+
+.scan-grouping-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.scan-grouping-list {
+  max-height: 56vh;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.scan-po-group {
+  border: 1px dashed var(--color-border, #cbd5e1);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+
+.scan-po-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.scan-po-meta {
+  font-weight: 400;
+  color: var(--color-text-muted, #666);
+  margin-left: 6px;
+}
+
+.scan-po-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scan-thumb {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--color-border, #cbd5e1);
+  cursor: pointer;
+}
+
+.scan-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.scan-thumb.selected {
+  outline: 3px solid var(--color-blue, #2563eb);
+  outline-offset: -3px;
+}
+
+.scan-thumb-check {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-blue, #2563eb);
+  color: #fff;
+  font-size: 14px;
+  line-height: 22px;
+  text-align: center;
+  display: none;
+}
+
+.scan-thumb.selected .scan-thumb-check {
+  display: block;
+}

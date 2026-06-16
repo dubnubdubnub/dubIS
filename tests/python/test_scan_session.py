@@ -245,6 +245,49 @@ class TestScanUpload:
         assert len(payload["pages"]) == 2
         assert payload["image_count"] == 2
 
+    def _received_payload(self, scan_server):
+        received = next(c for c in scan_server.js_calls if "_scanReceived(" in c)
+        start = received.index("window._scanReceived(") + len("window._scanReceived(")
+        return json.loads(received[start:-1])
+
+    def test_multi_image_default_groups_separate_pos(self, scan_server):
+        sid = pnp_server.create_scan_session(scan_server.server, "lcsc")
+        status, body = _post_json(
+            f"{scan_server.base_url}/api/scan/upload?s={sid}",
+            {"images": [
+                {"image_b64": _PNG_1X1_B64, "filename": "a.png"},
+                {"image_b64": _PNG_1X1_B64, "filename": "b.png"},
+            ]},
+        )
+        assert status == 200
+        # No grouping sent → each photo is its own PO.
+        assert body["orders"] == 2
+        assert body["group_counts"] == [1, 1]
+        payload = self._received_payload(scan_server)
+        assert payload["groups"] == [[0], [1]]
+        assert len(payload["photos"]) == 2
+        assert payload["photos"][0]["filename"] == "a.png"
+        assert payload["photos"][0]["image_b64"] == _PNG_1X1_B64
+        assert payload["photos"][0]["prefill_rows"] == scan_server.api._prefill_rows
+
+    def test_multi_image_explicit_grouping_passthrough(self, scan_server):
+        sid = pnp_server.create_scan_session(scan_server.server, "lcsc")
+        status, body = _post_json(
+            f"{scan_server.base_url}/api/scan/upload?s={sid}",
+            {"images": [
+                {"image_b64": _PNG_1X1_B64, "filename": "a.png"},
+                {"image_b64": _PNG_1X1_B64, "filename": "b.png"},
+                {"image_b64": _PNG_1X1_B64, "filename": "c.png"},
+            ], "groups": [[0, 1], [2]]},
+        )
+        assert status == 200
+        # Two POs: photos a+b together, c on its own.
+        assert body["orders"] == 2
+        assert body["group_counts"] == [2, 1]
+        payload = self._received_payload(scan_server)
+        assert payload["groups"] == [[0, 1], [2]]
+        assert len(payload["photos"]) == 3
+
     def test_single_image_back_compat_still_works(self, scan_server):
         sid = pnp_server.create_scan_session(scan_server.server, "lcsc")
         status, body = _post_json(
@@ -416,6 +459,28 @@ class TestScanUpload:
             assert body["ok"] is True
         finally:
             stop_pnp_server(server)
+
+
+class TestNormalizeGroups:
+    def test_default_one_per_photo_when_absent(self):
+        assert pnp_server._normalize_groups(None, 3) == [[0], [1], [2]]
+
+    def test_explicit_groups_preserved(self):
+        assert pnp_server._normalize_groups([[0, 1], [2]], 3) == [[0, 1], [2]]
+
+    def test_uncovered_photos_become_own_groups(self):
+        assert pnp_server._normalize_groups([[0, 1]], 3) == [[0, 1], [2]]
+
+    def test_drops_out_of_range_and_duplicate_indices(self):
+        assert pnp_server._normalize_groups([[0, 0, 9], [1]], 2) == [[0], [1]]
+
+    def test_groups_ordered_by_first_photo(self):
+        assert pnp_server._normalize_groups([[2], [0, 1]], 3) == [[0, 1], [2]]
+
+    def test_non_list_or_empty_falls_back_to_default(self):
+        assert pnp_server._normalize_groups("nope", 2) == [[0], [1]]
+        assert pnp_server._normalize_groups([], 2) == [[0], [1]]
+        assert pnp_server._normalize_groups([[]], 2) == [[0], [1]]
 
 
 class TestSaveScanImage:

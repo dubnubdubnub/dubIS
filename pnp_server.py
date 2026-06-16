@@ -390,9 +390,11 @@ again to add more — or upload existing photos, then tap <em>Send</em>.</p>
           renderOcrOverlay(pages[0]);
         }
         var count = body.count || 0;
+        var orders = body.orders || 1;
         if (count > 0) {
-          show("ok", "Found " + count + " item" + (count === 1 ? "" : "s")
-            + " - review on the desktop app.");
+          var itemStr = count + " item" + (count === 1 ? "" : "s");
+          var orderStr = orders > 1 ? (" in " + orders + " orders") : "";
+          show("ok", "Found " + itemStr + orderStr + " - review on the desktop app.");
         } else {
           show("err", "Couldn't read any parts. Retake with more light, fill the "
             + "frame, and hold the page flat.");
@@ -507,6 +509,37 @@ def _validate_scan_image(entry):
     if len(decoded) > SCAN_MAX_IMAGE_BYTES:
         raise _ScanUploadError(413, "Image too large")
     return {"image_b64": image_b64, "filename": filename, "ext": ext, "decoded": decoded}
+
+
+def _normalize_groups(raw, n):
+    """Coerce a client-supplied photo grouping into a clean partition of range(n).
+
+    Each inner list is one PO (photo indices). Out-of-range, duplicate, and
+    non-integer indices are dropped; any photo not covered becomes its own group;
+    empty groups are removed. Falls back to one-group-per-photo when *raw* isn't a
+    usable list. Groups are ordered by their first photo index for stable output.
+    """
+    default = [[i] for i in range(n)]
+    if not isinstance(raw, list):
+        return default
+    seen = set()
+    groups = []
+    for grp in raw:
+        if not isinstance(grp, list):
+            continue
+        members = []
+        for idx in grp:
+            if (isinstance(idx, int) and not isinstance(idx, bool)
+                    and 0 <= idx < n and idx not in seen):
+                seen.add(idx)
+                members.append(idx)
+        if members:
+            groups.append(sorted(members))
+    for i in range(n):  # uncovered photos each become their own PO
+        if i not in seen:
+            groups.append([i])
+    groups.sort(key=lambda g: g[0])
+    return groups or default
 
 
 class PnPHandler(BaseHTTPRequestHandler):
@@ -651,24 +684,40 @@ class PnPHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             logger.warning("Scan 'receiving' UI push failed (window may be closed): %s", exc)
 
-        # OCR each image and concatenate the pages + parsed rows into one result
-        # so a multi-page PO opens as a single multi-page review on the desktop.
+        # OCR each image INDEPENDENTLY and keep the per-photo results separate so
+        # the desktop can group photos into POs (each group → one PO). Also build
+        # flat concatenations for the single-PO back-compat fields + phone verdict.
+        photos = []
         all_pages = []
         all_rows = []
         try:
-            for img in images:
+            for idx, img in enumerate(images):
                 overlay = api.ocr_overlay_b64(img["image_b64"], img["filename"], template)
-                all_pages.extend(overlay.get("pages") or [])
-                all_rows.extend(overlay.get("prefill_rows") or [])
+                pg = overlay.get("pages") or []
+                rows = overlay.get("prefill_rows") or []
+                photos.append({
+                    "index": idx,
+                    "filename": img["filename"],
+                    "image_b64": img["image_b64"],
+                    "pages": pg,
+                    "prefill_rows": rows,
+                })
+                all_pages.extend(pg)
+                all_rows.extend(rows)
         except Exception as exc:
             logger.error("Scan OCR failed: %s", exc)
             self._send_json(500, {"ok": False, "error": f"OCR failed: {exc}"})
             return
 
+        # The grouping the desktop opens its editor with (explicit from the phone,
+        # else one PO per photo).
+        groups = _normalize_groups(body.get("groups"), len(images))
+
         # line_items mirrors prefill_rows so the legacy flat-staging branch still
         # has data if `pages` were ever absent on the frontend.
         line_items = all_rows
         payload = {
+            # Back-compat single-PO fields (concatenation across all photos).
             "pages": all_pages,
             "prefill_rows": all_rows,
             "line_items": line_items,
@@ -676,25 +725,35 @@ class PnPHandler(BaseHTTPRequestHandler):
             "filename": images[0]["filename"],
             "template": template,
             "image_count": len(images),
+            # Multi-photo grouping: per-photo OCR + the grouping to start from.
+            "photos": photos,
+            "groups": groups,
         }
         try:
             window.evaluate_js("window._scanReceived(" + json.dumps(payload) + ")")
         except Exception as exc:
             logger.warning("Scan UI push failed (window may be closed): %s", exc)
 
-        logger.info("Scan upload OCR'd %d line item(s) from %d image(s) (template=%s)",
-                    len(line_items), len(images), template)
+        logger.info(
+            "Scan upload OCR'd %d line item(s) from %d image(s) into %d order(s) (template=%s)",
+            len(line_items), len(images), len(groups), template)
         # Return the OCR result to the PHONE too, so it can overlay the detected
         # token boxes on the photo it just captured and show a verdict. Drop each
         # page's image_b64 (the phone already holds the photo) to keep it lean.
         phone_pages = [
             {k: v for k, v in pg.items() if k != "image_b64"} for pg in all_pages
         ]
+        # Per-order item counts for the phone verdict ("N orders · M items").
+        group_counts = [
+            sum(len(photos[i]["prefill_rows"]) for i in grp) for grp in groups
+        ]
         self._send_json(200, {
             "ok": True,
             "count": len(line_items),
             "saved": saved,
             "images": len(images),
+            "orders": len(groups),
+            "group_counts": group_counts,
             "pages": phone_pages,
             "prefill_rows": all_rows,
         })
