@@ -70,15 +70,20 @@ def extract_pages(file_bytes: bytes, ext: str, template: str = "generic") -> dic
     # (potentially expensive) PDF rasterization work.
     ocr_engine.require_tesseract()
 
-    pages = [extract_page(png) for (png, _w, _h) in pdf_raster.rasterize(file_bytes, ext)]
+    # Rasterize once: pages are EXIF-uprighted and downscaled (see pdf_raster), so
+    # the preview image, the OCR tokens, and the parsers below all work on the same
+    # upright, sane-resolution page rather than raw sideways 24 MP pixels.
+    raster = pdf_raster.rasterize(file_bytes, ext)
+    pages = [extract_page(png) for (png, _w, _h) in raster]
 
     # Prefer grid-aware table extraction for ruled packing lists: it OCRs each
     # cell in isolation and assigns columns by content, so it recovers values
     # (e.g. LCSC C-numbers) that flat OCR mangles. Self-gating — returns None when
     # there's no detectable grid (or OpenCV is unavailable), so we fall back to
-    # the flat-text heuristic parse below with no behaviour change.
+    # the flat-text heuristic parse below. Feed it the normalized first page (not
+    # the raw bytes) so it gets the upright, downscaled image too.
     import ocr_table
-    prefill_rows = ocr_table.extract_line_items(file_bytes, template)
+    prefill_rows = ocr_table.extract_line_items(raster[0][0], template) if raster else None
     if not prefill_rows:
         full_text = "\n".join(ln["text"] for pg in pages for ln in pg["lines"])
         prefill_rows = distributor_profiles.parse_with_template(template, full_text)
