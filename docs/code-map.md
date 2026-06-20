@@ -414,8 +414,11 @@ graph LR
     "tests/python/test_normalizers.py" --> "mouser_client.py"
     "tests/python/test_normalizers.py" --> "pololu_client.py"
     "tests/python/test_ocr_engine.py" --> "ocr_engine.py"
+    "tests/python/test_ocr_layout.py" --> "distributor_profiles.py"
     "tests/python/test_ocr_layout.py" --> "ocr_engine.py"
     "tests/python/test_ocr_layout.py" --> "ocr_layout.py"
+    "tests/python/test_ocr_layout.py" --> "ocr_table.py"
+    "tests/python/test_ocr_layout.py" --> "pdf_raster.py"
     "tests/python/test_ocr_overlay_api.py" --> "inventory_api.py"
     "tests/python/test_ocr_overlay_api.py" --> "ocr_engine.py"
     "tests/python/test_ocr_overlay_api.py" --> "ocr_layout.py"
@@ -525,7 +528,7 @@ graph LR
 ### distributor_profiles.py
 
 - **Imports:** `mfg_direct_import.py`
-- **Imported by:** `inventory_api.py`, `mfg_direct_import.py`, `ocr_layout.py`, `tests/python/test_distributor_profiles.py`
+- **Imported by:** `inventory_api.py`, `mfg_direct_import.py`, `ocr_layout.py`, `tests/python/test_distributor_profiles.py`, `tests/python/test_ocr_layout.py`
 
 ### domain/__init__.py
 
@@ -933,12 +936,12 @@ graph LR
 ### ocr_table.py
 
 - **Imports:** `ocr_engine.py`
-- **Imported by:** `ocr_layout.py`, `tests/python/test_ocr_table.py`
+- **Imported by:** `ocr_layout.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_ocr_table.py`
 
 ### pdf_raster.py
 
 - **Imports:** —
-- **Imported by:** `ocr_layout.py`, `purchase_orders.py`, `tests/python/test_pdf_raster.py`
+- **Imported by:** `ocr_layout.py`, `purchase_orders.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_pdf_raster.py`
 
 ### pnp_server.py
 
@@ -1501,7 +1504,7 @@ graph LR
 
 ### tests/python/test_ocr_layout.py
 
-- **Imports:** `ocr_engine.py`, `ocr_layout.py`
+- **Imports:** `distributor_profiles.py`, `ocr_engine.py`, `ocr_layout.py`, `ocr_table.py`, `pdf_raster.py`
 - **Imported by:** —
 
 ### tests/python/test_ocr_overlay_api.py
