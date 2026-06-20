@@ -139,12 +139,17 @@ def _isolate_and_flatten_table(cv2, np, gray):
     if not cnts:
         return None
     big = max(cnts, key=cv2.contourArea)
-    if cv2.contourArea(big) < _MIN_TABLE_AREA_FRAC * h * w:
-        return None
     rect = cv2.minAreaRect(big)
+    (rw, rh) = rect[1]
+    # Gate on the table's BOUNDING-RECT area, not contourArea: a fold or a broken
+    # border makes the outer grid contour weave/hollow, so its contourArea is a
+    # small fraction of the box it actually spans. contourArea gating then drops
+    # real tables (and is knife-edge across cv2 versions — the same scan passed on
+    # one machine, failed on another). The rotated-rect area is the true footprint.
+    if rw * rh < _MIN_TABLE_AREA_FRAC * h * w:
+        return None
     box = cv2.boxPoints(rect).astype("float32")
     src = _order_quad(np, box)
-    (rw, rh) = rect[1]
     out_w, out_h = int(max(rw, rh)), int(min(rw, rh))
     if out_w < 50 or out_h < 50:
         return None
