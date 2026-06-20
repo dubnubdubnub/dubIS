@@ -97,3 +97,42 @@ def test_extract_page_mocked(monkeypatch):
     assert page["lines"][0]["conf"] == pytest.approx((95 + 88) / 2)
     assert base64.b64decode(page["image_b64"]) == png
     assert page["width"] == 640
+
+
+class TestExtractPagesPrefillSelection:
+    """extract_pages keeps whichever extractor recovered MORE rows, so a partial
+    grid result never suppresses a more complete flat parse (the bug that made a
+    6-row packing list autofill a single row)."""
+
+    def _patch(self, monkeypatch, grid_rows, flat_rows):
+        import ocr_engine, ocr_table, distributor_profiles, pdf_raster
+        monkeypatch.setattr(ocr_engine, "require_tesseract", lambda: None)
+        monkeypatch.setattr(pdf_raster, "rasterize", lambda data, ext: [(b"png", 10, 10)])
+        monkeypatch.setattr(
+            ocr_layout, "extract_page",
+            lambda png: {"image_b64": "", "width": 10, "height": 10,
+                         "words": [], "lines": [{"text": "x"}]})
+        monkeypatch.setattr(ocr_table, "extract_line_items",
+                            lambda png, template: grid_rows)
+        monkeypatch.setattr(distributor_profiles, "parse_with_template",
+                            lambda template, text: flat_rows)
+
+    def test_flat_wins_when_it_has_more_rows(self, monkeypatch):
+        grid = [{"distributor_pn": "C1"}]
+        flat = [{"distributor_pn": "C1"}, {"distributor_pn": "C2"}, {"distributor_pn": "C3"}]
+        self._patch(monkeypatch, grid, flat)
+        out = ocr_layout.extract_pages(b"img", ".jpg", "lcsc")
+        assert out["prefill_rows"] == flat
+
+    def test_grid_wins_when_it_has_more_or_equal_rows(self, monkeypatch):
+        grid = [{"distributor_pn": "C1"}, {"distributor_pn": "C2"}]
+        flat = [{"distributor_pn": "C9"}]
+        self._patch(monkeypatch, grid, flat)
+        out = ocr_layout.extract_pages(b"img", ".jpg", "lcsc")
+        assert out["prefill_rows"] == grid
+
+    def test_grid_none_falls_back_to_flat(self, monkeypatch):
+        flat = [{"distributor_pn": "C1"}]
+        self._patch(monkeypatch, None, flat)
+        out = ocr_layout.extract_pages(b"img", ".jpg", "lcsc")
+        assert out["prefill_rows"] == flat

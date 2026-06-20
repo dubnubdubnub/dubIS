@@ -76,17 +76,20 @@ def extract_pages(file_bytes: bytes, ext: str, template: str = "generic") -> dic
     raster = pdf_raster.rasterize(file_bytes, ext)
     pages = [extract_page(png) for (png, _w, _h) in raster]
 
-    # Prefer grid-aware table extraction for ruled packing lists: it OCRs each
-    # cell in isolation and assigns columns by content, so it recovers values
-    # (e.g. LCSC C-numbers) that flat OCR mangles. Self-gating — returns None when
-    # there's no detectable grid (or OpenCV is unavailable), so we fall back to
-    # the flat-text heuristic parse below. Feed it the normalized first page (not
-    # the raw bytes) so it gets the upright, downscaled image too.
+    # Two extractors, then keep whichever recovered MORE rows:
+    #  - grid-aware (ocr_table): OCRs each ruled cell in isolation and assigns
+    #    columns by content, so it recovers values (e.g. LCSC C-numbers) that flat
+    #    OCR mangles — best on a clean, flat scan. Fed the normalized first page.
+    #  - flat heuristic parse over all page text — best when there's no usable grid
+    #    (a folded/creased photo whose cells can't be detected).
+    # Taking the larger result (grid wins ties — its rows are cleaner) means a
+    # PARTIAL grid result no longer suppresses a more complete flat parse, which is
+    # what made a 6-row packing list autofill a single row.
     import ocr_table
-    prefill_rows = ocr_table.extract_line_items(raster[0][0], template) if raster else None
-    if not prefill_rows:
-        full_text = "\n".join(ln["text"] for pg in pages for ln in pg["lines"])
-        prefill_rows = distributor_profiles.parse_with_template(template, full_text)
+    grid_rows = (ocr_table.extract_line_items(raster[0][0], template) if raster else None) or []
+    full_text = "\n".join(ln["text"] for pg in pages for ln in pg["lines"])
+    flat_rows = distributor_profiles.parse_with_template(template, full_text) or []
+    prefill_rows = grid_rows if len(grid_rows) >= len(flat_rows) else flat_rows
     return {"pages": pages, "prefill_rows": prefill_rows, "template": template}
 
 
