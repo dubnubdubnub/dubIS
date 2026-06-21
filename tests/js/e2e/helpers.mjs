@@ -65,6 +65,14 @@ export function addMockSetup(page, inventory, options = {}) {
         fetch_digikey_product: async (pn) => productMocks[`digikey:${pn}`] || null,
         fetch_pololu_product: async (sku) => productMocks[`pololu:${sku}`] || null,
         fetch_mouser_product: async (pn) => productMocks[`mouser:${pn}`] || null,
+        get_last_po_quantity: async (pk) => {
+          const m = opts.lastPoQty || {};
+          return (pk in m) ? m[pk] : null;
+        },
+        record_fetched_prices: async (...args) => {
+          record('record_fetched_prices', args);
+          return null;
+        },
         update_part_fields: async () => inv,
         list_generic_parts: async () => [],
         list_saved_searches: async () => [],
