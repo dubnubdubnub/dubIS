@@ -125,8 +125,12 @@ existing grouping/queue code is reused verbatim:
 
 **Backend (`ocr_layout.py`):**
 - Tag rows from the grid extractor `"_backend": "grid"` and the flat parser
-  `"_backend": "flat"`. Grid rows already know their cell box → carry it as
-  `bbox`; flat rows have no box (`bbox: null`).
+  `"_backend": "flat"`. Both carry `bbox: null` — the grid extractor's cell
+  boxes are in *warped/perspective-flattened* table coordinates, not the
+  displayed page-image space, so they can't be highlighted cheaply. Grid/flat
+  rows rely on the Tesseract-token fuzzy-match fallback below, which is honest:
+  those rows *were* produced by Tesseract, so matching them to Tesseract tokens
+  highlights the model that actually read them.
 
 **Frontend (`ocr-overlay-*`):**
 - Each prefill row carries `_backend` and optional `bbox` (pixel space, same
@@ -151,12 +155,13 @@ to the overlay (and grouping editor) header. Changing it:
   change does not affect already-extracted rows.
 - **Auto-prefill the vendor** (the fix for "LCSC doesn't prefill the vendor"):
   a `TEMPLATE_VENDOR` map (`lcsc`→"LCSC", `digikey`→"DigiKey", `mouser`→"Mouser",
-  `pololu`→"Pololu"; `generic`→none). On select/switch, resolve the vendor via
-  the existing `vendor-picker` upsert-by-name (creating the record with its
-  canonical URL if missing) and set it as the current vendor. `generic` leaves
-  the current vendor untouched. Only auto-fill when the vendor field is empty or
-  still equals a previously auto-filled distributor vendor (don't clobber a
-  vendor the user typed by hand).
+  `pololu`→"Pololu"; `generic`→none). On select/switch, resolve the vendor by
+  calling the existing, already-tested `vendorPicker.onVendorNameBlur(name)`,
+  which does a case-insensitive find-or-create against `store.vendors` and
+  selects the result. `generic` leaves the current vendor untouched. Only
+  auto-fill when the vendor field is empty or still equals a previously
+  auto-filled distributor vendor (don't clobber a vendor the user typed by
+  hand) — tracked via a module-level `autoVendorName` marker.
 - **Opt-in "Re-scan with this template" button.** Triggers a fresh backend pass
   (`ocrOverlayB64` with the new template) — the only path that re-runs the
   VLM/grid with the template hint. Used when the upload was done as Generic and
@@ -176,7 +181,7 @@ prompt. This improves the **initial** extraction and the opt-in re-scan.
 | Field      | Meaning                                                        |
 |------------|---------------------------------------------------------------|
 | `_backend` | `"vlm"` \| `"grid"` \| `"flat"` — which extractor produced it  |
-| `bbox`     | `[x, y, w, h]` pixel-space box, or `null` (flat parser)        |
+| `bbox`     | `[x, y, w, h]` pixel-space box (VLM only), or `null` (grid/flat) |
 
 Everything else (`mpn`, `distributor`, `distributor_pn`, `quantity`, …,
 `_low_conf`) is unchanged. The overlay `pages[]` token data is unchanged.
