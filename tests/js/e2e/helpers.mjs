@@ -112,6 +112,10 @@ export function addMockSetup(page, inventory, options = {}) {
         parse_source_file: async () => [],
         parse_source_file_b64: async () => opts.mdtInvoiceParseResult || [],
         ocr_overlay_b64: async (b64, name, template) => {
+          // Optional delay lets E2E observe the scanning skeleton before resolve.
+          if (opts.ocrOverlayDelayMs) {
+            await new Promise(r => setTimeout(r, opts.ocrOverlayDelayMs));
+          }
           // The OCR-overlay payload is supplied per-test (opts.ocrOverlayResult).
           // Default to null so non-OCR specs keep the legacy flat-parse path.
           if (!opts.ocrOverlayResult) return null;
