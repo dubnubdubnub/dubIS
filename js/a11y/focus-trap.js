@@ -27,9 +27,13 @@ export function trap(modalEl) {
   active = { el: modalEl, prev, handler };
 
   // Initial focus: [autofocus] -> first focusable -> the modal itself.
-  const initial = modalEl.querySelector('[autofocus]') || visibleFocusables(modalEl)[0] || modalEl;
-  if (initial === modalEl && !modalEl.hasAttribute('tabindex')) modalEl.tabIndex = -1;
-  initial.focus();
+  // If focus is already inside the modal (e.g. an explicit .focus() was called
+  // just before the rAF-deferred trap fires), honour it rather than overriding.
+  if (!modalEl.contains(document.activeElement)) {
+    const initial = modalEl.querySelector('[autofocus]') || visibleFocusables(modalEl)[0] || modalEl;
+    if (initial === modalEl && !modalEl.hasAttribute('tabindex')) modalEl.tabIndex = -1;
+    initial.focus();
+  }
 }
 
 export function release() {

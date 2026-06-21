@@ -275,7 +275,7 @@ export function init() {
   const el = document.getElementById('label-export-modal');
   if (!el) return; // not on this page
 
-  modal = Modal('label-export-modal', { cancelId: 'label-export-cancel' });
+  modal = Modal('label-export-modal', { cancelId: 'label-export-cancel', confirmId: 'label-export-do' });
 
   const helpEl = document.getElementById('label-export-help');
   if (helpEl) helpEl.innerHTML = HELP_HTML;

@@ -118,6 +118,7 @@ export function init() {
   adjModal = Modal("adjust-modal", {
     onClose: () => { currentPart = null; },
     cancelId: "adj-cancel",
+    confirmId: "adj-apply",
   });
   linkPriceInputs(adjUnitPrice, adjExtPrice, () => currentPart ? currentPart.qty : 0);
 
@@ -201,14 +202,6 @@ export function init() {
     showToast(toastMsg);
   });
 
-  document.addEventListener("keydown", (e) => {
-    if (adjModal.el.classList.contains("hidden")) return;
-    if (e.key === "Enter" && document.activeElement !== adjNote &&
-        !(document.activeElement && document.activeElement.classList.contains("modal-field-input"))) {
-      document.getElementById("adj-apply").click();
-    }
-  });
-
   // ── Price Modal ──
   priceTitle = document.getElementById("price-modal-title");
   priceSubtitle = document.getElementById("price-modal-subtitle");
@@ -218,6 +211,7 @@ export function init() {
   priceModal = Modal("price-modal", {
     onClose: () => { pricePart = null; },
     cancelId: "price-cancel",
+    confirmId: "price-apply",
   });
   linkPriceInputs(priceUnitInput, priceExtInput, () => pricePart ? pricePart.qty : 0);
 
@@ -258,11 +252,6 @@ export function init() {
     priceModal.close();
     onInventoryUpdated(fresh);
     showToast("Price updated for " + pk);
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (priceModal.el.classList.contains("hidden")) return;
-    if (e.key === "Enter") document.getElementById("price-apply").click();
   });
 
   // ── Undo/Redo handlers for inventory mutations ──

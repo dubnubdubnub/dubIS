@@ -58,7 +58,7 @@ async function initApp() {
   initLabelExportModal();
 
   // ── Close confirmation modal ────────────────────────────
-  const closeModal = Modal("close-modal", { cancelId: "close-cancel" });
+  const closeModal = Modal("close-modal", { cancelId: "close-cancel", confirmId: "close-save" });
 
   document.getElementById("close-discard").addEventListener("click", () => {
     closeModal.close();
