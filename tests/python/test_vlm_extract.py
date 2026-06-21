@@ -92,6 +92,7 @@ def test_extract_parses_items_for_lcsc(monkeypatch):
         "mpn": "KT-0603G", "manufacturer": "", "package": "",
         "description": "Emerald Green LED", "quantity": 4000,
         "unit_price": 0.0, "distributor": "lcsc", "distributor_pn": "C12624",
+        "_backend": "vlm", "bbox": None,
     }
     assert rows[1]["quantity"] == 1000  # "1,000" coerced
 
@@ -131,3 +132,40 @@ def test_extract_drops_rows_without_pn_or_mpn(monkeypatch):
     ]})
     rows = vlm_extract.extract_line_items(b"img", "lcsc")
     assert len(rows) == 1 and rows[0]["distributor_pn"] == "C9"
+
+
+def test_to_line_item_tags_backend_and_parses_bbox():
+    raw = {"distributor_pn": "C12345", "mfr_pn": "RC0402", "description": "10k",
+           "qty": 100, "bbox": [100, 200, 300, 250]}  # 0..1000 normalized
+    item = vlm_extract._to_line_item(raw, "lcsc", 1000, 2000)
+    assert item["_backend"] == "vlm"
+    assert item["distributor_pn"] == "C12345"
+    # 0..1000 grid -> pixels: x=100/1000*1000=100, y=200/1000*2000=400,
+    # w=(300-100)/1000*1000=200, h=(250-200)/1000*2000=100
+    assert item["bbox"] == [100, 400, 200, 100]
+
+
+def test_to_line_item_missing_bbox_is_none():
+    raw = {"mfr_pn": "RC0402", "qty": 5}
+    item = vlm_extract._to_line_item(raw, "generic", 1000, 1000)
+    assert item["_backend"] == "vlm"
+    assert item["bbox"] is None
+
+
+def test_to_line_item_malformed_bbox_is_none_not_raise():
+    raw = {"mfr_pn": "RC0402", "qty": 5, "bbox": ["x", 1, 2]}
+    item = vlm_extract._to_line_item(raw, "generic", 1000, 1000)
+    assert item["bbox"] is None
+
+
+def test_prompt_for_includes_distributor_hint():
+    p = vlm_extract._prompt_for("lcsc")
+    assert "LCSC" in p
+    assert "C" in p  # mentions the C<digits> PN format
+    assert "bbox" in p  # still asks for the box
+
+
+def test_prompt_for_generic_has_no_distributor_hint():
+    p = vlm_extract._prompt_for("generic")
+    assert "LCSC packing list" not in p
+    assert "DigiKey packing list" not in p

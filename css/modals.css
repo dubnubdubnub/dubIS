@@ -275,6 +275,17 @@
 .vendor-merge-select { width: 150px; flex: none; }
 #vendor-delete-btn.armed { background: var(--color-red); color: #fff; }
 
+/* ── Scan shell ─────────────── */
+.scan-shell-tiles { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.scan-shell-tile { display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+  border: 1px solid var(--border, #ccc); border-radius: 6px; min-width: 160px; }
+.scan-shell-tile.reading .scan-shell-detail { opacity: 0.7; }
+.scan-shell-tile.done { border-color: #2e7d32; }
+.scan-shell-tile.error { border-color: #c62828; }
+.scan-shell-spinner { width: 12px; height: 12px; border: 2px solid currentColor;
+  border-top-color: transparent; border-radius: 50%; animation: scan-shell-spin 0.8s linear infinite; }
+.scan-shell-tile:not(.reading) .scan-shell-spinner { display: none; }
+@keyframes scan-shell-spin { to { transform: rotate(360deg); } }
 /* ── Fetch-price controls (Adjust modal) ──────────────── */
 .modal-form-label { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
 #adj-fetch-row { gap: var(--adj-fetch-gap); }

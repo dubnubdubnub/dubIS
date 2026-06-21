@@ -44,7 +44,7 @@ export function renderDropZone(templates, selectedOcrTemplate = 'generic') {
           </label>
           <div class="hint">Generic = a manufacturer invoice with no distributor packing list</div>
           <p>Drop an image / PDF here</p>
-          <input type="file" id="import-ocr-input" accept=".png,.jpg,.jpeg,.pdf">
+          <input type="file" id="import-ocr-input" accept=".png,.jpg,.jpeg,.pdf" multiple>
           <button class="new-po-btn" id="import-scan-btn">📷 Scan with phone</button>
         </div>
       </div>
