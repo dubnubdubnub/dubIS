@@ -25,6 +25,42 @@ focus indicator appears during keyboard navigation only.
 - **Scope:** the whole UI — all panels, modals, header, import, BOM, flyouts.
 - **Delivery:** full pass, executed via subagent-driven dispatch.
 
+## Keyboard shortcuts
+
+### Shortcuts to add (fixed)
+
+Existing: `Ctrl+Z` undo, `Ctrl+Shift+Z` redo, `Ctrl+F` focus search, `Escape`
+(close modal / exit linking / clear search / close lightbox), `Enter` apply
+(Adjust + Price modals only).
+
+| Shortcut | Action | Notes |
+|---|---|---|
+| `Enter` | Confirm the active modal's primary action | Extend to **all** modals (Prefs Save, Consume, Save&Close, Label Export, Vendors). Exempt multi-line note fields. Gated by the *Enter submits modals* pref. |
+| `Ctrl+S` | Save | Triggers the save path (`#close-save` save logic without forcing close). |
+| `Ctrl+Y` | Redo | Added alongside `Ctrl+Shift+Z`; see configurable redo below. |
+| `Ctrl+,` | Open Preferences | Standard preferences shortcut. |
+| `Escape` | Also exits Label / Print-Labels mode | Symmetric with existing linking-mode Escape. |
+| `Ctrl+1/2/3` | Focus Import / Inventory / BOM panel | Moves the roving focus into that panel's grid or first control. |
+| `?` or `F1` | Open the shortcut-help overlay | Lists all shortcuts, reflecting the current redo binding. |
+
+Power-user action keys on a focused row (`a`=Adjust, `l`=Link) are **deferred**
+(noted as a future batch, not built now).
+
+### Configurable shortcuts (Preferences → new "Keyboard" section)
+
+Stored under a `shortcuts` key in `preferences.json`:
+
+| Pref | Values | Default |
+|---|---|---|
+| `redo` | `both` / `ctrl-y` / `ctrl-shift-z` | `both` (both bindings trigger redo) |
+| `enterSubmitsModals` | `true` / `false` | `true` |
+| `vimNav` | `true` / `false` | `false` (when on, `h/j/k/l` alias `←/↓/↑/→` in grids and scroll regions) |
+
+The Preferences modal gets a new **Keyboard** section: a segmented control / select
+for the redo binding and two checkboxes for the other two. Changes persist via the
+existing `savePreferences` flow and take effect immediately (the central shortcut
+dispatcher and grids read the live pref values).
+
 ## Architecture
 
 ### New utility layer — `js/a11y/`
@@ -73,6 +109,35 @@ Five small, independently testable modules.
      (`INVENTORY_LOADED`, `INVENTORY_UPDATED`, `BOM_LOADED`, `BOM_CLEARED`) by
      calling `grid.refresh()` and re-marking scroll regions (idempotent).
 
+### Shortcut dispatch — `js/a11y/shortcuts.js` + `shortcut-help.js`
+
+6. **`shortcuts.js`** — central, single document-level keydown dispatcher.
+   - A declarative keymap of command → binding(s) → handler. Commands: `undo`,
+     `redo`, `save`, `openPreferences`, `exitMode` (label/linking), `focusPanel1/2/3`,
+     `showHelp`.
+   - Reads the live `shortcuts` prefs: `redo` binding (`both`/`ctrl-y`/`ctrl-shift-z`)
+     and `vimNav`. When `vimNav` is on, the grid/scroll modules also accept `h/j/k/l`
+     — that toggle is read by `roving-grid.js`/`scrollable.js` via a shared
+     `getShortcutPrefs()` accessor exported here.
+   - **Migration:** the existing global `Ctrl+Z` / `Ctrl+Shift+Z` handlers in
+     `app-init.js` move into this dispatcher so redo can honor the pref; `Ctrl+F`
+     and the contextual `Escape`/search handlers in `inv-events.js` stay where they
+     are (they're panel-local). The dispatcher ignores shortcuts that would fire
+     while typing in an input/textarea, except the global ones that should always
+     work (Save, Preferences, Undo/Redo).
+
+7. **`shortcut-help.js`** — `?` / `F1` overlay listing every shortcut, grouped, with
+   the redo row reflecting the active binding. Implemented as a lightweight modal
+   reusing the `Modal()` factory (so it gets the focus trap + Escape for free).
+
+### Preferences — Keyboard section
+
+`preferences-modal.js` gains a **Keyboard** section (new block in the prefs modal,
+before the existing dividers): a select for redo binding and checkboxes for
+*Enter submits modals* and *Vim-style hjkl navigation*. Values load from / save to
+the `shortcuts` key via the existing `savePreferences` flow. `store.js` exposes the
+shortcut prefs (default-filled) so all consumers read a single source of truth.
+
 ### Making non-button elements reachable
 
 The surface map found clickable `<div>`/`<td>` elements Tab can't reach. Each is
@@ -110,6 +175,12 @@ Wire `trap()` / `release()` into the existing `Modal()` factory in `ui-helpers.j
 so all seven modals get focus trapping, initial focus, and focus restoration for
 free. The existing Escape-to-close and backdrop-click behavior is preserved.
 
+Also add an optional `confirmId` (or `onConfirm`) param to the `Modal()` factory:
+when set and the *Enter submits modals* pref is on, a plain Enter (not from a
+multi-line note field) triggers that primary action. The Adjust and Price modals'
+hand-rolled Enter handlers are migrated to this factory option so behavior is
+uniform across all modals.
+
 ## Testing
 
 New Playwright specs (realistic key presses only — real `keyboard.press`, no
@@ -123,9 +194,17 @@ New Playwright specs (realistic key presses only — real `keyboard.press`, no
 - `modal-focus-trap.spec.mjs` — opening a modal moves focus inside; Tab cycles
   within; Escape closes and focus returns to the trigger.
 - `focus-ring.spec.mjs` — keyboard focus shows the ring; a mouse click does not.
+- `shortcuts.spec.mjs` — `Ctrl+S` saves, `Ctrl+,` opens Prefs, `Ctrl+Y` **and**
+  `Ctrl+Shift+Z` both redo under the default `both` setting, `Ctrl+1/2/3` move focus
+  between panels, `Escape` exits label mode, `Enter` confirms a representative modal,
+  `?`/`F1` opens the help overlay.
+- `shortcut-prefs.spec.mjs` — set redo to `ctrl-y` only → `Ctrl+Shift+Z` no longer
+  redoes; turn off *Enter submits modals* → Enter no longer confirms; turn on
+  *Vim nav* → `j/k` move the grid rover.
 
 Unit tests (vitest) for the pure logic in `roving-grid.js` (next-cell computation,
-clamping) and `scrollable.js` (scroll-delta math) against jsdom.
+clamping; `hjkl` aliasing when enabled), `scrollable.js` (scroll-delta math), and
+`shortcuts.js` (binding-match resolution honoring the `redo` pref).
 
 **Guardrail:** `sticky-buttons.spec.mjs` and `resize-visibility.spec.mjs` must keep
 passing untouched (per CLAUDE.md — they catch real clipping bugs; do not weaken).
@@ -134,17 +213,25 @@ passing untouched (per CLAUDE.md — they catch real clipping bugs; do not weake
 
 - No ARIA live-region / screen-reader announcement work beyond roles already added.
 - No redesign of existing components; only additive focus/keyboard behavior.
-- No change to mouse behavior or existing shortcuts (Ctrl+Z/Redo/Ctrl+F/Escape).
+- No change to mouse behavior. Existing shortcuts are preserved (and `Ctrl+Z`/redo
+  are migrated into the central dispatcher, behavior-equivalent by default).
+- Power-user per-row action keys (`a`/`l`) are deferred to a later batch.
 
 ## Execution plan
 
 Dispatched via subagent-driven development:
 
-1. Utility layer (`js/a11y/*` + unit tests) — foundation, no UI wiring.
+1. Utility layer (`js/a11y/*` — roving-grid, scrollable, focus-trap,
+   activate-on-key + unit tests) — foundation, no UI wiring.
 2. Focus styling (`css/a11y.css` + import) — independent.
 3. Inventory roving grid wiring + `activateOnKey` for inventory divs + spec.
 4. BOM roving grid wiring + `.row-delete` + spec.
 5. Scroll regions wiring + spec.
-6. Modal focus trap integration + spec.
-7. Reconverge: full `eslint` / `tsc` / `vitest` / `playwright`, regenerate
-   fixtures if backend untouched (none expected), verify guardrail specs green.
+6. Modal focus trap + Enter-to-confirm in `Modal()` factory + spec.
+7. Shortcut dispatcher (`shortcuts.js`): migrate undo/redo, add Ctrl+S, Ctrl+,,
+   Ctrl+1/2/3, Escape-exits-label-mode + spec.
+8. Shortcut-help overlay (`shortcut-help.js`, `?`/`F1`) + spec.
+9. Preferences "Keyboard" section (redo binding, Enter-submit, Vim nav) wired to
+   `preferences.json` `shortcuts` key; grids/dispatcher read live prefs + spec.
+10. Reconverge: full `eslint` / `tsc` / `vitest` / `playwright`, regenerate
+    fixtures if backend untouched (none expected), verify guardrail specs green.
