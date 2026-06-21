@@ -6,7 +6,7 @@
    pseudo-vendor chips and the same apiVendors/canonicalizeUrl logic that
    mfg-direct uses, wired to a local `vendor` selection. */
 
-import { AppLog } from '../../../api.js';
+import { AppLog, apiMfgDirect } from '../../../api.js';
 import { escHtml, showToast } from '../../../ui-helpers.js';
 import { createVendorPicker, isPseudoVendor, vendorFaviconHtml } from '../vendor-picker.js';
 import { renderModal } from './ocr-overlay-renderer.js';
@@ -14,13 +14,21 @@ import {
   createState, selectToken, selectTokens, selectCell,
   applyPending, setCellValue, setPage, clearPending, setTokenMode,
   setZoom, tokenText, addRow, deleteRow, shiftColumn, setFocusRow,
+  setTemplateAndReparse,
 } from './ocr-overlay-state.js';
+import { templateVendorName } from '../template-switch.js';
 import { normalizeRect, tokensInRect } from './ocr-overlay-hittest.js';
 
 let state = null;
 let onConfirmCb = null;
 let vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
 let escHandler = null;
+// Auto-filled vendor name from the last template prefill. Tracked so a hand-typed
+// vendor name is never clobbered by a subsequent template switch.
+let autoVendorName = '';
+// Source image bytes + filename needed for the opt-in re-scan button.
+let sourceB64 = '';
+let sourceName = '';
 // Active token→field drag (pointer-based). `moved` flips once the pointer travels
 // past DRAG_THRESHOLD so a plain click still falls through to click-to-assign.
 let drag = null;
@@ -33,8 +41,43 @@ const vendorPicker = createVendorPicker({
   onChange: () => rerender(),
 });
 
+/**
+ * If the new template implies a known vendor, prefill the vendor picker — but
+ * only when the vendor field is empty or still showing a previous auto-fill.
+ * A hand-typed vendor name is never overwritten.
+ */
+function maybePrefillVendor(template) {
+  const name = templateVendorName(template);
+  if (!name) return;  // generic: leave vendor untouched
+  const cur = (vendor.name || '').trim();
+  // Only fill when empty or still showing a previous auto-fill (don't clobber a
+  // hand-typed vendor).
+  if (cur && cur.toLowerCase() !== autoVendorName.toLowerCase()) return;
+  autoVendorName = name;
+  vendorPicker.onVendorNameBlur(name);  // find-or-create + select + onChange→rerender
+}
+
+/** Re-OCR the source image with the current template (opt-in fresh backend pass). */
+async function onRescanClick() {
+  if (!sourceB64) { showToast('No source image to re-scan'); return; }
+  showToast('Re-scanning with ' + state.template + '…');
+  try {
+    const payload = await apiMfgDirect.ocrOverlayB64(sourceB64, sourceName || 'scan.jpg', state.template);
+    if (payload && payload.pages && payload.pages.length) {
+      const keepVendor = { ...vendor };
+      openOverlay(payload, { onConfirm: onConfirmCb, initialVendor: keepVendor,
+        sourceB64, sourceName });
+      return;
+    }
+    showToast('Re-scan found no text');
+  } catch (exc) {
+    AppLog.error('Re-scan failed: ' + exc);
+    showToast('Re-scan failed — see log');
+  }
+}
+
 /** Open the overlay for a payload {pages, prefill_rows, template}. */
-export function openOverlay(payload, { onConfirm, initialRows, initialVendor } = {}) {
+export function openOverlay(payload, { onConfirm, initialRows, initialVendor, sourceB64: sb64, sourceName: sname } = {}) {
   state = createState(payload);
   if (initialRows) {
     state.rows = initialRows.map(r => ({ ...r }));
@@ -43,6 +86,9 @@ export function openOverlay(payload, { onConfirm, initialRows, initialVendor } =
   onConfirmCb = onConfirm || null;
   vendor = initialVendor ? { ...initialVendor }
     : { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
+  sourceB64 = sb64 || '';
+  sourceName = sname || '';
+  autoVendorName = '';
 
   let overlay = document.getElementById('ocr-overlay');
   if (overlay) overlay.remove();
@@ -80,6 +126,9 @@ function closeOverlay() {
   state = null;
   onConfirmCb = null;
   vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
+  autoVendorName = '';
+  sourceB64 = '';
+  sourceName = '';
 }
 
 function rerender() {
@@ -191,6 +240,15 @@ function bindEvents(root) {
 
   const confirm = root.querySelector('#ocr-confirm');
   if (confirm) confirm.onclick = onConfirmClick;
+
+  const tmplSel = root.querySelector('#ocr-template-select');
+  if (tmplSel) tmplSel.onchange = () => {
+    state = setTemplateAndReparse(state, tmplSel.value);
+    maybePrefillVendor(tmplSel.value);
+    rerender();
+  };
+  const rescan = root.querySelector('#ocr-rescan');
+  if (rescan) rescan.onclick = onRescanClick;
 
   bindRubberBand(root);
 }

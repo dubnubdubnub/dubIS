@@ -65,6 +65,8 @@ async function reopenReviewForUndo(data) {
           state.sourceFile = { name: data.sourceName, bytes: data.sourceBytes };
           importPO();
         },
+        sourceB64: data.sourceBytes,
+        sourceName: data.sourceName,
       });
       return;
     }
@@ -146,6 +148,8 @@ export function routeScanResult(photos, groups, template, sourceHint) {
           || { name: only.filename, bytes: only.image_b64 };
         importPO();
       },
+      sourceB64: only.image_b64,
+      sourceName: only.filename,
     });
   AppLog.info(`Scan: overlay for ${only.filename} (${template || 'generic'})`);
 }
@@ -562,6 +566,8 @@ function _openNextInQueue() {
       if (src) state.sourceFile = src;
       importPO();
     },
+    sourceB64: gp.image_b64,
+    sourceName: gp.filename,
   });
   if (gp.poLabel) showToast(`Reviewing ${gp.poLabel}`);
 }

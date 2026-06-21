@@ -47,6 +47,27 @@
   font-weight: 400;
   color: var(--text-muted) !important;
 }
+.ocr-tmpl {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.ocr-tmpl select {
+  font-size: 12px;
+  padding: 1px 4px;
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  cursor: pointer;
+}
+#ocr-rescan {
+  font-size: 12px;
+  padding: 2px 7px;
+}
 
 .ocr-split {
   display: flex;

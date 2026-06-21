@@ -1,5 +1,12 @@
 /* ocr-overlay-state.js — pure state for the OCR overlay modal (no DOM, no api). */
 
+import { reparseRowsForTemplate } from '../template-switch.js';
+
+/** Switch the active template and re-route distributor columns over existing rows. */
+export function setTemplateAndReparse(state, template) {
+  return { ...state, template, rows: reparseRowsForTemplate(state.rows, template) };
+}
+
 export function createState(payload) {
   return {
     template: payload.template,
