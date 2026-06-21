@@ -49,7 +49,12 @@ function renderHeader(state) {
   const fsBtn = `<button id="ocr-fullscreen" type="button" class="ocr-fullscreen-btn"
     title="${state.fullscreen ? 'Exit fullscreen' : 'Fullscreen'}"
     aria-pressed="${!!state.fullscreen}">${state.fullscreen ? '🗗' : '⛶'}</button>`;
-  return `<div class="ocr-header">Review scan — template: ${escHtml(state.template)} ${modeToggle} ${zoomCtl} ${fsBtn} ${nav}
+  const tmplOpts = ['generic', 'lcsc', 'digikey', 'mouser', 'pololu']
+    .map(k => `<option value="${k}"${state.template === k ? ' selected' : ''}>${k}</option>`).join('');
+  const tmplCtl = `<label class="ocr-tmpl">Template:
+    <select id="ocr-template-select">${tmplOpts}</select></label>
+    <button id="ocr-rescan" type="button" class="btn-sm" title="Re-OCR with this template">↻ Re-scan</button>`;
+  return `<div class="ocr-header">Review scan ${tmplCtl} ${modeToggle} ${zoomCtl} ${fsBtn} ${nav}
     <span class="ocr-header-hint">Click or drag a box onto a cell or the vendor name.</span></div>`;
 }
 
