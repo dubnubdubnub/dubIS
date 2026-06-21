@@ -64,9 +64,11 @@ async function onRescanClick() {
   try {
     const payload = await apiMfgDirect.ocrOverlayB64(sourceB64, sourceName || 'scan.jpg', state.template);
     if (payload && payload.pages && payload.pages.length) {
+      const keepAuto = autoVendorName;          // remember whether/what was auto-filled
       const keepVendor = { ...vendor };
       openOverlay(payload, { onConfirm: onConfirmCb, initialVendor: keepVendor,
         sourceB64, sourceName });
+      autoVendorName = keepAuto;                 // openOverlay reset it to ''; restore it
       return;
     }
     showToast('Re-scan found no text');
