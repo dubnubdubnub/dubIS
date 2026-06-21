@@ -65,6 +65,14 @@ export function addMockSetup(page, inventory, options = {}) {
         fetch_digikey_product: async (pn) => productMocks[`digikey:${pn}`] || null,
         fetch_pololu_product: async (sku) => productMocks[`pololu:${sku}`] || null,
         fetch_mouser_product: async (pn) => productMocks[`mouser:${pn}`] || null,
+        get_last_po_quantity: async (pk) => {
+          const m = opts.lastPoQty || {};
+          return (pk in m) ? m[pk] : null;
+        },
+        record_fetched_prices: async (...args) => {
+          record('record_fetched_prices', args);
+          return null;
+        },
         update_part_fields: async () => inv,
         list_generic_parts: async () => [],
         list_saved_searches: async () => [],
@@ -104,6 +112,10 @@ export function addMockSetup(page, inventory, options = {}) {
         parse_source_file: async () => [],
         parse_source_file_b64: async () => opts.mdtInvoiceParseResult || [],
         ocr_overlay_b64: async (b64, name, template) => {
+          // Optional delay lets E2E observe the scanning skeleton before resolve.
+          if (opts.ocrOverlayDelayMs) {
+            await new Promise(r => setTimeout(r, opts.ocrOverlayDelayMs));
+          }
           // The OCR-overlay payload is supplied per-test (opts.ocrOverlayResult).
           // Default to null so non-OCR specs keep the legacy flat-parse path.
           if (!opts.ocrOverlayResult) return null;

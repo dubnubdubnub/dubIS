@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  createState, selectToken, selectCell, applyPending,
+  createState, createLoadingState, selectToken, selectCell, applyPending,
   combineTokens, setCellValue, tokenText,
   selectTokens, setPage, clearPending, setTokenMode, setZoom,
   addRow, deleteRow, shiftColumn,
@@ -126,6 +126,32 @@ describe('ocr-overlay-state', () => {
     s = clearPending(s);
     expect(s.pending.kind).toBe(null);
     expect(s.pending.cell).toBe(null);
+  });
+});
+
+describe('createState loading flag', () => {
+  it('createState defaults loading to false', () => {
+    const s = createState({ template: 'generic', pages: [], prefill_rows: [] });
+    expect(s.loading).toBe(false);
+  });
+});
+
+describe('createLoadingState', () => {
+  it('marks loading and keeps the image list with imageIdx 0', () => {
+    const s = createLoadingState([{ b64: 'AAAA', name: 'po.png' }]);
+    expect(s.loading).toBe(true);
+    expect(s.images).toEqual([{ b64: 'AAAA', name: 'po.png' }]);
+    expect(s.imageIdx).toBe(0);
+  });
+
+  it('tolerates an empty/undefined image list', () => {
+    expect(createLoadingState().images).toEqual([]);
+    expect(createLoadingState([]).loading).toBe(true);
+  });
+
+  it('normalizes missing b64/name to empty strings', () => {
+    const s = createLoadingState([{}]);
+    expect(s.images[0]).toEqual({ b64: '', name: '' });
   });
 });
 

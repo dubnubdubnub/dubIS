@@ -334,6 +334,7 @@ graph LR
     "tests/js/ocr-overlay-renderer.test.js" --> "js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js"
     "tests/js/ocr-overlay-state.test.js" --> "js/import/mfg-direct/ocr-overlay/ocr-overlay-state.js"
     "tests/js/part-keys.test.js" --> "js/part-keys.js"
+    "tests/js/pick-tier.test.js" --> "js/inventory-modals.js"
     "tests/js/qrcode.test.js" --> "js/vendor/qrcode.js"
     "tests/js/real-data.test.js" --> "js/csv-parser.js"
     "tests/js/real-data.test.js" --> "js/matching.js"
@@ -407,6 +408,7 @@ graph LR
     "tests/python/test_inventory_api_pricing.py" --> "domain/pricing.py"
     "tests/python/test_inventory_api_pricing.py" --> "tests/python/helpers.py"
     "tests/python/test_inventory_ops.py" --> "inventory_ops.py"
+    "tests/python/test_last_po_quantity.py" --> "inventory_ops.py"
     "tests/python/test_mfg_direct_import.py" --> "distributor_manager.py"
     "tests/python/test_mfg_direct_import.py" --> "mfg_direct_import.py"
     "tests/python/test_mfg_direct_import.py" --> "vendors.py"
@@ -576,7 +578,7 @@ graph LR
 ### inventory_ops.py
 
 - **Imports:** `categorize.py`, `csv_io.py`, `domain/pricing.py`, `vendors.py`
-- **Imported by:** `cache_db.py`, `domain/inventory.py`, `inventory_api.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_ops.py`
+- **Imported by:** `cache_db.py`, `domain/inventory.py`, `inventory_api.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_ops.py`, `tests/python/test_last_po_quantity.py`
 
 ### js/api.js
 
@@ -741,7 +743,7 @@ graph LR
 ### js/inventory-modals.js
 
 - **Imports:** `js/api.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
-- **Imported by:** `js/app-init.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`
+- **Imported by:** `js/app-init.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `tests/js/pick-tier.test.js`
 
 ### js/inventory/favicon-stack.js
 
@@ -1218,6 +1220,11 @@ graph LR
 - **Imports:** `js/part-keys.js`
 - **Imported by:** —
 
+### tests/js/pick-tier.test.js
+
+- **Imports:** `js/inventory-modals.js`
+- **Imported by:** —
+
 ### tests/js/qrcode.test.js
 
 - **Imports:** `js/vendor/qrcode.js`
@@ -1486,6 +1493,11 @@ graph LR
 - **Imported by:** —
 
 ### tests/python/test_inventory_ops.py
+
+- **Imports:** `inventory_ops.py`
+- **Imported by:** —
+
+### tests/python/test_last_po_quantity.py
 
 - **Imports:** `inventory_ops.py`
 - **Imported by:** —

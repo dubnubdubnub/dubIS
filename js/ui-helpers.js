@@ -59,7 +59,9 @@ export function Modal(id, { onClose, cancelId, confirmId } = {}) {
     if (e.key === "Escape") { close(); return; }
     if (e.key === "Enter" && confirmId && _enterSubmitEnabled()) {
       const t = e.target;
-      if (t instanceof Element && t.closest('textarea, #adj-note')) return;
+      // Don't hijack Enter from controls with their own Enter semantics
+      // (buttons/selects/links fire natively; textarea + #adj-note want newlines).
+      if (t instanceof Element && t.closest('textarea, select, button, a[href], #adj-note')) return;
       e.preventDefault();
       const btn = document.getElementById(confirmId);
       if (btn && !btn.disabled) btn.click();
