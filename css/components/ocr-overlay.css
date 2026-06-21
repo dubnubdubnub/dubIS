@@ -189,3 +189,11 @@ th.ocr-row-delete { cursor: default; }
   box-shadow: 0 1px 0 rgba(0,0,0,0.3);
 }
 .ocr-confirm-final:hover { background: #2ea043; }
+
+/* ── Row-highlight overlays (drawn on top of scan image tokens) ─────────── */
+.ocr-hi { position: absolute; pointer-events: none; border-radius: 2px; }
+.ocr-hi-vlm { outline: 2px solid #7b1fa2; background: rgba(123,31,162,0.15); }
+.ocr-hi-ocr { outline: 2px solid #1565c0; background: rgba(21,101,192,0.12); }
+
+/* ── Backend tag column in the grid (tiny label: VLM / OCR grid / OCR) ─── */
+.ocr-row-backend { font-size: 10px; color: var(--muted, #888); white-space: nowrap; padding: 0 4px; }
