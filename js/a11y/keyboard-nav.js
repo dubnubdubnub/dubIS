@@ -13,9 +13,20 @@ import { activateOnKey } from './activate-on-key.js';
 // roving-grid.js grid()). activateOnKey is idempotent and won't fight the grid because
 // once the grid sets tabindex=-1 the element already has a tabindex attribute and
 // activateOnKey leaves it alone.
+// Data column spans (.part-ids, .part-mpn, etc.) are included so arrow keys can traverse
+// all visible columns, not just action buttons. roving-grid.js innermost() ensures that
+// when a column wrapper and a child button both match, only the child is a grid cell.
 const INV_CELLS = [
-  '.part-mpn', '.no-dist-warn', '.price-warn-btn', '.generic-group-badge',
-  '.near-miss-badge', '.adj-btn', '.link-btn',
+  // Plain inventory column spans (inv-row-build.js / inventory-renderer.js renderPartRowHtml).
+  '.part-ids', '.part-mpn', '.part-vendor', '.part-unit-price', '.part-value',
+  '.part-qty', '.part-desc',
+  // BOM comparison data cells rendered by createBomRowElement into #inventory-body tbody tr.
+  // td.status is the icon column (not interactive); td.btn-group cells are covered by
+  // the button selectors below. roving-grid.js innermost() prevents double-counting.
+  'td:not(.status):not(.btn-group)',
+  // Action buttons (appear in both row types and/or BOM alt-rows).
+  '.no-dist-warn', '.price-warn-btn', '.generic-group-badge',
+  '.near-miss-badge', '.adj-btn', '.link-btn', '.confirm-btn', '.unconfirm-btn', '.swap-btn',
   '.inv-section-header', '.inv-parent-header', '.inv-subsection-header',
 ].join(',');
 
@@ -24,15 +35,22 @@ const INV_CELLS = [
 // The brief included '.row-delete' — that class lives in staging rows only, not main BOM rows.
 // '.unconfirm-btn' is included alongside '.confirm-btn' (the renderer emits one or the other).
 // '.swap-btn' only appears in alt-rows, which are also <tr> elements matched by rowSelector 'tr'.
+// td:not(.status):not(.btn-group) captures all data cells (refs-cell, mono, inv-qty-cell,
+// desc-cell) so arrow keys traverse all columns. roving-grid.js innermost() ensures buttons
+// inside td.btn-group don't double-count with the td itself (btn-group is excluded anyway).
 const BOM_CELLS = [
+  'td:not(.status):not(.btn-group)',
   '.swap-btn', '.adj-btn', '.confirm-btn', '.unconfirm-btn', '.link-btn',
 ].join(',');
 
 const SCROLL_SELECTORS = [
   '.panel-body', '.prefs-sliders', '.vendors-list', '.vendors-detail-col',
-  '.bom-table-wrap', '.flyout-members', '.refs-scroll', '.console-entries',
+  '.bom-table-wrap', '.flyout-members', '.console-entries',
   '.label-export-preview', '.label-po-list', '.import-preview',
   '.scan-grouping-list', '.ocr-grid-pane',
+  // NOTE: .refs-scroll intentionally removed — the Designators cell (td.refs-cell)
+  // is now a grid cell navigated by arrow keys; making .refs-scroll a separate
+  // scroll tab-stop would split focus between two stops in the same column.
 ];
 
 const ACTIVATE_SELECTORS = [
@@ -42,8 +60,12 @@ const ACTIVATE_SELECTORS = [
 
 // Inventory row selector includes both part rows and the three header types.
 // Headers act as single-cell rows (roving-grid.js grid() handles them via row.matches()).
+// 'tbody tr' covers BOM comparison <tr> rows rendered by createBomRowElement so that
+// ArrowDown/Up can traverse them; bare 'tr' is intentionally avoided to prevent
+// matching table header rows (<thead tr>).
 const INV_ROW_SELECTOR = [
   '.inv-part-row',
+  'tbody tr',
   '.inv-section-header', '.inv-parent-header', '.inv-subsection-header',
 ].join(',');
 

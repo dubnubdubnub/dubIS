@@ -17,6 +17,11 @@ export function computeTarget(rows, r, c, key) {
   return null;
 }
 
+/** Return only the innermost matched cells — drop any cell that contains another matched cell. */
+function innermost(cells) {
+  return cells.filter((c) => !cells.some((o) => o !== c && c.contains(o)));
+}
+
 export function RovingGrid(container, { rowSelector, cellSelector, rowKey }) {
   let lastKey = null; // remembers focused row key across re-render
 
@@ -27,7 +32,11 @@ export function RovingGrid(container, { rowSelector, cellSelector, rowKey }) {
         row,
         // If the row element itself matches cellSelector (e.g. a header acting as a
         // single-cell row), use [row] directly; otherwise collect descendant cells.
-        cells: row.matches(cellSelector) ? [row] : Array.from(row.querySelectorAll(cellSelector)),
+        // Apply innermost() to drop outer wrappers when both a container and its
+        // child button match cellSelector (e.g. td.refs-cell + .refs-scroll child).
+        cells: row.matches(cellSelector)
+          ? [row]
+          : innermost(Array.from(row.querySelectorAll(cellSelector))),
       }))
       .filter((g) => g.cells.length > 0);
   }
