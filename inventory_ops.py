@@ -92,6 +92,32 @@ def read_and_merge(purchase_csv: str,
     return file_fieldnames, merged
 
 
+def last_po_quantity(purchase_csv: str, part_key: str) -> int | None:
+    """Return the Quantity from the most recent purchase-ledger row matching
+    part_key, or None if the part has no rows / no parseable quantity.
+
+    Rows are chronological (appended in order), so the LAST matching row is the
+    most recent PO — same 'last write wins' convention used by cache_db.py.
+    """
+    if not os.path.exists(purchase_csv):
+        return None
+
+    result: int | None = None
+    with open(purchase_csv, newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if get_part_key(row) != part_key:
+                continue
+            raw = (row.get("Quantity") or "").strip()
+            try:
+                result = int(float(raw))
+            except (ValueError, TypeError):
+                # Blank or garbage quantity — skip; do not clobber good earlier value
+                pass
+
+    return result
+
+
 def compute_adjusted_qty(current: int, adj_type: str, qty: int) -> int | None:
     """Compute new quantity after applying an adjustment.
 

@@ -8,18 +8,25 @@
 // .selectOption(), .click() — NO dispatchEvent, NO {force:true}, NO synthetic
 // events (project hard rule).
 //
+// Hybrid loading UX (post-merge with #303):
+//   - ONE image  → the in-overlay scanning skeleton (#303) that morphs into the
+//     review in place — exercised here via Test 3 (single drop → #ocr-overlay)
+//     and covered in depth by ocr-scanning-skeleton.spec.mjs.
+//   - 2+ images  → the Reading… shell (one tile per file) → grouping editor.
+//     The shell (#scan-shell-overlay) is therefore a MULTI-image affordance.
+//
 // Integration concerns addressed here:
 //
 // 1. SHELL VISIBILITY: ocr_overlay_b64 normally resolves immediately in the
-//    mock, so the scan-shell-overlay is closed before Playwright can assert it.
-//    The shell test installs a second addInitScript (last writer wins for
-//    window.pywebview) that wraps ocr_overlay_b64 with a ~150 ms delay so the
-//    shell is visibly present before the OCR result lands.
+//    mock, so the scan-shell-overlay would close before Playwright can assert
+//    it. Test 1 installs a second addInitScript (last writer wins for
+//    window.pywebview) that wraps ocr_overlay_b64 with a ~200 ms delay so the
+//    shell is visibly present before the OCR results land.
 //
-// 2. MULTI-IMAGE: setInputFiles with three buffers makes three sequential
+// 2. MULTI-IMAGE: setInputFiles with several buffers makes that many sequential
 //    ocr_overlay_b64 calls. The mock is not a one-shot — it returns a valid
-//    result on every invocation. Three calls → three photo records → grouping
-//    editor with three thumbnails.
+//    result on every invocation. N calls → N photo records → grouping editor
+//    with N thumbnails.
 //
 // 3. TEMPLATE SWITCH: selectOption('#ocr-template-select','lcsc') fires the
 //    native change event → maybePrefillVendor('lcsc') → vendorPicker
@@ -63,9 +70,9 @@ const OCR_RESULT = {
 };
 
 // ---------------------------------------------------------------------------
-// Test 1 — one image → shell IMMEDIATELY → then OCR overlay; shell gone
+// Test 1 — multiple images → Reading shell IMMEDIATELY → then grouping editor
 // ---------------------------------------------------------------------------
-test('one image: Reading shell appears immediately, then OCR overlay replaces it',
+test('multiple images: Reading shell appears immediately, then the grouping editor',
   async ({ page }) => {
     // Standard mock setup — we override ocr_overlay_b64 below with a delayed
     // version so the shell is observable before OCR finishes.
@@ -83,10 +90,6 @@ test('one image: Reading shell appears immediately, then OCR overlay replaces it
       // Unconditionally ensure window.pywebview.api exists and install the
       // delayed mock. No conditional guard — a guarded override that silently
       // does nothing would make the shell-visibility assertion tautological.
-      // addMockSetup's initScript runs first (Playwright executes addInitScript
-      // scripts in registration order), so pywebview is already populated; but
-      // we defensively initialise the chain anyway to guarantee the assignment
-      // always takes effect regardless of future harness changes.
       window.pywebview = window.pywebview || {};
       window.pywebview.api = window.pywebview.api || {};
       window.pywebview.api.ocr_overlay_b64 = async (b64, name, template) => {
@@ -99,18 +102,20 @@ test('one image: Reading shell appears immediately, then OCR overlay replaces it
     await page.goto('/index.html');
     await waitForInventoryRows(page);
 
-    // Hand one PNG buffer to the OCR file input (same as ocr-overlay.spec.mjs).
-    await page.locator('#import-ocr-input').setInputFiles({
-      name: 'po-scan.png',
-      mimeType: 'image/png',
-      buffer: Buffer.from(PNG_1X1_B64, 'base64'),
-    });
+    // Two images → the Reading shell (a MULTI-image affordance in the hybrid).
+    await page.locator('#import-ocr-input').setInputFiles([
+      { name: 'scan-a.png', mimeType: 'image/png', buffer: Buffer.from(PNG_1X1_B64, 'base64') },
+      { name: 'scan-b.png', mimeType: 'image/png', buffer: Buffer.from(PNG_1X1_B64, 'base64') },
+    ]);
 
-    // The Reading… shell must appear immediately (before OCR resolves).
+    // The Reading… shell must appear immediately (before OCR resolves), one
+    // tile per dropped image.
     await expect(page.locator('#scan-shell-overlay')).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('.scan-shell-tile')).toHaveCount(2);
 
-    // After OCR resolves (~200ms), the overlay opens and the shell closes.
-    await expect(page.locator('#ocr-overlay')).toBeVisible({ timeout: 5000 });
+    // After both OCR calls resolve (~200ms each), the grouping editor opens and
+    // the shell closes.
+    await expect(page.locator('#scan-grouping-overlay')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#scan-shell-overlay')).toHaveCount(0);
   });
 

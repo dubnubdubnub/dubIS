@@ -1,4 +1,5 @@
 import io
+import logging
 import shutil
 
 import pytest
@@ -157,3 +158,18 @@ class TestExtractPagesPrefillSelection:
                     vlm_rows=None)
         out = ocr_layout.extract_pages(b"img", ".jpg", "lcsc")
         assert out["prefill_rows"] == grid
+
+    @pytest.mark.parametrize("vlm,grid,flat,marker", [
+        ([{"distributor_pn": "C1"}], [], [], "local VLM"),
+        (None, [{"distributor_pn": "C1"}, {"distributor_pn": "C2"}],
+         [{"distributor_pn": "C9"}], "Tesseract grid"),
+        (None, [{"distributor_pn": "C1"}],
+         [{"distributor_pn": "C1"}, {"distributor_pn": "C2"}], "Tesseract flat-parse"),
+    ])
+    def test_logs_which_backend(self, monkeypatch, caplog, vlm, grid, flat, marker):
+        # The log states which OCR backend produced the rows, for diagnosability.
+        self._patch(monkeypatch, grid_rows=grid, flat_rows=flat, vlm_rows=vlm)
+        with caplog.at_level(logging.INFO, logger="ocr_layout"):
+            ocr_layout.extract_pages(b"img", ".jpg", "lcsc")
+        assert marker in caplog.text
+        assert "OCR backend:" in caplog.text
