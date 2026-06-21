@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import base64
 import io
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 LOW_CONF = 60.0  # words below this are flagged for review in prefill
 
@@ -84,6 +87,8 @@ def extract_pages(file_bytes: bytes, ext: str, template: str = "generic") -> dic
     import vlm_extract
     vlm_rows = vlm_extract.extract_line_items(raster[0][0], template) if raster else None
     if vlm_rows:
+        logger.info("OCR backend: local VLM (%s) — extracted %d line item(s)",
+                    vlm_extract.model_name(), len(vlm_rows))
         return {"pages": pages, "prefill_rows": vlm_rows, "template": template}
 
     # Two extractors, then keep whichever recovered MORE rows:
@@ -99,7 +104,13 @@ def extract_pages(file_bytes: bytes, ext: str, template: str = "generic") -> dic
     grid_rows = (ocr_table.extract_line_items(raster[0][0], template) if raster else None) or []
     full_text = "\n".join(ln["text"] for pg in pages for ln in pg["lines"])
     flat_rows = distributor_profiles.parse_with_template(template, full_text) or []
-    prefill_rows = grid_rows if len(grid_rows) >= len(flat_rows) else flat_rows
+    if len(grid_rows) >= len(flat_rows):
+        prefill_rows, backend = grid_rows, "Tesseract grid (cell-based)"
+    else:
+        prefill_rows, backend = flat_rows, "Tesseract flat-parse"
+    logger.info("OCR backend: %s — extracted %d line item(s)%s",
+                backend, len(prefill_rows),
+                "" if prefill_rows else " (none; user must fill manually)")
     return {"pages": pages, "prefill_rows": prefill_rows, "template": template}
 
 
