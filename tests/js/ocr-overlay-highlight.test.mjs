@@ -26,6 +26,17 @@ describe('rowHighlightBoxes', () => {
     const row = { _backend: 'flat', bbox: null, mpn: 'ZZZ' };
     expect(rowHighlightBoxes(row, page)).toEqual([]);
   });
+
+  it('short numeric field value does not match a longer numeric token', () => {
+    const p = { width: 100, height: 100, words: [
+      { text: '100', x: 5, y: 5, w: 10, h: 8 },   // a different number
+      { text: 'C12345', x: 20, y: 5, w: 30, h: 8 },
+    ] };
+    const row = { _backend: 'flat', bbox: null, quantity: 10, distributor_pn: 'C12345' };
+    const boxes = rowHighlightBoxes(row, p);
+    expect(boxes).toContainEqual({ x: 20, y: 5, w: 30, h: 8 });   // real PN matches
+    expect(boxes).not.toContainEqual({ x: 5, y: 5, w: 10, h: 8 }); // qty 10 does NOT match 100
+  });
 });
 
 describe('backendLabel', () => {
