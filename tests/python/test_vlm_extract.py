@@ -44,8 +44,11 @@ def _mock_urlopen(monkeypatch, *, tags=None, generate=None, fail=False):
 def _clean_env(monkeypatch):
     # Default to enabled + default model/url unless a test overrides.
     monkeypatch.delenv("DUBIS_VLM_DISABLE", raising=False)
-    monkeypatch.delenv("DUBIS_VLM_MODEL", raising=False)
     monkeypatch.delenv("DUBIS_OLLAMA_URL", raising=False)
+    # Pin the model so the Ollama-mock tests are hardware-independent — otherwise
+    # _model() auto-selects from this machine's real GPU VRAM. The auto-selection
+    # tests delenv this to exercise the real VRAM-based path.
+    monkeypatch.setenv("DUBIS_VLM_MODEL", "qwen2.5vl:7b")
 
 
 MODELS = {"models": [{"name": "qwen2.5vl:7b"}]}
@@ -169,3 +172,56 @@ def test_prompt_for_generic_has_no_distributor_hint():
     p = vlm_extract._prompt_for("generic")
     assert "LCSC packing list" not in p
     assert "DigiKey packing list" not in p
+
+
+# ── Auto model-selection by GPU VRAM ─────────────────────────────────────
+#   _model() picks the largest qwen2.5vl tag the detected VRAM can hold, so a
+#   node "just works" without per-node DUBIS_VLM_MODEL tuning. Explicit env
+#   still wins. VRAM is read via _detect_vram_mb() (nvidia-smi), mocked here.
+
+def test_model_env_var_overrides_autoselect(monkeypatch):
+    monkeypatch.setenv("DUBIS_VLM_MODEL", "custom:tag")
+    monkeypatch.setattr(vlm_extract, "_detect_vram_mb", lambda: 6144)
+    assert vlm_extract._model() == "custom:tag"
+
+
+def test_autoselect_3b_for_6gb_gpu(monkeypatch):
+    # RTX 2060 Mobile = 6 GB → 7b would OOM, so pick 3b.
+    monkeypatch.delenv("DUBIS_VLM_MODEL", raising=False)
+    monkeypatch.setattr(vlm_extract, "_detect_vram_mb", lambda: 6144)
+    assert vlm_extract._model() == "qwen2.5vl:3b"
+
+
+def test_autoselect_7b_for_12gb_gpu(monkeypatch):
+    monkeypatch.delenv("DUBIS_VLM_MODEL", raising=False)
+    monkeypatch.setattr(vlm_extract, "_detect_vram_mb", lambda: 12288)
+    assert vlm_extract._model() == "qwen2.5vl:7b"
+
+
+def test_autoselect_32b_for_24gb_gpu(monkeypatch):
+    monkeypatch.delenv("DUBIS_VLM_MODEL", raising=False)
+    monkeypatch.setattr(vlm_extract, "_detect_vram_mb", lambda: 24576)
+    assert vlm_extract._model() == "qwen2.5vl:32b"
+
+
+def test_autoselect_falls_back_to_default_without_gpu(monkeypatch):
+    # No GPU / nvidia-smi absent → keep the conservative default; Ollama
+    # availability gating handles the GPU-less node anyway.
+    monkeypatch.delenv("DUBIS_VLM_MODEL", raising=False)
+    monkeypatch.setattr(vlm_extract, "_detect_vram_mb", lambda: None)
+    assert vlm_extract._model() == vlm_extract._DEFAULT_MODEL
+
+
+def test_detect_vram_returns_none_when_nvidia_smi_absent(monkeypatch):
+    def boom(*a, **k):
+        raise FileNotFoundError("nvidia-smi not found")
+    monkeypatch.setattr(vlm_extract.subprocess, "run", boom)
+    assert vlm_extract._detect_vram_mb() is None
+
+
+def test_detect_vram_parses_nvidia_smi_output(monkeypatch):
+    class _Result:
+        returncode = 0
+        stdout = "6144\n"
+    monkeypatch.setattr(vlm_extract.subprocess, "run", lambda *a, **k: _Result())
+    assert vlm_extract._detect_vram_mb() == 6144

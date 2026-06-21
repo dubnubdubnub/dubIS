@@ -10,8 +10,11 @@ are unaffected.
 
 Configuration (per-node, via environment):
     DUBIS_OLLAMA_URL   base URL (default http://127.0.0.1:11434)
-    DUBIS_VLM_MODEL    model tag (default qwen2.5vl:7b) — set a smaller tag on
-                       weak GPUs, or...
+    DUBIS_VLM_MODEL    explicit model tag override. If unset, the model is
+                       auto-selected from the GPU's VRAM (nvidia-smi): the
+                       largest qwen2.5vl tag that fits — e.g. :3b ≤6GB,
+                       :7b ≥8GB, :32b ≥22GB, :72b ≥40GB. Falls back to
+                       qwen2.5vl:7b when no GPU/nvidia-smi is detected.
     DUBIS_VLM_DISABLE  set to any non-empty value to force the backend off.
 
 Public API:
@@ -28,6 +31,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 import urllib.error
 import urllib.request
 
@@ -35,6 +39,16 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_URL = "http://127.0.0.1:11434"
 _DEFAULT_MODEL = "qwen2.5vl:7b"
+# Auto-selection tiers: the largest qwen2.5vl tag whose Q4 weights + vision
+# encoder + KV cache comfortably fit a GPU's VRAM. Descending by required VRAM
+# (MB); used when DUBIS_VLM_MODEL is unset. Conservative on purpose (image tokens
+# + context need headroom) — e.g. a 6 GB card gets :3b, not an OOM-ing :7b.
+_MODEL_TIERS = (
+    (40000, "qwen2.5vl:72b"),
+    (22000, "qwen2.5vl:32b"),
+    (8000, "qwen2.5vl:7b"),
+    (0, "qwen2.5vl:3b"),
+)
 # Short timeout for the reachability probe so a node without Ollama falls back
 # almost instantly; generous timeout for the actual (GPU) inference call.
 _PROBE_TIMEOUT = 1.5
@@ -76,8 +90,43 @@ def _base_url() -> str:
     return (os.environ.get("DUBIS_OLLAMA_URL") or _DEFAULT_URL).rstrip("/")
 
 
+def _detect_vram_mb() -> int | None:
+    """Total VRAM (MB) of the first GPU via nvidia-smi, or None if unavailable.
+
+    Best-effort and dependency-free (no pynvml): a short nvidia-smi subprocess.
+    Returns None on any failure (no GPU, nvidia-smi absent, parse error) so the
+    caller falls back to the default model.
+    """
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.total",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    try:
+        return int(out.stdout.strip().splitlines()[0].strip())
+    except (ValueError, IndexError):
+        return None
+
+
+def _auto_model() -> str:
+    """Largest qwen2.5vl tag the detected GPU VRAM can hold (default if no GPU)."""
+    vram = _detect_vram_mb()
+    if vram is None:
+        return _DEFAULT_MODEL
+    for floor, tag in _MODEL_TIERS:
+        if vram >= floor:
+            return tag
+    return _DEFAULT_MODEL
+
+
 def _model() -> str:
-    return os.environ.get("DUBIS_VLM_MODEL") or _DEFAULT_MODEL
+    # Explicit override always wins; otherwise auto-select from GPU VRAM.
+    return os.environ.get("DUBIS_VLM_MODEL") or _auto_model()
 
 
 def model_name() -> str:
