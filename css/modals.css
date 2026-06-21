@@ -70,36 +70,6 @@
   margin-top: 16px;
 }
 
-/* ── Fetch-price controls (Adjust modal) ──────────────── */
-.modal-form-label { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
-#adj-fetch-row { gap: 8px; }
-#adj-fetch-supplier { flex: none; min-width: 120px; }
-#adj-fetch-price { flex: none; white-space: nowrap; }
-.adj-fetch-tiers {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 12px;
-}
-.adj-fetch-tiers.hidden { display: none; }
-.adj-tier-row {
-  font-size: 12px;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  padding: 3px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--border-default);
-  background: var(--bg-base);
-  color: var(--text-bright);
-  cursor: pointer;
-  outline: none;
-}
-.adj-tier-row:hover { border-color: var(--color-blue); }
-.adj-tier-row.selected {
-  border-color: var(--color-blue);
-  background: var(--color-blue);
-  color: #fff;
-}
-
 /* ── No-Distributor Warning (modal context) ──────────── */
 .modal-detail-table .no-dist-warn {
   font-size: 12px;
@@ -304,3 +274,33 @@
 .vendor-action-group { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .vendor-merge-select { width: 150px; flex: none; }
 #vendor-delete-btn.armed { background: var(--color-red); color: #fff; }
+
+/* ── Fetch-price controls (Adjust modal) ──────────────── */
+.modal-form-label { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+#adj-fetch-row { gap: var(--adj-fetch-gap); }
+#adj-fetch-supplier { flex: none; min-width: var(--adj-fetch-supplier-w); }
+#adj-fetch-price { flex: none; white-space: nowrap; }
+.adj-fetch-tiers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--adj-tier-gap);
+  margin-bottom: var(--adj-tier-list-mb);
+}
+.adj-fetch-tiers.hidden { display: none; }
+.adj-tier-row {
+  font-size: 12px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  padding: var(--adj-tier-pad-y) var(--adj-tier-pad-x);
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-base);
+  color: var(--text-bright);
+  cursor: pointer;
+  outline: none;
+}
+.adj-tier-row:hover { border-color: var(--color-blue); }
+.adj-tier-row.selected {
+  border-color: var(--color-blue);
+  background: var(--color-blue);
+  color: #fff;
+}
