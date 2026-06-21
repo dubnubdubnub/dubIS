@@ -358,6 +358,7 @@ graph LR
     "tests/js/real-data.test.js" --> "js/matching.js"
     "tests/js/real-data.test.js" --> "js/part-keys.js"
     "tests/js/real-data.test.js" --> "tests/js/helpers/load-fixtures.js"
+    "tests/js/roving-grid-dom.test.js" --> "js/a11y/roving-grid.js"
     "tests/js/roving-grid.test.js" --> "js/a11y/roving-grid.js"
     "tests/js/scan-grouping.test.js" --> "js/import/mfg-direct/scan-grouping.js"
     "tests/js/scrollable.test.js" --> "js/a11y/scrollable.js"
@@ -622,7 +623,7 @@ graph LR
 ### js/a11y/roving-grid.js
 
 - **Imports:** `js/store.js`
-- **Imported by:** `js/a11y/keyboard-nav.js`, `tests/js/roving-grid.test.js`
+- **Imported by:** `js/a11y/keyboard-nav.js`, `tests/js/roving-grid-dom.test.js`, `tests/js/roving-grid.test.js`
 
 ### js/a11y/scrollable.js
 
@@ -1307,6 +1308,11 @@ graph LR
 ### tests/js/real-data.test.js
 
 - **Imports:** `js/csv-parser.js`, `js/matching.js`, `js/part-keys.js`, `tests/js/helpers/load-fixtures.js`
+- **Imported by:** —
+
+### tests/js/roving-grid-dom.test.js
+
+- **Imports:** `js/a11y/roving-grid.js`
 - **Imported by:** —
 
 ### tests/js/roving-grid.test.js
