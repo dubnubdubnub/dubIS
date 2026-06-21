@@ -10,6 +10,8 @@ import { matchBOM } from './matching.js';
 import { colorizeRefs, REF_COLOR_MAP } from './part-keys.js';
 import { openPreferencesModal, applyPreferences, wireDigikeyButtons } from './preferences-modal.js';
 import { wireVendorsModal } from './vendors-modal.js';
+import { initShortcuts } from './a11y/shortcuts.js';
+import { saveBomFile } from './bom/bom-events.js';
 
 // Explicit panel imports (no side effects until init() is called)
 import { init as initInventoryModals } from './inventory-modals.js';
@@ -180,17 +182,31 @@ async function initApp() {
   EventBus.on(Events.INVENTORY_UPDATED, syncUndoRedoButtons);
   EventBus.on(Events.BOM_LOADED, syncUndoRedoButtons);
 
-  document.addEventListener("keydown", async (e) => {
-    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
-    if (e.key === "z" && !e.shiftKey && UndoRedo.canUndo()) {
-      e.preventDefault();
-      await UndoRedo.undo();
-      syncUndoRedoButtons();
-    } else if (e.key === "Z" && e.shiftKey && UndoRedo.canRedo()) {
-      e.preventDefault();
-      await UndoRedo.redo();
-      syncUndoRedoButtons();
-    }
+  initShortcuts({
+    undo: async () => { if (UndoRedo.canUndo()) { await UndoRedo.undo(); syncUndoRedoButtons(); } },
+    redo: async () => { if (UndoRedo.canRedo()) { await UndoRedo.redo(); syncUndoRedoButtons(); } },
+    save: () => saveBomFile(),
+    openPreferences: () => openPreferencesModal(),
+    focusPanel: (n) => {
+      const id = n === 1 ? 'import-body' : n === 2 ? 'inventory-body' : 'bom-body';
+      const el = document.getElementById(id);
+      if (!el) return;
+      // panel-body elements are made focusable by makeScrollable (tabindex=0);
+      // focus it directly so keyboard scrolling works immediately.
+      if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+      el.focus();
+    },
+    exitMode: () => {
+      const t = document.getElementById('label-toolbar');
+      if (t && !t.classList.contains('hidden')) {
+        const doneBtn = document.getElementById('label-done-btn');
+        if (doneBtn) doneBtn.click();
+        return;
+      }
+      if (store.links.linkingBomRow) store.links.setReverseLinkingMode(false);
+      else if (store.links.linkingMode) store.links.setLinkingMode(false);
+    },
+    showHelp: () => {},  // replaced in Task 9
   });
 
   initKeyboardNav();
