@@ -1,7 +1,9 @@
 /* ui-helpers.js — DOM utility functions shared across panels */
 
 import { trap, release } from './a11y/focus-trap.js';
-import { getShortcutPrefs } from './store.js';
+
+let _enterSubmitEnabled = () => true;
+export function setEnterSubmitEnabled(fn) { _enterSubmitEnabled = fn; }
 
 const TOAST_DURATION_MS = 2500;
 
@@ -53,7 +55,7 @@ export function Modal(id, { onClose, cancelId, confirmId } = {}) {
   document.addEventListener("keydown", (e) => {
     if (el.classList.contains("hidden")) return;
     if (e.key === "Escape") { close(); return; }
-    if (e.key === "Enter" && confirmId && getShortcutPrefs().enterSubmitsModals) {
+    if (e.key === "Enter" && confirmId && _enterSubmitEnabled()) {
       const t = e.target;
       if (t instanceof Element && t.closest('textarea, #adj-note')) return;
       e.preventDefault();
