@@ -54,9 +54,7 @@ let adjQty;
 let adjNote;
 let adjUnitPrice;
 let adjExtPrice;
-let adjFetchSupplier;
-let adjFetchBtn;
-let adjFetchTiers;
+let adjFetch;
 let currentPart = null;
 let adjModal;
 
@@ -64,6 +62,7 @@ let priceTitle;
 let priceSubtitle;
 let priceUnitInput;
 let priceExtInput;
+let priceFetch;
 let pricePart = null;
 let priceModal;
 
@@ -103,27 +102,7 @@ export function openAdjustModal(item) {
   adjUnitPrice.value = item.unit_price > 0 ? item.unit_price : "";
   adjExtPrice.value = item.ext_price > 0 ? item.ext_price : "";
 
-  // ── Fetch-price controls ──
-  const sources = FETCH_SUPPLIERS.filter(s => (item[s.key] || "").trim());
-  adjFetchTiers.innerHTML = "";
-  adjFetchTiers.classList.add("hidden");
-  if (sources.length === 0) {
-    adjFetchBtn.disabled = true;
-    adjFetchBtn.title = "No distributor part number";
-    adjFetchSupplier.innerHTML = "";
-    adjFetchSupplier.classList.add("hidden");
-  } else if (sources.length === 1) {
-    adjFetchBtn.disabled = false;
-    adjFetchBtn.title = "";
-    adjFetchSupplier.innerHTML = "";
-    adjFetchSupplier.classList.add("hidden");
-  } else {
-    adjFetchBtn.disabled = false;
-    adjFetchBtn.title = "";
-    adjFetchSupplier.innerHTML = sources.map(s =>
-      '<option value="' + escHtml(s.key) + '">' + escHtml(s.label) + '</option>').join("");
-    adjFetchSupplier.classList.remove("hidden");
-  }
+  adjFetch.configure(item);
 
   adjModal.open();
   adjQty.focus();
@@ -143,24 +122,97 @@ function getChangedFields() {
   return changed;
 }
 
-/** Set the Unit Price to a tier's price and trigger the existing Ext recompute. */
-function applyTierPrice(tier) {
-  if (!tier) return;
-  adjUnitPrice.value = tier.price;
-  // linkPriceInputs listens on the "input" event to recompute Ext from qty
-  adjUnitPrice.dispatchEvent(new Event("input", { bubbles: true }));
-}
+/**
+ * Wire the "Fetch current price" controls shared by the Adjust and Price modals.
+ * Registers the button/tier click handlers once; call the returned `configure(part)`
+ * each time a modal opens to set up the supplier dropdown and reset the tier list.
+ *
+ * @param {{supplierSelect: HTMLSelectElement, fetchBtn: HTMLButtonElement,
+ *          tiersEl: HTMLElement, unitInput: HTMLInputElement}} els
+ */
+function createFetchController({ supplierSelect, fetchBtn, tiersEl, unitInput }) {
+  let part = null;
 
-/** Render all price-break tiers as clickable rows; highlight the selected one. */
-function renderTiers(prices, selectedTier) {
-  const sorted = prices.slice().sort((a, b) => a.qty - b.qty);
-  adjFetchTiers.innerHTML = sorted.map(t => {
-    const sel = selectedTier && t.qty === selectedTier.qty && t.price === selectedTier.price ? " selected" : "";
-    return '<button type="button" class="adj-tier-row' + sel + '" data-qty="' + t.qty +
-      '" data-price="' + t.price + '">' + escHtml(String(t.qty)) + '+ → $' +
-      escHtml(Number(t.price).toFixed(4)) + '</button>';
-  }).join("");
-  adjFetchTiers.classList.remove("hidden");
+  // Set Unit Price and trigger the existing Ext recompute (linkPriceInputs
+  // listens on the "input" event).
+  function setUnitPrice(price) {
+    unitInput.value = price;
+    unitInput.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  // Render all price-break tiers as clickable chips; highlight the selected one.
+  function renderTiers(prices, selectedTier) {
+    const sorted = prices.slice().sort((a, b) => a.qty - b.qty);
+    tiersEl.innerHTML = sorted.map(t => {
+      const sel = selectedTier && t.qty === selectedTier.qty && t.price === selectedTier.price ? " selected" : "";
+      return '<button type="button" class="fetch-tier' + sel + '" data-qty="' + Number(t.qty) +
+        '" data-price="' + Number(t.price) + '">' + escHtml(String(t.qty)) + '+ → $' +
+        escHtml(Number(t.price).toFixed(4)) + '</button>';
+    }).join("");
+    tiersEl.classList.remove("hidden");
+  }
+
+  fetchBtn.addEventListener("click", async () => {
+    if (!part) { AppLog.warn("No part selected for price fetch"); return; }
+    const sources = FETCH_SUPPLIERS.filter(s => (part[s.key] || "").trim());
+    if (sources.length === 0) return;
+    // selected supplier: dropdown value when visible/multiple, else the single source
+    let supplier = sources[0];
+    if (!supplierSelect.classList.contains("hidden") && supplierSelect.value) {
+      supplier = FETCH_SUPPLIERS.find(s => s.key === supplierSelect.value) || supplier;
+    }
+    const partNumber = (part[supplier.key] || "").trim();
+    const pk = invPartKey(part);
+    const origText = fetchBtn.textContent;
+    fetchBtn.disabled = true;
+    fetchBtn.textContent = "Fetching…";
+    try {
+      const product = await api(supplier.method, partNumber);
+      if (!product || !Array.isArray(product.prices) || product.prices.length === 0) {
+        showToast("Couldn't fetch price for " + supplier.label);
+        return;
+      }
+      const lastPoQty = await api("get_last_po_quantity", pk);
+      const tier = pickTier(product.prices, typeof lastPoQty === "number" ? lastPoQty : null);
+      if (tier) setUnitPrice(tier.price);
+      renderTiers(product.prices, tier);
+      // fire-and-forget price-history logging
+      api("record_fetched_prices", pk, supplier.key, product.prices).catch(() => { /* ignore */ });
+    } finally {
+      fetchBtn.disabled = false;
+      fetchBtn.textContent = origText;
+    }
+  });
+
+  tiersEl.addEventListener("click", (e) => {
+    const row = e.target.closest(".fetch-tier");
+    if (!row) return;
+    setUnitPrice(Number(row.dataset.price));
+    tiersEl.querySelectorAll(".fetch-tier").forEach(r => r.classList.remove("selected"));
+    row.classList.add("selected");
+  });
+
+  /** Set up the controls for a newly opened modal: pick/show suppliers, reset tiers. */
+  function configure(p) {
+    part = p;
+    tiersEl.innerHTML = "";
+    tiersEl.classList.add("hidden");
+    const sources = FETCH_SUPPLIERS.filter(s => (p[s.key] || "").trim());
+    if (sources.length <= 1) {
+      fetchBtn.disabled = sources.length === 0;
+      fetchBtn.title = sources.length === 0 ? "No distributor part number" : "";
+      supplierSelect.innerHTML = "";
+      supplierSelect.classList.add("hidden");
+    } else {
+      fetchBtn.disabled = false;
+      fetchBtn.title = "";
+      supplierSelect.innerHTML = sources.map(s =>
+        '<option value="' + escHtml(s.key) + '">' + escHtml(s.label) + '</option>').join("");
+      supplierSelect.classList.remove("hidden");
+    }
+  }
+
+  return { configure };
 }
 
 export function openPriceModal(item) {
@@ -170,6 +222,7 @@ export function openPriceModal(item) {
   priceSubtitle.textContent = (item.description || item.package || "") + " (qty: " + item.qty + ")";
   priceUnitInput.value = item.unit_price > 0 ? item.unit_price : "";
   priceExtInput.value = item.ext_price > 0 ? item.ext_price : "";
+  priceFetch.configure(item);
   priceModal.open();
   priceUnitInput.focus();
 }
@@ -183,9 +236,6 @@ export function init() {
   adjNote = document.getElementById("adj-note");
   adjUnitPrice = document.getElementById("adj-unit-price");
   adjExtPrice = document.getElementById("adj-ext-price");
-  adjFetchSupplier = document.getElementById("adj-fetch-supplier");
-  adjFetchBtn = document.getElementById("adj-fetch-price");
-  adjFetchTiers = document.getElementById("adj-fetch-tiers");
 
   adjModal = Modal("adjust-modal", {
     onClose: () => { currentPart = null; },
@@ -194,44 +244,11 @@ export function init() {
   });
   linkPriceInputs(adjUnitPrice, adjExtPrice, () => currentPart ? currentPart.qty : 0);
 
-  adjFetchBtn.addEventListener("click", async () => {
-    if (!currentPart) { AppLog.warn("No part selected for price fetch"); return; }
-    const sources = FETCH_SUPPLIERS.filter(s => (currentPart[s.key] || "").trim());
-    if (sources.length === 0) return;
-    // selected supplier: dropdown value when visible/multiple, else the single source
-    let supplier = sources[0];
-    if (!adjFetchSupplier.classList.contains("hidden") && adjFetchSupplier.value) {
-      supplier = FETCH_SUPPLIERS.find(s => s.key === adjFetchSupplier.value) || supplier;
-    }
-    const partNumber = (currentPart[supplier.key] || "").trim();
-    const pk = invPartKey(currentPart);
-    const origText = adjFetchBtn.textContent;
-    adjFetchBtn.disabled = true;
-    adjFetchBtn.textContent = "Fetching…";
-    try {
-      const product = await api(supplier.method, partNumber);
-      if (!product || !Array.isArray(product.prices) || product.prices.length === 0) {
-        showToast("Couldn't fetch price for " + supplier.label);
-        return;
-      }
-      const lastPoQty = await api("get_last_po_quantity", pk);
-      const tier = pickTier(product.prices, typeof lastPoQty === "number" ? lastPoQty : null);
-      applyTierPrice(tier);
-      renderTiers(product.prices, tier);
-      // fire-and-forget price-history logging
-      api("record_fetched_prices", pk, supplier.key, product.prices).catch(() => { /* ignore */ });
-    } finally {
-      adjFetchBtn.disabled = false;
-      adjFetchBtn.textContent = origText;
-    }
-  });
-
-  adjFetchTiers.addEventListener("click", (e) => {
-    const row = e.target.closest(".adj-tier-row");
-    if (!row) return;
-    applyTierPrice({ qty: Number(row.dataset.qty), price: Number(row.dataset.price) });
-    adjFetchTiers.querySelectorAll(".adj-tier-row").forEach(r => r.classList.remove("selected"));
-    row.classList.add("selected");
+  adjFetch = createFetchController({
+    supplierSelect: document.getElementById("adj-fetch-supplier"),
+    fetchBtn: document.getElementById("adj-fetch-price"),
+    tiersEl: document.getElementById("adj-fetch-tiers"),
+    unitInput: adjUnitPrice,
   });
 
   document.getElementById("adj-apply").addEventListener("click", async () => {
@@ -326,6 +343,13 @@ export function init() {
     confirmId: "price-apply",
   });
   linkPriceInputs(priceUnitInput, priceExtInput, () => pricePart ? pricePart.qty : 0);
+
+  priceFetch = createFetchController({
+    supplierSelect: document.getElementById("price-fetch-supplier"),
+    fetchBtn: document.getElementById("price-fetch-price"),
+    tiersEl: document.getElementById("price-fetch-tiers"),
+    unitInput: priceUnitInput,
+  });
 
   document.getElementById("price-apply").addEventListener("click", async () => {
     if (!pricePart) { AppLog.warn("No part selected for price update"); return; }
