@@ -15,11 +15,12 @@ export function openScanShell(items) {
       <span class="scan-shell-name">${escHtml(it.name || `Image ${i + 1}`)}</span>
       <span class="scan-shell-detail">Reading…</span>
     </div>`).join('');
+  const n = (items || []).length;
   const overlay = document.createElement('div');
   overlay.id = 'scan-shell-overlay';
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `<div class="modal scan-shell-modal" role="status" aria-live="polite">
-    <div class="modal-title">📸 Reading ${items.length} image${items.length === 1 ? '' : 's'}…</div>
+    <div class="modal-title">📸 Reading ${n} image${n === 1 ? '' : 's'}…</div>
     <div class="scan-shell-tiles">${tiles}</div>
   </div>`;
   document.body.appendChild(overlay);
