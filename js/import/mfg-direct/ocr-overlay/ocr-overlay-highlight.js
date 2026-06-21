@@ -28,7 +28,7 @@ export function rowHighlightBoxes(row, page) {
   for (const w of (page.words || [])) {
     const wt = _norm(w.text);
     if (wt.length < 2) continue;
-    if (fieldVals.some(v => v.includes(wt) || wt.includes(v))) {
+    if (fieldVals.some(v => v.includes(wt) || (v.length >= 4 && wt.includes(v)))) {
       boxes.push({ x: w.x, y: w.y, w: w.w, h: w.h });
     }
   }
