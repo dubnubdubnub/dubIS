@@ -12,6 +12,31 @@ import { computeRows, prepareConsumption } from './bom-logic.js';
 import state from './bom-state.js';
 
 /**
+ * Save the current BOM to a file via a save dialog.
+ * Returns true if saved successfully, false otherwise.
+ * Does not close the app. Use for Ctrl+S shortcut and the Save button.
+ * @returns {Promise<boolean>}
+ */
+export async function saveBomFile() {
+  if (!state.bomHeaders.length || !state.bomRawRows.length) {
+    showToast('No BOM to save');
+    return false;
+  }
+  const csvText = generateCSV(state.bomHeaders, state.bomRawRows);
+  const linksJson = store.links.hasLinks() ? JSON.stringify({
+    manualLinks: store.links.manualLinks,
+    confirmedMatches: store.links.confirmedMatches,
+  }) : null;
+  const result = await api('save_file_dialog', csvText, state.lastFileName || 'bom.csv', store.preferences.lastBomDir || null, linksJson);
+  if (result && result.path) {
+    state.bomDirty = false; setBomDirty(false); api('set_bom_dirty', false);
+    store.preferences.lastBomFile = result.path; await savePreferences();
+    return true;
+  }
+  return false;
+}
+
+/**
  * Wire up all DOM event listeners and EventBus subscriptions.
  * @param {object} handlers - core logic functions from bom-panel.js
  */
@@ -33,22 +58,11 @@ export function setupEvents(handlers) {
   // Save BOM
   state.body.addEventListener("click", async (e) => {
     if (e.target.id === "bom-save-btn") {
-      if (!state.bomHeaders.length || !state.bomRawRows.length) return;
-      const csvText = generateCSV(state.bomHeaders, state.bomRawRows);
-      const linksJson = store.links.hasLinks() ? JSON.stringify({
-        manualLinks: store.links.manualLinks,
-        confirmedMatches: store.links.confirmedMatches,
-      }) : null;
-      const result = await api("save_file_dialog", csvText, state.lastFileName || "bom.csv", store.preferences.lastBomDir || null, linksJson);
-      if (result && result.path) {
-        state.bomDirty = false;
-        setBomDirty(false);
-        api("set_bom_dirty", false);
+      const saved = await saveBomFile();
+      if (saved) {
         updateSaveBtnState();
-        store.preferences.lastBomFile = result.path;
-        savePreferences();
-        showToast("Saved BOM to " + result.path);
-        AppLog.info("Saved BOM: " + result.path);
+        showToast("Saved BOM to " + store.preferences.lastBomFile);
+        AppLog.info("Saved BOM: " + store.preferences.lastBomFile);
       }
     }
   });
@@ -276,23 +290,7 @@ export function setupEvents(handlers) {
   });
 
   EventBus.on(Events.SAVE_AND_CLOSE, async () => {
-    if (!state.bomHeaders.length || !state.bomRawRows.length) {
-      api("confirm_close");
-      return;
-    }
-    const csvText = generateCSV(state.bomHeaders, state.bomRawRows);
-    const linksJson = store.links.hasLinks() ? JSON.stringify({
-      manualLinks: store.links.manualLinks,
-      confirmedMatches: store.links.confirmedMatches,
-    }) : null;
-    const result = await api("save_file_dialog", csvText, state.lastFileName || "bom.csv", store.preferences.lastBomDir || null, linksJson);
-    if (result && result.path) {
-      state.bomDirty = false;
-      setBomDirty(false);
-      api("set_bom_dirty", false);
-      store.preferences.lastBomFile = result.path;
-      await savePreferences();
-    }
+    await saveBomFile();
     api("confirm_close");
   });
 
