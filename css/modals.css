@@ -1,4 +1,4 @@
-/* ── Modal ─────────────────────────────────────────────── */
+﻿/* â”€â”€ Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -70,13 +70,13 @@
   margin-top: 16px;
 }
 
-/* ── No-Distributor Warning (modal context) ──────────── */
+/* â”€â”€ No-Distributor Warning (modal context) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .modal-detail-table .no-dist-warn {
   font-size: 12px;
   cursor: default;
 }
 
-/* ── Preferences Modal ────────────────────────────────── */
+/* â”€â”€ Preferences Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .prefs-modal-wide { min-width: 420px; max-width: 520px; max-height: 80vh; display: flex; flex-direction: column; }
 .prefs-sliders {
   overflow-y: auto;
@@ -154,7 +154,7 @@
 .prefs-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .prefs-input:focus { border-color: var(--color-blue); }
 
-/* ── Vendors Modal ────────────────────────────────────── */
+/* â”€â”€ Vendors Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .vendors-modal {
   min-width: 640px;
   max-width: 760px;
@@ -274,3 +274,16 @@
 .vendor-action-group { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .vendor-merge-select { width: 150px; flex: none; }
 #vendor-delete-btn.armed { background: var(--color-red); color: #fff; }
+
+/* ── Scan shell ─────────────────────────────────────────── */
+.scan-shell-tiles { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.scan-shell-tile { display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+  border: 1px solid var(--border, #ccc); border-radius: 6px; min-width: 160px; }
+.scan-shell-tile.reading .scan-shell-detail { opacity: 0.7; }
+.scan-shell-tile.done { border-color: #2e7d32; }
+.scan-shell-tile.error { border-color: #c62828; }
+.scan-shell-spinner { width: 12px; height: 12px; border: 2px solid currentColor;
+  border-top-color: transparent; border-radius: 50%; animation: scan-shell-spin 0.8s linear infinite; }
+.scan-shell-tile:not(.reading) .scan-shell-spinner { display: none; }
+@keyframes scan-shell-spin { to { transform: rotate(360deg); } }
+
