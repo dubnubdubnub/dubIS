@@ -81,10 +81,14 @@ def extract_pages(file_bytes: bytes, ext: str, template: str = "generic") -> dic
     # classical OCR. Self-gating: returns None when no capable Ollama is reachable
     # (GPU-less nodes, CI), so we fall through to the Tesseract pipeline below with
     # no behaviour change. Runs entirely locally — no PII leaves the machine.
+    page_w = raster[0][1] if raster else 0
+    page_h = raster[0][2] if raster else 0
     import vlm_extract
-    vlm_rows = vlm_extract.extract_line_items(raster[0][0], template) if raster else None
+    vlm_rows = (vlm_extract.extract_line_items(raster[0][0], template, page_w, page_h)
+                if raster else None)
     if vlm_rows:
-        return {"pages": pages, "prefill_rows": vlm_rows, "template": template}
+        return {"pages": pages, "prefill_rows": _tag_rows(vlm_rows, "vlm"),
+                "template": template}
 
     # Two extractors, then keep whichever recovered MORE rows:
     #  - grid-aware (ocr_table): OCRs each ruled cell in isolation and assigns
@@ -99,8 +103,19 @@ def extract_pages(file_bytes: bytes, ext: str, template: str = "generic") -> dic
     grid_rows = (ocr_table.extract_line_items(raster[0][0], template) if raster else None) or []
     full_text = "\n".join(ln["text"] for pg in pages for ln in pg["lines"])
     flat_rows = distributor_profiles.parse_with_template(template, full_text) or []
-    prefill_rows = grid_rows if len(grid_rows) >= len(flat_rows) else flat_rows
+    if len(grid_rows) >= len(flat_rows):
+        prefill_rows = _tag_rows(grid_rows, "grid")
+    else:
+        prefill_rows = _tag_rows(flat_rows, "flat")
     return {"pages": pages, "prefill_rows": prefill_rows, "template": template}
+
+
+def _tag_rows(rows: list[dict], backend: str) -> list[dict]:
+    """Stamp _backend on each row; ensure a bbox key exists (None if absent)."""
+    for r in rows:
+        r["_backend"] = r.get("_backend") or backend
+        r.setdefault("bbox", None)
+    return rows
 
 
 def _line_index(groups: dict[tuple, int], key: tuple) -> int:
