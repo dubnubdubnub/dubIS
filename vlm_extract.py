@@ -34,7 +34,14 @@ import urllib.request
 logger = logging.getLogger(__name__)
 
 _DEFAULT_URL = "http://127.0.0.1:11434"
-_DEFAULT_MODEL = "qwen2.5vl:7b"
+# Models to try, best first. The 7B reads faint/folded LCSC C-numbers reliably
+# but needs ~6 GB VRAM; the 3B fits smaller GPUs (e.g. a 6 GB RTX 2060) — it still
+# gets MPNs + quantities but may miss faint C-numbers. We auto-pick the best one
+# actually pulled, so a low-VRAM node just `ollama pull`s the 3B with no config.
+# DUBIS_VLM_MODEL overrides this list entirely.
+_PREFERRED_MODELS = ["qwen2.5vl:7b", "qwen2.5vl:3b"]
+_QWEN_BASE = "qwen2.5vl"
+_selected_model = None  # cache of the model chosen on the last successful probe
 # Short timeout for the reachability probe so a node without Ollama falls back
 # almost instantly; generous timeout for the actual (GPU) inference call.
 _PROBE_TIMEOUT = 1.5
@@ -76,13 +83,10 @@ def _base_url() -> str:
     return (os.environ.get("DUBIS_OLLAMA_URL") or _DEFAULT_URL).rstrip("/")
 
 
-def _model() -> str:
-    return os.environ.get("DUBIS_VLM_MODEL") or _DEFAULT_MODEL
-
-
-def model_name() -> str:
-    """The configured VLM model tag (for logging/diagnostics)."""
-    return _model()
+def _preferred_tags() -> list[str]:
+    """Models to try, best first. An explicit DUBIS_VLM_MODEL overrides the list."""
+    env = (os.environ.get("DUBIS_VLM_MODEL") or "").strip()
+    return [env] if env else list(_PREFERRED_MODELS)
 
 
 def _disabled() -> bool:
@@ -95,20 +99,43 @@ def _get_json(url: str, timeout: float):
         return json.loads(resp.read().decode("utf-8"))
 
 
-def available() -> bool:
-    """True if the backend is enabled, Ollama is reachable, and the model exists."""
-    if _disabled():
-        return False
+def _installed_models():
+    """Set of model tags Ollama has pulled, or None if Ollama is unreachable."""
     try:
         tags = _get_json(f"{_base_url()}/api/tags", _PROBE_TIMEOUT)
     except (urllib.error.URLError, OSError, ValueError) as exc:
         logger.debug("VLM backend unavailable (probe failed): %s", exc)
+        return None
+    return {m.get("name", "") for m in (tags.get("models") or [])}
+
+
+def _select_model():
+    """Best installed model: the first preferred tag that's pulled (7B over 3B),
+    then any pulled qwen2.5vl variant. None if none are pulled / Ollama is down."""
+    installed = _installed_models()
+    if not installed:
+        return None
+    for tag in _preferred_tags():
+        if tag in installed:
+            return tag
+        if ":" not in tag:  # env override given as a bare base name
+            match = next((n for n in installed if n.split(":", 1)[0] == tag), None)
+            if match:
+                return match
+    # Fallback: any pulled qwen2.5vl tag (e.g. :latest, :32b) when nothing above hit.
+    return next((n for n in installed if n.split(":", 1)[0] == _QWEN_BASE), None)
+
+
+def model_name() -> str:
+    """The VLM model last selected (for logging); a best guess before any run."""
+    return _selected_model or _preferred_tags()[0]
+
+
+def available() -> bool:
+    """True if enabled and a usable VLM model is pulled in a reachable Ollama."""
+    if _disabled():
         return False
-    names = {m.get("name", "") for m in (tags.get("models") or [])}
-    want = _model()
-    # Accept an exact tag or the same model with any tag (e.g. "qwen2.5vl").
-    base = want.split(":", 1)[0]
-    return want in names or any(n.split(":", 1)[0] == base for n in names)
+    return _select_model() is not None
 
 
 def extract_line_items(image_bytes: bytes, template: str = "generic",
@@ -125,10 +152,15 @@ def extract_line_items(image_bytes: bytes, template: str = "generic",
 
 def _extract(image_bytes: bytes, template: str, page_w: int = 0, page_h: int = 0):
     import base64
-    if not available():
+    global _selected_model
+    if _disabled():
         return None
+    model = _select_model()
+    if not model:
+        return None
+    _selected_model = model
     payload = {
-        "model": _model(),
+        "model": model,
         "prompt": _prompt_for(template),
         "images": [base64.b64encode(image_bytes).decode("ascii")],
         "stream": False,
