@@ -61,6 +61,7 @@ export function renderSubSectionHeader(displayName, collapsed, count) {
  * @param {string} options.sectionKey - section key for threshold lookup
  * @param {number} options.threshold - stock value threshold
  * @param {string} [options.sectionChip] - optional section name shown as a chip in flat mode
+ * @param {number} [options.importOpacity] - >0 marks a recently-imported part (mirrors the scrollbar gutter dot's per-generation fade)
  * @returns {string}
  */
 /**
@@ -134,6 +135,13 @@ export function renderPartRowHtml(item, options) {
   // can be ticked from either side without scrolling the wide row across.
   var leftCheckboxHtml = isLabelMode() ? labelCheckboxHtml(invPartKey(item)) : '';
 
+  // Green sparkle marking a recently-imported row, mirroring the scrollbar
+  // gutter dot (same green glow + per-generation fade) so a dot in the gutter
+  // can be visually traced to its row. Sits at the left edge of .part-actions.
+  var newMarkHtml = options.importOpacity > 0
+    ? '<span class="inv-row-new-mark" title="Recently imported" style="opacity:' + options.importOpacity + '">✦</span>'
+    : '';
+
   var html =
     '<span class="inv-row-group-cell">' +
       leftCheckboxHtml +
@@ -153,7 +161,7 @@ export function renderPartRowHtml(item, options) {
     '<span class="part-actions">' +
       (isLabelMode()
         ? labelCheckboxHtml(invPartKey(item))
-        : groupBtnStr + '<button class="btn-sm adj-btn" title="Adjust qty">Adjust</button>' + linkBtnStr) +
+        : newMarkHtml + groupBtnStr + '<button class="btn-sm adj-btn" title="Adjust qty">Adjust</button>' + linkBtnStr) +
     '</span>';
 
   return html;
