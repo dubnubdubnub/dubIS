@@ -15,7 +15,7 @@ function stopDkPolling() {
 }
 
 // ── Modal instance ──
-const prefsModal = Modal("prefs-modal", { cancelId: "prefs-cancel" });
+const prefsModal = Modal("prefs-modal", { cancelId: "prefs-cancel", confirmId: "prefs-save" });
 
 // ── Slider helpers ──
 

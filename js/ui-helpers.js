@@ -1,5 +1,8 @@
 /* ui-helpers.js — DOM utility functions shared across panels */
 
+import { trap, release } from './a11y/focus-trap.js';
+import { getShortcutPrefs } from './store.js';
+
 const TOAST_DURATION_MS = 2500;
 
 const STOCK_COLOR_STOPS = [
@@ -41,15 +44,22 @@ export function vendorIconSrc(path) {
   return "data/" + p.replace(/^\/+/, "");
 }
 
-export function Modal(id, { onClose, cancelId } = {}) {
+export function Modal(id, { onClose, cancelId, confirmId } = {}) {
   const el = document.getElementById(id);
-  function open()  { el.classList.remove("hidden"); }
-  function close() { el.classList.add("hidden"); if (onClose) onClose(); }
+  function open()  { el.classList.remove("hidden"); requestAnimationFrame(() => trap(el)); }
+  function close() { el.classList.add("hidden"); release(); if (onClose) onClose(); }
   el.addEventListener("click", (e) => { if (e.target === el) close(); });
   if (cancelId) document.getElementById(cancelId).addEventListener("click", close);
   document.addEventListener("keydown", (e) => {
     if (el.classList.contains("hidden")) return;
-    if (e.key === "Escape") close();
+    if (e.key === "Escape") { close(); return; }
+    if (e.key === "Enter" && confirmId && getShortcutPrefs().enterSubmitsModals) {
+      const t = e.target;
+      if (t instanceof Element && t.closest('textarea, #adj-note')) return;
+      e.preventDefault();
+      const btn = document.getElementById(confirmId);
+      if (btn && !btn.disabled) btn.click();
+    }
   });
   return { el, open, close };
 }
