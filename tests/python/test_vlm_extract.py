@@ -156,3 +156,16 @@ def test_to_line_item_malformed_bbox_is_none_not_raise():
     raw = {"mfr_pn": "RC0402", "qty": 5, "bbox": ["x", 1, 2]}
     item = vlm_extract._to_line_item(raw, "generic", 1000, 1000)
     assert item["bbox"] is None
+
+
+def test_prompt_for_includes_distributor_hint():
+    p = vlm_extract._prompt_for("lcsc")
+    assert "LCSC" in p
+    assert "C" in p  # mentions the C<digits> PN format
+    assert "bbox" in p  # still asks for the box
+
+
+def test_prompt_for_generic_has_no_distributor_hint():
+    p = vlm_extract._prompt_for("generic")
+    assert "LCSC packing list" not in p
+    assert "DigiKey packing list" not in p
