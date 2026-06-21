@@ -35,4 +35,12 @@ test.describe('Global shortcuts', () => {
     expect(p1).toBe('panel-import');
     expect(p3).toBe('panel-bom');
   });
+
+  test('? opens the shortcut help overlay', async ({ page }) => {
+    await page.keyboard.press('?');
+    await expect(page.locator('#help-modal')).toBeVisible();
+    await expect(page.locator('#help-body')).toContainText('Redo');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#help-modal')).toBeHidden();
+  });
 });
