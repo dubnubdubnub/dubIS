@@ -26,6 +26,7 @@ describe('matchesRedo', () => {
   it('ctrl-y matches Ctrl+Y only', () => {
     expect(matchesRedo(ev({ ctrlKey: true, key: 'y' }), 'ctrl-y')).toBe(true);
     expect(matchesRedo(ev({ ctrlKey: true, shiftKey: true, key: 'Z' }), 'ctrl-y')).toBe(false);
+    expect(matchesRedo(ev({ ctrlKey: true, shiftKey: true, key: 'Y' }), 'ctrl-y')).toBe(false);
   });
   it('both matches either', () => {
     expect(matchesRedo(ev({ ctrlKey: true, key: 'y' }), 'both')).toBe(true);
