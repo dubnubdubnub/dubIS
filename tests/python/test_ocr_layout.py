@@ -115,7 +115,7 @@ class TestExtractPagesPrefillSelection:
         # VLM backend off by default in these tests (None) so the grid/flat
         # selection logic is exercised; overridden where the VLM path is tested.
         monkeypatch.setattr(vlm_extract, "extract_line_items",
-                            lambda png, template: vlm_rows)
+                            lambda png, template, page_w, page_h: vlm_rows)
         monkeypatch.setattr(ocr_table, "extract_line_items",
                             lambda png, template: grid_rows)
         monkeypatch.setattr(distributor_profiles, "parse_with_template",
