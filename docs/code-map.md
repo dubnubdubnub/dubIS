@@ -466,6 +466,7 @@ graph LR
     "tests/python/test_spec_extractor.py" --> "spec_extractor.py"
     "tests/python/test_vendors.py" --> "vendors.py"
     "tests/python/test_vlm_extract.py" --> "vlm_extract.py"
+    "tests/python/test_vlm_gpu.py" --> "vlm_extract.py"
     "vendors.py" --> "csv_io.py"
 ```
 
@@ -1692,6 +1693,11 @@ graph LR
 - **Imports:** `vlm_extract.py`
 - **Imported by:** —
 
+### tests/python/test_vlm_gpu.py
+
+- **Imports:** `vlm_extract.py`
+- **Imported by:** —
+
 ### tests/vitest-global-setup.js
 
 - **Imports:** —
@@ -1710,4 +1716,4 @@ graph LR
 ### vlm_extract.py
 
 - **Imports:** —
-- **Imported by:** `ocr_layout.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_vlm_extract.py`
+- **Imported by:** `ocr_layout.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_vlm_extract.py`, `tests/python/test_vlm_gpu.py`
