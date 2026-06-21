@@ -80,18 +80,19 @@ test('one image: Reading shell appears immediately, then OCR overlay replaces it
     // because both scripts run in the same context, with the second patching the
     // already-installed object).
     await page.addInitScript(({ result }) => {
-      // Wait for pywebview to be defined by the first init script, then patch.
-      // Both scripts run synchronously before any page JS, so pywebview is already
-      // set by the time this script executes.
-      const _orig = window.pywebview && window.pywebview.api
-        ? window.pywebview.api.ocr_overlay_b64
-        : null;
-      if (window.pywebview && window.pywebview.api) {
-        window.pywebview.api.ocr_overlay_b64 = async (b64, name, template) => {
-          await new Promise(r => setTimeout(r, 200));
-          return { ...result, template: template || result.template };
-        };
-      }
+      // Unconditionally ensure window.pywebview.api exists and install the
+      // delayed mock. No conditional guard — a guarded override that silently
+      // does nothing would make the shell-visibility assertion tautological.
+      // addMockSetup's initScript runs first (Playwright executes addInitScript
+      // scripts in registration order), so pywebview is already populated; but
+      // we defensively initialise the chain anyway to guarantee the assignment
+      // always takes effect regardless of future harness changes.
+      window.pywebview = window.pywebview || {};
+      window.pywebview.api = window.pywebview.api || {};
+      window.pywebview.api.ocr_overlay_b64 = async (b64, name, template) => {
+        await new Promise(r => setTimeout(r, 200));
+        return { ...result, template: template || result.template };
+      };
     }, { result: OCR_RESULT });
 
     await page.setViewportSize({ width: 1400, height: 900 });
