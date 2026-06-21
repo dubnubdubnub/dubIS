@@ -50,9 +50,26 @@ _PROMPT = (
     "\"qty\": the ordered quantity as an integer, "
     "\"bbox\": the bounding box of the row in the image as [x0, y0, x1, y1] "
     "integers on a 0-1000 normalized grid (x right, y down). "
+    "} "
     "Read carefully even where the print is faint or the page is folded. Use empty "
     "string for a field you cannot read. Output only the JSON object."
 )
+
+_TEMPLATE_HINTS = {
+    "lcsc": "This is an LCSC packing list; its catalogue part numbers look like "
+            "C followed by digits (e.g. C12345). Put them in distributor_pn.",
+    "digikey": "This is a DigiKey packing list; its catalogue part numbers "
+               "usually end in -ND/-CT/-DKR. Put them in distributor_pn.",
+    "mouser": "This is a Mouser packing list; its catalogue part numbers look "
+              "like <digits>-<mfr part>. Put them in distributor_pn.",
+    "pololu": "This is a Pololu packing list; its catalogue part numbers are "
+              "bare numbers. Put them in distributor_pn.",
+}
+
+
+def _prompt_for(template: str) -> str:
+    hint = _TEMPLATE_HINTS.get((template or "").strip().lower())
+    return f"{_PROMPT}\n{hint}" if hint else _PROMPT
 
 
 def _base_url() -> str:
@@ -107,7 +124,7 @@ def _extract(image_bytes: bytes, template: str, page_w: int = 0, page_h: int = 0
         return None
     payload = {
         "model": _model(),
-        "prompt": _PROMPT,
+        "prompt": _prompt_for(template),
         "images": [base64.b64encode(image_bytes).decode("ascii")],
         "stream": False,
         "format": "json",
