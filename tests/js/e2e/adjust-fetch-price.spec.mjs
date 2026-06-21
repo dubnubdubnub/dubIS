@@ -135,7 +135,7 @@ test.describe('Adjust modal — Fetch current price', () => {
     const optionValues = await supplier.locator('option').evaluateAll(
       (opts) => opts.map((o) => o.value),
     );
-    expect(optionValues).toEqual(expect.arrayContaining(['lcsc', 'mouser']));
+    expect(optionValues).toEqual(['lcsc', 'mouser']);
 
     await supplier.selectOption('mouser');
     await page.locator('#adj-fetch-price').click();
@@ -146,7 +146,7 @@ test.describe('Adjust modal — Fetch current price', () => {
     // Mouser price (9.99).
     expect(await readNumber(page.locator('#adj-unit-price'))).toBeCloseTo(8.0, 6);
     const selected = page.locator('#adj-fetch-tiers .adj-tier-row.selected');
-    await expect(selected).toHaveAttribute('data-price', '8');
+    expect(Number(await selected.getAttribute('data-price'))).toBeCloseTo(8.0, 4);
 
     // Price-history logging fired with the chosen provider and part key.
     const calls = await page.evaluate(() => window.__apiCalls['record_fetched_prices']);
@@ -160,6 +160,7 @@ test.describe('Adjust modal — Fetch current price', () => {
 
   test('tier-click override updates unit price and selection', async ({ page }) => {
     await partRow(page, 'C2040').locator('.adj-btn').click();
+    await expect(page.locator('#adjust-modal')).not.toHaveClass(/hidden/);
     await page.locator('#adj-fetch-price').click();
 
     const tiers = page.locator('#adj-fetch-tiers');
