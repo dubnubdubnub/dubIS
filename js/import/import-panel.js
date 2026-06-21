@@ -114,7 +114,8 @@ export function init() {
     "import-ocr-zone",
     "import-ocr-input",
     () => document.getElementById("import-ocr-input").click(),
-    (file) => import('./mfg-direct/mfg-direct-panel.js').then(m => m.openOcrImport(body, file, ocrTemplate())),
+    (files) => import('./mfg-direct/mfg-direct-panel.js').then(m => m.beginScanImport(body, files, ocrTemplate())),
+    { multi: true },
   );
 
   const scanBtn = document.getElementById("import-scan-btn");
