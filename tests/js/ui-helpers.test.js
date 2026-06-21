@@ -1,12 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// ui-helpers.js now imports focus-trap.js and store.js (for Modal's focus-trap
-// and Enter-to-confirm support). Mock them so the pure-function tests keep running
-// without pulling in the DOM/constants dependencies.
+// ui-helpers.js imports focus-trap.js (for Modal's focus-trap support). Mock it so
+// the pure-function tests keep running without pulling in DOM/constants dependencies.
 vi.mock('../../js/a11y/focus-trap.js', () => ({ trap: vi.fn(), release: vi.fn() }));
-vi.mock('../../js/store.js', () => ({
-  getShortcutPrefs: vi.fn(() => ({ enterSubmitsModals: true, vimNav: false })),
-}));
 
 import { stockValueColor, vendorIconSrc } from '../../js/ui-helpers.js';
 

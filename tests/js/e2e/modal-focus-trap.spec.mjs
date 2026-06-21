@@ -8,6 +8,24 @@ import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'inventory.json'), 'utf8'));
 
+test('Enter key confirms the preferences modal (not in a textarea)', async ({ page }) => {
+  await addMockSetup(page, MOCK_INVENTORY);
+  await page.goto('/index.html');
+  await waitForInventoryRows(page);
+
+  // Open the preferences modal via its trigger button.
+  await page.locator('#prefs-btn').click();
+  await expect(page.locator('#prefs-modal')).toBeVisible();
+
+  // Focus is inside the modal — move to a non-textarea field so Enter fires confirm.
+  const firstInput = page.locator('#prefs-modal input[type="number"]').first();
+  await firstInput.focus();
+
+  // Press Enter: the Modal factory should click #prefs-save, closing the modal.
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#prefs-modal')).toBeHidden();
+});
+
 test('preferences modal traps focus and restores it on Escape', async ({ page }) => {
   await addMockSetup(page, MOCK_INVENTORY);
   await page.goto('/index.html');
