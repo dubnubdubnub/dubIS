@@ -1,0 +1,62 @@
+/* ── Opacity-color tokens ───────────────────────────────────────────────────
+   Named handles for the repeated hex+alpha literals scattered across the CSS.
+   VALUES ARE INTENTIONALLY RAW HEX+ALPHA (e.g. #1f6feb20): CSS color-mix()
+   support varies across webview runtimes (see css/variables.css lines 45-55),
+   so we do NOT derive these from the base color vars. Each value below is the
+   exact literal it replaces — adopting a token must not change a single pixel.
+   Base color for each group is noted in the comment.
+   Consumed by: css/buttons.css, css/tables.css, css/modals.css,
+                css/components/vendor.css, css/components/linking.css
+   ──────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Blue  (#58a6ff = --color-blue) */
+  --color-blue-bg:            #58a6ff18;  /* .alt-badge bg */
+  --color-blue-bg-20:         #58a6ff20;  /* (alpha 20 variant) */
+  --color-blue-bg-strong:     #58a6ff30;  /* .alt-badge:hover */
+  --color-blue-border:        #58a6ff40;  /* .alt-badge border, alt-row left border, flyout focus ring */
+
+  /* Blue-dark (#1f6feb = --color-blue-dark) */
+  --color-blue-dark-bg:       #1f6feb20;  /* .prefs-btn/.rebuild-btn/.fetch-price-btn bg */
+  --color-blue-dark-border:   #1f6feb40;  /* same buttons border + hover bg */
+
+  /* Light-blue accent (#388bfd ≈ --color-blue-dark) */
+  --color-blue-accent-bg:     #388bfd26;  /* .filter-btn.active, .adj-btn:hover, .fetch-tier.selected */
+
+  /* Green (#3fb950 = --color-green) */
+  --color-green-bg:           #3fb95018;  /* .alt-badge.covered bg */
+  --color-green-bg-strong:    #3fb95030;  /* .alt-badge.covered:hover */
+  --color-green-border:       #3fb95040;  /* .alt-badge.covered border */
+
+  /* Yellow (#d29922 = --color-yellow) */
+  --color-yellow-bg:          #d2992220;  /* .save-bom-btn.dirty bg */
+  --color-yellow-border:      #d2992240;  /* .save-bom-btn.dirty border + hover bg */
+
+  /* Orange (#f0883e = --color-orange) */
+  --color-orange-bg:          #f0883e20;  /* .consume-btn bg */
+  --color-orange-border:      #f0883e40;  /* .consume-btn border + hover bg */
+
+  /* Red (#f85149 = --color-red) */
+  --color-red-bg:             #f8514920;  /* .clear-bom-btn:hover bg */
+
+  /* Teal (#2dd4bf = --color-teal) */
+  --color-teal-bg:            #2dd4bf26;  /* .confirm-btn/.swap-btn:hover bg */
+
+  /* Purple (#a371f7 = --color-purple) */
+  --color-purple-bg:          #a371f718;  /* tr.row-purple, .member-badge bg */
+  --color-purple-accent-bg:   #a371f726;  /* .link-btn:hover bg */
+  --color-purple-bg-strong:   #a371f730;  /* .link-btn.active, .member-badge:hover, .create/use-member-btn:hover */
+  --color-purple-border:      #a371f740;  /* .link-btn.active shadow, .member-badge border, member-row left border */
+
+  /* ── Row-tint backgrounds (BOM/inventory tr.row-* coloring) ─────────────── */
+  --row-green-bg:             #23863610;  /* tr.row-green */
+  --row-green-covered-bg:     #23863620;  /* tr.row-yellow-covered */
+  --row-yellow-bg:            #d2992210;  /* tr.row-yellow */
+  --row-orange-bg:            #f0883e10;  /* tr.row-orange */
+  --row-red-bg:               #f8514910;  /* tr.row-red */
+  --row-pink-bg:              #db61a218;  /* tr.row-pink, tr.row-pink-short */
+  --row-teal-bg:              #2dd4bf10;  /* tr.row-teal, tr.row-teal-short */
+  --row-purple-bg:            #a371f715;  /* tr.row-purple-short */
+  --row-purple-header-bg:     #a371f710;  /* tr.member-header-row */
+  --row-purple-faint-bg:      #a371f70a;  /* tr.member-row */
+  --row-dnp-bg:               #484f5810;  /* tr.row-dnp */
+}
