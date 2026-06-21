@@ -40,6 +40,22 @@
 
   /* Overlay */
   --overlay-bg: rgba(0, 0, 0, 0.6);
+
+  /* Form-control / surface tokens that were referenced before being declared.
+     These var() reads had no declaration (silent failure — the property fell
+     back to its initial value, e.g. background:transparent). Declared here to
+     match their evidently-intended surfaces; this is the one deliberate
+     rendering fix in the design-token foundation refactor.
+       --bg-input    : input/select/textarea fill. Matches .modal-form input,
+                       which uses --bg-base. (THE documented --bg-input fix.)
+       --bg-tertiary : tiny empty-favicon placeholder squares. Lightest surface.
+       --border-subtle: hairline divider; same as the fallback already used in
+                        css/modals.css (var(--border-subtle, var(--border-default))).
+       --color-amber : "match-possible" pill accent. Amber == --color-orange. */
+  --bg-input: var(--bg-base);
+  --bg-tertiary: var(--bg-raised);
+  --border-subtle: var(--border-default);
+  --color-amber: var(--color-orange);
 }
 
 /* Opacity variants derive from base colors — change base vars above to update.
