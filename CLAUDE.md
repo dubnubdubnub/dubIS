@@ -6,8 +6,8 @@ Desktop app: Python (pywebview) backend + vanilla JS/HTML/CSS frontend.
 
 | Layer | Files |
 |-------|-------|
-| **Backend** | `app.pyw` (webview launcher; `.pyw` so Windows uses `pythonw.exe` and skips the console window), `inventory_api.py` (API facade, 46 methods), `inventory_ops.py` (merge/adjust/categorize/sort), `csv_io.py` (CSV read/write/migrate), `cache_db.py` (SQLite materialized view), `categorize.py` (part categorization), `generic_parts.py` (generic part CRUD + BOM resolution), `spec_extractor.py` (component spec parsing), `price_ops.py` + `price_history.py` (pricing), `distributor_manager.py` (client coordination), `base_client.py` (ABC), `digikey_client.py` + `digikey_cdp.py` + `digikey_normalizer.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`, `html_product_parser.py` (shared HTML extraction), `pnp_server.py` (OpenPnP HTTP API), `file_dialogs.py` (OS file dialogs), `dubis_errors.py` (exception hierarchy) |
-| **Frontend** | `index.html`, `css/styles.css`, 31 JS ES modules in `js/` (no build step, no framework) |
+| **Backend** | `app.pyw` (webview launcher; `.pyw` so Windows uses `pythonw.exe` and skips the console window), `inventory_api.py` (API facade, 74 methods), `inventory_ops.py` (merge/adjust/categorize/sort), `csv_io.py` (CSV read/write/migrate), `cache_db.py` (SQLite materialized view), `categorize.py` (part categorization), `generic_parts.py` (generic part CRUD + BOM resolution), `spec_extractor.py` (component spec parsing), `price_ops.py` + `price_history.py` (pricing), `distributor_manager.py` (client coordination), `base_client.py` (ABC), `digikey_client.py` + `digikey_cdp.py` + `digikey_normalizer.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`, `html_product_parser.py` (shared HTML extraction), `pnp_server.py` (OpenPnP HTTP API), `file_dialogs.py` (OS file dialogs), `dubis_errors.py` (exception hierarchy); `domain/` (extracted business logic: `inventory.py`, `pricing.py`, `generic_parts.py`) |
+| **Frontend** | `index.html`, `css/styles.css`, 73 JS ES modules in `js/` and subdirs (`a11y/`, `bom/`, `group-flyout/`, `import/`, `inventory/`, `vendor/`) — no build step, no framework |
 | **Data** | CSV in `data/` — `inventory.csv`, `purchase_ledger.csv`, `adjustments.csv`; events in `events/` — `price_observations.csv`, `part_events.csv`; config: `preferences.json`, `constants.json`, `pnp_part_map.json`; SQLite: `cache.db` (deletable, rebuilt from CSVs) |
 
 ## Data Flow
@@ -33,6 +33,38 @@ purchase_ledger.csv + adjustments.csv
 
 All inventory-mutating API methods (`adjust_part`, `import_purchases`, `consume_bom`) append to CSVs, then rebuild cache and return fresh `list[InventoryItem]`. The cache can be deleted at any time — it rebuilds on next `rebuild_inventory()`.
 
+## Agent Tooling
+
+Two custom MCP servers are configured in `.mcp.json` at the repo root:
+
+### devtools MCP (`tools/dev-tools-mcp/server.py`)
+
+Efficiency tools that reduce token usage by eliminating redundant reads and providing smarter search:
+
+| Tool | What it does |
+|------|-------------|
+| `symbol_search` | Jumps straight to a function/class/variable definition and returns its full body — no grep-then-read round trip |
+| `block_grep` | Like grep but returns the entire enclosing function/block, not just the matching line — also skips the grep-then-read round trip |
+| `event_trace` | Finds all emitters and listeners for a named EventBus event across the whole `js/` tree |
+| `api_callers` | Finds every JS call site for a Python backend method, handling all calling conventions (string-keyed `api("name", ...)`, legacy `api.name()`, `pywebview.api.name()`) |
+| `file_ops` | `mkdir`, `mv`, `cp`, `rm` — batch file operations within the project root |
+| `line_edit` | Replace a line range by number (no old-text matching required) — use when you already have line numbers from Grep/Read |
+| `multi_edit` | Apply multiple line-range replacements to one file in a single call (applied in reverse order so line numbers stay valid) |
+
+**Worked examples for this repo's most common reverse-mapping tasks:**
+
+```
+# Every JS call site of a backend method (string-keyed bridge convention):
+api_callers("adjust_part")
+
+# Every emitter + listener for an event (replaces hand-reading the EventBus table):
+event_trace("INVENTORY_UPDATED")
+```
+
+### ssh MCP (`tools/ssh-mcp/server.py`)
+
+Remote access to the PnP machine and test runner over Tailscale — see `memory/reference_pnp_machine.md` and `memory/reference_ux430_testbox.md` for connection details.
+
 ## EventBus Flow
 
 Events are centralized in `event-bus.js`. Store setters that emit are marked; unlisted setters do NOT emit.
@@ -49,6 +81,15 @@ Events are centralized in `event-bus.js`. Store setters that emit are marked; un
 | `LINKS_CHANGED` | store.js (`addManualLink`), app-init.js | bom-events.js |
 | `SAVE_AND_CLOSE` | app-init.js | bom-events.js |
 | `GENERIC_PARTS_LOADED` | store.js (`loadInventory`), generic-parts-modal.js | (none currently) |
+| `FLYOUT_OPENED` | group-flyout/flyout-panel.js | inventory/inv-events.js |
+| `FLYOUT_CLOSED` | group-flyout/flyout-panel.js | inventory/inv-events.js |
+| `FLYOUT_ACTIVE_CHANGED` | group-flyout/flyout-panel.js | inventory/inv-events.js |
+| `FLYOUT_SEARCH_CHANGED` | group-flyout/flyout-events.js | inventory/inv-events.js |
+| `VENDORS_CHANGED` | store.js (`setVendors`) | inventory/inv-events.js |
+| `PO_CHANGED` | store.js (`setPurchaseOrders`) | inventory/inv-events.js |
+| `LABEL_MODE` | label-selection.js | inventory/inv-events.js, label-selection.js |
+| `LABEL_SELECTION_CHANGED` | label-selection.js | label-selection.js |
+| `LABEL_BULK_SELECTION` | label-selection.js | inventory/inv-events.js |
 
 **Non-emitting setters:** `setInventory()`, `setBomResults()`, `setBomMeta()`, `setBomDirty()`, `setPreferences()`, `loadLinks()`, `clearLinks()` — callers handle emission or don't need it.
 
@@ -57,6 +98,13 @@ Events are centralized in `event-bus.js`. Store setters that emit are marked; un
 - **Error policy**: prefer `AppLog.warn`/`AppLog.error` over silent catches. Throw errors rather than silently failing.
 - **Test policy**: never use `pytest.skip`, `pytest.importorskip`, or `@pytest.mark.skip` to hide missing dependencies — add them to `requirements-dev.txt` instead. Tests must run, not be skipped.
 - **UI clipping tests**: `sticky-buttons.spec.mjs` and `resize-visibility.spec.mjs` verify that action buttons (Adjust, Confirm, Link) are not clipped by panel overflow. Never weaken these tests (e.g., by relaxing tolerances, removing viewport sizes, or switching from individual-button checks to cell-level checks). If a CSS change causes these tests to fail, fix the CSS — the test is catching a real bug.
+
+### Traps
+
+- **WebView2 caches JS:** editing JS and relaunching shows stale code. The app uses a persistent WebView2 profile by default (`app.pyw:189`). Force fresh behavior: `DUBIS_WEBVIEW_PROFILE=ephemeral python app.pyw`.
+- **Backend change → regenerate fixtures:** after changing Python inventory/columns/prices logic, run `python scripts/generate-test-fixtures.py` or vitest fails with confusing value mismatches. Easiest: just run `bash scripts/verify.sh` (see Testing & Linting).
+- **Don't import `js/constants.js` in test setup:** it has a top-level `await fetch` at line 3 that crashes vitest collection; keep `js/ui-helpers.js` store-free and use lazy imports in tests instead.
+- **Visual bugs need pixel-truth tests:** geometry-asserts-itself property tests can pass while the visual bug persists. See `docs/visual-testing.md`.
 
 ## Common Workflows
 
@@ -97,6 +145,12 @@ git add tests/fixtures/generated/distributor-scrapes.json
 The public fixtures (LCSC + Pololu) self-refresh weekly via the scheduled `refresh-fixtures.yml` workflow, which opens a PR. DigiKey + Mouser are local-only (refresh them via `pytest -m live`); their credentials never run on CI.
 
 ## Testing & Linting
+
+**Before any PR, run the single catch-all command:**
+```bash
+bash scripts/verify.sh   # or: npm run verify
+```
+This runs all four staleness guards (fixtures, code-map, manifests, layout-tokens) plus ruff, pytest, eslint, tsc, and vitest, and prints a pass/fail summary. Use the per-change snippets below for faster iteration during development.
 
 ```bash
 # JavaScript
