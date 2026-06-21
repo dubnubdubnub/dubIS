@@ -1,4 +1,4 @@
-/* â”€â”€ Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Modal ─────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -70,13 +70,13 @@
   margin-top: 16px;
 }
 
-/* â”€â”€ No-Distributor Warning (modal context) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── No-Distributor Warning (modal context) ──────────── */
 .modal-detail-table .no-dist-warn {
   font-size: 12px;
   cursor: default;
 }
 
-/* â”€â”€ Preferences Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Preferences Modal ────────────────────────────────── */
 .prefs-modal-wide { min-width: 420px; max-width: 520px; max-height: 80vh; display: flex; flex-direction: column; }
 .prefs-sliders {
   overflow-y: auto;
@@ -154,7 +154,7 @@
 .prefs-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .prefs-input:focus { border-color: var(--color-blue); }
 
-/* â”€â”€ Vendors Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Vendors Modal ────────────────────────────────────── */
 .vendors-modal {
   min-width: 640px;
   max-width: 760px;
@@ -275,7 +275,7 @@
 .vendor-merge-select { width: 150px; flex: none; }
 #vendor-delete-btn.armed { background: var(--color-red); color: #fff; }
 
-/* ── Scan shell ─────────────────────────────────────────── */
+/* ── Scan shell ─────────────── */
 .scan-shell-tiles { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .scan-shell-tile { display: flex; align-items: center; gap: 6px; padding: 6px 10px;
   border: 1px solid var(--border, #ccc); border-radius: 6px; min-width: 160px; }
@@ -286,4 +286,3 @@
   border-top-color: transparent; border-radius: 50%; animation: scan-shell-spin 0.8s linear infinite; }
 .scan-shell-tile:not(.reading) .scan-shell-spinner { display: none; }
 @keyframes scan-shell-spin { to { transform: rotate(360deg); } }
-
