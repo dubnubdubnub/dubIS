@@ -251,6 +251,7 @@ export function init() {
   state.consumeModal = Modal("consume-modal", {
     onClose: () => resetConsumeConfirm(),
     cancelId: "consume-cancel",
+    confirmId: "consume-confirm",
   });
 
   setupEvents({

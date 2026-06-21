@@ -1,5 +1,10 @@
 /* ui-helpers.js — DOM utility functions shared across panels */
 
+import { trap, release } from './a11y/focus-trap.js';
+
+let _enterSubmitEnabled = () => true;
+export function setEnterSubmitEnabled(fn) { _enterSubmitEnabled = fn; }
+
 const TOAST_DURATION_MS = 2500;
 
 const STOCK_COLOR_STOPS = [
@@ -41,15 +46,26 @@ export function vendorIconSrc(path) {
   return "data/" + p.replace(/^\/+/, "");
 }
 
-export function Modal(id, { onClose, cancelId } = {}) {
+export function Modal(id, { onClose, cancelId, confirmId } = {}) {
   const el = document.getElementById(id);
-  function open()  { el.classList.remove("hidden"); }
-  function close() { el.classList.add("hidden"); if (onClose) onClose(); }
+  // Deferred trap: if a modal is opened and closed within the same frame, the trap
+  // may fire after close on a stale element; the next open clears it via release() inside trap().
+  function open()  { el.classList.remove("hidden"); requestAnimationFrame(() => trap(el)); }
+  function close() { el.classList.add("hidden"); release(); if (onClose) onClose(); }
   el.addEventListener("click", (e) => { if (e.target === el) close(); });
   if (cancelId) document.getElementById(cancelId).addEventListener("click", close);
   document.addEventListener("keydown", (e) => {
     if (el.classList.contains("hidden")) return;
-    if (e.key === "Escape") close();
+    if (e.key === "Escape") { close(); return; }
+    if (e.key === "Enter" && confirmId && _enterSubmitEnabled()) {
+      const t = e.target;
+      // Don't hijack Enter from controls with their own Enter semantics
+      // (buttons/selects/links fire natively; textarea + #adj-note want newlines).
+      if (t instanceof Element && t.closest('textarea, select, button, a[href], #adj-note')) return;
+      e.preventDefault();
+      const btn = document.getElementById(confirmId);
+      if (btn && !btn.disabled) btn.click();
+    }
   });
   return { el, open, close };
 }
