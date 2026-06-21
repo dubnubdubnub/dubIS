@@ -43,4 +43,11 @@ test.describe('Global shortcuts', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('#help-modal')).toBeHidden();
   });
+
+  test('F1 opens the shortcut help overlay', async ({ page }) => {
+    await page.keyboard.press('F1');
+    await expect(page.locator('#help-modal')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#help-modal')).toBeHidden();
+  });
 });

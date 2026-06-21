@@ -40,7 +40,9 @@ test('vim nav toggle moves the grid with j/k', async ({ page }) => {
   await firstCell.focus();
   // Advance past any header rows to land on the first actual part row.
   let r0 = await page.evaluate(() => document.activeElement?.closest('.inv-part-row')?.dataset.partId);
+  let iter = 0;
   while (r0 === undefined) {
+    if (++iter > 20) throw new Error('vim-nav: never reached a part row');
     await page.keyboard.press('j');
     r0 = await page.evaluate(() => document.activeElement?.closest('.inv-part-row')?.dataset.partId);
   }

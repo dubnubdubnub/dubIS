@@ -92,7 +92,6 @@ export function initKeyboardNav() {
   // rAF debounce coalesces burst mutations; re-entrancy guard prevents loops.
   if (invBody) {
     let invRafPending = false;
-    let invObserving = false;
     const invObserver = new MutationObserver(() => {
       if (invRafPending) return;
       invRafPending = true;
@@ -100,14 +99,11 @@ export function initKeyboardNav() {
         invRafPending = false;
         // Temporarily disconnect to avoid observing our own tabindex mutations.
         invObserver.disconnect();
-        invObserving = false;
         rearmInventory();
         invObserver.observe(invBody, { childList: true, subtree: false });
-        invObserving = true;
       });
     });
     invObserver.observe(invBody, { childList: true, subtree: false });
-    invObserving = true; // eslint-disable-line no-unused-vars
   }
 
   // MutationObserver on #bom-body — lazy-init BOM grid on first rows, then re-arm.
