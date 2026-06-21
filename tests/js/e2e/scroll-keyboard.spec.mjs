@@ -15,7 +15,7 @@ test('focused panel body scrolls with PageDown and Home/End', async ({ page }) =
   await waitForInventoryRows(page);
 
   const body = page.locator('#inventory-body');
-  await body.evaluate((el) => el.focus());
+  await body.focus();
   const before = await body.evaluate((el) => el.scrollTop);
   await page.keyboard.press('PageDown');
   const after = await body.evaluate((el) => el.scrollTop);

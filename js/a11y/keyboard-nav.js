@@ -3,21 +3,27 @@
 import { RovingGrid } from './roving-grid.js';
 import { makeScrollable } from './scrollable.js';
 import { activateOnKey } from './activate-on-key.js';
-import { EventBus, Events } from '../event-bus.js';
 
 // Inventory cell selectors (confirmed against inventory-renderer.js / inv-row-build.js).
 // Note: .price-warn-btn only exists when qty > 0 and no unit price; .link-btn only in
 // BOM mode; .generic-group-badge and .near-miss-badge only when applicable — all are
 // optional and the grid gracefully handles rows with fewer cells.
+// Header classes (.inv-section-header, .inv-parent-header, .inv-subsection-header) are
+// included here so they act as single-cell rows in the roving grid (see Fix 1 in
+// roving-grid.js grid()). activateOnKey is idempotent and won't fight the grid because
+// once the grid sets tabindex=-1 the element already has a tabindex attribute and
+// activateOnKey leaves it alone.
 const INV_CELLS = [
   '.part-mpn', '.no-dist-warn', '.price-warn-btn', '.generic-group-badge',
   '.near-miss-badge', '.adj-btn', '.link-btn',
+  '.inv-section-header', '.inv-parent-header', '.inv-subsection-header',
 ].join(',');
 
 // BOM comparison row cell selectors (confirmed against inventory-renderer.js createBomRowElement).
 // The brief guessed rowKey: 'data-bom-key' — the actual attribute is 'data-part-key'.
 // The brief included '.row-delete' — that class lives in staging rows only, not main BOM rows.
 // '.unconfirm-btn' is included alongside '.confirm-btn' (the renderer emits one or the other).
+// '.swap-btn' only appears in alt-rows, which are also <tr> elements matched by rowSelector 'tr'.
 const BOM_CELLS = [
   '.swap-btn', '.adj-btn', '.confirm-btn', '.unconfirm-btn', '.link-btn',
 ].join(',');
@@ -29,15 +35,17 @@ const SCROLL_SELECTORS = [
   '.scan-grouping-list', '.ocr-grid-pane',
 ];
 
-// Note: inv-section-header / inv-parent-header / inv-subsection-header are
-// intentionally excluded. They live inside #inventory-body, are rebuilt on
-// every render, and would gain tabindex=0 from activateOnKey — which
-// violates the "exactly one tab stop in the inventory grid" rule (the roving
-// grid owns that single tab stop). Those headers already have direct click
-// listeners and keyboard activation is deferred to a follow-up task.
 const ACTIVATE_SELECTORS = [
   '.label-po-row',
+  '.inv-section-header', '.inv-parent-header', '.inv-subsection-header',
 ];
+
+// Inventory row selector includes both part rows and the three header types.
+// Headers act as single-cell rows (roving-grid.js grid() handles them via row.matches()).
+const INV_ROW_SELECTOR = [
+  '.inv-part-row',
+  '.inv-section-header', '.inv-parent-header', '.inv-subsection-header',
+].join(',');
 
 let invGrid = null;
 let bomGrid = null;
@@ -55,16 +63,19 @@ export function initKeyboardNav() {
 
   if (invBody) {
     invGrid = RovingGrid(invBody, {
-      rowSelector: '.inv-part-row', cellSelector: INV_CELLS, rowKey: 'data-part-id',
+      rowSelector: INV_ROW_SELECTOR, cellSelector: INV_CELLS, rowKey: 'data-part-id',
     });
   }
 
-  function refreshInventory() {
-    if (invGrid) invGrid.refresh();
-    applyScrollables();
+  function rearmInventory() {
+    // Apply activation and scrollables BEFORE refresh() so the grid's setRover
+    // runs last and is authoritative for tabindex (exactly one tab stop).
     applyActivation();
+    applyScrollables();
+    if (invGrid) invGrid.refresh();
   }
-  function refreshBom() {
+
+  function rearmBom() {
     if (!bomGrid && bomBody && bomBody.querySelector('#bom-tbody')) {
       const gridRoot = bomBody.querySelector('#bom-tbody');
       bomGrid = RovingGrid(gridRoot, {
@@ -76,18 +87,45 @@ export function initKeyboardNav() {
     applyScrollables();
   }
 
-  // Re-run refresh on every event that causes inventory-panel render() to run.
-  EventBus.on(Events.INVENTORY_LOADED, refreshInventory);
-  EventBus.on(Events.INVENTORY_UPDATED, refreshInventory);
-  EventBus.on(Events.VENDORS_CHANGED, refreshInventory);
-  EventBus.on(Events.PO_CHANGED, refreshInventory);
-  EventBus.on(Events.LINKING_MODE, refreshInventory);
-  EventBus.on(Events.LABEL_MODE, refreshInventory);
-  EventBus.on(Events.LABEL_BULK_SELECTION, refreshInventory);
-  EventBus.on(Events.BOM_LOADED, refreshBom);
-  EventBus.on(Events.BOM_CLEARED, refreshBom);
+  // MutationObserver on #inventory-body — catches ALL re-render sources:
+  // EventBus events, flyout changes, ResizeObserver-triggered renders, etc.
+  // rAF debounce coalesces burst mutations; re-entrancy guard prevents loops.
+  if (invBody) {
+    let invRafPending = false;
+    let invObserving = false;
+    const invObserver = new MutationObserver(() => {
+      if (invRafPending) return;
+      invRafPending = true;
+      requestAnimationFrame(() => {
+        invRafPending = false;
+        // Temporarily disconnect to avoid observing our own tabindex mutations.
+        invObserver.disconnect();
+        invObserving = false;
+        rearmInventory();
+        invObserver.observe(invBody, { childList: true, subtree: false });
+        invObserving = true;
+      });
+    });
+    invObserver.observe(invBody, { childList: true, subtree: false });
+    invObserving = true; // eslint-disable-line no-unused-vars
+  }
+
+  // MutationObserver on #bom-body — lazy-init BOM grid on first rows, then re-arm.
+  if (bomBody) {
+    let bomRafPending = false;
+    const bomObserver = new MutationObserver(() => {
+      if (bomRafPending) return;
+      bomRafPending = true;
+      requestAnimationFrame(() => {
+        bomRafPending = false;
+        rearmBom();
+      });
+    });
+    bomObserver.observe(bomBody, { childList: true, subtree: true });
+  }
 
   // First pass for anything already in the DOM.
   applyScrollables();
   applyActivation();
+  if (invGrid) invGrid.refresh();
 }
