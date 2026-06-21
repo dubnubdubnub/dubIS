@@ -13,7 +13,7 @@ import { renderModal } from './ocr-overlay-renderer.js';
 import {
   createState, selectToken, selectTokens, selectCell,
   applyPending, setCellValue, setPage, clearPending, setTokenMode,
-  setZoom, tokenText, addRow, deleteRow, shiftColumn,
+  setZoom, tokenText, addRow, deleteRow, shiftColumn, setFocusRow,
 } from './ocr-overlay-state.js';
 import { normalizeRect, tokensInRect } from './ocr-overlay-hittest.js';
 
@@ -156,7 +156,7 @@ function bindEvents(root) {
     const field = td.dataset.field;
     td.onclick = (e) => {
       if (e.detail === 2) return;  // dblclick handles editing
-      state = applyPending(selectCell(state, { row, field }));
+      state = setFocusRow(applyPending(selectCell(state, { row, field })), row);
       rerender();
     };
     td.ondblclick = () => editCell(td, row, field);

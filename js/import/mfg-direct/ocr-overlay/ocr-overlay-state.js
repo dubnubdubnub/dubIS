@@ -11,8 +11,11 @@ export function createState(payload) {
     tokenMode: 'w',
     zoom: 1,
     fullscreen: false,
+    focusRow: null,
   };
 }
+
+export function setFocusRow(state, row) { return { ...state, focusRow: row }; }
 
 /** Clamp and store the scan-image zoom factor (1× .. 4×). Non-numbers → 1. */
 export function setZoom(state, zoom) {
