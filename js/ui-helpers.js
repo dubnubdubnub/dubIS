@@ -48,6 +48,8 @@ export function vendorIconSrc(path) {
 
 export function Modal(id, { onClose, cancelId, confirmId } = {}) {
   const el = document.getElementById(id);
+  // Deferred trap: if a modal is opened and closed within the same frame, the trap
+  // may fire after close on a stale element; the next open clears it via release() inside trap().
   function open()  { el.classList.remove("hidden"); requestAnimationFrame(() => trap(el)); }
   function close() { el.classList.add("hidden"); release(); if (onClose) onClose(); }
   el.addEventListener("click", (e) => { if (e.target === el) close(); });
