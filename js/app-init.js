@@ -11,6 +11,7 @@ import { colorizeRefs, REF_COLOR_MAP } from './part-keys.js';
 import { openPreferencesModal, applyPreferences, wireDigikeyButtons } from './preferences-modal.js';
 import { wireVendorsModal } from './vendors-modal.js';
 import { initShortcuts } from './a11y/shortcuts.js';
+import { initShortcutHelp } from './a11y/shortcut-help.js';
 import { saveBomFile } from './bom/bom-events.js';
 
 // Explicit panel imports (no side effects until init() is called)
@@ -182,6 +183,8 @@ async function initApp() {
   EventBus.on(Events.INVENTORY_UPDATED, syncUndoRedoButtons);
   EventBus.on(Events.BOM_LOADED, syncUndoRedoButtons);
 
+  const help = initShortcutHelp();
+
   initShortcuts({
     undo: async () => { if (UndoRedo.canUndo()) { await UndoRedo.undo(); syncUndoRedoButtons(); } },
     redo: async () => { if (UndoRedo.canRedo()) { await UndoRedo.redo(); syncUndoRedoButtons(); } },
@@ -206,7 +209,7 @@ async function initApp() {
       if (store.links.linkingBomRow) store.links.setReverseLinkingMode(false);
       else if (store.links.linkingMode) store.links.setLinkingMode(false);
     },
-    showHelp: () => {},  // replaced in Task 9
+    showHelp: () => help.open(),
   });
 
   initKeyboardNav();
