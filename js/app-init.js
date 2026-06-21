@@ -22,6 +22,7 @@ import { init as initGroupFlyout } from './group-flyout/flyout-panel.js';
 import { init as initLabelSelection } from './label-selection.js';
 import { init as initLabelExportModal } from './label-export-modal.js';
 import { registerScanHandler } from './import/mfg-direct/mfg-direct-panel.js';
+import { initKeyboardNav } from './a11y/keyboard-nav.js';
 
 // Expose globals for E2E tests and Python's evaluate_js
 window.store = store;
@@ -189,6 +190,8 @@ async function initApp() {
       syncUndoRedoButtons();
     }
   });
+
+  initKeyboardNav();
 
   await whenPywebviewReady();
   // Startup-timing probe. The backend returns true only when DUBIS_BENCH_OUT is
