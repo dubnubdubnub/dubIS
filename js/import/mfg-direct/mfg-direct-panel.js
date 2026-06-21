@@ -14,6 +14,7 @@ import { UndoRedo } from '../../undo-redo.js';
 import { invPartKey } from '../../part-keys.js';
 import { recordImportGeneration, popImportGeneration } from '../../inventory/inv-state.js';
 import { openGroupingEditor } from './scan-grouping.js';
+import { openScanShell, markShellTile, closeScanShell } from './scan-shell.js';
 
 const state = {
   active: false,
@@ -119,56 +120,91 @@ function _resetForImport(mountElement, template) {
 }
 
 /**
- * Open the OCR side-by-side review overlay for an image/PDF — no standalone
- * editor. On confirm, the reviewed rows + vendor flow straight into importPO().
+ * Shared downstream for every image source (drag/browse/phone). 1 photo →
+ * overlay; 2+ → grouping editor. `photos[i]` is a per-photo OCR record:
+ * { index, filename, image_b64, pages, prefill_rows }.
  */
-export async function openOcrImport(mountElement, file, template = 'generic') {
-  _resetForImport(mountElement, template);
-  let b64;
-  try {
-    b64 = await _fileToB64(file);
-  } catch {
-    showToast('Could not read that file');
+export function routeScanResult(photos, groups, template, sourceHint) {
+  if (!photos || !photos.length) {
+    showToast('No text found — try a clearer photo or a CSV');
     return;
   }
-  // Proactively surface a missing OCR engine before the heavier call.
+  state.scanTemplate = template || state.scanTemplate;
+  if (photos.length > 1) {
+    openGroupingEditor(photos, groups, template || 'generic',
+      (groupPayloads) => startImportQueue(groupPayloads));
+    AppLog.info(`Scan: grouping editor for ${photos.length} photo(s)`);
+    return;
+  }
+  const only = photos[0];
+  openOverlay({ pages: only.pages, prefill_rows: only.prefill_rows, template },
+    {
+      onConfirm: (rows, vendor) => {
+        state.lineItems = rows;
+        state.vendor = vendor;
+        state.sourceFile = sourceHint
+          || { name: only.filename, bytes: only.image_b64 };
+        importPO();
+      },
+    });
+  AppLog.info(`Scan: overlay for ${only.filename} (${template || 'generic'})`);
+}
+
+/**
+ * Unified entry for drag-drop AND click-to-browse. Opens the Reading… shell
+ * IMMEDIATELY (before any OCR), OCRs each file sequentially while streaming the
+ * result into its tile, then routes via routeScanResult.
+ */
+export async function beginScanImport(mountElement, files, template = 'generic') {
+  const list = Array.isArray(files) ? files : (files ? [files] : []);
+  if (!list.length) return;
+  _resetForImport(mountElement, template);
+  openScanShell(list.map(f => ({ name: f.name })));
+
+  // Surface a missing OCR engine before the heavier per-file loop.
   try {
-    const ok = await apiMfgDirect.ocrEngineAvailable();
-    if (ok === false) {
+    if ((await apiMfgDirect.ocrEngineAvailable()) === false) {
+      closeScanShell();
       showToast('OCR engine not available — install Tesseract');
       AppLog.warn('ocr_engine_available returned false');
       return;
     }
   } catch (exc) {
-    // Non-fatal: fall through to the OCR call, whose catch is the real safety net.
     AppLog.warn('ocr_engine_available check failed: ' + exc);
   }
-  try {
-    const payload = await apiMfgDirect.ocrOverlayB64(b64, file.name, template);
-    if (payload && payload.pages && payload.pages.length) {
-      openOverlay(payload, {
-        onConfirm: (rows, vendor) => {
-          state.lineItems = rows;
-          state.vendor = vendor;
-          state.sourceFile = { name: file.name, bytes: b64 };
-          importPO();
-        },
-      });
-      return;
-    }
-    showToast('No text found in that file — try a clearer photo or a CSV');
-    AppLog.warn('ocr_overlay_b64 returned no pages');
-  } catch (exc) {
-    // The pywebview bridge surfaces Python exceptions as the JS error message;
-    // TesseractMissingError text contains "Tesseract" + a winget install hint.
-    const msg = String((exc && exc.message) || exc);
-    if (/tesseract/i.test(msg)) {
-      showToast(msg);
-    } else {
+
+  const photos = [];
+  for (let i = 0; i < list.length; i++) {
+    const file = list[i];
+    try {
+      const b64 = await _fileToB64(file);
+      const payload = await apiMfgDirect.ocrOverlayB64(b64, file.name, template);
+      if (payload && payload.pages && payload.pages.length) {
+        photos.push({ index: i, filename: file.name, image_b64: b64,
+          pages: payload.pages, prefill_rows: payload.prefill_rows || [] });
+        markShellTile(i, 'done', `${(payload.prefill_rows || []).length} rows`);
+      } else {
+        markShellTile(i, 'error', 'No text');
+      }
+    } catch (exc) {
+      const msg = String((exc && exc.message) || exc);
+      markShellTile(i, 'error', /tesseract/i.test(msg) ? 'No OCR engine' : 'Failed');
       AppLog.error('OCR import failed: ' + exc);
-      showToast('OCR failed — see log');
     }
   }
+
+  closeScanShell();
+  if (!photos.length) {
+    showToast('No text found in those files — try clearer photos or a CSV');
+    return;
+  }
+  const groups = photos.map((_, k) => [k]);
+  routeScanResult(photos, groups, template);
+}
+
+/** @deprecated single-file shim kept for callers; routes through beginScanImport. */
+export async function openOcrImport(mountElement, file, template = 'generic') {
+  return beginScanImport(mountElement, [file], template);
 }
 
 /** Start a phone-scan session and open the QR modal — no standalone editor. */
@@ -403,13 +439,14 @@ function bindScanModal(root, session) {
   }
 }
 
+/** Extract raw base64 bytes from the source the phone sent. */
+function scanSourceB64(payload) { const s = scanSourceFile(payload); return s ? s.bytes : ''; }
+
 /**
  * Backend → frontend push: called via evaluate_js when the phone uploads a PO
- * photo. Mirrors window._pnpConsume. Lands OCR'd line items into the existing
- * mfg-direct staging editor, stores the photo as the PO source file, runs the
- * existing match-and-confirm loop, then lets the user review + click the
- * EXISTING Import button.
- * @param {{line_items: Array, image_b64: string, filename: string, template: string}} payload
+ * photo. Routes multi/single-photo payloads through routeScanResult; falls back
+ * to the legacy flat-staging path for old payloads without `pages`.
+ * @param {{line_items: Array, image_b64: string, filename: string, template: string, photos?: Array, pages?: Array}} payload
  */
 async function scanReceived(payload) {
   if (!payload) {
@@ -423,35 +460,25 @@ async function scanReceived(payload) {
   }
   closeScanModal();
 
-  // Multi-photo: each photo defaults to its own PO. Open the grouping editor so
-  // the user can group photos of the same order, then import each group as a PO
-  // via the sequential queue. Single-photo scans skip straight to the overlay.
-  if (payload.photos && payload.photos.length > 1) {
-    state.scanTemplate = payload.template || state.scanTemplate;
-    openGroupingEditor(payload.photos, payload.groups, payload.template || 'generic',
-      (groupPayloads) => startImportQueue(groupPayloads));
-    AppLog.info(`Scan: grouping editor for ${payload.photos.length} photo(s)`);
+  if (payload.photos && payload.photos.length) {
+    const photos = payload.photos.map((p, i) => ({
+      index: i, filename: p.filename || `scan-${i + 1}.jpg`,
+      image_b64: p.image_b64 || '', pages: p.pages || [],
+      prefill_rows: p.prefill_rows || [],
+    }));
+    routeScanResult(photos, payload.groups, payload.template || 'generic');
     return;
   }
-
-  // New OCR-overlay path: the phone payload carries page/token data. Route it
-  // through the side-by-side review modal. Backward compatible — when `pages`
-  // is absent we keep the legacy flat-staging behavior below.
   if (payload.pages && payload.pages.length) {
-    state.scanTemplate = payload.template || state.scanTemplate;
-    const src = scanSourceFile(payload);
-    openOverlay(payload, {
-      onConfirm: (rows, vendor) => {
-        state.lineItems = rows;
-        state.vendor = vendor;
-        if (src) state.sourceFile = src;
-        importPO();
-      },
-    });
-    AppLog.info(`Scan: OCR overlay with ${payload.pages.length} page(s) (${payload.template || 'generic'})`);
+    routeScanResult(
+      [{ index: 0, filename: (payload.filename || 'scan.jpg'),
+         image_b64: scanSourceB64(payload), pages: payload.pages,
+         prefill_rows: payload.prefill_rows || payload.line_items || [] }],
+      [[0]], payload.template || 'generic', scanSourceFile(payload));
     return;
   }
 
+  // Legacy flat-item fallback (no `pages`): land items into the staging editor.
   state.scanTemplate = payload.template || state.scanTemplate;
   state.lineItems = mapScanLineItems(payload.line_items, payload.template);
   const src = scanSourceFile(payload);
