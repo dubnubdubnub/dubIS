@@ -286,32 +286,41 @@
   border-top-color: transparent; border-radius: 50%; animation: scan-shell-spin 0.8s linear infinite; }
 .scan-shell-tile:not(.reading) .scan-shell-spinner { display: none; }
 @keyframes scan-shell-spin { to { transform: rotate(360deg); } }
-/* ── Fetch-price controls (Adjust modal) ──────────────── */
-.modal-form-label { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
-#adj-fetch-row { gap: var(--adj-fetch-gap); }
-#adj-fetch-supplier { flex: none; min-width: var(--adj-fetch-supplier-w); }
-#adj-fetch-price { flex: none; white-space: nowrap; }
-.adj-fetch-tiers {
+/* ── Fetch-price controls (Adjust + Price modals) ─────── */
+/* Supplier dropdown stays compact; the button fills the rest of the row so it
+   reads as a deliberate action (blue accent, matching .prefs-btn / .rebuild-btn). */
+.fetch-supplier { flex: none; min-width: var(--fetch-supplier-w); }
+.fetch-price-btn {
+  flex: 1;
+  white-space: nowrap;
+  font-weight: 600;
+  border-color: #1f6feb40;
+  background: #1f6feb20;
+  color: var(--color-blue);
+}
+.fetch-price-btn:hover:not(:disabled) { background: #1f6feb40; border-color: var(--color-blue); }
+.fetch-price-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* Price-break tier chips — same look as the inventory filter chips
+   (.filter-btn / .filter-btn.active). */
+.fetch-tiers {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--adj-tier-gap);
-  margin-bottom: var(--adj-tier-list-mb);
+  gap: var(--fetch-tier-gap);
+  margin-top: var(--fetch-tiers-mt);
+  margin-bottom: var(--fetch-tier-gap);
 }
-.adj-fetch-tiers.hidden { display: none; }
-.adj-tier-row {
-  font-size: 12px;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  padding: var(--adj-tier-pad-y) var(--adj-tier-pad-x);
-  border-radius: 6px;
+.fetch-tiers.hidden { display: none; }
+.fetch-tier {
+  padding: var(--fetch-tier-pad-y) var(--fetch-tier-pad-x);
+  background: var(--bg-raised);
+  color: var(--text-secondary);
   border: 1px solid var(--border-default);
-  background: var(--bg-base);
-  color: var(--text-bright);
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: "SFMono-Regular", Consolas, monospace;
   cursor: pointer;
-  outline: none;
+  transition: all 0.15s;
 }
-.adj-tier-row:hover { border-color: var(--color-blue); }
-.adj-tier-row.selected {
-  border-color: var(--color-blue);
-  background: var(--color-blue);
-  color: #fff;
-}
+.fetch-tier:hover { border-color: var(--color-blue); color: var(--text-primary); }
+.fetch-tier.selected { background: #388bfd26; border-color: var(--color-blue); color: var(--color-blue); }
