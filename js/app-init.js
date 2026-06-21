@@ -2,9 +2,9 @@
 
 import { EventBus, Events } from './event-bus.js';
 import { api, AppLog, whenPywebviewReady } from './api.js';
-import { showToast, Modal } from './ui-helpers.js';
+import { showToast, Modal, setEnterSubmitEnabled } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
-import { store, loadPreferences, loadInventory, onInventoryUpdated } from './store.js';
+import { store, loadPreferences, loadInventory, onInventoryUpdated, getShortcutPrefs } from './store.js';
 import { processBOM } from './csv-parser.js';
 import { matchBOM } from './matching.js';
 import { colorizeRefs, REF_COLOR_MAP } from './part-keys.js';
@@ -35,6 +35,8 @@ window.REF_COLOR_MAP = REF_COLOR_MAP;
 
 // ── Init on pywebview ready ────────────────────────────
 async function initApp() {
+  setEnterSubmitEnabled(() => getShortcutPrefs().enterSubmitsModals);
+
   // Dismiss the startup splash once the grid has data (or after a safety timeout,
   // so a failed load never traps the user behind the overlay).
   const dismissSplash = () => {
