@@ -429,3 +429,13 @@
   background: var(--color-green);
   box-shadow: 0 0 3px rgba(63, 185, 80, 0.7);
 }
+/* In-row twin of the gutter dot: green sparkle confirming the row is a
+   recently-imported one. Lives at the left edge of .part-actions. */
+.inv-part-row .inv-row-new-mark {
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--color-green);
+  text-shadow: 0 0 3px rgba(63, 185, 80, 0.7);
+  pointer-events: none;
+}
