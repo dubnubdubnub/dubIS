@@ -76,6 +76,16 @@ def extract_pages(file_bytes: bytes, ext: str, template: str = "generic") -> dic
     raster = pdf_raster.rasterize(file_bytes, ext)
     pages = [extract_page(png) for (png, _w, _h) in raster]
 
+    # Preferred backend: a local vision-language model (via Ollama) reads the page
+    # holistically — robust to faint print, folds, and perspective that defeat
+    # classical OCR. Self-gating: returns None when no capable Ollama is reachable
+    # (GPU-less nodes, CI), so we fall through to the Tesseract pipeline below with
+    # no behaviour change. Runs entirely locally — no PII leaves the machine.
+    import vlm_extract
+    vlm_rows = vlm_extract.extract_line_items(raster[0][0], template) if raster else None
+    if vlm_rows:
+        return {"pages": pages, "prefill_rows": vlm_rows, "template": template}
+
     # Two extractors, then keep whichever recovered MORE rows:
     #  - grid-aware (ocr_table): OCRs each ruled cell in isolation and assigns
     #    columns by content, so it recovers values (e.g. LCSC C-numbers) that flat
