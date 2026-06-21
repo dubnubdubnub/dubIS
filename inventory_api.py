@@ -393,6 +393,10 @@ class InventoryApi:
             self._get_cache(), self.events_dir, part_key,
         )
 
+    def get_last_po_quantity(self, part_key: str) -> int | None:
+        """Quantity from the most recent purchase-ledger row for this part, or None."""
+        return inventory_ops.last_po_quantity(self.input_csv, part_key)
+
     # ── Product preview (delegated to DistributorManager) ───────────────────
 
     def fetch_lcsc_product(self, product_code: str) -> dict[str, Any] | None:
