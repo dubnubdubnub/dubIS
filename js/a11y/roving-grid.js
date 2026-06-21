@@ -23,7 +23,12 @@ export function RovingGrid(container, { rowSelector, cellSelector, rowKey }) {
   function grid() {
     const rowEls = Array.from(container.querySelectorAll(rowSelector));
     return rowEls
-      .map((row) => ({ row, cells: Array.from(row.querySelectorAll(cellSelector)) }))
+      .map((row) => ({
+        row,
+        // If the row element itself matches cellSelector (e.g. a header acting as a
+        // single-cell row), use [row] directly; otherwise collect descendant cells.
+        cells: row.matches(cellSelector) ? [row] : Array.from(row.querySelectorAll(cellSelector)),
+      }))
       .filter((g) => g.cells.length > 0);
   }
 
