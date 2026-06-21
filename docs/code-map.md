@@ -282,6 +282,7 @@ graph LR
     "ocr_layout.py" --> "ocr_engine.py"
     "ocr_layout.py" --> "ocr_table.py"
     "ocr_layout.py" --> "pdf_raster.py"
+    "ocr_layout.py" --> "vlm_extract.py"
     "ocr_table.py" --> "ocr_engine.py"
     "pololu_client.py" --> "base_client.py"
     "pololu_client.py" --> "html_product_parser.py"
@@ -419,6 +420,7 @@ graph LR
     "tests/python/test_ocr_layout.py" --> "ocr_layout.py"
     "tests/python/test_ocr_layout.py" --> "ocr_table.py"
     "tests/python/test_ocr_layout.py" --> "pdf_raster.py"
+    "tests/python/test_ocr_layout.py" --> "vlm_extract.py"
     "tests/python/test_ocr_overlay_api.py" --> "inventory_api.py"
     "tests/python/test_ocr_overlay_api.py" --> "ocr_engine.py"
     "tests/python/test_ocr_overlay_api.py" --> "ocr_layout.py"
@@ -436,6 +438,7 @@ graph LR
     "tests/python/test_source_sanitizer.py" --> "source_sanitizer.py"
     "tests/python/test_spec_extractor.py" --> "spec_extractor.py"
     "tests/python/test_vendors.py" --> "vendors.py"
+    "tests/python/test_vlm_extract.py" --> "vlm_extract.py"
     "vendors.py" --> "csv_io.py"
 ```
 
@@ -930,7 +933,7 @@ graph LR
 
 ### ocr_layout.py
 
-- **Imports:** `distributor_profiles.py`, `ocr_engine.py`, `ocr_table.py`, `pdf_raster.py`
+- **Imports:** `distributor_profiles.py`, `ocr_engine.py`, `ocr_table.py`, `pdf_raster.py`, `vlm_extract.py`
 - **Imported by:** `inventory_api.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_ocr_overlay_api.py`
 
 ### ocr_table.py
@@ -1504,7 +1507,7 @@ graph LR
 
 ### tests/python/test_ocr_layout.py
 
-- **Imports:** `distributor_profiles.py`, `ocr_engine.py`, `ocr_layout.py`, `ocr_table.py`, `pdf_raster.py`
+- **Imports:** `distributor_profiles.py`, `ocr_engine.py`, `ocr_layout.py`, `ocr_table.py`, `pdf_raster.py`, `vlm_extract.py`
 - **Imported by:** —
 
 ### tests/python/test_ocr_overlay_api.py
@@ -1567,6 +1570,11 @@ graph LR
 - **Imports:** `vendors.py`
 - **Imported by:** —
 
+### tests/python/test_vlm_extract.py
+
+- **Imports:** `vlm_extract.py`
+- **Imported by:** —
+
 ### tests/vitest-global-setup.js
 
 - **Imports:** —
@@ -1581,3 +1589,8 @@ graph LR
 
 - **Imports:** —
 - **Imported by:** —
+
+### vlm_extract.py
+
+- **Imports:** —
+- **Imported by:** `ocr_layout.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_vlm_extract.py`
