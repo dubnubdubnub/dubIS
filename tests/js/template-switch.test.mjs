@@ -6,12 +6,14 @@ describe('templateVendorName', () => {
   it('maps distributor templates to vendor names', () => {
     expect(templateVendorName('lcsc')).toBe('LCSC');
     expect(templateVendorName('digikey')).toBe('DigiKey');
+    expect(templateVendorName('mouser')).toBe('Mouser');
+    expect(templateVendorName('pololu')).toBe('Pololu');
     expect(templateVendorName('generic')).toBeNull();
   });
 });
 
 describe('reparseRowsForTemplate', () => {
-  it('drops distributor_pn into distributor column for distributor templates', () => {
+  it('sets distributor to the template name for distributor templates', () => {
     const rows = [{ mpn: 'X', distributor: 'generic', distributor_pn: '' }];
     const out = reparseRowsForTemplate(rows, 'lcsc');
     expect(out[0].distributor).toBe('lcsc');
