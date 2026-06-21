@@ -46,9 +46,13 @@ def _clean_env(monkeypatch):
     monkeypatch.delenv("DUBIS_VLM_DISABLE", raising=False)
     monkeypatch.delenv("DUBIS_VLM_MODEL", raising=False)
     monkeypatch.delenv("DUBIS_OLLAMA_URL", raising=False)
+    # Reset the selected-model cache so tests don't leak it between runs.
+    monkeypatch.setattr(vlm_extract, "_selected_model", None)
 
 
 MODELS = {"models": [{"name": "qwen2.5vl:7b"}]}
+BOTH_MODELS = {"models": [{"name": "qwen2.5vl:3b"}, {"name": "qwen2.5vl:7b"}]}
+ONLY_3B = {"models": [{"name": "qwen2.5vl:3b"}]}
 
 
 def test_available_true_when_model_present(monkeypatch):
@@ -60,6 +64,32 @@ def test_available_matches_model_by_base_name(monkeypatch):
     # A different tag of the same model still counts as available.
     _mock_urlopen(monkeypatch, tags={"models": [{"name": "qwen2.5vl:latest"}]})
     assert vlm_extract.available() is True
+
+
+def test_prefers_7b_when_both_installed(monkeypatch):
+    _mock_urlopen(monkeypatch, tags=BOTH_MODELS)
+    assert vlm_extract._select_model() == "qwen2.5vl:7b"
+
+
+def test_falls_back_to_3b_when_only_3b_installed(monkeypatch):
+    # A low-VRAM node (e.g. 6 GB RTX 2060) pulls only the 3B → it's used with no
+    # config needed.
+    _mock_urlopen(monkeypatch, tags=ONLY_3B)
+    assert vlm_extract._select_model() == "qwen2.5vl:3b"
+    assert vlm_extract.available() is True
+
+
+def test_env_override_forces_model_even_when_others_present(monkeypatch):
+    monkeypatch.setenv("DUBIS_VLM_MODEL", "qwen2.5vl:3b")
+    _mock_urlopen(monkeypatch, tags=BOTH_MODELS)
+    assert vlm_extract._select_model() == "qwen2.5vl:3b"
+
+
+def test_model_name_reflects_selection_after_extract(monkeypatch):
+    _mock_urlopen(monkeypatch, tags=ONLY_3B,
+                  generate={"items": [{"distributor_pn": "C1", "mfr_pn": "X", "qty": 1}]})
+    vlm_extract.extract_line_items(b"img", "lcsc")
+    assert vlm_extract.model_name() == "qwen2.5vl:3b"
 
 
 def test_available_false_when_unreachable(monkeypatch):

@@ -21,18 +21,21 @@ vision-language model reads the table far better than Tesseract. It runs entirel
 locally via [Ollama](https://ollama.com) — no document data leaves the machine —
 and is used automatically *when available*, falling back to Tesseract otherwise.
 
-Enable it on a node with a capable GPU:
+Enable it by pulling a model that fits your GPU:
 
 ```
 winget install Ollama.Ollama      # or https://ollama.com/download
-ollama pull qwen2.5vl:7b          # ~6 GB; needs ~6 GB VRAM at 4-bit
+ollama pull qwen2.5vl:7b          # best quality; ~6 GB VRAM at 4-bit
+#   …or, on a smaller GPU (e.g. a 6 GB RTX 2060):
+ollama pull qwen2.5vl:3b          # fits ~4 GB; gets MPNs + quantities, but may
+                                  # miss faint LCSC C-numbers (drag those in)
 ```
 
-That's it — `extract_pages` auto-detects a reachable Ollama with the model and
-prefers it. Configuration (per node, via environment):
+That's it — `extract_pages` auto-detects a reachable Ollama and **picks the best
+model you've pulled** (prefers 7B, falls back to 3B), so a low-VRAM node just
+pulls the 3B with no further config. Per-node environment overrides:
 
-- `DUBIS_VLM_MODEL` — model tag (default `qwen2.5vl:7b`). Use a smaller tag on
-  low-VRAM GPUs.
+- `DUBIS_VLM_MODEL` — force a specific model tag, overriding the auto-pick.
 - `DUBIS_OLLAMA_URL` — Ollama base URL (default `http://127.0.0.1:11434`); point
   at another node running Ollama if this one has no GPU.
 - `DUBIS_VLM_DISABLE` — set to any value to force the backend off.
