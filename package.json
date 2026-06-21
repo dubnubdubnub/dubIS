@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "verify": "bash scripts/verify.sh",
     "test": "vitest run",
     "test:core": "vitest run --project core",
     "test:quality": "vitest run --project quality",
