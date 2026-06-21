@@ -7,6 +7,14 @@ import { signal } from './signals.js';
 import { SECTION_ORDER } from './constants.js';
 import { api, AppLog } from './api.js';
 
+// ── Shortcut preferences defaults ──────────────────────────
+
+export const SHORTCUT_DEFAULTS = Object.freeze({
+  redo: 'both',               // 'both' | 'ctrl-y' | 'ctrl-shift-z'
+  enterSubmitsModals: true,
+  vimNav: false,
+});
+
 // ── Private state slices ──────────────────────────────────
 let inventory = [];
 let bomResults = null;
@@ -18,6 +26,7 @@ let bomFootprintNearMisses = [];
 let preferences = {
   thresholds: {},
   inventory_view: { group_level: 0, sort_column: null, sort_scope: null, vendor_group_scope: null },
+  shortcuts: { ...SHORTCUT_DEFAULTS },
 };
 
 // ── Signals ───────────────────────────────────────────────
@@ -234,6 +243,9 @@ export async function loadPreferences() {
         vendor_group_scope: stored.inventory_view.vendor_group_scope || null,
       };
     }
+    if (stored.shortcuts && typeof stored.shortcuts === "object") {
+      preferences.shortcuts = normalizeShortcuts(stored.shortcuts);
+    }
   }
 }
 
@@ -326,4 +338,25 @@ export function onInventoryUpdated(freshInventory) {
   EventBus.emit(Events.INVENTORY_UPDATED, inventory);
   // Refresh vendors and purchase orders after any inventory mutation
   loadVendorsAndPOs().catch(e => AppLog.warn("Failed to refresh vendors/POs: " + e));
+}
+
+// ── Shortcut preferences ──────────────────────────────────
+
+function normalizeShortcuts(s) {
+  const redo = ['both', 'ctrl-y', 'ctrl-shift-z'].includes(s.redo) ? s.redo : SHORTCUT_DEFAULTS.redo;
+  return {
+    redo,
+    enterSubmitsModals: typeof s.enterSubmitsModals === 'boolean' ? s.enterSubmitsModals : SHORTCUT_DEFAULTS.enterSubmitsModals,
+    vimNav: typeof s.vimNav === 'boolean' ? s.vimNav : SHORTCUT_DEFAULTS.vimNav,
+  };
+}
+
+export function getShortcutPrefs() {
+  return normalizeShortcuts(preferences.shortcuts || {});
+}
+
+export function setShortcutPrefs(partial) {
+  preferences.shortcuts = normalizeShortcuts({ ...getShortcutPrefs(), ...partial });
+  savePreferences();
+  preferencesSignal.set(preferences);
 }
