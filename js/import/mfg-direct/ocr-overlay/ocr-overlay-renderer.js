@@ -11,6 +11,7 @@
 import { escHtml } from '../../../ui-helpers.js';
 
 export function renderModal(state) {
+  if (state.loading) return renderLoadingModal(state);
   const page = state.pages[state.pageIdx];
   const selected = new Set(state.pending.tokenIds || []);
   return `<div class="modal-overlay" id="ocr-overlay">
@@ -21,6 +22,38 @@ export function renderModal(state) {
         <div class="ocr-grid-pane">${renderGrid(state)}</div>
       </div>
       ${renderFooter(state)}
+    </div>
+  </div>`;
+}
+
+/** Skeleton "scanning" modal shown while OCR runs (state.loading === true). */
+function renderLoadingModal(state) {
+  const imgs = state.images || [];
+  const m = imgs.length;
+  const status = m > 1 ? `Reading image ${state.imageIdx + 1} of ${m}…` : 'Reading image…';
+  const first = imgs[0];
+  const scanInner = (first && first.b64)
+    ? `<img class="ocr-skel-img" src="data:image/png;base64,${escHtml(first.b64)}" alt="scan" draggable="false">`
+    : `<div class="ocr-skel-doc" aria-hidden="true"></div>`;
+  const skelRows = Array.from({ length: 4 }, () =>
+    `<div class="ocr-skel-row"><span></span><span></span><span></span><span></span></div>`).join('');
+  return `<div class="modal-overlay" id="ocr-overlay">
+    <div class="modal ocr-overlay-modal ocr-loading" role="status" aria-live="polite" aria-busy="true">
+      <div class="ocr-header">Reading scan… <span class="ocr-skel-status">${escHtml(status)}</span></div>
+      <div class="ocr-split">
+        <div class="ocr-scan-pane">
+          <div class="ocr-skel-scan">
+            ${scanInner}
+            <div class="ocr-scan-sweep" aria-hidden="true"></div>
+          </div>
+        </div>
+        <div class="ocr-grid-pane"><div class="ocr-skel-grid">${skelRows}</div></div>
+      </div>
+      <div class="ocr-footer">
+        <span class="ocr-skel-hint">Recognizing text — this can take a few seconds.</span>
+        <button id="ocr-cancel" class="btn btn-cancel" type="button">Cancel</button>
+        <button id="ocr-confirm" class="btn btn-primary" type="button" disabled>Continue to import</button>
+      </div>
     </div>
   </div>`;
 }

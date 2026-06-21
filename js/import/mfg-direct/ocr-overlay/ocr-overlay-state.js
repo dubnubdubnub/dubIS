@@ -2,6 +2,7 @@
 
 export function createState(payload) {
   return {
+    loading: false,
     template: payload.template,
     pages: payload.pages || [],
     pageIdx: 0,
@@ -11,6 +12,27 @@ export function createState(payload) {
     tokenMode: 'w',
     zoom: 1,
     fullscreen: false,
+  };
+}
+
+/**
+ * Minimal state for the "scanning" skeleton shown while OCR runs. `images` is a
+ * list of { b64, name } (length >= 0). The inert review fields keep renderModal
+ * and the panel's bindEvents safe if anything reads them before resolve.
+ */
+export function createLoadingState(images) {
+  return {
+    loading: true,
+    images: (images || []).map(im => ({ b64: (im && im.b64) || '', name: (im && im.name) || '' })),
+    imageIdx: 0,
+    template: '',
+    pages: [],
+    pageIdx: 0,
+    rows: [],
+    lowConf: [],
+    pending: { kind: null, tokenIds: [], cell: null },
+    tokenMode: 'w',
+    zoom: 1,
   };
 }
 
