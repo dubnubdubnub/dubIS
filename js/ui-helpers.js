@@ -70,13 +70,9 @@ export function Modal(id, { onClose, cancelId, confirmId } = {}) {
   return { el, open, close };
 }
 
-export function setupDropZone(zoneId, inputId, onBrowse, onFile) {
+export function setupDropZone(zoneId, inputId, onBrowse, onFile, { multi = false } = {}) {
   const zone = document.getElementById(zoneId);
   const input = document.getElementById(inputId);
-  // Only treat clicks on the zone's empty space as a "browse" gesture. Clicks on
-  // interactive controls inside the zone (the file input, the OCR template
-  // <select> and its <label>, scan/template buttons) must not also open the file
-  // dialog — otherwise picking from the dropdown would trigger both at once.
   // Only treat clicks on the zone's empty space as a "browse" gesture. Clicks on
   // interactive controls inside the zone (the file input, the OCR template
   // <select> and its <label>, scan/template buttons) must not also open the file
@@ -89,9 +85,12 @@ export function setupDropZone(zoneId, inputId, onBrowse, onFile) {
   zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
   zone.addEventListener("drop", (e) => {
     e.preventDefault(); e.stopPropagation(); zone.classList.remove("dragover");
-    if (e.dataTransfer.files.length) onFile(e.dataTransfer.files[0]);
+    const files = e.dataTransfer.files;
+    if (files.length) onFile(multi ? Array.from(files) : files[0]);
   });
-  input.addEventListener("change", () => { if (input.files.length) onFile(input.files[0]); });
+  input.addEventListener("change", () => {
+    if (input.files.length) onFile(multi ? Array.from(input.files) : input.files[0]);
+  });
 }
 
 export function resetDropZoneInput(inputId, onFile) {

@@ -7,7 +7,7 @@ export default defineConfig({
       {
         test: {
           name: 'core',
-          include: ['tests/js/**/*.test.js'],
+          include: ['tests/js/**/*.test.js', 'tests/js/**/*.test.mjs'],
           exclude: [
             'tests/js/contrast.test.js',
             'tests/js/style-audit.test.js',

@@ -47,10 +47,29 @@ _PROMPT = (
     "with 'C' then digits; DigiKey numbers usually end in '-ND'), "
     "\"mfr_pn\": the manufacturer part number (the 'Mfr. Part#'/'MFG#' value), "
     "\"description\": the goods description, "
-    "\"qty\": the ordered quantity as an integer}. "
+    "\"qty\": the ordered quantity as an integer, "
+    "\"bbox\": the bounding box of the row in the image as [x0, y0, x1, y1] "
+    "integers on a 0-1000 normalized grid (x right, y down). "
+    "} "
     "Read carefully even where the print is faint or the page is folded. Use empty "
     "string for a field you cannot read. Output only the JSON object."
 )
+
+_TEMPLATE_HINTS = {
+    "lcsc": "This is an LCSC packing list; its catalogue part numbers look like "
+            "C followed by digits (e.g. C12345). Put them in distributor_pn.",
+    "digikey": "This is a DigiKey packing list; its catalogue part numbers "
+               "usually end in -ND/-CT/-DKR. Put them in distributor_pn.",
+    "mouser": "This is a Mouser packing list; its catalogue part numbers look "
+              "like <digits>-<mfr part>. Put them in distributor_pn.",
+    "pololu": "This is a Pololu packing list; its catalogue part numbers are "
+              "bare numbers. Put them in distributor_pn.",
+}
+
+
+def _prompt_for(template: str) -> str:
+    hint = _TEMPLATE_HINTS.get((template or "").strip().lower())
+    return f"{_PROMPT}\n{hint}" if hint else _PROMPT
 
 
 def _base_url() -> str:
@@ -92,24 +111,25 @@ def available() -> bool:
     return want in names or any(n.split(":", 1)[0] == base for n in names)
 
 
-def extract_line_items(image_bytes: bytes, template: str = "generic"):
+def extract_line_items(image_bytes: bytes, template: str = "generic",
+                       page_w: int = 0, page_h: int = 0):
     """Extract line items via the local VLM, or None if unavailable/failed."""
     if _disabled() or not image_bytes:
         return None
     try:
-        return _extract(image_bytes, template)
+        return _extract(image_bytes, template, page_w, page_h)
     except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
         logger.warning("VLM extraction failed, falling back: %s", exc)
         return None
 
 
-def _extract(image_bytes: bytes, template: str):
+def _extract(image_bytes: bytes, template: str, page_w: int = 0, page_h: int = 0):
     import base64
     if not available():
         return None
     payload = {
         "model": _model(),
-        "prompt": _PROMPT,
+        "prompt": _prompt_for(template),
         "images": [base64.b64encode(image_bytes).decode("ascii")],
         "stream": False,
         "format": "json",
@@ -122,11 +142,11 @@ def _extract(image_bytes: bytes, template: str):
     )
     with urllib.request.urlopen(req, timeout=_INFER_TIMEOUT) as resp:
         body = json.loads(resp.read().decode("utf-8"))
-    rows = _parse_response(body.get("response", ""), template)
+    rows = _parse_response(body.get("response", ""), template, page_w, page_h)
     return rows or None
 
 
-def _parse_response(response_text: str, template: str):
+def _parse_response(response_text: str, template: str, page_w: int = 0, page_h: int = 0):
     data = json.loads(response_text)
     if isinstance(data, dict):
         raw_items = data.get("items")
@@ -143,7 +163,7 @@ def _parse_response(response_text: str, template: str):
     for raw in raw_items:
         if not isinstance(raw, dict):
             continue
-        item = _to_line_item(raw, template)
+        item = _to_line_item(raw, template, page_w, page_h)
         if item:
             items.append(item)
     return items
@@ -159,7 +179,30 @@ def _to_qty(value) -> int:
 _PN_COLUMN_TEMPLATES = {"lcsc", "digikey", "mouser", "pololu"}
 
 
-def _to_line_item(raw: dict, template: str):
+def _parse_bbox(raw_bbox, page_w: int, page_h: int):
+    """Convert a model bbox (0..1000 grid, [x0,y0,x1,y1]) to pixel [x,y,w,h].
+
+    Returns None for anything malformed/out-of-range or when the page size is
+    unknown — the caller falls back to Tesseract-token matching for highlight.
+    """
+    if not page_w or not page_h or not isinstance(raw_bbox, (list, tuple)) or len(raw_bbox) != 4:
+        return None
+    try:
+        x0, y0, x1, y1 = (float(v) for v in raw_bbox)
+    except (TypeError, ValueError):
+        return None
+    if x1 < x0 or y1 < y0:
+        return None
+    px = int(max(0.0, min(1000.0, x0)) / 1000.0 * page_w)
+    py = int(max(0.0, min(1000.0, y0)) / 1000.0 * page_h)
+    pw = int(max(0.0, min(1000.0, x1 - x0)) / 1000.0 * page_w)
+    ph = int(max(0.0, min(1000.0, y1 - y0)) / 1000.0 * page_h)
+    if pw <= 0 or ph <= 0:
+        return None
+    return [px, py, pw, ph]
+
+
+def _to_line_item(raw: dict, template: str, page_w: int = 0, page_h: int = 0):
     distributor_pn = str(raw.get("distributor_pn") or "").strip()
     mpn = str(raw.get("mfr_pn") or raw.get("mpn") or "").strip()
     description = str(raw.get("description") or "").strip()
@@ -180,4 +223,6 @@ def _to_line_item(raw: dict, template: str):
         "unit_price": 0.0,
         "distributor": distributor,
         "distributor_pn": distributor_pn,
+        "_backend": "vlm",
+        "bbox": _parse_bbox(raw.get("bbox"), page_w, page_h),
     }

@@ -12,7 +12,7 @@ PO editor sub-flow (`mfg-direct/`). Does NOT own the inventory store (updated vi
 - `import-panel.js`: `init` — mount point; wires drop zone, column mapper, and undo/redo
 - `import-logic.js`: `TARGET_FIELDS`, `PART_ID_FIELDS`, `PO_TEMPLATES`, `classifyRow`, `countWarnings`, `transformImportRows`, `validateImportData` — pure import logic
 - `import-renderer.js`: `renderDropZone`, `renderMapper`, `renderStagingTable`, `renderTemplateLink` — pure HTML renderers
-- `mfg-direct/mfg-direct-panel.js`: `openOcrImport`, `startPhoneScan`, `editPO` — image/PDF OCR import, phone-scan session, and PO editor entry points
+- `mfg-direct/mfg-direct-panel.js`: `beginScanImport`, `routeScanResult`, `startPhoneScan`, `editPO` — unified image/PDF OCR import (drag-drop, browse, and phone all converge here), phone-scan session, and PO editor entry points (`openOcrImport` is a deprecated single-file shim → `beginScanImport`)
 - `mfg-direct/mfg-direct-logic.js`: `canonicalizeUrl`, `emptyLineItem`, `validateLineItems`, `formatMatchBadge` — pure PO logic
 - `mfg-direct/mfg-direct-renderer.js`: `renderEditor` — pure PO editor HTML
 

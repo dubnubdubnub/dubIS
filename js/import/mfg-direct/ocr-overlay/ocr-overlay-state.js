@@ -1,5 +1,12 @@
 /* ocr-overlay-state.js — pure state for the OCR overlay modal (no DOM, no api). */
 
+import { reparseRowsForTemplate } from '../template-switch.js';
+
+/** Switch the active template and re-route distributor columns over existing rows. */
+export function setTemplateAndReparse(state, template) {
+  return { ...state, template, rows: reparseRowsForTemplate(state.rows, template) };
+}
+
 export function createState(payload) {
   return {
     loading: false,
@@ -12,9 +19,11 @@ export function createState(payload) {
     tokenMode: 'w',
     zoom: 1,
     fullscreen: false,
+    focusRow: null,
   };
 }
 
+export function setFocusRow(state, row) { return { ...state, focusRow: row }; }
 /**
  * Minimal state for the "scanning" skeleton shown while OCR runs. `images` is a
  * list of { b64, name } (length >= 0). The inert review fields keep renderModal
