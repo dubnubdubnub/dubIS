@@ -72,7 +72,7 @@ Events are centralized in `event-bus.js`. Store setters that emit are marked; un
 | Event | Emitted by | Listened by |
 |-------|-----------|-------------|
 | `INVENTORY_LOADED` | store.js (`loadInventory`) | inv-events.js, bom-events.js, app-init.js |
-| `INVENTORY_UPDATED` | store.js (`onInventoryUpdated`) | inv-events.js, bom-events.js, app-init.js |
+| `INVENTORY_UPDATED` | store.js (`onInventoryUpdated`) | inv-events.js, bom-events.js, app-init.js, label-selection.js |
 | `BOM_LOADED` | bom-panel.js | inv-events.js, app-init.js |
 | `BOM_CLEARED` | bom-events.js | inv-events.js |
 | `PREFS_CHANGED` | store.js (`setThreshold`), preferences-modal.js | inv-events.js |
@@ -101,7 +101,7 @@ Events are centralized in `event-bus.js`. Store setters that emit are marked; un
 
 ### Traps
 
-- **WebView2 caches JS:** editing JS and relaunching shows stale code. The app uses a persistent WebView2 profile by default (`app.pyw:189`). Force fresh behavior: `DUBIS_WEBVIEW_PROFILE=ephemeral python app.pyw`.
+- **WebView2 caches JS:** editing JS and relaunching shows stale code. The app uses a persistent WebView2 profile by default (gated by the `DUBIS_WEBVIEW_PROFILE` check in `app.pyw`). Force fresh behavior: `DUBIS_WEBVIEW_PROFILE=ephemeral python app.pyw`.
 - **Backend change → regenerate fixtures:** after changing Python inventory/columns/prices logic, run `python scripts/generate-test-fixtures.py` or vitest fails with confusing value mismatches. Easiest: just run `bash scripts/verify.sh` (see Testing & Linting).
 - **Don't import `js/constants.js` in test setup:** it has a top-level `await fetch` at line 3 that crashes vitest collection; keep `js/ui-helpers.js` store-free and use lazy imports in tests instead.
 - **Visual bugs need pixel-truth tests:** geometry-asserts-itself property tests can pass while the visual bug persists. See `docs/visual-testing.md`.
