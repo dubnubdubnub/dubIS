@@ -7,7 +7,7 @@ import { openAdjustModal, openPriceModal } from '../inventory-modals.js';
 import { openFlyout } from '../group-flyout/flyout-panel.js';
 import { renderPartRowHtml } from './inventory-renderer.js';
 import { isFlyoutDragActive } from './inv-events.js';
-import state from './inv-state.js';
+import state, { generationOpacityFor } from './inv-state.js';
 import { createReverseLink } from './inv-mutations.js';
 import { toggleSelection } from '../label-selection.js';
 
@@ -34,6 +34,7 @@ export function createPartRow(item, sectionKey, sectionChip) {
     genericParts: store.genericParts,
     nearMiss: nearMiss || null,
     sectionChip: sectionChip,
+    importOpacity: generationOpacityFor(pk),
   });
   row.innerHTML = html;
 

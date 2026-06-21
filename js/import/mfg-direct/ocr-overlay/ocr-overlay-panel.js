@@ -11,7 +11,7 @@ import { escHtml, showToast } from '../../../ui-helpers.js';
 import { createVendorPicker, isPseudoVendor, vendorFaviconHtml } from '../vendor-picker.js';
 import { renderModal } from './ocr-overlay-renderer.js';
 import {
-  createState, selectToken, selectTokens, selectCell,
+  createState, createLoadingState, selectToken, selectTokens, selectCell,
   applyPending, setCellValue, setPage, clearPending, setTokenMode,
   setZoom, tokenText, addRow, deleteRow, shiftColumn, setFocusRow,
   setTemplateAndReparse,
@@ -33,6 +33,13 @@ let sourceName = '';
 // past DRAG_THRESHOLD so a plain click still falls through to click-to-assign.
 let drag = null;
 let suppressClick = false;
+let loadingActive = false;   // true while the scanning skeleton is shown
+let onCancelCb = null;       // invoked if the user cancels the skeleton
+// Monotonic id for each skeleton open. resolveOverlay/failOverlay carry the token
+// from their openOverlayLoading() call and no-op if a newer skeleton has since
+// opened — so a stale OCR result (after cancel + re-drop) can't tear down or
+// resolve into the wrong modal.
+let loadToken = 0;
 const DRAG_THRESHOLD = 6;  // px before a press becomes a drag
 
 const vendorPicker = createVendorPicker({
@@ -81,6 +88,8 @@ async function onRescanClick() {
 /** Open the overlay for a payload {pages, prefill_rows, template}. */
 export function openOverlay(payload, { onConfirm, initialRows, initialVendor, sourceB64: sb64, sourceName: sname } = {}) {
   state = createState(payload);
+  loadingActive = false;
+  onCancelCb = null;
   if (initialRows) {
     state.rows = initialRows.map(r => ({ ...r }));
     state.lowConf = initialRows.map(() => new Set());
@@ -99,9 +108,85 @@ export function openOverlay(payload, { onConfirm, initialRows, initialVendor, so
   overlay = tmp.firstElementChild;
   document.body.appendChild(overlay);
 
+  installEscHandler();
+  rerender();
+}
+
+/**
+ * Open the scanning skeleton immediately; OCR runs while it is shown. Returns a
+ * token to pass to resolveOverlay/failOverlay so a stale call (after the user
+ * cancels and re-drops) can't act on the newer skeleton.
+ */
+export function openOverlayLoading(images, { onCancel } = {}) {
+  const token = ++loadToken;
+  state = createLoadingState(images);
+  loadingActive = true;
+  onCancelCb = onCancel || null;
+  onConfirmCb = null;
+  vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
+  // The skeleton has no source yet — resolveOverlay sets these when OCR returns.
+  sourceB64 = '';
+  sourceName = '';
+  autoVendorName = '';
+
+  let overlay = document.getElementById('ocr-overlay');
+  if (overlay) overlay.remove();
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderModal(state);
+  overlay = tmp.firstElementChild;
+  document.body.appendChild(overlay);
+
+  if (escHandler) document.removeEventListener('keydown', escHandler);
+  escHandler = (e) => { if (e.key === 'Escape') cancelLoading(); };
+  document.addEventListener('keydown', escHandler);
+
+  rerender();
+  return token;
+}
+
+/**
+ * Swap an open skeleton into the full review. No-op if it was cancelled/closed,
+ * or if `token` is stale (a newer skeleton has since opened).
+ */
+export function resolveOverlay(token, payload, { onConfirm, sourceB64: sb64, sourceName: sname } = {}) {
+  if (token !== loadToken) return;
+  if (!loadingActive || !document.getElementById('ocr-overlay')) return;
+  loadingActive = false;
+  onCancelCb = null;
+  state = createState(payload);
+  onConfirmCb = onConfirm || null;
+  vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
+  // Carry the source image so the in-overlay template switch + opt-in re-scan
+  // work for single-image drops too (same as the openOverlay path).
+  sourceB64 = sb64 || '';
+  sourceName = sname || '';
+  autoVendorName = '';
+  installEscHandler();
+  rerender();
+}
+
+/**
+ * Tear down the skeleton (e.g. OCR failed / no text). Toasts `message` if open.
+ * No-op if `token` is stale, so a stale call can't close a newer skeleton.
+ */
+export function failOverlay(token, message) {
+  if (token !== loadToken) return;
+  const wasOpen = loadingActive || !!document.getElementById('ocr-overlay');
+  closeOverlay();
+  if (wasOpen && message) showToast(message);
+}
+
+function cancelLoading() {
+  const cb = onCancelCb;
+  closeOverlay();
+  if (cb) cb();
+}
+
+function installEscHandler() {
+  if (escHandler) document.removeEventListener('keydown', escHandler);
   escHandler = (e) => {
     if (e.key !== 'Escape') return;
-    if (state.pending.kind) {
+    if (state && state.pending && state.pending.kind) {
       state = clearPending(state);
       rerender();
     } else {
@@ -109,8 +194,6 @@ export function openOverlay(payload, { onConfirm, initialRows, initialVendor, so
     }
   };
   document.addEventListener('keydown', escHandler);
-
-  rerender();
 }
 
 function closeOverlay() {
@@ -125,6 +208,8 @@ function closeOverlay() {
   clearDropHighlight();
   drag = null;
   suppressClick = false;
+  loadingActive = false;
+  onCancelCb = null;
   state = null;
   onConfirmCb = null;
   vendor = { id: '', name: '', url: '', favicon_path: '', icon: '', type: '' };
@@ -178,6 +263,12 @@ function mountVendorPicker(root) {
 
 // ── Event wiring ────────────────────────────────────────────────────────
 function bindEvents(root) {
+  if (state && state.loading) {
+    const cancel = root.querySelector('#ocr-cancel');
+    if (cancel) cancel.onclick = cancelLoading;
+    return;  // skeleton has no tokens/cells/vendor to wire
+  }
+
   root.querySelectorAll('.ocr-token').forEach(btn => {
     btn.onclick = () => {
       // A real drag already handled this press — swallow the synthetic click.

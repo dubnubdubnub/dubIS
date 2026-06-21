@@ -115,15 +115,24 @@ export function aggregateBomRows(rawRows, headers, cols) {
 
   rawRows.forEach((row, ri) => {
     const { lcsc, mpn } = extractPartIds(row, cols);
-    const rawQty = cols.qty !== -1 ? parseInt(row[cols.qty], 10) : NaN;
-    let qty;
-    if (isNaN(rawQty) || rawQty <= 0) {
-      if (cols.qty !== -1 && (row[cols.qty] || "").trim() !== "")
-        warnings.push({ ri, msg: "Invalid qty '" + (row[cols.qty] || "") + "', defaulting to 1" });
-      qty = 1;
-    } else { qty = rawQty; }
 
     const ref       = cols.ref       !== -1 ? (row[cols.ref]       || "").trim() : "";
+
+    let qty;
+    if (cols.qty !== -1) {
+      const rawQty = parseInt(row[cols.qty], 10);
+      if (isNaN(rawQty) || rawQty <= 0) {
+        if ((row[cols.qty] || "").trim() !== "")
+          warnings.push({ ri, msg: "Invalid qty '" + (row[cols.qty] || "") + "', defaulting to 1" });
+        qty = 1;
+      } else { qty = rawQty; }
+    } else {
+      // No Qty column: grouped BOMs (e.g. KiCad) imply quantity via the
+      // designator list, so count the designators (comma/space separated).
+      const designators = ref ? ref.split(/[,\s]+/).filter(Boolean).length : 0;
+      qty = designators > 0 ? designators : 1;
+    }
+
     const desc      = cols.desc      !== -1 ? (row[cols.desc]      || "").trim() : "";
     const value     = cols.value     !== -1 ? (row[cols.value]     || "").trim() : "";
     const footprint = cols.footprint !== -1 ? (row[cols.footprint] || "").trim() : "";

@@ -80,6 +80,11 @@ def _model() -> str:
     return os.environ.get("DUBIS_VLM_MODEL") or _DEFAULT_MODEL
 
 
+def model_name() -> str:
+    """The configured VLM model tag (for logging/diagnostics)."""
+    return _model()
+
+
 def _disabled() -> bool:
     return bool(os.environ.get("DUBIS_VLM_DISABLE"))
 
