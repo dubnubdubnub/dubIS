@@ -415,6 +415,36 @@ jobs:
         if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/pytest tests/python/ -v
 
+  # ── VLM image-recognition smoke test (GPU node only) ─────────────────
+  #   Exercises the local Ollama VLM (qwen2.5vl, auto-selected by GPU VRAM) on
+  #   the single self-hosted GPU runner (y740 / RTX 2060). Like js-windows this
+  #   is a single-box leg: gated on run_python and deliberately NOT part of any
+  #   required gate, so a GPU-node outage can't block merges. The `gpu`-marked
+  #   test is deselected from the regular python tier (no Ollama there).
+  vlm-gpu:
+    name: VLM Image-Recognition (GPU)
+    needs: [parse-tags, guard]
+    if: >-
+      always() && !failure() &&
+      needs.parse-tags.outputs.run_python == 'true'
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 15
+    env:
+      # The runner pod reaches the GPU node's Ollama via the cluster Service, and
+      # pins the model to the tag Ollama serves on the RTX 2060. (VRAM-based
+      # auto-selection — which reads the GPU node's local nvidia-smi — is covered
+      # by unit tests; the runner pod has no GPU of its own to probe.)
+      DUBIS_OLLAMA_URL: http://ollama.win-runners.svc.cluster.local:11434
+      DUBIS_VLM_MODEL: qwen2.5vl:3b
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q -r requirements-dev.txt
+      - name: VLM live smoke test (real Ollama on the RTX 2060)
+        run: pytest tests/python/test_vlm_gpu.py -m gpu -v
+
   # ── Tier 2: Functional (PnP E2E tests) ──────────────────────────────
   pnp-e2e:
     name: PnP End-to-End Test (${{ matrix.name }})
