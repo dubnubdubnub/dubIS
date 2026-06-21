@@ -1,0 +1,13 @@
+/* a11y.css — keyboard-only focus ring. Loaded last so it wins over outline:none. */
+:focus-visible {
+  outline: 2px solid var(--color-blue, #58a6ff);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+/* Inputs already show a blue border on :focus; keep that and add the ring on
+   keyboard focus only. Mouse :focus (no -visible) shows no ring. */
+button:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible),
+[data-kbd-scroll]:focus:not(:focus-visible) {
+  outline: none;
+}

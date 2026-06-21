@@ -3,7 +3,7 @@
 
 import { api, AppLog } from './api.js';
 import { showToast, escHtml, Modal } from './ui-helpers.js';
-import { store, getThreshold, savePreferences, preferencesSignal } from './store.js';
+import { store, getThreshold, savePreferences, preferencesSignal, getShortcutPrefs, setShortcutPrefs } from './store.js';
 
 var PREFS_MAX_THRESHOLD = 200;
 var PREFS_MIN_THRESHOLD = 5;
@@ -15,7 +15,7 @@ function stopDkPolling() {
 }
 
 // ── Modal instance ──
-const prefsModal = Modal("prefs-modal", { cancelId: "prefs-cancel" });
+const prefsModal = Modal("prefs-modal", { cancelId: "prefs-cancel", confirmId: "prefs-save" });
 
 // ── Slider helpers ──
 
@@ -68,6 +68,21 @@ function _createPrefsSliderRow(section, indent) {
   return row;
 }
 
+// ── Keyboard prefs ──
+
+function syncKeyboardPrefs() {
+  const p = getShortcutPrefs();
+  document.getElementById('pref-redo').value = p.redo;
+  document.getElementById('pref-enter-submit').checked = p.enterSubmitsModals;
+  document.getElementById('pref-vim-nav').checked = p.vimNav;
+}
+
+function wireKeyboardPrefs() {
+  document.getElementById('pref-redo').addEventListener('change', (e) => setShortcutPrefs({ redo: e.target.value }));
+  document.getElementById('pref-enter-submit').addEventListener('change', (e) => setShortcutPrefs({ enterSubmitsModals: e.target.checked }));
+  document.getElementById('pref-vim-nav').addEventListener('change', (e) => setShortcutPrefs({ vimNav: e.target.checked }));
+}
+
 // ── Open / Close / Apply ──
 
 export function openPreferencesModal() {
@@ -111,6 +126,9 @@ export function openPreferencesModal() {
 
   // Load Poll API status
   refreshPollApiStatus();
+
+  // Sync keyboard prefs controls
+  syncKeyboardPrefs();
 
   prefsModal.open();
 }
@@ -306,3 +324,6 @@ export function wireDigikeyButtons() {
     });
   }
 }
+
+// ── Module init ──
+wireKeyboardPrefs();

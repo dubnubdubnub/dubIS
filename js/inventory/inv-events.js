@@ -231,14 +231,6 @@ export function setupEvents(handlers) {
     });
   });
 
-  // ── Escape key for linking mode ──
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && store.links.linkingMode) {
-      if (store.links.linkingBomRow) store.links.setReverseLinkingMode(false);
-      else store.links.setLinkingMode(false);
-    }
-  });
-
   // ── Ctrl/Cmd+F focuses the search bar; Esc clears + leaves it ──
   document.addEventListener("keydown", function (e) {
     if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey &&
