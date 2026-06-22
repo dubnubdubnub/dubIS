@@ -11,7 +11,6 @@
 :root {
   /* Blue  (#58a6ff = --color-blue) */
   --color-blue-bg:            #58a6ff18;  /* .alt-badge bg */
-  --color-blue-bg-20:         #58a6ff20;  /* (alpha 20 variant) */
   --color-blue-bg-strong:     #58a6ff30;  /* .alt-badge:hover */
   --color-blue-border:        #58a6ff40;  /* .alt-badge border, alt-row left border, flyout focus ring */
 
