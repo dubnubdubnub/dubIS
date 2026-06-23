@@ -48,6 +48,27 @@ describe('invPartKey', () => {
     expect(invPartKey({ lcsc: '', mpn: '', digikey: 'DK-PART' })).toBe('DK-PART');
   });
 
+  it('falls back to pololu if no LCSC, MPN, or digikey', () => {
+    expect(invPartKey({ lcsc: '', mpn: '', digikey: '', pololu: 'POL-123' })).toBe('POL-123');
+  });
+
+  it('falls back to mouser if no LCSC, MPN, digikey, or pololu', () => {
+    expect(invPartKey({ lcsc: '', mpn: '', digikey: '', pololu: '', mouser: 'MSR-456' })).toBe('MSR-456');
+  });
+
+  // Palette reverse-lookup uses invPartKey() directly — verify that a DigiKey-only
+  // part round-trips: the key produced by invPartKey matches focusedPartKey.
+  it('digikey-only part resolves: invPartKey output matches itself (palette round-trip)', () => {
+    const item = { lcsc: '', mpn: '', digikey: '296-1234-5-ND', pololu: '', mouser: '' };
+    const key = invPartKey(item);
+    expect(key).toBe('296-1234-5-ND');
+    // A palette reverse-lookup `store.inventory.find(i => invPartKey(i) === focusedPartKey)`
+    // with focusedPartKey = key will now find this item (the old field-check lookup missed it).
+    const inventory = [item];
+    const found = inventory.find(i => invPartKey(i) === key);
+    expect(found).toBe(item);
+  });
+
   it('returns empty string when nothing available', () => {
     expect(invPartKey({ lcsc: '', mpn: '', digikey: '' })).toBe('');
   });

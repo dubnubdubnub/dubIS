@@ -28,6 +28,7 @@ export function initShortcuts(cmd) {
     if (matchesRedo(e, prefs.redo)) { e.preventDefault(); cmd.redo(); return; }
     if (mod(e) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); cmd.save(); return; }
     if (mod(e) && e.key === ',') { e.preventDefault(); cmd.openPreferences(); return; }
+    if (mod(e) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); cmd.openPalette(); return; }
     if (mod(e) && (e.key === '1' || e.key === '2' || e.key === '3')) {
       e.preventDefault(); cmd.focusPanel(Number(e.key)); return;
     }
