@@ -136,6 +136,7 @@ graph LR
     "js/bom/bom-renderer.js" --> "js/layout-tokens.js"
     "js/bom/bom-renderer.js" --> "js/part-keys.js"
     "js/bom/bom-renderer.js" --> "js/ui-helpers.js"
+    "js/components/predicate-ui.js" --> "js/dom/html.js"
     "js/group-flyout/flyout-drag.js" --> "js/api.js"
     "js/group-flyout/flyout-drag.js" --> "js/group-flyout/flyout-state.js"
     "js/group-flyout/flyout-events.js" --> "js/api.js"
@@ -343,10 +344,12 @@ graph LR
     "tests/js/bom-renderer.test.js" --> "js/bom/bom-renderer.js"
     "tests/js/bom-row-display.test.js" --> "js/bom-row-data.js"
     "tests/js/csv-parser.test.js" --> "js/csv-parser.js"
+    "tests/js/delegate.test.js" --> "js/dom/delegate.js"
     "tests/js/e2e/scan-server.py" --> "pnp_server.py"
     "tests/js/event-bus.test.js" --> "js/event-bus.js"
     "tests/js/favicon-stack.test.js" --> "js/inventory/favicon-stack.js"
     "tests/js/group-flyout-logic.test.js" --> "js/group-flyout/flyout-logic.js"
+    "tests/js/html.test.js" --> "js/dom/html.js"
     "tests/js/import-logic.test.js" --> "js/import/import-logic.js"
     "tests/js/import-two-zone.test.js" --> "js/import/import-logic.js"
     "tests/js/import-two-zone.test.js" --> "js/import/import-renderer.js"
@@ -373,6 +376,7 @@ graph LR
     "tests/js/ocr-overlay-state.test.js" --> "js/import/mfg-direct/ocr-overlay/ocr-overlay-state.js"
     "tests/js/part-keys.test.js" --> "js/part-keys.js"
     "tests/js/pick-tier.test.js" --> "js/inventory-modals.js"
+    "tests/js/predicate-ui.test.js" --> "js/components/predicate-ui.js"
     "tests/js/qrcode.test.js" --> "js/vendor/qrcode.js"
     "tests/js/real-data.test.js" --> "js/csv-parser.js"
     "tests/js/real-data.test.js" --> "js/matching.js"
@@ -753,6 +757,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** `js/bom/bom-events.js`, `js/bom/bom-panel.js`
 
+### js/components/predicate-ui.js
+
+- **Imports:** `js/dom/html.js`
+- **Imported by:** `tests/js/predicate-ui.test.js`
+
 ### js/constants.js
 
 - **Imports:** —
@@ -767,6 +776,16 @@ graph LR
 
 - **Imports:** —
 - **Imported by:** —
+
+### js/dom/delegate.js
+
+- **Imports:** —
+- **Imported by:** `tests/js/delegate.test.js`
+
+### js/dom/html.js
+
+- **Imports:** —
+- **Imported by:** `js/components/predicate-ui.js`, `tests/js/html.test.js`
 
 ### js/event-bus.js
 
@@ -1245,6 +1264,11 @@ graph LR
 - **Imports:** `js/csv-parser.js`
 - **Imported by:** —
 
+### tests/js/delegate.test.js
+
+- **Imports:** `js/dom/delegate.js`
+- **Imported by:** —
+
 ### tests/js/e2e/scan-server.py
 
 - **Imports:** `pnp_server.py`
@@ -1269,6 +1293,11 @@ graph LR
 
 - **Imports:** —
 - **Imported by:** `tests/js/real-data.test.js`
+
+### tests/js/html.test.js
+
+- **Imports:** `js/dom/html.js`
+- **Imported by:** —
 
 ### tests/js/import-logic.test.js
 
@@ -1365,6 +1394,11 @@ graph LR
 ### tests/js/pick-tier.test.js
 
 - **Imports:** `js/inventory-modals.js`
+- **Imported by:** —
+
+### tests/js/predicate-ui.test.js
+
+- **Imports:** `js/components/predicate-ui.js`
 - **Imported by:** —
 
 ### tests/js/qrcode.test.js
