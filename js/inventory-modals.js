@@ -6,6 +6,8 @@ import { showToast, Modal, linkPriceInputs, escHtml } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
 import { onInventoryUpdated } from './store.js';
 import { invPartKey } from './part-keys.js';
+import { el } from './dom/html.js';
+import { defineFormModal } from './components/form-modal.js';
 
 // ── Undo/redo tracking ──
 let lastAdjustMeta = null;
@@ -58,13 +60,9 @@ let adjFetch;
 let currentPart = null;
 let adjModal;
 
-let priceTitle;
-let priceSubtitle;
-let priceUnitInput;
-let priceExtInput;
-let priceFetch;
-let pricePart = null;
-let priceModal;
+// Price modal is now managed via defineFormModal — these refs are set in init()
+let priceFetchController = null;
+let priceFormModal = null;
 
 function buildFieldInput(key, value, placeholder, extraClass) {
   return '<input type="text" class="modal-field-input' + (extraClass || "") + '" data-field="' + key + '" value="' + escHtml(value) + '" placeholder="' + escHtml(placeholder) + '">';
@@ -86,7 +84,7 @@ export function openAdjustModal(item) {
     html += "<tr><td>" + escHtml(label) + "</td><td>" + buildFieldInput(key, value, "", warnClass) + "</td></tr>";
     // Show hint after the Mouser row
     if (key === "mouser" && noDist) {
-      html += '<tr><td></td><td><span class="no-dist-warn">\u26A0 Enter an LCSC, Digikey, Pololu, or Mouser PN</span></td></tr>';
+      html += '<tr><td></td><td><span class="no-dist-warn">⚠ Enter an LCSC, Digikey, Pololu, or Mouser PN</span></td></tr>';
     }
   }
   // Read-only rows
@@ -215,16 +213,15 @@ function createFetchController({ supplierSelect, fetchBtn, tiersEl, unitInput })
   return { configure };
 }
 
+/**
+ * Open the price modal for the given inventory item.
+ * The modal is built once (via defineFormModal) and reused.
+ *
+ * @param {object} item
+ */
 export function openPriceModal(item) {
-  pricePart = item;
-  const pk = invPartKey(item);
-  priceTitle.textContent = pk + (item.mpn && item.lcsc ? " — " + item.mpn : "");
-  priceSubtitle.textContent = (item.description || item.package || "") + " (qty: " + item.qty + ")";
-  priceUnitInput.value = item.unit_price > 0 ? item.unit_price : "";
-  priceExtInput.value = item.ext_price > 0 ? item.ext_price : "";
-  priceFetch.configure(item);
-  priceModal.open();
-  priceUnitInput.focus();
+  if (!priceFormModal) throw new Error("inventory-modals: init() not called before openPriceModal()");
+  priceFormModal.open(item);
 }
 
 export function init() {
@@ -331,64 +328,159 @@ export function init() {
     showToast(toastMsg);
   });
 
-  // ── Price Modal ──
-  priceTitle = document.getElementById("price-modal-title");
-  priceSubtitle = document.getElementById("price-modal-subtitle");
-  priceUnitInput = document.getElementById("price-unit");
-  priceExtInput = document.getElementById("price-ext");
+  // ── Price Modal (built via defineFormModal) ──
+  //
+  // defineFormModal creates the overlay + .modal DOM dynamically and wires
+  // Modal() for backdrop/Esc/Enter/focus-trap. We then inject the fetch-price
+  // controls (supplier dropdown, fetch button, tier chips) between the last
+  // form row and the action buttons — matching the original markup structure.
 
-  priceModal = Modal("price-modal", {
-    onClose: () => { pricePart = null; },
-    cancelId: "price-cancel",
-    confirmId: "price-apply",
+  priceFormModal = defineFormModal("price-modal", {
+    title: (item) => invPartKey(item) + (item.mpn && item.lcsc ? " — " + item.mpn : ""),
+    subtitle: (item) => (item.description || item.package || "") + " (qty: " + item.qty + ")",
+
+    fields: [
+      {
+        key: "unit",
+        label: "Unit Price ($):",
+        type: "number",
+        attrs: { id: "price-unit", min: "0", step: "0.01" },
+      },
+      {
+        key: "ext",
+        label: "Ext. Price ($):",
+        type: "number",
+        attrs: { id: "price-ext", min: "0", step: "0.01" },
+      },
+    ],
+
+    onPopulate: (item) => ({
+      unit: item.unit_price > 0 ? String(item.unit_price) : "",
+      ext:  item.ext_price  > 0 ? String(item.ext_price)  : "",
+    }),
+
+    // Unit↔ext price linkage: mirrors the existing linkPriceInputs() math.
+    onInput: (key, values, setValue) => {
+      // We need the current part's qty, but onInput doesn't receive ctx directly.
+      // Access the last opened item via the closure captured in openPriceModal → open(item).
+      // The overlay's data is managed by the form-modal; we reach qty via the DOM title.
+      // Instead, wire qty by reading it from the subtitle text — fragile.
+      // Better: capture qty in a closure via priceFetchController.
+      // For now, read from the stored pricePart reference maintained in undo/snapshot.
+      // Actually, the cleanest approach is: we keep a local ref updated on each open()
+      // which happens just before onInput could fire. See _priceCtx below.
+      const qty = _priceCtx ? _priceCtx.qty : 0;
+      if (key === "unit") {
+        const up = parseFloat(values.unit);
+        if (!isNaN(up) && qty > 0) setValue("ext", (up * qty).toFixed(2));
+      } else if (key === "ext") {
+        const ep = parseFloat(values.ext);
+        if (!isNaN(ep) && qty > 0) setValue("unit", (ep / qty).toFixed(4));
+      }
+    },
+
+    validate: (values) => {
+      const up = parseFloat(values.unit);
+      const ep = parseFloat(values.ext);
+      if (isNaN(up) && isNaN(ep)) {
+        // Use a toast for this (matching original behavior), not inline error.
+        showToast("Enter a unit or ext price");
+        // Return a non-null errors object so confirm is blocked, but with no inline message.
+        return { unit: "" };
+      }
+      return null;
+    },
+
+    onConfirm: async (values, item) => {
+      const pk = invPartKey(item);
+      const rawUp = parseFloat(values.unit);
+      const up = isNaN(rawUp) ? null : rawUp;
+      const rawEp = parseFloat(values.ext);
+      const ep = isNaN(rawEp) ? null : rawEp;
+
+      const fresh = await api("update_part_price", pk, up, ep);
+      if (!fresh) return null;
+
+      lastPriceMeta = {
+        partKey: pk,
+        oldUp: item.unit_price || 0,
+        oldEp: item.ext_price  || 0,
+        newUp: up,
+        newEp: ep,
+      };
+      onInventoryUpdated(fresh);
+      return fresh;
+    },
+
+    undo: {
+      type: "price",
+      snapshot: (item) => ({
+        _undoType: "price",
+        partKey: invPartKey(item),
+        oldUp: item.unit_price || 0,
+        oldEp: item.ext_price  || 0,
+        newUp: null, // filled after confirm succeeds
+        newEp: null,
+      }),
+      restore: async () => { /* handled by UndoRedo.register("price") below */ },
+    },
+
+    confirmLabel: "Save",
+
+    successToast: (_values, item) => "Price updated for " + invPartKey(item),
   });
-  linkPriceInputs(priceUnitInput, priceExtInput, () => pricePart ? pricePart.qty : 0);
 
-  priceFetch = createFetchController({
-    supplierSelect: document.getElementById("price-fetch-supplier"),
-    fetchBtn: document.getElementById("price-fetch-price"),
-    tiersEl: document.getElementById("price-fetch-tiers"),
-    unitInput: priceUnitInput,
+  // ── Fetch-price controls for price modal ────────────────────────────────
+  // Inject the fetch row (supplier dropdown + button + tier chips) before the
+  // modal-actions div, preserving the exact element IDs the E2E tests reference.
+
+  const priceModalInner = priceFormModal.el.querySelector(".modal");
+  const priceActionsEl  = priceFormModal.el.querySelector(".modal-actions");
+
+  const priceFetchSupplier = el("select", {
+    id: "price-fetch-supplier",
+    class: "fetch-supplier hidden",
+  });
+  const priceFetchBtn = el("button", {
+    id: "price-fetch-price",
+    class: "btn-lg fetch-price-btn",
+    type: "button",
+  }, "🔄 Fetch current price");
+  const priceFetchTiers = el("div", {
+    id: "price-fetch-tiers",
+    class: "fetch-tiers hidden",
   });
 
-  document.getElementById("price-apply").addEventListener("click", async () => {
-    if (!pricePart) { AppLog.warn("No part selected for price update"); return; }
-    const pk = invPartKey(pricePart);
-    const rawUp = parseFloat(priceUnitInput.value);
-    const up = isNaN(rawUp) ? null : rawUp;
-    const rawEp = parseFloat(priceExtInput.value);
-    const ep = isNaN(rawEp) ? null : rawEp;
-    if (up === null && ep === null) {
-      showToast("Enter a unit or ext price");
-      return;
-    }
+  const priceFetchRow = el("div", {
+    id: "price-fetch-row",
+    class: "modal-form fetch-price-row",
+  },
+    priceFetchSupplier,
+    priceFetchBtn,
+  );
 
-    // Save undo state
-    UndoRedo.save("price", {
-      _undoType: "price",
-      partKey: pk,
-      oldUp: pricePart.unit_price || 0,
-      oldEp: pricePart.ext_price || 0,
-      newUp: up,
-      newEp: ep,
-    });
+  priceModalInner.insertBefore(priceFetchRow,   priceActionsEl);
+  priceModalInner.insertBefore(priceFetchTiers, priceActionsEl);
 
-    const fresh = await api("update_part_price", pk, up, ep);
-    if (!fresh) {
-      UndoRedo.popLast();
-      return;
-    }
-    lastPriceMeta = {
-      partKey: pk,
-      oldUp: pricePart.unit_price || 0,
-      oldEp: pricePart.ext_price || 0,
-      newUp: up,
-      newEp: ep,
-    };
-    priceModal.close();
-    onInventoryUpdated(fresh);
-    showToast("Price updated for " + pk);
+  // Wire the fetch controller — its setUnitPrice fires an "input" event on
+  // #price-unit which bubbles up to the overlay and triggers the onInput hook.
+  const priceUnitInputEl = /** @type {HTMLInputElement} */ (document.getElementById("price-unit"));
+  priceFetchController = createFetchController({
+    supplierSelect: priceFetchSupplier,
+    fetchBtn:       priceFetchBtn,
+    tiersEl:        priceFetchTiers,
+    unitInput:      priceUnitInputEl,
   });
+
+  // Patch openPriceModal to also configure the fetch controller after form-modal opens.
+  // We do this by wrapping the open() call: priceFormModal.open() already fires onPopulate
+  // and sets field values; we then call priceFetchController.configure(item).
+  const _originalOpen = priceFormModal.open.bind(priceFormModal);
+  priceFormModal.open = (item) => {
+    _priceCtx = item;
+    _originalOpen(item);
+    priceFetchController.configure(item);
+  };
 
   // ── Undo/Redo handlers for inventory mutations ──
 
@@ -448,3 +540,7 @@ export function init() {
     }
   });
 }
+
+// Module-level ref to current price modal ctx (set in the patched open()).
+// Used by onInput to access the current item's qty for unit↔ext math.
+let _priceCtx = null;
