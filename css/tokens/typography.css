@@ -1,0 +1,30 @@
+/* ── Typography tokens ──────────────────────────────────────────────────────
+   Font stacks, the discrete font-sizes (8-16px) in use, line-heights, weights.
+   Values match the existing hardcoded stacks/sizes/weights.
+   Consumed by: css/*.css (opportunistically).
+   ──────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Font stacks */
+  --font-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, monospace;
+
+  /* Font sizes (discrete values found across the CSS) */
+  --text-2xs:  9px;
+  --text-xs:  10px;
+  --text-sm:  11px;
+  --text-base:12px;
+  --text-md:  13px;
+  --text-lg:  14px;
+  --text-xl:  15px;
+  --text-2xl: 16px;
+
+  /* Line heights */
+  --leading-tight: 1.4;
+  --leading-base:  1.5;
+
+  /* Font weights */
+  --weight-normal:   400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+}
