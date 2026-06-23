@@ -13,7 +13,7 @@ const FALLBACK_ORDER = ["v_lcsc", "v_digikey", "v_mouser", "v_pololu"];
 
 // ── pickDistributor ──────────────────────────────────────────────────────────
 /**
- * @param {object} item - inventory item
+ * @param {import('./types.js').InventoryItem} item - inventory item
  * @returns {{ vendorId: string, number: string }}
  */
 export function pickDistributor(item) {
@@ -90,7 +90,7 @@ function wrapBalanced(text, fontPt, cfg) {
 
 // ── format6mm ────────────────────────────────────────────────────────────────
 /**
- * @param {object} item - inventory item
+ * @param {import('./types.js').InventoryItem} item - inventory item
  * @param {object} cfg
  * @returns {{ vendorId: string, number: string, text: string, columns: string[], estMm: number, warnings: string[] }}
  */
@@ -111,7 +111,7 @@ export function format6mm(item, cfg) {
 
 // ── format12mm ───────────────────────────────────────────────────────────────
 /**
- * @param {object} item - inventory item
+ * @param {import('./types.js').InventoryItem} item - inventory item
  * @param {object} cfg
  * @returns {{ vendorId: string, number: string, lines: string[], columns: string[], estMm: number, warnings: string[] }}
  */
@@ -163,7 +163,7 @@ export function format12mm(item, cfg) {
 
 // ── buildLabels ──────────────────────────────────────────────────────────────
 /**
- * @param {object[]} items
+ * @param {import('./types.js').InventoryItem[]} items
  * @param {"6mm"|"12mm"} tape
  * @param {object} cfg
  * @returns {object[]}

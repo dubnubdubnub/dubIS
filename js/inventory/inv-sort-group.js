@@ -46,6 +46,11 @@ var SORT_CONFIG = {
   value:       { field: '__value',     type: 'num', dir: -1 },
 };
 
+/**
+ * @param {import('../types.js').InventoryItem} item
+ * @param {string} field
+ * @returns {number}
+ */
 function getNumeric(item, field) {
   if (field === '__value') {
     return (Number(item.qty) || 0) * (Number(item.unit_price) || 0);
@@ -53,6 +58,11 @@ function getNumeric(item, field) {
   return Number(item[field]) || 0;
 }
 
+/**
+ * @param {import('../types.js').InventoryItem} item
+ * @param {string} field
+ * @returns {string}
+ */
 function getString(item, field) {
   return String(item[field] || '');
 }
@@ -60,9 +70,9 @@ function getString(item, field) {
 /**
  * Return a new array of parts sorted by the given column.
  * Each column has a fixed natural direction (numeric=desc, string=asc).
- * @param {Array<Object>} parts
+ * @param {Array<import('../types.js').InventoryItem>} parts
  * @param {string|null} column  null | "mpn" | "description" | "qty" | "unit_price" | "value"
- * @returns {Array<Object>}
+ * @returns {Array<import('../types.js').InventoryItem>}
  */
 export function sortPartsBy(parts, column) {
   if (column === null || !SORT_CONFIG[column]) return parts;
