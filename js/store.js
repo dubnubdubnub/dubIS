@@ -1,3 +1,4 @@
+// @ts-check
 /* store.js --- Centralized state management with getter/setter pairs.
    Panels import `store` (read-only getters) and setter functions directly.
    `window.store` is exposed in app-init.js for E2E tests and Python evaluate_js. */
@@ -128,6 +129,9 @@ export function setBomResults(results) { bomResults = results; }
 
 export function setBomFootprintNearMisses(nm) { bomFootprintNearMisses = nm || []; }
 
+/**
+ * @param {{ fileName?: string, headers?: string[], cols?: Record<string,string> }} [opts]
+ */
 export function setBomMeta({ fileName, headers, cols } = {}) {
   if (fileName !== undefined) bomFileName = fileName;
   if (headers !== undefined) bomHeaders = headers;
@@ -284,7 +288,7 @@ export function saveInventoryView(view) {
 
 export function updateInventoryHeader() {
   document.getElementById("inv-count").textContent = inventory.length + " parts";
-  const total = inventory.reduce((sum, item) => sum + item.qty * (item.unit_price || 0), 0);
+  const total = inventory.reduce((sum, /** @type {import('./types.js').InventoryItem} */ item) => sum + item.qty * (item.unit_price || 0), 0);
   document.getElementById("inv-total-value").textContent = "$" + total.toFixed(2);
 }
 

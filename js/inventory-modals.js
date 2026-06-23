@@ -241,10 +241,8 @@ export function init() {
   adjType = document.getElementById("adj-type");
   adjQty = document.getElementById("adj-qty");
   adjNote = document.getElementById("adj-note");
-  // @ts-ignore — getElementById returns HTMLElement; narrowing to HTMLInputElement is intentional
-  adjUnitPrice = document.getElementById("adj-unit-price");
-  // @ts-ignore
-  adjExtPrice = document.getElementById("adj-ext-price");
+  adjUnitPrice = /** @type {HTMLInputElement} */ (document.getElementById("adj-unit-price"));
+  adjExtPrice = /** @type {HTMLInputElement} */ (document.getElementById("adj-ext-price"));
 
   adjModal = Modal("adjust-modal", {
     onClose: () => { currentPart = null; },
@@ -254,13 +252,9 @@ export function init() {
   linkPriceInputs(adjUnitPrice, adjExtPrice, () => currentPart ? currentPart.qty : 0);
 
   adjFetch = createFetchController({
-    // @ts-ignore — getElementById returns HTMLElement; narrowing is intentional
-    supplierSelect: document.getElementById("adj-fetch-supplier"),
-    // @ts-ignore
-    fetchBtn: document.getElementById("adj-fetch-price"),
-    // @ts-ignore
+    supplierSelect: /** @type {HTMLSelectElement} */ (document.getElementById("adj-fetch-supplier")),
+    fetchBtn: /** @type {HTMLButtonElement} */ (document.getElementById("adj-fetch-price")),
     tiersEl: document.getElementById("adj-fetch-tiers"),
-    // @ts-ignore
     unitInput: adjUnitPrice,
   });
 
@@ -347,10 +341,8 @@ export function init() {
   // ── Price Modal ──
   priceTitle = document.getElementById("price-modal-title");
   priceSubtitle = document.getElementById("price-modal-subtitle");
-  // @ts-ignore — getElementById returns HTMLElement; narrowing to HTMLInputElement is intentional
-  priceUnitInput = document.getElementById("price-unit");
-  // @ts-ignore
-  priceExtInput = document.getElementById("price-ext");
+  priceUnitInput = /** @type {HTMLInputElement} */ (document.getElementById("price-unit"));
+  priceExtInput = /** @type {HTMLInputElement} */ (document.getElementById("price-ext"));
 
   priceModal = Modal("price-modal", {
     onClose: () => { pricePart = null; },
@@ -360,13 +352,9 @@ export function init() {
   linkPriceInputs(priceUnitInput, priceExtInput, () => pricePart ? pricePart.qty : 0);
 
   priceFetch = createFetchController({
-    // @ts-ignore — getElementById returns HTMLElement; narrowing is intentional
-    supplierSelect: document.getElementById("price-fetch-supplier"),
-    // @ts-ignore
-    fetchBtn: document.getElementById("price-fetch-price"),
-    // @ts-ignore
+    supplierSelect: /** @type {HTMLSelectElement} */ (document.getElementById("price-fetch-supplier")),
+    fetchBtn: /** @type {HTMLButtonElement} */ (document.getElementById("price-fetch-price")),
     tiersEl: document.getElementById("price-fetch-tiers"),
-    // @ts-ignore
     unitInput: priceUnitInput,
   });
 
