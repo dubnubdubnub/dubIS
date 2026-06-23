@@ -281,6 +281,29 @@ describe('matchesPredicate — and/or combinations', () => {
   });
 });
 
+describe('matchesPredicate — additional coverage', () => {
+  it('enum is — case-insensitive match (ACTIVE matches active)', () => {
+    const item = { status: 'ACTIVE' };
+    expect(matchesPredicate(item, { op: 'and', rules: [{ field: 'status', operator: 'is', value: 'active' }] })).toBe(true);
+  });
+
+  it('ne — missing field returns true (missing ≠ any value)', () => {
+    expect(matchesPredicate({}, { op: 'and', rules: [{ field: 'qty', operator: 'ne', value: 5 }] })).toBe(true);
+  });
+
+  it('enum in — case-sensitive exact match (Resistor does NOT match resistor)', () => {
+    const item = { category: 'Resistor' };
+    expect(matchesPredicate(item, { op: 'and', rules: [{ field: 'category', operator: 'in', value: ['resistor'] }] })).toBe(false);
+  });
+
+  it("in — throws when value is not an array (error policy)", () => {
+    const item = { category: 'resistor' };
+    expect(() =>
+      matchesPredicate(item, { op: 'and', rules: [{ field: 'category', operator: 'in', value: 'resistor' }] })
+    ).toThrow("matchesPredicate: 'in' operator requires an array value");
+  });
+});
+
 describe('matchesPredicate — unknown operator throws', () => {
   it('throws for unknown operator (error policy)', () => {
     expect(() =>

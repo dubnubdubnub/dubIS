@@ -10,9 +10,11 @@
  */
 
 /**
- * Escape a string for safe HTML insertion, including quotes so the result is
- * safe in attribute values too. Stricter than ui-helpers.escHtml (which omits
- * quotes because it uses the browser DOM path and misses them).
+ * Escape a string for safe HTML insertion. The result is safe in element text
+ * content and in *quoted* attribute values (e.g. `title="${val}"`). It is NOT
+ * safe for unquoted attribute interpolation (e.g. `title=${val}`) — always
+ * quote the attribute. Stricter than ui-helpers.escHtml (which omits quotes
+ * because it uses the browser DOM path and misses them).
  *
  * @param {any} s
  * @returns {string}

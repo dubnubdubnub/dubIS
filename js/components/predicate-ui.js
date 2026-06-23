@@ -94,7 +94,7 @@ function evaluateRule(item, rule) {
       return Number(raw) === Number(value);
     }
     case 'ne': {
-      if (raw === undefined || raw === null) return false;
+      if (raw === undefined || raw === null) return true;
       return Number(raw) !== Number(value);
     }
     case 'lt': {
@@ -123,7 +123,8 @@ function evaluateRule(item, rule) {
     // ── enum ───────────────────────────────────────────────────────────────
     case 'in': {
       if (raw === undefined || raw === null) return false;
-      return Array.isArray(value) && value.includes(raw);
+      if (!Array.isArray(value)) throw new Error("matchesPredicate: 'in' operator requires an array value");
+      return value.includes(raw);
     }
 
     // ── bool ───────────────────────────────────────────────────────────────

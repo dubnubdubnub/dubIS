@@ -172,21 +172,20 @@ describe('bind()', () => {
     expect(inputHandler).not.toHaveBeenCalled();
   });
 
-  it('handles selectors with spaces (e.g., "click div > .btn") — only first token is type', () => {
-    const child = document.createElement('div');
-    const innerBtn = document.createElement('button');
-    innerBtn.className = 'nested-btn';
-    child.appendChild(innerBtn);
-    root.appendChild(child);
+  it('handles selectors with spaces — delegates to descendant matching the full selector', () => {
+    const outer = document.createElement('div');
+    outer.className = 'outer';
+    const inner = document.createElement('span');
+    inner.className = 'inner';
+    outer.appendChild(inner);
+    root.appendChild(outer);
 
     const handler = vi.fn();
-    bind(root, { 'click div .nested-btn': handler });
-    innerBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    // With first-space split, type=click, selector="div .nested-btn"
-    // closest("div .nested-btn") from innerBtn — jsdom may not support complex selectors in closest
-    // so we just verify no crash
-    expect(() => {
-      innerBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    }).not.toThrow();
+    bind(root, { 'click .outer .inner': handler });
+    inner.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    const [, matched] = handler.mock.calls[0];
+    expect(matched).toBe(inner);
   });
 });

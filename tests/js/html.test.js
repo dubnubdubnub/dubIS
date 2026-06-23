@@ -144,6 +144,13 @@ describe('html tagged template', () => {
     expect(frag.querySelector('b')).toBeNull();
     expect(frag.querySelector('div').textContent).toBe('<b>test</b>');
   });
+
+  it('interpolation in quoted attribute context round-trips through DOM correctly', () => {
+    // Verifies that escapeHtml encodes characters that would otherwise break
+    // a quoted attribute, and that the DOM decodes them back to the original value.
+    const frag = html`<div title="${'a "b" <c>'}"></div>`;
+    expect(frag.querySelector('div').getAttribute('title')).toBe('a "b" <c>');
+  });
 });
 
 describe('raw()', () => {
