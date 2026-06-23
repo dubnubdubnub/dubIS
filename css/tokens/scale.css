@@ -1,0 +1,50 @@
+/* ── Spacing, radii, shadow, motion, z-index scales ─────────────────────────
+   Values match the existing hardcoded px / durations / z-indexes in the CSS.
+   Adopting a token must resolve to the identical pixel/time/layer value.
+   Consumed by: all css/*.css (opportunistically).
+   ──────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Spacing scale (px values actually in use) */
+  --space-2xs:  2px;
+  --space-xs:   4px;
+  --space-sm:   6px;
+  --space-md:   8px;
+  --space-lg:  10px;
+  --space-xl:  12px;
+  --space-2xl: 16px;
+  --space-3xl: 20px;
+  --space-4xl: 24px;
+
+  /* Corner radii */
+  --radius-sm:  4px;   /* small controls: .btn-sm, search inputs, field inputs */
+  --radius-md:  6px;   /* default: .btn-md/.btn-lg, modal inputs, filter btns, panels */
+  --radius-lg:  8px;   /* cards / drop-zone / scan group */
+  --radius-xl: 12px;   /* modal shell, badges (.alt-badge/.member-badge) */
+
+  /* Box shadows (distinct shadows found in tooltip/flyout/popover/modal) */
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.3);                          /* favicon-fan-flyout */
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);                         /* vendor-popover */
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);                          /* group-flyout */
+  --shadow-tooltip: 0 8px 30px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2); /* part-preview-card */
+
+  /* Transition durations */
+  --dur-fast: 0.1s;    /* row hovers, chips, flyout members */
+  --dur-base: 0.15s;   /* buttons, inputs focus, badges */
+  --dur-slow: 0.3s;    /* toast */
+
+  /* Z-index layers (values match current stacking — do not renumber) */
+  --z-sticky-cell:     1;     /* td.inv-qty-cell, td.btn-group */
+  --z-sticky-header:   2;     /* thead th, .sticky-scrollbar */
+  --z-section-header:  3;     /* th.btn-group-hdr, inv section/subsection headers */
+  --z-parent-header:   4;     /* inv-parent-header */
+  --z-filter-bar:      5;     /* .filter-bar, .inv-import-gutter */
+  --z-col-header:      6;     /* .inv-col-header */
+  --z-resize-handle:  10;     /* .resize-handle-h/-v */
+  --z-panel-header:   11;     /* .panel-header */
+  --z-overlay:       100;     /* .modal-overlay, .flyout-container */
+  --z-flyout:        500;     /* .part-preview */
+  --z-toast:         999;     /* .toast */
+  --z-fan-flyout:   9999;     /* .favicon-fan-flyout */
+  --z-popover:     10000;     /* .vendor-popover */
+  --z-splash:      99999;     /* #startup-splash */
+}

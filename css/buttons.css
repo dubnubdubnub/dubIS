@@ -2,97 +2,92 @@
 
 .btn-sm {
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-default);
   cursor: pointer;
-  font-size: 10px;
-  transition: all 0.15s;
+  font-size: var(--text-xs);
+  transition: all var(--dur-base);
   background: transparent;
   color: var(--text-primary);
 }
 
 .btn-md {
   padding: 3px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-default);
   cursor: pointer;
-  font-size: 12px;
-  transition: all 0.15s;
+  font-size: var(--text-base);
+  transition: all var(--dur-base);
   background: transparent;
   color: var(--text-primary);
 }
 
 .btn-lg {
   padding: 6px 16px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-default);
   cursor: pointer;
-  font-size: 13px;
-  transition: all 0.15s;
+  font-size: var(--text-md);
+  transition: all var(--dur-base);
   background: transparent;
   color: var(--text-primary);
 }
 
-/* ── Preferences Button ───────────────────────────────── */
-.prefs-btn {
-  border-color: #1f6feb40;
-  background: #1f6feb20;
+/* ── Color variant: blue (used by Preferences, Rebuild, Fetch-price) ──── */
+.btn-blue,
+.prefs-btn,
+.rebuild-btn {
+  border-color: var(--color-blue-dark-border);
+  background: var(--color-blue-dark-bg);
   color: var(--color-blue);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
-.prefs-btn:hover { background: #1f6feb40; border-color: var(--color-blue); }
+.btn-blue:hover:not(:disabled),
+.prefs-btn:hover,
+.rebuild-btn:hover { background: var(--color-blue-dark-border); border-color: var(--color-blue); }
 
 /* ── Header Buttons ───────────────────────────────────── */
 .header-btn {
-  padding: 3px 8px;
+  padding: 3px var(--space-md);
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 .header-btn:hover:not(:disabled) { border-color: var(--color-blue); color: var(--text-primary); }
 .header-btn:disabled { opacity: 0.3; cursor: default; }
-
-/* ── Rebuild Button ────────────────────────────────────── */
-.rebuild-btn {
-  border-color: #1f6feb40;
-  background: #1f6feb20;
-  color: var(--color-blue);
-  font-weight: 600;
-}
-.rebuild-btn:hover { background: #1f6feb40; border-color: var(--color-blue); }
 
 /* ── Save BOM Button ──────────────────────────────────── */
 .save-bom-btn {
   background: var(--bg-raised);
   color: var(--text-secondary);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .save-bom-btn:hover:not(:disabled) { border-color: var(--text-muted); color: var(--text-primary); }
 .save-bom-btn:disabled { opacity: 0.4; cursor: default; }
-.save-bom-btn.dirty { border-color: #d2992240; background: #d2992220; color: var(--color-yellow); }
-.save-bom-btn.dirty:hover { background: #d2992240; border-color: var(--color-yellow); }
+.save-bom-btn.dirty { border-color: var(--color-yellow-border); background: var(--color-yellow-bg); color: var(--color-yellow); }
+.save-bom-btn.dirty:hover { background: var(--color-yellow-border); border-color: var(--color-yellow); }
 
 /* ── Consume Button ────────────────────────────────────── */
 .consume-btn {
-  border-color: #f0883e40;
-  background: #f0883e20;
+  border-color: var(--color-orange-border);
+  background: var(--color-orange-bg);
   color: var(--color-orange);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
-.consume-btn:hover { background: #f0883e40; border-color: var(--color-orange); }
+.consume-btn:hover { background: var(--color-orange-border); border-color: var(--color-orange); }
 .consume-btn:disabled { opacity: 0.4; cursor: default; }
 
 /* ── Clear BOM Button ─────────────────────────────────── */
 .clear-bom-btn {
   background: var(--bg-raised);
   color: var(--text-secondary);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
-.clear-bom-btn:hover { border-color: var(--color-red); color: var(--color-red); background: #f8514920; }
+.clear-bom-btn:hover { border-color: var(--color-red); color: var(--color-red); background: var(--color-red-bg); }
 .clear-bom-btn:disabled { opacity: 0.4; cursor: default; }
 
 /* ── Generic .btn (used in modals and elsewhere) ─────── */
 .btn {
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .btn-cancel { background: var(--bg-raised); color: var(--text-primary); }
 .btn-cancel:hover { border-color: var(--text-muted); }
@@ -103,24 +98,24 @@
 
 /* ── Filter Buttons ────────────────────────────────────── */
 .filter-bar {
-  padding: 6px 12px;
+  padding: var(--space-sm) var(--space-xl);
   display: flex;
-  gap: 6px;
+  gap: var(--space-sm);
   flex-wrap: wrap;
   border-bottom: 1px solid var(--bg-raised);
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: var(--z-filter-bar);
   background: var(--bg-surface);
 }
 .filter-btn {
-  padding: 3px 10px;
+  padding: 3px var(--space-lg);
   background: var(--bg-raised);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .filter-btn:hover { border-color: var(--color-blue); color: var(--text-primary); }
-.filter-btn.active { background: #388bfd26; border-color: var(--color-blue); color: var(--color-blue); }
+.filter-btn.active { background: var(--color-blue-accent-bg); border-color: var(--color-blue); color: var(--color-blue); }
 
 /* ── Adjustment Button ─────────────────────────────────── */
 .adj-btn {
@@ -129,7 +124,7 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-.adj-btn:hover { border-color: var(--color-blue); color: var(--color-blue); background: #388bfd26; }
+.adj-btn:hover { border-color: var(--color-blue); color: var(--color-blue); background: var(--color-blue-accent-bg); }
 
 /* ── Link Button ──────────────────────────────────────── */
 .link-btn {
@@ -138,8 +133,8 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-.link-btn:hover { border-color: var(--color-purple); color: var(--color-purple); background: #a371f726; }
-.link-btn.active { border-color: var(--color-purple); color: var(--color-purple); background: #a371f730; box-shadow: 0 0 4px #a371f740; }
+.link-btn:hover { border-color: var(--color-purple); color: var(--color-purple); background: var(--color-purple-accent-bg); }
+.link-btn.active { border-color: var(--color-purple); color: var(--color-purple); background: var(--color-purple-bg-strong); box-shadow: 0 0 4px var(--color-purple-border); }
 
 /* ── Confirm / Unconfirm / Swap Buttons ───────────────── */
 .confirm-btn, .unconfirm-btn {
@@ -148,7 +143,7 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-.confirm-btn:hover, .unconfirm-btn:hover { border-color: var(--color-teal); color: var(--color-teal); background: #2dd4bf26; }
+.confirm-btn:hover, .unconfirm-btn:hover { border-color: var(--color-teal); color: var(--color-teal); background: var(--color-teal-bg); }
 
 .swap-btn {
   color: var(--text-secondary);
@@ -156,7 +151,7 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-.swap-btn:hover { border-color: var(--color-teal); color: var(--color-teal); background: #2dd4bf26; }
+.swap-btn:hover { border-color: var(--color-teal); color: var(--color-teal); background: var(--color-teal-bg); }
 
 /* ── Price Warning Button ─────────────────────────────── */
 .price-warn-btn {
@@ -164,12 +159,12 @@
   border: none;
   color: var(--color-yellow);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--text-base);
   padding: 0 2px;
   margin-right: 2px;
   line-height: 1;
   vertical-align: middle;
-  transition: text-shadow 0.15s;
+  transition: text-shadow var(--dur-base);
 }
 .price-warn-btn:hover { text-shadow: 0 0 6px var(--color-yellow); }
 
@@ -179,12 +174,12 @@
   border: none;
   color: var(--color-yellow);
   cursor: pointer;
-  font-size: 10px;
-  font-weight: 600;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
   opacity: 0.85;
   padding: 0;
   line-height: 1;
-  transition: text-shadow 0.15s;
+  transition: text-shadow var(--dur-base);
 }
 .no-dist-warn:hover { text-shadow: 0 0 6px var(--color-yellow); }

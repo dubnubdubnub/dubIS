@@ -2,8 +2,8 @@
 .panel-import { width: 22%; min-width: 240px; display: flex; flex-direction: column; }
 
 #import-body { display: flex; flex-direction: column; overflow: hidden; }
-.import-section { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 12px; }
-.import-section h3 { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+.import-section { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: var(--space-xl); }
+.import-section h3 { font-size: var(--text-base); color: var(--text-secondary); margin-bottom: var(--space-md); text-transform: uppercase; letter-spacing: 0.5px; }
 
 /* ── Two-zone drop area (CSV | image/PDF/phone) ── */
 .import-zones {
@@ -22,17 +22,17 @@
   align-items: center;
 }
 .ocr-template-label {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 11px; color: var(--text-muted);
+  display: flex; align-items: center; gap: var(--space-sm);
+  font-size: var(--text-sm); color: var(--text-muted);
   width: 100%; min-width: 0; justify-content: center;
 }
 #import-ocr-template {
-  padding: 3px 6px;
-  border-radius: 4px;
+  padding: 3px var(--space-sm);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-default);
   background: var(--bg-base);
   color: var(--text-bright);
-  font-size: 11px;
+  font-size: var(--text-sm);
   /* A <select>'s intrinsic width is its longest option label and the browser
      will not shrink it below that without min-width:0. In the narrow side-by-side
      zone layout that burst the dashed box on both sides; clamp it so it shrinks to
@@ -43,34 +43,34 @@
 #import-scan-btn { margin-top: var(--import-row-gap); }
 
 .new-po-row {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm);
   margin-top: var(--import-row-gap); flex-shrink: 0; justify-content: center;
 }
-.new-po-label { font-size: 11px; color: var(--text-muted); }
+.new-po-label { font-size: var(--text-sm); color: var(--text-muted); }
 .new-po-btn {
-  font-size: 11px; padding: 3px 10px;
-  border: 1px solid var(--border-default); border-radius: 4px;
+  font-size: var(--text-sm); padding: 3px var(--space-lg);
+  border: 1px solid var(--border-default); border-radius: var(--radius-sm);
   background: var(--bg-surface); color: var(--text-secondary);
   cursor: pointer;
 }
 .new-po-btn:hover { border-color: var(--color-blue); color: var(--color-blue); }
 
-.staging-toolbar { display: flex; align-items: center; gap: 8px; }
+.staging-toolbar { display: flex; align-items: center; gap: var(--space-md); }
 .add-row-btn {
-  font-size: 11px; padding: 2px 8px;
-  border: 1px solid var(--border-default); border-radius: 4px;
+  font-size: var(--text-sm); padding: 2px var(--space-md);
+  border: 1px solid var(--border-default); border-radius: var(--radius-sm);
   background: var(--bg-surface); color: var(--text-secondary);
   cursor: pointer;
 }
 .add-row-btn:hover { border-color: var(--color-green); color: var(--color-green); }
 
-.col-mapper { margin: 8px 0; flex-shrink: 0; }
+.col-mapper { margin: var(--space-md) 0; flex-shrink: 0; }
 .col-mapper-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
-  font-size: 12px;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+  font-size: var(--text-base);
 }
 .col-mapper-row .source-col {
   width: 140px;
@@ -80,17 +80,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .col-mapper-row .arrow { color: var(--text-muted); flex-shrink: 0; }
 .col-mapper-row select {
   flex: 1;
-  padding: 3px 6px;
-  border-radius: 4px;
+  padding: 3px var(--space-sm);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-default);
   background: var(--bg-base);
   color: var(--text-bright);
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .col-mapper-row select.mapped { border-color: var(--color-green); color: var(--color-green); }
 
@@ -106,9 +106,9 @@
   min-height: 0;
   overflow: auto;
 }
-.import-preview table { font-size: 11px; }
+.import-preview table { font-size: var(--text-sm); }
 .import-preview th {
-  padding: 4px 6px; font-size: 10px;
+  padding: var(--space-xs) var(--space-sm); font-size: var(--text-xs);
   vertical-align: bottom; white-space: nowrap;
 }
 .import-preview th .th-label {
@@ -117,11 +117,11 @@
   text-align: left;
   white-space: nowrap;
 }
-.import-preview td { padding: 3px 6px; }
+.import-preview td { padding: 3px var(--space-sm); }
 
 .import-preview td input {
   width: 100%; background: transparent; border: 1px solid transparent;
-  color: var(--text-primary); font-size: 11px; padding: 2px 4px;
+  color: var(--text-primary); font-size: var(--text-sm); padding: var(--space-2xs) var(--space-xs);
   font-family: inherit; border-radius: 3px;
 }
 .import-preview td input:focus {
@@ -145,43 +145,43 @@
 /* ── Import Staging Toolbar (overrides shared .staging-toolbar) ── */
 .staging-toolbar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 6px 12px; border-bottom: 1px solid var(--bg-raised);
+  padding: var(--space-sm) var(--space-xl); border-bottom: 1px solid var(--bg-raised);
   flex-shrink: 0;
 }
 .staging-toolbar h3 {
-  font-size: 12px; color: var(--text-secondary); margin: 0;
+  font-size: var(--text-base); color: var(--text-secondary); margin: 0;
   text-transform: uppercase; letter-spacing: 0.5px;
 }
 .import-btn-row {
   display: flex;
-  gap: 6px;
-  margin-top: 12px;
+  gap: var(--space-sm);
+  margin-top: var(--space-xl);
   flex-shrink: 0;
 }
 .clear-import-btn {
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   background: var(--bg-surface);
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  transition: all 0.15s;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  transition: all var(--dur-base);
 }
-.clear-import-btn:hover { background: #f8514920; color: var(--color-red); border-color: var(--color-red); }
+.clear-import-btn:hover { background: var(--color-red-bg); color: var(--color-red); border-color: var(--color-red); }
 .import-btn {
-  padding: 8px 16px;
-  border-radius: 6px;
-  border: 1px solid #3fb95040;
+  padding: var(--space-md) var(--space-2xl);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-green-border);
   background: #23863620;
   color: var(--color-green);
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
   flex: 1;
   flex-shrink: 0;
-  transition: all 0.15s;
+  transition: all var(--dur-base);
 }
 .import-btn:hover { background: #23863640; border-color: var(--color-green); }
 .import-btn:disabled { opacity: 0.4; cursor: default; }
@@ -197,13 +197,13 @@
   text-align: center;
 }
 .ocr-engine-missing-msg {
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   margin: 0;
 }
 /* Inherits sizing/padding from .new-po-btn; emphasize as the primary action. */
 #install-tesseract-btn {
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   border-color: var(--color-blue);
   color: var(--color-blue);
 }
@@ -212,7 +212,7 @@
 }
 #install-tesseract-btn:disabled { opacity: 0.6; cursor: default; }
 .ocr-engine-missing-fallback {
-  font-size: 10px;
+  font-size: var(--text-xs);
   color: var(--text-muted);
 }
 .ocr-engine-missing-fallback code {
