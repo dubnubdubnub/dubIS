@@ -16,9 +16,13 @@ import csv_io
 import domain.generic_parts
 import domain.inventory
 import domain.pricing
-import file_dialogs
 import inventory_ops
 from distributor_manager import DistributorManager
+from domain.api_distributor import DistributorFacade
+from domain.api_fileio import FileIOFacade
+from domain.api_generic_parts import GenericPartsFacade
+from domain.api_preferences import PreferencesFacade
+from domain.api_pricing import PricingFacade
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +71,11 @@ class InventoryApi:
         self._lock: threading.RLock = threading.RLock()
         self._last_migration_summary: dict[str, int] = {}
         self._distributors = DistributorManager(self.base_dir, self._get_cache)
+        self._files = FileIOFacade(self)
+        self._dist = DistributorFacade(self)
+        self._pricing = PricingFacade(self)
+        self._generic = GenericPartsFacade(self)
+        self._prefs = PreferencesFacade(self)
 
     def _get_cache(self) -> sqlite3.Connection:
         """Get or create the cache database connection.
@@ -333,220 +342,136 @@ class InventoryApi:
             )
 
     def detect_columns(self, headers_json: str | list[str]) -> dict[str, str]:
-        """Auto-detect column mapping for purchase CSV import."""
-        return file_dialogs.detect_columns(headers_json)
+        return self._files.detect_columns(headers_json)
 
     def load_preferences(self) -> dict[str, Any]:
-        """Read preferences.json and return its contents (empty dict if missing/corrupt)."""
-        try:
-            if os.path.exists(self.prefs_json):
-                with open(self.prefs_json, encoding="utf-8") as f:
-                    data = json.load(f)
-                # Migrate saved distributor_filter sets: "other" → "direct"
-                if isinstance(data, dict) and isinstance(data.get("distributor_filter"), list):
-                    data["distributor_filter"] = [
-                        "direct" if d == "other" else d for d in data["distributor_filter"]
-                    ]
-                return data
-        except (json.JSONDecodeError, OSError) as exc:
-            logger.warning("Failed to load preferences: %s", exc)
-        return {}
+        return self._prefs.load_preferences()
 
     def save_preferences(self, prefs_json: str | dict[str, Any]) -> None:
-        """Write preferences JSON string to disk."""
-        prefs = self._ensure_parsed(prefs_json)
-        csv_io.atomic_write_text(
-            self.prefs_json, json.dumps(prefs, indent=2), encoding="utf-8",
-        )
+        return self._prefs.save_preferences(prefs_json)
 
     def save_file_dialog(self, content: str, default_name: str = "export.csv",
                          default_dir: str | None = None,
                          links_json: str | list | None = None) -> dict[str, str] | None:
-        """Open native Save As dialog and write content to the chosen path."""
-        return file_dialogs.save_file_dialog(content, default_name, default_dir, links_json)
+        return self._files.save_file_dialog(content, default_name, default_dir, links_json)
 
     def convert_xls_to_csv(self, path: str) -> dict[str, Any] | None:
-        """Convert a binary XLS file to CSV text for the import panel."""
-        return csv_io.convert_xls_to_csv(path)
+        return self._files.convert_xls_to_csv(path)
 
     def open_file_dialog(self, title: str = "Select CSV file",
                          default_dir: str | None = None) -> dict[str, Any] | None:
-        """Open native file dialog, return {name, content, directory, path} or None."""
-        return file_dialogs.open_file_dialog(title, default_dir)
+        return self._files.open_file_dialog(title, default_dir)
 
     def load_file(self, path: str) -> dict[str, Any] | None:
-        """Load a file by path, return {name, content, directory, path, links?} or None."""
-        return file_dialogs.load_file(path)
+        return self._files.load_file(path)
 
     # ── Price history API ───────────────────────────────────────────────────
 
     def record_fetched_prices(self, part_key: str, distributor: str,
                                price_tiers: list[dict[str, Any]]) -> None:
-        """Record prices fetched from a distributor API/scraper."""
-        return domain.pricing.record_fetched_prices(
-            self._get_cache(), self.events_dir, part_key, distributor, price_tiers,
-        )
+        return self._pricing.record_fetched_prices(part_key, distributor, price_tiers)
 
     def get_price_summary(self, part_key: str) -> dict[str, dict[str, Any]]:
-        """Get aggregated pricing per distributor for a part."""
-        return domain.pricing.get_price_summary(
-            self._get_cache(), self.events_dir, part_key,
-        )
+        return self._pricing.get_price_summary(part_key)
 
     def get_last_po_quantity(self, part_key: str) -> int | None:
-        """Quantity from the most recent purchase-ledger row for this part, or None."""
-        return inventory_ops.last_po_quantity(self.input_csv, part_key)
+        return self._pricing.get_last_po_quantity(part_key)
 
     # ── Product preview (delegated to DistributorManager) ───────────────────
 
     def fetch_lcsc_product(self, product_code: str) -> dict[str, Any] | None:
-        return self._distributors.fetch_lcsc_product(product_code, debug=self._debug)
+        return self._dist.fetch_lcsc_product(product_code)
 
     def fetch_digikey_product(self, part_number: str) -> dict[str, Any] | None:
-        return self._distributors.fetch_digikey_product(part_number, debug=self._debug)
+        return self._dist.fetch_digikey_product(part_number)
 
     def fetch_pololu_product(self, sku: str) -> dict[str, Any] | None:
-        return self._distributors.fetch_pololu_product(sku, debug=self._debug)
+        return self._dist.fetch_pololu_product(sku)
 
     def fetch_mouser_product(self, part_number: str) -> dict[str, Any] | None:
-        return self._distributors.fetch_mouser_product(part_number, debug=self._debug)
+        return self._dist.fetch_mouser_product(part_number)
 
     def check_digikey_session(self) -> dict[str, Any]:
-        return self._distributors.check_digikey_session()
+        return self._dist.check_digikey_session()
 
     def start_digikey_login(self) -> dict[str, Any]:
-        return self._distributors.start_digikey_login()
+        return self._dist.start_digikey_login()
 
     def sync_digikey_cookies(self) -> dict[str, Any]:
-        return self._distributors.sync_digikey_cookies()
+        return self._dist.sync_digikey_cookies()
 
     def get_digikey_login_status(self) -> dict[str, bool]:
-        return self._distributors.get_digikey_login_status()
+        return self._dist.get_digikey_login_status()
 
     def validate_digikey_session(self) -> dict[str, Any]:
-        return self._distributors.validate_digikey_session()
+        return self._dist.validate_digikey_session()
 
     def logout_digikey(self) -> dict[str, str]:
-        return self._distributors.logout_digikey()
+        return self._dist.logout_digikey()
 
     def get_mouser_api_key_status(self) -> dict[str, bool]:
-        return self._distributors.get_mouser_api_key_status()
+        return self._dist.get_mouser_api_key_status()
 
     def set_mouser_api_key(self, key: str) -> dict[str, bool]:
-        return self._distributors.set_mouser_api_key(key)
+        return self._dist.set_mouser_api_key(key)
 
     def clear_mouser_api_key(self) -> dict[str, bool]:
-        return self._distributors.clear_mouser_api_key()
+        return self._dist.clear_mouser_api_key()
 
     # ── Poll API ───────────────────────────────────────────────────────────
 
     def get_poll_api_info(self) -> dict[str, Any]:
-        """Return the local poll API URL and active port."""
-        import poll_api
-        server = getattr(self, "_poll_server", None)
-        prefs = self.load_preferences()
-        info: dict[str, Any] = {
-            "default_port": poll_api.POLL_PORT,
-            "configured_port": prefs.get("pollApiPort"),
-            "running": server is not None,
-        }
-        if server is not None:
-            host, port = server.server_address
-            info["host"] = host
-            info["port"] = port
-            info["url"] = f"http://{host}:{port}"
-        else:
-            info["host"] = ""
-            info["port"] = None
-            info["url"] = ""
-        return info
+        return self._prefs.get_poll_api_info()
 
     def set_poll_api_port(self, port: int | str) -> dict[str, Any]:
-        """Restart the poll API server on a new port and persist to preferences."""
-        import poll_api
-        try:
-            port_int = int(port)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"port must be an integer, got {port!r}") from exc
-        if port_int < 1024 or port_int > 65535:
-            raise ValueError(f"port out of range (1024-65535): {port_int}")
-        poll_api.restart_poll_server(self, port_int)
-        prefs = self.load_preferences()
-        prefs["pollApiPort"] = port_int
-        self.save_preferences(prefs)
-        return self.get_poll_api_info()
+        return self._prefs.set_poll_api_port(port)
 
     # ── Generic parts ──────────────────────────────────────────────────────
 
     def create_generic_part(self, name: str, part_type: str,
                              spec_json: str, strictness_json: str) -> dict[str, Any]:
-        return domain.generic_parts.create_generic_part_api(
-            self._get_cache(), self.events_dir, name, part_type, spec_json, strictness_json,
-        )
+        return self._generic.create_generic_part(name, part_type, spec_json, strictness_json)
 
     def resolve_bom_spec(self, part_type: str, value: float,
                           package: str) -> dict[str, Any] | None:
-        return domain.generic_parts.resolve_bom_spec(self._get_cache(), part_type, float(value), package)
+        return self._generic.resolve_bom_spec(part_type, value, package)
 
     def list_generic_parts(self) -> list[dict[str, Any]]:
-        return domain.generic_parts.list_generic_parts_with_member_specs(self._get_cache())
+        return self._generic.list_generic_parts()
 
     def add_generic_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
-        return domain.generic_parts.add_member_api(
-            self._get_cache(), self.events_dir, generic_part_id, part_id,
-        )
+        return self._generic.add_generic_member(generic_part_id, part_id)
 
     def remove_generic_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
-        return domain.generic_parts.remove_member_api(
-            self._get_cache(), self.events_dir, generic_part_id, part_id,
-        )
+        return self._generic.remove_generic_member(generic_part_id, part_id)
 
     def exclude_generic_member(self, generic_part_id: str, part_id: str) -> None:
-        return domain.generic_parts.exclude_member(
-            self._get_cache(), self.events_dir, generic_part_id, part_id,
-        )
+        return self._generic.exclude_generic_member(generic_part_id, part_id)
 
     def set_preferred_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
-        return domain.generic_parts.set_preferred_api(
-            self._get_cache(), self.events_dir, generic_part_id, part_id,
-        )
+        return self._generic.set_preferred_member(generic_part_id, part_id)
 
     def update_generic_part(self, generic_part_id: str, name: str,
                              spec_json: str, strictness_json: str) -> dict[str, Any]:
-        return domain.generic_parts.update_generic_part_api(
-            self._get_cache(), self.events_dir, generic_part_id, name,
-            spec_json, strictness_json,
-        )
+        return self._generic.update_generic_part(generic_part_id, name, spec_json, strictness_json)
 
     def extract_spec(self, part_key: str) -> dict[str, Any]:
-        return domain.generic_parts.extract_spec_for_part(self._get_cache(), part_key)
+        return self._generic.extract_spec(part_key)
 
     def extract_spec_from_value(self, part_type: str, value_str: str, package_str: str) -> dict[str, Any]:
-        import spec_extractor
-        desc = part_type + " " + value_str + " " + package_str
-        spec = spec_extractor.extract_spec(desc, package_str)
-        spec["type"] = part_type
-        return spec
+        return self._generic.extract_spec_from_value(part_type, value_str, package_str)
 
     def list_saved_searches(self, generic_part_id: str) -> list[dict[str, Any]]:
-        import saved_searches
-        return saved_searches.list_for_group(self._get_cache(), generic_part_id)
+        return self._generic.list_saved_searches(generic_part_id)
 
     def create_saved_search(self, generic_part_id: str, name: str,
                             tag_state_json: str, search_text: str,
                             frozen_members_json: str) -> dict[str, Any]:
-        import json
-
-        import saved_searches
-        tag_state = json.loads(tag_state_json) if isinstance(tag_state_json, str) else tag_state_json
-        frozen = json.loads(frozen_members_json) if isinstance(frozen_members_json, str) else frozen_members_json
-        return saved_searches.create(
-            self._get_cache(), self.base_dir, generic_part_id, name,
-            tag_state, search_text, frozen)
+        return self._generic.create_saved_search(
+            generic_part_id, name, tag_state_json, search_text, frozen_members_json)
 
     def delete_saved_search(self, search_id: str) -> None:
-        import saved_searches
-        saved_searches.delete(self._get_cache(), self.base_dir, search_id)
+        return self._generic.delete_saved_search(search_id)
 
     # ── Mfg-direct vendors / POs ─────────────────────────────────────────
 

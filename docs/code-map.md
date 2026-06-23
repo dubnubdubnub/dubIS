@@ -23,6 +23,15 @@ graph LR
     "distributor_manager.py" --> "mouser_client.py"
     "distributor_manager.py" --> "pololu_client.py"
     "distributor_profiles.py" --> "mfg_direct_import.py"
+    "domain/api_fileio.py" --> "csv_io.py"
+    "domain/api_fileio.py" --> "file_dialogs.py"
+    "domain/api_generic_parts.py" --> "domain/generic_parts.py"
+    "domain/api_generic_parts.py" --> "saved_searches.py"
+    "domain/api_generic_parts.py" --> "spec_extractor.py"
+    "domain/api_preferences.py" --> "csv_io.py"
+    "domain/api_preferences.py" --> "poll_api.py"
+    "domain/api_pricing.py" --> "domain/pricing.py"
+    "domain/api_pricing.py" --> "inventory_ops.py"
     "domain/generic_parts.py" --> "spec_extractor.py"
     "domain/inventory.py" --> "cache_db.py"
     "domain/inventory.py" --> "csv_io.py"
@@ -37,19 +46,20 @@ graph LR
     "inventory_api.py" --> "csv_io.py"
     "inventory_api.py" --> "distributor_manager.py"
     "inventory_api.py" --> "distributor_profiles.py"
+    "inventory_api.py" --> "domain/api_distributor.py"
+    "inventory_api.py" --> "domain/api_fileio.py"
+    "inventory_api.py" --> "domain/api_generic_parts.py"
+    "inventory_api.py" --> "domain/api_preferences.py"
+    "inventory_api.py" --> "domain/api_pricing.py"
     "inventory_api.py" --> "domain/generic_parts.py"
     "inventory_api.py" --> "domain/inventory.py"
     "inventory_api.py" --> "domain/pricing.py"
-    "inventory_api.py" --> "file_dialogs.py"
     "inventory_api.py" --> "inventory_ops.py"
     "inventory_api.py" --> "mfg_direct_import.py"
     "inventory_api.py" --> "ocr_engine.py"
     "inventory_api.py" --> "ocr_layout.py"
     "inventory_api.py" --> "pnp_server.py"
-    "inventory_api.py" --> "poll_api.py"
     "inventory_api.py" --> "purchase_orders.py"
-    "inventory_api.py" --> "saved_searches.py"
-    "inventory_api.py" --> "spec_extractor.py"
     "inventory_api.py" --> "vendors.py"
     "inventory_ops.py" --> "categorize.py"
     "inventory_ops.py" --> "csv_io.py"
@@ -386,6 +396,7 @@ graph LR
     "tests/python/domain/test_pricing.py" --> "cache_db.py"
     "tests/python/domain/test_pricing.py" --> "domain/pricing.py"
     "tests/python/helpers.py" --> "inventory_api.py"
+    "tests/python/test_api_surface.py" --> "inventory_api.py"
     "tests/python/test_base_client.py" --> "base_client.py"
     "tests/python/test_base_client.py" --> "dubis_errors.py"
     "tests/python/test_cache_db.py" --> "cache_db.py"
@@ -523,7 +534,7 @@ graph LR
 ### csv_io.py
 
 - **Imports:** —
-- **Imported by:** `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `tests/python/test_csv_io.py`, `vendors.py`
+- **Imported by:** `domain/api_fileio.py`, `domain/api_preferences.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `tests/python/test_csv_io.py`, `vendors.py`
 
 ### digikey_cdp.py
 
@@ -570,10 +581,35 @@ graph LR
 - **Imports:** —
 - **Imported by:** `domain/inventory.py`
 
+### domain/api_distributor.py
+
+- **Imports:** —
+- **Imported by:** `inventory_api.py`
+
+### domain/api_fileio.py
+
+- **Imports:** `csv_io.py`, `file_dialogs.py`
+- **Imported by:** `inventory_api.py`
+
+### domain/api_generic_parts.py
+
+- **Imports:** `domain/generic_parts.py`, `saved_searches.py`, `spec_extractor.py`
+- **Imported by:** `inventory_api.py`
+
+### domain/api_preferences.py
+
+- **Imports:** `csv_io.py`, `poll_api.py`
+- **Imported by:** `inventory_api.py`
+
+### domain/api_pricing.py
+
+- **Imports:** `domain/pricing.py`, `inventory_ops.py`
+- **Imported by:** `inventory_api.py`
+
 ### domain/generic_parts.py
 
 - **Imports:** `spec_extractor.py`
-- **Imported by:** `inventory_api.py`, `tests/python/domain/test_generic_parts.py`
+- **Imported by:** `domain/api_generic_parts.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`
 
 ### domain/inventory.py
 
@@ -583,7 +619,7 @@ graph LR
 ### domain/pricing.py
 
 - **Imports:** —
-- **Imported by:** `cache_db.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_inventory_api_pricing.py`
+- **Imported by:** `cache_db.py`, `domain/api_pricing.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_inventory_api_pricing.py`
 
 ### dubis_errors.py
 
@@ -593,7 +629,7 @@ graph LR
 ### file_dialogs.py
 
 - **Imports:** `csv_io.py`, `domain/pricing.py`
-- **Imported by:** `inventory_api.py`, `tests/python/test_file_dialogs.py`
+- **Imported by:** `domain/api_fileio.py`, `tests/python/test_file_dialogs.py`
 
 ### html_product_parser.py
 
@@ -602,13 +638,13 @@ graph LR
 
 ### inventory_api.py
 
-- **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `distributor_profiles.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `file_dialogs.py`, `inventory_ops.py`, `mfg_direct_import.py`, `ocr_engine.py`, `ocr_layout.py`, `pnp_server.py`, `poll_api.py`, `purchase_orders.py`, `saved_searches.py`, `spec_extractor.py`, `vendors.py`
-- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_real_data.py`
+- **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `distributor_profiles.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`, `mfg_direct_import.py`, `ocr_engine.py`, `ocr_layout.py`, `pnp_server.py`, `purchase_orders.py`, `vendors.py`
+- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_real_data.py`
 
 ### inventory_ops.py
 
 - **Imports:** `categorize.py`, `csv_io.py`, `domain/pricing.py`, `vendors.py`
-- **Imported by:** `cache_db.py`, `domain/inventory.py`, `inventory_api.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_ops.py`, `tests/python/test_last_po_quantity.py`
+- **Imported by:** `cache_db.py`, `domain/api_pricing.py`, `domain/inventory.py`, `inventory_api.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_ops.py`, `tests/python/test_last_po_quantity.py`
 
 ### js/a11y/activate-on-key.js
 
@@ -1051,7 +1087,7 @@ graph LR
 ### poll_api.py
 
 - **Imports:** —
-- **Imported by:** `inventory_api.py`, `tests/python/test_poll_api.py`
+- **Imported by:** `domain/api_preferences.py`, `tests/python/test_poll_api.py`
 
 ### pololu_client.py
 
@@ -1066,7 +1102,7 @@ graph LR
 ### saved_searches.py
 
 - **Imports:** `csv_io.py`
-- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `tests/python/test_saved_searches.py`
+- **Imported by:** `domain/api_generic_parts.py`, `domain/inventory.py`, `tests/python/test_saved_searches.py`
 
 ### scripts/__init__.py
 
@@ -1156,7 +1192,7 @@ graph LR
 ### spec_extractor.py
 
 - **Imports:** `categorize.py`
-- **Imported by:** `domain/generic_parts.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/test_spec_extractor.py`
+- **Imported by:** `domain/api_generic_parts.py`, `domain/generic_parts.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/test_spec_extractor.py`
 
 ### tests/e2e-server.py
 
@@ -1451,6 +1487,11 @@ graph LR
 
 - **Imports:** `inventory_api.py`
 - **Imported by:** `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`, `tests/python/test_poll_api.py`
+
+### tests/python/test_api_surface.py
+
+- **Imports:** `inventory_api.py`
+- **Imported by:** —
 
 ### tests/python/test_base_client.py
 

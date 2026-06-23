@@ -430,7 +430,7 @@ export function renderInvColHeader(viewState) {
 
   return '<div class="inv-col-header">' +
     '<button class="inv-col-cell inv-col-group" data-col="group" title="Cycle grouping: full → sections → flat">' +
-      '<span class="inv-col-group-dots">' + groupDots() + '</span> Group' +
+      '<span class="inv-col-group-dots">' + groupDots() + '</span>' +
     '</button>' +
     '<button class="inv-col-cell inv-col-partid" data-col="partid" title="Group by vendor">Part # ' + vendorIndicator() + '</button>' +
     '<button class="inv-col-cell inv-col-mpn" data-col="mpn">MPN ' + sortIndicator('mpn') + '</button>' +
