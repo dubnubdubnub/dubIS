@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import domain.inventory
 import inventory_ops
+
+if TYPE_CHECKING:
+    from domain.schema import InventoryItem
 
 
 class InventoryCRUDFacade:
@@ -20,7 +23,7 @@ class InventoryCRUDFacade:
                 self._api._rebuild()
         return removed
 
-    def rebuild_inventory(self) -> list[dict[str, Any]]:
+    def rebuild_inventory(self) -> "list[InventoryItem]":
         """Rebuild inventory. Uses catch-up if cache exists, full rebuild otherwise."""
         result, migration_summary = domain.inventory.rebuild_or_catchup(
             base_dir=self._api.base_dir,
@@ -36,7 +39,7 @@ class InventoryCRUDFacade:
         return result
 
     def adjust_part(self, adj_type: str, part_key: str, quantity: int | str,
-                    note: str = "", source: str = "") -> list[dict[str, Any]]:
+                    note: str = "", source: str = "") -> "list[InventoryItem]":
         """Set/add/remove adjustment. Returns fresh inventory."""
         with self._api._lock:
             return domain.inventory.adjust_part(
@@ -56,7 +59,7 @@ class InventoryCRUDFacade:
 
     def consume_bom(self, matches_json: str | list[dict[str, Any]],
                     board_qty: int | str, bom_name: str,
-                    note: str = "", source: str = "") -> list[dict[str, Any]]:
+                    note: str = "", source: str = "") -> "list[InventoryItem]":
         """Consume matched BOM parts. Returns fresh inventory."""
         matches = self._api._ensure_parsed(matches_json)
         with self._api._lock:
@@ -75,15 +78,15 @@ class InventoryCRUDFacade:
                 conn=self._api._get_cache(),
             )
 
-    def remove_last_purchases(self, count: int | str) -> list[dict[str, Any]]:
+    def remove_last_purchases(self, count: int | str) -> "list[InventoryItem]":
         """Remove the last `count` rows from purchase_ledger.csv and rebuild inventory."""
         return self._api._truncate_csv(self._api.input_csv, int(count), "purchase ledger")
 
-    def remove_last_adjustments(self, count: int | str) -> list[dict[str, Any]]:
+    def remove_last_adjustments(self, count: int | str) -> "list[InventoryItem]":
         """Remove the last `count` rows from adjustments.csv and rebuild inventory."""
         return self._api._truncate_csv(self._api.adjustments_csv, int(count), "adjustments")
 
-    def import_purchases(self, rows_json: str | list[dict[str, str]]) -> list[dict[str, Any]]:
+    def import_purchases(self, rows_json: str | list[dict[str, str]]) -> "list[InventoryItem]":
         """Append purchase rows to purchase_ledger.csv. Returns fresh inventory."""
         rows = self._api._ensure_parsed(rows_json)
         with self._api._lock:
@@ -100,7 +103,7 @@ class InventoryCRUDFacade:
             )
 
     def update_part_price(self, part_key: str, unit_price: float | None = None,
-                          ext_price: float | None = None) -> list[dict[str, Any]]:
+                          ext_price: float | None = None) -> "list[InventoryItem]":
         """Update unit price and ext price for a part in purchase_ledger.csv.
         Auto-calculates the missing price field if only one is provided.
         Returns fresh inventory after rebuild.
@@ -125,7 +128,7 @@ class InventoryCRUDFacade:
             )
 
     def update_part_fields(self, part_key: str,
-                           fields_json: str | dict[str, str]) -> list[dict[str, Any]]:
+                           fields_json: str | dict[str, str]) -> "list[InventoryItem]":
         """Update metadata fields for a part in purchase_ledger.csv."""
         fields = self._api._ensure_parsed(fields_json)
         with self._api._lock:

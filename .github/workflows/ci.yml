@@ -405,6 +405,9 @@ jobs:
       - name: Verify code map is up to date
         if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/python scripts/gen-code-map.py --check
+      - name: Verify inventory-record types are up to date
+        if: needs.parse-tags.outputs.run_python == 'true'
+        run: ~/dubis-venv/bin/python scripts/gen-inventory-types.py --check
       - name: Verify module manifests are accurate
         if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/python scripts/check-manifests.py

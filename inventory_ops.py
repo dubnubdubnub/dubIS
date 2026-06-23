@@ -7,7 +7,10 @@ import io
 import logging
 import os
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from domain.schema import InventoryItem
 
 import csv_io
 from categorize import categorize, parse_capacitance, parse_inductance, parse_resistance
@@ -241,7 +244,7 @@ _FIELD_TO_COL = {
 }
 
 
-def load_organized(output_csv: str) -> list[dict[str, Any]]:
+def load_organized(output_csv: str) -> "list[InventoryItem]":
     """Load organized inventory as list of dicts for JSON."""
     rows: list[dict[str, Any]] = []
     if not os.path.exists(output_csv):

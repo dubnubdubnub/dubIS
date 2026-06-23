@@ -1,3 +1,4 @@
+// @ts-check
 /* inventory/inv-bom-mode.js — BOM-comparison view and remaining inventory rendering.
    buildNearMissMap, renderBomComparison,
    renderRemainingInventory, renderRemainingNormalSections. */
@@ -64,7 +65,7 @@ export function renderBomComparison() {
   filterBar.innerHTML = renderFilterBarHtml(c, state.activeFilter);
   filterBar.querySelectorAll(".filter-btn").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      state.activeFilter = btn.dataset.filter;
+      state.activeFilter = /** @type {HTMLElement} */ (btn).dataset.filter;
       state._render();
     });
   });
@@ -89,13 +90,13 @@ export function renderBomComparison() {
     bomTr.draggable = flyoutActive;
     tbody.appendChild(bomTr);
     if (d.showAlts) {
-      var altElements = renderAltRows(r.alts, d.partKey);
+      var altElements = renderAltRows(/** @type {import('../types.js').BomMatchResult} */ (r).alts, d.partKey);
       for (var j = 0; j < altElements.length; j++) {
         tbody.appendChild(altElements[j]);
       }
     }
     if (d.showMembers && d.genericMembers) {
-      var resolvedId = r.inv ? invPartKey(r.inv) : "";
+      var resolvedId = /** @type {import('../types.js').BomMatchResult} */ (r).inv ? invPartKey(/** @type {import('../types.js').BomMatchResult} */ (r).inv) : "";
       var memberElements = renderMemberRows(d.genericMembers, d.partKey, resolvedId, d.genericPartName || "", store.inventory);
       for (var m = 0; m < memberElements.length; m++) {
         tbody.appendChild(memberElements[m]);
@@ -147,7 +148,7 @@ export function renderRemainingInventory(matchedInvKeys, query) {
   state.nearMissMap = buildNearMissMap();
   var otherParts = {};
   for (var i = 0; i < store.inventory.length; i++) {
-    var item = store.inventory[i];
+    var item = /** @type {import('../types.js').InventoryItem} */ (store.inventory[i]);
     var pk = invPartKey(item).toUpperCase();
     if (matchedInvKeys.has(pk)) continue;
     var sec = item.section || "Other";

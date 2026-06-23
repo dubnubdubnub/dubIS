@@ -125,7 +125,7 @@ export function selectedCount() {
 export function selectPo(poId) {
   if (!poId) return 0;
   let added = 0;
-  for (const item of store.inventory) {
+  for (const item of /** @type {import('./types.js').InventoryItem[]} */ (store.inventory)) {
     const hist = item.po_history || [];
     if (hist.includes(poId)) {
       const key = invPartKey(item);

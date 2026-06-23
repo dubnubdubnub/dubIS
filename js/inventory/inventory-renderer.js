@@ -52,7 +52,7 @@ export function renderSubSectionHeader(displayName, collapsed, count) {
 
 /**
  * Build HTML for a single inventory part row.
- * @param {Object} item - inventory item
+ * @param {import('../types.js').InventoryItem} item - inventory item
  * @param {Object} options
  * @param {boolean} options.hideDescs - whether to hide description column
  * @param {boolean} options.isBomMode - whether BOM is active (shows link button)
@@ -237,7 +237,7 @@ export function createBomRowElement(d) {
 
 /**
  * Build alt inventory rows for a BOM part.
- * @param {Array<Object>} alts - alternative inventory items
+ * @param {Array<import('../types.js').InventoryItem>} alts - alternative inventory items
  * @param {string} partKey - parent part key
  * @returns {Array<HTMLTableRowElement>}
  */
