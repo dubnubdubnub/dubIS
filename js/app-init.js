@@ -7,12 +7,15 @@ import { UndoRedo } from './undo-redo.js';
 import { store, loadPreferences, loadInventory, onInventoryUpdated, getShortcutPrefs } from './store.js';
 import { processBOM } from './csv-parser.js';
 import { matchBOM } from './matching.js';
-import { colorizeRefs, REF_COLOR_MAP } from './part-keys.js';
+import { colorizeRefs, REF_COLOR_MAP, invPartKey } from './part-keys.js';
 import { openPreferencesModal, applyPreferences, wireDigikeyButtons } from './preferences-modal.js';
-import { wireVendorsModal } from './vendors-modal.js';
+import { wireVendorsModal, openVendorsModal } from './vendors-modal.js';
 import { initShortcuts } from './a11y/shortcuts.js';
 import { initShortcutHelp } from './a11y/shortcut-help.js';
 import { saveBomFile } from './bom/bom-events.js';
+import { CommandPalette } from './components/command-palette.js';
+import { openAdjustModal, openPriceModal } from './inventory-modals.js';
+import { enterLabelMode, isLabelMode, exitLabelMode } from './label-selection.js';
 
 // Explicit panel imports (no side effects until init() is called)
 import { init as initInventoryModals } from './inventory-modals.js';
@@ -185,11 +188,269 @@ async function initApp() {
 
   const help = initShortcutHelp();
 
+  // ── Command Palette ──────────────────────────────────────────────────────────
+
+  /**
+   * Derive the context for the palette from the currently focused inventory row.
+   * @returns {{ focusedPartKey: string|null, bomMode: boolean }}
+   */
+  function buildPaletteContext() {
+    const invBody = document.getElementById('inventory-body');
+    let focusedPartKey = null;
+    if (invBody) {
+      // The roving-focus row has tabindex=0 and a data-part-id attribute
+      const focused = invBody.querySelector('[data-part-id][tabindex="0"]');
+      if (focused) focusedPartKey = focused.dataset.partId || null;
+    }
+    const bomMode = !!store.bomResults;
+    return { focusedPartKey, bomMode };
+  }
+
+  /**
+   * Build the full command set from the given context.
+   * Reuses existing handlers — no duplicated logic.
+   * @param {{ focusedPartKey: string|null, bomMode: boolean }} ctx
+   */
+  function getPaletteCommands(ctx) {
+    // Reverse-lookup: mirror invPartKey()'s exact priority order so DigiKey/Pololu/
+    // Mouser-only parts resolve correctly (not just LCSC and MPN).
+    const focusedItem = ctx.focusedPartKey
+      ? store.inventory.find(item => invPartKey(item) === ctx.focusedPartKey)
+      : null;
+
+    /** @type {Array<{id:string,label:string,hint?:string,group?:string,keywords?:string[],run:Function}>} */
+    const cmds = [];
+
+    // ── Global commands ──────────────────────────────────────────────────────
+    cmds.push({
+      id: 'open-preferences',
+      label: 'Open Preferences',
+      group: 'Global',
+      keywords: ['settings', 'config', 'prefs'],
+      run: () => openPreferencesModal(),
+    });
+
+    cmds.push({
+      id: 'rebuild-inventory',
+      label: 'Rebuild Inventory',
+      group: 'Global',
+      keywords: ['refresh', 'reload', 'sync'],
+      run: async () => {
+        AppLog.info('Rebuilding inventory…');
+        const fresh = await api('rebuild_inventory');
+        if (!fresh) return;
+        onInventoryUpdated(fresh);
+        showToast('Inventory rebuilt');
+        AppLog.info('Inventory rebuilt: ' + fresh.length + ' parts');
+      },
+    });
+
+    cmds.push({
+      id: 'manage-vendors',
+      label: 'Manage Vendors',
+      group: 'Global',
+      keywords: ['suppliers', 'vendors', 'distributor'],
+      run: () => openVendorsModal(),
+    });
+
+    cmds.push({
+      id: 'toggle-label-mode',
+      label: isLabelMode() ? 'Exit Label Mode' : 'Print Labels',
+      group: 'Global',
+      keywords: ['labels', 'print', 'epson', 'tape'],
+      run: () => {
+        if (isLabelMode()) {
+          exitLabelMode();
+        } else {
+          enterLabelMode();
+        }
+      },
+    });
+
+    cmds.push({
+      id: 'cycle-grouping',
+      label: 'Cycle Grouping',
+      group: 'Global',
+      keywords: ['group', 'hierarchy', 'flat', 'sections'],
+      run: () => {
+        // Delegate to the group-column header button: the real groupLevel cycle
+        // logic lives inside inv-events.js setupEvents() as an inline delegated
+        // handler on state.body — it is not exported as a standalone function.
+        // Using .click() is intentional here to avoid duplicating that logic.
+        const groupCell = document.querySelector('.inv-col-cell[data-col="group"]');
+        if (groupCell) groupCell.click();
+      },
+    });
+
+    cmds.push({
+      id: 'show-shortcuts',
+      label: 'Show Keyboard Shortcuts',
+      group: 'Global',
+      keywords: ['help', 'keyboard', 'hotkeys', 'bindings'],
+      run: () => help.open(),
+    });
+
+    cmds.push({
+      id: 'undo',
+      label: 'Undo',
+      group: 'Global',
+      keywords: ['revert', 'history'],
+      run: async () => {
+        if (UndoRedo.canUndo()) { await UndoRedo.undo(); syncUndoRedoButtons(); }
+      },
+    });
+
+    cmds.push({
+      id: 'redo',
+      label: 'Redo',
+      group: 'Global',
+      keywords: ['history', 'forward'],
+      run: async () => {
+        if (UndoRedo.canRedo()) { await UndoRedo.redo(); syncUndoRedoButtons(); }
+      },
+    });
+
+    cmds.push({
+      id: 'focus-import',
+      label: 'Focus Import Panel',
+      group: 'Global',
+      keywords: ['panel', 'navigate', 'import'],
+      run: () => {
+        const el = document.getElementById('import-body');
+        if (!el) return;
+        if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+        el.focus();
+      },
+    });
+
+    cmds.push({
+      id: 'focus-inventory',
+      label: 'Focus Inventory Panel',
+      group: 'Global',
+      keywords: ['panel', 'navigate', 'inventory'],
+      run: () => {
+        const el = document.getElementById('inventory-body');
+        if (!el) return;
+        if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+        el.focus();
+      },
+    });
+
+    cmds.push({
+      id: 'focus-bom',
+      label: 'Focus BOM Panel',
+      group: 'Global',
+      keywords: ['panel', 'navigate', 'bom'],
+      run: () => {
+        const el = document.getElementById('bom-body');
+        if (!el) return;
+        if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+        el.focus();
+      },
+    });
+
+    // ── BOM commands (when BOM is loaded) ────────────────────────────────────
+    if (ctx.bomMode) {
+      cmds.push({
+        id: 'save-bom',
+        label: 'Save BOM',
+        group: 'BOM',
+        keywords: ['export', 'file', 'csv'],
+        run: () => saveBomFile(),
+      });
+
+      cmds.push({
+        id: 'consume-bom',
+        label: 'Consume BOM',
+        group: 'BOM',
+        keywords: ['deduct', 'subtract', 'use', 'consume'],
+        run: () => {
+          // The consume flow (modal open, arming, API call) is wired as an
+          // inline handler in bom-events.js setupEvents() — not exported.
+          // Using .click() is intentional; disabled guard prevents misfire.
+          const btn = document.getElementById('bom-consume-btn');
+          if (btn && !btn.disabled) btn.click();
+        },
+      });
+
+      cmds.push({
+        id: 'clear-bom',
+        label: 'Clear BOM',
+        group: 'BOM',
+        keywords: ['remove', 'close', 'unload'],
+        run: () => {
+          // The clear flow (state reset, DOM wipe, event emission) is wired as
+          // an inline handler in bom-events.js setupEvents() — not exported.
+          // Using .click() is intentional; disabled guard prevents misfire.
+          const btn = document.getElementById('bom-clear-btn');
+          if (btn && !btn.disabled) btn.click();
+        },
+      });
+    }
+
+    // ── Context commands (inventory row focused) ─────────────────────────────
+    if (ctx.focusedPartKey) {
+      const pk = ctx.focusedPartKey;
+
+      cmds.push({
+        id: 'adjust-part',
+        label: 'Adjust ' + pk,
+        group: 'Part',
+        keywords: ['qty', 'quantity', 'adjust', 'edit'],
+        run: () => {
+          if (focusedItem) {
+            openAdjustModal(focusedItem);
+          } else {
+            // Fall back to clicking the row's Adjust button
+            const row = document.querySelector('[data-part-id="' + CSS.escape(pk) + '"]');
+            const btn = row && row.querySelector('[data-action="adjust"], .adjust-btn');
+            if (btn) btn.click();
+          }
+        },
+      });
+
+      cmds.push({
+        id: 'edit-price',
+        label: 'Edit price ' + pk,
+        group: 'Part',
+        keywords: ['price', 'cost', 'unit price'],
+        run: () => {
+          if (focusedItem) {
+            openPriceModal(focusedItem);
+          } else {
+            const row = document.querySelector('[data-part-id="' + CSS.escape(pk) + '"]');
+            const btn = row && row.querySelector('[data-action="price"], .price-btn');
+            if (btn) btn.click();
+          }
+        },
+      });
+
+      if (ctx.bomMode) {
+        cmds.push({
+          id: 'link-part',
+          label: 'Link ' + pk,
+          group: 'Part',
+          keywords: ['link', 'connect', 'match', 'bom'],
+          run: () => {
+            const row = document.querySelector('[data-part-id="' + CSS.escape(pk) + '"]');
+            const btn = row && row.querySelector('[data-action="link"], .link-btn');
+            if (btn) btn.click();
+          },
+        });
+      }
+    }
+
+    return cmds;
+  }
+
+  const palette = CommandPalette({ getCommands: getPaletteCommands });
+
   initShortcuts({
     undo: async () => { if (UndoRedo.canUndo()) { await UndoRedo.undo(); syncUndoRedoButtons(); } },
     redo: async () => { if (UndoRedo.canRedo()) { await UndoRedo.redo(); syncUndoRedoButtons(); } },
     save: () => saveBomFile(),
     openPreferences: () => openPreferencesModal(),
+    openPalette: () => { if (palette.isOpen()) palette.close(); else palette.open(buildPaletteContext()); },
     focusPanel: (n) => {
       const id = n === 1 ? 'import-body' : n === 2 ? 'inventory-body' : 'bom-body';
       const el = document.getElementById(id);

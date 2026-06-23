@@ -3,6 +3,7 @@ import { Modal, escHtml } from '../ui-helpers.js';
 import { getShortcutPrefs } from '../store.js';
 
 const ROWS = (redo) => [
+  ['Ctrl+K', 'Command palette'],
   ['Ctrl+F', 'Focus search'],
   ['Ctrl+S', 'Save BOM'],
   ['Ctrl+Z', 'Undo'],
