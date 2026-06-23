@@ -11,6 +11,7 @@ import re
 import shutil
 from pathlib import Path
 
+import matchers
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("devtools")
@@ -506,45 +507,11 @@ def event_trace(event_name: str) -> str:
     Returns:
         JSON with emitters and listeners arrays
     """
-    root = _project_root() / "js"
-    files = _walk_files(root, "*.js")
-
-    # Normalize: accept either "INVENTORY_UPDATED" or "inventory-updated"
-    emit_patterns = [
-        re.compile(rf"EventBus\.emit\(\s*Events\.{re.escape(event_name)}"),
-        re.compile(r'EventBus\.emit\(\s*["\']' + re.escape(event_name) + r"[\"']"),
-    ]
-    on_patterns = [
-        re.compile(rf"EventBus\.on\(\s*Events\.{re.escape(event_name)}"),
-        re.compile(r'EventBus\.on\(\s*["\']' + re.escape(event_name) + r"[\"']"),
-    ]
-
-    emitters = []
-    listeners = []
-
-    for file_path in files:
-        lines = _safe_read(file_path)
-        if lines is None:
-            continue
-        rel = str(file_path.relative_to(_project_root()))
-        for i, line in enumerate(lines):
-            for pat in emit_patterns:
-                if pat.search(line):
-                    emitters.append({
-                        "file": rel,
-                        "line": i + 1,
-                        "code": line.strip(),
-                    })
-            for pat in on_patterns:
-                if pat.search(line):
-                    listeners.append({
-                        "file": rel,
-                        "line": i + 1,
-                        "code": line.strip(),
-                    })
-
-    return json.dumps({"event": event_name, "emitters": emitters,
-                        "listeners": listeners}, indent=2)
+    project_root = _project_root()
+    result = matchers.find_event_emitters_listeners(
+        event_name, project_root / "js", project_root
+    )
+    return json.dumps(result, indent=2)
 
 
 # ── api_callers ──────────────────────────────────────────────
@@ -554,8 +521,10 @@ def event_trace(event_name: str) -> str:
 def api_callers(method_name: str) -> str:
     """Find all JS call sites for a Python API method.
 
-    Searches for window.pywebview.api.<method> and api.<method> calls
-    across the JS codebase to show where a Python backend method is used.
+    Searches for all calling conventions used in this codebase:
+      - api("method_name", ...)       — string-keyed (dominant convention)
+      - api.method_name(...)          — legacy direct dot-call
+      - pywebview.api.method_name(...)— direct bridge access
 
     Args:
         method_name: Python method name (e.g. "adjust_part", "rebuild_inventory")
@@ -563,30 +532,8 @@ def api_callers(method_name: str) -> str:
     Returns:
         JSON array of {file, line, code} for each call site
     """
-    root = _project_root() / "js"
-    files = _walk_files(root, "*.js")
-
-    patterns = [
-        re.compile(rf"api\.{re.escape(method_name)}\s*\("),
-        re.compile(rf"pywebview\.api\.{re.escape(method_name)}\s*\("),
-    ]
-
-    results = []
-    for file_path in files:
-        lines = _safe_read(file_path)
-        if lines is None:
-            continue
-        rel = str(file_path.relative_to(_project_root()))
-        for i, line in enumerate(lines):
-            for pat in patterns:
-                if pat.search(line):
-                    results.append({
-                        "file": rel,
-                        "line": i + 1,
-                        "code": line.strip(),
-                    })
-                    break  # one match per line is enough
-
+    project_root = _project_root()
+    results = matchers.find_api_callers(method_name, project_root / "js", project_root)
     return json.dumps(results, indent=2)
 
 
