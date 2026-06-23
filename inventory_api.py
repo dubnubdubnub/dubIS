@@ -21,6 +21,7 @@ from distributor_manager import DistributorManager
 from domain.api_distributor import DistributorFacade
 from domain.api_fileio import FileIOFacade
 from domain.api_generic_parts import GenericPartsFacade
+from domain.api_inventory import InventoryCRUDFacade
 from domain.api_preferences import PreferencesFacade
 from domain.api_pricing import PricingFacade
 
@@ -76,6 +77,7 @@ class InventoryApi:
         self._pricing = PricingFacade(self)
         self._generic = GenericPartsFacade(self)
         self._prefs = PreferencesFacade(self)
+        self._inv = InventoryCRUDFacade(self)
 
     def _get_cache(self) -> sqlite3.Connection:
         """Get or create the cache database connection.
@@ -196,67 +198,19 @@ class InventoryApi:
     # ── Public API methods (called from JS via pywebview) ────────────────
 
     def rollback_source(self, source: str) -> list[dict]:
-        """Remove all adjustments with the given source tag and rebuild."""
-        with self._lock:
-            removed = inventory_ops.rollback_source(self.adjustments_csv, source)
-            if removed:
-                self._rebuild()
-        return removed
+        return self._inv.rollback_source(source)
 
     def rebuild_inventory(self) -> list[dict[str, Any]]:
-        """Rebuild inventory. Uses catch-up if cache exists, full rebuild otherwise."""
-        result, migration_summary = domain.inventory.rebuild_or_catchup(
-            base_dir=self.base_dir,
-            input_csv=self.input_csv,
-            adjustments_csv=self.adjustments_csv,
-            events_dir=self.events_dir,
-            fieldnames=self.FIELDNAMES,
-            adj_fieldnames=self.ADJ_FIELDNAMES,
-            conn=self._get_cache(),
-        )
-        if migration_summary:
-            self._last_migration_summary = migration_summary
-        return result
+        return self._inv.rebuild_inventory()
 
     def adjust_part(self, adj_type: str, part_key: str, quantity: int | str,
                     note: str = "", source: str = "") -> list[dict[str, Any]]:
-        """Set/add/remove adjustment. Returns fresh inventory."""
-        with self._lock:
-            return domain.inventory.adjust_part(
-                adj_type=adj_type,
-                part_key=part_key,
-                quantity=int(quantity),
-                note=note,
-                source=source,
-                adjustments_csv=self.adjustments_csv,
-                adj_fieldnames=self.ADJ_FIELDNAMES,
-                base_dir=self.base_dir,
-                input_csv=self.input_csv,
-                events_dir=self.events_dir,
-                fieldnames=self.FIELDNAMES,
-                conn=self._get_cache(),
-            )
+        return self._inv.adjust_part(adj_type, part_key, quantity, note, source)
 
     def consume_bom(self, matches_json: str | list[dict[str, Any]],
                     board_qty: int | str, bom_name: str,
                     note: str = "", source: str = "") -> list[dict[str, Any]]:
-        """Consume matched BOM parts. Returns fresh inventory."""
-        matches = self._ensure_parsed(matches_json)
-        with self._lock:
-            return domain.inventory.consume_bom(
-                matches=matches,
-                board_qty=int(board_qty),
-                bom_name=bom_name,
-                note=note,
-                source=source,
-                adjustments_csv=self.adjustments_csv,
-                adj_fieldnames=self.ADJ_FIELDNAMES,
-                base_dir=self.base_dir,
-                input_csv=self.input_csv,
-                events_dir=self.events_dir,
-                fieldnames=self.FIELDNAMES,
-                conn=self._get_cache(),
-            )
+        return self._inv.consume_bom(matches_json, board_qty, bom_name, note, source)
 
     def _truncate_csv(self, csv_path: str, count: int, label: str) -> list[dict[str, Any]]:
         """Remove the last *count* rows from a CSV and rebuild inventory."""
@@ -275,71 +229,21 @@ class InventoryApi:
             )
 
     def remove_last_purchases(self, count: int | str) -> list[dict[str, Any]]:
-        """Remove the last `count` rows from purchase_ledger.csv and rebuild inventory."""
-        return self._truncate_csv(self.input_csv, int(count), "purchase ledger")
+        return self._inv.remove_last_purchases(count)
 
     def remove_last_adjustments(self, count: int | str) -> list[dict[str, Any]]:
-        """Remove the last `count` rows from adjustments.csv and rebuild inventory."""
-        return self._truncate_csv(self.adjustments_csv, int(count), "adjustments")
+        return self._inv.remove_last_adjustments(count)
 
     def import_purchases(self, rows_json: str | list[dict[str, str]]) -> list[dict[str, Any]]:
-        """Append purchase rows to purchase_ledger.csv. Returns fresh inventory."""
-        rows = self._ensure_parsed(rows_json)
-        with self._lock:
-            return domain.inventory.import_purchases(
-                rows=rows,
-                fieldnames=self.FIELDNAMES,
-                input_csv=self.input_csv,
-                events_dir=self.events_dir,
-                adjustments_csv=self.adjustments_csv,
-                adj_fieldnames=self.ADJ_FIELDNAMES,
-                base_dir=self.base_dir,
-                conn=self._get_cache(),
-                distributors=self._distributors,
-            )
+        return self._inv.import_purchases(rows_json)
 
     def update_part_price(self, part_key: str, unit_price: float | None = None,
                           ext_price: float | None = None) -> list[dict[str, Any]]:
-        """Update unit price and ext price for a part in purchase_ledger.csv.
-        Auto-calculates the missing price field if only one is provided.
-        Returns fresh inventory after rebuild.
-        """
-        if unit_price is not None:
-            unit_price = float(unit_price)
-        if ext_price is not None:
-            ext_price = float(ext_price)
-        with self._lock:
-            return domain.inventory.update_part_price(
-                part_key=part_key,
-                unit_price=unit_price,
-                ext_price=ext_price,
-                input_csv=self.input_csv,
-                events_dir=self.events_dir,
-                adjustments_csv=self.adjustments_csv,
-                adj_fieldnames=self.ADJ_FIELDNAMES,
-                base_dir=self.base_dir,
-                fieldnames=self.FIELDNAMES,
-                conn=self._get_cache(),
-                infer_distributor_for_key=self._infer_distributor_for_key,
-            )
+        return self._inv.update_part_price(part_key, unit_price, ext_price)
 
     def update_part_fields(self, part_key: str,
                            fields_json: str | dict[str, str]) -> list[dict[str, Any]]:
-        """Update metadata fields for a part in purchase_ledger.csv."""
-        fields = self._ensure_parsed(fields_json)
-        with self._lock:
-            return domain.inventory.update_part_fields(
-                part_key=part_key,
-                fields=fields,
-                field_to_col=self._FIELD_TO_COL,
-                input_csv=self.input_csv,
-                adjustments_csv=self.adjustments_csv,
-                adj_fieldnames=self.ADJ_FIELDNAMES,
-                base_dir=self.base_dir,
-                fieldnames=self.FIELDNAMES,
-                events_dir=self.events_dir,
-                conn=self._get_cache(),
-            )
+        return self._inv.update_part_fields(part_key, fields_json)
 
     def detect_columns(self, headers_json: str | list[str]) -> dict[str, str]:
         return self._files.detect_columns(headers_json)
