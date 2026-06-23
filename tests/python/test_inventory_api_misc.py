@@ -377,3 +377,11 @@ def test_delete_last_purchase_order_raises_when_none(api):
     """delete_last_purchase_order raises when there are no POs."""
     with pytest.raises(Exception):
         api.delete_last_purchase_order()
+
+
+def test_crud_facade_shares_lock_and_connection(api):
+    # the facade must use the SAME RLock and SAME sqlite connection as the api instance
+    assert api._inv._api is api
+    assert api._inv._api._lock is api._lock
+    conn = api._get_cache()
+    assert api._inv._api._get_cache() is conn   # one connection, not a per-facade copy
