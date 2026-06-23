@@ -140,6 +140,9 @@ graph LR
     "js/bom/bom-renderer.js" --> "js/layout-tokens.js"
     "js/bom/bom-renderer.js" --> "js/part-keys.js"
     "js/bom/bom-renderer.js" --> "js/ui-helpers.js"
+    "js/components/data-grid.js" --> "js/a11y/roving-grid.js"
+    "js/components/data-grid.js" --> "js/api.js"
+    "js/components/data-grid.js" --> "js/dom/delegate.js"
     "js/components/form-modal.js" --> "js/dom/delegate.js"
     "js/components/form-modal.js" --> "js/dom/html.js"
     "js/components/form-modal.js" --> "js/ui-helpers.js"
@@ -355,6 +358,7 @@ graph LR
     "tests/js/bom-renderer.test.js" --> "js/bom/bom-renderer.js"
     "tests/js/bom-row-display.test.js" --> "js/bom-row-data.js"
     "tests/js/csv-parser.test.js" --> "js/csv-parser.js"
+    "tests/js/data-grid.test.js" --> "js/components/data-grid.js"
     "tests/js/delegate.test.js" --> "js/dom/delegate.js"
     "tests/js/e2e/scan-server.py" --> "pnp_server.py"
     "tests/js/event-bus.test.js" --> "js/event-bus.js"
@@ -712,7 +716,7 @@ graph LR
 ### js/a11y/roving-grid.js
 
 - **Imports:** `js/store.js`
-- **Imported by:** `js/a11y/keyboard-nav.js`, `tests/js/roving-grid-dom.test.js`, `tests/js/roving-grid.test.js`
+- **Imported by:** `js/a11y/keyboard-nav.js`, `js/components/data-grid.js`, `tests/js/roving-grid-dom.test.js`, `tests/js/roving-grid.test.js`
 
 ### js/a11y/scrollable.js
 
@@ -732,7 +736,7 @@ graph LR
 ### js/api.js
 
 - **Imports:** `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-mutations.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/store.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api.test.js`, `tests/js/shortcut-prefs.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/data-grid.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-mutations.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/store.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api.test.js`, `tests/js/shortcut-prefs.test.js`
 
 ### js/app-init.js
 
@@ -775,6 +779,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** `js/bom/bom-events.js`, `js/bom/bom-panel.js`
 
+### js/components/data-grid.js
+
+- **Imports:** `js/a11y/roving-grid.js`, `js/api.js`, `js/dom/delegate.js`
+- **Imported by:** `tests/js/data-grid.test.js`
+
 ### js/components/form-modal.js
 
 - **Imports:** `js/dom/delegate.js`, `js/dom/html.js`, `js/ui-helpers.js`, `js/undo-redo.js`
@@ -803,7 +812,7 @@ graph LR
 ### js/dom/delegate.js
 
 - **Imports:** —
-- **Imported by:** `js/components/form-modal.js`, `tests/js/delegate.test.js`
+- **Imported by:** `js/components/data-grid.js`, `js/components/form-modal.js`, `tests/js/delegate.test.js`
 
 ### js/dom/html.js
 
@@ -1290,6 +1299,11 @@ graph LR
 ### tests/js/csv-parser.test.js
 
 - **Imports:** `js/csv-parser.js`
+- **Imported by:** —
+
+### tests/js/data-grid.test.js
+
+- **Imports:** `js/components/data-grid.js`
 - **Imported by:** —
 
 ### tests/js/delegate.test.js
