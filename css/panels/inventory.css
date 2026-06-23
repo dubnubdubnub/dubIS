@@ -8,7 +8,7 @@
 .inv-col-header {
   display: flex;
   align-items: center;
-  padding: 4px 12px 4px 24px;
+  padding: var(--space-xs) var(--space-xl);
   gap: 8px;
   position: sticky;
   top: 0;
@@ -180,7 +180,7 @@
 
 /* ── Subsection (indented subcategory) ──────────────── */
 .inv-subsection-header {
-  padding: 4px 12px 4px 24px;
+  padding: var(--space-xs) var(--space-xl);
   background: var(--bg-base);
   cursor: pointer;
   display: flex;
@@ -214,7 +214,7 @@
 .inv-part-row {
   display: flex;
   align-items: flex-start;
-  padding: 4px 12px 4px 24px;
+  padding: var(--space-xs) var(--space-xl);
   font-size: 12px;
   gap: 8px;
   border-bottom: 1px solid var(--bg-hover);
@@ -279,7 +279,7 @@
 
 /* ── Group Header ────────────────────────────────────── */
 .generic-group-header {
-  display: flex; align-items: center; padding: 4px 12px 4px 24px;
+  display: flex; align-items: center; padding: var(--space-xs) var(--space-xl);
   gap: 6px; font-size: 11px; font-weight: 600;
   background: #a371f70a; border-bottom: 1px solid #a371f718;
   border-left: 3px solid var(--color-purple); color: var(--color-purple-light);
