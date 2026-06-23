@@ -389,6 +389,28 @@ describe('CommandPalette', () => {
     expect(callCount).toBe(2);
   });
 
+  // ── stopPropagation on Enter ─────────────────────────────────────────────────
+
+  it('Enter key calls stopPropagation so document-level modal confirm handlers do not fire', () => {
+    // This guards against a still-propagating Enter reaching document-level
+    // confirm handlers (e.g. consume-confirm) after the palette opens a modal.
+    palette.open({});
+    const overlay = document.querySelector('.cp-overlay');
+    overlay.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+    // Attach a document-level keydown spy — it must NOT receive the Enter.
+    const docSpy = vi.fn();
+    document.addEventListener('keydown', docSpy, { capture: false });
+
+    try {
+      // Dispatch Enter with bubbles:true; stopPropagation should prevent document receipt.
+      overlay.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      expect(docSpy).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener('keydown', docSpy, { capture: false });
+    }
+  });
+
   // ── escaping ─────────────────────────────────────────────────────────────────
 
   it('label text is HTML-escaped to prevent XSS', () => {

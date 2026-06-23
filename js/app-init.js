@@ -7,7 +7,7 @@ import { UndoRedo } from './undo-redo.js';
 import { store, loadPreferences, loadInventory, onInventoryUpdated, getShortcutPrefs } from './store.js';
 import { processBOM } from './csv-parser.js';
 import { matchBOM } from './matching.js';
-import { colorizeRefs, REF_COLOR_MAP } from './part-keys.js';
+import { colorizeRefs, REF_COLOR_MAP, invPartKey } from './part-keys.js';
 import { openPreferencesModal, applyPreferences, wireDigikeyButtons } from './preferences-modal.js';
 import { wireVendorsModal, openVendorsModal } from './vendors-modal.js';
 import { initShortcuts } from './a11y/shortcuts.js';
@@ -212,14 +212,10 @@ async function initApp() {
    * @param {{ focusedPartKey: string|null, bomMode: boolean }} ctx
    */
   function getPaletteCommands(ctx) {
+    // Reverse-lookup: mirror invPartKey()'s exact priority order so DigiKey/Pololu/
+    // Mouser-only parts resolve correctly (not just LCSC and MPN).
     const focusedItem = ctx.focusedPartKey
-      ? store.inventory.find(item =>
-          // Match via the same key that data-part-id encodes
-          item.lcsc === ctx.focusedPartKey
-          || item.mpn === ctx.focusedPartKey
-          || item.description === ctx.focusedPartKey
-          || (item.section + ' / ' + (item.mpn || item.description || item.lcsc)) === ctx.focusedPartKey
-        )
+      ? store.inventory.find(item => invPartKey(item) === ctx.focusedPartKey)
       : null;
 
     /** @type {Array<{id:string,label:string,hint?:string,group?:string,keywords?:string[],run:Function}>} */
@@ -277,7 +273,10 @@ async function initApp() {
       group: 'Global',
       keywords: ['group', 'hierarchy', 'flat', 'sections'],
       run: () => {
-        // Simulate a click on the group column header — reuses the exact same handler
+        // Delegate to the group-column header button: the real groupLevel cycle
+        // logic lives inside inv-events.js setupEvents() as an inline delegated
+        // handler on state.body — it is not exported as a standalone function.
+        // Using .click() is intentional here to avoid duplicating that logic.
         const groupCell = document.querySelector('.inv-col-cell[data-col="group"]');
         if (groupCell) groupCell.click();
       },
@@ -366,6 +365,9 @@ async function initApp() {
         group: 'BOM',
         keywords: ['deduct', 'subtract', 'use', 'consume'],
         run: () => {
+          // The consume flow (modal open, arming, API call) is wired as an
+          // inline handler in bom-events.js setupEvents() — not exported.
+          // Using .click() is intentional; disabled guard prevents misfire.
           const btn = document.getElementById('bom-consume-btn');
           if (btn && !btn.disabled) btn.click();
         },
@@ -377,6 +379,9 @@ async function initApp() {
         group: 'BOM',
         keywords: ['remove', 'close', 'unload'],
         run: () => {
+          // The clear flow (state reset, DOM wipe, event emission) is wired as
+          // an inline handler in bom-events.js setupEvents() — not exported.
+          // Using .click() is intentional; disabled guard prevents misfire.
           const btn = document.getElementById('bom-clear-btn');
           if (btn && !btn.disabled) btn.click();
         },
