@@ -15,13 +15,14 @@
 import { el } from '../dom/html.js';
 import { Modal, showToast } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
+import { on } from '../dom/delegate.js';
 
 // ── Internal IDs derived from the modal id ────────────────────────────────
 
-/** @param {string} id */
-function cancelId(id) { return `${id}-cancel`; }
-/** @param {string} id */
-function confirmId(id) { return `${id}-confirm`; }
+/** @param {string} id @param {string|undefined} override */
+function cancelId(id, override) { return override || `${id}-cancel`; }
+/** @param {string} id @param {string|undefined} override */
+function confirmId(id, override) { return override || `${id}-confirm`; }
 
 // ── DOM builders ──────────────────────────────────────────────────────────
 
@@ -94,23 +95,17 @@ function buildModalDom(id, spec) {
   const titleEl    = el('div', { class: 'modal-title', id: `${id}-title` });
   const subtitleEl = el('div', { class: 'modal-subtitle', id: `${id}-subtitle` });
 
-  /** @type {Map<string, {input: HTMLElement, row: HTMLElement}>} */
-  const fieldEls = new Map();
-  const fieldRows = (spec.fields || []).map((f) => {
-    const { row, input } = buildFieldRow(f);
-    fieldEls.set(f.key, { input, row });
-    return row;
-  });
+  const fieldRows = (spec.fields || []).map((f) => buildFieldRow(f).row);
 
   const cancelButton = el('button', {
     class: 'btn-lg btn btn-cancel form-modal-cancel',
-    id: cancelId(id),
+    id: cancelId(id, spec.cancelId),
     type: 'button',
   }, 'Cancel');
 
   const confirmButton = el('button', {
     class: 'btn-lg btn btn-apply form-modal-confirm',
-    id: confirmId(id),
+    id: confirmId(id, spec.confirmId),
     type: 'button',
   }, spec.confirmLabel || 'Apply');
 
@@ -152,6 +147,8 @@ function buildModalDom(id, spec) {
  *   subtitle?: string | ((ctx: any) => string),
  *   className?: string,
  *   fields: FieldSpec[],
+ *   confirmId?: string,
+ *   cancelId?: string,
  *   onPopulate: (ctx: any) => Record<string,any>,
  *   onInput?: (changedKey: string, values: Record<string,string>, setValue: (k:string,v:string)=>void) => void,
  *   validate?: (values: Record<string,string>, ctx: any) => Record<string,string>|null,
@@ -160,7 +157,7 @@ function buildModalDom(id, spec) {
  *   successToast?: (values: Record<string,string>, ctx: any, result: any) => string,
  *   undo?: {
  *     type: string,
- *     snapshot: (ctx: any) => any,
+ *     snapshot: (ctx: any, values: Record<string,string>) => any,
  *     restore: (data: any) => Promise<void>,
  *   },
  * }} FormModalSpec
@@ -183,9 +180,12 @@ export function defineFormModal(id, spec) {
   /** Current invocation context — set in open(), used in confirm handler */
   let currentCtx = null;
 
+  const resolvedCancelId  = cancelId(id, spec.cancelId);
+  const resolvedConfirmId = confirmId(id, spec.confirmId);
+
   const modal = Modal(id, {
-    cancelId: cancelId(id),
-    confirmId: confirmId(id),
+    cancelId: resolvedCancelId,
+    confirmId: resolvedConfirmId,
     onClose: () => { currentCtx = null; },
   });
 
@@ -231,12 +231,8 @@ export function defineFormModal(id, spec) {
   // ── onInput wiring ───────────────────────────────────────────────────────
 
   if (spec.onInput) {
-    overlay.addEventListener('input', (e) => {
-      const target = /** @type {Element} */ (e.target);
-      if (!(target instanceof Element)) return;
-      const fieldEl = target.closest('[data-field]');
-      if (!fieldEl || !overlay.contains(fieldEl)) return;
-      const key = fieldEl.getAttribute('data-field');
+    on(overlay, 'input', '[data-field]', (_e, matchedEl) => {
+      const key = matchedEl.getAttribute('data-field');
       if (!key) return;
       const values = gatherValues();
       spec.onInput(key, values, setValue);
@@ -245,8 +241,8 @@ export function defineFormModal(id, spec) {
 
   // ── Confirm handler ──────────────────────────────────────────────────────
 
-  const confirmButton = document.getElementById(confirmId(id));
-  if (!confirmButton) throw new Error(`form-modal: confirm button #${confirmId(id)} not found`);
+  const confirmButton = document.getElementById(resolvedConfirmId);
+  if (!confirmButton) throw new Error(`form-modal: confirm button #${resolvedConfirmId} not found`);
 
   confirmButton.addEventListener('click', async () => {
     const ctx = currentCtx;
@@ -264,7 +260,7 @@ export function defineFormModal(id, spec) {
 
     // Save undo state before mutating
     if (spec.undo) {
-      UndoRedo.save(spec.undo.type, spec.undo.snapshot(ctx));
+      UndoRedo.save(spec.undo.type, spec.undo.snapshot(ctx, values));
     }
 
     // Call the mutation

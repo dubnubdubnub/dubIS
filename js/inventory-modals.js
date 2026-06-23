@@ -339,6 +339,9 @@ export function init() {
     title: (item) => invPartKey(item) + (item.mpn && item.lcsc ? " — " + item.mpn : ""),
     subtitle: (item) => (item.description || item.package || "") + " (qty: " + item.qty + ")",
 
+    confirmId: "price-apply",
+    cancelId: "price-cancel",
+
     fields: [
       {
         key: "unit",
@@ -414,14 +417,18 @@ export function init() {
 
     undo: {
       type: "price",
-      snapshot: (item) => ({
-        _undoType: "price",
-        partKey: invPartKey(item),
-        oldUp: item.unit_price || 0,
-        oldEp: item.ext_price  || 0,
-        newUp: null, // filled after confirm succeeds
-        newEp: null,
-      }),
+      snapshot: (item, values) => {
+        const rawUp = parseFloat(values.unit);
+        const rawEp = parseFloat(values.ext);
+        return {
+          _undoType: "price",
+          partKey: invPartKey(item),
+          oldUp: item.unit_price || 0,
+          oldEp: item.ext_price  || 0,
+          newUp: isNaN(rawUp) ? null : rawUp,
+          newEp: isNaN(rawEp) ? null : rawEp,
+        };
+      },
       restore: async () => { /* handled by UndoRedo.register("price") below */ },
     },
 

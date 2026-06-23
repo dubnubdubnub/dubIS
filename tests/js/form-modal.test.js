@@ -314,6 +314,40 @@ describe('defineFormModal — validate() gating', () => {
     expect(isHidden(getModal('fm-noclose-test'))).toBe(false);
   });
 
+  it('blocks confirm (modal stays open) when validate returns an empty-string error value', async () => {
+    // Mirrors the Price modal "enter a unit or ext price" path: validate returns
+    // { unit: '' } (empty string value) to block confirm without inline message.
+    const onConfirm = vi.fn().mockResolvedValue(true);
+    const fm = defineFormModal('fm-empty-err-test', {
+      title: 'Empty Error',
+      fields: [
+        { key: 'unit', label: 'Unit', type: 'number' },
+        { key: 'ext', label: 'Ext', type: 'number' },
+      ],
+      onPopulate: () => ({ unit: '', ext: '' }),
+      validate: (values) => {
+        const up = parseFloat(values.unit);
+        const ep = parseFloat(values.ext);
+        if (isNaN(up) && isNaN(ep)) return { unit: '' }; // empty-string blocks, no inline msg
+        return null;
+      },
+      onConfirm,
+    });
+
+    fm.open({});
+    // Both fields empty — validate returns { unit: '' }
+    clickConfirm('fm-empty-err-test');
+    await new Promise(r => setTimeout(r, 50));
+
+    // Confirm is blocked
+    expect(onConfirm).not.toHaveBeenCalled();
+    // Modal stays open
+    expect(isHidden(getModal('fm-empty-err-test'))).toBe(false);
+    // No visible inline error message (empty-string value means no text)
+    const errEl = getError('fm-empty-err-test', 'unit');
+    expect(errEl === null || errEl.style.display === 'none' || errEl.textContent === '').toBe(true);
+  });
+
   it('calls onConfirm and closes when validate passes', async () => {
     const onConfirm = vi.fn().mockResolvedValue(true);
     const fm = defineFormModal('fm-validate-pass-test', {
