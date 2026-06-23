@@ -1,3 +1,4 @@
+// @ts-check
 /* inventory-modals.js — Adjustment and price modals for inventory parts.
    Extracted from inventory-panel.js for focused maintainability. */
 
@@ -68,6 +69,9 @@ function buildFieldInput(key, value, placeholder, extraClass) {
   return '<input type="text" class="modal-field-input' + (extraClass || "") + '" data-field="' + key + '" value="' + escHtml(value) + '" placeholder="' + escHtml(placeholder) + '">';
 }
 
+/**
+ * @param {import('./types.js').InventoryItem} item
+ */
 export function openAdjustModal(item) {
   currentPart = item;
   const pk = invPartKey(item);
@@ -183,7 +187,7 @@ function createFetchController({ supplierSelect, fetchBtn, tiersEl, unitInput })
   });
 
   tiersEl.addEventListener("click", (e) => {
-    const row = e.target.closest(".fetch-tier");
+    const row = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest(".fetch-tier"));
     if (!row) return;
     setUnitPrice(Number(row.dataset.price));
     tiersEl.querySelectorAll(".fetch-tier").forEach(r => r.classList.remove("selected"));
@@ -217,7 +221,7 @@ function createFetchController({ supplierSelect, fetchBtn, tiersEl, unitInput })
  * Open the price modal for the given inventory item.
  * The modal is built once (via defineFormModal) and reused.
  *
- * @param {object} item
+ * @param {import('./types.js').InventoryItem} item
  */
 export function openPriceModal(item) {
   if (!priceFormModal) throw new Error("inventory-modals: init() not called before openPriceModal()");
@@ -231,8 +235,8 @@ export function init() {
   adjType = document.getElementById("adj-type");
   adjQty = document.getElementById("adj-qty");
   adjNote = document.getElementById("adj-note");
-  adjUnitPrice = document.getElementById("adj-unit-price");
-  adjExtPrice = document.getElementById("adj-ext-price");
+  adjUnitPrice = /** @type {HTMLInputElement} */ (document.getElementById("adj-unit-price"));
+  adjExtPrice = /** @type {HTMLInputElement} */ (document.getElementById("adj-ext-price"));
 
   adjModal = Modal("adjust-modal", {
     onClose: () => { currentPart = null; },
@@ -242,8 +246,8 @@ export function init() {
   linkPriceInputs(adjUnitPrice, adjExtPrice, () => currentPart ? currentPart.qty : 0);
 
   adjFetch = createFetchController({
-    supplierSelect: document.getElementById("adj-fetch-supplier"),
-    fetchBtn: document.getElementById("adj-fetch-price"),
+    supplierSelect: /** @type {HTMLSelectElement} */ (document.getElementById("adj-fetch-supplier")),
+    fetchBtn: /** @type {HTMLButtonElement} */ (document.getElementById("adj-fetch-price")),
     tiersEl: document.getElementById("adj-fetch-tiers"),
     unitInput: adjUnitPrice,
   });
@@ -444,15 +448,15 @@ export function init() {
   const priceModalInner = priceFormModal.el.querySelector(".modal");
   const priceActionsEl  = priceFormModal.el.querySelector(".modal-actions");
 
-  const priceFetchSupplier = el("select", {
+  const priceFetchSupplier = /** @type {HTMLSelectElement} */ (el("select", {
     id: "price-fetch-supplier",
     class: "fetch-supplier hidden",
-  });
-  const priceFetchBtn = el("button", {
+  }));
+  const priceFetchBtn = /** @type {HTMLButtonElement} */ (el("button", {
     id: "price-fetch-price",
     class: "btn-lg fetch-price-btn",
     type: "button",
-  }, "🔄 Fetch current price");
+  }, "🔄 Fetch current price"));
   const priceFetchTiers = el("div", {
     id: "price-fetch-tiers",
     class: "fetch-tiers hidden",

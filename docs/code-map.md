@@ -9,6 +9,7 @@
 graph LR
     "base_client.py" --> "dubis_errors.py"
     "cache_db.py" --> "domain/pricing.py"
+    "cache_db.py" --> "domain/schema.py"
     "cache_db.py" --> "inventory_ops.py"
     "digikey_client.py" --> "base_client.py"
     "digikey_client.py" --> "digikey_cdp.py"
@@ -29,6 +30,7 @@ graph LR
     "domain/api_generic_parts.py" --> "saved_searches.py"
     "domain/api_generic_parts.py" --> "spec_extractor.py"
     "domain/api_inventory.py" --> "domain/inventory.py"
+    "domain/api_inventory.py" --> "domain/schema.py"
     "domain/api_inventory.py" --> "inventory_ops.py"
     "domain/api_preferences.py" --> "csv_io.py"
     "domain/api_preferences.py" --> "poll_api.py"
@@ -50,6 +52,7 @@ graph LR
     "domain/inventory.py" --> "csv_io.py"
     "domain/inventory.py" --> "domain/__init__.py"
     "domain/inventory.py" --> "domain/pricing.py"
+    "domain/inventory.py" --> "domain/schema.py"
     "domain/inventory.py" --> "inventory_ops.py"
     "domain/inventory.py" --> "saved_searches.py"
     "file_dialogs.py" --> "csv_io.py"
@@ -74,6 +77,7 @@ graph LR
     "inventory_ops.py" --> "categorize.py"
     "inventory_ops.py" --> "csv_io.py"
     "inventory_ops.py" --> "domain/pricing.py"
+    "inventory_ops.py" --> "domain/schema.py"
     "inventory_ops.py" --> "vendors.py"
     "js/a11y/keyboard-nav.js" --> "js/a11y/activate-on-key.js"
     "js/a11y/keyboard-nav.js" --> "js/a11y/roving-grid.js"
@@ -347,6 +351,7 @@ graph LR
     "scripts/capture-distributor-fixtures.py" --> "distributor_fixtures.py"
     "scripts/ci_watcher/listener.py" --> "scripts/ci_watcher/state.py"
     "scripts/ci_watcher/worker.py" --> "scripts/ci_watcher/triage_payload.py"
+    "scripts/gen-inventory-types.py" --> "domain/schema.py"
     "scripts/generate-test-fixtures.py" --> "inventory_api.py"
     "scripts/generate-test-fixtures.py" --> "inventory_ops.py"
     "spec_extractor.py" --> "categorize.py"
@@ -553,7 +558,7 @@ graph LR
 
 ### cache_db.py
 
-- **Imports:** `domain/pricing.py`, `inventory_ops.py`
+- **Imports:** `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`
 - **Imported by:** `domain/inventory.py`, `inventory_api.py`, `tests/python/conftest.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_saved_searches.py`
 
 ### categorize.py
@@ -628,7 +633,7 @@ graph LR
 
 ### domain/api_inventory.py
 
-- **Imports:** `domain/inventory.py`, `inventory_ops.py`
+- **Imports:** `domain/inventory.py`, `domain/schema.py`, `inventory_ops.py`
 - **Imported by:** `inventory_api.py`
 
 ### domain/api_preferences.py
@@ -663,13 +668,18 @@ graph LR
 
 ### domain/inventory.py
 
-- **Imports:** `cache_db.py`, `csv_io.py`, `domain/__init__.py`, `domain/pricing.py`, `inventory_ops.py`, `saved_searches.py`
+- **Imports:** `cache_db.py`, `csv_io.py`, `domain/__init__.py`, `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`, `saved_searches.py`
 - **Imported by:** `domain/api_inventory.py`, `inventory_api.py`
 
 ### domain/pricing.py
 
 - **Imports:** —
 - **Imported by:** `cache_db.py`, `domain/api_pricing.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_inventory_api_pricing.py`
+
+### domain/schema.py
+
+- **Imports:** —
+- **Imported by:** `cache_db.py`, `domain/api_inventory.py`, `domain/inventory.py`, `inventory_ops.py`, `scripts/gen-inventory-types.py`
 
 ### dubis_errors.py
 
@@ -693,7 +703,7 @@ graph LR
 
 ### inventory_ops.py
 
-- **Imports:** `categorize.py`, `csv_io.py`, `domain/pricing.py`, `vendors.py`
+- **Imports:** `categorize.py`, `csv_io.py`, `domain/pricing.py`, `domain/schema.py`, `vendors.py`
 - **Imported by:** `cache_db.py`, `domain/api_inventory.py`, `domain/api_pricing.py`, `domain/inventory.py`, `inventory_api.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_ops.py`, `tests/python/test_last_po_quantity.py`
 
 ### js/a11y/activate-on-key.js
@@ -1237,6 +1247,11 @@ graph LR
 ### scripts/gen-code-map.py
 
 - **Imports:** —
+- **Imported by:** —
+
+### scripts/gen-inventory-types.py
+
+- **Imports:** `domain/schema.py`
 - **Imported by:** —
 
 ### scripts/generate-test-fixtures.py
