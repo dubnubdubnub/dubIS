@@ -28,6 +28,7 @@ let preferences = {
   thresholds: {},
   inventory_view: { group_level: 0, sort_column: null, sort_scope: null, vendor_group_scope: null },
   shortcuts: { ...SHORTCUT_DEFAULTS },
+  saved_views: [],
 };
 
 // ── Signals ───────────────────────────────────────────────
@@ -249,6 +250,28 @@ export async function loadPreferences() {
     }
     if (stored.shortcuts && typeof stored.shortcuts === "object") {
       preferences.shortcuts = normalizeShortcuts(stored.shortcuts);
+    }
+    if (Object.prototype.hasOwnProperty.call(stored, 'saved_views')) {
+      if (Array.isArray(stored.saved_views)) {
+        // Filter out malformed entries (must have string id and name)
+        preferences.saved_views = stored.saved_views.filter(function (entry) {
+          if (!entry || typeof entry !== "object") {
+            AppLog.warn("load_preferences: ignoring non-object saved_view entry");
+            return false;
+          }
+          if (!entry.id || typeof entry.id !== "string") {
+            AppLog.warn("load_preferences: ignoring saved_view entry with missing/invalid id");
+            return false;
+          }
+          if (!entry.name || typeof entry.name !== "string") {
+            AppLog.warn("load_preferences: ignoring saved_view entry \"" + entry.id + "\" with missing/invalid name");
+            return false;
+          }
+          return true;
+        });
+      } else {
+        AppLog.warn("load_preferences: saved_views is not an array — ignoring");
+      }
     }
   }
 }

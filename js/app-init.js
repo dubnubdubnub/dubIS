@@ -29,6 +29,8 @@ import { init as initLabelSelection } from './label-selection.js';
 import { init as initLabelExportModal } from './label-export-modal.js';
 import { registerScanHandler } from './import/mfg-direct/mfg-direct-panel.js';
 import { initKeyboardNav } from './a11y/keyboard-nav.js';
+import { applyView, listViews } from './inventory/saved-views.js';
+import invState from './inventory/inv-state.js';
 
 // Expose globals for E2E tests and Python's evaluate_js
 window.store = store;
@@ -385,6 +387,41 @@ async function initApp() {
           const btn = document.getElementById('bom-clear-btn');
           if (btn && !btn.disabled) btn.click();
         },
+      });
+    }
+
+    // ── Saved Views commands ─────────────────────────────────────────────────
+    cmds.push({
+      id: 'save-current-view',
+      label: 'Save current view…',
+      group: 'Views',
+      keywords: ['view', 'save', 'filter', 'search', 'snapshot'],
+      run: () => {
+        // Open the dropdown, then click the "Save current view…" item
+        const btn = document.getElementById('saved-views-btn');
+        if (btn) btn.click();
+        setTimeout(() => {
+          const saveItem = document.querySelector('.sv-save-item[data-action="save-view"]');
+          if (saveItem) /** @type {HTMLElement} */ (saveItem).click();
+        }, 50);
+      },
+    });
+
+    const _savedViewsList = listViews();
+    for (let _svi = 0; _svi < _savedViewsList.length; _svi++) {
+      const _v = _savedViewsList[_svi];
+      cmds.push({
+        id: 'apply-view-' + _v.id,
+        label: 'Apply view: ' + _v.name,
+        group: 'Views',
+        keywords: ['view', 'apply', _v.name.toLowerCase()],
+        run: (function (viewSnapshot) {
+          return function () {
+            applyView(viewSnapshot, invState);
+            window.dispatchEvent(new CustomEvent('inv-filter-changed'));
+            if (invState._render) invState._render();
+          };
+        }(_v)),
       });
     }
 
