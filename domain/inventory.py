@@ -7,7 +7,10 @@ import logging
 import os
 import sqlite3
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from domain.schema import InventoryItem
 
 import cache_db
 import domain.pricing
@@ -51,7 +54,7 @@ def rebuild(
     fieldnames: list[str],
     adj_fieldnames: list[str],
     conn: sqlite3.Connection,
-) -> tuple[list[dict[str, Any]], dict[str, int]]:
+) -> "tuple[list[InventoryItem], dict[str, int]]":
     """Full rebuild: replay all events into cache, return (fresh_inventory, migration_summary).
 
     Mutates *conn* (SQLite cache).  Caller holds the lock.
@@ -89,7 +92,7 @@ def load_or_rebuild(
     fieldnames: list[str],
     adj_fieldnames: list[str],
     conn: sqlite3.Connection,
-) -> tuple[list[dict[str, Any]], dict[str, int]]:
+) -> "tuple[list[InventoryItem], dict[str, int]]":
     """Load from cache if populated; full rebuild otherwise.
 
     Returns (inventory, migration_summary).  migration_summary is {} on cache hit.
@@ -117,7 +120,7 @@ def rebuild_or_catchup(
     fieldnames: list[str],
     adj_fieldnames: list[str],
     conn: sqlite3.Connection,
-) -> tuple[list[dict[str, Any]], dict[str, int]]:
+) -> "tuple[list[InventoryItem], dict[str, int]]":
     """Rebuild inventory using catch-up if possible, full rebuild otherwise.
 
     Returns (inventory, migration_summary).  migration_summary is {} on catch-up.
@@ -199,7 +202,7 @@ def adjust_part(
     events_dir: str,
     fieldnames: list[str],
     conn: sqlite3.Connection,
-) -> list[dict[str, Any]]:
+) -> "list[InventoryItem]":
     """Validate, record, and apply a stock adjustment.  Caller holds the lock.
 
     Returns fresh inventory.
@@ -265,7 +268,7 @@ def consume_bom(
     events_dir: str,
     fieldnames: list[str],
     conn: sqlite3.Connection,
-) -> list[dict[str, Any]]:
+) -> "list[InventoryItem]":
     """Consume matched BOM parts and return fresh inventory.  Caller holds the lock."""
     board_qty = int(board_qty)
     if board_qty <= 0:
@@ -336,7 +339,7 @@ def import_purchases(
     base_dir: str,
     conn: sqlite3.Connection,
     distributors: Any,
-) -> list[dict[str, Any]]:
+) -> "list[InventoryItem]":
     """Append purchase rows to purchase_ledger.csv and return fresh inventory.
 
     Caller holds the lock.
@@ -374,7 +377,7 @@ def update_part_price(
     fieldnames: list[str],
     conn: sqlite3.Connection,
     infer_distributor_for_key: Any,
-) -> list[dict[str, Any]]:
+) -> "list[InventoryItem]":
     """Update unit/ext price for a part in purchase_ledger.csv.
 
     Caller holds the lock.
@@ -449,7 +452,7 @@ def update_part_fields(
     fieldnames: list[str],
     events_dir: str,
     conn: sqlite3.Connection,
-) -> list[dict[str, Any]]:
+) -> "list[InventoryItem]":
     """Update metadata fields for a part in purchase_ledger.csv.
 
     Caller holds the lock.
@@ -506,7 +509,7 @@ def truncate_and_rebuild(
     fieldnames: list[str],
     adj_fieldnames: list[str],
     conn: sqlite3.Connection,
-) -> list[dict[str, Any]]:
+) -> "list[InventoryItem]":
     """Remove the last *count* rows from a CSV and rebuild.  Caller holds the lock."""
     file_fieldnames, rows = inventory_ops.truncate_csv(csv_path, count, label)
 

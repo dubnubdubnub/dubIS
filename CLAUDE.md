@@ -103,6 +103,7 @@ Events are centralized in `event-bus.js`. Store setters that emit are marked; un
 
 - **WebView2 caches JS:** editing JS and relaunching shows stale code. The app uses a persistent WebView2 profile by default (gated by the `DUBIS_WEBVIEW_PROFILE` check in `app.pyw`). Force fresh behavior: `DUBIS_WEBVIEW_PROFILE=ephemeral python app.pyw`.
 - **Backend change → regenerate fixtures:** after changing Python inventory/columns/prices logic, run `python scripts/generate-test-fixtures.py` or vitest fails with confusing value mismatches. Easiest: just run `bash scripts/verify.sh` (see Testing & Linting).
+- **Inventory record field change:** if you add, remove, or rename a field in the inventory record (the dict that `cache_db.query_inventory` sends to JS), edit `domain/schema.py` first, then run `python scripts/gen-inventory-types.py` to update `js/inventory-record.d.ts`. If you forget, `npx tsc --noEmit` (run by CI and verify.sh) will fail with "inventory-record.d.ts is stale".
 - **Don't import `js/constants.js` in test setup:** it has a top-level `await fetch` at line 3 that crashes vitest collection; keep `js/ui-helpers.js` store-free and use lazy imports in tests instead.
 - **Visual bugs need pixel-truth tests:** geometry-asserts-itself property tests can pass while the visual bug persists. See `docs/visual-testing.md`.
 
@@ -115,6 +116,14 @@ npx vitest run                              # verify JS tests still pass
 pytest tests/python/ -v                     # verify Python tests still pass
 ```
 JS tests use pre-generated JSON fixtures derived from Python backend logic. If you change how inventory loads, how columns are detected, or how prices/distributors work, the fixtures go stale and JS tests fail with confusing mismatches.
+
+If you change the inventory record shape (add/remove/rename a field in `cache_db.query_inventory`):
+```bash
+# 1. Edit domain/schema.py to match the new field
+python scripts/gen-inventory-types.py      # regenerate js/inventory-record.d.ts
+npx tsc --noEmit                           # confirm tsc catches any JS read-site mismatches
+```
+The gen-inventory-types.py --check guard in verify.sh and CI will fail if `js/inventory-record.d.ts` is stale.
 
 ### After modifying JS frontend code
 ```bash

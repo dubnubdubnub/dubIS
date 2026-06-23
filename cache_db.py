@@ -13,10 +13,13 @@ import json
 import logging
 import os
 import sqlite3
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from domain.pricing import parse_price, parse_qty
 from inventory_ops import apply_adjustments, compute_adjusted_qty, get_part_key, read_and_merge, sort_key_for_section
+
+if TYPE_CHECKING:
+    from domain.schema import InventoryItem
 
 SCHEMA_VERSION = "7"
 
@@ -575,7 +578,7 @@ def verify_parts(
     return mismatches
 
 
-def query_inventory(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+def query_inventory(conn: sqlite3.Connection) -> "list[InventoryItem]":
     """Query cache in the same format as inventory_ops.load_organized().
 
     Returns list of dicts with keys: section, lcsc, mpn, digikey, pololu,

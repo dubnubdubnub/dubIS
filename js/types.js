@@ -4,19 +4,10 @@
  */
 
 /**
- * @typedef {Object} InventoryItem
- * @property {string} section - Category section (e.g. "Capacitors > Ceramic")
- * @property {string} lcsc - LCSC part number (e.g. "C123456")
- * @property {string} mpn - Manufacturer part number
- * @property {string} digikey - Digikey part number
- * @property {string} pololu - Pololu SKU number
- * @property {string} mouser - Mouser part number
- * @property {string} manufacturer - Manufacturer name
- * @property {string} package - Package/footprint (e.g. "0402")
- * @property {string} description - Part description
- * @property {number} qty - Quantity in stock
- * @property {number} unit_price - Unit price in dollars
- * @property {number} ext_price - Extended price (qty * unit_price)
+ * Re-export InventoryItem from the generated .d.ts so all consumers that
+ * reference {import('./types.js').InventoryItem} resolve to the generated shape.
+ * Edit domain/schema.py and run `python scripts/gen-inventory-types.py` to update.
+ * @typedef {import('./inventory-record.js').InventoryItem} InventoryItem
  */
 
 /**
@@ -155,3 +146,7 @@
  * @property {string} [tolerance] - e.g. "1%", "±10%"
  * @property {string} [dielectric] - Capacitor dielectric (C0G, X7R, etc.)
  */
+
+// Make this file a module so @typedef re-exports are accessible via import().
+// No runtime effect — types.js contains only JSDoc comments.
+export {};

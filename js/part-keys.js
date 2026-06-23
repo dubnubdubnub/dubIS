@@ -1,3 +1,4 @@
+// @ts-check
 /* part-keys.js — Canonical key derivation for BOM and inventory parts.
    Depends on: isDnp, extractPartIds (from csv-parser.js). */
 
@@ -45,6 +46,10 @@ export function bomAggKey(bom) {
   return bomKey(bom) + (bom.dnp ? ":DNP" : "");
 }
 
+/**
+ * @param {import('./types.js').InventoryItem} item
+ * @returns {string}
+ */
 export function invPartKey(item) {
   var lcsc = item.lcsc || "";
   if (lcsc && /^C/i.test(lcsc)) return lcsc;

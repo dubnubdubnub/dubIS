@@ -140,11 +140,20 @@ export function extractFootprintCode(str) {
 // Resolve inventory's footprint code, falling back to its description when the
 // package field is empty. Some inventory rows (e.g. older LCSC imports) have an
 // empty package column but reliably include the chip size in the description.
+/**
+ * @param {import('./types.js').InventoryItem|null} invItem
+ * @returns {string|null}
+ */
 export function invFootprintCode(invItem) {
   if (!invItem) return null;
   return extractFootprintCode(invItem.package) || extractFootprintCode(invItem.description);
 }
 
+/**
+ * @param {object} bom
+ * @param {import('./types.js').InventoryItem|null} invItem
+ * @returns {boolean}
+ */
 export function footprintsCompatible(bom, invItem) {
   const bomCode = extractFootprintCode(bom.footprint);
   const invCode = invFootprintCode(invItem);
@@ -154,6 +163,11 @@ export function footprintsCompatible(bom, invItem) {
 
 // packagesCompatible — legacy substring-based check, retained for export compatibility.
 // New code should use footprintsCompatible, which uses canonical codes.
+/**
+ * @param {object} bom
+ * @param {import('./types.js').InventoryItem} invItem
+ * @returns {boolean}
+ */
 export function packagesCompatible(bom, invItem) {
   const bomPkg = (bom.footprint || "").toUpperCase();
   const invPkg = (invItem.package || "").toUpperCase();
@@ -161,6 +175,11 @@ export function packagesCompatible(bom, invItem) {
   return bomPkg.includes(invPkg) || invPkg.includes(bomPkg);
 }
 
+/**
+ * @param {object} bom
+ * @param {import('./types.js').InventoryItem} invItem
+ * @returns {boolean}
+ */
 export function valuesCompatible(bom, invItem) {
   const bomVal = extractBomValue(bom);
   const invVal = extractValueFromDesc(invItem.description);
@@ -171,6 +190,11 @@ export function valuesCompatible(bom, invItem) {
   return Math.abs(bomVal - invVal) / Math.max(Math.abs(bomVal), Math.abs(invVal)) <= VALUE_TOLERANCE;
 }
 
+/**
+ * @param {object} bom
+ * @param {import('./types.js').InventoryItem} invItem
+ * @returns {boolean}
+ */
 export function isFuzzyMatchValid(bom, invItem) {
   if (!isPassiveSection(invItem.section)) return true;
   return footprintsCompatible(bom, invItem) && valuesCompatible(bom, invItem);
