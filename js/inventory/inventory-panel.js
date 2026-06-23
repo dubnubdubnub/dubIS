@@ -52,6 +52,11 @@ function updateDistCounts() {
 // ── Main render ──
 
 function render() {
+  // Preserve the scroll position across the full rebuild. Wiping innerHTML drops
+  // it, and the BOM-comparison path in particular does not restore it — so any
+  // inventory mutation (price save, qty adjust) would otherwise jump the list
+  // back toward the top. Captured here and restored at the end.
+  var prevScroll = state.body.scrollTop;
   state.body.innerHTML = "";
   updateDistCounts();
   // Sticky offset for parent/subsection headers depends on whether the
@@ -73,4 +78,6 @@ function render() {
     renderNormalInventory();
   }
   refreshImportMarkers();
+  // Restore the pre-rebuild scroll position (see note at top of render()).
+  if (state.body.scrollTop !== prevScroll) state.body.scrollTop = prevScroll;
 }
