@@ -41,19 +41,7 @@ css/panels/group-flyout.css:286:
 css/panels/group-flyout.css:289:
 
 # ── css/panels/import.css ───────────────────────────────────────
-css/panels/import.css:30:
-css/panels/import.css:67:
-css/panels/import.css:71:
-css/panels/import.css:72:
 css/panels/import.css:76:
-css/panels/import.css:88:
-css/panels/import.css:111:
-css/panels/import.css:120:
-css/panels/import.css:148:
-css/panels/import.css:157:
-css/panels/import.css:158:
-css/panels/import.css:162:
-css/panels/import.css:174:
 
 # ── css/panels/inventory.css ────────────────────────────────────
 css/panels/inventory.css:11:
@@ -96,25 +84,14 @@ css/panels/inventory.css:427:
 css/buttons.css:4:
 css/buttons.css:15:
 css/buttons.css:26:
-css/buttons.css:47:
-css/buttons.css:106:
-css/buttons.css:108:
-css/buttons.css:117:
 
 # ── css/tables.css ──────────────────────────────────────────────
-css/tables.css:14:
-css/tables.css:25:
 css/tables.css:49:
 css/tables.css:62:
 css/tables.css:66:
 css/tables.css:70:
 css/tables.css:91:
 css/tables.css:160:
-css/tables.css:161:
-css/tables.css:167:
-css/tables.css:191:
-css/tables.css:214:
-css/tables.css:225:
 css/tables.css:256:
 
 # ── css/components/badges.css ───────────────────────────────────
@@ -164,11 +141,16 @@ css/components/linking.css:28:
 css/components/linking.css:34:
 
 # ── css/components/ocr-overlay.css ──────────────────────────────
-css/components/ocr-overlay.css:110:
-css/components/ocr-overlay.css:124:
-css/components/ocr-overlay.css:137:
-css/components/ocr-overlay.css:156:
-css/components/ocr-overlay.css:172:
+css/components/ocr-overlay.css:53:
+css/components/ocr-overlay.css:60:
+css/components/ocr-overlay.css:69:
+css/components/ocr-overlay.css:131:
+css/components/ocr-overlay.css:145:
+css/components/ocr-overlay.css:158:
+css/components/ocr-overlay.css:177:
+css/components/ocr-overlay.css:204:
+css/components/ocr-overlay.css:231:
+css/components/ocr-overlay.css:251:
 
 # ── css/components/toast.css ────────────────────────────────────
 css/components/toast.css:4:
@@ -209,16 +191,13 @@ css/components/vendor.css:10:
 css/components/vendor.css:18:
 css/components/vendor.css:24:
 css/components/vendor.css:43:
-css/components/vendor.css:51:
 css/components/vendor.css:56:
 css/components/vendor.css:58:
 css/components/vendor.css:88:
 css/components/vendor.css:89:
-css/components/vendor.css:92:
 css/components/vendor.css:109:
 css/components/vendor.css:114:
 css/components/vendor.css:124:
-css/components/vendor.css:127:
 
 # ── css/layout.css ──────────────────────────────────────────────
 css/layout.css:16:
@@ -231,59 +210,26 @@ css/layout.css:104:
 css/layout.css:117:
 
 # ── css/modals.css ──────────────────────────────────────────────
-css/modals.css:17:
 css/modals.css:18:
 css/modals.css:19:
-css/modals.css:27:
-css/modals.css:28:
-css/modals.css:34:
-css/modals.css:45:
-css/modals.css:47:
-css/modals.css:56:
-css/modals.css:69:
-css/modals.css:70:
-css/modals.css:80:
+css/modals.css:48:
 css/modals.css:84:
-css/modals.css:85:
-css/modals.css:90:
-css/modals.css:91:
-css/modals.css:94:
-css/modals.css:106:
-css/modals.css:115:
-css/modals.css:116:
-css/modals.css:123:
-css/modals.css:124:
-css/modals.css:140:
-css/modals.css:148:
-css/modals.css:159:
-css/modals.css:160:
-css/modals.css:169:
-css/modals.css:173:
-css/modals.css:180:
+css/modals.css:98:
+css/modals.css:110:
+css/modals.css:119:
+css/modals.css:120:
+css/modals.css:127:
+css/modals.css:128:
+css/modals.css:144:
+css/modals.css:163:
+css/modals.css:164:
 css/modals.css:184:
-css/modals.css:191:
-css/modals.css:196:
-css/modals.css:197:
-css/modals.css:205:
-css/modals.css:206:
-css/modals.css:213:
-css/modals.css:215:
-css/modals.css:216:
-css/modals.css:246:
-css/modals.css:254:
-css/modals.css:269:
-css/modals.css:271:
-css/modals.css:275:
-
-# ── reconciled after merge of scan-flow-responsive (line numbers shifted) ──
-css/components/ocr-overlay.css:53:
-css/components/ocr-overlay.css:60:
-css/components/ocr-overlay.css:69:
-css/components/ocr-overlay.css:131:
-css/components/ocr-overlay.css:145:
-css/components/ocr-overlay.css:158:
-css/components/ocr-overlay.css:177:
-css/components/ocr-overlay.css:204:
-css/components/ocr-overlay.css:231:
-css/components/ocr-overlay.css:251:
-css/modals.css:285:
+css/modals.css:195:
+css/modals.css:209:
+css/modals.css:210:
+css/modals.css:217:
+css/modals.css:219:
+css/modals.css:220:
+css/modals.css:258:
+css/modals.css:279:
+css/modals.css:289:
