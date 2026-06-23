@@ -59,16 +59,16 @@ fi
 
 # 3. code-map
 run_step "code-map" "$PY" scripts/gen-code-map.py --check
+codemap_rc=$?
+if [ $codemap_rc -ne 0 ]; then
+    echo "  → code-map stale — run \`python scripts/gen-code-map.py\` and commit."
+fi
 
 # 3b. inventory-record types
 run_step "inventory-types" "$PY" scripts/gen-inventory-types.py --check
 invtypes_rc=$?
 if [ $invtypes_rc -ne 0 ]; then
     echo "  → inventory-record.d.ts stale — run \`python scripts/gen-inventory-types.py\` and commit."
-fi
-codemap_rc=$?
-if [ $codemap_rc -ne 0 ]; then
-    echo "  → code-map stale — run \`python scripts/gen-code-map.py\` and commit."
 fi
 
 # 4. manifests
