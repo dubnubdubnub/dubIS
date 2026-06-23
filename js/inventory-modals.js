@@ -448,15 +448,15 @@ export function init() {
   const priceModalInner = priceFormModal.el.querySelector(".modal");
   const priceActionsEl  = priceFormModal.el.querySelector(".modal-actions");
 
-  const priceFetchSupplier = el("select", {
+  const priceFetchSupplier = /** @type {HTMLSelectElement} */ (el("select", {
     id: "price-fetch-supplier",
     class: "fetch-supplier hidden",
-  });
-  const priceFetchBtn = el("button", {
+  }));
+  const priceFetchBtn = /** @type {HTMLButtonElement} */ (el("button", {
     id: "price-fetch-price",
     class: "btn-lg fetch-price-btn",
     type: "button",
-  }, "🔄 Fetch current price");
+  }, "🔄 Fetch current price"));
   const priceFetchTiers = el("div", {
     id: "price-fetch-tiers",
     class: "fetch-tiers hidden",
