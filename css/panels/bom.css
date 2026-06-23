@@ -23,7 +23,7 @@
 }
 .bom-price-info {
   font-size: 12px; font-weight: 600; color: var(--color-green);
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   margin-left: auto;
 }
 .multiplier-bar label { font-size: 12px; color: var(--text-secondary); }

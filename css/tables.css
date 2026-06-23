@@ -10,7 +10,7 @@ thead th {
   position: sticky;
   top: 0;
   background: var(--bg-surface);
-  border-bottom: 2px solid var(--border-default);
+  border-bottom: 2px solid var(--border-strong);
   padding: var(--space-sm) var(--space-md);
   text-align: left;
   color: var(--text-secondary);
@@ -22,14 +22,14 @@ thead th {
   z-index: var(--z-sticky-header);
 }
 tbody td {
-  padding: 5px var(--space-md);
+  padding: 4px var(--space-md);
   border-bottom: 1px solid var(--bg-raised);
   vertical-align: top;
   word-break: break-word;
   overflow: hidden;
   position: relative;
 }
-tbody td.inv-qty-cell { overflow: visible; z-index: var(--z-sticky-cell); }
+tbody td.inv-qty-cell { overflow: visible; z-index: var(--z-sticky-cell); font-family: var(--font-mono); }
 tbody td.inv-qty-cell:has(.alt-badge) { padding-bottom: 26px; }
 tbody tr { transition: background var(--dur-fast); }
 tbody tr:hover:not(.part-preview-info tr, .part-preview-prices tr) { background: var(--bg-hover) !important; }
@@ -62,6 +62,7 @@ tbody tr:hover:not(.part-preview-info tr, .part-preview-prices tr) { background:
 .refs-col { width: 140px; }
 .refs-cell {
   font-size: var(--text-sm);
+  font-family: var(--font-mono);
   color: var(--text-secondary);
   max-width: 140px;
   line-height: var(--leading-base);

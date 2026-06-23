@@ -12,7 +12,7 @@
 
 .modal {
   background: var(--bg-surface);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-xl);
   padding: var(--space-3xl) var(--space-4xl);
   min-width: 360px;

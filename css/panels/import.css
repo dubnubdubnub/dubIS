@@ -79,7 +79,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: var(--text-sm);
 }
 .col-mapper-row .arrow { color: var(--text-muted); flex-shrink: 0; }
@@ -216,7 +216,7 @@
   color: var(--text-muted);
 }
 .ocr-engine-missing-fallback code {
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   color: var(--text-primary);
   user-select: all;
 }
