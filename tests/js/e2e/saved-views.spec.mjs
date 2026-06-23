@@ -122,7 +122,6 @@ test.describe('Saved Views', () => {
 
     // Clear search
     await page.locator('#inv-search').fill('');
-    await page.locator('#inv-search').dispatchEvent('input');
     await page.waitForTimeout(300);
 
     // Verify filters are cleared

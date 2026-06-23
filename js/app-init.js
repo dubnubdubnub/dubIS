@@ -30,6 +30,7 @@ import { init as initLabelExportModal } from './label-export-modal.js';
 import { registerScanHandler } from './import/mfg-direct/mfg-direct-panel.js';
 import { initKeyboardNav } from './a11y/keyboard-nav.js';
 import { applyView, listViews } from './inventory/saved-views.js';
+import { openSaveViewModal } from './inventory/saved-views-ui.js';
 import invState from './inventory/inv-state.js';
 
 // Expose globals for E2E tests and Python's evaluate_js
@@ -397,13 +398,7 @@ async function initApp() {
       group: 'Views',
       keywords: ['view', 'save', 'filter', 'search', 'snapshot'],
       run: () => {
-        // Open the dropdown, then click the "Save current view…" item
-        const btn = document.getElementById('saved-views-btn');
-        if (btn) btn.click();
-        setTimeout(() => {
-          const saveItem = document.querySelector('.sv-save-item[data-action="save-view"]');
-          if (saveItem) /** @type {HTMLElement} */ (saveItem).click();
-        }, 50);
+        openSaveViewModal();
       },
     });
 

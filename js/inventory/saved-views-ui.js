@@ -26,6 +26,12 @@ let _openMenu = null;
 /** @type {Array<() => void>} Cleanup functions for the current menu. */
 let _menuRemovers = [];
 
+// ── Module-level refs set by initSavedViewsUI (for openSaveViewModal) ─────────
+/** @type {object|null} */
+let _state = null;
+/** @type {HTMLElement|null} */
+let _btn = null;
+
 // ── Name-prompt form-modal (created lazily once) ──────────────────────────────
 
 let _nameFm = null;
@@ -51,10 +57,27 @@ function getNameModal(onSaved) {
       onSaved();
       return true;
     },
-    successToast: (values) => 'View "' + values.name.trim() + '" saved',
+    successToast: (values, _ctx, _result) => 'View "' + values.name.trim() + '" saved',
     confirmLabel: 'Save',
   });
   return _nameFm;
+}
+
+/**
+ * Open the "Save current view" modal directly, without going through the dropdown.
+ * Used by the command palette so it doesn't need to simulate DOM clicks.
+ */
+export function openSaveViewModal() {
+  if (!_state || !_btn) {
+    AppLog.warn('saved-views-ui: openSaveViewModal called before initSavedViewsUI');
+    return;
+  }
+  closeMenu();
+  const snapshot = captureView(_state);
+  const fm = getNameModal(() => {
+    updateBtn(_btn);
+  });
+  fm.open({ snapshot });
 }
 
 // ── Menu close ────────────────────────────────────────────────────────────────
@@ -207,6 +230,8 @@ function updateBtn(btn) {
  * @param {() => void} updateDistFilterUI  Sync distributor pill active states.
  */
 export function initSavedViewsUI(state, renderFn, updateDistFilterUI) {
+  _state = state;
+
   // Insert button into panel header, before the search group
   const header = document.querySelector('.panel-inventory .panel-header');
   if (!header) {
@@ -225,6 +250,7 @@ export function initSavedViewsUI(state, renderFn, updateDistFilterUI) {
   btn.setAttribute('aria-haspopup', 'true');
   btn.setAttribute('aria-expanded', 'false');
   btn.setAttribute('id', 'saved-views-btn');
+  _btn = btn;
   updateBtn(btn);
 
   anchor.appendChild(btn);
