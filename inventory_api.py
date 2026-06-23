@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import csv
 import json
 import logging
 import os
 import sqlite3
-import sys
+import sys  # noqa: F401 — kept for test_install_tesseract monkeypatch(inventory_api.sys.platform)
 import threading
 from typing import Any
 
@@ -24,6 +23,9 @@ from domain.api_generic_parts import GenericPartsFacade
 from domain.api_inventory import InventoryCRUDFacade
 from domain.api_preferences import PreferencesFacade
 from domain.api_pricing import PricingFacade
+from domain.api_purchase_orders import PurchaseOrdersFacade
+from domain.api_scan import ScanFacade
+from domain.api_vendors import VendorsFacade
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +80,9 @@ class InventoryApi:
         self._generic = GenericPartsFacade(self)
         self._prefs = PreferencesFacade(self)
         self._inv = InventoryCRUDFacade(self)
+        self._vendors = VendorsFacade(self)
+        self._po = PurchaseOrdersFacade(self)
+        self._scan = ScanFacade(self)
 
     def _get_cache(self) -> sqlite3.Connection:
         """Get or create the cache database connection.
@@ -400,276 +405,45 @@ class InventoryApi:
         return d
 
     def list_vendors(self) -> list[dict[str, Any]]:
-        """Return all vendors, each enriched with a favicon ``data:`` URI when one
-        is cached. Seeds built-ins on first call."""
-        import vendors
-        vendors.seed_builtins(self._vendors_json)
-        result = vendors.list_vendors(self._vendors_json)
-        for v in result:
-            fp = v.get("favicon_path")
-            if fp:
-                abs_fp = fp if os.path.isabs(fp) else os.path.join(self.base_dir, fp)
-                v["favicon_data_uri"] = vendors.favicon_data_uri(abs_fp)
-        return result
+        return self._vendors.list_vendors()
 
     def update_vendor(self, vendor_id: str = "", name: str = "",
                        url: str = "", favicon_path: str = "") -> dict[str, Any]:
-        """Create (vendor_id="") or update a vendor. Optionally fetch favicon if URL set."""
-        import vendors
-        vendors.seed_builtins(self._vendors_json)
-        if not vendor_id:
-            if not name.strip() and url.strip():
-                name = vendors.name_from_url(url)
-            v = vendors.create_vendor(self._vendors_json, name=name, url=url)
-        else:
-            v = vendors.update_vendor(self._vendors_json, vendor_id,
-                                      name=name or None, url=url or None,
-                                      favicon_path=favicon_path or None)
-        if v.get("url") and not v.get("favicon_path"):
-            import requests
-            try:
-                fp = vendors.fetch_favicon(v["url"], self._favicons_dir)
-                v = vendors.update_vendor(self._vendors_json, v["id"],
-                                           favicon_path=os.path.relpath(fp, self.base_dir))
-            except (requests.exceptions.RequestException, OSError) as exc:
-                logger.warning("favicon fetch failed for %s: %s", v["url"], exc)
-        return v
+        return self._vendors.update_vendor(vendor_id, name, url, favicon_path)
 
     def merge_vendors(self, src_id: str, dst_id: str) -> list[dict[str, Any]]:
-        """Reassign all POs from src to dst, then remove src. Returns fresh inventory."""
-        import vendors
-        # Reassign POs first
-        with self._lock:
-            import csv as _csv
-            if os.path.isfile(self._po_csv):
-                with open(self._po_csv, newline="", encoding="utf-8-sig") as f:
-                    rows = list(_csv.DictReader(f))
-                for r in rows:
-                    if r["vendor_id"] == src_id:
-                        r["vendor_id"] = dst_id
-                csv_io.atomic_write_rows(self._po_csv, [
-                    "po_id", "vendor_id", "source_file_hash", "source_file_ext",
-                    "purchase_date", "notes",
-                ], rows, encoding="utf-8")
-            vendors.merge_vendors(self._vendors_json, src_id, dst_id)
-            return self._rebuild()
+        return self._vendors.merge_vendors(src_id, dst_id)
 
     def delete_vendor(self, vendor_id: str) -> list[dict[str, Any]]:
-        """Delete a vendor (cannot be a pseudo-vendor or have POs)."""
-        import vendors
-        # Refuse if any PO references it
-        if os.path.isfile(self._po_csv):
-            with open(self._po_csv, newline="", encoding="utf-8-sig") as f:
-                if any(r["vendor_id"] == vendor_id for r in csv.DictReader(f)):
-                    raise ValueError("vendor has POs; merge first")
-        vendors.delete_vendor(self._vendors_json, vendor_id)
-        return self._rebuild()
+        return self._vendors.delete_vendor(vendor_id)
 
     def fetch_favicon(self, url: str) -> str:
-        """Fetch favicon for a URL; return absolute path to cached file."""
-        import vendors
-        return vendors.fetch_favicon(url, self._favicons_dir)
+        return self._vendors.fetch_favicon(url)
 
     def parse_source_file(self, path: str, template: str = "generic") -> list[dict[str, Any]]:
-        """Parse a CSV/PDF/image source file into candidate line items.
-
-        ``template`` selects a distributor profile ("generic"/"lcsc"/"digikey"/
-        "mouser"/"pololu") for OCR/PDF extraction; defaults to "generic".
-        """
-        import mfg_direct_import
-        return mfg_direct_import.parse_source_file(path, template)
+        return self._scan.parse_source_file(path, template)
 
     def parse_source_file_b64(
         self, file_b64: str, file_name: str, template: str = "generic",
     ) -> list[dict[str, Any]]:
-        """Decode base64, write to temp file, parse, and return rows.
-
-        ``template`` selects a distributor profile; defaults to "generic" for
-        backward compatibility.
-        """
-        import base64
-        import tempfile
-
-        import mfg_direct_import
-        ext = os.path.splitext(file_name)[1].lower()
-        data = base64.b64decode(file_b64)
-        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tf:
-            tf.write(data)
-            tmp_path = tf.name
-        try:
-            return mfg_direct_import.parse_source_file(tmp_path, template)
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+        return self._scan.parse_source_file_b64(file_b64, file_name, template)
 
     def ocr_overlay_b64(
         self, file_b64: str, file_name: str, template: str = "generic",
     ) -> dict[str, Any]:
-        """Decode base64, rasterize+OCR all pages, heuristic-prefill the grid.
-
-        Returns {pages:[{image_b64,width,height,words,lines}], prefill_rows, template}.
-        """
-        import base64
-
-        import ocr_layout
-
-        ext = os.path.splitext(file_name)[1].lower()
-        data = base64.b64decode(file_b64)
-        return ocr_layout.extract_pages(data, ext, template)
+        return self._scan.ocr_overlay_b64(file_b64, file_name, template)
 
     def ocr_engine_available(self) -> bool:
-        """True if the Tesseract OCR binary can be located (PATH or common dirs)."""
-        import ocr_engine
-        return ocr_engine.ensure_tesseract()
+        return self._scan.ocr_engine_available()
 
     def install_tesseract(self) -> dict[str, Any]:
-        """Best-effort install of the Tesseract OCR engine via winget (Windows).
-
-        Runs winget non-interactively (machine scope; Windows shows a UAC prompt
-        the user approves). Returns {ok: bool, message: str, available: bool}.
-        On success the engine is re-detected so OCR works without an app restart.
-        Never raises; always returns the dict.
-        """
-        import shutil
-        import subprocess
-
-        import ocr_engine
-
-        if ocr_engine.ensure_tesseract():
-            return {"ok": True, "message": "Tesseract is already installed.", "available": True}
-        if sys.platform != "win32":
-            return {"ok": False, "message": ocr_engine.INSTALL_HINT, "available": False}
-        if not shutil.which("winget"):
-            return {"ok": False, "message": "winget not found. " + ocr_engine.INSTALL_HINT, "available": False}
-        try:
-            proc = subprocess.run(
-                ["winget", "install", "-e", "--id", "UB-Mannheim.TesseractOCR",
-                 "--accept-package-agreements", "--accept-source-agreements"],
-                capture_output=True, text=True, timeout=600,
-            )
-        except (OSError, subprocess.SubprocessError) as exc:
-            logger.warning("Tesseract install failed to start: %s", exc)
-            return {"ok": False,
-                    "message": f"Install failed to start: {exc}. " + ocr_engine.INSTALL_HINT,
-                    "available": False}
-        available = ocr_engine.ensure_tesseract()
-        if proc.returncode == 0 and available:
-            return {"ok": True, "message": "Tesseract installed.", "available": True}
-        tail = (proc.stderr or proc.stdout or "").strip()[-400:]
-        logger.warning("winget Tesseract install exited %s: %s", proc.returncode, tail)
-        return {"ok": False, "available": available,
-                "message": f"winget exited {proc.returncode}. {tail}".strip() + " " + ocr_engine.INSTALL_HINT}
+        return self._scan.install_tesseract()
 
     def start_scan_session(self, template: str = "generic") -> dict[str, Any]:
-        """Mint a phone-scan session and return connection details.
-
-        Validates *template*, registers a session on the running PnP server
-        (stored on this api as ``self._pnp_server`` by app.pyw), discovers the
-        machine's LAN IPv4 addresses, and best-effort opens a Windows firewall
-        rule for the port. Returns ``{session_id, template, port, urls}``.
-        """
-        import distributor_profiles
-        import pnp_server
-
-        valid = distributor_profiles.template_keys()
-        if template not in valid:
-            raise ValueError(
-                f"Unknown template '{template}'. Valid: {', '.join(valid)}"
-            )
-
-        server = getattr(self, "_pnp_server", None)
-        if server is None:
-            raise RuntimeError(
-                "Phone-scan server is not running; cannot start a scan session."
-            )
-
-        session_id = pnp_server.create_scan_session(server, template)
-        port = server.server_address[1]
-
-        ips = self._lan_ipv4_addresses()
-        self._open_firewall_port(port)
-
-        urls = [f"http://{ip}:{port}/scan?s={session_id}" for ip in ips]
-        return {
-            "session_id": session_id,
-            "template": template,
-            "port": port,
-            "urls": urls,
-        }
-
-    @staticmethod
-    def _lan_ipv4_addresses() -> list[str]:
-        """Best-effort enumeration of this machine's non-loopback IPv4 addresses.
-
-        Combines the UDP-connect "primary interface" trick with hostname
-        resolution, dedupes, and drops loopback (127.*) and link-local
-        (169.254.*) addresses.
-        """
-        import socket
-
-        found: list[str] = []
-
-        def _keep(ip: str) -> bool:
-            return bool(ip) and not ip.startswith("127.") and not ip.startswith("169.254.")
-
-        # Primary outbound interface (no packets actually sent).
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            s.connect(("8.8.8.8", 80))
-            found.append(s.getsockname()[0])
-        except OSError as exc:
-            logger.warning("LAN IP discovery (UDP trick) failed: %s", exc)
-        finally:
-            s.close()
-
-        # Additional interfaces via hostname resolution.
-        try:
-            hostname = socket.gethostname()
-            for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
-                found.append(info[4][0])
-        except OSError as exc:
-            logger.warning("LAN IP discovery (getaddrinfo) failed: %s", exc)
-
-        # Dedupe preserving order, drop loopback/link-local.
-        seen: set[str] = set()
-        result: list[str] = []
-        for ip in found:
-            if _keep(ip) and ip not in seen:
-                seen.add(ip)
-                result.append(ip)
-        return result
-
-    @staticmethod
-    def _open_firewall_port(port: int) -> None:
-        """Best-effort Windows Firewall inbound rule for *port*. Never raises.
-
-        The port is usually already reachable (OpenPnP shares it), so failure is
-        logged and ignored.
-        """
-        if sys.platform != "win32":
-            return
-        import subprocess
-
-        rule_name = f"dubIS phone scan {port}"
-        try:
-            subprocess.run(
-                [
-                    "netsh", "advfirewall", "firewall", "add", "rule",
-                    f"name={rule_name}",
-                    "dir=in", "action=allow", "protocol=TCP",
-                    f"localport={port}",
-                ],
-                check=False,
-                capture_output=True,
-                timeout=10,
-            )
-        except (OSError, subprocess.SubprocessError) as exc:
-            logger.warning("Could not add firewall rule for port %d: %s", port, exc)
+        return self._scan.start_scan_session(template)
 
     def match_part(self, mpn: str, manufacturer: str = "") -> dict[str, Any]:
-        """Match an MPN against existing parts. See mfg_direct_import.match_part."""
-        import mfg_direct_import
-        return mfg_direct_import.match_part(self._get_cache(), mpn, manufacturer)
+        return self._scan.match_part(mpn, manufacturer)
 
     def create_purchase_order_with_items(
         self,
@@ -680,145 +454,34 @@ class InventoryApi:
         notes: str,
         line_items_json: str,
     ) -> list[dict[str, Any]]:
-        """Create a PO + ledger rows. Returns fresh inventory."""
-        import base64
-
-        import mfg_direct_import
-        line_items = self._ensure_parsed(line_items_json)
-        if not line_items:
-            raise ValueError("line_items must not be empty")
-
-        source_bytes = None
-        source_ext = None
-        if source_file_b64 and source_file_name:
-            source_bytes = base64.b64decode(source_file_b64)
-            source_ext = os.path.splitext(source_file_name)[1].lower()
-
-        with self._lock:
-            mfg_direct_import.import_po(
-                ledger_csv=self.input_csv,
-                po_csv=self._po_csv,
-                sources_dir=self._sources_dir,
-                vendor_id=vendor_id,
-                source_file_bytes=source_bytes,
-                source_file_ext=source_ext,
-                purchase_date=purchase_date,
-                notes=notes,
-                line_items=line_items,
-            )
-            self._record_import_prices([
-                {"Manufacture Part Number": li.get("mpn", ""),
-                 "Manufacturer": li.get("manufacturer", ""),
-                 "Unit Price($)": str(li.get("unit_price", "")),
-                 "Quantity": str(li.get("quantity", ""))}
-                for li in line_items
-            ])
-            return self._rebuild()
+        return self._po.create_purchase_order_with_items(
+            vendor_id, source_file_b64, source_file_name, purchase_date, notes, line_items_json)
 
     def list_purchase_orders(self) -> list[dict[str, str]]:
-        import purchase_orders
-        return purchase_orders.list_purchase_orders(self._po_csv)
+        return self._po.list_purchase_orders()
 
     def update_purchase_order(self, po_id: str, vendor_id: str = "",
                                purchase_date: str = "",
                                notes: str = "") -> list[dict[str, Any]]:
-        import purchase_orders
-        with self._lock:
-            kwargs = {}
-            if vendor_id:
-                kwargs["vendor_id"] = vendor_id
-            if purchase_date:
-                kwargs["purchase_date"] = purchase_date
-            if notes is not None and notes != "":
-                kwargs["notes"] = notes
-            purchase_orders.update_purchase_order(self._po_csv, po_id, **kwargs)
-            return self._rebuild()
+        return self._po.update_purchase_order(po_id, vendor_id, purchase_date, notes)
 
     def get_po_with_items(self, po_id: str) -> dict[str, Any]:
-        """Return PO metadata + the ledger rows tagged with this po_id."""
-        import purchase_orders
-        po = purchase_orders.get_purchase_order(self._po_csv, po_id)
-        if not po:
-            raise KeyError(po_id)
-        items = []
-        if os.path.isfile(self.input_csv):
-            with open(self.input_csv, newline="", encoding="utf-8-sig") as f:
-                for row in csv.DictReader(f):
-                    if row.get("po_id") == po_id:
-                        items.append({
-                            "mpn": row.get("Manufacture Part Number", ""),
-                            "manufacturer": row.get("Manufacturer", ""),
-                            "package": row.get("Package", ""),
-                            "quantity": int(row.get("Quantity") or 0),
-                            "unit_price": float(row.get("Unit Price($)") or 0),
-                        })
-        return {"po": po, "line_items": items}
+        return self._po.get_po_with_items(po_id)
 
     def delete_purchase_order(self, po_id: str) -> list[dict[str, Any]]:
-        import purchase_orders
-        with self._lock:
-            # Remove ledger rows first
-            if os.path.isfile(self.input_csv):
-                with open(self.input_csv, newline="", encoding="utf-8-sig") as f:
-                    fn = csv.DictReader(f).fieldnames
-                    f.seek(0)
-                    rows = [r for r in csv.DictReader(f) if r.get("po_id") != po_id]
-                csv_io.atomic_write_rows(
-                    self.input_csv, list(fn or []), rows, encoding="utf-8",
-                )
-            purchase_orders.delete_purchase_order(self._po_csv, self._sources_dir, po_id)
-            return self._rebuild()
+        return self._po.delete_purchase_order(po_id)
 
     def delete_last_purchase_order(self) -> list[dict[str, Any]]:
-        """Delete the most-recently-created PO (and its ledger rows). Returns
-        fresh inventory. Raises if there is no PO to remove."""
-        import purchase_orders
-        pos = purchase_orders.list_purchase_orders(self._po_csv)
-        if not pos:
-            raise ValueError("no purchase order to remove")
-        return self.delete_purchase_order(pos[-1]["po_id"])
+        return self._po.delete_last_purchase_order()
 
     def get_warnings(self) -> dict[str, Any]:
-        """Return a dict of console warnings for the frontend to display."""
-        import vendors
-        out: dict[str, Any] = {
-            "migration": self._last_migration_summary,
-            "duplicates": [],
-            "inferred_only": 0,
-        }
-        all_vendors = vendors.list_vendors(self._vendors_json)
-        out["inferred_only"] = sum(1 for v in all_vendors if v.get("type") == "inferred")
-        for a, b in vendors.find_possible_duplicates(self._vendors_json):
-            out["duplicates"].append({
-                "src": {"id": a["id"], "name": a["name"]},
-                "dst": {"id": b["id"], "name": b["name"]},
-            })
-        return out
+        return self._po.get_warnings()
 
     def get_po_source_preview(self, po_id: str) -> dict[str, Any]:
-        """Return a renderable image preview of a PO's archived source file.
-
-        {"kind": "image", "data_uri", "mime", "width", "height", "page_count"}
-        for image/PDF sources (PDFs rasterized to PNG); {"kind": "none"} for
-        spreadsheet/CSV/missing sources. The frontend uses this to show an
-        inline thumbnail (and click-to-zoom lightbox) in the PO picker.
-        """
-        import purchase_orders
-        return purchase_orders.source_preview(self._sources_dir, po_id, self._po_csv)
+        return self._po.get_po_source_preview(po_id)
 
     def open_source_file(self, po_id: str) -> dict[str, str]:
-        """Open the archived source file for a PO in the OS default app."""
-        import purchase_orders
-        path = purchase_orders.resolve_source_path(self._sources_dir, po_id, self._po_csv)
-        if not path:
-            return {"opened": False, "reason": "no source file"}
-        if os.name == "nt":
-            os.startfile(path)  # type: ignore[attr-defined]
-        else:
-            import subprocess
-            opener = "open" if sys.platform == "darwin" else "xdg-open"
-            subprocess.Popen([opener, path])
-        return {"opened": True, "path": path}
+        return self._po.open_source_file(po_id)
 
     # ── Window lifecycle ─────────────────────────────────────────────────
 
