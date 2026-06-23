@@ -10,6 +10,7 @@ import { setupEvents } from './inv-events.js';
 import { renderNormalInventory } from './inv-render.js';
 import { renderBomComparison, renderRemainingInventory } from './inv-bom-mode.js';
 import { refreshImportMarkers } from './inv-import-markers.js';
+import { initSavedViewsUI } from './saved-views-ui.js';
 
 // ── Init ──
 
@@ -23,6 +24,9 @@ export function init() {
   state._render = render;
 
   setupEvents({ render: render, updateDistFilterUI: updateDistFilterUI });
+
+  // ── Saved Views toolbar button ──
+  initSavedViewsUI(state, render, updateDistFilterUI);
 
   if (window.ResizeObserver && state.body) {
     new ResizeObserver(() => refreshImportMarkers()).observe(state.body);
