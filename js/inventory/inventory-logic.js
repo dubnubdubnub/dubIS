@@ -58,7 +58,7 @@ export function filterByQuery(parts, query) {
 /**
  * Infer which distributor a part comes from based on populated PN fields.
  * Priority: lcsc > digikey > mouser > pololu > direct.
- * @param {Object} item - inventory item
+ * @param {import('../types.js').InventoryItem} item - inventory item
  * @returns {"lcsc"|"digikey"|"mouser"|"pololu"|"direct"}
  */
 export function inferDistributor(item) {
@@ -177,7 +177,7 @@ export function buildRowMap(sortedRows) {
 
 /**
  * Match an inventory item to a generic part member by checking all distributor IDs.
- * @param {Object} item - inventory item
+ * @param {import('../types.js').InventoryItem} item - inventory item
  * @param {Map<string, string>} memberToGroup - map from uppercase part_id to generic_part_id
  * @returns {string|null} generic_part_id or null
  */

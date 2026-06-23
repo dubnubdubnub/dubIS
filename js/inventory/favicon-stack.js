@@ -22,7 +22,7 @@ var ICON_SIZE_PX = 16;
  * the highest z-index, so each older icon's bottom+right edges peek out behind
  * the one in front. The full per-PO history lives in the hover flyout
  * (buildHoverFlyout); this is the at-a-glance view.
- * @param {Object} part - inventory item with po_history, primary_vendor_id
+ * @param {import('../types.js').InventoryItem} part - inventory item
  * @returns {string} HTML string
  */
 export function renderFanStack(part) {

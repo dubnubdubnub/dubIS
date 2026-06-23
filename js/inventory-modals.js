@@ -1,3 +1,4 @@
+// @ts-check
 /* inventory-modals.js — Adjustment and price modals for inventory parts.
    Extracted from inventory-panel.js for focused maintainability. */
 
@@ -70,6 +71,9 @@ function buildFieldInput(key, value, placeholder, extraClass) {
   return '<input type="text" class="modal-field-input' + (extraClass || "") + '" data-field="' + key + '" value="' + escHtml(value) + '" placeholder="' + escHtml(placeholder) + '">';
 }
 
+/**
+ * @param {import('./types.js').InventoryItem} item
+ */
 export function openAdjustModal(item) {
   currentPart = item;
   const pk = invPartKey(item);
@@ -185,7 +189,7 @@ function createFetchController({ supplierSelect, fetchBtn, tiersEl, unitInput })
   });
 
   tiersEl.addEventListener("click", (e) => {
-    const row = e.target.closest(".fetch-tier");
+    const row = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest(".fetch-tier"));
     if (!row) return;
     setUnitPrice(Number(row.dataset.price));
     tiersEl.querySelectorAll(".fetch-tier").forEach(r => r.classList.remove("selected"));
@@ -215,6 +219,9 @@ function createFetchController({ supplierSelect, fetchBtn, tiersEl, unitInput })
   return { configure };
 }
 
+/**
+ * @param {import('./types.js').InventoryItem} item
+ */
 export function openPriceModal(item) {
   pricePart = item;
   const pk = invPartKey(item);
@@ -234,7 +241,9 @@ export function init() {
   adjType = document.getElementById("adj-type");
   adjQty = document.getElementById("adj-qty");
   adjNote = document.getElementById("adj-note");
+  // @ts-ignore — getElementById returns HTMLElement; narrowing to HTMLInputElement is intentional
   adjUnitPrice = document.getElementById("adj-unit-price");
+  // @ts-ignore
   adjExtPrice = document.getElementById("adj-ext-price");
 
   adjModal = Modal("adjust-modal", {
@@ -245,9 +254,13 @@ export function init() {
   linkPriceInputs(adjUnitPrice, adjExtPrice, () => currentPart ? currentPart.qty : 0);
 
   adjFetch = createFetchController({
+    // @ts-ignore — getElementById returns HTMLElement; narrowing is intentional
     supplierSelect: document.getElementById("adj-fetch-supplier"),
+    // @ts-ignore
     fetchBtn: document.getElementById("adj-fetch-price"),
+    // @ts-ignore
     tiersEl: document.getElementById("adj-fetch-tiers"),
+    // @ts-ignore
     unitInput: adjUnitPrice,
   });
 
@@ -334,7 +347,9 @@ export function init() {
   // ── Price Modal ──
   priceTitle = document.getElementById("price-modal-title");
   priceSubtitle = document.getElementById("price-modal-subtitle");
+  // @ts-ignore — getElementById returns HTMLElement; narrowing to HTMLInputElement is intentional
   priceUnitInput = document.getElementById("price-unit");
+  // @ts-ignore
   priceExtInput = document.getElementById("price-ext");
 
   priceModal = Modal("price-modal", {
@@ -345,9 +360,13 @@ export function init() {
   linkPriceInputs(priceUnitInput, priceExtInput, () => pricePart ? pricePart.qty : 0);
 
   priceFetch = createFetchController({
+    // @ts-ignore — getElementById returns HTMLElement; narrowing is intentional
     supplierSelect: document.getElementById("price-fetch-supplier"),
+    // @ts-ignore
     fetchBtn: document.getElementById("price-fetch-price"),
+    // @ts-ignore
     tiersEl: document.getElementById("price-fetch-tiers"),
+    // @ts-ignore
     unitInput: priceUnitInput,
   });
 
