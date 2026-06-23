@@ -1,0 +1,173 @@
+/* ── Saved Views dropdown ───────────────────────────────────────────────────
+   "Views ▾" toolbar button and its pop-up menu.
+   Consumed by: index.html, js/inventory/saved-views-ui.js
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── Views button ──────────────────────────────────────────────────────────── */
+
+.saved-views-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  background: var(--color-blue-dark-bg);
+  border: 1px solid var(--color-blue-dark-border);
+  border-radius: 5px;
+  color: var(--text-primary);
+  font-size: var(--text-sm, 12px);
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.saved-views-btn:hover {
+  background: var(--color-blue-dark-border);
+  border-color: var(--color-blue);
+  color: var(--text-bright);
+}
+
+.saved-views-btn.has-active {
+  border-color: var(--color-blue);
+  color: var(--text-bright);
+}
+
+.saved-views-btn .sv-caret {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.saved-views-btn .sv-active-name {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--text-xs, 11px);
+  color: var(--color-blue);
+}
+
+/* ── Dropdown menu ─────────────────────────────────────────────────────────── */
+
+.saved-views-menu {
+  position: absolute;
+  z-index: calc(var(--z-overlay, 200) - 5);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  min-width: 180px;
+  max-width: 260px;
+  padding: 4px 0;
+  font-family: inherit;
+  font-size: var(--text-sm, 12px);
+}
+
+/* Ensure the menu anchor has positioning context */
+.saved-views-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+/* ── Menu sections ─────────────────────────────────────────────────────────── */
+
+.sv-menu-section-header {
+  padding: 4px 10px 2px;
+  font-size: var(--text-xs, 11px);
+  font-weight: var(--weight-semibold, 600);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+
+.sv-menu-divider {
+  height: 1px;
+  background: var(--border-default);
+  margin: 4px 0;
+}
+
+/* ── Menu items ────────────────────────────────────────────────────────────── */
+
+.sv-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  cursor: default;
+  color: var(--text-primary);
+  border-radius: 0;
+  user-select: none;
+}
+
+.sv-menu-item:hover,
+.sv-menu-item:focus-visible {
+  background: var(--bg-hover);
+  color: var(--text-bright);
+  outline: none;
+}
+
+.sv-menu-item.sv-active {
+  background: var(--color-blue-bg, #58a6ff18);
+  color: var(--color-blue);
+}
+
+.sv-view-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Delete (×) button inside a view row */
+.sv-delete-btn {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  transition: background 0.1s, color 0.1s;
+}
+
+.sv-delete-btn:hover {
+  background: var(--color-red-bg, #f8514920);
+  color: var(--color-red);
+}
+
+/* "Save current view…" action row */
+.sv-save-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  cursor: default;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.sv-save-item:hover,
+.sv-save-item:focus-visible {
+  background: var(--bg-hover);
+  color: var(--text-bright);
+  font-style: normal;
+  outline: none;
+}
+
+/* Empty-state message */
+.sv-empty-msg {
+  padding: 6px 10px;
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: var(--text-xs, 11px);
+  user-select: none;
+}
