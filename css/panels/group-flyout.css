@@ -213,7 +213,7 @@
 
 .flyout-member-id {
   flex-shrink: 0;
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--color-blue);
 }

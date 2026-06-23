@@ -27,16 +27,17 @@
 
   /* Background tones (darkest → lightest) */
   --bg-base: #0d1117;
-  --bg-surface: #161b22;
-  --bg-hover: #1c2333;
-  --bg-raised: #21262d;
-  --border-default: #30363d;
+  --bg-surface: #131A22;
+  --bg-hover: #19222D;
+  --bg-raised: #1B232C;
+  --border-default: #232C36;
+  --border-strong: #313D48;
 
   /* Text tones */
   --text-muted: #484f58;
   --text-secondary: #8b949e;
   --text-primary: #c9d1d9;
-  --text-bright: #e6edf3;
+  --text-bright: #E9EFF4;
 
   /* Overlay */
   --overlay-bg: rgba(0, 0, 0, 0.6);
