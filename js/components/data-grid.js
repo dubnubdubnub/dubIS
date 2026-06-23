@@ -10,9 +10,9 @@
  * Integrates js/a11y/roving-grid.js for arrow-key navigation.
  */
 
-import { escapeHtml } from '../dom/html.js';
 import { on } from '../dom/delegate.js';
 import { RovingGrid } from '../a11y/roving-grid.js';
+import { AppLog } from '../api.js';
 
 /**
  * @typedef {{
@@ -33,7 +33,7 @@ import { RovingGrid } from '../a11y/roving-grid.js';
  * @typedef {{
  *   key: string,
  *   label?: string,
- *   icon?: string,
+ *   icon?: string|Node,
  *   title?: string,
  *   class?: string,
  *   when?: (item: any) => boolean,
@@ -150,13 +150,22 @@ export function DataGrid(root, opts) {
       td.textContent = newValue;
     }
 
-    function commit() {
+    async function commit() {
       const newValue = input.value;
-      // Restore display immediately
-      restore(newValue);
+      // Keep input visible in a pending/disabled state while the async call is in flight
+      input.disabled = true;
       if (onCellEdit) {
-        // Errors intentionally not swallowed — propagate as unhandled rejection
-        void onCellEdit(item, col.key, newValue, idx);
+        try {
+          await onCellEdit(item, col.key, newValue, idx);
+          // SUCCESS: restore display with new value
+          restore(newValue);
+        } catch (err) {
+          // REJECTION: roll back to original value and surface the error
+          restore(originalValue);
+          AppLog.error('DataGrid onCellEdit failed: ' + (err && err.message ? err.message : String(err)));
+        }
+      } else {
+        restore(newValue);
       }
     }
 
@@ -246,13 +255,10 @@ export function DataGrid(root, opts) {
       if (col.render) {
         const result = col.render(item, idx);
         if (result instanceof Node) {
+          // Caller returned a live Node — insert it directly
           td.appendChild(result);
         } else {
-          // result is a string — insert safely
-          td.innerHTML = escapeHtml(String(result));
-          // Allow render() to return already-escaped HTML by inserting its text
-          // Actually: per spec, render returns string (escaped) or Node.
-          // A string from render() is treated as plain text and escaped.
+          // Caller returned a plain string — set as text (automatically escaped)
           td.textContent = String(result);
         }
       } else {
@@ -272,7 +278,15 @@ export function DataGrid(root, opts) {
         btn.type = 'button';
         btn.dataset.actionKey = action.key;
         if (action.label) btn.textContent = action.label;
-        else if (action.icon) btn.innerHTML = escapeHtml(action.icon);
+        // action.icon is trusted caller-provided markup (like raw() — may contain SVG/HTML).
+        // Use innerHTML directly; never escape it or it will render as literal text.
+        else if (action.icon) {
+          if (action.icon instanceof Node) {
+            btn.appendChild(action.icon);
+          } else {
+            btn.innerHTML = action.icon;
+          }
+        }
         if (action.title) btn.title = action.title;
         if (action.class) btn.className = action.class;
         td.appendChild(btn);

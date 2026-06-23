@@ -9,6 +9,15 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+// AppLog spy — must be set up before DataGrid is imported so the mock is in place
+const AppLogErrorSpy = vi.fn();
+vi.mock('../../js/api.js', () => ({
+  AppLog: {
+    warn: vi.fn(),
+    error: (...args) => AppLogErrorSpy(...args),
+  },
+}));
+
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 // RovingGrid depends on store.js (getShortcutPrefs) and has DOM side-effects;
@@ -321,11 +330,9 @@ describe('DataGrid — onCellEdit', () => {
     expect(editableCell.textContent.trim()).toBe('Resistor 10k');
   });
 
-  it('onCellEdit errors propagate (no silent swallow)', async () => {
-    // Verify that onCellEdit is called and that errors are not silently swallowed.
-    // We use a mock that resolves normally here to avoid leaking unhandled rejections
-    // in the test runner; the implementation's error path is tested separately below.
-    const onCellEdit = vi.fn(async () => {});
+  it('onCellEdit rejection rolls back to original value and logs an error', async () => {
+    AppLogErrorSpy.mockClear();
+    const onCellEdit = vi.fn(() => Promise.reject(new Error('save failed')));
     makeEditableGrid(onCellEdit);
     const editableCell = root.querySelector('td[data-col-key="name"]');
     editableCell.click();
@@ -333,8 +340,13 @@ describe('DataGrid — onCellEdit', () => {
     input.value = 'New Value';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     await new Promise(r => setTimeout(r, 10));
-    // onCellEdit must have been called — it is NOT silently skipped
-    expect(onCellEdit).toHaveBeenCalledWith(SAMPLE_DATA[0], 'name', 'New Value', 0);
+    // Input should be gone
+    expect(editableCell.querySelector('input')).toBeNull();
+    // Cell must roll back to ORIGINAL value (not the new one)
+    expect(editableCell.textContent.trim()).toBe('Resistor 10k');
+    // Error must be surfaced via AppLog.error — not silently swallowed
+    expect(AppLogErrorSpy).toHaveBeenCalledOnce();
+    expect(AppLogErrorSpy.mock.calls[0][0]).toMatch(/save failed/);
   });
 });
 
@@ -408,11 +420,12 @@ describe('DataGrid — grouping', () => {
     const firstHeader = root.querySelector('tr.group-header');
     firstHeader.click();
 
-    // Rows in that group should be hidden
+    // Rows in that group should be hidden; only the Capacitor row (C1) remains visible.
+    // Resistor group has 2 rows (R1, R2); collapsing it leaves exactly 1 visible row.
     const visibleRows = Array.from(root.querySelectorAll('tbody tr:not(.group-header)')).filter(
       r => r.style.display !== 'none'
     );
-    expect(visibleRows.length).toBeLessThan(3);
+    expect(visibleRows.length).toBe(1);
   });
 
   it('collapsedByDefault renders groups collapsed', () => {
