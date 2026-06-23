@@ -140,6 +140,7 @@ graph LR
     "js/bom/bom-renderer.js" --> "js/layout-tokens.js"
     "js/bom/bom-renderer.js" --> "js/part-keys.js"
     "js/bom/bom-renderer.js" --> "js/ui-helpers.js"
+    "js/components/form-modal.js" --> "js/dom/delegate.js"
     "js/components/form-modal.js" --> "js/dom/html.js"
     "js/components/form-modal.js" --> "js/ui-helpers.js"
     "js/components/form-modal.js" --> "js/undo-redo.js"
@@ -776,7 +777,7 @@ graph LR
 
 ### js/components/form-modal.js
 
-- **Imports:** `js/dom/html.js`, `js/ui-helpers.js`, `js/undo-redo.js`
+- **Imports:** `js/dom/delegate.js`, `js/dom/html.js`, `js/ui-helpers.js`, `js/undo-redo.js`
 - **Imported by:** `js/inventory-modals.js`, `tests/js/form-modal.test.js`
 
 ### js/components/predicate-ui.js
@@ -802,7 +803,7 @@ graph LR
 ### js/dom/delegate.js
 
 - **Imports:** —
-- **Imported by:** `tests/js/delegate.test.js`
+- **Imported by:** `js/components/form-modal.js`, `tests/js/delegate.test.js`
 
 ### js/dom/html.js
 
