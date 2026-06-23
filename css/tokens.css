@@ -9,7 +9,7 @@
      These values must stay in sync with the corresponding row cells in
      .inv-part-row so that column headers align with row content.
      Consumed by: css/panels/inventory.css, js/layout-tokens.js */
-  --inv-col-group-w:   50px;   /* Group / drag-handle cell */
+  --inv-col-group-w:   30px;   /* Group / drag-handle cell */
   --inv-col-pn-w:     100px;   /* Part number (vendor IDs) */
   --inv-col-mfgpn-w:  160px;   /* Manufacturer PN */
   --inv-col-vendor-w:  54px;   /* Purchase-source vendor favicon stack */
