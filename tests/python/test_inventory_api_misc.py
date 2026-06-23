@@ -377,3 +377,18 @@ def test_delete_last_purchase_order_raises_when_none(api):
     """delete_last_purchase_order raises when there are no POs."""
     with pytest.raises(Exception):
         api.delete_last_purchase_order()
+
+
+def test_crud_facade_shares_lock_and_connection(api):
+    # The facade must hold exactly one attribute — _api pointing back to the api
+    # instance — and snapshot NO state of its own. This is what forces every method
+    # to use the single shared RLock and sqlite connection live (a facade that did
+    # self._lock = threading.RLock() or self._conn = sqlite3.connect(...) would fail
+    # this and would break cross-thread mutual exclusion / reintroduce double-connect).
+    assert api._inv._api is api
+    assert set(vars(api._inv)) == {"_api"}, (
+        "InventoryCRUDFacade must carry no state of its own — found extra attributes: "
+        f"{set(vars(api._inv)) - {'_api'}}"
+    )
+    # Connection-sharing, documented for intent (meaningful because _api is api, asserted above):
+    assert api._inv._api._get_cache() is api._get_cache()
