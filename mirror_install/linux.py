@@ -1,7 +1,10 @@
+import logging
 import os
 import subprocess
 
 from mirror_install.base import Installer, MirrorConfig
+
+logger = logging.getLogger(__name__)
 
 UNIT_NAME = "dubis-inventory-mirror.service"
 
@@ -21,9 +24,9 @@ class LinuxInstaller(Installer):
             "[Unit]\n"
             "Description=dubIS inventory mirror daemon\n"
             "[Service]\n"
-            f"ExecStart={cfg.python_exe} {cfg.daemon_script}"
-            f" --token-file {cfg.token_file}"
-            f" --snapshot-file {cfg.snapshot_file}"
+            f'ExecStart="{cfg.python_exe}" "{cfg.daemon_script}"'
+            f' --token-file "{cfg.token_file}"'
+            f' --snapshot-file "{cfg.snapshot_file}"'
             f" --push-port {cfg.push_port}"
             f" --read-port {cfg.read_port}"
             f" --allowlist {allowlist}\n"
@@ -34,8 +37,12 @@ class LinuxInstaller(Installer):
         with open(unit_path, "w") as f:
             f.write(unit_content)
 
-        subprocess.run(["systemctl", "--user", "daemon-reload"],
-                       capture_output=True, text=True)
+        reload_res = subprocess.run(
+            ["systemctl", "--user", "daemon-reload"],
+            capture_output=True, text=True,
+        )
+        if reload_res.returncode != 0:
+            raise RuntimeError(f"systemctl daemon-reload failed: {reload_res.stderr.strip()}")
 
         res = subprocess.run(
             ["systemctl", "--user", "enable", "--now", UNIT_NAME],
@@ -52,8 +59,12 @@ class LinuxInstaller(Installer):
         unit_path = self._unit_path()
         if os.path.exists(unit_path):
             os.remove(unit_path)
-        subprocess.run(["systemctl", "--user", "daemon-reload"],
-                       capture_output=True, text=True)
+        reload_res = subprocess.run(
+            ["systemctl", "--user", "daemon-reload"],
+            capture_output=True, text=True,
+        )
+        if reload_res.returncode != 0:
+            logger.warning("systemctl daemon-reload failed during uninstall: %s", reload_res.stderr.strip())
 
     def is_installed(self) -> bool:
         return os.path.exists(self._unit_path())

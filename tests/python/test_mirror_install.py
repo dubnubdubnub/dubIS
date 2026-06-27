@@ -217,7 +217,8 @@ def test_linux_install_writes_unit_and_enables(tmp_path):
 
     assert unit_path.exists()
     content = unit_path.read_text()
-    assert "C:/app/inventory_mirror.py" in content
+    # Paths must appear quoted in ExecStart
+    assert '"C:/app/inventory_mirror.py"' in content
     assert "--read-port" in content
     assert "7893" in content
     assert "owner@x.com" in content
@@ -286,3 +287,66 @@ def test_linux_is_running():
     with mock.patch("mirror_install.linux.subprocess.run") as run:
         run.return_value = mock.Mock(returncode=3)
         assert inst.is_running() is False
+
+
+def test_linux_execstart_quotes_paths_with_spaces(tmp_path):
+    """ExecStart paths containing spaces must be quoted so systemd doesn't misparse them."""
+    inst = LinuxInstaller()
+    unit_path = tmp_path / "dubis-inventory-mirror.service"
+    cfg = base.MirrorConfig(
+        push_port=7892,
+        read_port=7893,
+        token_file="/home/Jane Doe/data/mirror_token",
+        snapshot_file="/home/Jane Doe/data/inventory_mirror.json",
+        allowlist=["owner@x.com"],
+        python_exe="/usr/bin/python3",
+        daemon_script="/home/Jane Doe/dubIS/inventory_mirror.py",
+    )
+    with mock.patch.object(inst, "_unit_path", return_value=str(unit_path)), \
+         mock.patch("mirror_install.linux.subprocess.run") as run:
+        run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
+        inst.install(cfg)
+
+    content = unit_path.read_text()
+    # The full spaced path must appear as a single quoted token in ExecStart
+    assert '"/home/Jane Doe/dubIS/inventory_mirror.py"' in content
+    assert '"/home/Jane Doe/data/mirror_token"' in content
+    # Must NOT appear as bare unquoted (would be split by systemd)
+    execstart_line = next(line for line in content.splitlines() if line.startswith("ExecStart="))
+    # Verify the spaced path is fully enclosed in quotes on the ExecStart line
+    assert "/home/Jane Doe/dubIS/inventory_mirror.py" in execstart_line
+    # Ensure it's quoted, not bare (a bare space would look like 'Doe/dubIS/' split off)
+    assert '"' in execstart_line
+
+
+def test_linux_install_raises_on_daemon_reload_failure(tmp_path):
+    """install() must raise RuntimeError when daemon-reload returns non-zero."""
+    inst = LinuxInstaller()
+    unit_path = tmp_path / "dubis-inventory-mirror.service"
+    with mock.patch.object(inst, "_unit_path", return_value=str(unit_path)), \
+         mock.patch("mirror_install.linux.subprocess.run") as run:
+        def side(cmd, **_):
+            if "daemon-reload" in cmd:
+                return mock.Mock(returncode=1, stdout="", stderr="reload failed")
+            return mock.Mock(returncode=0, stdout="", stderr="")
+        run.side_effect = side
+        with pytest.raises(RuntimeError, match="daemon-reload"):
+            inst.install(_cfg())
+
+
+def test_linux_uninstall_daemon_reload_failure_is_nonfatal(tmp_path):
+    """uninstall() daemon-reload failure should log a warning but not raise."""
+    inst = LinuxInstaller()
+    unit_path = tmp_path / "dubis-inventory-mirror.service"
+    unit_path.write_text("[Unit]\n")
+    with mock.patch.object(inst, "_unit_path", return_value=str(unit_path)), \
+         mock.patch("mirror_install.linux.subprocess.run") as run, \
+         mock.patch("mirror_install.linux.logger") as mock_logger:
+        def side(cmd, **_):
+            if "daemon-reload" in cmd:
+                return mock.Mock(returncode=1, stdout="", stderr="reload failed")
+            return mock.Mock(returncode=0, stdout="", stderr="")
+        run.side_effect = side
+        # Should not raise
+        inst.uninstall()
+    mock_logger.warning.assert_called_once()
