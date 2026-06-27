@@ -1,4 +1,4 @@
-"""Inventory snapshot serialization — shared by poll_api and inventory_mirror.
+"""Inventory snapshot serialization — used by inventory_mirror.
 
 Pure functions, stdlib only. No dubIS app imports so the mirror daemon can use it
 standalone.

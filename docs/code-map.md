@@ -37,7 +37,6 @@ graph LR
     "domain/api_mirror.py" --> "inventory_mirror.py"
     "domain/api_mirror.py" --> "mirror_install/__init__.py"
     "domain/api_preferences.py" --> "csv_io.py"
-    "domain/api_preferences.py" --> "poll_api.py"
     "domain/api_pricing.py" --> "domain/pricing.py"
     "domain/api_pricing.py" --> "inventory_ops.py"
     "domain/api_purchase_orders.py" --> "csv_io.py"
@@ -391,7 +390,6 @@ graph LR
     "pnp_server.py" --> "scan_capture_page.py"
     "pnp_server.py" --> "scan_image.py"
     "pnp_server.py" --> "scan_sessions.py"
-    "poll_api.py" --> "mirror_serialize.py"
     "pololu_client.py" --> "base_client.py"
     "pololu_client.py" --> "html_product_parser.py"
     "purchase_orders.py" --> "csv_io.py"
@@ -578,8 +576,6 @@ graph LR
     "tests/python/test_pdf_raster.py" --> "pdf_raster.py"
     "tests/python/test_pnp_server.py" --> "pnp_server.py"
     "tests/python/test_pnp_server.py" --> "tests/python/helpers.py"
-    "tests/python/test_poll_api.py" --> "poll_api.py"
-    "tests/python/test_poll_api.py" --> "tests/python/helpers.py"
     "tests/python/test_purchase_orders.py" --> "purchase_orders.py"
     "tests/python/test_real_data.py" --> "inventory_api.py"
     "tests/python/test_saved_searches.py" --> "cache_db.py"
@@ -721,7 +717,7 @@ graph LR
 
 ### domain/api_preferences.py
 
-- **Imports:** `csv_io.py`, `poll_api.py`
+- **Imports:** `csv_io.py`
 - **Imported by:** `inventory_api.py`
 
 ### domain/api_pricing.py
@@ -1290,7 +1286,7 @@ graph LR
 ### mirror_serialize.py
 
 - **Imports:** —
-- **Imported by:** `inventory_mirror.py`, `mirror_push.py`, `poll_api.py`, `tests/python/test_mirror_serialize.py`
+- **Imported by:** `inventory_mirror.py`, `mirror_push.py`, `tests/python/test_mirror_serialize.py`
 
 ### mouser_client.py
 
@@ -1326,11 +1322,6 @@ graph LR
 
 - **Imports:** `pnp_part_map.py`, `scan_capture_page.py`, `scan_image.py`, `scan_sessions.py`
 - **Imported by:** `domain/api_scan.py`, `tests/js/e2e/scan-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/test_capture_page.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
-
-### poll_api.py
-
-- **Imports:** `mirror_serialize.py`
-- **Imported by:** `domain/api_preferences.py`, `tests/python/test_poll_api.py`
 
 ### pololu_client.py
 
@@ -1789,7 +1780,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `inventory_api.py`
-- **Imported by:** `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`, `tests/python/test_poll_api.py`
+- **Imported by:** `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/test_api_mirror.py
 
@@ -2084,11 +2075,6 @@ graph LR
 ### tests/python/test_pnp_server.py
 
 - **Imports:** `pnp_server.py`, `tests/python/helpers.py`
-- **Imported by:** —
-
-### tests/python/test_poll_api.py
-
-- **Imports:** `poll_api.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/test_purchase_orders.py

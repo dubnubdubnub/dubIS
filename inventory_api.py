@@ -338,14 +338,6 @@ class InventoryApi:
     def clear_mouser_api_key(self) -> dict[str, bool]:
         return self._dist.clear_mouser_api_key()
 
-    # ── Poll API ───────────────────────────────────────────────────────────
-
-    def get_poll_api_info(self) -> dict[str, Any]:
-        return self._prefs.get_poll_api_info()
-
-    def set_poll_api_port(self, port: int | str) -> dict[str, Any]:
-        return self._prefs.set_poll_api_port(port)
-
     # ── Inventory mirror ──────────────────────────────────────────────────
 
     def enable_inventory_mirror(self) -> dict[str, Any]:

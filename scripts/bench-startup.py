@@ -42,7 +42,7 @@ CACHE_DB = os.path.join(APP_DIR, "data", "cache.db")
 PY = sys.executable
 
 # Imports app.pyw pulls in (minus the GUI-only `webview`, measured separately).
-APP_IMPORTS = "import webview, inventory_api, pnp_server, poll_api"
+APP_IMPORTS = "import webview, inventory_api, pnp_server"
 
 # GUI phase marks, in expected emission order, with human labels.
 GUI_MARKS = [

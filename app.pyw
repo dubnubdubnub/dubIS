@@ -29,7 +29,6 @@ if sys.platform == "win32":
 import webview
 from inventory_api import InventoryApi
 from pnp_server import start_pnp_server, stop_pnp_server
-from poll_api import POLL_PORT, start_poll_server
 
 bench.mark("imports_done")
 
@@ -153,9 +152,6 @@ def main():
         # Expose the running server so api.start_scan_session() can mint sessions
         # on it (phone-scan transport). May be None if the port was unavailable.
         api._pnp_server = pnp_server
-        prefs = api.load_preferences()
-        configured_port = prefs.get("pollApiPort")
-        start_poll_server(api, port=configured_port if configured_port else POLL_PORT)
         # Mirror: push current inventory on startup (no-op unless enabled).
         try:
             api._mirror_ctl.push_event(api._load_organized(), dubis_running=True)
