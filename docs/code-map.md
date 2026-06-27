@@ -352,6 +352,10 @@ graph LR
     "ocr_layout.py" --> "pdf_raster.py"
     "ocr_layout.py" --> "vlm_extract.py"
     "ocr_table.py" --> "ocr_engine.py"
+    "pnp_server.py" --> "pnp_part_map.py"
+    "pnp_server.py" --> "scan_capture_page.py"
+    "pnp_server.py" --> "scan_image.py"
+    "pnp_server.py" --> "scan_sessions.py"
     "pololu_client.py" --> "base_client.py"
     "pololu_client.py" --> "html_product_parser.py"
     "purchase_orders.py" --> "csv_io.py"
@@ -451,6 +455,7 @@ graph LR
     "tests/python/test_cache_db.py" --> "domain/schema.py"
     "tests/python/test_cache_db.py" --> "inventory_api.py"
     "tests/python/test_cache_db.py" --> "inventory_ops.py"
+    "tests/python/test_capture_page.py" --> "pnp_server.py"
     "tests/python/test_ci_watcher_audit.py" --> "scripts/ci_watcher/audit.py"
     "tests/python/test_ci_watcher_listener.py" --> "scripts/ci_watcher/listener.py"
     "tests/python/test_ci_watcher_listener.py" --> "scripts/ci_watcher/state.py"
@@ -1178,10 +1183,15 @@ graph LR
 - **Imports:** —
 - **Imported by:** `ocr_layout.py`, `purchase_orders.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_pdf_raster.py`
 
-### pnp_server.py
+### pnp_part_map.py
 
 - **Imports:** —
-- **Imported by:** `domain/api_scan.py`, `tests/js/e2e/scan-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
+- **Imported by:** `pnp_server.py`
+
+### pnp_server.py
+
+- **Imports:** `pnp_part_map.py`, `scan_capture_page.py`, `scan_image.py`, `scan_sessions.py`
+- **Imported by:** `domain/api_scan.py`, `tests/js/e2e/scan-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/test_capture_page.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
 
 ### poll_api.py
 
@@ -1202,6 +1212,21 @@ graph LR
 
 - **Imports:** `csv_io.py`
 - **Imported by:** `domain/api_generic_parts.py`, `domain/inventory.py`, `tests/python/test_saved_searches.py`
+
+### scan_capture_page.py
+
+- **Imports:** —
+- **Imported by:** `pnp_server.py`
+
+### scan_image.py
+
+- **Imports:** —
+- **Imported by:** `pnp_server.py`
+
+### scan_sessions.py
+
+- **Imports:** —
+- **Imported by:** `pnp_server.py`
 
 ### scripts/__init__.py
 
@@ -1625,6 +1650,11 @@ graph LR
 ### tests/python/test_cache_db.py
 
 - **Imports:** `cache_db.py`, `domain/schema.py`, `inventory_api.py`, `inventory_ops.py`
+- **Imported by:** —
+
+### tests/python/test_capture_page.py
+
+- **Imports:** `pnp_server.py`
 - **Imported by:** —
 
 ### tests/python/test_capture_refresh.py
