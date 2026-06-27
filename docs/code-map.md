@@ -103,6 +103,7 @@ graph LR
     "js/app-init.js" --> "js/inventory-modals.js"
     "js/app-init.js" --> "js/inventory/inv-state.js"
     "js/app-init.js" --> "js/inventory/inventory-panel.js"
+    "js/app-init.js" --> "js/inventory/saved-views-ui.js"
     "js/app-init.js" --> "js/inventory/saved-views.js"
     "js/app-init.js" --> "js/label-export-modal.js"
     "js/app-init.js" --> "js/label-selection.js"
@@ -351,6 +352,10 @@ graph LR
     "ocr_layout.py" --> "pdf_raster.py"
     "ocr_layout.py" --> "vlm_extract.py"
     "ocr_table.py" --> "ocr_engine.py"
+    "pnp_server.py" --> "pnp_part_map.py"
+    "pnp_server.py" --> "scan_capture_page.py"
+    "pnp_server.py" --> "scan_image.py"
+    "pnp_server.py" --> "scan_sessions.py"
     "pololu_client.py" --> "base_client.py"
     "pololu_client.py" --> "html_product_parser.py"
     "purchase_orders.py" --> "csv_io.py"
@@ -449,6 +454,7 @@ graph LR
     "tests/python/test_cache_db.py" --> "cache_db.py"
     "tests/python/test_cache_db.py" --> "inventory_api.py"
     "tests/python/test_cache_db.py" --> "inventory_ops.py"
+    "tests/python/test_capture_page.py" --> "pnp_server.py"
     "tests/python/test_ci_watcher_audit.py" --> "scripts/ci_watcher/audit.py"
     "tests/python/test_ci_watcher_listener.py" --> "scripts/ci_watcher/listener.py"
     "tests/python/test_ci_watcher_listener.py" --> "scripts/ci_watcher/state.py"
@@ -760,7 +766,7 @@ graph LR
 
 ### js/app-init.js
 
-- **Imports:** `js/a11y/keyboard-nav.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/api.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory-modals.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`, `js/vendors-modal.js`
+- **Imports:** `js/a11y/keyboard-nav.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/api.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory-modals.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`, `js/vendors-modal.js`
 - **Imported by:** —
 - **Emits:** `CONFIRMED_CHANGED`, `LINKS_CHANGED`, `SAVE_AND_CLOSE`
 - **Listens:** `BOM_LOADED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`
@@ -1040,7 +1046,7 @@ graph LR
 ### js/inventory/saved-views-ui.js
 
 - **Imports:** `js/api.js`, `js/components/form-modal.js`, `js/dom/delegate.js`, `js/dom/html.js`, `js/inventory/saved-views.js`
-- **Imported by:** `js/inventory/inventory-panel.js`
+- **Imported by:** `js/app-init.js`, `js/inventory/inventory-panel.js`
 
 ### js/inventory/saved-views.js
 
@@ -1176,10 +1182,15 @@ graph LR
 - **Imports:** —
 - **Imported by:** `ocr_layout.py`, `purchase_orders.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_pdf_raster.py`
 
-### pnp_server.py
+### pnp_part_map.py
 
 - **Imports:** —
-- **Imported by:** `domain/api_scan.py`, `tests/js/e2e/scan-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
+- **Imported by:** `pnp_server.py`
+
+### pnp_server.py
+
+- **Imports:** `pnp_part_map.py`, `scan_capture_page.py`, `scan_image.py`, `scan_sessions.py`
+- **Imported by:** `domain/api_scan.py`, `tests/js/e2e/scan-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/test_capture_page.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
 
 ### poll_api.py
 
@@ -1200,6 +1211,21 @@ graph LR
 
 - **Imports:** `csv_io.py`
 - **Imported by:** `domain/api_generic_parts.py`, `domain/inventory.py`, `tests/python/test_saved_searches.py`
+
+### scan_capture_page.py
+
+- **Imports:** —
+- **Imported by:** `pnp_server.py`
+
+### scan_image.py
+
+- **Imports:** —
+- **Imported by:** `pnp_server.py`
+
+### scan_sessions.py
+
+- **Imports:** —
+- **Imported by:** `pnp_server.py`
 
 ### scripts/__init__.py
 
@@ -1623,6 +1649,11 @@ graph LR
 ### tests/python/test_cache_db.py
 
 - **Imports:** `cache_db.py`, `inventory_api.py`, `inventory_ops.py`
+- **Imported by:** —
+
+### tests/python/test_capture_page.py
+
+- **Imports:** `pnp_server.py`
 - **Imported by:** —
 
 ### tests/python/test_capture_refresh.py
