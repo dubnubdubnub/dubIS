@@ -372,7 +372,11 @@ graph LR
     "mfg_direct_import.py" --> "distributor_profiles.py"
     "mfg_direct_import.py" --> "inventory_api.py"
     "mfg_direct_import.py" --> "purchase_orders.py"
+    "mirror_install/base.py" --> "mirror_install/linux.py"
+    "mirror_install/base.py" --> "mirror_install/macos.py"
     "mirror_install/base.py" --> "mirror_install/windows.py"
+    "mirror_install/linux.py" --> "mirror_install/base.py"
+    "mirror_install/macos.py" --> "mirror_install/base.py"
     "mirror_install/windows.py" --> "mirror_install/base.py"
     "mirror_push.py" --> "mirror_serialize.py"
     "mouser_client.py" --> "base_client.py"
@@ -548,6 +552,8 @@ graph LR
     "tests/python/test_mfg_direct_import.py" --> "mfg_direct_import.py"
     "tests/python/test_mfg_direct_import.py" --> "vendors.py"
     "tests/python/test_mirror_install.py" --> "mirror_install/__init__.py"
+    "tests/python/test_mirror_install.py" --> "mirror_install/linux.py"
+    "tests/python/test_mirror_install.py" --> "mirror_install/macos.py"
     "tests/python/test_mirror_install.py" --> "mirror_install/windows.py"
     "tests/python/test_mirror_push.py" --> "mirror_push.py"
     "tests/python/test_mirror_serialize.py" --> "mirror_serialize.py"
@@ -1253,8 +1259,18 @@ graph LR
 
 ### mirror_install/base.py
 
-- **Imports:** `mirror_install/windows.py`
-- **Imported by:** `mirror_install/windows.py`
+- **Imports:** `mirror_install/linux.py`, `mirror_install/macos.py`, `mirror_install/windows.py`
+- **Imported by:** `mirror_install/linux.py`, `mirror_install/macos.py`, `mirror_install/windows.py`
+
+### mirror_install/linux.py
+
+- **Imports:** `mirror_install/base.py`
+- **Imported by:** `mirror_install/base.py`, `tests/python/test_mirror_install.py`
+
+### mirror_install/macos.py
+
+- **Imports:** `mirror_install/base.py`
+- **Imported by:** `mirror_install/base.py`, `tests/python/test_mirror_install.py`
 
 ### mirror_install/tailscale.py
 
@@ -2012,7 +2028,7 @@ graph LR
 
 ### tests/python/test_mirror_install.py
 
-- **Imports:** `mirror_install/__init__.py`, `mirror_install/windows.py`
+- **Imports:** `mirror_install/__init__.py`, `mirror_install/linux.py`, `mirror_install/macos.py`, `mirror_install/windows.py`
 - **Imported by:** —
 
 ### tests/python/test_mirror_push.py
