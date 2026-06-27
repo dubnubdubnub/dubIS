@@ -33,6 +33,7 @@ graph LR
     "domain/api_inventory.py" --> "domain/inventory.py"
     "domain/api_inventory.py" --> "domain/schema.py"
     "domain/api_inventory.py" --> "inventory_ops.py"
+    "domain/api_mirror.py" --> "csv_io.py"
     "domain/api_mirror.py" --> "inventory_mirror.py"
     "domain/api_mirror.py" --> "mirror_install/__init__.py"
     "domain/api_preferences.py" --> "csv_io.py"
@@ -635,7 +636,7 @@ graph LR
 ### csv_io.py
 
 - **Imports:** —
-- **Imported by:** `domain/api_fileio.py`, `domain/api_preferences.py`, `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `tests/python/test_csv_io.py`, `vendors.py`
+- **Imported by:** `domain/api_fileio.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `tests/python/test_csv_io.py`, `vendors.py`
 
 ### digikey_cdp.py
 
@@ -709,7 +710,7 @@ graph LR
 
 ### domain/api_mirror.py
 
-- **Imports:** `inventory_mirror.py`, `mirror_install/__init__.py`
+- **Imports:** `csv_io.py`, `inventory_mirror.py`, `mirror_install/__init__.py`
 - **Imported by:** `inventory_api.py`
 
 ### domain/api_preferences.py
