@@ -73,9 +73,14 @@ export function setupEvents(handlers) {
   });
 
   state.clearFilterBtn.addEventListener("click", function () {
-    if (state.activeDistributors.size === 0 && !state.searchInput.value) return;
+    var hasChips = !!(state.activePredicate && state.activePredicate.rules && state.activePredicate.rules.length > 0);
+    if (state.activeDistributors.size === 0 && !state.searchInput.value && !hasChips) return;
     state.activeDistributors.clear();
     state.searchInput.value = "";
+    // Clear the predicate synchronously so the single render below sees a clean state
+    state.activePredicate = null;
+    // Sync the chips bar UI synchronously (module is already loaded by this point)
+    import('./filter-chips-bar.js').then(function (m) { m.syncFilterChipsBar(state); });
     updateDistFilterUI();
     render();
   });

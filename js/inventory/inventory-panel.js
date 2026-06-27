@@ -11,6 +11,7 @@ import { renderNormalInventory } from './inv-render.js';
 import { renderBomComparison, renderRemainingInventory } from './inv-bom-mode.js';
 import { refreshImportMarkers } from './inv-import-markers.js';
 import { initSavedViewsUI } from './saved-views-ui.js';
+import { initFilterChipsBar } from './filter-chips-bar.js';
 
 // ── Init ──
 
@@ -28,6 +29,9 @@ export function init() {
   // ── Saved Views toolbar button ──
   initSavedViewsUI(state, render, updateDistFilterUI);
 
+  // ── Filter chips bar ──
+  initFilterChipsBar(state, render);
+
   if (window.ResizeObserver && state.body) {
     new ResizeObserver(() => refreshImportMarkers()).observe(state.body);
   }
@@ -40,7 +44,8 @@ function updateDistFilterUI() {
   for (var i = 0; i < btns.length; i++) {
     btns[i].classList.toggle("active", state.activeDistributors.has(btns[i].dataset.distributor));
   }
-  state.clearFilterBtn.disabled = (state.activeDistributors.size === 0 && !state.searchInput.value);
+  var hasChips = !!(state.activePredicate && state.activePredicate.rules && state.activePredicate.rules.length > 0);
+  state.clearFilterBtn.disabled = (state.activeDistributors.size === 0 && !state.searchInput.value && !hasChips);
 }
 
 function updateDistCounts() {
