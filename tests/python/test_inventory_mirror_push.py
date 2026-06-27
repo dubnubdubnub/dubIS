@@ -51,3 +51,12 @@ def test_missing_token_rejected(push_server):
     with pytest.raises(urllib.error.HTTPError) as e:
         _post(base + "/push", {"inventory": [], "pushed_at": "T"})
     assert e.value.code == 403
+    assert store.get() is None
+
+
+def test_non_push_path_returns_404(push_server):
+    store, base = push_server
+    with pytest.raises(urllib.error.HTTPError) as e:
+        _post(base + "/api/inventory", {"inventory": [{"lcsc": "C1"}], "pushed_at": "T", "token": "secret"})
+    assert e.value.code == 404
+    assert store.get() is None
