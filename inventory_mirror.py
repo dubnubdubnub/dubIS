@@ -203,7 +203,16 @@ def parse_args(argv=None):
     p.add_argument("--read-port", type=int, default=DEFAULT_READ_PORT)
     p.add_argument("--allowlist", default="")
     args = p.parse_args(argv)
-    args.allowlist = [s.strip() for s in args.allowlist.split(",") if s.strip()]
+    # Strip surrounding quotes from each entry: schtasks (Windows) bakes the
+    # --allowlist value into the task command with literal double-quotes that
+    # survive into argv (e.g. '"alice@x.com"'), which would never match the
+    # clean Tailscale-User-Login header. Strip quotes so matching works
+    # regardless of how the per-OS installer quotes the argument.
+    args.allowlist = [
+        tok for tok in (
+            s.strip().strip("\"'").strip() for s in args.allowlist.split(",")
+        ) if tok
+    ]
     return args
 
 
