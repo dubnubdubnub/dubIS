@@ -13,6 +13,8 @@ import json
 import logging
 import os
 import threading
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 logger = logging.getLogger("inventory_mirror")
 
@@ -55,3 +57,46 @@ class SnapshotStore:
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(snap, f)
         os.replace(tmp, self._path)
+
+
+def _now_iso():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _send_json(handler, status, data):
+    body = json.dumps(data).encode("utf-8")
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
+class PushHandler(BaseHTTPRequestHandler):
+    """Loopback-only push endpoint. Requires the shared token."""
+
+    def log_message(self, fmt, *args):
+        logger.info("push: " + fmt, *args)
+
+    def do_POST(self):
+        if self.path.split("?", 1)[0] != "/push":
+            _send_json(self, 404, {"ok": False, "error": "Not found"})
+            return
+        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            payload = json.loads(self.rfile.read(length) or b"{}")
+        except json.JSONDecodeError:
+            _send_json(self, 400, {"ok": False, "error": "Invalid JSON"})
+            return
+        if payload.get("token") != self.server.token:
+            _send_json(self, 403, {"ok": False, "error": "Forbidden"})
+            return
+        self.server.store.update(payload, received_at=_now_iso())
+        _send_json(self, 200, {"ok": True})
+
+
+def make_push_server(store, token, host="127.0.0.1", port=DEFAULT_PUSH_PORT):
+    server = HTTPServer((host, port), PushHandler)
+    server.store = store
+    server.token = token
+    return server
