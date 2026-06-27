@@ -42,6 +42,7 @@ const INVENTORY = [
 
 const STACK_OFFSET_X = 5;
 const STACK_OFFSET_Y = 3;
+const ICON_SIZE = 16; // .fan-icon edge length (mirrors ICON_SIZE_PX in favicon-stack.js)
 
 /** Index of the .fan-icon under a viewport CSS-px point, or -1. */
 function iconIndexAt(page, x, y) {
@@ -116,15 +117,22 @@ test('the older icon is actually painted in the bottom-right sliver', async ({ p
   const ref = frame.pixel(refX, refY);
   expect(ref, 'reference pixel out of frame').not.toBeNull();
 
-  // Scan the bottom-right sliver (the part of the oldest icon NOT covered by
-  // the ones in front) for any pixel that differs from the row background —
-  // i.e. the older icon's box/border is genuinely painted there.
+  // Scan the oldest icon's exposed RIGHT strip for any pixel differing from the
+  // row background — i.e. the older icon is genuinely painted there, peeking out.
+  //
+  // The strip is the rightmost STACK_OFFSET_X columns: newer icons are each offset
+  // STACK_OFFSET_X to the LEFT, so they never cover those columns — any paint there
+  // is unambiguously the oldest icon. We scan the strip's full ICON_SIZE height, NOT
+  // just the bottom STACK_OFFSET_Y rows: the bottom-right *corner* is a dead zone
+  // (border-radius rounds it away, and the .fan-icon background is near-identical to
+  // the row), so its only above-threshold signal is the emoji glyph — which renders
+  // ~4px higher on Windows than on Linux/macOS, making a corner-only scan flaky.
   const channelDelta = (a, b) => Math.max(
     Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]), Math.abs(a[3] - b[3]),
   );
   let painted = false;
   for (let dx = 1; dx <= STACK_OFFSET_X && !painted; dx++) {
-    for (let dy = 1; dy <= STACK_OFFSET_Y && !painted; dy++) {
+    for (let dy = 1; dy <= ICON_SIZE && !painted; dy++) {
       const [px, py] = frame.toImg(r.x + r.width - dx, r.y + r.height - dy);
       const p = frame.pixel(px, py);
       if (p && channelDelta(p, /** @type {number[]} */(ref)) > 24) painted = true;
