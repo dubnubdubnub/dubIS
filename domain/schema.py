@@ -223,3 +223,16 @@ class InventoryItem(TypedDict):
     ext_price: float
     primary_vendor_id: str
     po_history: list[str]
+
+
+class PartHistoryEntry(TypedDict):
+    """One adjustment entry as it crosses the Python → JS bridge.
+
+    Returned by get_part_history(); erased at runtime.
+    """
+
+    timestamp: str
+    kind: str
+    qty_delta: int
+    source: str
+    note: str
