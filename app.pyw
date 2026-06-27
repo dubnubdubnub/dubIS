@@ -101,6 +101,11 @@ def main():
         commit+close the cache. Both steps log rather than raise so a cleanup
         failure can't block process exit. Idempotent — safe to call repeatedly
         (e.g. closing then closed both fire)."""
+        # Mirror: push current inventory on shutdown (no-op unless enabled).
+        try:
+            api._mirror_ctl.push_event(api._load_organized(), dubis_running=False, block=True)
+        except Exception as exc:
+            logger.warning("Mirror shutdown push failed: %s", exc)
         try:
             stop_pnp_server(pnp_server)
         except Exception as exc:
@@ -151,6 +156,11 @@ def main():
         prefs = api.load_preferences()
         configured_port = prefs.get("pollApiPort")
         start_poll_server(api, port=configured_port if configured_port else POLL_PORT)
+        # Mirror: push current inventory on startup (no-op unless enabled).
+        try:
+            api._mirror_ctl.push_event(api._load_organized(), dubis_running=True)
+        except Exception as exc:
+            logger.warning("Mirror startup push failed: %s", exc)
         # Bench harness hook: once the grid is interactive, trigger a close so
         # scripts/bench-close.py can time the teardown. Mirrors the user clicking
         # X (destroy() raises FormClosing → on_closing, like the real path).

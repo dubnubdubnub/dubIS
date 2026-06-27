@@ -32,6 +32,8 @@ graph LR
     "domain/api_inventory.py" --> "domain/inventory.py"
     "domain/api_inventory.py" --> "domain/schema.py"
     "domain/api_inventory.py" --> "inventory_ops.py"
+    "domain/api_mirror.py" --> "inventory_mirror.py"
+    "domain/api_mirror.py" --> "mirror_install/__init__.py"
     "domain/api_preferences.py" --> "csv_io.py"
     "domain/api_preferences.py" --> "poll_api.py"
     "domain/api_pricing.py" --> "domain/pricing.py"
@@ -65,6 +67,7 @@ graph LR
     "inventory_api.py" --> "domain/api_fileio.py"
     "inventory_api.py" --> "domain/api_generic_parts.py"
     "inventory_api.py" --> "domain/api_inventory.py"
+    "inventory_api.py" --> "domain/api_mirror.py"
     "inventory_api.py" --> "domain/api_preferences.py"
     "inventory_api.py" --> "domain/api_pricing.py"
     "inventory_api.py" --> "domain/api_purchase_orders.py"
@@ -74,6 +77,8 @@ graph LR
     "inventory_api.py" --> "domain/inventory.py"
     "inventory_api.py" --> "domain/pricing.py"
     "inventory_api.py" --> "inventory_ops.py"
+    "inventory_api.py" --> "mirror_push.py"
+    "inventory_mirror.py" --> "mirror_serialize.py"
     "inventory_ops.py" --> "categorize.py"
     "inventory_ops.py" --> "csv_io.py"
     "inventory_ops.py" --> "domain/pricing.py"
@@ -364,6 +369,9 @@ graph LR
     "mfg_direct_import.py" --> "distributor_profiles.py"
     "mfg_direct_import.py" --> "inventory_api.py"
     "mfg_direct_import.py" --> "purchase_orders.py"
+    "mirror_install/base.py" --> "mirror_install/windows.py"
+    "mirror_install/windows.py" --> "mirror_install/base.py"
+    "mirror_push.py" --> "mirror_serialize.py"
     "mouser_client.py" --> "base_client.py"
     "mouser_client.py" --> "html_product_parser.py"
     "ocr_layout.py" --> "distributor_profiles.py"
@@ -376,6 +384,7 @@ graph LR
     "pnp_server.py" --> "scan_capture_page.py"
     "pnp_server.py" --> "scan_image.py"
     "pnp_server.py" --> "scan_sessions.py"
+    "poll_api.py" --> "mirror_serialize.py"
     "pololu_client.py" --> "base_client.py"
     "pololu_client.py" --> "html_product_parser.py"
     "purchase_orders.py" --> "csv_io.py"
@@ -470,7 +479,9 @@ graph LR
     "tests/python/domain/test_pricing.py" --> "cache_db.py"
     "tests/python/domain/test_pricing.py" --> "domain/pricing.py"
     "tests/python/helpers.py" --> "inventory_api.py"
+    "tests/python/test_api_mirror.py" --> "tests/python/helpers.py"
     "tests/python/test_api_surface.py" --> "inventory_api.py"
+    "tests/python/test_app_mirror_hooks.py" --> "tests/python/helpers.py"
     "tests/python/test_base_client.py" --> "base_client.py"
     "tests/python/test_base_client.py" --> "dubis_errors.py"
     "tests/python/test_cache_db.py" --> "cache_db.py"
@@ -522,11 +533,19 @@ graph LR
     "tests/python/test_inventory_api_pricing.py" --> "distributor_manager.py"
     "tests/python/test_inventory_api_pricing.py" --> "domain/pricing.py"
     "tests/python/test_inventory_api_pricing.py" --> "tests/python/helpers.py"
+    "tests/python/test_inventory_mirror_main.py" --> "inventory_mirror.py"
+    "tests/python/test_inventory_mirror_push.py" --> "inventory_mirror.py"
+    "tests/python/test_inventory_mirror_read.py" --> "inventory_mirror.py"
+    "tests/python/test_inventory_mirror_store.py" --> "inventory_mirror.py"
     "tests/python/test_inventory_ops.py" --> "inventory_ops.py"
     "tests/python/test_last_po_quantity.py" --> "inventory_ops.py"
     "tests/python/test_mfg_direct_import.py" --> "distributor_manager.py"
     "tests/python/test_mfg_direct_import.py" --> "mfg_direct_import.py"
     "tests/python/test_mfg_direct_import.py" --> "vendors.py"
+    "tests/python/test_mirror_install.py" --> "mirror_install/__init__.py"
+    "tests/python/test_mirror_install.py" --> "mirror_install/windows.py"
+    "tests/python/test_mirror_push.py" --> "mirror_push.py"
+    "tests/python/test_mirror_serialize.py" --> "mirror_serialize.py"
     "tests/python/test_normalizers.py" --> "digikey_client.py"
     "tests/python/test_normalizers.py" --> "distributor_fixtures.py"
     "tests/python/test_normalizers.py" --> "mouser_client.py"
@@ -677,6 +696,11 @@ graph LR
 - **Imports:** `domain/inventory.py`, `domain/schema.py`, `inventory_ops.py`
 - **Imported by:** `inventory_api.py`
 
+### domain/api_mirror.py
+
+- **Imports:** `inventory_mirror.py`, `mirror_install/__init__.py`
+- **Imported by:** `inventory_api.py`
+
 ### domain/api_preferences.py
 
 - **Imports:** `csv_io.py`, `poll_api.py`
@@ -739,8 +763,13 @@ graph LR
 
 ### inventory_api.py
 
-- **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_inventory.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`
+- **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_inventory.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`, `mirror_push.py`
 - **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_real_data.py`
+
+### inventory_mirror.py
+
+- **Imports:** `mirror_serialize.py`
+- **Imported by:** `domain/api_mirror.py`, `tests/python/test_inventory_mirror_main.py`, `tests/python/test_inventory_mirror_push.py`, `tests/python/test_inventory_mirror_read.py`, `tests/python/test_inventory_mirror_store.py`
 
 ### inventory_ops.py
 
@@ -1205,6 +1234,36 @@ graph LR
 - **Imports:** `csv_io.py`, `distributor_profiles.py`, `inventory_api.py`, `purchase_orders.py`
 - **Imported by:** `distributor_profiles.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `tests/python/test_mfg_direct_import.py`
 
+### mirror_install/__init__.py
+
+- **Imports:** —
+- **Imported by:** `domain/api_mirror.py`, `tests/python/test_mirror_install.py`
+
+### mirror_install/base.py
+
+- **Imports:** `mirror_install/windows.py`
+- **Imported by:** `mirror_install/windows.py`
+
+### mirror_install/tailscale.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### mirror_install/windows.py
+
+- **Imports:** `mirror_install/base.py`
+- **Imported by:** `mirror_install/base.py`, `tests/python/test_mirror_install.py`
+
+### mirror_push.py
+
+- **Imports:** `mirror_serialize.py`
+- **Imported by:** `inventory_api.py`, `tests/python/test_mirror_push.py`
+
+### mirror_serialize.py
+
+- **Imports:** —
+- **Imported by:** `inventory_mirror.py`, `mirror_push.py`, `poll_api.py`, `tests/python/test_mirror_serialize.py`
+
 ### mouser_client.py
 
 - **Imports:** `base_client.py`, `html_product_parser.py`
@@ -1242,7 +1301,7 @@ graph LR
 
 ### poll_api.py
 
-- **Imports:** —
+- **Imports:** `mirror_serialize.py`
 - **Imported by:** `domain/api_preferences.py`, `tests/python/test_poll_api.py`
 
 ### pololu_client.py
@@ -1697,11 +1756,21 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `inventory_api.py`
-- **Imported by:** `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`, `tests/python/test_poll_api.py`
+- **Imported by:** `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`, `tests/python/test_poll_api.py`
+
+### tests/python/test_api_mirror.py
+
+- **Imports:** `tests/python/helpers.py`
+- **Imported by:** —
 
 ### tests/python/test_api_surface.py
 
 - **Imports:** `inventory_api.py`
+- **Imported by:** —
+
+### tests/python/test_app_mirror_hooks.py
+
+- **Imports:** `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/test_base_client.py
@@ -1889,6 +1958,26 @@ graph LR
 - **Imports:** `distributor_manager.py`, `domain/pricing.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
+### tests/python/test_inventory_mirror_main.py
+
+- **Imports:** `inventory_mirror.py`
+- **Imported by:** —
+
+### tests/python/test_inventory_mirror_push.py
+
+- **Imports:** `inventory_mirror.py`
+- **Imported by:** —
+
+### tests/python/test_inventory_mirror_read.py
+
+- **Imports:** `inventory_mirror.py`
+- **Imported by:** —
+
+### tests/python/test_inventory_mirror_store.py
+
+- **Imports:** `inventory_mirror.py`
+- **Imported by:** —
+
 ### tests/python/test_inventory_ops.py
 
 - **Imports:** `inventory_ops.py`
@@ -1902,6 +1991,21 @@ graph LR
 ### tests/python/test_mfg_direct_import.py
 
 - **Imports:** `distributor_manager.py`, `mfg_direct_import.py`, `vendors.py`
+- **Imported by:** —
+
+### tests/python/test_mirror_install.py
+
+- **Imports:** `mirror_install/__init__.py`, `mirror_install/windows.py`
+- **Imported by:** —
+
+### tests/python/test_mirror_push.py
+
+- **Imports:** `mirror_push.py`
+- **Imported by:** —
+
+### tests/python/test_mirror_serialize.py
+
+- **Imports:** `mirror_serialize.py`
 - **Imported by:** —
 
 ### tests/python/test_normalizers.py

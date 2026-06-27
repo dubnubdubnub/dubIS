@@ -127,6 +127,9 @@ export function openPreferencesModal() {
   // Load Poll API status
   refreshPollApiStatus();
 
+  // Load Mirror status
+  refreshMirrorStatus();
+
   // Sync keyboard prefs controls
   syncKeyboardPrefs();
 
@@ -149,6 +152,28 @@ function refreshPollApiStatus() {
       portEl.value = (info && info.default_port) || "";
       statusEl.textContent = "Server not running";
       statusEl.style.color = "var(--color-red)";
+    }
+  });
+}
+
+function refreshMirrorStatus() {
+  var cb = document.getElementById("mirror-enabled");
+  var urlEl = document.getElementById("mirror-url");
+  var statusEl = document.getElementById("mirror-status");
+  if (!cb || !urlEl || !statusEl) return;
+  api("get_inventory_mirror_info").then(function (info) {
+    if (!info) return;
+    cb.checked = !!info.enabled;
+    urlEl.value = info.serve_url || "";
+    if (info.enabled && info.running) {
+      statusEl.textContent = "Running" + (info.serve_url ? " — " + info.serve_url : "");
+      statusEl.style.color = "var(--color-green)";
+    } else if (info.enabled) {
+      statusEl.textContent = "Enabled (daemon not running)";
+      statusEl.style.color = "var(--color-amber, var(--text-muted))";
+    } else {
+      statusEl.textContent = "Disabled";
+      statusEl.style.color = "var(--text-muted)";
     }
   });
 }
@@ -321,6 +346,36 @@ export function wireDigikeyButtons() {
     });
     pollPortInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") { e.preventDefault(); pollApplyBtn.click(); }
+    });
+  }
+
+  // Mirror controls
+  var mirrorCb = document.getElementById("mirror-enabled");
+  if (mirrorCb) {
+    mirrorCb.addEventListener("change", async () => {
+      mirrorCb.disabled = true;
+      try {
+        if (mirrorCb.checked) {
+          await api("enable_inventory_mirror");
+          showToast("Inventory mirror enabled");
+        } else {
+          await api("disable_inventory_mirror");
+          showToast("Inventory mirror disabled");
+        }
+      } catch (e) {
+        showToast("Mirror error: " + (e && e.message ? e.message : e));
+        AppLog.error("Mirror toggle failed: " + e);
+      } finally {
+        mirrorCb.disabled = false;
+        refreshMirrorStatus();
+      }
+    });
+  }
+  var mirrorCopy = document.getElementById("mirror-copy");
+  if (mirrorCopy) {
+    mirrorCopy.addEventListener("click", () => {
+      var u = document.getElementById("mirror-url");
+      if (u && u.value) { navigator.clipboard.writeText(u.value); showToast("Copied"); }
     });
   }
 }
