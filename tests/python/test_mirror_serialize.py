@@ -1,4 +1,4 @@
-from mirror_serialize import INVENTORY_CSV_FIELDS, inventory_to_csv, inventory_stats
+from mirror_serialize import INVENTORY_CSV_FIELDS, inventory_stats, inventory_to_csv
 
 
 def test_csv_has_header_and_rows():

@@ -10,11 +10,22 @@ import logging
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from mirror_serialize import INVENTORY_CSV_FIELDS, inventory_to_csv, inventory_stats
+from mirror_serialize import (
+    INVENTORY_CSV_FIELDS,
+    inventory_stats,
+    inventory_to_csv,
+)
 
 logger = logging.getLogger(__name__)
 
 POLL_PORT = 7891
+
+__all__ = [
+    "POLL_PORT",
+    "INVENTORY_CSV_FIELDS",
+    "start_poll_server",
+    "restart_poll_server",
+]
 
 # Back-compat aliases for existing call sites in this module.
 _inventory_to_csv = inventory_to_csv
