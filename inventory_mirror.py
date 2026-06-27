@@ -127,7 +127,13 @@ def _freshness(snap):
 
 class ReadHandler(BaseHTTPRequestHandler):
     """Loopback read endpoint. tailscale serve injects Tailscale-User-Login for
-    tailnet requests; those must be allow-listed. Header-absent = trusted loopback."""
+    tailnet requests; those must be allow-listed. Header-absent = trusted loopback.
+
+    SECURITY: header-absent requests are trusted as local loopback. This is only sound
+    when host stays a loopback address (127.0.0.1). Do NOT bind this server to 0.0.0.0
+    or a routable interface without a reverse proxy (e.g. `tailscale serve`) that always
+    injects the Tailscale-User-Login header.
+    """
 
     def log_message(self, fmt, *args):
         logger.info("read: " + fmt, *args)
@@ -175,6 +181,13 @@ class ReadHandler(BaseHTTPRequestHandler):
 
 
 def make_read_server(store, allowlist, host="127.0.0.1", port=DEFAULT_READ_PORT):
+    """Create a read server for the inventory mirror.
+
+    SECURITY: header-absent requests are trusted as local loopback. This is only sound
+    when host stays a loopback address (127.0.0.1). Do NOT bind this server to 0.0.0.0
+    or a routable interface without a reverse proxy (e.g. `tailscale serve`) that always
+    injects the Tailscale-User-Login header.
+    """
     server = HTTPServer((host, port), ReadHandler)
     server.store = store
     server.allowlist = list(allowlist or [])
