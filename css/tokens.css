@@ -94,4 +94,26 @@
   --fetch-tiers-mt:         10px;  /* Space above the tiers panel */
   --fetch-tier-pad-y:        3px;  /* Vertical padding inside a tier chip */
   --fetch-tier-pad-x:       10px;  /* Horizontal padding inside a tier chip */
+
+  /* ── Command palette (css/components/command-palette.css) ──────────────────
+     Consumed by: css/components/command-palette.css */
+  --command-palette-w:     min(560px, 90vw);  /* responsive dialog width */
+
+  /* ── Saved views (css/components/saved-views.css) ───────────────────────────
+     "Views ▾" toolbar button and its pop-up menu.
+     Consumed by: css/components/saved-views.css */
+  --saved-view-btn-h:              26px;  /* saved-views toolbar button height */
+  --saved-view-btn-pad-x:           8px;  /* horizontal padding inside the Views button */
+  --saved-view-item-gap:            4px;  /* gap between inline flex items (btn + menu rows) */
+  --saved-view-active-name-max-w:  80px;  /* max-width of the active view name label */
+  --saved-view-menu-min-w:        180px;  /* dropdown menu min-width */
+  --saved-view-menu-max-w:        260px;  /* dropdown menu max-width */
+  --saved-view-menu-pad-y:          4px;  /* vertical padding of the menu container */
+  --saved-view-section-pad-x:      10px;  /* horizontal padding in section headers and item rows */
+  --saved-view-section-pad-top:     4px;  /* top padding in the section header */
+  --saved-view-divider-margin-y:    4px;  /* vertical margin around the section divider */
+  --saved-view-row-pad-y:           5px;  /* vertical padding in menu item rows */
+  --saved-view-delete-btn-size:    18px;  /* delete button width and height */
+  --saved-view-save-item-gap:       6px;  /* gap between icon and label in the save-current row */
+  --saved-view-empty-pad-y:         6px;  /* vertical padding in the empty-state message */
 }

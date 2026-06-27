@@ -16,7 +16,7 @@
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
-  width: min(560px, 90vw);
+  width: var(--command-palette-w);
   max-height: 60vh;
   display: flex;
   flex-direction: column;
