@@ -11,7 +11,9 @@
     "description": "nan",
     "qty": 30,
     "unit_price": 0.2856,
-    "ext_price": 8.57
+    "ext_price": 8.57,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > High Speed",
@@ -25,7 +27,9 @@
     "description": "Connector Receptacle IPEX Male Pin 50Ω Surface Mount",
     "qty": 100,
     "unit_price": 0.0474,
-    "ext_price": 4.74
+    "ext_price": 4.74,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > High Speed",
@@ -39,7 +43,9 @@
     "description": "USB-C (USB TYPE-C) Receptacle Connector 24 Position Surface Mount",
     "qty": 2,
     "unit_price": 0.5934,
-    "ext_price": 5.93
+    "ext_price": 5.93,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > High Speed",
@@ -53,7 +59,9 @@
     "description": "USB-C (USB TYPE-C) Receptacle Connector 16 Position Surface Mount, Right Angle",
     "qty": 1000,
     "unit_price": 0.0921,
-    "ext_price": 92.1
+    "ext_price": 92.1,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > High Speed",
@@ -67,7 +75,9 @@
     "description": "10 Position Board to Board Connector Surface Mount,P=0.35mm Gold",
     "qty": 150,
     "unit_price": 0.12,
-    "ext_price": 18.66
+    "ext_price": 18.66,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > High Speed",
@@ -81,7 +91,9 @@
     "description": "10 Position Board to Board Connector Surface Mount,P=0.35mm Gold",
     "qty": 150,
     "unit_price": 0.19,
-    "ext_price": 28.49
+    "ext_price": 28.49,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > High Speed",
@@ -95,7 +107,9 @@
     "description": "USB, DVI, HDMI Connector Assemblies RoHS",
     "qty": 30,
     "unit_price": 2.63,
-    "ext_price": 79.03
+    "ext_price": 79.03,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > High Speed",
@@ -109,7 +123,9 @@
     "description": "USB-C (USB TYPE-C) Receptacle Connector 24 Position Clamp Plate",
     "qty": 30,
     "unit_price": 1.12,
-    "ext_price": 33.61
+    "ext_price": 33.61,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > SMD",
@@ -123,7 +139,9 @@
     "description": "Connector Header 5 position 1mm Pitch 1A Surface Mount, Right Angle -25℃~+85℃",
     "qty": 50,
     "unit_price": 0.1986,
-    "ext_price": 9.93
+    "ext_price": 9.93,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > SMD",
@@ -137,7 +155,9 @@
     "description": "Connector Header 6 position 1mm Pitch 1A Surface Mount, Right Angle -25℃~+85℃",
     "qty": 50,
     "unit_price": 0.198,
-    "ext_price": 9.9
+    "ext_price": 9.9,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > SMD",
@@ -151,7 +171,9 @@
     "description": "Connector Header 4 position 1mm Pitch 1A Surface Mount, Right Angle -25℃~+85℃",
     "qty": 50,
     "unit_price": 0.1448,
-    "ext_price": 7.24
+    "ext_price": 7.24,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > SMD",
@@ -165,7 +187,9 @@
     "description": "Connector Header 4 position 1mm Pitch Surface Mount,Vertical",
     "qty": 1550,
     "unit_price": 0.0602,
-    "ext_price": 3.01
+    "ext_price": 3.01,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > SMD",
@@ -179,7 +203,9 @@
     "description": "Connector Header 2 position 1mm Pitch Surface Mount,Vertical",
     "qty": 1550,
     "unit_price": 0.0599,
-    "ext_price": 3.0
+    "ext_price": 3.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > SMD",
@@ -193,7 +219,9 @@
     "description": "Connector Header 3 position 1mm Pitch Surface Mount,Vertical",
     "qty": 1550,
     "unit_price": 0.0692,
-    "ext_price": 3.46
+    "ext_price": 3.46,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > SMD",
@@ -207,7 +235,9 @@
     "description": "Connector Header 5 position 1mm Pitch Surface Mount,Vertical",
     "qty": 50,
     "unit_price": 0.0656,
-    "ext_price": 3.28
+    "ext_price": 3.28,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > SMD",
@@ -221,7 +251,9 @@
     "description": "Connector Header 2 position 1mm Pitch Surface Mount, Right Angle",
     "qty": 2000,
     "unit_price": 0.0298,
-    "ext_price": 59.6
+    "ext_price": 59.6,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > SMD",
@@ -235,7 +267,9 @@
     "description": "Connector Header 3 position 1mm Pitch Surface Mount, Right Angle",
     "qty": 2000,
     "unit_price": 0.0374,
-    "ext_price": 74.8
+    "ext_price": 74.8,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > SMD",
@@ -249,7 +283,9 @@
     "description": "4P 1x4P Tin -25℃~+85℃ 1mm 50V 4 1A 1 Surface Mount, Right Angle SMD, P=1mm,Surface Mount,Right Angle Headers, Male Pins RoHS",
     "qty": 2000,
     "unit_price": 0.0353,
-    "ext_price": 70.6
+    "ext_price": 70.6,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > SMD",
@@ -263,7 +299,9 @@
     "description": "Connector Header 5 position 1mm Pitch Surface Mount, Right Angle",
     "qty": 2000,
     "unit_price": 0.0473,
-    "ext_price": 94.6
+    "ext_price": 94.6,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > SMD",
@@ -277,7 +315,9 @@
     "description": "Connector Header 6 position 1mm Pitch Surface Mount, Right Angle",
     "qty": 2000,
     "unit_price": 0.0524,
-    "ext_price": 104.8
+    "ext_price": 104.8,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > Through Hole",
@@ -291,7 +331,9 @@
     "description": "Banana and Tip Connector Adapters RoHS",
     "qty": 30,
     "unit_price": 0.4163,
-    "ext_price": 12.49
+    "ext_price": 12.49,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > Through Hole",
@@ -305,7 +347,9 @@
     "description": "Banana and Tip Connector Adapters",
     "qty": 30,
     "unit_price": 0.4411,
-    "ext_price": 13.23
+    "ext_price": 13.23,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > Through Hole",
@@ -319,7 +363,9 @@
     "description": "NV 1 -40℃~+105℃ 2P 5mm 2 10A 250V 1x2P Through Hole,P=5mm Headers, Male Pins RoHS",
     "qty": 20,
     "unit_price": 0.0994,
-    "ext_price": 1.99
+    "ext_price": 1.99,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > Through Hole",
@@ -333,7 +379,9 @@
     "description": "Connector Terminal VH NV VB Tin 18~22 AWG Crimp",
     "qty": 200,
     "unit_price": 0.0213,
-    "ext_price": 4.26
+    "ext_price": 4.26,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > Through Hole",
@@ -347,7 +395,9 @@
     "description": "5mm NV 1 2 Locking -40℃~+105℃ P=5mm Rectangular Connector Housings RoHS",
     "qty": 20,
     "unit_price": 0.0305,
-    "ext_price": 0.61
+    "ext_price": 0.61,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > Through Hole",
@@ -361,7 +411,9 @@
     "description": "NV 1 -40℃~+105℃ 4P 5mm 4 10A 250V 1x4P Through Hole,P=5mm Headers, Male Pins RoHS",
     "qty": 20,
     "unit_price": 0.2011,
-    "ext_price": 4.02
+    "ext_price": 4.02,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > Through Hole",
@@ -375,7 +427,9 @@
     "description": "5mm NV 1 4 Locking -40℃~+105℃ P=5mm Rectangular Connector Housings RoHS",
     "qty": 20,
     "unit_price": 0.1122,
-    "ext_price": 2.24
+    "ext_price": 2.24,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > Through Hole",
@@ -389,7 +443,9 @@
     "description": "Banana and Tip Connector Adapters RoHS",
     "qty": 30,
     "unit_price": 0.2883,
-    "ext_price": 8.65
+    "ext_price": 8.65,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > Through Hole",
@@ -403,7 +459,9 @@
     "description": "Banana and Tip Connector Adapters RoHS",
     "qty": 30,
     "unit_price": 0.2699,
-    "ext_price": 8.1
+    "ext_price": 8.1,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > Through Hole",
@@ -417,7 +475,9 @@
     "description": "Banana and Tip Connector Adapters",
     "qty": 50,
     "unit_price": 0.1937,
-    "ext_price": 9.69
+    "ext_price": 9.69,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Connectors > Through Hole",
@@ -431,7 +491,9 @@
     "description": "Banana and Tip Connector Adapters",
     "qty": 50,
     "unit_price": 0.1984,
-    "ext_price": 9.92
+    "ext_price": 9.92,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Switches",
@@ -445,7 +507,9 @@
     "description": "Rectangle button SPST Tactile Switches",
     "qty": 50,
     "unit_price": 0.0123,
-    "ext_price": 0.62
+    "ext_price": 0.62,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Switches",
@@ -459,7 +523,9 @@
     "description": "Slide Switch SPDT 6A @ 120V Through Hole Rectangular Columnar 13mm",
     "qty": 10,
     "unit_price": 0.3647,
-    "ext_price": 3.65
+    "ext_price": 3.65,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Switches",
@@ -473,7 +539,9 @@
     "description": "Tactile Switch SPST 1.59N 1.2mm SMD (SMT) Tab 3mm x 2.5mm Surface Mount, Right Angle",
     "qty": 2,
     "unit_price": 0.4574,
-    "ext_price": 4.57
+    "ext_price": 4.57,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Switches",
@@ -487,7 +555,9 @@
     "description": "Tactile Switch SPST 2.6N Surface Mount",
     "qty": 4000,
     "unit_price": 0.0064,
-    "ext_price": 25.6
+    "ext_price": 25.6,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Switches",
@@ -501,7 +571,9 @@
     "description": "5,000 cycles 2 12V 3000gf SMD,14.5x5.9mm Pushbutton Switches RoHS",
     "qty": 3000,
     "unit_price": 0.0257,
-    "ext_price": 77.1
+    "ext_price": 77.1,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Switches",
@@ -515,7 +587,9 @@
     "description": "Tactile Switch 120gf 3.5mm 4.8mm x 2mm Surface Mount, Right Angle",
     "qty": 200,
     "unit_price": 0.02,
-    "ext_price": 3.86
+    "ext_price": 3.86,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -529,7 +603,9 @@
     "description": "0Ω 62.5mW 50V Thick Film Resistor ±1% 0402 Chip Resistor - Surface Mount RoHS",
     "qty": 10000,
     "unit_price": 0.0003,
-    "ext_price": 3.0
+    "ext_price": 3.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -543,7 +619,9 @@
     "description": "0Ω ±1% 100mW 0603 Thick Film Resistor",
     "qty": 9992,
     "unit_price": 0.0006,
-    "ext_price": 6.0
+    "ext_price": 6.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -557,7 +635,9 @@
     "description": "10mΩ 1W 200V Thick Film Resistor ±1500ppm/℃ ±1% 2512 Chip Resistor - Surface Mount RoHS",
     "qty": 220,
     "unit_price": 0.0311,
-    "ext_price": 6.98
+    "ext_price": 6.98,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -571,7 +651,9 @@
     "description": "20mΩ ±1% 1W",
     "qty": 84,
     "unit_price": 0.0284,
-    "ext_price": 2.84
+    "ext_price": 2.84,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -585,7 +667,9 @@
     "description": "1Ω ±1% 100mW 0603 Thick Film Resistor",
     "qty": 4992,
     "unit_price": 0.001,
-    "ext_price": 5.0
+    "ext_price": 5.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -599,7 +683,9 @@
     "description": "10Ω ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 10000,
     "unit_price": 0.0005,
-    "ext_price": 5.0
+    "ext_price": 5.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -613,7 +699,9 @@
     "description": "30Ω@100MHz 1 Line Ferrite Bead 0603 5A 10mΩ",
     "qty": 4000,
     "unit_price": 0.01,
-    "ext_price": 49.2
+    "ext_price": 49.2,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -627,7 +715,9 @@
     "description": "49.9Ω ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 10000,
     "unit_price": 0.0004,
-    "ext_price": 4.0
+    "ext_price": 4.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -641,7 +731,9 @@
     "description": "100Ω ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 10000,
     "unit_price": 0.0004,
-    "ext_price": 4.0
+    "ext_price": 4.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -655,7 +747,9 @@
     "description": "120Ω ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 9992,
     "unit_price": 0.0004,
-    "ext_price": 4.0
+    "ext_price": 4.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -669,7 +763,9 @@
     "description": "150Ω ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 10000,
     "unit_price": 0.0004,
-    "ext_price": 4.0
+    "ext_price": 4.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -683,7 +779,9 @@
     "description": "150Ω ±1% 100mW 0603 Thick Film Resistor",
     "qty": 5000,
     "unit_price": 0.0007,
-    "ext_price": 3.5
+    "ext_price": 3.5,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -697,7 +795,9 @@
     "description": "330Ω ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 10000,
     "unit_price": 0.0004,
-    "ext_price": 4.0
+    "ext_price": 4.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -711,7 +811,9 @@
     "description": "1kΩ ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 100,
     "unit_price": 0.0006,
-    "ext_price": 0.06
+    "ext_price": 0.06,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -725,7 +827,9 @@
     "description": "3.3kΩ ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 992,
     "unit_price": 0.0005,
-    "ext_price": 0.5
+    "ext_price": 0.5,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -739,7 +843,9 @@
     "description": "4.7kΩ ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 100,
     "unit_price": 0.0006,
-    "ext_price": 0.06
+    "ext_price": 0.06,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -753,7 +859,9 @@
     "description": "5.1kΩ ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 9960,
     "unit_price": 0.0003,
-    "ext_price": 3.0
+    "ext_price": 3.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -767,7 +875,9 @@
     "description": "10kΩ ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 9976,
     "unit_price": 0.0004,
-    "ext_price": 4.0
+    "ext_price": 4.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -781,7 +891,9 @@
     "description": "12kΩ ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 10000,
     "unit_price": 0.0005,
-    "ext_price": 5.0
+    "ext_price": 5.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -795,7 +907,9 @@
     "description": "15kΩ ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 9992,
     "unit_price": 0.0004,
-    "ext_price": 4.0
+    "ext_price": 4.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -809,7 +923,9 @@
     "description": "22kΩ ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 10000,
     "unit_price": 0.0007,
-    "ext_price": 7.0
+    "ext_price": 7.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -823,7 +939,9 @@
     "description": "49.9kΩ ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 100,
     "unit_price": 0.0006,
-    "ext_price": 0.06
+    "ext_price": 0.06,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -837,7 +955,9 @@
     "description": "51kΩ ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 992,
     "unit_price": 0.0005,
-    "ext_price": 0.5
+    "ext_price": 0.5,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -851,7 +971,9 @@
     "description": "100kΩ ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 10000,
     "unit_price": 0.0004,
-    "ext_price": 4.0
+    "ext_price": 4.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -865,7 +987,9 @@
     "description": "200kΩ ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 10000,
     "unit_price": 0.0006,
-    "ext_price": 6.0
+    "ext_price": 6.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -879,7 +1003,9 @@
     "description": "300kΩ ±1% 62.5mW 0402 Thick Film Resistor",
     "qty": 100,
     "unit_price": 0.0006,
-    "ext_price": 0.06
+    "ext_price": 0.06,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -893,7 +1019,9 @@
     "description": "RES 1.5K OHM 1% 1/20W 0201",
     "qty": 10000,
     "unit_price": 0.00326,
-    "ext_price": 32.6
+    "ext_price": 32.6,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Chip Resistors",
@@ -907,7 +1035,9 @@
     "description": "RES 1.5K OHM 1% 1/16W 0402",
     "qty": 10000,
     "unit_price": 0.00127,
-    "ext_price": 12.7
+    "ext_price": 12.7,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Variable / Trimmers",
@@ -921,7 +1051,9 @@
     "description": "TRIMMER 10 OHM 0.75W PC PIN SIDE",
     "qty": 48,
     "unit_price": 1.34,
-    "ext_price": 64.32
+    "ext_price": 64.32,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Resistors > Variable / Trimmers",
@@ -935,7 +1067,9 @@
     "description": "TRIMMER 20 OHM 1W PC PIN SIDE",
     "qty": 16,
     "unit_price": 9.31,
-    "ext_price": 148.96
+    "ext_price": 148.96,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -949,7 +1083,9 @@
     "description": "10pF ±5% 50V Ceramic Capacitor C0G 0402",
     "qty": 1500,
     "unit_price": 0.0031,
-    "ext_price": 4.65
+    "ext_price": 4.65,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -963,7 +1099,9 @@
     "description": "20pF ±5% 50V Ceramic Capacitor C0G 0402",
     "qty": 9984,
     "unit_price": 0.0006,
-    "ext_price": 6.0
+    "ext_price": 6.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -977,7 +1115,9 @@
     "description": "22pF ±5% 50V Ceramic Capacitor C0G 0402",
     "qty": 10000,
     "unit_price": 0.0008,
-    "ext_price": 8.0
+    "ext_price": 8.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -991,7 +1131,9 @@
     "description": "47pF ±5% 50V Ceramic Capacitor C0G 0402",
     "qty": 9984,
     "unit_price": 0.0006,
-    "ext_price": 6.0
+    "ext_price": 6.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1005,7 +1147,9 @@
     "description": "100pF ±1% 50V Ceramic Capacitor NP0 0402",
     "qty": 10000,
     "unit_price": 0.0018,
-    "ext_price": 18.0
+    "ext_price": 18.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1019,7 +1163,9 @@
     "description": "1nF ±5% 50V Ceramic Capacitor C0G 0402",
     "qty": 12000,
     "unit_price": 0.0026,
-    "ext_price": 31.0
+    "ext_price": 31.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1033,7 +1179,9 @@
     "description": "4.7nF ±10% 50V Ceramic Capacitor X7R 0402",
     "qty": 10000,
     "unit_price": 0.0007,
-    "ext_price": 7.0
+    "ext_price": 7.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1047,7 +1195,9 @@
     "description": "10nF ±5% 50V Ceramic Capacitor X7R 0402",
     "qty": 10000,
     "unit_price": 0.001,
-    "ext_price": 10.0
+    "ext_price": 10.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1061,7 +1211,9 @@
     "description": "100nF ±10% 50V Ceramic Capacitor X7R 0402",
     "qty": 420,
     "unit_price": 0.0036,
-    "ext_price": 1.8
+    "ext_price": 1.8,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1075,7 +1227,9 @@
     "description": "100nF ±10% 50V Ceramic Capacitor X5R 0402",
     "qty": 10000,
     "unit_price": 0.0054,
-    "ext_price": 54.5
+    "ext_price": 54.5,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1089,7 +1243,9 @@
     "description": "220nF ±10% 50V Ceramic Capacitor X5R 0402",
     "qty": 10000,
     "unit_price": 0.0084,
-    "ext_price": 84.0
+    "ext_price": 84.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1103,7 +1259,9 @@
     "description": "1uF ±10% 50V Ceramic Capacitor X5R 0402",
     "qty": 10000,
     "unit_price": 0.0175,
-    "ext_price": 175.0
+    "ext_price": 175.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1117,7 +1275,9 @@
     "description": "4.7uF ±10% 35V Ceramic Capacitor X5R 0603",
     "qty": 4000,
     "unit_price": 0.0229,
-    "ext_price": 91.6
+    "ext_price": 91.6,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1131,7 +1291,9 @@
     "description": "4.7uF ±20% 25V Ceramic Capacitor X5R 0402",
     "qty": 10000,
     "unit_price": 0.01,
-    "ext_price": 63.0
+    "ext_price": 63.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1145,7 +1307,9 @@
     "description": "10uF ±10% 25V Ceramic Capacitor X5R 0805",
     "qty": 2000,
     "unit_price": 0.0065,
-    "ext_price": 13.0
+    "ext_price": 13.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1159,7 +1323,9 @@
     "description": "10uF ±10% 50V Ceramic Capacitor X5R 0805",
     "qty": 2920,
     "unit_price": 0.041,
-    "ext_price": 119.7
+    "ext_price": 119.7,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1173,7 +1339,9 @@
     "description": "10uF ±20% 10V Ceramic Capacitor X5R 0402",
     "qty": 10000,
     "unit_price": 0.01,
-    "ext_price": 52.0
+    "ext_price": 52.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1187,7 +1355,9 @@
     "description": "22uF ±10% 25V Ceramic Capacitor X5R 1206",
     "qty": 100,
     "unit_price": 0.0364,
-    "ext_price": 3.64
+    "ext_price": 3.64,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1201,7 +1371,9 @@
     "description": "22uF ±20% 10V Ceramic Capacitor X5R 0603",
     "qty": 3000,
     "unit_price": 0.0082,
-    "ext_price": 24.6
+    "ext_price": 24.6,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > MLCC",
@@ -1215,7 +1387,9 @@
     "description": "CAP CER 0.1UF 25V X5R 0402",
     "qty": 10000,
     "unit_price": 0.00306,
-    "ext_price": 30.6
+    "ext_price": 30.6,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > Aluminum Polymer",
@@ -1229,7 +1403,9 @@
     "description": "100uF ±20% 35V Aluminum Electrolytic Capacitors 2000hrs@105℃",
     "qty": 100,
     "unit_price": 0.0342,
-    "ext_price": 3.42
+    "ext_price": 3.42,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Capacitors > Tantalum",
@@ -1243,7 +1419,9 @@
     "description": "10uF ±10% 10V Tantalum Capacitors CASE-P-2012-12(mm)",
     "qty": 500,
     "unit_price": 0.08,
-    "ext_price": 37.55
+    "ext_price": 37.55,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Inductors",
@@ -1257,7 +1435,9 @@
     "description": "1.15A 2.2uH 1.85A 165mΩ ±20% SMD Fixed Inductors RoHS",
     "qty": 200,
     "unit_price": 0.04,
-    "ext_price": 8.02
+    "ext_price": 8.02,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Inductors",
@@ -1271,7 +1451,9 @@
     "description": "170mA 2.2uH 1.8Ω Unshielded Inductor ±20% 0402 Fixed Inductors RoHS",
     "qty": 150,
     "unit_price": 0.14,
-    "ext_price": 21.09
+    "ext_price": 21.09,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Inductors",
@@ -1285,7 +1467,9 @@
     "description": "860mA 33uH 1.4A 650mΩ ±20% SMD,4x4mm Fixed Inductors RoHS",
     "qty": 92,
     "unit_price": 0.086,
-    "ext_price": 8.6
+    "ext_price": 8.6,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Passives - Inductors",
@@ -1299,7 +1483,9 @@
     "description": "350mA 47uH 1.34Ω Magnetic Shielded Inductor ±20% SMD,3x3mm Fixed Inductors RoHS",
     "qty": 100,
     "unit_price": 0.043,
-    "ext_price": 4.3
+    "ext_price": 4.3,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "LEDs",
@@ -1313,7 +1499,9 @@
     "description": "Red 645nm LED Indication - Discrete 2.4V 0603",
     "qty": 4084,
     "unit_price": 0.0037,
-    "ext_price": 15.38
+    "ext_price": 15.38,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "LEDs",
@@ -1327,7 +1515,9 @@
     "description": "White LED Indication - Discrete 2.6V~3.1V 0603",
     "qty": 4092,
     "unit_price": 0.0057,
-    "ext_price": 23.85
+    "ext_price": 23.85,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "LEDs",
@@ -1341,7 +1531,9 @@
     "description": "Emerald Green 525nm LED Indication - Discrete 3.1V 0603",
     "qty": 100,
     "unit_price": 0.0115,
-    "ext_price": 1.15
+    "ext_price": 1.15,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "LEDs",
@@ -1355,7 +1547,9 @@
     "description": "SMD LED Addressable, Specialty RoHS",
     "qty": 2000,
     "unit_price": 0.0528,
-    "ext_price": 105.6
+    "ext_price": 105.6,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "LEDs",
@@ -1369,7 +1563,9 @@
     "description": "Infrared (IR) Emitter 850nm~858nm 1.4V~1.6V 30mA 2mW/sr 120° Surface Mount 1206",
     "qty": 3000,
     "unit_price": 0.0213,
-    "ext_price": 63.9
+    "ext_price": 63.9,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Crystals & Oscillators",
@@ -1383,7 +1579,9 @@
     "description": "Crystal 12MHz ±10ppm 20pF SMD3225-4P",
     "qty": 92,
     "unit_price": 0.0535,
-    "ext_price": 5.35
+    "ext_price": 5.35,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Crystals & Oscillators",
@@ -1397,7 +1595,9 @@
     "description": "Crystal 16MHz ±10ppm 8pF SMD2520-4P",
     "qty": 150,
     "unit_price": 0.09,
-    "ext_price": 12.86
+    "ext_price": 12.86,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Crystals & Oscillators",
@@ -1411,7 +1611,9 @@
     "description": "±20ppm 8pF ±10ppm SMD1612-4P Crystals RoHS",
     "qty": 100,
     "unit_price": 0.15,
-    "ext_price": 14.64
+    "ext_price": 14.64,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Diodes",
@@ -1425,7 +1627,9 @@
     "description": "Diode 100V 2A Surface Mount SMA(DO-214AC)",
     "qty": 42,
     "unit_price": 0.0274,
-    "ext_price": 1.37
+    "ext_price": 1.37,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Diodes",
@@ -1439,7 +1643,9 @@
     "description": "Diode Independent 100V 150mA Surface Mount SOD-323",
     "qty": 534,
     "unit_price": 0.007,
-    "ext_price": 3.94
+    "ext_price": 3.94,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Diodes",
@@ -1453,7 +1659,9 @@
     "description": "Zener Diode Independent 30V 350mW Surface Mount SOD-123",
     "qty": 34,
     "unit_price": 0.015,
-    "ext_price": 0.75
+    "ext_price": 0.75,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Diodes",
@@ -1467,7 +1675,9 @@
     "description": "Zener Diode Independent 30V 200mW Surface Mount SOD-323",
     "qty": 500,
     "unit_price": 0.0118,
-    "ext_price": 5.9
+    "ext_price": 5.9,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Diodes",
@@ -1481,7 +1691,9 @@
     "description": "Zener Diode Independent 5.1V 200mW Surface Mount SOD-323",
     "qty": 500,
     "unit_price": 0.0149,
-    "ext_price": 7.45
+    "ext_price": 7.45,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Diodes",
@@ -1495,7 +1707,9 @@
     "description": "Diode 20V 1A Surface Mount SOD-323",
     "qty": 3000,
     "unit_price": 0.02,
-    "ext_price": 51.0
+    "ext_price": 51.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Diodes",
@@ -1509,7 +1723,9 @@
     "description": "TVS DIODE 5.5VWM 8VC SOT3",
     "qty": 500,
     "unit_price": 0.29,
-    "ext_price": 147.5
+    "ext_price": 147.5,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Discrete Semiconductors",
@@ -1523,7 +1739,9 @@
     "description": "Bipolar (BJT) Transistor NPN 160V 600mA 300MHz 300mW Surface Mount SOT-23",
     "qty": 42,
     "unit_price": 0.0124,
-    "ext_price": 0.62
+    "ext_price": 0.62,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Discrete Semiconductors > MOSFETs",
@@ -1537,7 +1755,9 @@
     "description": "30V 4A Surface Mount SOT-23",
     "qty": 100,
     "unit_price": 0.0448,
-    "ext_price": 4.48
+    "ext_price": 4.48,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Discrete Semiconductors > MOSFETs",
@@ -1551,7 +1771,9 @@
     "description": "MOSFET 2P-CH 20V 0.65A SOT563",
     "qty": 100,
     "unit_price": 0.47,
-    "ext_price": 46.75
+    "ext_price": 46.75,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Microcontrollers",
@@ -1565,7 +1787,9 @@
     "description": "QFN-28(4X4) Microcontrollers RoHS",
     "qty": 30,
     "unit_price": 0.3716,
-    "ext_price": 11.15
+    "ext_price": 11.15,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Microcontrollers",
@@ -1579,7 +1803,9 @@
     "description": "ARM Cortex-M4F 32 Bit 170MHz 42 UFQFPN-48(7x7) Microcontrollers RoHS",
     "qty": 2,
     "unit_price": 2.021,
-    "ext_price": 20.21
+    "ext_price": 20.21,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Microcontrollers",
@@ -1593,7 +1819,9 @@
     "description": "ARM Cortex-M4 32 Bit 170MHz 52 LQFP-64(10x10) Microcontrollers RoHS",
     "qty": 20,
     "unit_price": 3.0967,
-    "ext_price": 61.93
+    "ext_price": 61.93,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Microcontrollers",
@@ -1607,7 +1835,9 @@
     "description": "ARM Cortex-M4 32 Bit 168MHz 51 LQFP-64(10x10) Microcontrollers RoHS",
     "qty": 12,
     "unit_price": 2.7243,
-    "ext_price": 32.69
+    "ext_price": 32.69,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Microcontrollers",
@@ -1621,7 +1851,9 @@
     "description": "IC MCU 32BIT 256KB FLSH 48UFQFPN",
     "qty": 30,
     "unit_price": 4.06,
-    "ext_price": 121.78
+    "ext_price": 121.78,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Power / Voltage Regulators > Load Switches",
@@ -1635,7 +1867,9 @@
     "description": "IC PWR SWITCH 1:1 20VQFN",
     "qty": 32,
     "unit_price": 2.73,
-    "ext_price": 87.36
+    "ext_price": 87.36,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Power / Voltage Regulators > Switchers",
@@ -1649,7 +1883,9 @@
     "description": "Buck-Boost 200kHz~2.2MHz Adjustable 800mV~22V 8A VQFN-HR-21(3x5) Voltage Regulators - DC DC Switching Regulators RoHS",
     "qty": 5,
     "unit_price": 3.2735,
-    "ext_price": 16.37
+    "ext_price": 16.37,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Power / Voltage Regulators > Switchers",
@@ -1663,7 +1899,9 @@
     "description": "465kHz~535kHz Buck Fixed 3.3V 300mA TDFN-8(2x2) Voltage Regulators - DC DC Switching Regulators RoHS",
     "qty": 1,
     "unit_price": 1.1149,
-    "ext_price": 11.15
+    "ext_price": 11.15,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Power / Voltage Regulators > Switchers",
@@ -1677,7 +1915,9 @@
     "description": "IC REG BUCK 1.2V/3.3V DL 10LFCSP",
     "qty": 32,
     "unit_price": 3.87,
-    "ext_price": 123.87
+    "ext_price": 123.87,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Power / Voltage Regulators > LDOs",
@@ -1691,7 +1931,9 @@
     "description": "Linear Voltage Regulator IC Positive Fixed 1 Output 100mA SOT-89-3",
     "qty": 50,
     "unit_price": 0.0918,
-    "ext_price": 4.59
+    "ext_price": 4.59,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Power / Voltage Regulators > LDOs",
@@ -1705,7 +1947,9 @@
     "description": "3.3V 6V Positive Fixed SOT-23-3L Voltage Regulators - Linear, Low Drop Out (LDO) Regulators RoHS",
     "qty": 150,
     "unit_price": 0.0773,
-    "ext_price": 11.6
+    "ext_price": 11.6,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Voltage References",
@@ -1719,7 +1963,9 @@
     "description": "3.3V ±0.2% 3.35V~5.5V 25mA Fixed SOT-23 Voltage Reference RoHS",
     "qty": 10,
     "unit_price": 0.2615,
-    "ext_price": 2.62
+    "ext_price": 2.62,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Sensors",
@@ -1733,7 +1979,9 @@
     "description": "SPI TSSOP-16 Angle, Linear Position Measuring RoHS",
     "qty": 6,
     "unit_price": 4.1805,
-    "ext_price": 41.81
+    "ext_price": 41.81,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Sensors",
@@ -1747,7 +1995,9 @@
     "description": "5V ±20A 100mV/A QFN-12(3x3) Current Sensors RoHS",
     "qty": 30,
     "unit_price": 0.4048,
-    "ext_price": 12.14
+    "ext_price": 12.14,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Sensors",
@@ -1761,7 +2011,9 @@
     "description": "TSSOP-16 Angle, Linear Position Measuring RoHS",
     "qty": 0,
     "unit_price": 6.7498,
-    "ext_price": 6.75
+    "ext_price": 6.75,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Sensors",
@@ -1775,7 +2027,9 @@
     "description": "I2C QFN-16-EP(3x3) Angle, Linear Position Measuring RoHS",
     "qty": 22,
     "unit_price": 1.2273,
-    "ext_price": 27.0
+    "ext_price": 27.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Amplifiers",
@@ -1789,7 +2043,9 @@
     "description": "5uV -4V~80V 90uA 2V/us 132dB 1.8mA 400kHz 100V/V 1 TSSOP-8 Amplifiers RoHS",
     "qty": 40,
     "unit_price": 1.4948,
-    "ext_price": 63.09
+    "ext_price": 63.09,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Amplifiers",
@@ -1803,7 +2059,9 @@
     "description": "NEGATIVE SENSING CSA W/ FAST PWM",
     "qty": 9,
     "unit_price": 2.1592,
-    "ext_price": 53.98
+    "ext_price": 53.98,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Motor Drivers",
@@ -1817,7 +2075,9 @@
     "description": "IC MTR DRVR BIPLR 8-52V 32VFQFPN",
     "qty": 2,
     "unit_price": 3.048,
-    "ext_price": 30.48
+    "ext_price": 30.48,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Motor Drivers",
@@ -1831,7 +2091,9 @@
     "description": "40-V MAX 8-A PEAK THREE-PHASE MO",
     "qty": 30,
     "unit_price": 3.4,
-    "ext_price": 102.05
+    "ext_price": 102.05,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - USB",
@@ -1845,7 +2107,9 @@
     "description": "4 5Gbps Hub VQFN-56-EP(7x7) Interface Controllers RoHS",
     "qty": 32,
     "unit_price": 2.59,
-    "ext_price": 82.91
+    "ext_price": 82.91,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - USB",
@@ -1859,7 +2123,9 @@
     "description": "1 DFN-10L(3x3) Interface Controllers RoHS",
     "qty": 32,
     "unit_price": 0.42,
-    "ext_price": 13.58
+    "ext_price": 13.58,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - USB",
@@ -1873,7 +2139,9 @@
     "description": "IC PORT CTLR USB TYPE C 16QFN",
     "qty": 100,
     "unit_price": 1.25,
-    "ext_price": 125.0
+    "ext_price": 125.0,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Interface",
@@ -1887,7 +2155,9 @@
     "description": "3V~3.6V CAN Transceiver 1Mbps SOIC-8 Drivers, Receivers, Transceivers RoHS",
     "qty": 22,
     "unit_price": 0.36,
-    "ext_price": 10.8
+    "ext_price": 10.8,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Interface",
@@ -1901,7 +2171,9 @@
     "description": "4.5V~5.5V CAN FD Transceiver 5Mbps DFN-8(3x3) Drivers, Receivers, Transceivers RoHS",
     "qty": 100,
     "unit_price": 0.2715,
-    "ext_price": 27.15
+    "ext_price": 27.15,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - Interface",
@@ -1915,7 +2187,9 @@
     "description": "1/1 Transceiver Half CANbus 8-SOIC",
     "qty": 25,
     "unit_price": 1.0296,
-    "ext_price": 25.74
+    "ext_price": 25.74,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - ESD Protection",
@@ -1929,7 +2203,9 @@
     "description": "15VC Clamp 4A@8/20us Ipp ESD DIODE SOT-23-6L",
     "qty": 92,
     "unit_price": 0.0329,
-    "ext_price": 3.29
+    "ext_price": 3.29,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "ICs - ESD Protection",
@@ -1943,7 +2219,9 @@
     "description": "14VC Clamp 2.5A@8/20us Ipp ESD DIODE USON-14(1.4x3.5)",
     "qty": 150,
     "unit_price": 0.24,
-    "ext_price": 36.02
+    "ext_price": 36.02,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Mechanical & Hardware",
@@ -1957,7 +2235,9 @@
     "description": "SMD Board Spacers, Standoffs RoHS",
     "qty": 50,
     "unit_price": 0.0692,
-    "ext_price": 3.46
+    "ext_price": 3.46,
+    "primary_vendor_id": "",
+    "po_history": []
   },
   {
     "section": "Mechanical & Hardware",
@@ -1971,6 +2251,8 @@
     "description": "Battery Holder Coin CR2032 Cell SMD",
     "qty": 2,
     "unit_price": 0.2921,
-    "ext_price": 0.58
+    "ext_price": 0.58,
+    "primary_vendor_id": "",
+    "po_history": []
   }
 ]
