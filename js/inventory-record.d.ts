@@ -1,5 +1,5 @@
 // AUTO-GENERATED — do not edit by hand.
-// Source of truth: domain/schema.py :: INVENTORY_FIELDS
+// Source of truth: domain/schema.py :: INVENTORY_FIELDS + PartHistoryEntry
 // Regenerate: python scripts/gen-inventory-types.py
 
 export interface InventoryItem {
@@ -17,4 +17,12 @@ export interface InventoryItem {
   ext_price: number;
   primary_vendor_id: string;
   po_history: string[];
+}
+
+export interface PartHistoryEntry {
+  timestamp: string;
+  kind: string;
+  qty_delta: number;
+  source: string;
+  note: string;
 }

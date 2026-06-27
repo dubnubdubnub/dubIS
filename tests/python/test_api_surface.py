@@ -73,6 +73,7 @@ FROZEN_SURFACE = {
     'get_digikey_login_status': '()',
     'get_last_po_quantity': '(part_key)',
     'get_mouser_api_key_status': '()',
+    'get_part_history': '(part_key)',
     'get_po_source_preview': '(po_id)',
     'get_po_with_items': '(po_id)',
     'get_poll_api_info': '()',

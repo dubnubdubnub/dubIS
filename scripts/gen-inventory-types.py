@@ -22,12 +22,21 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from domain.schema import INVENTORY_FIELDS  # noqa: E402
 
+# TS type mapping for PartHistoryEntry fields (derived from the TypedDict in schema.py)
+_PART_HISTORY_ENTRY_TS_FIELDS: list[tuple[str, str]] = [
+    ("timestamp", "string"),
+    ("kind", "string"),
+    ("qty_delta", "number"),
+    ("source", "string"),
+    ("note", "string"),
+]
+
 
 def render_dts() -> str:
-    """Render the TypeScript interface declaration as a string."""
+    """Render the TypeScript interface declarations as a string."""
     lines = [
         "// AUTO-GENERATED — do not edit by hand.",
-        "// Source of truth: domain/schema.py :: INVENTORY_FIELDS",
+        "// Source of truth: domain/schema.py :: INVENTORY_FIELDS + PartHistoryEntry",
         "// Regenerate: python scripts/gen-inventory-types.py",
         "",
         "export interface InventoryItem {",
@@ -36,6 +45,11 @@ def render_dts() -> str:
         if not f.to_js:
             continue
         lines.append(f"  {f.py_key}: {f.ts_type};")
+    lines.append("}")
+    lines.append("")
+    lines.append("export interface PartHistoryEntry {")
+    for py_key, ts_type in _PART_HISTORY_ENTRY_TS_FIELDS:
+        lines.append(f"  {py_key}: {ts_type};")
     lines.append("}")
     lines.append("")
     return "\n".join(lines)
