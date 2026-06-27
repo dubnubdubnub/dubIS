@@ -68,6 +68,9 @@ test.describe('Import workflow', () => {
     await loadPurchaseOrder(page, IMPORT_CSV);
     await page.locator('#do-import-btn').click();
 
+    // Import now opens a reviewable diff modal — confirm to commit the rows.
+    await page.locator('#import-diff-confirm-btn').click();
+
     // Wait for inventory to refresh with the new parts
     await page.waitForSelector('[data-lcsc="C888001"]', { timeout: 10_000 });
 

@@ -7,6 +7,8 @@ import { store, onInventoryUpdated, savePreferences } from '../store.js';
 import { parseCSV, generateCSV } from '../csv-parser.js';
 import { TARGET_FIELDS, PO_TEMPLATES, classifyRow, countWarnings, transformImportRows, seedManualRows } from './import-logic.js';
 import { renderDropZone, renderMapper as renderMapperHtml, renderOcrEngineNotice } from './import-renderer.js';
+import { computeImportDiff } from './import-diff.js';
+import { openImportDiffModal } from './import-diff-modal.js';
 
 const body = document.getElementById("import-body");
 
@@ -432,37 +434,64 @@ async function doImport() {
     return;
   }
 
-  // Save undo state before mutating backend
-  UndoRedo.save("import", {
-    _undoType: "import",
-    parsedRows: JSON.parse(JSON.stringify(parsedRows)),
-    parsedHeaders: JSON.parse(JSON.stringify(parsedHeaders)),
-    columnMapping: JSON.parse(JSON.stringify(columnMapping)),
-    importFileName,
-    importedCount: invRows.length,
-    invRows,
-  });
+  // Compute diff against current inventory and open review modal.
+  // The user can include/exclude rows, then confirm or go back.
+  const diffEntries = computeImportDiff(invRows, store.inventory || []);
 
-  const fresh = await api("import_purchases", JSON.stringify(invRows));
-  if (!fresh) {
-    // Roll back the undo entry we just pushed
-    UndoRedo.popLast();
-    if (btn) btn.disabled = false;
-    return;
-  }
-  onInventoryUpdated(fresh);
-  showToast(`Imported ${invRows.length} rows from ${importFileName}`);
-  AppLog.info("Imported " + invRows.length + " parts from " + importFileName);
+  openImportDiffModal(
+    diffEntries,
+    // onConfirm: commit only the included rows via existing API path
+    async (includedRows) => {
+      if (includedRows.length === 0) {
+        showToast("No rows selected — import cancelled");
+        AppLog.info("Import review: no rows included, import skipped");
+        if (btn) btn.disabled = false;
+        return;
+      }
 
-  // Track import for redo snapshot
-  lastImportMeta = {
-    importedCount: invRows.length,
-    invRows,
-  };
+      // Save undo state before mutating backend
+      UndoRedo.save("import", {
+        _undoType: "import",
+        parsedRows: JSON.parse(JSON.stringify(parsedRows)),
+        parsedHeaders: JSON.parse(JSON.stringify(parsedHeaders)),
+        columnMapping: JSON.parse(JSON.stringify(columnMapping)),
+        importFileName,
+        importedCount: includedRows.length,
+        invRows: includedRows,
+      });
 
-  // Reset import panel
-  parsedHeaders = [];
-  parsedRows = [];
-  columnMapping = {};
-  init();
+      const fresh = await api("import_purchases", JSON.stringify(includedRows));
+      if (!fresh) {
+        // Roll back the undo entry we just pushed
+        UndoRedo.popLast();
+        if (btn) btn.disabled = false;
+        return;
+      }
+      onInventoryUpdated(fresh);
+      showToast(`Imported ${includedRows.length} rows from ${importFileName}`);
+      AppLog.info("Imported " + includedRows.length + " parts from " + importFileName);
+
+      // Track import for redo snapshot
+      lastImportMeta = {
+        importedCount: includedRows.length,
+        invRows: includedRows,
+      };
+
+      // Reset import panel
+      parsedHeaders = [];
+      parsedRows = [];
+      columnMapping = {};
+      init();
+    },
+    // onBack: return to staging with no commit
+    () => {
+      if (btn) btn.disabled = false;
+      AppLog.info("Import review: user went back to staging");
+    },
+    // onCancel: dismiss with no commit
+    () => {
+      if (btn) btn.disabled = false;
+      AppLog.info("Import review: user cancelled");
+    },
+  );
 }

@@ -22,16 +22,6 @@
     "2": "Package",
     "4": "Unit Price($)"
   },
-  "Index,DigiKey Part #,Manufacturer Part Number,Manufacturer,Description,Customer Reference,Quantity,Backorder,Unit Price,Extended Price": {
-    "1": "Digikey Part Number",
-    "2": "Manufacture Part Number",
-    "3": "Manufacturer",
-    "6": "Quantity",
-    "4": "Description",
-    "8": "Unit Price($)",
-    "9": "Ext.Price($)",
-    "5": "Customer NO."
-  },
   "LCSC Part Number,Manufacture Part Number,Manufacturer,Customer NO.,Package,Description,RoHS,Quantity,Unit Price($),Ext.Price($)": {
     "0": "LCSC Part Number",
     "1": "Manufacture Part Number",
@@ -43,6 +33,16 @@
     "9": "Ext.Price($)",
     "6": "RoHS",
     "3": "Customer NO."
+  },
+  "Index,DigiKey Part #,Manufacturer Part Number,Manufacturer,Description,Customer Reference,Quantity,Backorder,Unit Price,Extended Price": {
+    "1": "Digikey Part Number",
+    "2": "Manufacture Part Number",
+    "3": "Manufacturer",
+    "6": "Quantity",
+    "4": "Description",
+    "8": "Unit Price($)",
+    "9": "Ext.Price($)",
+    "5": "Customer NO."
   },
   "Mouser #,Mfr. #,Manufacturer,Customer #,Description,RoHS,Lifecycle,Order Qty.,Price (USD),Ext.: (USD)": {
     "0": "Mouser Part Number",
