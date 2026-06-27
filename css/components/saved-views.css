@@ -8,9 +8,9 @@
 .saved-views-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 8px;
+  gap: var(--saved-view-item-gap);
+  height: var(--saved-view-btn-h);
+  padding: 0 var(--saved-view-btn-pad-x);
   background: var(--color-blue-dark-bg);
   border: 1px solid var(--color-blue-dark-border);
   border-radius: 5px;
@@ -40,7 +40,7 @@
 }
 
 .saved-views-btn .sv-active-name {
-  max-width: 80px;
+  max-width: var(--saved-view-active-name-max-w);
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: var(--text-xs, 11px);
@@ -56,9 +56,9 @@
   border: 1px solid var(--border-strong);
   border-radius: 7px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  min-width: 180px;
-  max-width: 260px;
-  padding: 4px 0;
+  min-width: var(--saved-view-menu-min-w);
+  max-width: var(--saved-view-menu-max-w);
+  padding: var(--saved-view-menu-pad-y) 0;
   font-family: inherit;
   font-size: var(--text-sm, 12px);
 }
@@ -72,7 +72,7 @@
 /* ── Menu sections ─────────────────────────────────────────────────────────── */
 
 .sv-menu-section-header {
-  padding: 4px 10px 2px;
+  padding: var(--saved-view-section-pad-top) var(--saved-view-section-pad-x) 2px;
   font-size: var(--text-xs, 11px);
   font-weight: var(--weight-semibold, 600);
   color: var(--text-muted);
@@ -84,7 +84,7 @@
 .sv-menu-divider {
   height: 1px;
   background: var(--border-default);
-  margin: 4px 0;
+  margin: var(--saved-view-divider-margin-y) 0;
 }
 
 /* ── Menu items ────────────────────────────────────────────────────────────── */
@@ -92,8 +92,8 @@
 .sv-menu-item {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
+  gap: var(--saved-view-item-gap);
+  padding: var(--saved-view-row-pad-y) var(--saved-view-section-pad-x);
   cursor: default;
   color: var(--text-primary);
   border-radius: 0;
@@ -122,8 +122,8 @@
 /* Delete (×) button inside a view row */
 .sv-delete-btn {
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  width: var(--saved-view-delete-btn-size);
+  height: var(--saved-view-delete-btn-size);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -148,8 +148,8 @@
 .sv-save-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
+  gap: var(--saved-view-save-item-gap);
+  padding: var(--saved-view-row-pad-y) var(--saved-view-section-pad-x);
   cursor: default;
   color: var(--text-secondary);
   font-style: italic;
@@ -165,7 +165,7 @@
 
 /* Empty-state message */
 .sv-empty-msg {
-  padding: 6px 10px;
+  padding: var(--saved-view-empty-pad-y) var(--saved-view-section-pad-x);
   color: var(--text-muted);
   font-style: italic;
   font-size: var(--text-xs, 11px);
