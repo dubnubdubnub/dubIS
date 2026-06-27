@@ -65,17 +65,18 @@ css/panels/inventory.css:219:
 css/panels/inventory.css:223:
 css/panels/inventory.css:227:
 css/panels/inventory.css:241:
-css/panels/inventory.css:283:
-css/panels/inventory.css:306:
-css/panels/inventory.css:336:
-css/panels/inventory.css:343:
-css/panels/inventory.css:351:
-css/panels/inventory.css:365:
-css/panels/inventory.css:372:
-css/panels/inventory.css:373:
-css/panels/inventory.css:388:
-css/panels/inventory.css:416:
-css/panels/inventory.css:427:
+css/panels/inventory.css:268:
+css/panels/inventory.css:314:
+css/panels/inventory.css:337:
+css/panels/inventory.css:367:
+css/panels/inventory.css:374:
+css/panels/inventory.css:382:
+css/panels/inventory.css:396:
+css/panels/inventory.css:403:
+css/panels/inventory.css:404:
+css/panels/inventory.css:419:
+css/panels/inventory.css:447:
+css/panels/inventory.css:458:
 
 # ── css/buttons.css ─────────────────────────────────────────────
 css/buttons.css:4:
@@ -100,6 +101,48 @@ css/components/badges.css:26:
 # ── css/components/console.css ──────────────────────────────────
 css/components/console.css:7:
 css/components/console.css:17:
+
+# ── css/components/filter-chips.css ─────────────────────────────
+css/components/filter-chips.css:12:
+css/components/filter-chips.css:13:
+css/components/filter-chips.css:29:
+css/components/filter-chips.css:30:
+css/components/filter-chips.css:31:
+css/components/filter-chips.css:60:
+css/components/filter-chips.css:61:
+css/components/filter-chips.css:85:
+css/components/filter-chips.css:86:
+css/components/filter-chips.css:87:
+css/components/filter-chips.css:97:
+css/components/filter-chips.css:132:
+css/components/filter-chips.css:140:
+css/components/filter-chips.css:141:
+css/components/filter-chips.css:170:
+css/components/filter-chips.css:171:
+css/components/filter-chips.css:172:
+css/components/filter-chips.css:181:
+css/components/filter-chips.css:188:
+css/components/filter-chips.css:194:
+css/components/filter-chips.css:201:
+css/components/filter-chips.css:205:
+css/components/filter-chips.css:206:
+css/components/filter-chips.css:207:
+css/components/filter-chips.css:223:
+css/components/filter-chips.css:224:
+css/components/filter-chips.css:240:
+css/components/filter-chips.css:241:
+css/components/filter-chips.css:242:
+css/components/filter-chips.css:248:
+css/components/filter-chips.css:249:
+
+# ── css/components/import-diff.css ──────────────────────────────
+css/components/import-diff.css:4:
+css/components/import-diff.css:5:
+css/components/import-diff.css:41:
+css/components/import-diff.css:61:
+css/components/import-diff.css:102:
+css/components/import-diff.css:107:
+css/components/import-diff.css:108:
 
 # ── css/components/label-export.css ─────────────────────────────
 css/components/label-export.css:19:
@@ -230,3 +273,6 @@ css/modals.css:220:
 css/modals.css:258:
 css/modals.css:279:
 css/modals.css:289:
+
+# ── js/inventory/inv-inline-edit.js ─────────────────────────────
+js/inventory/inv-inline-edit.js:26:
