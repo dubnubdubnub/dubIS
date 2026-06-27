@@ -16,6 +16,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
+from pnp_part_map import _load_part_map, _resolve_part_id  # noqa: F401
 from scan_capture_page import _capture_page_html, _expired_page_html  # noqa: F401
 
 logger = logging.getLogger(__name__)
@@ -36,36 +37,6 @@ SCAN_MAX_IMAGES = 12
 
 # Filename extensions accepted for scan uploads.
 SCAN_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
-
-
-def _load_part_map(base_dir):
-    """Load pnp_part_map.json from data directory."""
-    path = os.path.join(base_dir, "pnp_part_map.json")
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
-
-def _resolve_part_id(part_id, part_map, inventory):
-    """Resolve an OpenPnP part ID to a dubIS part key.
-
-    Strategy:
-    1. Check pnp_part_map.json for explicit mapping
-    2. Try direct match against inventory LCSC/MPN/Digikey keys
-    3. Return None if unresolved
-    """
-    # 1. Explicit mapping
-    if part_id in part_map:
-        return part_map[part_id]
-
-    # 2. Direct match against inventory keys
-    for item in inventory:
-        if part_id in (item.get("lcsc"), item.get("mpn"), item.get("digikey")):
-            return item.get("lcsc") or item.get("mpn") or item.get("digikey")
-
-    return None
 
 
 # ── Scan session registry ──
