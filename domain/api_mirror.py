@@ -51,6 +51,15 @@ class MirrorFacade:
 
     def enable_inventory_mirror(self) -> dict[str, Any]:
         self._ensure_token()
+        # Seed the allowlist with the machine's own Tailscale login if not already set.
+        prefs = self._api.load_preferences()
+        mirror_prefs = prefs.setdefault("inventoryMirror", {})
+        if not mirror_prefs.get("allowlist"):
+            login = tailscale.self_login()
+            if login:
+                mirror_prefs["allowlist"] = [login]
+                self._api.save_preferences(prefs)
+        # Build config AFTER allowlist is seeded so installer.install bakes it in.
         installer = base.get_installer()
         installer.install(self._config())
         serve_url = tailscale.enable_serve(READ_PORT)  # raises RuntimeError with actionable msg

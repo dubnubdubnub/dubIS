@@ -61,6 +61,60 @@ def test_daemon_script_path_exists(tmp_path):
     )
 
 
+def test_enable_seeds_allowlist_when_empty(tmp_path):
+    """enable_inventory_mirror seeds inventoryMirror.allowlist with self_login when it was empty."""
+    api = make_api(tmp_path)
+    with mock.patch("mirror_install.tailscale.self_login", return_value="alice@example.com"), \
+         mock.patch("mirror_install.tailscale.enable_serve", return_value="https://host.ts.net"), \
+         mock.patch("mirror_install.base.get_installer") as gi:
+        gi.return_value = mock.Mock()
+        info = api.enable_inventory_mirror()
+    assert info["allowlist"] == ["alice@example.com"]
+    assert api.load_preferences()["inventoryMirror"]["allowlist"] == ["alice@example.com"]
+
+
+def test_enable_does_not_overwrite_existing_allowlist(tmp_path):
+    """enable_inventory_mirror must not overwrite a pre-existing non-empty allowlist."""
+    api = make_api(tmp_path)
+    prefs = api.load_preferences()
+    prefs.setdefault("inventoryMirror", {})["allowlist"] = ["existing@example.com"]
+    api.save_preferences(prefs)
+    with mock.patch("mirror_install.tailscale.self_login", return_value="alice@example.com"), \
+         mock.patch("mirror_install.tailscale.enable_serve", return_value="https://host.ts.net"), \
+         mock.patch("mirror_install.base.get_installer") as gi:
+        gi.return_value = mock.Mock()
+        info = api.enable_inventory_mirror()
+    assert info["allowlist"] == ["existing@example.com"]
+
+
+def test_enable_installer_receives_seeded_allowlist(tmp_path):
+    """The MirrorConfig passed to installer.install must have the seeded allowlist (ordering check)."""
+    api = make_api(tmp_path)
+    with mock.patch("mirror_install.tailscale.self_login", return_value="alice@example.com"), \
+         mock.patch("mirror_install.tailscale.enable_serve", return_value="https://host.ts.net"), \
+         mock.patch("mirror_install.base.get_installer") as gi:
+        installer_mock = mock.Mock()
+        gi.return_value = installer_mock
+        api.enable_inventory_mirror()
+    cfg_passed = installer_mock.install.call_args[0][0]
+    assert cfg_passed.allowlist == ["alice@example.com"]
+
+
+def test_enable_leaves_allowlist_empty_when_self_login_unavailable(tmp_path):
+    """When self_login returns '', allowlist stays empty and enable_serve error propagates."""
+    api = make_api(tmp_path)
+    with mock.patch("mirror_install.tailscale.self_login", return_value=""), \
+         mock.patch("mirror_install.base.get_installer") as gi, \
+         mock.patch("mirror_install.tailscale.enable_serve",
+                    side_effect=RuntimeError("tailscale is not logged in")):
+        gi.return_value = mock.Mock()
+        with pytest.raises(RuntimeError, match="not logged in"):
+            api.enable_inventory_mirror()
+    prefs = api.load_preferences()
+    assert prefs.get("inventoryMirror", {}).get("allowlist", []) == []
+    assert api.get_inventory_mirror_info()["enabled"] is False
+
+
 def test_mirror_paths_under_base_dir_not_data_subdir(tmp_path):
     """Token and snapshot paths must be directly under base_dir, not base_dir/data/."""
     api = make_api(tmp_path)

@@ -46,6 +46,21 @@ def enable_serve(read_port: int) -> str:
     return serve_url()
 
 
+def self_login() -> str:
+    """Return the Tailscale login name of this machine's own user, or "" on any failure."""
+    if not is_available():
+        return ""
+    res = _run(["status", "--json"])
+    if res.returncode != 0:
+        return ""
+    try:
+        data = json.loads(res.stdout)
+        user_id = str(data["Self"]["UserID"])
+        return data["User"][user_id]["LoginName"]
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return ""
+
+
 def disable_serve() -> None:
     if is_available():
         _run(["serve", "--https=443", "off"])
