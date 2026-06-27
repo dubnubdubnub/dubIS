@@ -9,6 +9,7 @@ Run: python inventory_mirror.py --token-file data/mirror_token [--push-port 7892
      [--allowlist alice@example.com,bob@example.com]
 """
 
+import argparse
 import json
 import logging
 import os
@@ -192,3 +193,40 @@ def make_read_server(store, allowlist, host="127.0.0.1", port=DEFAULT_READ_PORT)
     server.store = store
     server.allowlist = list(allowlist or [])
     return server
+
+
+def parse_args(argv=None):
+    p = argparse.ArgumentParser(description="dubIS inventory mirror daemon")
+    p.add_argument("--token-file", required=True)
+    p.add_argument("--snapshot-file", default=os.path.join("data", "inventory_mirror.json"))
+    p.add_argument("--push-port", type=int, default=DEFAULT_PUSH_PORT)
+    p.add_argument("--read-port", type=int, default=DEFAULT_READ_PORT)
+    p.add_argument("--allowlist", default="")
+    args = p.parse_args(argv)
+    args.allowlist = [s.strip() for s in args.allowlist.split(",") if s.strip()]
+    return args
+
+
+def build_servers(args):
+    with open(args.token_file, encoding="utf-8") as f:
+        token = f.read().strip()
+    store = SnapshotStore(args.snapshot_file)
+    store.load()
+    push = make_push_server(store, token, port=args.push_port)
+    read = make_read_server(store, args.allowlist, port=args.read_port)
+    return push, read, store
+
+
+def main(argv=None):
+    logging.basicConfig(level=logging.INFO)
+    args = parse_args(argv)
+    push, read, _ = build_servers(args)
+    threading.Thread(target=push.serve_forever, kwargs={"poll_interval": 30},
+                     name="mirror-push", daemon=True).start()
+    logger.info("Mirror push on 127.0.0.1:%d, read on 127.0.0.1:%d",
+                push.server_address[1], read.server_address[1])
+    read.serve_forever(poll_interval=30)
+
+
+if __name__ == "__main__":
+    main()
