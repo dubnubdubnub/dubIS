@@ -44,7 +44,6 @@ css/panels/group-flyout.css:289:
 css/panels/import.css:76:
 
 # ── css/panels/inventory.css ────────────────────────────────────
-css/panels/inventory.css:11:
 css/panels/inventory.css:12:
 css/panels/inventory.css:36:
 css/panels/inventory.css:71:
@@ -60,10 +59,8 @@ css/panels/inventory.css:133:
 css/panels/inventory.css:138:
 css/panels/inventory.css:158:
 css/panels/inventory.css:163:
-css/panels/inventory.css:183:
 css/panels/inventory.css:188:
 css/panels/inventory.css:208:
-css/panels/inventory.css:217:
 css/panels/inventory.css:219:
 css/panels/inventory.css:223:
 css/panels/inventory.css:227:
@@ -99,6 +96,9 @@ css/components/badges.css:3:
 css/components/badges.css:23:
 css/components/badges.css:24:
 css/components/badges.css:26:
+
+# ── css/components/command-palette.css ──────────────────────────
+css/components/command-palette.css:19:
 
 # ── css/components/console.css ──────────────────────────────────
 css/components/console.css:7:
@@ -151,6 +151,24 @@ css/components/ocr-overlay.css:177:
 css/components/ocr-overlay.css:204:
 css/components/ocr-overlay.css:231:
 css/components/ocr-overlay.css:251:
+
+# ── css/components/saved-views.css ──────────────────────────────
+css/components/saved-views.css:11:
+css/components/saved-views.css:12:
+css/components/saved-views.css:13:
+css/components/saved-views.css:43:
+css/components/saved-views.css:59:
+css/components/saved-views.css:60:
+css/components/saved-views.css:61:
+css/components/saved-views.css:75:
+css/components/saved-views.css:87:
+css/components/saved-views.css:95:
+css/components/saved-views.css:96:
+css/components/saved-views.css:125:
+css/components/saved-views.css:126:
+css/components/saved-views.css:151:
+css/components/saved-views.css:152:
+css/components/saved-views.css:168:
 
 # ── css/components/toast.css ────────────────────────────────────
 css/components/toast.css:4:
