@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import sqlite3
-import sys  # noqa: F401 — kept for test_install_tesseract monkeypatch(inventory_api.sys.platform)
 import threading
 from typing import Any
 
