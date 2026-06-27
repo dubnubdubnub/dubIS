@@ -19,10 +19,10 @@ class MirrorFacade:
         self._api = api
 
     def _token_file(self) -> str:
-        return os.path.join(self._api.base_dir, "data", "mirror_token")
+        return os.path.join(self._api.base_dir, "mirror_token")
 
     def _snapshot_file(self) -> str:
-        return os.path.join(self._api.base_dir, "data", "inventory_mirror.json")
+        return os.path.join(self._api.base_dir, "inventory_mirror.json")
 
     def _allowlist(self) -> list:
         prefs = self._api.load_preferences()
@@ -40,12 +40,13 @@ class MirrorFacade:
         return token
 
     def _config(self) -> base.MirrorConfig:
+        import inventory_mirror as _im
         return base.MirrorConfig(
             push_port=PUSH_PORT, read_port=READ_PORT,
             token_file=self._token_file(), snapshot_file=self._snapshot_file(),
             allowlist=self._allowlist(),
             python_exe=sys.executable,
-            daemon_script=os.path.join(self._api.base_dir, "inventory_mirror.py"),
+            daemon_script=os.path.abspath(_im.__file__),
         )
 
     def enable_inventory_mirror(self) -> dict[str, Any]:

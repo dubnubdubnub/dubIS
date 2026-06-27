@@ -355,7 +355,7 @@ class InventoryApi:
         return bool(self.load_preferences().get("inventoryMirror", {}).get("enabled", False))
 
     def _mirror_token(self):
-        path = os.path.join(self.base_dir, "data", "mirror_token")
+        path = os.path.join(self.base_dir, "mirror_token")
         try:
             with open(path, encoding="utf-8") as f:
                 return f.read().strip()
