@@ -6,6 +6,7 @@ import sqlite3
 import pytest
 
 import cache_db
+import domain.schema
 
 
 class TestSchema:
@@ -141,12 +142,7 @@ class TestQuery:
     def test_dict_keys_match_load_organized(self, db):
         self._populate(db)
         result = cache_db.query_inventory(db)
-        expected_keys = {
-            "section", "lcsc", "mpn", "digikey", "pololu", "mouser",
-            "manufacturer", "package", "description",
-            "qty", "unit_price", "ext_price",
-            "primary_vendor_id", "po_history",
-        }
+        expected_keys = {f.py_key for f in domain.schema.INVENTORY_FIELDS if f.to_js}
         assert set(result[0].keys()) == expected_keys
 
     def test_values_correct(self, db):
