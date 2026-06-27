@@ -167,6 +167,20 @@ export function addMockSetup(page, inventory, options = {}) {
           return opts.deleteLastResult || inv;
         },
         open_source_file: async () => ({ opened: true, path: '/dev/null' }),
+        get_inventory_mirror_info: async () => window.__mirrorState || ({
+          enabled: false, installed: false, running: false,
+          serve_url: "", read_port: 7893, allowlist: [],
+        }),
+        enable_inventory_mirror: async () => {
+          window.__mirrorState = { enabled: true, installed: true, running: true,
+            serve_url: "https://mauler.example.ts.net", read_port: 7893, allowlist: [] };
+          return window.__mirrorState;
+        },
+        disable_inventory_mirror: async () => {
+          window.__mirrorState = { enabled: false, installed: false, running: false,
+            serve_url: "", read_port: 7893, allowlist: [] };
+          return window.__mirrorState;
+        },
       },
     };
   }, { inv: inventory, opts: options, colDetections: COLUMN_DETECTIONS });

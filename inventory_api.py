@@ -84,6 +84,11 @@ class InventoryApi:
         self._po = PurchaseOrdersFacade(self)
         self._scan = ScanFacade(self)
         self._history = PartHistoryFacade(self)
+        from domain.api_mirror import MirrorFacade
+        from mirror_push import MirrorController
+        self._mirror = MirrorFacade(self)
+        self._mirror_ctl = MirrorController(
+            is_enabled=self._mirror_enabled, read_token=self._mirror_token)
 
     def _get_cache(self) -> sqlite3.Connection:
         """Get or create the cache database connection.
@@ -340,6 +345,31 @@ class InventoryApi:
 
     def set_poll_api_port(self, port: int | str) -> dict[str, Any]:
         return self._prefs.set_poll_api_port(port)
+
+    # ── Inventory mirror ──────────────────────────────────────────────────
+
+    def enable_inventory_mirror(self) -> dict[str, Any]:
+        return self._mirror.enable_inventory_mirror()
+
+    def disable_inventory_mirror(self) -> dict[str, Any]:
+        return self._mirror.disable_inventory_mirror()
+
+    def get_inventory_mirror_info(self) -> dict[str, Any]:
+        return self._mirror.get_inventory_mirror_info()
+
+    def _mirror_enabled(self) -> bool:
+        return bool(self.load_preferences().get("inventoryMirror", {}).get("enabled", False))
+
+    def _mirror_token(self):
+        path = os.path.join(self.base_dir, "mirror_token")
+        try:
+            with open(path, encoding="utf-8") as f:
+                return f.read().strip()
+        except OSError:
+            return None
+
+    def _push_to_mirror(self, inventory) -> None:
+        self._mirror_ctl.on_inventory_changed(inventory)
 
     # ── Generic parts ──────────────────────────────────────────────────────
 
