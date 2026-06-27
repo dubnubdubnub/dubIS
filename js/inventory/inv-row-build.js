@@ -10,6 +10,7 @@ import { isFlyoutDragActive } from './inv-events.js';
 import state, { generationOpacityFor } from './inv-state.js';
 import { createReverseLink } from './inv-mutations.js';
 import { toggleSelection } from '../label-selection.js';
+import { activateInlineEdit } from './inv-inline-edit.js';
 
 export function createPartRow(item, sectionKey, sectionChip) {
   var row = document.createElement("div");
@@ -109,6 +110,10 @@ export function createPartRow(item, sectionKey, sectionChip) {
       store.links.setLinkingMode(true, item);
     });
   }
+
+  // Inline editing: double-click on qty / unit-price cells.
+  // Guard logic is inside activateInlineEdit (link mode, flyout drag).
+  activateInlineEdit(row, item);
 
   return row;
 }

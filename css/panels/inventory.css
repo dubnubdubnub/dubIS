@@ -242,8 +242,42 @@
   overflow: hidden;
 }
 .inv-part-row .part-value { width: var(--inv-col-extprice-w); min-width: 20px; text-align: right; font-size: 11px; font-family: var(--font-mono); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.inv-part-row .part-unit-price { width: var(--inv-col-unit-w); min-width: 0; text-align: right; font-size: 11px; font-family: var(--font-mono); color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.inv-part-row .part-qty { width: var(--inv-col-stock-w); min-width: 30px; text-align: right; font-weight: 600; font-family: var(--font-mono); }
+.inv-part-row .part-unit-price { width: var(--inv-col-unit-w); min-width: 0; text-align: right; font-size: 11px; font-family: var(--font-mono); color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
+.inv-part-row .part-qty { width: var(--inv-col-stock-w); min-width: 30px; text-align: right; font-weight: 600; font-family: var(--font-mono); cursor: default; }
+/* Affordance cursor on editable cells (dblclick to enter edit) */
+.inv-part-row .part-qty:not(.inv-inline-editing),
+.inv-part-row .part-unit-price:not(.inv-inline-editing) { cursor: default; }
+
+/* ── Inline-edit input (inside .part-qty or .part-unit-price) ────────────── */
+/* The cell keeps its fixed width; the input fills the cell without shifting columns. */
+.inv-part-row .inv-inline-editing {
+  overflow: visible;
+  white-space: normal;
+}
+.inv-inline-input {
+  /* Match cell text style so the switch is visually smooth */
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: inherit;
+  color: var(--text-primary);
+  background: var(--bg-input, #161b22);
+  border: 1px solid var(--color-blue, #58a6ff);
+  border-radius: 2px;
+  /* No box-model expansion: keep the same inline height as surrounding text */
+  padding: 0 2px;
+  margin: 0;
+  line-height: 1.4;
+  /* Width is set via inline style in JS (cell.offsetWidth) */
+  min-width: 48px;
+  box-sizing: border-box;
+  outline: none;
+  text-align: right;
+  /* Spin buttons would steal horizontal space; hide them */
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.inv-inline-input::-webkit-inner-spin-button,
+.inv-inline-input::-webkit-outer-spin-button { display: none; }
 .inv-part-row .part-desc { flex: 1; min-width: 0; overflow: hidden; }
 .inv-part-row .part-actions { flex-shrink: 0; margin-left: auto; display: flex; gap: var(--part-actions-gap); align-items: center; }
 .group-flyout-btn {
