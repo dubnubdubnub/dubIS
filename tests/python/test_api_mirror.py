@@ -132,6 +132,37 @@ def test_enabled_survives_js_preferences_overwrite(tmp_path):
     assert info["allowlist"] == ["owner@x.com"], "allowlist was clobbered"
 
 
+def test_enable_rolls_back_install_when_serve_fails(tmp_path):
+    """If enable_serve raises, installer.uninstall is called (rollback) and error propagates."""
+    api = make_api(tmp_path)
+    with mock.patch("mirror_install.tailscale.self_login", return_value="owner@x.com"), \
+         mock.patch("mirror_install.tailscale.enable_serve",
+                    side_effect=RuntimeError("tailscale is not logged in")), \
+         mock.patch("mirror_install.base.get_installer") as gi:
+        installer_mock = mock.Mock()
+        gi.return_value = installer_mock
+        with pytest.raises(RuntimeError, match="not logged in"):
+            api.enable_inventory_mirror()
+    installer_mock.install.assert_called_once()
+    installer_mock.uninstall.assert_called_once()
+    assert api.get_inventory_mirror_info()["enabled"] is False
+
+
+def test_enable_rollback_uninstall_failure_is_swallowed(tmp_path):
+    """If rollback uninstall itself raises, the ORIGINAL error still propagates unchanged."""
+    api = make_api(tmp_path)
+    with mock.patch("mirror_install.tailscale.self_login", return_value="owner@x.com"), \
+         mock.patch("mirror_install.tailscale.enable_serve",
+                    side_effect=RuntimeError("tailscale is not logged in")), \
+         mock.patch("mirror_install.base.get_installer") as gi:
+        installer_mock = mock.Mock()
+        installer_mock.uninstall.side_effect = OSError("service removal failed")
+        gi.return_value = installer_mock
+        with pytest.raises(RuntimeError, match="not logged in"):
+            api.enable_inventory_mirror()
+    assert api.get_inventory_mirror_info()["enabled"] is False
+
+
 def test_mirror_paths_under_base_dir_not_data_subdir(tmp_path):
     """Token and snapshot paths must be directly under base_dir, not base_dir/data/."""
     api = make_api(tmp_path)
