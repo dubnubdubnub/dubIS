@@ -474,6 +474,7 @@ graph LR
     "tests/python/test_base_client.py" --> "base_client.py"
     "tests/python/test_base_client.py" --> "dubis_errors.py"
     "tests/python/test_cache_db.py" --> "cache_db.py"
+    "tests/python/test_cache_db.py" --> "domain/schema.py"
     "tests/python/test_cache_db.py" --> "inventory_api.py"
     "tests/python/test_cache_db.py" --> "inventory_ops.py"
     "tests/python/test_capture_page.py" --> "pnp_server.py"
@@ -719,7 +720,7 @@ graph LR
 ### domain/schema.py
 
 - **Imports:** —
-- **Imported by:** `cache_db.py`, `domain/api_inventory.py`, `domain/inventory.py`, `inventory_ops.py`, `scripts/gen-inventory-types.py`
+- **Imported by:** `cache_db.py`, `domain/api_inventory.py`, `domain/inventory.py`, `inventory_ops.py`, `scripts/gen-inventory-types.py`, `tests/python/test_cache_db.py`
 
 ### dubis_errors.py
 
@@ -1710,7 +1711,7 @@ graph LR
 
 ### tests/python/test_cache_db.py
 
-- **Imports:** `cache_db.py`, `inventory_api.py`, `inventory_ops.py`
+- **Imports:** `cache_db.py`, `domain/schema.py`, `inventory_api.py`, `inventory_ops.py`
 - **Imported by:** —
 
 ### tests/python/test_capture_page.py

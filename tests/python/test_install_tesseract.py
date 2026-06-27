@@ -34,7 +34,7 @@ def test_already_installed_skips_subprocess(monkeypatch):
 
 def test_non_win32_returns_hint(monkeypatch):
     monkeypatch.setattr(ocr_engine, "ensure_tesseract", lambda: False)
-    monkeypatch.setattr("inventory_api.sys.platform", "linux")
+    monkeypatch.setattr("domain.api_scan.sys.platform", "linux")
 
     api = InventoryApi(debug=True)
     out = api.install_tesseract()
@@ -45,7 +45,7 @@ def test_non_win32_returns_hint(monkeypatch):
 
 def test_winget_missing(monkeypatch):
     monkeypatch.setattr(ocr_engine, "ensure_tesseract", lambda: False)
-    monkeypatch.setattr("inventory_api.sys.platform", "win32")
+    monkeypatch.setattr("domain.api_scan.sys.platform", "win32")
     monkeypatch.setattr("shutil.which", lambda _name: None)
 
     api = InventoryApi(debug=True)
@@ -64,7 +64,7 @@ def test_winget_success_redetects_engine(monkeypatch):
         return calls["n"] > 1
 
     monkeypatch.setattr(ocr_engine, "ensure_tesseract", _ensure)
-    monkeypatch.setattr("inventory_api.sys.platform", "win32")
+    monkeypatch.setattr("domain.api_scan.sys.platform", "win32")
     monkeypatch.setattr("shutil.which", lambda _name: r"C:\winget.exe")
 
     captured = {}
@@ -90,7 +90,7 @@ def test_winget_success_redetects_engine(monkeypatch):
 
 def test_winget_nonzero_exit(monkeypatch):
     monkeypatch.setattr(ocr_engine, "ensure_tesseract", lambda: False)
-    monkeypatch.setattr("inventory_api.sys.platform", "win32")
+    monkeypatch.setattr("domain.api_scan.sys.platform", "win32")
     monkeypatch.setattr("shutil.which", lambda _name: r"C:\winget.exe")
     monkeypatch.setattr(
         subprocess, "run",
@@ -108,7 +108,7 @@ def test_winget_nonzero_exit(monkeypatch):
 
 def test_winget_run_raises_does_not_propagate(monkeypatch):
     monkeypatch.setattr(ocr_engine, "ensure_tesseract", lambda: False)
-    monkeypatch.setattr("inventory_api.sys.platform", "win32")
+    monkeypatch.setattr("domain.api_scan.sys.platform", "win32")
     monkeypatch.setattr("shutil.which", lambda _name: r"C:\winget.exe")
 
     def _raise(*a, **k):
