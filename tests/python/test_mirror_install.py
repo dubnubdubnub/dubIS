@@ -65,3 +65,48 @@ def test_tailscale_logged_in_parses_status():
         assert tailscale.is_logged_in() is True
         run.return_value = mock.Mock(returncode=0, stdout='{"BackendState":"NeedsLogin"}', stderr="")
         assert tailscale.is_logged_in() is False
+
+
+_SELF_LOGIN_STATUS = """{
+  "Self": {"UserID": 123},
+  "User": {"123": {"LoginName": "alice@example.com"}},
+  "BackendState": "Running"
+}"""
+
+
+def test_self_login_returns_login_name():
+    with mock.patch("mirror_install.tailscale.shutil.which", return_value="/usr/bin/tailscale"), \
+         mock.patch("mirror_install.tailscale.subprocess.run") as run:
+        run.return_value = mock.Mock(returncode=0, stdout=_SELF_LOGIN_STATUS, stderr="")
+        assert tailscale.self_login() == "alice@example.com"
+
+
+def test_self_login_returns_empty_when_unavailable():
+    with mock.patch("mirror_install.tailscale.shutil.which", return_value=None):
+        assert tailscale.self_login() == ""
+
+
+def test_self_login_returns_empty_on_nonzero_exit():
+    with mock.patch("mirror_install.tailscale.shutil.which", return_value="/usr/bin/tailscale"), \
+         mock.patch("mirror_install.tailscale.subprocess.run") as run:
+        run.return_value = mock.Mock(returncode=1, stdout="", stderr="error")
+        assert tailscale.self_login() == ""
+
+
+def test_self_login_returns_empty_on_missing_keys():
+    with mock.patch("mirror_install.tailscale.shutil.which", return_value="/usr/bin/tailscale"), \
+         mock.patch("mirror_install.tailscale.subprocess.run") as run:
+        # Missing User map entry for the UserID
+        run.return_value = mock.Mock(
+            returncode=0,
+            stdout='{"Self": {"UserID": 999}, "User": {}, "BackendState": "Running"}',
+            stderr="",
+        )
+        assert tailscale.self_login() == ""
+
+
+def test_self_login_returns_empty_on_invalid_json():
+    with mock.patch("mirror_install.tailscale.shutil.which", return_value="/usr/bin/tailscale"), \
+         mock.patch("mirror_install.tailscale.subprocess.run") as run:
+        run.return_value = mock.Mock(returncode=0, stdout="not-json", stderr="")
+        assert tailscale.self_login() == ""
