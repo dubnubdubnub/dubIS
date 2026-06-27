@@ -1,0 +1,114 @@
+/* ── Import Diff Review Modal ──────────────────────────── */
+
+.import-diff-modal {
+  min-width: 640px;
+  max-width: 900px;
+  width: 90vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3xl) var(--space-4xl);
+  gap: 0;
+}
+
+.import-diff-header {
+  flex-shrink: 0;
+  margin-bottom: var(--space-lg);
+}
+
+.import-diff-summary {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin-top: var(--space-xs);
+  height: 1.4em;
+}
+
+.import-diff-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-base);
+  /* Keep the DataGrid sticky header usable inside the scrollable wrap */
+  position: relative;
+}
+
+/* Override table-layout for the diff grid — it needs fixed columns */
+.import-diff-table-wrap .data-grid {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 560px;
+}
+
+.import-diff-table-wrap .data-grid thead th {
+  /* Sticky inside the scrollable wrap — requires the wrap to be the
+     scroll container (overflow-y:auto), which it is. */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-surface);
+}
+
+.import-diff-actions {
+  flex-shrink: 0;
+  margin-top: var(--space-xl);
+}
+
+/* ── Status badges ──────────────────────────────────────── */
+.import-diff-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.import-diff-badge--insert {
+  background: var(--color-green-bg);
+  border: 1px solid var(--color-green-border);
+  color: var(--color-green);
+}
+
+.import-diff-badge--update {
+  background: var(--color-blue-bg);
+  border: 1px solid var(--color-blue-border);
+  color: var(--color-blue);
+}
+
+.import-diff-badge--skip {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+}
+
+/* ── Row tinting ────────────────────────────────────────── */
+.import-diff-table-wrap tr.import-diff-row--insert td {
+  background: var(--row-green-bg);
+}
+.import-diff-table-wrap tr.import-diff-row--update td {
+  background: var(--color-blue-bg);
+}
+.import-diff-table-wrap tr.import-diff-row--skip td {
+  opacity: 0.5;
+}
+
+/* Checkbox cell — prevent row tint from painting over it at hover */
+.import-diff-table-wrap .data-grid td:first-child {
+  text-align: center;
+  vertical-align: middle;
+  padding: 4px 6px;
+}
+
+.import-diff-cb {
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+  accent-color: var(--color-blue);
+}
+.import-diff-cb:disabled {
+  cursor: default;
+  opacity: 0.35;
+}

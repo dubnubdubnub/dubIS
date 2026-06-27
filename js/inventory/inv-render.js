@@ -10,6 +10,7 @@ import {
   filterByDistributor,
   filterByVendor,
 } from './inventory-logic.js';
+import { filterByPredicate } from './filter-chips-fields.js';
 import state from './inv-state.js';
 import { sortPartsBy, groupByVendor } from './inv-sort-group.js';
 import { createPartRow } from './inv-row-build.js';
@@ -43,7 +44,7 @@ export function renderNormalInventory() {
   for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
     var entry = SECTION_HIERARCHY[i];
     if (!entry.children) {
-      var filtered = filterByVendor(filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributors), state.selectedVendorIds);
+      var filtered = filterByPredicate(filterByVendor(filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributors), state.selectedVendorIds), state.activePredicate);
       if (filtered.length > 0) renderSection(entry.name, filtered);
     } else {
       renderHierarchySection(entry, sections, query);
@@ -61,7 +62,7 @@ export function renderGlobalScope(sections, query) {
   for (var i = 0; i < FLAT_SECTIONS.length; i++) {
     var name = FLAT_SECTIONS[i];
     var bucket = sections[name] || [];
-    var filtered = filterByDistributor(filterByQuery(bucket, query), state.activeDistributors);
+    var filtered = filterByPredicate(filterByDistributor(filterByQuery(bucket, query), state.activeDistributors), state.activePredicate);
     var displayName = sectionDisplayName(name);
     for (var j = 0; j < filtered.length; j++) {
       var tagged = Object.assign({}, filtered[j]);
@@ -100,12 +101,12 @@ export function renderVendorPiles(container, parts, scopeKey) {
 }
 
 export function renderHierarchySection(entry, sections, query) {
-  var parentParts = filterByVendor(filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributors), state.selectedVendorIds);
+  var parentParts = filterByPredicate(filterByVendor(filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributors), state.selectedVendorIds), state.activePredicate);
   var childData = [];
   var totalCount = parentParts.length;
   for (var i = 0; i < entry.children.length; i++) {
     var fullKey = entry.name + " > " + entry.children[i];
-    var filtered = filterByVendor(filterByDistributor(filterByQuery(sections[fullKey] || [], query), state.activeDistributors), state.selectedVendorIds);
+    var filtered = filterByPredicate(filterByVendor(filterByDistributor(filterByQuery(sections[fullKey] || [], query), state.activeDistributors), state.selectedVendorIds), state.activePredicate);
     totalCount += filtered.length;
     childData.push({ name: entry.children[i], fullKey: fullKey, parts: filtered });
   }

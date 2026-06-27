@@ -275,6 +275,8 @@ def load_organized(output_csv: str) -> "list[InventoryItem]":
                 "qty": parse_qty(row.get("Quantity")),
                 "unit_price": parse_price(row.get("Unit Price($)")),
                 "ext_price": parse_price(row.get("Ext.Price($)")),
+                "primary_vendor_id": "",
+                "po_history": [],
             })
     return rows
 

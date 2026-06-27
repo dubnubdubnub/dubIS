@@ -41,6 +41,9 @@ var state = {
   sortScope: null,         // null | "subsection" | "section" | "global"
   vendorGroupScope: null,  // null | "subsection" | "section" | "global"
 
+  // ── Filter chips predicate AST ──
+  activePredicate: null,  // null | { op: "and"|"or", rules: Rule[] }
+
   // ── Import-generation markers (scrollbar fade dots) ──
   importGenerations: [],   // [{ keys: Set<string> }, ...] newest-first, capped at MAX_IMPORT_GENERATIONS
 };
