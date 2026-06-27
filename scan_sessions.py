@@ -18,12 +18,6 @@ logger = logging.getLogger(__name__)
 # for a short window; expire sessions so stale ids can't be replayed.
 SCAN_SESSION_TTL = 15 * 60
 
-# ── Scan session registry ──
-#
-# Stored on the server object as ``server._scan_sessions`` (a dict keyed by
-# session id). No background thread: expired sessions are pruned lazily on every
-# access. Created by inventory_api.start_scan_session().
-
 
 def _scan_sessions(server):
     """Return (creating if needed) the server's scan-session registry."""
