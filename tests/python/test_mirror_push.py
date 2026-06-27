@@ -61,3 +61,32 @@ def test_controller_pushes_when_enabled(capture_server):
     ctrl.push_event([{"lcsc": "C1"}], dubis_running=False, block=True)
     assert received[0]["dubis_running"] is False
     assert received[0]["inventory"] == [{"lcsc": "C1"}]
+
+
+def test_on_inventory_changed_coalesces(capture_server):
+    received, port = capture_server
+    ctrl = MirrorController(is_enabled=lambda: True, read_token=lambda: "t", port=port)
+
+    # Rapid calls to on_inventory_changed should coalesce
+    inv1 = [{"lcsc": "C1"}]
+    inv2 = [{"lcsc": "C2"}]
+    inv3 = [{"lcsc": "C3"}]
+
+    ctrl.on_inventory_changed(inv1)
+    ctrl.on_inventory_changed(inv2)
+    ctrl.on_inventory_changed(inv3)
+
+    # Poll for async daemon thread completion (up to 2s)
+    import time
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        if len(received) >= 1 and not ctrl._in_flight:
+            break
+        time.sleep(0.05)
+
+    # Coalescing: at least 1, at most 3 pushes
+    assert 1 <= len(received) <= 3
+    # Last received payload should contain the last inventory
+    assert received[-1]["inventory"] == inv3
+    # Controller should be idle (no stuck state)
+    assert not ctrl._in_flight

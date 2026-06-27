@@ -93,3 +93,5 @@ class MirrorController:
             if token:
                 push_snapshot(build_payload(inv, dubis_running=True, token=token),
                               host=self._host, port=self._port)
+            else:
+                logger.warning("Mirror push skipped: no token")
