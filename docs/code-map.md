@@ -228,6 +228,13 @@ graph LR
     "js/inventory-modals.js" --> "js/undo-redo.js"
     "js/inventory/favicon-stack.js" --> "js/store.js"
     "js/inventory/favicon-stack.js" --> "js/ui-helpers.js"
+    "js/inventory/filter-chips-bar.js" --> "js/api.js"
+    "js/inventory/filter-chips-bar.js" --> "js/components/predicate-ui.js"
+    "js/inventory/filter-chips-bar.js" --> "js/inventory/filter-chips-fields.js"
+    "js/inventory/filter-chips-bar.js" --> "js/inventory/inv-state.js"
+    "js/inventory/filter-chips-bar.js" --> "js/store.js"
+    "js/inventory/filter-chips-fields.js" --> "js/components/predicate-ui.js"
+    "js/inventory/filter-chips-fields.js" --> "js/inventory/inventory-logic.js"
     "js/inventory/inv-bom-mode.js" --> "js/inventory/inv-events.js"
     "js/inventory/inv-bom-mode.js" --> "js/inventory/inv-mutations.js"
     "js/inventory/inv-bom-mode.js" --> "js/inventory/inv-render.js"
@@ -274,6 +281,7 @@ graph LR
     "js/inventory/inv-mutations.js" --> "js/store.js"
     "js/inventory/inv-mutations.js" --> "js/ui-helpers.js"
     "js/inventory/inv-mutations.js" --> "js/undo-redo.js"
+    "js/inventory/inv-render.js" --> "js/inventory/filter-chips-fields.js"
     "js/inventory/inv-render.js" --> "js/inventory/inv-groups-view.js"
     "js/inventory/inv-render.js" --> "js/inventory/inv-row-build.js"
     "js/inventory/inv-render.js" --> "js/inventory/inv-sort-group.js"
@@ -291,6 +299,7 @@ graph LR
     "js/inventory/inv-row-build.js" --> "js/part-keys.js"
     "js/inventory/inv-row-build.js" --> "js/store.js"
     "js/inventory/inventory-logic.js" --> "js/part-keys.js"
+    "js/inventory/inventory-panel.js" --> "js/inventory/filter-chips-bar.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-bom-mode.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-events.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-import-markers.js"
@@ -389,6 +398,7 @@ graph LR
     "tests/js/e2e/scan-server.py" --> "pnp_server.py"
     "tests/js/event-bus.test.js" --> "js/event-bus.js"
     "tests/js/favicon-stack.test.js" --> "js/inventory/favicon-stack.js"
+    "tests/js/filter-chips.test.js" --> "js/inventory/filter-chips-fields.js"
     "tests/js/form-modal.test.js" --> "js/components/form-modal.js"
     "tests/js/form-modal.test.js" --> "js/undo-redo.js"
     "tests/js/group-flyout-logic.test.js" --> "js/group-flyout/flyout-logic.js"
@@ -766,7 +776,7 @@ graph LR
 ### js/api.js
 
 - **Imports:** `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-mutations.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/store.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api.test.js`, `tests/js/command-palette.test.js`, `tests/js/shortcut-prefs.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-mutations.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/store.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api.test.js`, `tests/js/command-palette.test.js`, `tests/js/shortcut-prefs.test.js`
 
 ### js/app-init.js
 
@@ -827,7 +837,7 @@ graph LR
 ### js/components/predicate-ui.js
 
 - **Imports:** `js/dom/html.js`
-- **Imported by:** `tests/js/predicate-ui.test.js`
+- **Imported by:** `js/inventory/filter-chips-bar.js`, `js/inventory/filter-chips-fields.js`, `tests/js/predicate-ui.test.js`
 
 ### js/constants.js
 
@@ -988,6 +998,16 @@ graph LR
 - **Imports:** `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/inventory/inv-events.js`, `js/inventory/inventory-renderer.js`, `tests/js/favicon-stack.test.js`
 
+### js/inventory/filter-chips-bar.js
+
+- **Imports:** `js/api.js`, `js/components/predicate-ui.js`, `js/inventory/filter-chips-fields.js`, `js/inventory/inv-state.js`, `js/store.js`
+- **Imported by:** `js/inventory/inventory-panel.js`
+
+### js/inventory/filter-chips-fields.js
+
+- **Imports:** `js/components/predicate-ui.js`, `js/inventory/inventory-logic.js`
+- **Imported by:** `js/inventory/filter-chips-bar.js`, `js/inventory/inv-render.js`, `tests/js/filter-chips.test.js`
+
 ### js/inventory/inv-bom-mode.js
 
 - **Imports:** `js/inventory/inv-events.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-logic.js`, `js/inventory/inventory-renderer.js`, `js/part-keys.js`, `js/store.js`
@@ -1024,7 +1044,7 @@ graph LR
 
 ### js/inventory/inv-render.js
 
-- **Imports:** `js/inventory/inv-groups-view.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-sort-group.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-logic.js`, `js/store.js`, `js/ui-helpers.js`
+- **Imports:** `js/inventory/filter-chips-fields.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-sort-group.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-logic.js`, `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/inventory/inv-bom-mode.js`, `js/inventory/inventory-panel.js`
 
 ### js/inventory/inv-row-build.js
@@ -1040,16 +1060,16 @@ graph LR
 ### js/inventory/inv-state.js
 
 - **Imports:** —
-- **Imported by:** `js/app-init.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-import-markers.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`, `tests/js/inv-import-markers.test.js`
+- **Imported by:** `js/app-init.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-import-markers.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`, `tests/js/inv-import-markers.test.js`
 
 ### js/inventory/inventory-logic.js
 
 - **Imports:** `js/part-keys.js`
-- **Imported by:** `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-render.js`, `js/inventory/inventory-panel.js`, `tests/js/inventory-logic.test.js`
+- **Imported by:** `js/inventory/filter-chips-fields.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-render.js`, `js/inventory/inventory-panel.js`, `tests/js/inventory-logic.test.js`
 
 ### js/inventory/inventory-panel.js
 
-- **Imports:** `js/inventory/inv-bom-mode.js`, `js/inventory/inv-events.js`, `js/inventory/inv-import-markers.js`, `js/inventory/inv-render.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-logic.js`, `js/inventory/inventory-renderer.js`, `js/inventory/saved-views-ui.js`, `js/store.js`
+- **Imports:** `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-events.js`, `js/inventory/inv-import-markers.js`, `js/inventory/inv-render.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-logic.js`, `js/inventory/inventory-renderer.js`, `js/inventory/saved-views-ui.js`, `js/store.js`
 - **Imported by:** `js/app-init.js`
 
 ### js/inventory/inventory-renderer.js
@@ -1132,7 +1152,7 @@ graph LR
 ### js/store.js
 
 - **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/signals.js`
-- **Imported by:** `js/a11y/roving-grid.js`, `js/a11y/scrollable.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/preferences-modal.js`, `js/vendors-modal.js`, `tests/js/inventory-rendering.test.js`, `tests/js/saved-views.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
+- **Imported by:** `js/a11y/roving-grid.js`, `js/a11y/scrollable.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/favicon-stack.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/preferences-modal.js`, `js/vendors-modal.js`, `tests/js/inventory-rendering.test.js`, `tests/js/saved-views.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
 - **Emits:** `CONFIRMED_CHANGED`, `GENERIC_PARTS_LOADED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LINKING_MODE`, `LINKS_CHANGED`, `PO_CHANGED`, `PREFS_CHANGED`, `VENDORS_CHANGED`
 - **Listens:** —
 
@@ -1404,6 +1424,11 @@ graph LR
 ### tests/js/favicon-stack.test.js
 
 - **Imports:** `js/inventory/favicon-stack.js`
+- **Imported by:** —
+
+### tests/js/filter-chips.test.js
+
+- **Imports:** `js/inventory/filter-chips-fields.js`
 - **Imported by:** —
 
 ### tests/js/form-modal.test.js

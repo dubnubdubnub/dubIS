@@ -73,9 +73,12 @@ export function setupEvents(handlers) {
   });
 
   state.clearFilterBtn.addEventListener("click", function () {
-    if (state.activeDistributors.size === 0 && !state.searchInput.value) return;
+    var hasChips = !!(state.activePredicate && state.activePredicate.rules && state.activePredicate.rules.length > 0);
+    if (state.activeDistributors.size === 0 && !state.searchInput.value && !hasChips) return;
     state.activeDistributors.clear();
     state.searchInput.value = "";
+    // Also clear filter chips via the chips bar module
+    import('./filter-chips-bar.js').then(function (m) { m.clearFilterChips(); });
     updateDistFilterUI();
     render();
   });

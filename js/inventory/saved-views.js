@@ -42,6 +42,7 @@ function genId() {
  *   sortColumn: string|null,
  *   sortScope: string|null,
  *   vendorGroupScope: string|null,
+ *   activePredicate?: any,
  * }} state
  * @returns {{
  *   searchTerm: string,
@@ -50,7 +51,7 @@ function genId() {
  *   sortColumn: string|null,
  *   sortScope: string|null,
  *   vendorGroupScope: string|null,
- *   predicate: null,
+ *   predicate: any,
  * }}
  */
 export function captureView(state) {
@@ -61,7 +62,7 @@ export function captureView(state) {
     sortColumn: state.sortColumn,
     sortScope: state.sortScope,
     vendorGroupScope: state.vendorGroupScope,
-    predicate: null, // reserved for Phase 5 filter-chips
+    predicate: state.activePredicate ? JSON.parse(JSON.stringify(state.activePredicate)) : null,
   };
 }
 
@@ -80,6 +81,7 @@ export function captureView(state) {
  *   sortColumn?: string|null,
  *   sortScope?: string|null,
  *   vendorGroupScope?: string|null,
+ *   predicate?: any,
  * }} view
  * @param {{
  *   searchInput: { value: string },
@@ -88,6 +90,7 @@ export function captureView(state) {
  *   sortColumn: string|null,
  *   sortScope: string|null,
  *   vendorGroupScope: string|null,
+ *   activePredicate?: any,
  * }} state
  */
 export function applyView(view, state) {
@@ -100,6 +103,13 @@ export function applyView(view, state) {
   state.sortColumn = view.sortColumn !== undefined ? view.sortColumn : null;
   state.sortScope = view.sortScope !== undefined ? view.sortScope : null;
   state.vendorGroupScope = view.vendorGroupScope !== undefined ? view.vendorGroupScope : null;
+  // Restore predicate filter chips
+  state.activePredicate = view.predicate ? JSON.parse(JSON.stringify(view.predicate)) : null;
+  // Sync filter chips bar UI to restored predicate
+  const _stateRef = /** @type {any} */ (state);
+  import('./filter-chips-bar.js').then(function (m) {
+    if (typeof m.syncFilterChipsBar === 'function') m.syncFilterChipsBar(_stateRef);
+  }).catch(function () { /* filter chips bar not loaded yet */ });
 }
 
 // ── Ensure saved_views array ───────────────────────────────────────────────
