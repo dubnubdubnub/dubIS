@@ -19,6 +19,7 @@ from distributor_manager import DistributorManager
 from domain.api_distributor import DistributorFacade
 from domain.api_fileio import FileIOFacade
 from domain.api_generic_parts import GenericPartsFacade
+from domain.api_history import PartHistoryFacade
 from domain.api_inventory import InventoryCRUDFacade
 from domain.api_preferences import PreferencesFacade
 from domain.api_pricing import PricingFacade
@@ -82,6 +83,7 @@ class InventoryApi:
         self._vendors = VendorsFacade(self)
         self._po = PurchaseOrdersFacade(self)
         self._scan = ScanFacade(self)
+        self._history = PartHistoryFacade(self)
         from domain.api_mirror import MirrorFacade
         from mirror_push import MirrorController
         self._mirror = MirrorFacade(self)
@@ -289,6 +291,11 @@ class InventoryApi:
 
     def get_last_po_quantity(self, part_key: str) -> int | None:
         return self._pricing.get_last_po_quantity(part_key)
+
+    # ── Part adjustment history ─────────────────────────────────────────────
+
+    def get_part_history(self, part_key: str) -> list[dict[str, Any]]:
+        return self._history.get_part_history(part_key)
 
     # ── Product preview (delegated to DistributorManager) ───────────────────
 

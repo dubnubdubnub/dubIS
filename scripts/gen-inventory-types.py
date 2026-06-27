@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import typing
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -20,14 +21,28 @@ DEFAULT_OUT = REPO_ROOT / "js" / "inventory-record.d.ts"
 # Make sure the repo root is on sys.path so `domain` is importable.
 sys.path.insert(0, str(REPO_ROOT))
 
-from domain.schema import INVENTORY_FIELDS  # noqa: E402
+from domain.schema import INVENTORY_FIELDS, PartHistoryEntry  # noqa: E402
+
+# TS type mapping for Python annotation types → TypeScript types.
+_PY_TO_TS: dict[str, str] = {
+    "str": "string",
+    "int": "number",
+    "float": "number",
+    "bool": "boolean",
+}
+
+
+def _ts_type_for(annotation) -> str:
+    """Convert a Python type annotation to a TypeScript type string."""
+    name = getattr(annotation, "__name__", None) or str(annotation)
+    return _PY_TO_TS.get(name, "string")
 
 
 def render_dts() -> str:
-    """Render the TypeScript interface declaration as a string."""
+    """Render the TypeScript interface declarations as a string."""
     lines = [
         "// AUTO-GENERATED — do not edit by hand.",
-        "// Source of truth: domain/schema.py :: INVENTORY_FIELDS",
+        "// Source of truth: domain/schema.py :: INVENTORY_FIELDS + PartHistoryEntry",
         "// Regenerate: python scripts/gen-inventory-types.py",
         "",
         "export interface InventoryItem {",
@@ -36,6 +51,11 @@ def render_dts() -> str:
         if not f.to_js:
             continue
         lines.append(f"  {f.py_key}: {f.ts_type};")
+    lines.append("}")
+    lines.append("")
+    lines.append("export interface PartHistoryEntry {")
+    for py_key, annotation in typing.get_type_hints(PartHistoryEntry).items():
+        lines.append(f"  {py_key}: {_ts_type_for(annotation)};")
     lines.append("}")
     lines.append("")
     return "\n".join(lines)

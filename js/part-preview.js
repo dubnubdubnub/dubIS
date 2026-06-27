@@ -166,6 +166,13 @@ async function showTooltip(code, provider, triggerEl) {
       positionTooltip(triggerEl);
     }
   }).catch(function () { /* ignore */ });
+
+  // Fetch and display part adjustment history (fire-and-forget)
+  api("get_part_history", code).then(function (entries) {
+    if (currentCode !== code || currentProvider !== provider) return;
+    appendPartHistory(entries || []);
+    positionTooltip(triggerEl);
+  }).catch(function (e) { AppLog.warn("get_part_history failed for " + code + ": " + e); });
 }
 
 // ── Fetch with cache ──
@@ -395,6 +402,33 @@ function appendPriceHistory(summary) {
       '<td>' + (s.price_count || 0) + '</td></tr>';
   }
   html += '</tbody></table></div>';
+  // Insert before debug section if present, otherwise append
+  var debug = card.querySelector(".part-preview-debug");
+  if (debug) debug.insertAdjacentHTML("beforebegin", html);
+  else card.insertAdjacentHTML("beforeend", html);
+}
+
+function appendPartHistory(entries) {
+  var card = tooltip.querySelector(".part-preview-card");
+  if (!card) return;
+  var html = '<div class="part-preview-history part-preview-adj-history"><div class="part-preview-history-title">History</div>';
+  if (!entries || entries.length === 0) {
+    html += '<div class="part-preview-no-history">No adjustments recorded</div>';
+  } else {
+    var recent = entries.slice(-8); // show the 8 most recent entries
+    html += '<table class="part-preview-prices"><tbody>';
+    recent.forEach(function (e) {
+      var date = (e.timestamp || "").slice(0, 10);
+      var src = e.source || "—";
+      var delta = typeof e.qty_delta === "number" ? e.qty_delta : parseInt(e.qty_delta, 10) || 0;
+      var sign = delta > 0 ? "+" : "";
+      var kindLabel = e.kind === "set" ? "set" : (e.kind || "");
+      var deltaText = kindLabel === "set" ? "→" + delta : sign + delta;
+      html += '<tr><td>' + escHtml(date) + '</td><td>' + escHtml(src) + '</td><td>' + escHtml(deltaText) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+  html += '</div>';
   // Insert before debug section if present, otherwise append
   var debug = card.querySelector(".part-preview-debug");
   if (debug) debug.insertAdjacentHTML("beforebegin", html);
