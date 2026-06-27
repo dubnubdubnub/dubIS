@@ -29,5 +29,11 @@ def get_installer() -> Installer:
     if sys.platform == "win32":
         from mirror_install.windows import WindowsInstaller
         return WindowsInstaller()
+    if sys.platform == "darwin":
+        from mirror_install.macos import MacOSInstaller
+        return MacOSInstaller()
+    if sys.platform.startswith("linux"):
+        from mirror_install.linux import LinuxInstaller
+        return LinuxInstaller()
     raise NotImplementedError(
         f"mirror autostart not yet implemented for {sys.platform}")
