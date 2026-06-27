@@ -1,4 +1,4 @@
-"""Preferences facade — load/save preferences and poll API configuration."""
+"""Preferences facade — load/save preferences."""
 
 from __future__ import annotations
 
@@ -39,38 +39,3 @@ class PreferencesFacade:
             self._api.prefs_json, json.dumps(prefs, indent=2), encoding="utf-8",
         )
 
-    def get_poll_api_info(self) -> dict[str, Any]:
-        """Return the local poll API URL and active port."""
-        import poll_api
-        server = getattr(self._api, "_poll_server", None)
-        prefs = self._api.load_preferences()
-        info: dict[str, Any] = {
-            "default_port": poll_api.POLL_PORT,
-            "configured_port": prefs.get("pollApiPort"),
-            "running": server is not None,
-        }
-        if server is not None:
-            host, port = server.server_address
-            info["host"] = host
-            info["port"] = port
-            info["url"] = f"http://{host}:{port}"
-        else:
-            info["host"] = ""
-            info["port"] = None
-            info["url"] = ""
-        return info
-
-    def set_poll_api_port(self, port: int | str) -> dict[str, Any]:
-        """Restart the poll API server on a new port and persist to preferences."""
-        import poll_api
-        try:
-            port_int = int(port)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"port must be an integer, got {port!r}") from exc
-        if port_int < 1024 or port_int > 65535:
-            raise ValueError(f"port out of range (1024-65535): {port_int}")
-        poll_api.restart_poll_server(self._api, port_int)
-        prefs = self._api.load_preferences()
-        prefs["pollApiPort"] = port_int
-        self._api.save_preferences(prefs)
-        return self._api.get_poll_api_info()
