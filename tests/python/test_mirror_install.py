@@ -1,4 +1,3 @@
-import sys
 from unittest import mock
 
 import pytest
@@ -16,16 +15,16 @@ def _cfg():
 
 
 def test_get_installer_dispatch():
-    if sys.platform == "win32":
+    with mock.patch("mirror_install.base.sys.platform", "win32"):
         assert isinstance(base.get_installer(), WindowsInstaller)
-    else:
+    with mock.patch("mirror_install.base.sys.platform", "linux"):
         with pytest.raises(NotImplementedError):
             base.get_installer()
 
 
 def test_windows_install_builds_schtasks_create():
     inst = WindowsInstaller()
-    with mock.patch("subprocess.run") as run:
+    with mock.patch("mirror_install.windows.subprocess.run") as run:
         run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
         inst.install(_cfg())
     args = run.call_args_list[0].args[0]
@@ -36,21 +35,32 @@ def test_windows_install_builds_schtasks_create():
 
 def test_windows_uninstall_builds_schtasks_delete():
     inst = WindowsInstaller()
-    with mock.patch("subprocess.run") as run:
+    with mock.patch("mirror_install.windows.subprocess.run") as run:
         run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
         inst.uninstall()
     args = run.call_args_list[0].args[0]
     assert "/Delete" in args and TASK_NAME in args
 
 
-def test_tailscale_not_available_raises_on_enable():
-    with mock.patch("shutil.which", return_value=None):
+def test_enable_serve_raises_when_unavailable():
+    with mock.patch("mirror_install.tailscale.shutil.which", return_value=None):
         assert tailscale.is_available() is False
+        with pytest.raises(RuntimeError, match="not found on PATH"):
+            tailscale.enable_serve(7893)
+
+
+def test_enable_serve_raises_when_not_logged_in():
+    with mock.patch("mirror_install.tailscale.shutil.which", return_value="/usr/bin/tailscale"), \
+         mock.patch("mirror_install.tailscale.subprocess.run") as run:
+        run.return_value = mock.Mock(returncode=0, stdout='{"BackendState":"NeedsLogin"}', stderr="")
+        assert tailscale.is_logged_in() is False
+        with pytest.raises(RuntimeError, match="not logged in"):
+            tailscale.enable_serve(7893)
 
 
 def test_tailscale_logged_in_parses_status():
-    with mock.patch("shutil.which", return_value="/usr/bin/tailscale"), \
-         mock.patch("subprocess.run") as run:
+    with mock.patch("mirror_install.tailscale.shutil.which", return_value="/usr/bin/tailscale"), \
+         mock.patch("mirror_install.tailscale.subprocess.run") as run:
         run.return_value = mock.Mock(returncode=0, stdout='{"BackendState":"Running"}', stderr="")
         assert tailscale.is_logged_in() is True
         run.return_value = mock.Mock(returncode=0, stdout='{"BackendState":"NeedsLogin"}', stderr="")
