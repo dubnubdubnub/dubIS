@@ -28,6 +28,12 @@ const SCREENSHOT_PATH = 'C:/Users/isaac/AppData/Local/Temp/claude/D--gehub-dubIS
 // Helper: compute total row count without any filters
 const TOTAL_ROWS = MOCK_INVENTORY.length;
 
+// Helper: compute text used by filterByQuery for a row (mirrors inventory-logic.js)
+function searchText(r) {
+  return [r.lcsc, r.mpn, r.description, r.manufacturer, r.package, r.digikey, r.pololu, r.mouser]
+    .join(' ').toLowerCase();
+}
+
 // Helper: count rows in the fixture that would pass qty < threshold
 function rowsWithQtyLessThan(threshold) {
   return MOCK_INVENTORY.filter((r) => r.qty < threshold).length;
@@ -41,6 +47,11 @@ function rowsWithLCSC() {
 // Helper: count rows that have lcsc AND qty < threshold
 function rowsWithLCSCAndQtyLessThan(threshold) {
   return MOCK_INVENTORY.filter((r) => r.lcsc && r.qty < threshold).length;
+}
+
+// Helper: count rows matching qty < threshold AND search term
+function rowsWithQtyLessThanAndSearch(threshold, term) {
+  return MOCK_INVENTORY.filter((r) => r.qty < threshold && searchText(r).includes(term.toLowerCase())).length;
 }
 
 test.describe('Filter chips bar', () => {
@@ -134,10 +145,10 @@ test.describe('Filter chips bar', () => {
     await opSel.selectOption('lt');
     await page.waitForTimeout(100);
 
-    // Set value
+    // Set value and commit via Tab (native blur/change)
     const valueInput = popover.locator('.pred-value');
     await valueInput.fill(String(threshold));
-    await valueInput.dispatchEvent('change');
+    await valueInput.press('Tab');
 
     // Apply
     await page.locator('.fc-popover-apply').click();
@@ -169,7 +180,7 @@ test.describe('Filter chips bar', () => {
     await page.waitForTimeout(50);
     const valueInput = popover.locator('.pred-value');
     await valueInput.fill('50');
-    await valueInput.dispatchEvent('change');
+    await valueInput.press('Tab');
     await page.locator('.fc-popover-apply').click();
     await page.waitForTimeout(100);
 
@@ -194,7 +205,7 @@ test.describe('Filter chips bar', () => {
     await page.waitForTimeout(50);
     const valueInput = popover.locator('.pred-value');
     await valueInput.fill('50');
-    await valueInput.dispatchEvent('change');
+    await valueInput.press('Tab');
     await page.locator('.fc-popover-apply').click();
     await page.waitForTimeout(200);
 
@@ -223,8 +234,10 @@ test.describe('Filter chips bar', () => {
     const lcscCount = rowsWithLCSC();
     const lcscAndQtyCount = rowsWithLCSCAndQtyLessThan(threshold);
 
-    // Skip if data doesn't allow meaningful intersection
-    if (lcscCount === 0 || lcscAndQtyCount === 0) return;
+    // Fixture must support a meaningful intersection — assert it rather than silently bail
+    expect(lcscCount).toBeGreaterThan(0);
+    expect(lcscAndQtyCount).toBeGreaterThan(0);
+    expect(lcscAndQtyCount).toBeLessThan(lcscCount);
 
     // Step 1: click LCSC distributor pill
     await page.locator('.dist-filter-btn[data-distributor="lcsc"]').click();
@@ -241,7 +254,7 @@ test.describe('Filter chips bar', () => {
     await page.waitForTimeout(50);
     const valueInput = popover.locator('.pred-value');
     await valueInput.fill(String(threshold));
-    await valueInput.dispatchEvent('change');
+    await valueInput.press('Tab');
     await page.locator('.fc-popover-apply').click();
     await page.waitForTimeout(200);
 
@@ -258,6 +271,13 @@ test.describe('Filter chips bar', () => {
     await waitForInventoryRows(page);
 
     const threshold = 50;
+    const searchTerm = 'connector';
+    const expectedAfterChip = rowsWithQtyLessThan(threshold);
+    const expectedAfterBoth = rowsWithQtyLessThanAndSearch(threshold, searchTerm);
+
+    // Fixture must support a meaningful reduction from the combined filters
+    expect(expectedAfterBoth).toBeGreaterThan(0);
+    expect(expectedAfterBoth).toBeLessThan(expectedAfterChip);
 
     // Step 1: add qty < 50 chip
     await page.locator('#fc-add-filter-btn').click();
@@ -268,19 +288,20 @@ test.describe('Filter chips bar', () => {
     await page.waitForTimeout(50);
     const valueInput = popover.locator('.pred-value');
     await valueInput.fill(String(threshold));
-    await valueInput.dispatchEvent('change');
+    await valueInput.press('Tab');
     await page.locator('.fc-popover-apply').click();
     await page.waitForTimeout(300);
 
     const afterChip = await page.locator('.inv-part-row').count();
+    expect(afterChip).toBe(expectedAfterChip);
 
     // Step 2: type a search query that further reduces results
-    await page.locator('#inv-search').fill('C');
+    await page.locator('#inv-search').fill(searchTerm);
     await page.waitForTimeout(300);
 
     const afterSearch = await page.locator('.inv-part-row').count();
-    // The search further reduces (or keeps same if all match)
-    expect(afterSearch).toBeLessThanOrEqual(afterChip);
+    // Both filters AND together: concrete expected count from fixture analysis
+    expect(afterSearch).toBe(expectedAfterBoth);
   });
 
   test('editing a chip (clicking chip body) opens a popover for editing', async ({ page }) => {
@@ -298,7 +319,7 @@ test.describe('Filter chips bar', () => {
     await page.waitForTimeout(50);
     const valueInput = popover.locator('.pred-value');
     await valueInput.fill('50');
-    await valueInput.dispatchEvent('change');
+    await valueInput.press('Tab');
     await page.locator('.fc-popover-apply').click();
     await page.waitForTimeout(200);
 
@@ -316,7 +337,7 @@ test.describe('Filter chips bar', () => {
     // Change value to 100
     const editValue = editPopover.locator('.pred-value');
     await editValue.fill('100');
-    await editValue.dispatchEvent('change');
+    await editValue.press('Tab');
     await page.locator('.fc-popover-apply').click();
     await page.waitForTimeout(200);
 
@@ -340,7 +361,7 @@ test.describe('Filter chips bar', () => {
     await page.waitForTimeout(50);
     const valueInput = popover.locator('.pred-value');
     await valueInput.fill('50');
-    await valueInput.dispatchEvent('change');
+    await valueInput.press('Tab');
     await page.locator('.fc-popover-apply').click();
     await page.waitForTimeout(200);
 
@@ -367,7 +388,9 @@ test.describe('Filter chips bar', () => {
 
     const threshold = 50;
     const expectedCount = rowsWithQtyLessThan(threshold);
-    if (expectedCount === 0 || expectedCount === TOTAL_ROWS) return; // skip degenerate
+    // Fixture must have some rows below threshold and some above — assert rather than silently bail
+    expect(expectedCount).toBeGreaterThan(0);
+    expect(expectedCount).toBeLessThan(TOTAL_ROWS);
 
     // Step 1: add a qty < threshold chip
     await page.locator('#fc-add-filter-btn').click();
@@ -378,7 +401,7 @@ test.describe('Filter chips bar', () => {
     await page.waitForTimeout(50);
     const valueInput = popover.locator('.pred-value');
     await valueInput.fill(String(threshold));
-    await valueInput.dispatchEvent('change');
+    await valueInput.press('Tab');
     await page.locator('.fc-popover-apply').click();
     await page.waitForTimeout(200);
 
@@ -433,7 +456,7 @@ test.describe('Filter chips bar', () => {
     await page.waitForTimeout(50);
     let valueInput = popover.locator('.pred-value');
     await valueInput.fill('50');
-    await valueInput.dispatchEvent('change');
+    await valueInput.press('Tab');
     await page.locator('.fc-popover-apply').click();
     await page.waitForTimeout(200);
 
@@ -445,7 +468,7 @@ test.describe('Filter chips bar', () => {
     // operator defaults to 'contains' for text fields
     valueInput = popover.locator('.pred-value');
     await valueInput.fill('cap');
-    await valueInput.dispatchEvent('change');
+    await valueInput.press('Tab');
     await page.locator('.fc-popover-apply').click();
     await page.waitForTimeout(200);
 

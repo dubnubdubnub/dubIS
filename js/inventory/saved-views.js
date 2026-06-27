@@ -17,6 +17,7 @@
 
 import { store, savePreferences } from '../store.js';
 import { AppLog } from '../api.js';
+import { syncFilterChipsBar } from './filter-chips-bar.js';
 
 // ── ID generation ──────────────────────────────────────────────────────────
 
@@ -105,11 +106,9 @@ export function applyView(view, state) {
   state.vendorGroupScope = view.vendorGroupScope !== undefined ? view.vendorGroupScope : null;
   // Restore predicate filter chips
   state.activePredicate = view.predicate ? JSON.parse(JSON.stringify(view.predicate)) : null;
-  // Sync filter chips bar UI to restored predicate
-  const _stateRef = /** @type {any} */ (state);
-  import('./filter-chips-bar.js').then(function (m) {
-    if (typeof m.syncFilterChipsBar === 'function') m.syncFilterChipsBar(_stateRef);
-  }).catch(function () { /* filter chips bar not loaded yet */ });
+  // Sync filter chips bar UI synchronously so the bar reflects the restored predicate
+  // before the caller's render() fires.
+  syncFilterChipsBar(/** @type {any} */ (state));
 }
 
 // ── Ensure saved_views array ───────────────────────────────────────────────
@@ -131,7 +130,7 @@ function ensureArray() {
  * Return the list of valid saved views, filtering out malformed entries.
  * Malformed entries (missing id or name) are logged and skipped, not crashed on.
  *
- * @returns {Array<{id:string, name:string, searchTerm:string, distributors:string[], groupLevel:number, sortColumn:string|null, sortScope:string|null, vendorGroupScope:string|null, predicate:null}>}
+ * @returns {Array<{id:string, name:string, searchTerm:string, distributors:string[], groupLevel:number, sortColumn:string|null, sortScope:string|null, vendorGroupScope:string|null, predicate:any}>}
  */
 export function listViews() {
   if (!Array.isArray(store.preferences.saved_views)) {
@@ -171,7 +170,7 @@ export function listViews() {
  *   sortColumn: string|null,
  *   sortScope: string|null,
  *   vendorGroupScope: string|null,
- *   predicate: null,
+ *   predicate: any,
  * }} snapshot  From captureView().
  * @returns {Promise<void>}
  */
