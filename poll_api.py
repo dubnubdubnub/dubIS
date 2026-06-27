@@ -5,44 +5,20 @@ current inventory so external tools (e.g. Claude) can poll the running
 desktop app without going through the JS bridge.
 """
 
-import csv
-import io
 import json
 import logging
 import threading
-from collections import Counter
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+from mirror_serialize import INVENTORY_CSV_FIELDS, inventory_to_csv, inventory_stats
 
 logger = logging.getLogger(__name__)
 
 POLL_PORT = 7891
 
-INVENTORY_CSV_FIELDS = [
-    "section", "lcsc", "mpn", "digikey", "pololu", "mouser",
-    "manufacturer", "package", "description", "qty",
-    "unit_price", "ext_price", "primary_vendor_id",
-]
-
-
-def _inventory_to_csv(inventory):
-    """Render an inventory list as CSV text."""
-    buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=INVENTORY_CSV_FIELDS, extrasaction="ignore")
-    writer.writeheader()
-    for item in inventory:
-        writer.writerow(item)
-    return buf.getvalue()
-
-
-def _inventory_stats(inventory):
-    """Compute summary stats for an inventory list."""
-    sections = Counter(item.get("section") or "" for item in inventory)
-    total_qty = sum(int(item.get("qty") or 0) for item in inventory)
-    return {
-        "part_count": len(inventory),
-        "total_qty": total_qty,
-        "section_counts": dict(sections),
-    }
+# Back-compat aliases for existing call sites in this module.
+_inventory_to_csv = inventory_to_csv
+_inventory_stats = inventory_stats
 
 
 class PollHandler(BaseHTTPRequestHandler):
