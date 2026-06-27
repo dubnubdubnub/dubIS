@@ -1,11 +1,13 @@
 """Inventory mirror enable/disable/status — orchestrates installer + tailscale + prefs."""
 
+import json
 import logging
 import os
 import secrets
 import sys
 from typing import Any
 
+from csv_io import atomic_write_text
 from mirror_install import base, tailscale
 
 logger = logging.getLogger(__name__)
@@ -24,9 +26,24 @@ class MirrorFacade:
     def _snapshot_file(self) -> str:
         return os.path.join(self._api.base_dir, "inventory_mirror.json")
 
+    def _state_file(self) -> str:
+        return os.path.join(self._api.base_dir, "mirror_state.json")
+
+    def _read_state(self) -> dict:
+        path = self._state_file()
+        try:
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
+
+    def _write_state(self, state: dict) -> None:
+        path = self._state_file()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        atomic_write_text(path, json.dumps(state), encoding="utf-8")
+
     def _allowlist(self) -> list:
-        prefs = self._api.load_preferences()
-        return prefs.get("inventoryMirror", {}).get("allowlist", [])
+        return self._read_state().get("allowlist", [])
 
     def _ensure_token(self) -> str:
         path = self._token_file()
@@ -52,21 +69,20 @@ class MirrorFacade:
     def enable_inventory_mirror(self) -> dict[str, Any]:
         self._ensure_token()
         # Seed the allowlist with the machine's own Tailscale login if not already set.
-        prefs = self._api.load_preferences()
-        mirror_prefs = prefs.setdefault("inventoryMirror", {})
-        if not mirror_prefs.get("allowlist"):
+        state = self._read_state()
+        if not state.get("allowlist"):
             login = tailscale.self_login()
             if login:
-                mirror_prefs["allowlist"] = [login]
-                self._api.save_preferences(prefs)
+                state["allowlist"] = [login]
+                self._write_state(state)
         # Build config AFTER allowlist is seeded so installer.install bakes it in.
         installer = base.get_installer()
         installer.install(self._config())
         serve_url = tailscale.enable_serve(READ_PORT)  # raises RuntimeError with actionable msg
-        prefs = self._api.load_preferences()
-        prefs.setdefault("inventoryMirror", {})["enabled"] = True
-        prefs["inventoryMirror"]["serve_url"] = serve_url
-        self._api.save_preferences(prefs)
+        state = self._read_state()
+        state["enabled"] = True
+        state["serve_url"] = serve_url
+        self._write_state(state)
         return self.get_inventory_mirror_info()
 
     def disable_inventory_mirror(self) -> dict[str, Any]:
@@ -75,24 +91,23 @@ class MirrorFacade:
             base.get_installer().uninstall()
         except Exception as exc:  # noqa: BLE001
             logger.warning("Mirror uninstall failed: %s", exc)
-        prefs = self._api.load_preferences()
-        prefs.setdefault("inventoryMirror", {})["enabled"] = False
-        self._api.save_preferences(prefs)
+        state = self._read_state()
+        state["enabled"] = False
+        self._write_state(state)
         return self.get_inventory_mirror_info()
 
     def get_inventory_mirror_info(self) -> dict[str, Any]:
-        prefs = self._api.load_preferences()
-        mirror = prefs.get("inventoryMirror", {})
+        state = self._read_state()
         try:
             installer = base.get_installer()
             installed, running = installer.is_installed(), installer.is_running()
         except NotImplementedError:
             installed = running = False
         return {
-            "enabled": bool(mirror.get("enabled", False)),
+            "enabled": bool(state.get("enabled", False)),
             "installed": installed,
             "running": running,
-            "serve_url": mirror.get("serve_url", ""),
+            "serve_url": state.get("serve_url", ""),
             "read_port": READ_PORT,
-            "allowlist": mirror.get("allowlist", []),
+            "allowlist": state.get("allowlist", []),
         }

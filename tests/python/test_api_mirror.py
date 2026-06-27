@@ -22,7 +22,7 @@ def test_enable_writes_pref_and_token(tmp_path):
         info = api.enable_inventory_mirror()
     assert info["enabled"] is True
     assert info["serve_url"] == "https://host.ts.net"
-    assert api.load_preferences()["inventoryMirror"]["enabled"] is True
+    assert api._mirror._read_state()["enabled"] is True
     assert api._mirror_token()  # a token now exists
 
 
@@ -70,15 +70,13 @@ def test_enable_seeds_allowlist_when_empty(tmp_path):
         gi.return_value = mock.Mock()
         info = api.enable_inventory_mirror()
     assert info["allowlist"] == ["alice@example.com"]
-    assert api.load_preferences()["inventoryMirror"]["allowlist"] == ["alice@example.com"]
+    assert api._mirror._read_state()["allowlist"] == ["alice@example.com"]
 
 
 def test_enable_does_not_overwrite_existing_allowlist(tmp_path):
     """enable_inventory_mirror must not overwrite a pre-existing non-empty allowlist."""
     api = make_api(tmp_path)
-    prefs = api.load_preferences()
-    prefs.setdefault("inventoryMirror", {})["allowlist"] = ["existing@example.com"]
-    api.save_preferences(prefs)
+    api._mirror._write_state({"allowlist": ["existing@example.com"]})
     with mock.patch("mirror_install.tailscale.self_login", return_value="alice@example.com"), \
          mock.patch("mirror_install.tailscale.enable_serve", return_value="https://host.ts.net"), \
          mock.patch("mirror_install.base.get_installer") as gi:
@@ -110,9 +108,28 @@ def test_enable_leaves_allowlist_empty_when_self_login_unavailable(tmp_path):
         gi.return_value = mock.Mock()
         with pytest.raises(RuntimeError, match="not logged in"):
             api.enable_inventory_mirror()
-    prefs = api.load_preferences()
-    assert prefs.get("inventoryMirror", {}).get("allowlist", []) == []
+    assert api._mirror._read_state().get("allowlist", []) == []
     assert api.get_inventory_mirror_info()["enabled"] is False
+
+
+def test_enabled_survives_js_preferences_overwrite(tmp_path):
+    """Regression: JS store save_preferences must not clobber mirror 'enabled' state."""
+    api = make_api(tmp_path)
+    with mock.patch("mirror_install.tailscale.self_login", return_value="owner@x.com"), \
+         mock.patch("mirror_install.tailscale.enable_serve", return_value="https://host.ts.net"), \
+         mock.patch("mirror_install.base.get_installer") as gi:
+        gi.return_value = mock.Mock()
+        api.enable_inventory_mirror()
+    assert api.get_inventory_mirror_info()["enabled"] is True
+
+    # Simulate JS store overwriting preferences.json with no inventoryMirror key.
+    import json
+    api.save_preferences(json.dumps({"thresholds": {}, "shortcuts": {"vimNav": True}}))
+
+    info = api.get_inventory_mirror_info()
+    assert info["enabled"] is True, "enabled was clobbered by JS preferences save"
+    assert info["serve_url"] == "https://host.ts.net", "serve_url was clobbered"
+    assert info["allowlist"] == ["owner@x.com"], "allowlist was clobbered"
 
 
 def test_mirror_paths_under_base_dir_not_data_subdir(tmp_path):
