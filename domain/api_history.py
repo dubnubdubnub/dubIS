@@ -46,6 +46,8 @@ def read_part_history(adjustments_csv: str, part_key: str) -> list["PartHistoryE
         logger.error("get_part_history: cannot read %s: %s", adjustments_csv, exc)
         return []
 
+    matching.sort(key=lambda e: e["timestamp"])
+
     if len(matching) > _HISTORY_CAP:
         logger.warning(
             "get_part_history: %d entries for %r truncated to %d",

@@ -172,7 +172,7 @@ async function showTooltip(code, provider, triggerEl) {
     if (currentCode !== code || currentProvider !== provider) return;
     appendPartHistory(entries || []);
     positionTooltip(triggerEl);
-  }).catch(function () { /* ignore */ });
+  }).catch(function (e) { AppLog.warn("get_part_history failed for " + code + ": " + e); });
 }
 
 // ── Fetch with cache ──

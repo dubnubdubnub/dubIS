@@ -41,30 +41,38 @@ class TestReadPartHistory:
 
     def test_chronological_order(self, tmp_path):
         path = str(tmp_path / "adjustments.csv")
+        # Deliberately write rows out of chronological order to verify sorting.
         _write_adj(path, [
             {"timestamp": "2024-01-03T00:00:00", "type": "add", "lcsc_part": "C100000", "quantity": "3"},
             {"timestamp": "2024-01-01T00:00:00", "type": "add", "lcsc_part": "C100000", "quantity": "1"},
             {"timestamp": "2024-01-02T00:00:00", "type": "add", "lcsc_part": "C100000", "quantity": "2"},
         ])
         result = read_part_history(path, "C100000")
-        # File order is preserved (CSV is append-only; rows already in file order)
-        # The function does NOT sort — it preserves insertion order which is chronological
+        # Function must sort by timestamp ascending, regardless of file order.
         timestamps = [r["timestamp"] for r in result]
-        assert timestamps == ["2024-01-03T00:00:00", "2024-01-01T00:00:00", "2024-01-02T00:00:00"]
+        assert timestamps == ["2024-01-01T00:00:00", "2024-01-02T00:00:00", "2024-01-03T00:00:00"]
 
     def test_capped_to_history_cap_most_recent(self, tmp_path):
         path = str(tmp_path / "adjustments.csv")
+        # Use ISO timestamps with sequential seconds so string sort is chronological.
+        # Write deliberately out of file order to also verify sort correctness.
+        total = _HISTORY_CAP + 10
         rows = [
-            {"timestamp": f"2024-01-{i+1:02d}T00:00:00", "type": "add",
+            {"timestamp": f"2024-01-01T00:{i // 60:02d}:{i % 60:02d}", "type": "add",
              "lcsc_part": "C100000", "quantity": str(i)}
-            for i in range(_HISTORY_CAP + 10)
+            for i in range(total)
         ]
-        _write_adj(path, rows)
+        # Shuffle file order; function must sort and then keep the most recent 100.
+        import random as _random
+        shuffled = rows[:]
+        _random.Random(42).shuffle(shuffled)
+        _write_adj(path, shuffled)
         result = read_part_history(path, "C100000")
         assert len(result) == _HISTORY_CAP
-        # Most recent _HISTORY_CAP entries (last rows in file)
+        # After ascending sort, the oldest 10 are dropped; the remaining 100 are
+        # i=10..109 in ascending order.
         assert result[0]["qty_delta"] == 10
-        assert result[-1]["qty_delta"] == _HISTORY_CAP + 9
+        assert result[-1]["qty_delta"] == total - 1
 
     def test_source_preserved(self, tmp_path):
         path = str(tmp_path / "adjustments.csv")
