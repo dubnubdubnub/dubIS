@@ -32,6 +32,7 @@ graph LR
     "domain/api_inventory.py" --> "domain/inventory.py"
     "domain/api_inventory.py" --> "domain/schema.py"
     "domain/api_inventory.py" --> "inventory_ops.py"
+    "domain/api_mirror.py" --> "inventory_mirror.py"
     "domain/api_mirror.py" --> "mirror_install/__init__.py"
     "domain/api_preferences.py" --> "csv_io.py"
     "domain/api_preferences.py" --> "poll_api.py"
@@ -669,7 +670,7 @@ graph LR
 
 ### domain/api_mirror.py
 
-- **Imports:** `mirror_install/__init__.py`
+- **Imports:** `inventory_mirror.py`, `mirror_install/__init__.py`
 - **Imported by:** `inventory_api.py`
 
 ### domain/api_preferences.py
@@ -740,7 +741,7 @@ graph LR
 ### inventory_mirror.py
 
 - **Imports:** `mirror_serialize.py`
-- **Imported by:** `tests/python/test_inventory_mirror_main.py`, `tests/python/test_inventory_mirror_push.py`, `tests/python/test_inventory_mirror_read.py`, `tests/python/test_inventory_mirror_store.py`
+- **Imported by:** `domain/api_mirror.py`, `tests/python/test_inventory_mirror_main.py`, `tests/python/test_inventory_mirror_push.py`, `tests/python/test_inventory_mirror_read.py`, `tests/python/test_inventory_mirror_store.py`
 
 ### inventory_ops.py
 
