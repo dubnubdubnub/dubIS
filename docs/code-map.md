@@ -29,6 +29,7 @@ graph LR
     "domain/api_generic_parts.py" --> "domain/generic_parts.py"
     "domain/api_generic_parts.py" --> "saved_searches.py"
     "domain/api_generic_parts.py" --> "spec_extractor.py"
+    "domain/api_history.py" --> "domain/schema.py"
     "domain/api_inventory.py" --> "domain/inventory.py"
     "domain/api_inventory.py" --> "domain/schema.py"
     "domain/api_inventory.py" --> "inventory_ops.py"
@@ -64,6 +65,7 @@ graph LR
     "inventory_api.py" --> "domain/api_distributor.py"
     "inventory_api.py" --> "domain/api_fileio.py"
     "inventory_api.py" --> "domain/api_generic_parts.py"
+    "inventory_api.py" --> "domain/api_history.py"
     "inventory_api.py" --> "domain/api_inventory.py"
     "inventory_api.py" --> "domain/api_preferences.py"
     "inventory_api.py" --> "domain/api_pricing.py"
@@ -437,6 +439,8 @@ graph LR
     "tests/js/ocr-overlay-renderer.test.js" --> "js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js"
     "tests/js/ocr-overlay-state.test.js" --> "js/import/mfg-direct/ocr-overlay/ocr-overlay-state.js"
     "tests/js/part-keys.test.js" --> "js/part-keys.js"
+    "tests/js/part-preview-history.test.js" --> "js/api.js"
+    "tests/js/part-preview-history.test.js" --> "js/part-preview.js"
     "tests/js/pick-tier.test.js" --> "js/inventory-modals.js"
     "tests/js/predicate-ui.test.js" --> "js/components/predicate-ui.js"
     "tests/js/qrcode.test.js" --> "js/vendor/qrcode.js"
@@ -543,6 +547,8 @@ graph LR
     "tests/python/test_ocr_overlay_api.py" --> "ocr_engine.py"
     "tests/python/test_ocr_overlay_api.py" --> "ocr_layout.py"
     "tests/python/test_ocr_table.py" --> "ocr_table.py"
+    "tests/python/test_part_history.py" --> "domain/api_history.py"
+    "tests/python/test_part_history.py" --> "inventory_api.py"
     "tests/python/test_pdf_raster.py" --> "pdf_raster.py"
     "tests/python/test_pnp_server.py" --> "pnp_server.py"
     "tests/python/test_pnp_server.py" --> "tests/python/helpers.py"
@@ -672,6 +678,11 @@ graph LR
 - **Imports:** `domain/generic_parts.py`, `saved_searches.py`, `spec_extractor.py`
 - **Imported by:** `inventory_api.py`
 
+### domain/api_history.py
+
+- **Imports:** `domain/schema.py`
+- **Imported by:** `inventory_api.py`, `tests/python/test_part_history.py`
+
 ### domain/api_inventory.py
 
 - **Imports:** `domain/inventory.py`, `domain/schema.py`, `inventory_ops.py`
@@ -720,7 +731,7 @@ graph LR
 ### domain/schema.py
 
 - **Imports:** —
-- **Imported by:** `cache_db.py`, `domain/api_inventory.py`, `domain/inventory.py`, `inventory_ops.py`, `scripts/gen-inventory-types.py`, `tests/python/test_cache_db.py`
+- **Imported by:** `cache_db.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/inventory.py`, `inventory_ops.py`, `scripts/gen-inventory-types.py`, `tests/python/test_cache_db.py`
 
 ### dubis_errors.py
 
@@ -739,8 +750,8 @@ graph LR
 
 ### inventory_api.py
 
-- **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_inventory.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`
-- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_real_data.py`
+- **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`
+- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`
 
 ### inventory_ops.py
 
@@ -785,7 +796,7 @@ graph LR
 ### js/api.js
 
 - **Imports:** `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/store.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api.test.js`, `tests/js/command-palette.test.js`, `tests/js/shortcut-prefs.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/store.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api.test.js`, `tests/js/command-palette.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`
 
 ### js/app-init.js
 
@@ -1141,7 +1152,7 @@ graph LR
 ### js/part-preview.js
 
 - **Imports:** `js/api.js`, `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`
+- **Imported by:** `js/app-init.js`, `tests/js/part-preview-history.test.js`
 
 ### js/po-image-lightbox.js
 
@@ -1567,6 +1578,11 @@ graph LR
 - **Imports:** `js/part-keys.js`
 - **Imported by:** —
 
+### tests/js/part-preview-history.test.js
+
+- **Imports:** `js/api.js`, `js/part-preview.js`
+- **Imported by:** —
+
 ### tests/js/pick-tier.test.js
 
 - **Imports:** `js/inventory-modals.js`
@@ -1932,6 +1948,11 @@ graph LR
 ### tests/python/test_ocr_table.py
 
 - **Imports:** `ocr_table.py`
+- **Imported by:** —
+
+### tests/python/test_part_history.py
+
+- **Imports:** `domain/api_history.py`, `inventory_api.py`
 - **Imported by:** —
 
 ### tests/python/test_pdf_raster.py
