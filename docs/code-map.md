@@ -615,21 +615,6 @@ graph LR
 
 ## Per-file index
 
-### .claire/worktrees/claude+js-dom-primitives/js/components/predicate-ui.js
-
-- **Imports:** —
-- **Imported by:** —
-
-### .claire/worktrees/claude+js-part-history/tests/js/part-preview-history.test.js
-
-- **Imports:** —
-- **Imported by:** —
-
-### .claire/worktrees/stream-1-splits/js/inventory/inv-groups-view.js
-
-- **Imports:** —
-- **Imported by:** —
-
 ### base_client.py
 
 - **Imports:** `dubis_errors.py`
