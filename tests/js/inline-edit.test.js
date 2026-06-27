@@ -292,6 +292,41 @@ describe('activateInlineEdit — unit-price cell', () => {
   });
 });
 
+describe('arrow-key focus theft prevention', () => {
+  let item, row, qtyCell;
+
+  beforeEach(() => {
+    item = { lcsc: 'C10', mpn: 'RES-10', qty: 5, unit_price: 0.1, ext_price: 0.5 };
+    row = buildRow(item);
+    activateInlineEdit(row, item);
+    qtyCell = row.querySelector('.part-qty');
+    dblclick(qtyCell);
+  });
+
+  afterEach(() => {
+    row.remove();
+  });
+
+  it.each(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'])(
+    '%s keydown on the input is stopped and does not propagate to a container listener',
+    (key) => {
+      const input = qtyCell.querySelector('input');
+      expect(input).not.toBeNull();
+
+      let propagated = false;
+      // Listen on the row (ancestor) — if stopPropagation works, this never fires.
+      const listener = () => { propagated = true; };
+      row.addEventListener('keydown', listener);
+
+      const evt = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      input.dispatchEvent(evt);
+
+      row.removeEventListener('keydown', listener);
+      expect(propagated).toBe(false);
+    }
+  );
+});
+
 describe('guard: link mode and flyout drag', () => {
   let item, row, qtyCell;
 

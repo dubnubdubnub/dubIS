@@ -244,9 +244,6 @@
 .inv-part-row .part-value { width: var(--inv-col-extprice-w); min-width: 20px; text-align: right; font-size: 11px; font-family: var(--font-mono); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inv-part-row .part-unit-price { width: var(--inv-col-unit-w); min-width: 0; text-align: right; font-size: 11px; font-family: var(--font-mono); color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
 .inv-part-row .part-qty { width: var(--inv-col-stock-w); min-width: 30px; text-align: right; font-weight: 600; font-family: var(--font-mono); cursor: default; }
-/* Affordance cursor on editable cells (dblclick to enter edit) */
-.inv-part-row .part-qty:not(.inv-inline-editing),
-.inv-part-row .part-unit-price:not(.inv-inline-editing) { cursor: default; }
 
 /* ── Inline-edit input (inside .part-qty or .part-unit-price) ────────────── */
 /* The cell keeps its fixed width; the input fills the cell without shifting columns. */

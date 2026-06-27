@@ -136,6 +136,12 @@ function enterEditMode({ cell, initialText, numericValue, commit, kind }) {
       e.preventDefault();
       e.stopPropagation();
       doCancel();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' ||
+               e.key === 'ArrowUp'   || e.key === 'ArrowDown') {
+      // Stop arrow keys from bubbling to the roving-grid's delegated keydown
+      // handler — the input's parent cell is a roving cell, so the grid would
+      // steal focus out of the input and break cursor movement / value stepping.
+      e.stopPropagation();
     }
   }, { once: false });
 
