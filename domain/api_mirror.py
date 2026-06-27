@@ -78,7 +78,14 @@ class MirrorFacade:
         # Build config AFTER allowlist is seeded so installer.install bakes it in.
         installer = base.get_installer()
         installer.install(self._config())
-        serve_url = tailscale.enable_serve(READ_PORT)  # raises RuntimeError with actionable msg
+        try:
+            serve_url = tailscale.enable_serve(READ_PORT)  # raises RuntimeError with actionable msg
+        except Exception:
+            try:
+                installer.uninstall()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Mirror enable rollback (uninstall) failed: %s", exc)
+            raise
         state = self._read_state()
         state["enabled"] = True
         state["serve_url"] = serve_url
