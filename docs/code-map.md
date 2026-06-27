@@ -103,6 +103,7 @@ graph LR
     "js/app-init.js" --> "js/inventory-modals.js"
     "js/app-init.js" --> "js/inventory/inv-state.js"
     "js/app-init.js" --> "js/inventory/inventory-panel.js"
+    "js/app-init.js" --> "js/inventory/saved-views-ui.js"
     "js/app-init.js" --> "js/inventory/saved-views.js"
     "js/app-init.js" --> "js/label-export-modal.js"
     "js/app-init.js" --> "js/label-selection.js"
@@ -172,8 +173,11 @@ graph LR
     "js/group-flyout/flyout-panel.js" --> "js/store.js"
     "js/group-flyout/flyout-renderer.js" --> "js/group-flyout/flyout-logic.js"
     "js/group-flyout/flyout-renderer.js" --> "js/ui-helpers.js"
+    "js/import/import-diff-modal.js" --> "js/components/data-grid.js"
     "js/import/import-panel.js" --> "js/api.js"
     "js/import/import-panel.js" --> "js/csv-parser.js"
+    "js/import/import-panel.js" --> "js/import/import-diff-modal.js"
+    "js/import/import-panel.js" --> "js/import/import-diff.js"
     "js/import/import-panel.js" --> "js/import/import-logic.js"
     "js/import/import-panel.js" --> "js/import/import-renderer.js"
     "js/import/import-panel.js" --> "js/store.js"
@@ -385,6 +389,7 @@ graph LR
     "tests/js/form-modal.test.js" --> "js/undo-redo.js"
     "tests/js/group-flyout-logic.test.js" --> "js/group-flyout/flyout-logic.js"
     "tests/js/html.test.js" --> "js/dom/html.js"
+    "tests/js/import-diff.test.js" --> "js/import/import-diff.js"
     "tests/js/import-logic.test.js" --> "js/import/import-logic.js"
     "tests/js/import-two-zone.test.js" --> "js/import/import-logic.js"
     "tests/js/import-two-zone.test.js" --> "js/import/import-renderer.js"
@@ -760,7 +765,7 @@ graph LR
 
 ### js/app-init.js
 
-- **Imports:** `js/a11y/keyboard-nav.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/api.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory-modals.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`, `js/vendors-modal.js`
+- **Imports:** `js/a11y/keyboard-nav.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/api.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory-modals.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`, `js/vendors-modal.js`
 - **Imported by:** —
 - **Emits:** `CONFIRMED_CHANGED`, `LINKS_CHANGED`, `SAVE_AND_CLOSE`
 - **Listens:** `BOM_LOADED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`
@@ -807,7 +812,7 @@ graph LR
 ### js/components/data-grid.js
 
 - **Imports:** `js/a11y/roving-grid.js`, `js/api.js`, `js/dom/delegate.js`
-- **Imported by:** `tests/js/data-grid.test.js`
+- **Imported by:** `js/import/import-diff-modal.js`, `tests/js/data-grid.test.js`
 
 ### js/components/form-modal.js
 
@@ -883,6 +888,16 @@ graph LR
 - **Imports:** —
 - **Imported by:** `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`
 
+### js/import/import-diff-modal.js
+
+- **Imports:** `js/components/data-grid.js`
+- **Imported by:** `js/import/import-panel.js`
+
+### js/import/import-diff.js
+
+- **Imports:** —
+- **Imported by:** `js/import/import-panel.js`, `tests/js/import-diff.test.js`
+
 ### js/import/import-logic.js
 
 - **Imports:** —
@@ -890,7 +905,7 @@ graph LR
 
 ### js/import/import-panel.js
 
-- **Imports:** `js/api.js`, `js/csv-parser.js`, `js/import/import-logic.js`, `js/import/import-renderer.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
+- **Imports:** `js/api.js`, `js/csv-parser.js`, `js/import/import-diff-modal.js`, `js/import/import-diff.js`, `js/import/import-logic.js`, `js/import/import-renderer.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
 - **Imported by:** `js/app-init.js`
 
 ### js/import/import-renderer.js
@@ -1040,7 +1055,7 @@ graph LR
 ### js/inventory/saved-views-ui.js
 
 - **Imports:** `js/api.js`, `js/components/form-modal.js`, `js/dom/delegate.js`, `js/dom/html.js`, `js/inventory/saved-views.js`
-- **Imported by:** `js/inventory/inventory-panel.js`
+- **Imported by:** `js/app-init.js`, `js/inventory/inventory-panel.js`
 
 ### js/inventory/saved-views.js
 
@@ -1384,6 +1399,11 @@ graph LR
 ### tests/js/html.test.js
 
 - **Imports:** `js/dom/html.js`
+- **Imported by:** —
+
+### tests/js/import-diff.test.js
+
+- **Imports:** `js/import/import-diff.js`
 - **Imported by:** —
 
 ### tests/js/import-logic.test.js
