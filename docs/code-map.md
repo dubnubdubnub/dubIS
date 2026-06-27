@@ -403,9 +403,6 @@ graph LR
     "scripts/gen-inventory-types.py" --> "domain/schema.py"
     "scripts/generate-test-fixtures.py" --> "inventory_api.py"
     "scripts/generate-test-fixtures.py" --> "inventory_ops.py"
-    "scripts/one_off_import_mouser_cart.py" --> "csv_io.py"
-    "scripts/one_off_import_mouser_cart.py" --> "file_dialogs.py"
-    "scripts/one_off_import_mouser_cart.py" --> "inventory_api.py"
     "spec_extractor.py" --> "categorize.py"
     "tests/e2e-server.py" --> "inventory_api.py"
     "tests/js/api.test.js" --> "js/api.js"
@@ -656,7 +653,7 @@ graph LR
 ### csv_io.py
 
 - **Imports:** —
-- **Imported by:** `domain/api_fileio.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `scripts/one_off_import_mouser_cart.py`, `tests/python/test_csv_io.py`, `vendors.py`
+- **Imported by:** `domain/api_fileio.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `tests/python/test_csv_io.py`, `vendors.py`
 
 ### digikey_cdp.py
 
@@ -786,7 +783,7 @@ graph LR
 ### file_dialogs.py
 
 - **Imports:** `csv_io.py`, `domain/pricing.py`
-- **Imported by:** `domain/api_fileio.py`, `scripts/one_off_import_mouser_cart.py`, `tests/python/test_file_dialogs.py`
+- **Imported by:** `domain/api_fileio.py`, `tests/python/test_file_dialogs.py`
 
 ### html_product_parser.py
 
@@ -796,7 +793,7 @@ graph LR
 ### inventory_api.py
 
 - **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`, `mirror_push.py`
-- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `scripts/one_off_import_mouser_cart.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`
+- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`
 
 ### inventory_mirror.py
 
@@ -1449,11 +1446,6 @@ graph LR
 ### scripts/generate-test-fixtures.py
 
 - **Imports:** `inventory_api.py`, `inventory_ops.py`
-- **Imported by:** —
-
-### scripts/one_off_import_mouser_cart.py
-
-- **Imports:** `csv_io.py`, `file_dialogs.py`, `inventory_api.py`
 - **Imported by:** —
 
 ### scripts/regen-layout-ignore.py
