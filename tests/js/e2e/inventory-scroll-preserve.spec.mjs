@@ -75,7 +75,8 @@ for (const mode of [{ name: 'normal mode', withBom: false }, { name: 'BOM mode',
       await warn.click();
       await expect(page.locator('#price-modal')).not.toHaveClass(/hidden/);
 
-      await page.locator('#price-fetch-price').click();
+      // The multi-distributor fetch panel auto-fetches every sourced distributor
+      // on modal open and fills #price-unit with the cheapest — no manual button.
       await expect.poll(() => page.locator('#price-unit').inputValue()).not.toBe('');
 
       const before = await scrollTop(page);

@@ -15,7 +15,7 @@
   --color-blue-border:        #58a6ff40;  /* .alt-badge border, alt-row left border, flyout focus ring */
 
   /* Blue-dark (#1f6feb = --color-blue-dark) */
-  --color-blue-dark-bg:       #1f6feb20;  /* .prefs-btn/.rebuild-btn/.fetch-price-btn bg */
+  --color-blue-dark-bg:       #1f6feb20;  /* .prefs-btn/.rebuild-btn bg */
   --color-blue-dark-border:   #1f6feb40;  /* same buttons border + hover bg */
 
   /* Light-blue accent (#388bfd ≈ --color-blue-dark) */
