@@ -289,6 +289,9 @@ class InventoryApi:
     def get_price_summary(self, part_key: str) -> dict[str, dict[str, Any]]:
         return self._pricing.get_price_summary(part_key)
 
+    def get_sourced_distributors(self, part_key: str) -> list[dict[str, str]]:
+        return self._pricing.get_sourced_distributors(part_key)
+
     def get_last_po_quantity(self, part_key: str) -> int | None:
         return self._pricing.get_last_po_quantity(part_key)
 
