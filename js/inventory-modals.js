@@ -37,6 +37,31 @@ export function pickTier(prices, targetQty) {
   return chosen;
 }
 
+/** Resolve a distributor row's price at a target quantity.
+ *  Returns the chosen tier plus unit + extended (unit × qty) price,
+ *  or all-null when there are no usable price tiers. */
+export function rowPrice(prices, qty) {
+  const tier = pickTier(prices, qty);
+  if (!tier) return { tier: null, unitPrice: null, extPrice: null };
+  return { tier, unitPrice: tier.price, extPrice: tier.price * qty };
+}
+
+/** Index of the cheapest row by unitPrice (ties → lowest index).
+ *  Rows whose unitPrice is not a finite number are ignored. Returns -1
+ *  when no row has a usable price. */
+export function cheapestRow(rows) {
+  let best = -1;
+  let bestPrice = Infinity;
+  for (let i = 0; i < rows.length; i++) {
+    const p = rows[i] && rows[i].unitPrice;
+    if (typeof p === "number" && isFinite(p) && p < bestPrice) {
+      bestPrice = p;
+      best = i;
+    }
+  }
+  return best;
+}
+
 // ── Editable fields: JS key → display label ──
 const EDITABLE_FIELDS = [
   ["lcsc", "LCSC"],
