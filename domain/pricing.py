@@ -261,3 +261,69 @@ def get_price_summary(
             "source": row["source"],
         }
     return result
+
+
+# Distributor key → purchase_ledger.csv column header.
+_LEDGER_PN_COLS = {
+    "lcsc": "LCSC Part Number",
+    "digikey": "Digikey Part Number",
+    "mouser": "Mouser Part Number",
+    "pololu": "Pololu Part Number",
+}
+_DISTRIBUTOR_ORDER = ("lcsc", "digikey", "mouser", "pololu")
+
+
+def get_sourced_distributors(
+    conn: sqlite3.Connection, purchase_csv: str, part_key: str
+) -> list[dict[str, str]]:
+    """Distributors a part was sourced from: union of (record PNs) ∪ (ledger PNs).
+
+    Returns one entry per distributor, deduped, in fixed order. Each entry's
+    part_number prefers the current record PN, falling back to the most recent
+    matching purchase-ledger PN. Returns [] when nothing matches.
+    """
+    resolved = resolve_part_key(conn, part_key) or part_key
+
+    # ── record PNs (has-PN set) ──
+    record: dict[str, str] = {}
+    known_pns: set[str] = {resolved}
+    try:
+        row = conn.execute(
+            "SELECT lcsc, digikey, mouser, pololu, mpn FROM parts WHERE part_id = ?",
+            (resolved,),
+        ).fetchone()
+    except sqlite3.Error:
+        logger.warning("get_sourced_distributors: parts query failed for %r", part_key)
+        row = None
+    if row is not None:
+        for dist in _DISTRIBUTOR_ORDER:
+            val = (row[dist] or "").strip()
+            if val:
+                record[dist] = val
+                known_pns.add(val)
+        mpn = (row["mpn"] or "").strip()
+        if mpn:
+            known_pns.add(mpn)
+
+    # ── ledger PNs (purchased set) — most recent row per distributor wins ──
+    ledger: dict[str, str] = {}
+    if os.path.exists(purchase_csv):
+        with open(purchase_csv, newline="", encoding="utf-8-sig") as f:
+            for r in csv.DictReader(f):
+                row_pns = {(r.get(c) or "").strip() for c in _LEDGER_PN_COLS.values()}
+                row_pns.add((r.get("Manufacture Part Number") or "").strip())
+                row_pns.discard("")
+                if not (row_pns & known_pns):
+                    continue
+                for dist, col in _LEDGER_PN_COLS.items():
+                    val = (r.get(col) or "").strip()
+                    if val:
+                        ledger[dist] = val  # later row = more recent → overwrites
+
+    # ── union, record PN preferred ──
+    out: list[dict[str, str]] = []
+    for dist in _DISTRIBUTOR_ORDER:
+        pn = record.get(dist) or ledger.get(dist)
+        if pn:
+            out.append({"distributor": dist, "part_number": pn})
+    return out

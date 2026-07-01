@@ -420,6 +420,7 @@ graph LR
     "tests/js/e2e/scan-server.py" --> "pnp_server.py"
     "tests/js/event-bus.test.js" --> "js/event-bus.js"
     "tests/js/favicon-stack.test.js" --> "js/inventory/favicon-stack.js"
+    "tests/js/fetch-rows.test.js" --> "js/inventory-modals.js"
     "tests/js/filter-chips.test.js" --> "js/inventory/filter-chips-fields.js"
     "tests/js/form-modal.test.js" --> "js/components/form-modal.js"
     "tests/js/form-modal.test.js" --> "js/undo-redo.js"
@@ -1043,7 +1044,7 @@ graph LR
 ### js/inventory-modals.js
 
 - **Imports:** `js/api.js`, `js/components/form-modal.js`, `js/dom/html.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
-- **Imported by:** `js/app-init.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `tests/js/pick-tier.test.js`
+- **Imported by:** `js/app-init.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `tests/js/fetch-rows.test.js`, `tests/js/pick-tier.test.js`
 
 ### js/inventory/favicon-stack.js
 
@@ -1516,6 +1517,11 @@ graph LR
 ### tests/js/favicon-stack.test.js
 
 - **Imports:** `js/inventory/favicon-stack.js`
+- **Imported by:** —
+
+### tests/js/fetch-rows.test.js
+
+- **Imports:** `js/inventory-modals.js`
 - **Imported by:** —
 
 ### tests/js/filter-chips.test.js

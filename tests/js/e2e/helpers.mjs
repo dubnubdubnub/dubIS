@@ -70,6 +70,19 @@ export function addMockSetup(page, inventory, options = {}) {
           return (pk in m) ? m[pk] : null;
         },
         get_price_summary: async () => ({}),
+        get_sourced_distributors: async (pk) => {
+          const over = opts.sourcedDistributors || {};
+          if (pk in over) return over[pk];
+          // Default: has-PN set derived from the matching inventory row.
+          const part = inv.find(p =>
+            [p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser].includes(pk));
+          if (!part) return [];
+          const out = [];
+          for (const d of ['lcsc', 'digikey', 'mouser', 'pololu']) {
+            if ((part[d] || '').trim()) out.push({ distributor: d, part_number: part[d] });
+          }
+          return out;
+        },
         get_part_history: async (pk) => {
           const h = opts.partHistory || {};
           return h[pk] || [];
