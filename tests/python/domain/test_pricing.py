@@ -512,3 +512,92 @@ class TestGetPriceSummary:
 
         result = domain.pricing.get_price_summary(BusyConn(), events_dir, "C1525")
         assert result == {}
+
+
+# ── get_sourced_distributors ───────────────────────────────────────────────
+
+
+from domain.pricing import get_sourced_distributors
+
+
+def _parts_conn():
+    """In-memory parts table matching the columns resolve_part_key/query use."""
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        "CREATE TABLE parts (part_id TEXT PRIMARY KEY, lcsc TEXT DEFAULT '', "
+        "mpn TEXT DEFAULT '', digikey TEXT DEFAULT '', pololu TEXT DEFAULT '', "
+        "mouser TEXT DEFAULT '')"
+    )
+    return conn
+
+
+def _write_ledger(path, rows):
+    cols = ["Digikey Part Number", "LCSC Part Number", "Pololu Part Number",
+            "Mouser Part Number", "Manufacture Part Number", "Quantity"]
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=cols)
+        w.writeheader()
+        for r in rows:
+            w.writerow({c: r.get(c, "") for c in cols})
+
+
+class TestGetSourcedDistributors:
+    def test_has_pn_only(self, tmp_path):
+        conn = _parts_conn()
+        conn.execute("INSERT INTO parts (part_id, lcsc) VALUES ('C555', 'C555')")
+        ledger = tmp_path / "purchase_ledger.csv"
+        _write_ledger(ledger, [])
+        out = get_sourced_distributors(conn, str(ledger), "C555")
+        assert out == [{"distributor": "lcsc", "part_number": "C555"}]
+
+    def test_purchased_recovers_distributor_absent_from_record(self, tmp_path):
+        # Record only shows LCSC (last-write-wins), but the part was also bought
+        # from Digikey earlier — the ledger must recover the Digikey row.
+        conn = _parts_conn()
+        conn.execute("INSERT INTO parts (part_id, lcsc) VALUES ('C555', 'C555')")
+        ledger = tmp_path / "purchase_ledger.csv"
+        _write_ledger(ledger, [
+            {"LCSC Part Number": "C555", "Quantity": "10"},
+            {"Digikey Part Number": "DK-555", "LCSC Part Number": "C555", "Quantity": "5"},
+        ])
+        out = get_sourced_distributors(conn, str(ledger), "C555")
+        assert out == [
+            {"distributor": "lcsc", "part_number": "C555"},
+            {"distributor": "digikey", "part_number": "DK-555"},
+        ]
+
+    def test_record_pn_preferred_over_ledger_pn(self, tmp_path):
+        conn = _parts_conn()
+        conn.execute("INSERT INTO parts (part_id, lcsc) VALUES ('C555', 'C555')")
+        ledger = tmp_path / "purchase_ledger.csv"
+        _write_ledger(ledger, [{"LCSC Part Number": "C555-OLD", "Manufacture Part Number": "X"}])
+        # Ledger row matches via nothing shared → not matched; use a shared key:
+        _write_ledger(ledger, [{"LCSC Part Number": "C555"}])
+        out = get_sourced_distributors(conn, str(ledger), "C555")
+        # record PN 'C555' wins (identical here); single lcsc entry, no dup.
+        assert out == [{"distributor": "lcsc", "part_number": "C555"}]
+
+    def test_most_recent_ledger_pn_wins(self, tmp_path):
+        conn = _parts_conn()
+        conn.execute("INSERT INTO parts (part_id, mpn) VALUES ('XYZ', 'XYZ')")
+        ledger = tmp_path / "purchase_ledger.csv"
+        _write_ledger(ledger, [
+            {"Digikey Part Number": "DK-OLD", "Manufacture Part Number": "XYZ"},
+            {"Digikey Part Number": "DK-NEW", "Manufacture Part Number": "XYZ"},
+        ])
+        out = get_sourced_distributors(conn, str(ledger), "XYZ")
+        assert {"distributor": "digikey", "part_number": "DK-NEW"} in out
+        assert {"distributor": "digikey", "part_number": "DK-OLD"} not in out
+
+    def test_no_match_returns_empty(self, tmp_path):
+        conn = _parts_conn()
+        ledger = tmp_path / "purchase_ledger.csv"
+        _write_ledger(ledger, [{"LCSC Part Number": "C999"}])
+        assert get_sourced_distributors(conn, str(ledger), "C555") == []
+
+    def test_missing_ledger_file_uses_record_only(self, tmp_path):
+        conn = _parts_conn()
+        conn.execute("INSERT INTO parts (part_id, digikey) VALUES ('DK1', 'DK1')")
+        out = get_sourced_distributors(conn, str(tmp_path / "nope.csv"), "DK1")
+        assert out == [{"distributor": "digikey", "part_number": "DK1"}]
