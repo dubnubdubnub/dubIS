@@ -150,93 +150,157 @@ function getChangedFields() {
 }
 
 /**
- * Wire the "Fetch current price" controls shared by the Adjust and Price modals.
- * Registers the button/tier click handlers once; call the returned `configure(part)`
- * each time a modal opens to set up the supplier dropdown and reset the tier list.
+ * Wire the multi-distributor "current price" panel shared by the Adjust and
+ * Price modals. Renders one row per distributor the part was sourced from
+ * (union of record PNs + purchase-ledger PNs, from get_sourced_distributors),
+ * auto-fetches every row's price concurrently on open, and feeds the cheapest
+ * row's unit price into `unitInput` (overridable by clicking a row).
  *
- * @param {{supplierSelect: HTMLSelectElement, fetchBtn: HTMLButtonElement,
- *          tiersEl: HTMLElement, unitInput: HTMLInputElement}} els
+ * @param {{panelEl: HTMLElement, unitInput: HTMLInputElement}} els
  */
-function createFetchController({ supplierSelect, fetchBtn, tiersEl, unitInput }) {
-  let part = null;
+function createFetchController({ panelEl, unitInput }) {
+  /** @type {Array<{distributor:string,label:string,method:string,partNumber:string,
+   *   qty:number,prices:Array<{qty:number,price:number}>|null,
+   *   unitPrice:number|null,extPrice:number|null,error:string}>} */
+  let rows = [];
+  let pinnedIndex = -1;
+  let pk = "";
 
-  // Set Unit Price and trigger the existing Ext recompute (linkPriceInputs
-  // listens on the "input" event).
   function setUnitPrice(price) {
     unitInput.value = price;
     unitInput.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
-  // Render all price-break tiers as clickable chips; highlight the selected one.
-  function renderTiers(prices, selectedTier) {
-    const sorted = prices.slice().sort((a, b) => a.qty - b.qty);
-    tiersEl.innerHTML = sorted.map(t => {
-      const sel = selectedTier && t.qty === selectedTier.qty && t.price === selectedTier.price ? " selected" : "";
-      return '<button type="button" class="fetch-tier' + sel + '" data-qty="' + Number(t.qty) +
-        '" data-price="' + Number(t.price) + '">' + escHtml(String(t.qty)) + '+ → $' +
-        escHtml(Number(t.price).toFixed(4)) + '</button>';
-    }).join("");
-    tiersEl.classList.remove("hidden");
+  function fmt(n) {
+    return "$" + Number(n).toFixed(4);
   }
 
-  fetchBtn.addEventListener("click", async () => {
-    if (!part) { AppLog.warn("No part selected for price fetch"); return; }
-    const sources = FETCH_SUPPLIERS.filter(s => (part[s.key] || "").trim());
-    if (sources.length === 0) return;
-    // selected supplier: dropdown value when visible/multiple, else the single source
-    let supplier = sources[0];
-    if (!supplierSelect.classList.contains("hidden") && supplierSelect.value) {
-      supplier = FETCH_SUPPLIERS.find(s => s.key === supplierSelect.value) || supplier;
-    }
-    const partNumber = (part[supplier.key] || "").trim();
-    const pk = invPartKey(part);
-    const origText = fetchBtn.textContent;
-    fetchBtn.disabled = true;
-    fetchBtn.textContent = "Fetching…";
+  // Render every row from current state. Highlights the selected row.
+  function render(selectedIndex) {
+    panelEl.innerHTML = rows.map((r, i) => {
+      const sel = i === selectedIndex ? " selected" : "";
+      let priceCell;
+      if (r.error) {
+        priceCell = '<span class="fetch-drow-err">' + escHtml(r.error) + '</span>';
+      } else if (r.unitPrice === null) {
+        priceCell = '<span class="fetch-drow-pending">…</span>';
+      } else {
+        priceCell = '<span class="fetch-drow-unit">' + escHtml(fmt(r.unitPrice)) +
+          '</span><span class="fetch-drow-ext">×' + escHtml(String(r.qty)) + ' = ' +
+          escHtml("$" + Number(r.extPrice).toFixed(2)) + '</span>';
+      }
+      return '<div class="fetch-drow' + sel + '" data-idx="' + i + '">' +
+        '<span class="fetch-drow-label">' + escHtml(r.label) + '</span>' +
+        '<input type="number" class="fetch-drow-qty" min="1" step="1" value="' +
+          escHtml(String(r.qty)) + '" data-idx="' + i + '">' +
+        '<span class="fetch-drow-pn">' + escHtml(r.partNumber) + '</span>' +
+        priceCell + '</div>';
+    }).join("");
+    panelEl.classList.toggle("hidden", rows.length === 0);
+  }
+
+  // Recompute one row's price from its fetched tiers + current qty.
+  function recompute(i) {
+    const r = rows[i];
+    if (!r.prices) return;
+    const { unitPrice, extPrice } = rowPrice(r.prices, r.qty);
+    r.unitPrice = unitPrice;
+    r.extPrice = extPrice;
+  }
+
+  // Auto-pick cheapest (unless a row is pinned) and push its price to unitInput.
+  function applySelection() {
+    const idx = pinnedIndex >= 0 ? pinnedIndex : cheapestRow(rows);
+    if (idx >= 0 && rows[idx].unitPrice !== null) setUnitPrice(rows[idx].unitPrice);
+    render(idx);
+  }
+
+  // Fetch one distributor row's live price; on failure fall back to cached
+  // get_price_summary, else mark the row unavailable.
+  async function fetchRow(i, priceSummary) {
+    const r = rows[i];
     try {
-      const product = await api(supplier.method, partNumber);
-      if (!product || !Array.isArray(product.prices) || product.prices.length === 0) {
-        showToast("Couldn't fetch price for " + supplier.label);
+      const product = await api(r.method, r.partNumber);
+      if (product && Array.isArray(product.prices) && product.prices.length) {
+        r.prices = product.prices;
+        recompute(i);
+        // fire-and-forget price-history logging (unchanged behavior)
+        api("record_fetched_prices", pk, r.distributor, product.prices).catch(() => {});
         return;
       }
-      const lastPoQty = await api("get_last_po_quantity", pk);
-      const tier = pickTier(product.prices, typeof lastPoQty === "number" ? lastPoQty : null);
-      if (tier) setUnitPrice(tier.price);
-      renderTiers(product.prices, tier);
-      // fire-and-forget price-history logging
-      api("record_fetched_prices", pk, supplier.key, product.prices).catch(() => { /* ignore */ });
-    } finally {
-      fetchBtn.disabled = false;
-      fetchBtn.textContent = origText;
+    } catch {
+      AppLog.warn("Price fetch failed for " + r.distributor + " " + r.partNumber);
     }
-  });
-
-  tiersEl.addEventListener("click", (e) => {
-    const row = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest(".fetch-tier"));
-    if (!row) return;
-    setUnitPrice(Number(row.dataset.price));
-    tiersEl.querySelectorAll(".fetch-tier").forEach(r => r.classList.remove("selected"));
-    row.classList.add("selected");
-  });
-
-  /** Set up the controls for a newly opened modal: pick/show suppliers, reset tiers. */
-  function configure(p) {
-    part = p;
-    tiersEl.innerHTML = "";
-    tiersEl.classList.add("hidden");
-    const sources = FETCH_SUPPLIERS.filter(s => (p[s.key] || "").trim());
-    if (sources.length <= 1) {
-      fetchBtn.disabled = sources.length === 0;
-      fetchBtn.title = sources.length === 0 ? "No distributor part number" : "";
-      supplierSelect.innerHTML = "";
-      supplierSelect.classList.add("hidden");
+    // Fallback: last-known cached price for this distributor.
+    const cached = priceSummary && priceSummary[r.distributor];
+    if (cached && typeof cached.latest_unit_price === "number") {
+      r.unitPrice = cached.latest_unit_price;
+      r.extPrice = cached.latest_unit_price * r.qty;
     } else {
-      fetchBtn.disabled = false;
-      fetchBtn.title = "";
-      supplierSelect.innerHTML = sources.map(s =>
-        '<option value="' + escHtml(s.key) + '">' + escHtml(s.label) + '</option>').join("");
-      supplierSelect.classList.remove("hidden");
+      r.error = "unavailable";
     }
+  }
+
+  // qty edits: update that row, re-select (unless pinned to another row).
+  panelEl.addEventListener("input", (e) => {
+    const input = /** @type {HTMLElement} */ (e.target);
+    if (!input.classList.contains("fetch-drow-qty")) return;
+    const i = Number(input.dataset.idx);
+    const q = parseInt(/** @type {HTMLInputElement} */ (input).value, 10);
+    rows[i].qty = q > 0 ? q : 1;
+    recompute(i);
+    applySelection();
+  });
+
+  // row click (not on the qty input): pin that row.
+  panelEl.addEventListener("click", (e) => {
+    const target = /** @type {HTMLElement} */ (e.target);
+    if (target.classList.contains("fetch-drow-qty")) return;
+    const rowEl = target.closest(".fetch-drow");
+    if (!rowEl) return;
+    const i = Number(/** @type {HTMLElement} */ (rowEl).dataset.idx);
+    if (rows[i].unitPrice === null) return;
+    pinnedIndex = i;
+    setUnitPrice(rows[i].unitPrice);
+    render(i);
+  });
+
+  /** Set up the panel for a newly opened modal. */
+  async function configure(part) {
+    pk = invPartKey(part);
+    pinnedIndex = -1;
+    rows = [];
+    panelEl.innerHTML = "";
+    panelEl.classList.add("hidden");
+
+    const [sourced, lastPoQty, priceSummary] = await Promise.all([
+      api("get_sourced_distributors", pk),
+      api("get_last_po_quantity", pk),
+      api("get_price_summary", pk).catch(() => ({})),
+    ]);
+    const defaultQty = (typeof lastPoQty === "number" && lastPoQty > 0)
+      ? lastPoQty : (part.qty > 0 ? part.qty : 1);
+
+    rows = (sourced || []).map((s) => {
+      const sup = FETCH_SUPPLIERS.find((f) => f.key === s.distributor);
+      return {
+        distributor: s.distributor,
+        label: sup ? sup.label : s.distributor,
+        method: sup ? sup.method : "",
+        partNumber: s.part_number,
+        qty: defaultQty,
+        prices: null,
+        unitPrice: null,
+        extPrice: null,
+        error: "",
+      };
+    }).filter((r) => r.method);
+
+    if (rows.length === 0) { render(-1); return; }
+    render(-1);  // show pending rows immediately
+
+    await Promise.allSettled(rows.map((_, i) => fetchRow(i, priceSummary)));
+    applySelection();
   }
 
   return { configure };
@@ -271,9 +335,7 @@ export function init() {
   linkPriceInputs(adjUnitPrice, adjExtPrice, () => currentPart ? currentPart.qty : 0);
 
   adjFetch = createFetchController({
-    supplierSelect: /** @type {HTMLSelectElement} */ (document.getElementById("adj-fetch-supplier")),
-    fetchBtn: /** @type {HTMLButtonElement} */ (document.getElementById("adj-fetch-price")),
-    tiersEl: document.getElementById("adj-fetch-tiers"),
+    panelEl: /** @type {HTMLElement} */ (document.getElementById("adj-fetch-panel")),
     unitInput: adjUnitPrice,
   });
 
@@ -466,46 +528,18 @@ export function init() {
     successToast: (_values, item) => "Price updated for " + invPartKey(item),
   });
 
-  // ── Fetch-price controls for price modal ────────────────────────────────
-  // Inject the fetch row (supplier dropdown + button + tier chips) before the
-  // modal-actions div, preserving the exact element IDs the E2E tests reference.
-
+  // ── Multi-distributor fetch panel for the price modal ────────────────────
+  // Inject a single panel container before the action buttons.
   const priceModalInner = priceFormModal.el.querySelector(".modal");
   const priceActionsEl  = priceFormModal.el.querySelector(".modal-actions");
 
-  const priceFetchSupplier = /** @type {HTMLSelectElement} */ (el("select", {
-    id: "price-fetch-supplier",
-    class: "fetch-supplier hidden",
-  }));
-  const priceFetchBtn = /** @type {HTMLButtonElement} */ (el("button", {
-    id: "price-fetch-price",
-    class: "btn-lg fetch-price-btn",
-    type: "button",
-  }, "🔄 Fetch current price"));
-  const priceFetchTiers = el("div", {
-    id: "price-fetch-tiers",
-    class: "fetch-tiers hidden",
-  });
+  const priceFetchPanel = el("div", { id: "price-fetch-panel", class: "fetch-panel hidden" });
+  priceModalInner.insertBefore(priceFetchPanel, priceActionsEl);
 
-  const priceFetchRow = el("div", {
-    id: "price-fetch-row",
-    class: "modal-form fetch-price-row",
-  },
-    priceFetchSupplier,
-    priceFetchBtn,
-  );
-
-  priceModalInner.insertBefore(priceFetchRow,   priceActionsEl);
-  priceModalInner.insertBefore(priceFetchTiers, priceActionsEl);
-
-  // Wire the fetch controller — its setUnitPrice fires an "input" event on
-  // #price-unit which bubbles up to the overlay and triggers the onInput hook.
   const priceUnitInputEl = /** @type {HTMLInputElement} */ (document.getElementById("price-unit"));
   priceFetchController = createFetchController({
-    supplierSelect: priceFetchSupplier,
-    fetchBtn:       priceFetchBtn,
-    tiersEl:        priceFetchTiers,
-    unitInput:      priceUnitInputEl,
+    panelEl:   priceFetchPanel,
+    unitInput: priceUnitInputEl,
   });
 
   // Patch openPriceModal to also configure the fetch controller after form-modal opens.
