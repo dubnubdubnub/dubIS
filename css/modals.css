@@ -290,41 +290,30 @@
   border-top-color: transparent; border-radius: 50%; animation: scan-shell-spin 0.8s linear infinite; }
 .scan-shell-tile:not(.reading) .scan-shell-spinner { display: none; }
 @keyframes scan-shell-spin { to { transform: rotate(360deg); } }
-/* ── Fetch-price controls (Adjust + Price modals) ─────── */
-/* Supplier dropdown stays compact; the button fills the rest of the row so it
-   reads as a deliberate action (blue accent, matching .prefs-btn / .rebuild-btn). */
-.fetch-supplier { flex: none; min-width: var(--fetch-supplier-w); }
-.fetch-price-btn {
-  flex: 1;
-  white-space: nowrap;
-  font-weight: var(--weight-semibold);
-  border-color: var(--color-blue-dark-border);
-  background: var(--color-blue-dark-bg);
-  color: var(--color-blue);
-}
-.fetch-price-btn:hover:not(:disabled) { background: var(--color-blue-dark-border); border-color: var(--color-blue); }
-.fetch-price-btn:disabled { opacity: 0.4; cursor: default; }
-
-/* Price-break tier chips — same look as the inventory filter chips
-   (.filter-btn / .filter-btn.active). */
-.fetch-tiers {
+/* ── Multi-distributor fetch panel (Adjust & Price modals) ── */
+.fetch-panel {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--fetch-tier-gap);
-  margin-top: var(--fetch-tiers-mt);
-  margin-bottom: var(--fetch-tier-gap);
+  flex-direction: column;
+  gap: var(--fetch-drow-gap);
+  margin: var(--fetch-drow-gap) 0;
 }
-.fetch-tiers.hidden { display: none; }
-.fetch-tier {
-  padding: var(--fetch-tier-pad-y) var(--fetch-tier-pad-x);
-  background: var(--bg-raised);
-  color: var(--text-secondary);
+.fetch-drow {
+  display: flex;
+  align-items: center;
+  gap: var(--fetch-drow-gap);
+  padding: var(--fetch-drow-pad);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  font-family: var(--font-mono);
+  border-radius: var(--fetch-drow-radius);
   cursor: pointer;
-  transition: all var(--dur-base);
 }
-.fetch-tier:hover { border-color: var(--color-blue); color: var(--text-primary); }
-.fetch-tier.selected { background: var(--color-blue-accent-bg); border-color: var(--color-blue); color: var(--color-blue); }
+.fetch-drow.selected {
+  border-color: var(--color-blue);
+  background: var(--color-blue-accent-bg);
+}
+.fetch-drow-label { font-weight: 600; min-width: 4em; }
+.fetch-drow-qty { width: 5em; }
+.fetch-drow-pn { color: var(--text-secondary); flex: 1; }
+.fetch-drow-unit { font-weight: 600; }
+.fetch-drow-ext { color: var(--text-secondary); }
+.fetch-drow-err { color: var(--color-orange); font-style: italic; }
+.fetch-drow-pending { color: var(--text-secondary); }

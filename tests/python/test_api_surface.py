@@ -80,6 +80,7 @@ FROZEN_SURFACE = {
     'get_po_source_preview': '(po_id)',
     'get_po_with_items': '(po_id)',
     'get_price_summary': '(part_key)',
+    'get_sourced_distributors': '(part_key)',
     'get_warnings': '()',
     'import_purchases': '(rows_json)',
     'install_tesseract': '()',

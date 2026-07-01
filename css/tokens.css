@@ -86,14 +86,11 @@
   --scan-check-size:     22px;  /* Selection check badge */
   --scan-check-pos:       3px;  /* Selection check badge offset from the corner */
 
-  /* ── Fetch-price controls (Adjust + Price modals) ───────────────────────────
-     "Fetch current price" button, supplier dropdown, and clickable price-break
-     tier chips. Consumed by: css/modals.css */
-  --fetch-supplier-w:      120px;  /* Min-width of the supplier dropdown */
-  --fetch-tier-gap:          6px;  /* Gap between price-break tier chips */
-  --fetch-tiers-mt:         10px;  /* Space above the tiers panel */
-  --fetch-tier-pad-y:        3px;  /* Vertical padding inside a tier chip */
-  --fetch-tier-pad-x:       10px;  /* Horizontal padding inside a tier chip */
+  /* ── Fetch-price panel (Adjust + Price modals) ──────────────────────────────
+     Multi-distributor "current price" panel. Consumed by: css/modals.css */
+  --fetch-drow-gap:    8px;  /* Gap between rows, and between row flex items */
+  --fetch-drow-pad:    6px;  /* Padding inside each distributor row */
+  --fetch-drow-radius: 6px;  /* Border-radius of each distributor row */
 
   /* ── Command palette (css/components/command-palette.css) ──────────────────
      Consumed by: css/components/command-palette.css */
