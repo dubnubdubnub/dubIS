@@ -19,7 +19,7 @@
   --color-blue-dark-border:   #1f6feb40;  /* same buttons border + hover bg */
 
   /* Light-blue accent (#388bfd ≈ --color-blue-dark) */
-  --color-blue-accent-bg:     #388bfd26;  /* .filter-btn.active, .adj-btn:hover, .fetch-tier.selected */
+  --color-blue-accent-bg:     #388bfd26;  /* .filter-btn.active, .adj-btn:hover, .fetch-drow.selected */
 
   /* Green (#3fb950 = --color-green) */
   --color-green-bg:           #3fb95018;  /* .alt-badge.covered bg */

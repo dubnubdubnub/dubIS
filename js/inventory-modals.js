@@ -220,7 +220,11 @@ function createFetchController({ panelEl, unitInput }) {
   async function fetchRow(i, priceSummary) {
     const r = rows[i];
     try {
-      const product = await api(r.method, r.partNumber);
+      // Call the bridge directly (not api()) so a scraper error becomes this row's
+      // "unavailable" state instead of a global error toast — we auto-fetch every
+      // sourced distributor on open, so api()'s global toast would fire per failure.
+      const bridge = /** @type {any} */ (window).pywebview.api;
+      const product = await bridge[r.method](r.partNumber);
       if (product && Array.isArray(product.prices) && product.prices.length) {
         r.prices = product.prices;
         recompute(i);
@@ -228,8 +232,8 @@ function createFetchController({ panelEl, unitInput }) {
         api("record_fetched_prices", pk, r.distributor, product.prices).catch(() => {});
         return;
       }
-    } catch {
-      AppLog.warn("Price fetch failed for " + r.distributor + " " + r.partNumber);
+    } catch (e) {
+      AppLog.warn("Price fetch failed for " + r.distributor + " " + r.partNumber + ": " + (e && e.message));
     }
     // Fallback: last-known cached price for this distributor.
     const cached = priceSummary && priceSummary[r.distributor];
