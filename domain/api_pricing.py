@@ -28,3 +28,9 @@ class PricingFacade:
     def get_last_po_quantity(self, part_key: str) -> int | None:
         """Quantity from the most recent purchase-ledger row for this part, or None."""
         return inventory_ops.last_po_quantity(self._api.input_csv, part_key)
+
+    def get_sourced_distributors(self, part_key: str) -> list[dict[str, str]]:
+        """Distributors this part was sourced from (record PNs ∪ ledger PNs)."""
+        return domain.pricing.get_sourced_distributors(
+            self._api._get_cache(), self._api.input_csv, part_key,
+        )
