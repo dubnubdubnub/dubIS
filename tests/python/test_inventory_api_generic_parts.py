@@ -54,3 +54,34 @@ class TestGenericPartsAPI:
         gps = api.list_generic_parts()
         assert len(gps) == 1
         assert gps[0]["name"] == "100nF 0402"
+
+    def test_get_generic_group_names_empty_when_not_a_member(self, api):
+        self._import_parts(api)
+        assert api.get_generic_group_names("C1525") == []
+
+    def test_get_generic_group_names_lists_membership(self, api):
+        self._import_parts(api)
+        api.create_generic_part(
+            name="100nF 0402 MLCC",
+            part_type="capacitor",
+            spec_json='{"value":"100nF","package":"0402"}',
+            strictness_json='{"required":["value","package"]}',
+        )
+        assert api.get_generic_group_names("C1525") == ["100nF 0402 MLCC"]
+        assert api.get_generic_group_names("C9999") == ["100nF 0402 MLCC"]
+
+    def test_get_generic_group_names_multiple_groups_sorted(self, api):
+        self._import_parts(api)
+        gp_z = api.create_generic_part(
+            name="Z Group", part_type="capacitor",
+            spec_json='{"value":"200nF","package":"0603"}',
+            strictness_json='{}',
+        )
+        gp_a = api.create_generic_part(
+            name="A Group", part_type="resistor",
+            spec_json='{"value":"10k","package":"0805"}',
+            strictness_json='{}',
+        )
+        api.add_generic_member(gp_z["generic_part_id"], "C1525")
+        api.add_generic_member(gp_a["generic_part_id"], "C1525")
+        assert api.get_generic_group_names("C1525") == ["A Group", "Z Group"]

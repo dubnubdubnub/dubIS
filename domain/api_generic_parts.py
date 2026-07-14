@@ -39,6 +39,9 @@ class GenericPartsFacade:
             self._api._get_cache(), self._api.events_dir, generic_part_id, part_id,
         )
 
+    def get_generic_group_names(self, part_key: str) -> list[str]:
+        return domain.generic_parts.get_group_names_for_part(self._api._get_cache(), part_key)
+
     def set_preferred_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
         return domain.generic_parts.set_preferred_api(
             self._api._get_cache(), self._api.events_dir, generic_part_id, part_id,
