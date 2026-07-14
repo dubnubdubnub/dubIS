@@ -49,8 +49,11 @@ jobs:
   refresh:
     name: Refresh public fixtures
     # Mirrors ci.yml's "Python Lint & Test" job: same internet-connected
-    # self-hosted runner and the same pre-provisioned venv (~/dubis-venv).
-    runs-on: [self-hosted, pnp-testbox]
+    # ARC runner and the same pre-provisioned venv (~/dubis-venv). The old
+    # static `pnp-testbox` runners were retired in the ARC migration — this
+    # label MUST track whatever ci.yml's python job runs on, or the schedule
+    # queues for 24h and auto-cancels forever.
+    runs-on: arc-dubis
     steps:
       - uses: actions/checkout@v4
         with:
