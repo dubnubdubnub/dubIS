@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from domain.schema import InventoryItem
 
 import cache_db
+import domain.generic_parts
 import domain.pricing
 import inventory_ops
 from csv_io import append_csv_rows, atomic_write_rows
@@ -514,6 +515,52 @@ def truncate_and_rebuild(
     file_fieldnames, rows = inventory_ops.truncate_csv(csv_path, count, label)
 
     atomic_write_rows(csv_path, file_fieldnames, rows, encoding="utf-8-sig")
+
+    result, _ = rebuild(
+        base_dir=base_dir,
+        input_csv=input_csv,
+        adjustments_csv=adjustments_csv,
+        events_dir=events_dir,
+        fieldnames=fieldnames,
+        adj_fieldnames=adj_fieldnames,
+        conn=conn,
+    )
+    return result
+
+
+def delete_part(
+    *,
+    part_key: str,
+    input_csv: str,
+    adjustments_csv: str,
+    adj_fieldnames: list[str],
+    base_dir: str,
+    fieldnames: list[str],
+    events_dir: str,
+    conn: sqlite3.Connection,
+) -> "list[InventoryItem]":
+    """Permanently delete a part that has no purchase_ledger.csv history.
+
+    Caller holds the lock.
+    """
+    if os.path.exists(input_csv):
+        with open(input_csv, newline="", encoding="utf-8-sig") as f:
+            for row in csv.DictReader(f):
+                if inventory_ops.get_part_key(row) == part_key:
+                    raise ValueError(
+                        f"Part {part_key!r} has purchase history; cannot delete"
+                    )
+
+    for generic_part_id, _name in domain.generic_parts.group_memberships_for_part(conn, part_key):
+        domain.generic_parts.remove_member(conn, events_dir, generic_part_id, part_key)
+
+    if os.path.exists(adjustments_csv):
+        with open(adjustments_csv, newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            file_fieldnames = reader.fieldnames
+            rows = [r for r in reader if (r.get("lcsc_part") or "").strip() != part_key]
+        if file_fieldnames:
+            atomic_write_rows(adjustments_csv, file_fieldnames, rows, encoding="utf-8-sig")
 
     result, _ = rebuild(
         base_dir=base_dir,
