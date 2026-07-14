@@ -151,3 +151,19 @@ class InventoryCRUDFacade:
                 events_dir=self._api.events_dir,
                 conn=self._api._get_cache(),
             )
+
+    def delete_part(self, part_key: str) -> "list[InventoryItem]":
+        """Permanently delete a part with no purchase history. Returns fresh inventory."""
+        with self._api._lock:
+            result = domain.inventory.delete_part(
+                part_key=part_key,
+                input_csv=self._api.input_csv,
+                adjustments_csv=self._api.adjustments_csv,
+                adj_fieldnames=self._api.ADJ_FIELDNAMES,
+                base_dir=self._api.base_dir,
+                fieldnames=self._api.FIELDNAMES,
+                events_dir=self._api.events_dir,
+                conn=self._api._get_cache(),
+            )
+        self._api._push_to_mirror(result)
+        return result
