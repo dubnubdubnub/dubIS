@@ -149,6 +149,15 @@ function getChangedFields() {
   return changed;
 }
 
+/** Re-populate the detail-table inputs from a (possibly updated) item. */
+function populateDetailFields(item) {
+  var inputs = modalDetailTable.querySelectorAll(".modal-field-input");
+  for (var i = 0; i < inputs.length; i++) {
+    var key = inputs[i].dataset.field;
+    inputs[i].value = item[key] || "";
+  }
+}
+
 /**
  * Wire the multi-distributor "current price" panel shared by the Adjust and
  * Price modals. Renders one row per distributor the part was sourced from
@@ -156,12 +165,13 @@ function getChangedFields() {
  * auto-fetches every row's price concurrently on open, and feeds the cheapest
  * row's unit price into `unitInput` (overridable by clicking a row).
  *
- * @param {{panelEl: HTMLElement, unitInput: HTMLInputElement}} els
+ * @param {{panelEl: HTMLElement, unitInput: HTMLInputElement, onPartUpdated?: (freshItem: import('./types.js').InventoryItem|null) => void}} els
  */
-function createFetchController({ panelEl, unitInput }) {
+function createFetchController({ panelEl, unitInput, onPartUpdated }) {
   /** @type {Array<{distributor:string,label:string,method:string,partNumber:string,
    *   qty:number,prices:Array<{qty:number,price:number}>|null,
-   *   unitPrice:number|null,extPrice:number|null,error:string}>} */
+   *   unitPrice:number|null,extPrice:number|null,error:string,
+   *   armed:boolean,editing:boolean}>} */
   let rows = [];
   let pinnedIndex = -1;
   let pk = "";
@@ -189,14 +199,24 @@ function createFetchController({ panelEl, unitInput }) {
           '</span><span class="fetch-drow-ext">×' + escHtml(String(r.qty)) + ' = ' +
           escHtml("$" + Number(r.extPrice).toFixed(2)) + '</span>';
       }
+      const pnCell = r.editing
+        ? '<input type="text" class="fetch-drow-edit-input" data-idx="' + i + '" value="' + escHtml(r.partNumber) + '">' +
+          '<button class="fetch-drow-edit-confirm-btn" data-idx="' + i + '" title="Save corrected part number">✓</button>' +
+          '<button class="fetch-drow-edit-cancel-btn" data-idx="' + i + '" title="Cancel">✕</button>'
+        : '<span class="fetch-drow-pn">' + escHtml(r.partNumber) + '</span>' +
+          '<button class="fetch-drow-edit-btn" data-idx="' + i + '" title="Correct this part number">✎</button>' +
+          '<button class="fetch-drow-delete-btn' + (r.armed ? ' armed' : '') + '" data-idx="' + i + '" title="Clear this distributor’s part number">' +
+          (r.armed ? 'Really clear?' : '✕') + '</button>';
       return '<div class="fetch-drow' + sel + '" data-idx="' + i + '">' +
         '<span class="fetch-drow-label">' + escHtml(r.label) + '</span>' +
         '<input type="number" class="fetch-drow-qty" min="1" step="1" value="' +
           escHtml(String(r.qty)) + '" data-idx="' + i + '">' +
-        '<span class="fetch-drow-pn">' + escHtml(r.partNumber) + '</span>' +
+        pnCell +
         priceCell + '</div>';
     }).join("");
     panelEl.classList.toggle("hidden", rows.length === 0);
+    const editInput = /** @type {HTMLInputElement} */ (panelEl.querySelector(".fetch-drow-edit-input"));
+    if (editInput) { editInput.focus(); editInput.select(); }
   }
 
   // Recompute one row's price from its fetched tiers + current qty.
@@ -206,6 +226,74 @@ function createFetchController({ panelEl, unitInput }) {
     const { unitPrice, extPrice } = rowPrice(r.prices, r.qty);
     r.unitPrice = unitPrice;
     r.extPrice = extPrice;
+  }
+
+  // Persist a distributor's PN via the existing update_part_fields API, then
+  // refresh both the global store and this panel from the fresh item.
+  async function applyFix(i, newPn) {
+    const r = rows[i];
+    const distributor = r.distributor;
+    const label = r.label;
+    const fresh = await api("update_part_fields", pk, { [distributor]: newPn });
+    if (!fresh) return;   // api() already toasted the error
+    onInventoryUpdated(fresh);
+    const freshItem = fresh.find((it) => invPartKey(it) === pk) || null;
+    if (onPartUpdated) onPartUpdated(freshItem);
+    if (freshItem) await configure(freshItem);
+
+    // configure() just re-fetched get_sourced_distributors and rebuilt `rows`
+    // from the fresh backend state — that's the real signal of whether the
+    // write actually landed. update_part_fields matches ledger rows by the
+    // strict get_part_key(), while get_sourced_distributors surfaces rows via
+    // a looser "any PN column matches" scan; those scopes can disagree, in
+    // which case the API call "succeeds" but the targeted row is untouched.
+    const resultRow = rows.find((x) => x.distributor === distributor);
+    const succeeded = newPn
+      ? !!resultRow && resultRow.partNumber === newPn
+      : !resultRow;
+    if (succeeded) {
+      showToast(newPn ? "Corrected " + label + " part number" : "Cleared " + label + " part number");
+    } else {
+      AppLog.error(
+        "update_part_fields did not change " + distributor + " for " + pk +
+        " — the ledger row may be keyed under a different part number"
+      );
+      showToast("Couldn't update " + label + " — it may be recorded under a different part key in the purchase ledger");
+    }
+  }
+
+  function onDeleteClick(i) {
+    const r = rows[i];
+    if (!r.armed) {
+      r.armed = true;
+      render(pinnedIndex);
+      return;
+    }
+    applyFix(i, "");
+  }
+
+  function onEditClick(i) {
+    rows.forEach((r) => { r.editing = false; r.armed = false; });
+    rows[i].editing = true;
+    render(pinnedIndex);
+  }
+
+  function onEditCancel(i) {
+    rows[i].editing = false;
+    render(pinnedIndex);
+  }
+
+  function onEditConfirm(i) {
+    const input = /** @type {HTMLInputElement} */ (
+      panelEl.querySelector('.fetch-drow-edit-input[data-idx="' + i + '"]')
+    );
+    const newPn = input ? input.value.trim() : "";
+    if (!newPn || newPn === rows[i].partNumber) {
+      rows[i].editing = false;
+      render(pinnedIndex);
+      return;
+    }
+    applyFix(i, newPn);
   }
 
   // Auto-pick cheapest (unless a row is pinned) and push its price to unitInput.
@@ -256,17 +344,41 @@ function createFetchController({ panelEl, unitInput }) {
     applySelection();
   });
 
-  // row click (not on the qty input): pin that row.
+  // row click (not on qty/edit controls): pin that row.
   panelEl.addEventListener("click", (e) => {
     const target = /** @type {HTMLElement} */ (e.target);
     if (target.classList.contains("fetch-drow-qty")) return;
+
+    const delBtn = target.closest(".fetch-drow-delete-btn");
+    if (delBtn) { onDeleteClick(Number(/** @type {HTMLElement} */ (delBtn).dataset.idx)); return; }
+
+    const editBtn = target.closest(".fetch-drow-edit-btn");
+    if (editBtn) { onEditClick(Number(/** @type {HTMLElement} */ (editBtn).dataset.idx)); return; }
+
+    const editConfirmBtn = target.closest(".fetch-drow-edit-confirm-btn");
+    if (editConfirmBtn) { onEditConfirm(Number(/** @type {HTMLElement} */ (editConfirmBtn).dataset.idx)); return; }
+
+    const editCancelBtn = target.closest(".fetch-drow-edit-cancel-btn");
+    if (editCancelBtn) { onEditCancel(Number(/** @type {HTMLElement} */ (editCancelBtn).dataset.idx)); return; }
+
+    if (target.classList.contains("fetch-drow-edit-input")) return;
+
     const rowEl = target.closest(".fetch-drow");
     if (!rowEl) return;
     const i = Number(/** @type {HTMLElement} */ (rowEl).dataset.idx);
-    if (rows[i].unitPrice === null) return;
+    if (rows[i].editing || rows[i].unitPrice === null) return;
     pinnedIndex = i;
     setUnitPrice(rows[i].unitPrice);
     render(i);
+  });
+
+  // Enter/Escape while editing a distributor's PN.
+  panelEl.addEventListener("keydown", (e) => {
+    const target = /** @type {HTMLElement} */ (e.target);
+    if (!target.classList.contains("fetch-drow-edit-input")) return;
+    const i = Number(target.dataset.idx);
+    if (e.key === "Enter") { e.preventDefault(); onEditConfirm(i); }
+    else if (e.key === "Escape") { e.preventDefault(); onEditCancel(i); }
   });
 
   /** Set up the panel for a newly opened modal. */
@@ -297,6 +409,8 @@ function createFetchController({ panelEl, unitInput }) {
         unitPrice: null,
         extPrice: null,
         error: "",
+        armed: false,
+        editing: false,
       };
     }).filter((r) => r.method);
 
@@ -341,6 +455,11 @@ export function init() {
   adjFetch = createFetchController({
     panelEl: /** @type {HTMLElement} */ (document.getElementById("adj-fetch-panel")),
     unitInput: adjUnitPrice,
+    onPartUpdated: (freshItem) => {
+      if (!freshItem) return;
+      currentPart = freshItem;
+      populateDetailFields(freshItem);
+    },
   });
 
   document.getElementById("adj-apply").addEventListener("click", async () => {
