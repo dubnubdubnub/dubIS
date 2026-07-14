@@ -84,6 +84,7 @@ FROZEN_SURFACE = {
     'get_price_summary': '(part_key)',
     'get_sourced_distributors': '(part_key)',
     'get_warnings': '()',
+    'has_purchase_history': '(part_key)',
     'import_purchases': '(rows_json)',
     'install_tesseract': '()',
     'list_generic_parts': '()',
