@@ -32,15 +32,41 @@ def test_get_installer_dispatch():
             base.get_installer()
 
 
-def test_windows_install_builds_schtasks_create():
+def test_windows_install_registers_via_xml_then_runs():
     inst = WindowsInstaller()
     with mock.patch("mirror_install.windows.subprocess.run") as run:
         run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
         inst.install(_cfg())
-    args = run.call_args_list[0].args[0]
-    assert args[0] == "schtasks" and "/Create" in args and TASK_NAME in args
-    joined = " ".join(args)
-    assert "inventory_mirror.py" in joined and "7893" in joined and "owner@x.com" in joined
+    create = run.call_args_list[0].args[0]
+    assert create[0] == "schtasks"
+    assert "/Create" in create and "/XML" in create and TASK_NAME in create
+    # Second call starts it now so the user doesn't have to re-login.
+    run_now = run.call_args_list[1].args[0]
+    assert "/Run" in run_now and TASK_NAME in run_now
+
+
+def test_windows_install_raises_on_create_failure():
+    inst = WindowsInstaller()
+    with mock.patch("mirror_install.windows.subprocess.run") as run:
+        run.return_value = mock.Mock(returncode=1, stdout="", stderr="Access denied")
+        with pytest.raises(RuntimeError, match="schtasks create failed"):
+            inst.install(_cfg())
+
+
+def test_windows_task_xml_has_hardening_and_daemon_args():
+    xml = WindowsInstaller()._build_task_xml(_cfg())
+    # Self-heal watchdog: logon trigger for a prompt start + a repeating time
+    # trigger, with IgnoreNew so each tick is a no-op while already running.
+    assert "<LogonTrigger>" in xml
+    assert "<TimeTrigger>" in xml
+    assert "<Repetition>" in xml and "<Interval>PT2M</Interval>" in xml
+    assert "<MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>" in xml
+    # No 72h default kill.
+    assert "<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>" in xml
+    # The daemon invocation is carried by <Command> + <Arguments>.
+    assert "<Command>C:/py/pythonw.exe</Command>" in xml
+    assert "inventory_mirror.py" in xml
+    assert "--read-port 7893" in xml and "owner@x.com" in xml
 
 
 def test_windows_uninstall_builds_schtasks_delete():
