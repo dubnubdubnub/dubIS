@@ -232,13 +232,34 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
   // refresh both the global store and this panel from the fresh item.
   async function applyFix(i, newPn) {
     const r = rows[i];
-    const fresh = await api("update_part_fields", pk, { [r.distributor]: newPn });
+    const distributor = r.distributor;
+    const label = r.label;
+    const fresh = await api("update_part_fields", pk, { [distributor]: newPn });
     if (!fresh) return;   // api() already toasted the error
     onInventoryUpdated(fresh);
     const freshItem = fresh.find((it) => invPartKey(it) === pk) || null;
     if (onPartUpdated) onPartUpdated(freshItem);
-    showToast(newPn ? "Corrected " + r.label + " part number" : "Cleared " + r.label + " part number");
     if (freshItem) await configure(freshItem);
+
+    // configure() just re-fetched get_sourced_distributors and rebuilt `rows`
+    // from the fresh backend state — that's the real signal of whether the
+    // write actually landed. update_part_fields matches ledger rows by the
+    // strict get_part_key(), while get_sourced_distributors surfaces rows via
+    // a looser "any PN column matches" scan; those scopes can disagree, in
+    // which case the API call "succeeds" but the targeted row is untouched.
+    const resultRow = rows.find((x) => x.distributor === distributor);
+    const succeeded = newPn
+      ? !!resultRow && resultRow.partNumber === newPn
+      : !resultRow;
+    if (succeeded) {
+      showToast(newPn ? "Corrected " + label + " part number" : "Cleared " + label + " part number");
+    } else {
+      AppLog.error(
+        "update_part_fields did not change " + distributor + " for " + pk +
+        " — the ledger row may be keyed under a different part number"
+      );
+      showToast("Couldn't update " + label + " — it may be recorded under a different part key in the purchase ledger");
+    }
   }
 
   function onDeleteClick(i) {

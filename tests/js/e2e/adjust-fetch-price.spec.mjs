@@ -38,6 +38,15 @@ const INVENTORY = [
     mpn: "BADPN-1", manufacturer: "Fixable",
     package: "SOIC-8", description: "Part with a bad DigiKey PN",
     qty: 5, unit_price: 0, ext_price: 0 },
+  // Part whose sourced-distributor row can't actually be fixed: get_sourced_distributors
+  // (loose "any PN column matches" scan) reports a digikey PN that isn't actually on
+  // this record — simulating a separate ledger row update_part_fields's strict
+  // get_part_key match can't reach. See "scope mismatch" regression test below.
+  { section: "ICs - Amplifiers",
+    lcsc: "C-MISMATCH", digikey: "", pololu: "", mouser: "",
+    mpn: "MISMATCH-1", manufacturer: "Ghostly",
+    package: "SOIC-8", description: "Part whose sourced-distributor row can't actually be fixed",
+    qty: 5, unit_price: 0, ext_price: 0 },
 ];
 
 const MOCK_PRODUCTS = {
@@ -51,10 +60,23 @@ const MOCK_PRODUCTS = {
   "lcsc:C9999": { productCode: "C9999", prices: [{ qty: 1, price: 0.02 }, { qty: 100, price: 0.005 }], provider: "lcsc" },
   "lcsc:C-BADPN": { productCode: "C-BADPN", prices: [{ qty: 1, price: 3.00 }], provider: "lcsc" },
   "digikey:DK-GARBLED": { productCode: "DK-GARBLED", prices: [{ qty: 1, price: 3.50 }], provider: "digikey" },
+  "lcsc:C-MISMATCH": { productCode: "C-MISMATCH", prices: [{ qty: 1, price: 4.00 }], provider: "lcsc" },
+  "digikey:DK-GHOST": { productCode: "DK-GHOST", prices: [{ qty: 1, price: 4.50 }], provider: "digikey" },
 };
 
 // lastPoQty drives each row's default quantity (and thus which tier is chosen).
-const LAST_PO_QTY = { C2040: 100, C555: 10, "C-FLIP": 1, "C-OK": 10, C9999: 100, "C-BADPN": 1 };
+const LAST_PO_QTY = { C2040: 100, C555: 10, "C-FLIP": 1, "C-OK": 10, C9999: 100, "C-BADPN": 1, "C-MISMATCH": 1 };
+
+// get_sourced_distributors override for the scope-mismatch fixture: reports a
+// digikey PN that the C-MISMATCH inventory row does NOT actually carry —
+// modeling a ledger row that update_part_fields's strict get_part_key match
+// can't reach even though the (loose) get_sourced_distributors scan surfaced it.
+const SOURCED_DISTRIBUTORS_OVERRIDE = {
+  'C-MISMATCH': [
+    { distributor: 'lcsc', part_number: 'C-MISMATCH' },
+    { distributor: 'digikey', part_number: 'DK-GHOST' },
+  ],
+};
 
 const partRow = (page, lcsc) =>
   page.locator('.inv-part-row:has([data-lcsc="' + lcsc + '"])');
@@ -62,7 +84,11 @@ const readNumber = async (loc) => Number(await loc.inputValue());
 
 test.describe('Multi-distributor fetch price — Adjust & Price modals', () => {
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, INVENTORY, { productMocks: MOCK_PRODUCTS, lastPoQty: LAST_PO_QTY });
+    await addMockSetup(page, INVENTORY, {
+      productMocks: MOCK_PRODUCTS,
+      lastPoQty: LAST_PO_QTY,
+      sourcedDistributors: SOURCED_DISTRIBUTORS_OVERRIDE,
+    });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -202,5 +228,36 @@ test.describe('Multi-distributor fetch price — Adjust & Price modals', () => {
     await expect(page.locator('#adj-fetch-panel .fetch-drow')).toHaveCount(2);
     await expect(page.locator('#adj-fetch-panel .fetch-drow[data-idx="1"] .fetch-drow-pn')).toHaveText('DK-CORRECT');
     await expect(page.locator('#modal-detail-table input[data-field="digikey"]')).toHaveValue('DK-CORRECT');
+  });
+
+  test('scope mismatch: clearing a row the backend cannot actually reach surfaces a failure toast, not a silent success', async ({ page }) => {
+    await partRow(page, 'C-MISMATCH').locator('.adj-btn').click();
+    await expect(page.locator('#adjust-modal')).not.toHaveClass(/hidden/);
+    await expect(page.locator('#adj-fetch-panel .fetch-drow')).toHaveCount(2);   // lcsc + digikey
+
+    const dkRow = page.locator('#adj-fetch-panel .fetch-drow[data-idx="1"]');
+    const delBtn = dkRow.locator('.fetch-drow-delete-btn');
+
+    // First click arms, second confirms.
+    await delBtn.click();
+    await expect(delBtn).toHaveClass(/armed/);
+    await delBtn.click();
+
+    // update_part_fields was called...
+    await expect.poll(async () =>
+      (await page.evaluate(() => window.__apiCalls['update_part_fields'] || [])).length
+    ).toBeGreaterThanOrEqual(1);
+
+    // ...but since the mock item's own `digikey` field is already "" (the
+    // sourced-distributors override reported a ledger-only PN the item doesn't
+    // carry), the write is a no-op and get_sourced_distributors still reports
+    // the digikey row afterward — the row must NOT silently disappear.
+    await expect(page.locator('#adj-fetch-panel .fetch-drow')).toHaveCount(2);
+    await expect(dkRow).toBeVisible();
+
+    // The user must see a clear failure indication instead of a false "success" toast.
+    await expect(page.locator('#toast')).toHaveClass(/show/);
+    await expect(page.locator('#toast')).toContainText("Couldn't update");
+    await expect(page.locator('#toast')).not.toContainText('Cleared');
   });
 });
