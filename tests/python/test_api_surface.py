@@ -60,6 +60,7 @@ FROZEN_SURFACE = {
     'delete_last_purchase_order': '()',
     'delete_purchase_order': '(po_id)',
     'delete_saved_search': '(search_id)',
+    'delete_part': '(part_key)',
     'delete_vendor': '(vendor_id)',
     'detect_columns': '(headers_json)',
     'disable_inventory_mirror': '()',
