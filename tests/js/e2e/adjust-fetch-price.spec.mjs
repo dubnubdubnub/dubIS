@@ -192,6 +192,9 @@ test.describe('Multi-distributor fetch price — Adjust & Price modals', () => {
     await editInput.fill('DK-CORRECT');
     await editInput.press('Enter');
 
+    await expect.poll(async () =>
+      (await page.evaluate(() => window.__apiCalls['update_part_fields'] || [])).length
+    ).toBeGreaterThanOrEqual(1);
     const calls = await page.evaluate(() => window.__apiCalls['update_part_fields']);
     expect(calls[calls.length - 1]).toEqual(['C-BADPN', { digikey: 'DK-CORRECT' }]);
 
