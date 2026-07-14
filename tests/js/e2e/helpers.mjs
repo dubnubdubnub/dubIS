@@ -91,7 +91,14 @@ export function addMockSetup(page, inventory, options = {}) {
           record('record_fetched_prices', args);
           return null;
         },
-        update_part_fields: async () => inv,
+        update_part_fields: async (pk, fieldsJson) => {
+          record('update_part_fields', [pk, fieldsJson]);
+          const fields = typeof fieldsJson === 'string' ? JSON.parse(fieldsJson) : fieldsJson;
+          const part = inv.find(p =>
+            [p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser].includes(pk));
+          if (part) Object.assign(part, fields);
+          return inv;
+        },
         list_generic_parts: async () => [],
         list_saved_searches: async () => [],
         create_saved_search: async () => ({ id: 'mock', name: 'mock' }),
