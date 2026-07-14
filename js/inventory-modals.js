@@ -406,10 +406,10 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
       api("get_last_po_quantity", pk),
       api("get_price_summary", pk).catch(() => ({})),
       api("get_generic_group_names", pk).catch(() => []),
-      api("has_purchase_history", pk).catch(() => true),
+      api("has_purchase_history", pk),
     ]);
     lastGroupNames = groupNames || [];
-    lastHasPurchaseHistory = !!hasPurchaseHistory;
+    lastHasPurchaseHistory = hasPurchaseHistory !== false;
     const defaultQty = (typeof lastPoQty === "number" && lastPoQty > 0)
       ? lastPoQty : (part.qty > 0 ? part.qty : 1);
 

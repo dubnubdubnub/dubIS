@@ -67,6 +67,13 @@ const INVENTORY = [
     mpn: "BLANKQTY-1", manufacturer: "",
     package: "", description: "",
     qty: 5, unit_price: 0, ext_price: 0 },
+  // Simulates has_purchase_history failing/returning undefined (as api() does on
+  // a caught backend error) — the delete button must fail toward "hidden", not shown.
+  { section: "Passives - Capacitors > MLCC",
+    lcsc: "C-UNCERTAIN", digikey: "", pololu: "", mouser: "",
+    mpn: "UNCERTAIN-1", manufacturer: "",
+    package: "", description: "",
+    qty: 5, unit_price: 0, ext_price: 0 },
 ];
 
 const MOCK_PRODUCTS = {
@@ -83,6 +90,7 @@ const MOCK_PRODUCTS = {
   "lcsc:C-MISMATCH": { productCode: "C-MISMATCH", prices: [{ qty: 1, price: 4.00 }], provider: "lcsc" },
   "digikey:DK-GHOST": { productCode: "DK-GHOST", prices: [{ qty: 1, price: 4.50 }], provider: "digikey" },
   "lcsc:C-BLANKQTY": { productCode: "C-BLANKQTY", prices: [{ qty: 1, price: 1.00 }], provider: "lcsc" },
+  "lcsc:C-UNCERTAIN": { productCode: "C-UNCERTAIN", prices: [{ qty: 1, price: 1.00 }], provider: "lcsc" },
 };
 
 // lastPoQty drives each row's default quantity (and thus which tier is chosen).
@@ -107,8 +115,8 @@ test.describe('Multi-distributor fetch price — Adjust & Price modals', () => {
   test.beforeEach(async ({ page }) => {
     await addMockSetup(page, INVENTORY, {
       productMocks: MOCK_PRODUCTS,
-      lastPoQty: { ...LAST_PO_QTY, "ADJONLY-1": null, "ADJONLY-2": null, "C-BLANKQTY": null },
-      hasPurchaseHistory: { "C-BLANKQTY": true },
+      lastPoQty: { ...LAST_PO_QTY, "ADJONLY-1": null, "ADJONLY-2": null, "C-BLANKQTY": null, "C-UNCERTAIN": null },
+      hasPurchaseHistory: { "C-BLANKQTY": true, "C-UNCERTAIN": null },
       sourcedDistributors: SOURCED_DISTRIBUTORS_OVERRIDE,
       genericGroupNames: { "ADJONLY-2": ["Test Group"] },
     });
@@ -321,6 +329,12 @@ test.describe('Multi-distributor fetch price — Adjust & Price modals', () => {
 
   test('delete button stays hidden when has_purchase_history is true even if get_last_po_quantity is null', async ({ page }) => {
     await partRow(page, 'C-BLANKQTY').locator('.adj-btn').click();
+    await expect(page.locator('#adjust-modal')).not.toHaveClass(/hidden/);
+    await expect(page.locator('#adj-delete-part')).toHaveClass(/hidden/);
+  });
+
+  test('delete button fails toward hidden when has_purchase_history returns an uncertain value', async ({ page }) => {
+    await partRow(page, 'C-UNCERTAIN').locator('.adj-btn').click();
     await expect(page.locator('#adjust-modal')).not.toHaveClass(/hidden/);
     await expect(page.locator('#adj-delete-part')).toHaveClass(/hidden/);
   });
