@@ -99,6 +99,14 @@ export function addMockSetup(page, inventory, options = {}) {
           }
           return out;
         },
+        get_generic_group_names: async (pk) => {
+          const m = opts.genericGroupNames || {};
+          return m[pk] || [];
+        },
+        delete_part: async (pk) => {
+          record('delete_part', [pk]);
+          return inv.filter(p => ![p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser].includes(pk));
+        },
         get_part_history: async (pk) => {
           const h = opts.partHistory || {};
           return h[pk] || [];
