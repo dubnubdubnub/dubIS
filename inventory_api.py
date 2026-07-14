@@ -388,6 +388,9 @@ class InventoryApi:
     def exclude_generic_member(self, generic_part_id: str, part_id: str) -> None:
         return self._generic.exclude_generic_member(generic_part_id, part_id)
 
+    def get_generic_group_names(self, part_key: str) -> list[str]:
+        return self._generic.get_generic_group_names(part_key)
+
     def set_preferred_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
         return self._generic.set_preferred_member(generic_part_id, part_id)
 

@@ -73,6 +73,7 @@ FROZEN_SURFACE = {
     'fetch_mouser_product': '(part_number)',
     'fetch_pololu_product': '(sku)',
     'get_digikey_login_status': '()',
+    'get_generic_group_names': '(part_key)',
     'get_inventory_mirror_info': '()',
     'get_last_po_quantity': '(part_key)',
     'get_mouser_api_key_status': '()',
