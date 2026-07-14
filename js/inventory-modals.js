@@ -401,14 +401,15 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
     panelEl.innerHTML = "";
     panelEl.classList.add("hidden");
 
-    const [sourced, lastPoQty, priceSummary, groupNames] = await Promise.all([
+    const [sourced, lastPoQty, priceSummary, groupNames, hasPurchaseHistory] = await Promise.all([
       api("get_sourced_distributors", pk),
       api("get_last_po_quantity", pk),
       api("get_price_summary", pk).catch(() => ({})),
       api("get_generic_group_names", pk).catch(() => []),
+      api("has_purchase_history", pk),
     ]);
     lastGroupNames = groupNames || [];
-    lastHasPurchaseHistory = typeof lastPoQty === "number";
+    lastHasPurchaseHistory = hasPurchaseHistory !== false;
     const defaultQty = (typeof lastPoQty === "number" && lastPoQty > 0)
       ? lastPoQty : (part.qty > 0 ? part.qty : 1);
 

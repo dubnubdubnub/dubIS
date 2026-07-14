@@ -167,3 +167,6 @@ class InventoryCRUDFacade:
             )
         self._api._push_to_mirror(result)
         return result
+
+    def has_purchase_history(self, part_key: str) -> bool:
+        return domain.inventory.has_purchase_history(self._api.input_csv, part_key)
