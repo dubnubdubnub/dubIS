@@ -278,6 +278,7 @@
 .vendor-action-group { display: flex; align-items: center; gap: var(--space-sm); margin-left: auto; }
 .vendor-merge-select { width: 150px; flex: none; }
 #vendor-delete-btn.armed { background: var(--color-red); color: #fff; }
+#adj-delete-part.armed { background: var(--color-red); color: #fff; white-space: normal; text-align: left; }
 
 /* ── Scan shell ─────────────── */
 .scan-shell-tiles { display: flex; flex-wrap: wrap; gap: var(--space-md); margin-top: var(--space-md); }
