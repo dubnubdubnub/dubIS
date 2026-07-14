@@ -293,3 +293,36 @@ class TestDeletePart:
             content = f.read()
         assert "TESTPART-3" not in content
         assert "TESTPART-4" in content
+
+    def test_has_purchase_history_true_when_ledger_row_exists(self, api):
+        api.import_purchases([
+            {"LCSC Part Number": "C1525", "Manufacture Part Number": "CL05B104KO5NNNC",
+             "Digikey Part Number": "", "Pololu Part Number": "", "Mouser Part Number": "",
+             "Manufacturer": "Samsung", "Quantity": "200",
+             "Unit Price($)": "0.0074", "Ext.Price($)": "1.48",
+             "Description": "100nF 16V 0402 Capacitor MLCC", "Package": "0402",
+             "RoHS": "", "Customer NO.": "", "Estimated lead time (business days)": "",
+             "Date Code / Lot No.": ""},
+        ])
+        assert api.has_purchase_history("C1525") is True
+
+    def test_has_purchase_history_true_even_with_blank_quantity(self, api):
+        # Regression case: a ledger row with an unparseable/blank Quantity still
+        # counts as purchase history for the delete guard, even though
+        # get_last_po_quantity (a different function, used for default-qty math)
+        # would return None for this same row.
+        api.import_purchases([
+            {"LCSC Part Number": "C7777", "Manufacture Part Number": "BLANKQTY-1",
+             "Digikey Part Number": "", "Pololu Part Number": "", "Mouser Part Number": "",
+             "Manufacturer": "Samsung", "Quantity": "",
+             "Unit Price($)": "", "Ext.Price($)": "",
+             "Description": "Blank quantity row", "Package": "0402",
+             "RoHS": "", "Customer NO.": "", "Estimated lead time (business days)": "",
+             "Date Code / Lot No.": ""},
+        ])
+        assert api.has_purchase_history("C7777") is True
+        assert api.get_last_po_quantity("C7777") is None
+
+    def test_has_purchase_history_false_for_adjustment_only_part(self, api):
+        api.adjust_part("set", "TESTPART-5", 5)
+        assert api.has_purchase_history("TESTPART-5") is False
