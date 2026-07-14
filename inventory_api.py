@@ -256,6 +256,9 @@ class InventoryApi:
                            fields_json: str | dict[str, str]) -> list[dict[str, Any]]:
         return self._inv.update_part_fields(part_key, fields_json)
 
+    def delete_part(self, part_key: str) -> list[dict[str, Any]]:
+        return self._inv.delete_part(part_key)
+
     def detect_columns(self, headers_json: str | list[str]) -> dict[str, str]:
         return self._files.detect_columns(headers_json)
 
@@ -387,6 +390,9 @@ class InventoryApi:
 
     def exclude_generic_member(self, generic_part_id: str, part_id: str) -> None:
         return self._generic.exclude_generic_member(generic_part_id, part_id)
+
+    def get_generic_group_names(self, part_key: str) -> list[str]:
+        return self._generic.get_generic_group_names(part_key)
 
     def set_preferred_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
         return self._generic.set_preferred_member(generic_part_id, part_id)

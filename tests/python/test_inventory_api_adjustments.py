@@ -229,3 +229,67 @@ class TestTruncateCsv:
     def test_missing_adjustments_file_raises(self, api):
         with pytest.raises(ValueError, match="No adjustments file found"):
             api.remove_last_adjustments(1)
+
+
+class TestDeletePart:
+    def test_delete_part_removes_adjustment_only_part(self, api):
+        api.adjust_part("set", "TESTPART-1", 5)
+        keys = [item["lcsc"] or item["mpn"] for item in api.rebuild_inventory()]
+        assert "TESTPART-1" in keys
+
+        result = api.delete_part("TESTPART-1")
+
+        keys = [item["lcsc"] or item["mpn"] for item in result]
+        assert "TESTPART-1" not in keys
+        with open(api.adjustments_csv, encoding="utf-8-sig") as f:
+            assert "TESTPART-1" not in f.read()
+
+    def test_delete_part_raises_if_purchase_history_exists(self, api):
+        api.import_purchases([
+            {"LCSC Part Number": "C1525", "Manufacture Part Number": "CL05B104KO5NNNC",
+             "Digikey Part Number": "", "Pololu Part Number": "", "Mouser Part Number": "",
+             "Manufacturer": "Samsung", "Quantity": "200",
+             "Unit Price($)": "0.0074", "Ext.Price($)": "1.48",
+             "Description": "100nF 16V 0402 Capacitor MLCC", "Package": "0402",
+             "RoHS": "", "Customer NO.": "", "Estimated lead time (business days)": "",
+             "Date Code / Lot No.": ""},
+        ])
+        with pytest.raises(ValueError, match="purchase history"):
+            api.delete_part("C1525")
+
+    def test_delete_part_detaches_generic_group_membership(self, api):
+        api.import_purchases([
+            {"LCSC Part Number": "C1525", "Manufacture Part Number": "CL05B104KO5NNNC",
+             "Digikey Part Number": "", "Pololu Part Number": "", "Mouser Part Number": "",
+             "Manufacturer": "Samsung", "Quantity": "200",
+             "Unit Price($)": "0.0074", "Ext.Price($)": "1.48",
+             "Description": "100nF 16V 0402 Capacitor MLCC", "Package": "0402",
+             "RoHS": "", "Customer NO.": "", "Estimated lead time (business days)": "",
+             "Date Code / Lot No.": ""},
+        ])
+        api.adjust_part("set", "TESTPART-2", 3)
+        gp = api.create_generic_part(
+            name="Test Group", part_type="capacitor",
+            spec_json="{}", strictness_json="{}",
+        )
+        api.add_generic_member(gp["generic_part_id"], "TESTPART-2")
+        assert api.get_generic_group_names("TESTPART-2") == ["Test Group"]
+
+        api.delete_part("TESTPART-2")
+
+        conn = api._get_cache()
+        row = conn.execute(
+            "SELECT 1 FROM generic_part_members WHERE part_id = ?", ("TESTPART-2",),
+        ).fetchone()
+        assert row is None
+
+    def test_delete_part_only_removes_target_parts_adjustments(self, api):
+        api.adjust_part("set", "TESTPART-3", 5)
+        api.adjust_part("set", "TESTPART-4", 7)
+
+        api.delete_part("TESTPART-3")
+
+        with open(api.adjustments_csv, encoding="utf-8-sig") as f:
+            content = f.read()
+        assert "TESTPART-3" not in content
+        assert "TESTPART-4" in content

@@ -85,6 +85,9 @@ let adjExtPrice;
 let adjFetch;
 let currentPart = null;
 let adjModal;
+let deletePartBtn;
+let deleteArmed = false;
+let deletePartGroupNames = [];
 
 // Price modal is now managed via defineFormModal — these refs are set in init()
 let priceFetchController = null;
@@ -129,7 +132,14 @@ export function openAdjustModal(item) {
   adjUnitPrice.value = item.unit_price > 0 ? item.unit_price : "";
   adjExtPrice.value = item.ext_price > 0 ? item.ext_price : "";
 
-  adjFetch.configure(item);
+  adjFetch.configure(item).then(() => {
+    const { canDelete, groupNames } = adjFetch.deleteEligibility();
+    deleteArmed = false;
+    deletePartBtn.classList.toggle("hidden", !canDelete);
+    deletePartBtn.classList.remove("armed");
+    deletePartBtn.textContent = "Delete part";
+    deletePartGroupNames = groupNames;
+  });
 
   adjModal.open();
   adjQty.focus();
@@ -175,6 +185,8 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
   let rows = [];
   let pinnedIndex = -1;
   let pk = "";
+  let lastGroupNames = [];
+  let lastHasPurchaseHistory = false;
 
   function setUnitPrice(price) {
     unitInput.value = price;
@@ -389,11 +401,14 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
     panelEl.innerHTML = "";
     panelEl.classList.add("hidden");
 
-    const [sourced, lastPoQty, priceSummary] = await Promise.all([
+    const [sourced, lastPoQty, priceSummary, groupNames] = await Promise.all([
       api("get_sourced_distributors", pk),
       api("get_last_po_quantity", pk),
       api("get_price_summary", pk).catch(() => ({})),
+      api("get_generic_group_names", pk).catch(() => []),
     ]);
+    lastGroupNames = groupNames || [];
+    lastHasPurchaseHistory = typeof lastPoQty === "number";
     const defaultQty = (typeof lastPoQty === "number" && lastPoQty > 0)
       ? lastPoQty : (part.qty > 0 ? part.qty : 1);
 
@@ -421,7 +436,11 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
     applySelection();
   }
 
-  return { configure };
+  function deleteEligibility() {
+    return { canDelete: !lastHasPurchaseHistory, groupNames: lastGroupNames };
+  }
+
+  return { configure, deleteEligibility };
 }
 
 /**
@@ -444,6 +463,7 @@ export function init() {
   adjNote = document.getElementById("adj-note");
   adjUnitPrice = /** @type {HTMLInputElement} */ (document.getElementById("adj-unit-price"));
   adjExtPrice = /** @type {HTMLInputElement} */ (document.getElementById("adj-ext-price"));
+  deletePartBtn = /** @type {HTMLButtonElement} */ (document.getElementById("adj-delete-part"));
 
   adjModal = Modal("adjust-modal", {
     onClose: () => { currentPart = null; },
@@ -460,6 +480,25 @@ export function init() {
       currentPart = freshItem;
       populateDetailFields(freshItem);
     },
+  });
+
+  deletePartBtn.addEventListener("click", async () => {
+    if (!currentPart) return;
+    const pk = invPartKey(currentPart);
+    if (!deleteArmed) {
+      deleteArmed = true;
+      const suffix = deletePartGroupNames.length
+        ? " Also in: " + deletePartGroupNames.join(", ")
+        : "";
+      deletePartBtn.textContent = "Really delete?" + suffix;
+      deletePartBtn.classList.add("armed");
+      return;
+    }
+    const fresh = await api("delete_part", pk);
+    if (!fresh) return;   // api() already toasted the error
+    onInventoryUpdated(fresh);
+    showToast("Deleted " + pk);
+    adjModal.close();
   });
 
   document.getElementById("adj-apply").addEventListener("click", async () => {

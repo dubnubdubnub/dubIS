@@ -157,6 +157,23 @@ def remove_member(conn: Any, events_dir: str, generic_part_id: str,
                    generic_part_id=generic_part_id)
 
 
+def group_memberships_for_part(conn: Any, part_key: str) -> list[tuple[str, str]]:
+    """(generic_part_id, name) pairs for every group this part currently belongs to."""
+    rows = conn.execute(
+        """SELECT gm.generic_part_id, gp.name FROM generic_part_members gm
+           JOIN generic_parts gp ON gp.generic_part_id = gm.generic_part_id
+           WHERE gm.part_id = ?
+           ORDER BY gp.name""",
+        (part_key,),
+    ).fetchall()
+    return [(r["generic_part_id"], r["name"]) for r in rows]
+
+
+def get_group_names_for_part(conn: Any, part_key: str) -> list[str]:
+    """Generic-part group names this part is currently a member of."""
+    return [name for _, name in group_memberships_for_part(conn, part_key)]
+
+
 def exclude_member(conn: Any, events_dir: str, generic_part_id: str,
                     part_id: str) -> None:
     """Mark a member as excluded — survives auto-regeneration."""

@@ -47,6 +47,18 @@ const INVENTORY = [
     mpn: "MISMATCH-1", manufacturer: "Ghostly",
     package: "SOIC-8", description: "Part whose sourced-distributor row can't actually be fixed",
     qty: 5, unit_price: 0, ext_price: 0 },
+  // Adjustment-only part (no purchase history) — eligible for delete.
+  { section: "Passives - Capacitors > MLCC",
+    lcsc: "", digikey: "", pololu: "", mouser: "",
+    mpn: "ADJONLY-1", manufacturer: "",
+    package: "", description: "",
+    qty: 5, unit_price: 0, ext_price: 0 },
+  // Adjustment-only part that also belongs to a generic group.
+  { section: "Passives - Capacitors > MLCC",
+    lcsc: "", digikey: "", pololu: "", mouser: "",
+    mpn: "ADJONLY-2", manufacturer: "",
+    package: "", description: "",
+    qty: 3, unit_price: 0, ext_price: 0 },
 ];
 
 const MOCK_PRODUCTS = {
@@ -86,8 +98,9 @@ test.describe('Multi-distributor fetch price — Adjust & Price modals', () => {
   test.beforeEach(async ({ page }) => {
     await addMockSetup(page, INVENTORY, {
       productMocks: MOCK_PRODUCTS,
-      lastPoQty: LAST_PO_QTY,
+      lastPoQty: { ...LAST_PO_QTY, "ADJONLY-1": null, "ADJONLY-2": null },
       sourcedDistributors: SOURCED_DISTRIBUTORS_OVERRIDE,
+      genericGroupNames: { "ADJONLY-2": ["Test Group"] },
     });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
@@ -259,5 +272,40 @@ test.describe('Multi-distributor fetch price — Adjust & Price modals', () => {
     await expect(page.locator('#toast')).toHaveClass(/show/);
     await expect(page.locator('#toast')).toContainText("Couldn't update");
     await expect(page.locator('#toast')).not.toContainText('Cleared');
+  });
+
+  test('delete part button is hidden for parts with purchase history', async ({ page }) => {
+    await partRow(page, 'C2040').locator('.adj-btn').click();
+    await expect(page.locator('#adjust-modal')).not.toHaveClass(/hidden/);
+    await expect(page.locator('#adj-delete-part')).toHaveClass(/hidden/);
+  });
+
+  test('delete part: two-step confirm removes an adjustment-only part', async ({ page }) => {
+    await page.locator('.inv-part-row[data-part-id="ADJONLY-1"]').locator('.adj-btn').click();
+    await expect(page.locator('#adjust-modal')).not.toHaveClass(/hidden/);
+
+    const delBtn = page.locator('#adj-delete-part');
+    await expect(delBtn).not.toHaveClass(/hidden/);
+    await expect(delBtn).toHaveText('Delete part');
+
+    await delBtn.click();
+    await expect(delBtn).toHaveClass(/armed/);
+    await expect(delBtn).toHaveText('Really delete?');
+
+    await delBtn.click();
+    await expect(page.locator('#adjust-modal')).toHaveClass(/hidden/);
+    await expect(page.locator('.inv-part-row[data-part-id="ADJONLY-1"]')).toHaveCount(0);
+
+    const calls = await page.evaluate(() => window.__apiCalls['delete_part']);
+    expect(calls[calls.length - 1]).toEqual(['ADJONLY-1']);
+  });
+
+  test('delete part: armed label lists the exact generic group name', async ({ page }) => {
+    await page.locator('.inv-part-row[data-part-id="ADJONLY-2"]').locator('.adj-btn').click();
+    await expect(page.locator('#adjust-modal')).not.toHaveClass(/hidden/);
+
+    const delBtn = page.locator('#adj-delete-part');
+    await delBtn.click();
+    await expect(delBtn).toHaveText('Really delete? Also in: Test Group');
   });
 });
