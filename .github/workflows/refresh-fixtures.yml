@@ -35,10 +35,14 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch: {}
 
-# Minimal but sufficient: push a branch + open/update a PR.
+# Minimal but sufficient: push a branch, open/update a PR, and dispatch CI on
+# it (actions: write). The dispatch is needed because pushes and PRs made with
+# GITHUB_TOKEN never trigger pull_request workflows — without it the refresh
+# PR sits forever with no checks and can't merge past branch protection.
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 # Never let two refresh runs race on the automation branch.
 concurrency:
@@ -49,8 +53,11 @@ jobs:
   refresh:
     name: Refresh public fixtures
     # Mirrors ci.yml's "Python Lint & Test" job: same internet-connected
-    # self-hosted runner and the same pre-provisioned venv (~/dubis-venv).
-    runs-on: [self-hosted, pnp-testbox]
+    # ARC runner and the same pre-provisioned venv (~/dubis-venv). The old
+    # static `pnp-testbox` runners were retired in the ARC migration — this
+    # label MUST track whatever ci.yml's python job runs on, or the schedule
+    # queues for 24h and auto-cancels forever.
+    runs-on: arc-dubis
     steps:
       - uses: actions/checkout@v4
         with:
@@ -116,3 +123,11 @@ jobs:
               if (e.status === 422) { core.info('PR already exists for this branch; branch updated by the force-push.'); }
               else { throw e; }
             }
+            // GITHUB_TOKEN pushes/PRs never trigger pull_request workflows, so
+            // the required checks would never report and the PR could not merge.
+            // workflow_dispatch is exempt from that restriction — kick CI here.
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner, repo: context.repo.repo,
+              workflow_id: 'ci.yml', ref: head, inputs: { suite: 'all' },
+            });
+            core.info('Dispatched ci.yml on ' + head);
