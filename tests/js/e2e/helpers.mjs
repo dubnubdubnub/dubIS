@@ -85,6 +85,12 @@ export function addMockSetup(page, inventory, options = {}) {
           const m = opts.lastPoQty || {};
           return (pk in m) ? m[pk] : null;
         },
+        has_purchase_history: async (pk) => {
+          const m = opts.hasPurchaseHistory || {};
+          if (pk in m) return m[pk];
+          const lp = opts.lastPoQty || {};
+          return typeof lp[pk] === "number";
+        },
         get_price_summary: async () => ({}),
         get_sourced_distributors: async (pk) => {
           const over = opts.sourcedDistributors || {};

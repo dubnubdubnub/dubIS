@@ -259,6 +259,9 @@ class InventoryApi:
     def delete_part(self, part_key: str) -> list[dict[str, Any]]:
         return self._inv.delete_part(part_key)
 
+    def has_purchase_history(self, part_key: str) -> bool:
+        return self._inv.has_purchase_history(part_key)
+
     def detect_columns(self, headers_json: str | list[str]) -> dict[str, str]:
         return self._files.detect_columns(headers_json)
 

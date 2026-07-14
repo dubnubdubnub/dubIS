@@ -528,6 +528,17 @@ def truncate_and_rebuild(
     return result
 
 
+def has_purchase_history(input_csv: str, part_key: str) -> bool:
+    """Whether any purchase_ledger.csv row belongs to this part."""
+    if not os.path.exists(input_csv):
+        return False
+    with open(input_csv, newline="", encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            if inventory_ops.get_part_key(row) == part_key:
+                return True
+    return False
+
+
 def delete_part(
     *,
     part_key: str,
@@ -543,13 +554,8 @@ def delete_part(
 
     Caller holds the lock.
     """
-    if os.path.exists(input_csv):
-        with open(input_csv, newline="", encoding="utf-8-sig") as f:
-            for row in csv.DictReader(f):
-                if inventory_ops.get_part_key(row) == part_key:
-                    raise ValueError(
-                        f"Part {part_key!r} has purchase history; cannot delete"
-                    )
+    if has_purchase_history(input_csv, part_key):
+        raise ValueError(f"Part {part_key!r} has purchase history; cannot delete")
 
     for generic_part_id, _name in domain.generic_parts.group_memberships_for_part(conn, part_key):
         domain.generic_parts.remove_member(conn, events_dir, generic_part_id, part_key)
