@@ -39,6 +39,7 @@ jobs:
       run_pnp:     ${{ steps.resolve.outputs.run_pnp }}
       run_cross:   ${{ steps.resolve.outputs.run_cross }}
       run_quality: ${{ steps.resolve.outputs.run_quality }}
+      is_fork:     ${{ steps.resolve.outputs.is_fork }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -66,9 +67,11 @@ jobs:
           #   every self-hosted job skip. parse-tags itself runs on GitHub-hosted
           #   ubuntu and only reads metadata (never the PR's code), so this is safe.
           #   To run full CI on a trusted fork PR: push the branch into this repo.
+          echo "is_fork=false" >> "$GITHUB_OUTPUT"
           if [[ "${{ github.event_name }}" == "pull_request" \
                 && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
             echo "::notice::Fork PR detected — self-hosted CI skipped. A maintainer must review and push the branch into the repo to run full CI."
+            echo "is_fork=true" >> "$GITHUB_OUTPUT"
             set_none
             exit 0
           fi
@@ -154,9 +157,10 @@ jobs:
               *.py|requirements*.txt)                    PY=true ;;
               tests/python/*)                            PY=true ;;
               scripts/*.py)                              PY=true ;;
-              data/constants.json)                       JS=true ;;
+              data/pnp_part_map.json)                    PNP=true; PY=true ;;
+              data/*.json)                               JS=true; PY=true ;;
               .github/*)                                 JS=true; PY=true; PNP=true; QUALITY=true ;;
-              # docs, CLAUDE.md, data/preferences.json, etc. → lint only
+              # docs, CLAUDE.md, data CSVs, etc. → lint only
             esac
           done <<< "$FILES"
 
@@ -226,10 +230,17 @@ jobs:
           - name: ubuntu
             runner: arc-dubis
             checkout-clean: true
+            advisory: false
+          # m4-air is a single physical machine — its legs are advisory
+          # (continue-on-error) so a laptop outage can't block all merges,
+          # matching the js-windows / vlm-gpu single-box policy. Failures
+          # still show a red annotation on the run.
           - name: macos
             runner: [self-hosted, m4-air]
             checkout-clean: false
+            advisory: true
     runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.advisory }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -261,11 +272,15 @@ jobs:
             runner: arc-dubis
             checkout-clean: true
             install-pw: true
+            advisory: false
+          # Advisory: single physical machine (see js job note).
           - name: macos
             runner: [self-hosted, m4-air]
             checkout-clean: false
             install-pw: false
+            advisory: true
     runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.advisory }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -352,6 +367,14 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
+      - name: Fail fork PRs (self-hosted CI never ran)
+        # Without this, a fork PR would show this required context green with
+        # every test skipped. Fork PRs must be pushed into the repo by a
+        # maintainer to run CI and become mergeable.
+        if: needs.parse-tags.outputs.is_fork == 'true'
+        run: |
+          echo "::error::Fork PR — self-hosted CI was skipped, so required checks cannot pass. A maintainer must push this branch into the repo to run CI."
+          exit 1
       - name: Aggregate JS job results
         run: |
           echo "parse-tags          = ${{ needs.parse-tags.result }}"
@@ -458,9 +481,13 @@ jobs:
         include:
           - name: ubuntu
             runner: arc-dubis
+            advisory: false
+          # Advisory: single physical machine (see js job note).
           - name: macos
             runner: [self-hosted, m4-air, gui]
+            advisory: true
     runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.advisory }}
     timeout-minutes: 10
     env:
       OPENPNP_BIN: /usr/local/bin/openpnp.sh
@@ -470,6 +497,33 @@ jobs:
         run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
       - name: Run PnP E2E tests
         run: ~/dubis-venv/bin/python tests/pnp-e2e/run_test.py
+
+  # ── Required-check gate for PnP ──────────────────────────────────────
+  #   Same pattern as js-required: a stable "PnP E2E (required)" context that
+  #   branch protection can require. Always reports (skipped pnp-e2e = pass,
+  #   so non-PnP PRs stay mergeable); a real pnp-e2e failure blocks merge.
+  #   The advisory macos leg of pnp-e2e cannot fail the aggregate.
+  pnp-required:
+    name: PnP E2E (required)
+    needs: [parse-tags, guard, pnp-e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate PnP job results
+        run: |
+          echo "parse-tags = ${{ needs.parse-tags.result }}"
+          echo "guard      = ${{ needs.guard.result }}"
+          echo "pnp-e2e    = ${{ needs.pnp-e2e.result }}"
+          for r in \
+            "${{ needs.parse-tags.result }}" \
+            "${{ needs.guard.result }}" \
+            "${{ needs.pnp-e2e.result }}"; do
+            if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
+              echo "::error::A required PnP job did not pass (result: $r)"
+              exit 1
+            fi
+          done
+          echo "All required PnP jobs passed or were skipped."
 
   pnp-e2e-cross-ux430-to-mac:
     name: PnP E2E Cross-Compute (ux430 -> m4-air)

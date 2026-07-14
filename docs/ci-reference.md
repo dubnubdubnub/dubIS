@@ -10,13 +10,22 @@ CI auto-detects which suites to run based on changed files in PRs:
 | `*.py`, `requirements*.txt`, `tests/python/` | Python |
 | `pnp_server.py`, `openpnp/`, `tests/pnp-e2e/` | PnP E2E + Python |
 | `.github/` | All (CI config changes) |
-| `data/constants.json` | JS |
-| Docs only (`*.md`, config files) | Lint only |
+| `data/pnp_part_map.json` | PnP + Python |
+| `data/*.json` (config) | JS + Python |
+| Docs only (`*.md`, data CSVs, config files) | Lint only |
 | Unrecognized files | All (safe fallback) |
 
 Lint (eslint + tsc + ruff) always runs. Cross-compute PnP E2E only runs with an explicit tag. Push to main always runs all suites.
 
 Superseded PR runs are automatically cancelled (concurrency groups).
+
+### Required checks & single-box legs
+
+Branch protection requires three contexts: **JS Lint & Test (ubuntu)** (aggregates js + js-e2e + js-live), **Python Lint & Test (ubuntu)**, and **PnP E2E (required)** (aggregates pnp-e2e). Skipped suites satisfy the gates, so e.g. a docs-only PR is still mergeable.
+
+Single-physical-machine legs are **advisory** (`continue-on-error`): the macos (m4-air) legs of js/js-e2e/pnp-e2e, js-windows (win11 VM), and vlm-gpu. Their failures annotate the run red but never block merges — a laptop outage must not stall the queue.
+
+**Fork PRs**: all self-hosted jobs are skipped for security, and `JS Lint & Test (ubuntu)` deliberately **fails** so the PR can't show green without tests. A maintainer must push the branch into the repo to run CI.
 
 ## Override with commit-message tags
 
