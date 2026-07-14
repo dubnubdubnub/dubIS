@@ -54,6 +54,7 @@ graph LR
     "domain/inventory.py" --> "cache_db.py"
     "domain/inventory.py" --> "csv_io.py"
     "domain/inventory.py" --> "domain/__init__.py"
+    "domain/inventory.py" --> "domain/generic_parts.py"
     "domain/inventory.py" --> "domain/pricing.py"
     "domain/inventory.py" --> "domain/schema.py"
     "domain/inventory.py" --> "inventory_ops.py"
@@ -744,11 +745,11 @@ graph LR
 ### domain/generic_parts.py
 
 - **Imports:** `spec_extractor.py`
-- **Imported by:** `domain/api_generic_parts.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`
+- **Imported by:** `domain/api_generic_parts.py`, `domain/inventory.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`
 
 ### domain/inventory.py
 
-- **Imports:** `cache_db.py`, `csv_io.py`, `domain/__init__.py`, `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`, `saved_searches.py`
+- **Imports:** `cache_db.py`, `csv_io.py`, `domain/__init__.py`, `domain/generic_parts.py`, `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`, `saved_searches.py`
 - **Imported by:** `domain/api_inventory.py`, `inventory_api.py`
 
 ### domain/pricing.py
