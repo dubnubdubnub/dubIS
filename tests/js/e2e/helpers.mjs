@@ -26,6 +26,22 @@ export function addMockSetup(page, inventory, options = {}) {
   return page.addInitScript(({ inv, opts, colDetections }) => {
     const productMocks = opts.productMocks || {};
 
+    // Mirrors inventory_ops.get_part_key's priority: LCSC (C-prefixed) > mpn > digikey > pololu > mouser.
+    // Used only by update_part_fields (below), which mirrors the real backend's
+    // strict single-key match — deliberately NOT used by get_sourced_distributors,
+    // which mirrors the real backend's looser "any PN column matches" scan.
+    const mockPartKey = (item) => {
+      const lcsc = (item.lcsc || '').trim();
+      if (lcsc && /^c/i.test(lcsc)) return lcsc;
+      const mpn = (item.mpn || '').trim();
+      if (mpn) return mpn;
+      const dk = (item.digikey || '').trim();
+      if (dk) return dk;
+      const pol = (item.pololu || '').trim();
+      if (pol) return pol;
+      return (item.mouser || '').trim();
+    };
+
     // Test-visible call recorder so specs can assert what the backend received
     // (e.g. that the scanned photo bytes flowed into the create-PO call).
     window.__apiCalls = {};
@@ -94,8 +110,7 @@ export function addMockSetup(page, inventory, options = {}) {
         update_part_fields: async (pk, fieldsJson) => {
           record('update_part_fields', [pk, fieldsJson]);
           const fields = typeof fieldsJson === 'string' ? JSON.parse(fieldsJson) : fieldsJson;
-          const part = inv.find(p =>
-            [p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser].includes(pk));
+          const part = inv.find(p => mockPartKey(p) === pk);
           if (part) Object.assign(part, fields);
           return inv;
         },
