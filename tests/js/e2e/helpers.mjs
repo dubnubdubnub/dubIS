@@ -87,7 +87,11 @@ export function addMockSetup(page, inventory, options = {}) {
         },
         has_purchase_history: async (pk) => {
           const m = opts.hasPurchaseHistory || {};
-          if (pk in m) return m[pk];
+          // `null` is a serialization-safe stand-in for `undefined` (init-script
+          // args are JSON-serialized, which drops undefined-valued keys entirely) —
+          // it simulates the real undefined api() resolves to when the backend
+          // call fails and is caught.
+          if (pk in m) return m[pk] === null ? undefined : m[pk];
           const lp = opts.lastPoQty || {};
           return typeof lp[pk] === "number";
         },
