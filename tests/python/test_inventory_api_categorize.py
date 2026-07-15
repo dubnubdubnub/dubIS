@@ -144,6 +144,37 @@ class TestCategorize:
                "Manufacturer": "MultiDimension Technology Co., Ltd."}
         assert categorize(row) == "ICs - Sensors"
 
+    def test_stlink_is_dev_tools(self):
+        row = {"Manufacture Part Number": "STLINK-V3SET",
+               "Description": "STLINK-V3 modular in-circuit debugger and programmer"}
+        assert categorize(row) == "Development Boards, Kits, Programmers"
+
+    def test_programmer_by_description(self):
+        row = {"Manufacture Part Number": "XYZ", "Description": "in-circuit debugger programmer"}
+        assert categorize(row) == "Development Boards, Kits, Programmers"
+
+    def test_dev_tools_does_not_match_led(self):
+        # an LED part must not be captured by the dev-tools rule
+        row = {"Manufacture Part Number": "WS2812B-V5/W",
+               "Description": "LED RGB addressable"}
+        assert categorize(row) == "LEDs"
+
+    def test_ws2812_by_mpn_fallback(self):
+        row = {"Manufacture Part Number": "WS2812B-V5/W", "Description": ""}
+        assert categorize(row) == "LEDs"
+
+    def test_murata_grm_cap_by_mpn_fallback(self):
+        row = {"Manufacture Part Number": "GRM21BR61A476ME15L", "Description": ""}
+        assert categorize(row) == "Passives - Capacitors"
+
+    def test_tcpp_usb_by_mpn_fallback(self):
+        row = {"Manufacture Part Number": "TCPP02-M18", "Description": ""}
+        assert categorize(row) == "ICs - USB"
+
+    def test_pi3ch_mux_by_mpn_fallback(self):
+        row = {"Manufacture Part Number": "PI3CH3257ZTAEX", "Description": ""}
+        assert categorize(row) == "ICs - Interface"
+
 
 class TestParseResistance:
     def test_kilo_ohm(self):
