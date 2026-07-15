@@ -55,6 +55,16 @@ def _safe_read(file_path: Path) -> list[str] | None:
         return None
 
 
+def _blank_js_comments(text: str) -> str:
+    """Replace JS comment contents with spaces, preserving line structure
+    so line numbers of real code stay valid."""
+    text = re.sub(r"/\*.*?\*/",
+                  lambda m: re.sub(r"[^\n]", " ", m.group(0)),
+                  text, flags=re.DOTALL)
+    text = re.sub(r"//[^\n]*", "", text)
+    return text
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 
@@ -142,9 +152,10 @@ def find_event_emitters_listeners(
         if lines is None:
             continue
         rel = str(file_path.relative_to(repo_root))
-        for i, line in enumerate(lines):
+        blanked_lines = _blank_js_comments("".join(lines)).splitlines(keepends=True)
+        for i, (line, blanked_line) in enumerate(zip(lines, blanked_lines)):
             for pat in emit_patterns:
-                if pat.search(line):
+                if pat.search(blanked_line):
                     emitters.append({
                         "file": rel,
                         "line": i + 1,
@@ -152,7 +163,7 @@ def find_event_emitters_listeners(
                     })
                     break
             for pat in on_patterns:
-                if pat.search(line):
+                if pat.search(blanked_line):
                     listeners.append({
                         "file": rel,
                         "line": i + 1,
