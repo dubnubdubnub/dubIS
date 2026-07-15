@@ -1410,6 +1410,11 @@ graph LR
 - **Imports:** `distributor_fixtures.py`
 - **Imported by:** —
 
+### scripts/check-claude-md.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### scripts/check-layout-tokens.py
 
 - **Imports:** —
@@ -1865,6 +1870,11 @@ graph LR
 - **Imported by:** —
 
 ### tests/python/test_capture_refresh.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### tests/python/test_check_claude_md.py
 
 - **Imports:** —
 - **Imported by:** —
