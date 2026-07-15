@@ -56,6 +56,31 @@ def _persist(conn: Any, data_dir: str) -> None:
             "WHERE preferred=1 ORDER BY generic_part_id, part_id"
         ).fetchall()
     ]
+
+    # Retain JSON-only records for members whose part is not currently in
+    # `parts` (warn-skipped at load time -- see load_into_db).  Without this,
+    # the next unrelated mutation's _persist snapshot -- built purely from the
+    # DB -- would silently erase them, breaking the "the part may return"
+    # promise documented in load_into_db.
+    known_parts = {r[0] for r in conn.execute("SELECT part_id FROM parts").fetchall()}
+    existing_path = _json_path(data_dir)
+    if os.path.exists(existing_path):
+        try:
+            with open(existing_path, encoding="utf-8") as f:
+                existing = json.load(f)
+        except (OSError, ValueError):
+            existing = {}
+        db_member_keys = {(m["generic_part_id"], m["part_id"]) for m in members}
+        for m in existing.get("members", []):
+            key = (m["generic_part_id"], m["part_id"])
+            if m["part_id"] not in known_parts and key not in db_member_keys:
+                members.append(m)
+        db_preferred_keys = {(p["generic_part_id"], p["part_id"]) for p in preferred}
+        for p in existing.get("preferred", []):
+            key = (p["generic_part_id"], p["part_id"])
+            if p["part_id"] not in known_parts and key not in db_preferred_keys:
+                preferred.append(p)
+
     os.makedirs(data_dir, exist_ok=True)
     csv_io.atomic_write_text(
         _json_path(data_dir),
@@ -86,6 +111,9 @@ def load_into_db(conn: Any, data_dir: str) -> None:
 
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
+
+    if data.get("version") != 1:
+        raise ValueError(f"Unsupported generic_parts.json version: {data.get('version')!r}")
 
     known_parts = {r["part_id"] for r in conn.execute("SELECT part_id FROM parts").fetchall()}
 
