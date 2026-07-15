@@ -161,6 +161,12 @@ class InventoryCRUDFacade:
             "mouser": dm.fetch_mouser_product,
             "pololu": dm.fetch_pololu_product,
         }
+        # Lock is held across the distributor network fetches, not just the CSV
+        # read/write, so the read -> write -> rebuild stays atomic. This is
+        # intentional: the operation is a small, user-initiated cleanup batch
+        # (a handful of missing-description parts), not a bulk/background job -
+        # don't "optimize" the fetches out from under the lock, it would break
+        # atomicity for a workload that doesn't need the throughput.
         with self._api._lock:
             return domain.inventory.fetch_missing_descriptions(
                 fetchers=fetchers,

@@ -10,7 +10,11 @@ export async function runFetchMissingDescriptions({ api, onInventoryUpdated, sho
   if (Array.isArray(inventory)) onInventoryUpdated(inventory);
   const s = summary || { updated: 0, failed: 0 };
   if (!s.updated) {
-    showToast('No missing descriptions to fetch');
+    if (s.failed) {
+      showToast('Could not fetch ' + s.failed + ' description' + (s.failed === 1 ? '' : 's'));
+    } else {
+      showToast('No missing descriptions to fetch');
+    }
     return;
   }
   let msg = 'Fetched ' + s.updated + ' description' + (s.updated === 1 ? '' : 's');

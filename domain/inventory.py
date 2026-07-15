@@ -552,7 +552,7 @@ def fetch_missing_descriptions(
             if cand and str(cand).strip():
                 desc = str(cand).strip()
                 break
-        if desc:
+        if desc and "Description" in file_fieldnames:
             row["Description"] = desc
             updated += 1
         else:
