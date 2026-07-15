@@ -109,6 +109,7 @@ graph LR
     "js/app-init.js" --> "js/import/import-panel.js"
     "js/app-init.js" --> "js/import/mfg-direct/mfg-direct-panel.js"
     "js/app-init.js" --> "js/inventory-modals.js"
+    "js/app-init.js" --> "js/inventory/fetch-descriptions-command.js"
     "js/app-init.js" --> "js/inventory/inv-state.js"
     "js/app-init.js" --> "js/inventory/inventory-panel.js"
     "js/app-init.js" --> "js/inventory/saved-views-ui.js"
@@ -230,6 +231,7 @@ graph LR
     "js/inventory-modals.js" --> "js/api.js"
     "js/inventory-modals.js" --> "js/components/form-modal.js"
     "js/inventory-modals.js" --> "js/dom/html.js"
+    "js/inventory-modals.js" --> "js/inventory/pick-description.js"
     "js/inventory-modals.js" --> "js/part-keys.js"
     "js/inventory-modals.js" --> "js/store.js"
     "js/inventory-modals.js" --> "js/ui-helpers.js"
@@ -485,6 +487,9 @@ graph LR
     "tests/python/conftest.py" --> "inventory_api.py"
     "tests/python/domain/test_generic_parts.py" --> "domain/generic_parts.py"
     "tests/python/domain/test_generic_parts.py" --> "spec_extractor.py"
+    "tests/python/domain/test_inventory_fetch_descriptions.py" --> "domain/inventory.py"
+    "tests/python/domain/test_inventory_fetch_descriptions.py" --> "inventory_api.py"
+    "tests/python/domain/test_inventory_fetch_descriptions.py" --> "tests/python/helpers.py"
     "tests/python/domain/test_pricing.py" --> "cache_db.py"
     "tests/python/domain/test_pricing.py" --> "domain/pricing.py"
     "tests/python/helpers.py" --> "inventory_api.py"
@@ -750,7 +755,7 @@ graph LR
 ### domain/inventory.py
 
 - **Imports:** `cache_db.py`, `csv_io.py`, `domain/__init__.py`, `domain/generic_parts.py`, `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`, `saved_searches.py`
-- **Imported by:** `domain/api_inventory.py`, `inventory_api.py`
+- **Imported by:** `domain/api_inventory.py`, `inventory_api.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`
 
 ### domain/pricing.py
 
@@ -780,7 +785,7 @@ graph LR
 ### inventory_api.py
 
 - **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`, `mirror_push.py`
-- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/helpers.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`
+- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`
 
 ### inventory_mirror.py
 
@@ -834,7 +839,7 @@ graph LR
 
 ### js/app-init.js
 
-- **Imports:** `js/a11y/keyboard-nav.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/api.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory-modals.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`, `js/vendors-modal.js`
+- **Imports:** `js/a11y/keyboard-nav.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/api.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory-modals.js`, `js/inventory/fetch-descriptions-command.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`, `js/vendors-modal.js`
 - **Imported by:** —
 - **Emits:** `CONFIRMED_CHANGED`, `LINKS_CHANGED`, `SAVE_AND_CLOSE`
 - **Listens:** `BOM_LOADED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`
@@ -1044,13 +1049,18 @@ graph LR
 
 ### js/inventory-modals.js
 
-- **Imports:** `js/api.js`, `js/components/form-modal.js`, `js/dom/html.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
+- **Imports:** `js/api.js`, `js/components/form-modal.js`, `js/dom/html.js`, `js/inventory/pick-description.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
 - **Imported by:** `js/app-init.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `tests/js/fetch-rows.test.js`, `tests/js/pick-tier.test.js`
 
 ### js/inventory/favicon-stack.js
 
 - **Imports:** `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/inventory/inv-events.js`, `js/inventory/inventory-renderer.js`, `tests/js/favicon-stack.test.js`
+
+### js/inventory/fetch-descriptions-command.js
+
+- **Imports:** —
+- **Imported by:** `js/app-init.js`
 
 ### js/inventory/filter-chips-bar.js
 
@@ -1135,6 +1145,11 @@ graph LR
 
 - **Imports:** `js/inventory/favicon-stack.js`, `js/label-selection.js`, `js/part-keys.js`, `js/ui-helpers.js`
 - **Imported by:** `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`, `tests/js/inventory-rendering.test.js`
+
+### js/inventory/pick-description.js
+
+- **Imports:** —
+- **Imported by:** `js/inventory-modals.js`
 
 ### js/inventory/saved-views-ui.js
 
@@ -1779,6 +1794,11 @@ graph LR
 - **Imports:** `domain/generic_parts.py`, `spec_extractor.py`
 - **Imported by:** —
 
+### tests/python/domain/test_inventory_fetch_descriptions.py
+
+- **Imports:** `domain/inventory.py`, `inventory_api.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
 ### tests/python/domain/test_pricing.py
 
 - **Imports:** `cache_db.py`, `domain/pricing.py`
@@ -1787,7 +1807,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `inventory_api.py`
-- **Imported by:** `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/test_api_mirror.py
 
