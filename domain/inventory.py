@@ -45,6 +45,28 @@ def parse_section_order(raw: list) -> tuple[list[str], list[dict]]:
     return flat_order, hierarchy
 
 
+def _restore_derived_entities(conn: sqlite3.Connection, base_dir: str, events_dir: str) -> None:
+    """Repopulate rebuild-only derived tables after a SCHEMA_VERSION bump.
+
+    create_schema drops generic_parts/generic_part_members/saved_searches on
+    version change while parts/stock/checkpoint survive, so the cache-hit
+    startup paths never reach rebuild(). Detect the wipe (generic_parts
+    empty while parts is not) and restore from durable stores.
+    NOTE: vendors/purchase_orders are also dropped on version bump and only
+    repopulated by populate_full — pre-existing gap, out of scope here.
+    """
+    if conn.execute("SELECT 1 FROM generic_parts LIMIT 1").fetchone():
+        return
+    if not conn.execute("SELECT 1 FROM parts LIMIT 1").fetchone():
+        return
+    from domain import generic_parts as _gp  # noqa: PLC0415
+    os.makedirs(events_dir, exist_ok=True)
+    _gp.auto_generate_passive_groups(conn, events_dir)
+    _gp.load_into_db(conn, base_dir)
+    import saved_searches  # noqa: PLC0415
+    saved_searches.load_into_db(conn, base_dir)
+
+
 # ── Pipeline helpers ───────────────────────────────────────────────────────────
 
 def rebuild(
@@ -106,6 +128,7 @@ def load_or_rebuild(
     """
     result = cache_db.query_inventory(conn)
     if result:
+        _restore_derived_entities(conn, base_dir, events_dir)
         return result, {}
     return rebuild(
         base_dir=base_dir,
@@ -136,6 +159,7 @@ def rebuild_or_catchup(
     has_cache = conn.execute("SELECT 1 FROM parts LIMIT 1").fetchone() is not None
     if has_cache and cp["purchase_hash"]:
         if cache_db.catch_up(conn, input_csv, adjustments_csv, adj_fieldnames):
+            _restore_derived_entities(conn, base_dir, events_dir)
             return cache_db.query_inventory(conn), {}
     return rebuild(
         base_dir=base_dir,

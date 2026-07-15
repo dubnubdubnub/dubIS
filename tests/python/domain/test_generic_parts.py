@@ -8,6 +8,7 @@ import pytest
 
 import cache_db
 import domain.generic_parts
+import domain.inventory
 from domain.generic_parts import (
     _auto_match,
     _parse_json,
@@ -689,3 +690,109 @@ class TestDurablePersistence:
         db.commit()
         load_into_db(db, data_dir)
         assert os.path.exists(os.path.join(data_dir, "generic_parts.json"))
+
+    def test_load_into_db_rejects_unsupported_version(self, db, tmp_path):
+        """Finding 4: version field must be validated -- throw, don't swallow."""
+        data_dir = str(tmp_path / "data")
+        os.makedirs(data_dir)
+        with open(os.path.join(data_dir, "generic_parts.json"), "w", encoding="utf-8") as f:
+            json.dump({"version": 2, "groups": [], "members": [], "preferred": []}, f)
+        with pytest.raises(ValueError, match="version"):
+            load_into_db(db, data_dir)
+
+    def test_load_into_db_warns_and_skips_member_for_unknown_part(self, db, tmp_path, caplog):
+        """Finding 3: a member referencing a part absent from `parts` must be
+        warn-skipped, not inserted, and must not raise."""
+        data_dir = str(tmp_path / "data")
+        os.makedirs(data_dir)
+        with open(os.path.join(data_dir, "generic_parts.json"), "w", encoding="utf-8") as f:
+            json.dump({
+                "version": 1,
+                "groups": [{
+                    "generic_part_id": "g1", "name": "G", "part_type": "capacitor",
+                    "spec": {}, "strictness": {},
+                }],
+                "members": [{"generic_part_id": "g1", "part_id": "GHOST", "source": "manual"}],
+                "preferred": [],
+            }, f)
+        with caplog.at_level("WARNING"):
+            load_into_db(db, data_dir)  # must not raise
+        row = db.execute(
+            "SELECT 1 FROM generic_part_members WHERE generic_part_id='g1' AND part_id='GHOST'"
+        ).fetchone()
+        assert row is None
+        assert any("GHOST" in r.message for r in caplog.records)
+
+    def test_persist_retains_json_only_member_absent_from_parts(self, db, events_dir, data_dir):
+        """Finding 2: _persist must not erase a JSON-only member (warn-skipped at
+        load time because its part is temporarily missing from `parts`) when an
+        unrelated mutation triggers the next _persist snapshot."""
+        # Seed JSON directly with a GHOST member for group g1 (part not in `parts`).
+        with open(os.path.join(data_dir, "generic_parts.json"), "w", encoding="utf-8") as f:
+            json.dump({
+                "version": 1,
+                "groups": [{
+                    "generic_part_id": "g1", "name": "G", "part_type": "capacitor",
+                    "spec": {}, "strictness": {},
+                }],
+                "members": [{"generic_part_id": "g1", "part_id": "GHOST", "source": "manual"}],
+                "preferred": [],
+            }, f)
+        load_into_db(db, data_dir)  # warn-skips GHOST, group g1 now in DB
+
+        # Unrelated mutation in another group triggers _persist.
+        _insert_part(db, "C1", "100nF cap", "0402")
+        create_generic_part(db, events_dir, data_dir, "Other Group", "capacitor",
+                            {"value": "100nF", "package": "0402"}, {"required": ["value"]})
+        add_member(db, events_dir, data_dir, "cap_100nf_0402", "C1", source="manual")
+
+        with open(os.path.join(data_dir, "generic_parts.json"), encoding="utf-8") as f:
+            data = json.load(f)
+        ghost_members = [m for m in data["members"]
+                         if m["generic_part_id"] == "g1" and m["part_id"] == "GHOST"]
+        assert len(ghost_members) == 1
+
+
+class TestSchemaVersionBumpRestore:
+    """Finding 1: create_schema drops generic_parts/members/saved_searches on a
+    SCHEMA_VERSION bump while parts/stock/cache_meta survive.  The cache-hit
+    startup paths (load_or_rebuild, rebuild_or_catchup) must therefore detect
+    the wipe and restore durable overlay state without a full rebuild."""
+
+    def _simulate_schema_bump_wipe(self, conn):
+        conn.executescript("""
+            DROP TABLE IF EXISTS generic_part_members;
+            DROP TABLE IF EXISTS generic_parts;
+            DROP TABLE IF EXISTS saved_searches;
+        """)
+        cache_db.create_schema(conn)
+
+    def test_load_or_rebuild_restores_manual_group_after_schema_bump(
+        self, db, events_dir, data_dir,
+    ):
+        _insert_part(db, "C1", "100nF cap", "0402")
+        create_generic_part(db, events_dir, data_dir, "My Group", "capacitor",
+                            {"value": "100nF", "package": "0402"}, {"required": ["value"]})
+        add_member(db, events_dir, data_dir, "cap_100nf_0402", "C1", source="manual")
+
+        self._simulate_schema_bump_wipe(db)
+
+        # RED (pre-fix): generic_parts/members are empty here -- confirms the wipe.
+        assert db.execute("SELECT 1 FROM generic_parts").fetchone() is None
+
+        domain.inventory.load_or_rebuild(
+            base_dir=data_dir,
+            input_csv=os.path.join(data_dir, "purchase_ledger.csv"),
+            adjustments_csv=os.path.join(data_dir, "adjustments.csv"),
+            events_dir=events_dir,
+            fieldnames=["LCSC Part Number"],
+            adj_fieldnames=["timestamp", "type", "lcsc_part", "quantity"],
+            conn=db,
+        )
+
+        names = [r["name"] for r in
+                 db.execute("SELECT name FROM generic_parts WHERE source='manual'").fetchall()]
+        assert "My Group" in names
+        member_sources = {r["source"] for r in db.execute(
+            "SELECT source FROM generic_part_members WHERE part_id='C1'").fetchall()}
+        assert "manual" in member_sources
