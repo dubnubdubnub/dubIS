@@ -93,3 +93,11 @@ def events_dir(tmp_path):
     d = tmp_path / "events"
     d.mkdir()
     return str(d)
+
+
+@pytest.fixture
+def data_dir(tmp_path):
+    """Temporary data directory (for durable JSON overlays like generic_parts.json)."""
+    d = tmp_path / "data"
+    d.mkdir()
+    return str(d)
