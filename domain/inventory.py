@@ -17,6 +17,7 @@ import domain.generic_parts
 import domain.pricing
 import inventory_ops
 from csv_io import append_csv_rows, atomic_write_rows
+from domain import part_registry as _preg
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,8 @@ def rebuild(
     vendors_json = os.path.join(base_dir, "vendors.json")
     migration_summary = inventory_ops.migrate_to_vendors(input_csv, vendors_json)
 
-    file_fieldnames, merged = inventory_ops.read_and_merge(input_csv, fieldnames)
+    registry = _preg.load(base_dir)
+    file_fieldnames, merged = inventory_ops.read_and_merge(input_csv, fieldnames, registry=registry)
     inventory_ops.apply_adjustments(merged, adjustments_csv, file_fieldnames)
     categorized = inventory_ops.categorize_and_sort(list(merged.values()))
     cache_db.populate_full(
@@ -71,7 +73,10 @@ def rebuild(
         ledger_path=input_csv,
         po_csv_path=os.path.join(base_dir, "purchase_orders.csv"),
         vendors_json_path=vendors_json,
+        registry=registry,
     )
+    if registry.dirty:
+        _preg.save(base_dir, registry)
     cache_db.write_checkpoint(conn, purchase_path=input_csv,
                               adjustments_path=adjustments_csv)
     if os.path.exists(events_dir):
@@ -391,9 +396,10 @@ def update_part_price(
         file_fieldnames = reader.fieldnames
         rows = list(reader)
 
+    registry = _preg.load(base_dir)
     found = False
     for row in rows:
-        pk = inventory_ops.get_part_key(row)
+        pk = inventory_ops.get_part_key(row, registry)
         if pk == part_key:
             qty = domain.pricing.parse_qty(row.get("Quantity"))
             unit_price, ext_price = domain.pricing.derive_missing_price(unit_price, ext_price, qty)
@@ -469,9 +475,10 @@ def update_part_fields(
         file_fieldnames = reader.fieldnames
         rows = list(reader)
 
+    registry = _preg.load(base_dir)
     found = False
     for row in rows:
-        pk = inventory_ops.get_part_key(row)
+        pk = inventory_ops.get_part_key(row, registry)
         if pk == part_key:
             for js_name, value in fields.items():
                 col = field_to_col.get(js_name)
