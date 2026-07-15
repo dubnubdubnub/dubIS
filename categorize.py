@@ -50,8 +50,18 @@ CATEGORY_RULES: list[dict[str, Any]] = [
     {"category": "Switches", "desc": ["switch", "tactile"],
      "exclude_desc": ["switching regulator", "pwr switch", "load switch",
                       "power switch"]},
+    # Development boards / kits / programmers (dev tools, not components)
+    {"category": "Development Boards, Kits, Programmers", "desc": [
+        "programmer", "debugger", "debug probe", "in-circuit",
+        "evaluation board", "eval board", "development board", "dev board",
+        "development kit", "starter kit", "discovery kit", "nucleo",
+    ]},
+    {"category": "Development Boards, Kits, Programmers", "mpn": [
+        "stlink", "st-link", "j-link", "jlink",
+    ]},
     # LEDs
     {"category": "LEDs", "desc": ["led", "emitter", "emit"]},
+    {"category": "LEDs", "mpn": ["ws2812", "sk6812", "apa102"]},
     # Passives
     {"category": "Passives - Inductors", "desc": ["inductor"]},
     {"category": "Passives - Resistors", "desc": ["resistor"]},
@@ -59,6 +69,7 @@ CATEGORY_RULES: list[dict[str, Any]] = [
     {"category": "Passives - Resistors", "mfr": ["uni-royal"]},
     {"category": "Passives - Resistors", "mfr": ["ta-i tech"], "desc": ["m\u03c9"]},
     {"category": "Passives - Capacitors", "desc": ["capacitor", "electrolytic", "cap cer"]},
+    {"category": "Passives - Capacitors", "mpn": ["grm", "cl10", "cl21", "cl31"]},
     # Crystals
     {"category": "Crystals & Oscillators", "desc": ["crystal", "oscillator"]},
     # Diodes (not ESD)
@@ -84,6 +95,7 @@ CATEGORY_RULES: list[dict[str, Any]] = [
     {"category": "ICs - Motor Drivers", "mpn": ["drv8", "l6226"]},
     # Interface
     {"category": "ICs - Interface", "desc": ["transceiver", "driver"]},
+    {"category": "ICs - Interface", "mpn": ["pi3ch"]},
     # Sensors (position / angle / magnetic)
     {"category": "ICs - Sensors", "desc": [
         "position", "angle", "magnetic sensor", "magnetoresistive",
@@ -91,7 +103,7 @@ CATEGORY_RULES: list[dict[str, Any]] = [
     {"category": "ICs - Sensors", "mpn": ["mt6835", "tmr2615"]},
     # USB
     {"category": "ICs - USB", "desc": ["port ctlr usb", "usb hub"]},
-    {"category": "ICs - USB", "mpn": ["usb57", "husb238", "utc2000"]},
+    {"category": "ICs - USB", "mpn": ["usb57", "husb238", "utc2000", "tcpp"]},
     # MCU
     {"category": "ICs - Microcontrollers", "desc": ["microcontroller", "mcu"]},
     # Mechanical

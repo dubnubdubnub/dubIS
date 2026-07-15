@@ -16,6 +16,7 @@ import { saveBomFile } from './bom/bom-events.js';
 import { CommandPalette } from './components/command-palette.js';
 import { openAdjustModal, openPriceModal } from './inventory-modals.js';
 import { enterLabelMode, isLabelMode, exitLabelMode } from './label-selection.js';
+import { runFetchMissingDescriptions } from './inventory/fetch-descriptions-command.js';
 
 // Explicit panel imports (no side effects until init() is called)
 import { init as initInventoryModals } from './inventory-modals.js';
@@ -246,6 +247,14 @@ async function initApp() {
         showToast('Inventory rebuilt');
         AppLog.info('Inventory rebuilt: ' + fresh.length + ' parts');
       },
+    });
+
+    cmds.push({
+      id: 'fetch-missing-descriptions',
+      label: 'Fetch Missing Descriptions',
+      group: 'Global',
+      keywords: ['description', 'ocr', 'fetch', 'distributor', 'fill'],
+      run: () => runFetchMissingDescriptions({ api, onInventoryUpdated, showToast }),
     });
 
     cmds.push({

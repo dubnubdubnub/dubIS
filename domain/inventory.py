@@ -496,6 +496,83 @@ def update_part_fields(
     return result
 
 
+def fetch_missing_descriptions(
+    *,
+    fetchers: "dict[str, Any]",
+    input_csv: str,
+    adjustments_csv: str,
+    adj_fieldnames: list[str],
+    base_dir: str,
+    fieldnames: list[str],
+    events_dir: str,
+    conn: sqlite3.Connection,
+) -> dict:
+    """Fetch descriptions for ledger rows that have a distributor PN but no
+    description. Writes all results in one pass, rebuilds once. Caller holds lock.
+    """
+    _PN_COLS = {
+        "lcsc": "LCSC Part Number",
+        "digikey": "Digikey Part Number",
+        "mouser": "Mouser Part Number",
+        "pololu": "Pololu Part Number",
+    }
+    _ORDER = ("lcsc", "digikey", "mouser", "pololu")
+
+    def _blank(v: str) -> bool:
+        return (v or "").strip().lower() in ("", "nan", "none")
+
+    if not os.path.exists(input_csv):
+        raise ValueError("No purchase ledger found")
+
+    with open(input_csv, newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        file_fieldnames = reader.fieldnames
+        rows = list(reader)
+
+    updated = failed = skipped = 0
+    for row in rows:
+        if not _blank(row.get("Description", "")):
+            skipped += 1
+            continue
+        pns = [(d, (row.get(_PN_COLS[d]) or "").strip()) for d in _ORDER]
+        pns = [(d, pn) for d, pn in pns if pn]
+        if not pns:
+            continue  # no PN → not fetchable, not counted
+        desc = ""
+        for dist, pn in pns:
+            fetch = fetchers.get(dist)
+            if not fetch:
+                continue
+            try:
+                product = fetch(pn)
+            except Exception as e:  # noqa: BLE001 - one bad lookup must not abort batch
+                logger.warning("fetch_missing_descriptions: %s %s failed: %s", dist, pn, e)
+                continue
+            cand = (product or {}).get("description") if product else None
+            if cand and str(cand).strip():
+                desc = str(cand).strip()
+                break
+        if desc and "Description" in file_fieldnames:
+            row["Description"] = desc
+            updated += 1
+        else:
+            failed += 1
+
+    if updated:
+        atomic_write_rows(input_csv, file_fieldnames, rows, encoding="utf-8-sig")
+
+    result, _ = rebuild(
+        base_dir=base_dir,
+        input_csv=input_csv,
+        adjustments_csv=adjustments_csv,
+        events_dir=events_dir,
+        fieldnames=fieldnames,
+        adj_fieldnames=adj_fieldnames,
+        conn=conn,
+    )
+    return {"inventory": result, "summary": {"updated": updated, "failed": failed, "skipped": skipped}}
+
+
 # ── truncate_csv logic ────────────────────────────────────────────────────────
 
 def truncate_and_rebuild(
