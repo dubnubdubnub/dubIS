@@ -204,8 +204,6 @@ def record_import_prices(
     records its price observation under the part's stable canonical key
     rather than the newly-added alias.
     """
-    from domain import part_registry as _preg
-
     os.makedirs(events_dir, exist_ok=True)
     registry = _preg.load(base_dir)
     observations = []

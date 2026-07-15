@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import os
 from datetime import datetime
 from typing import Any
 
 import spec_extractor
+
+logger = logging.getLogger(__name__)
 
 PART_EVENTS_FILE = "part_events.csv"
 PART_EVENTS_FIELDS = ["timestamp", "event_type", "part_id", "generic_part_id", "data_json"]
@@ -68,7 +71,9 @@ def _persist(conn: Any, data_dir: str) -> None:
         try:
             with open(existing_path, encoding="utf-8") as f:
                 existing = json.load(f)
-        except (OSError, ValueError):
+        except (OSError, ValueError) as e:
+            logger.warning("Could not read existing %s for member retention: %s",
+                           _json_path(data_dir), e)
             existing = {}
         db_member_keys = {(m["generic_part_id"], m["part_id"]) for m in members}
         for m in existing.get("members", []):
@@ -97,9 +102,6 @@ def load_into_db(conn: Any, data_dir: str) -> None:
     If the JSON file is missing but SQLite already holds manual state
     (pre-overlay users), bootstraps the file from the DB instead.
     """
-    import logging  # noqa: PLC0415
-    logger = logging.getLogger(__name__)
-
     path = _json_path(data_dir)
     if not os.path.exists(path):
         has_manual = conn.execute(
