@@ -25,6 +25,19 @@ test('no-op toast when nothing was updated', async () => {
   expect(calls.toasts[0]).toMatch(/no .*descriptions|nothing/i);
 });
 
+test('surfaces failures when everything failed and nothing was updated', async () => {
+  const calls = { toasts: [] };
+  const deps = {
+    api: async () => ({ inventory: [], summary: { updated: 0, failed: 2, skipped: 0 } }),
+    onInventoryUpdated: () => {},
+    showToast: (m) => calls.toasts.push(m),
+  };
+  await runFetchMissingDescriptions(deps);
+  expect(calls.toasts[0]).toMatch(/2/);
+  expect(calls.toasts[0]).toMatch(/fail|could not/i);
+  expect(calls.toasts[0]).not.toMatch(/no missing descriptions/i);
+});
+
 test('bails without crashing when api returns undefined', async () => {
   const deps = { api: async () => undefined, onInventoryUpdated: () => { throw new Error('should not be called'); }, showToast: () => {} };
   await runFetchMissingDescriptions(deps);  // must not throw
