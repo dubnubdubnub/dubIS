@@ -9,6 +9,7 @@ import { onInventoryUpdated } from './store.js';
 import { invPartKey } from './part-keys.js';
 import { el } from './dom/html.js';
 import { defineFormModal } from './components/form-modal.js';
+import { pickBestDescription } from './inventory/pick-description.js';
 
 // ── Undo/redo tracking ──
 let lastAdjustMeta = null;
@@ -113,7 +114,16 @@ export function openAdjustModal(item) {
     var label = EDITABLE_FIELDS[i][1];
     var value = item[key] || "";
     var warnClass = noDist && (key === "lcsc" || key === "digikey" || key === "pololu" || key === "mouser") ? " modal-field-warn" : "";
-    html += "<tr><td>" + escHtml(label) + "</td><td>" + buildFieldInput(key, value, "", warnClass) + "</td></tr>";
+    if (key === "description") {
+      var fetchDescDisabled = noDist ? " disabled" : "";
+      html += "<tr><td>" + escHtml(label) + "</td><td>" +
+        buildFieldInput(key, value, "", warnClass) +
+        '<button type="button" class="fetch-desc-btn"' + fetchDescDisabled +
+        ' title="Fill description from the matched distributor">Fetch description</button>' +
+        "</td></tr>";
+    } else {
+      html += "<tr><td>" + escHtml(label) + "</td><td>" + buildFieldInput(key, value, "", warnClass) + "</td></tr>";
+    }
     // Show hint after the Mouser row
     if (key === "mouser" && noDist) {
       html += '<tr><td></td><td><span class="no-dist-warn">⚠ Enter an LCSC, Digikey, Pololu, or Mouser PN</span></td></tr>';
@@ -181,7 +191,7 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
   /** @type {Array<{distributor:string,label:string,method:string,partNumber:string,
    *   qty:number,prices:Array<{qty:number,price:number}>|null,
    *   unitPrice:number|null,extPrice:number|null,error:string,
-   *   armed:boolean,editing:boolean}>} */
+   *   armed:boolean,editing:boolean,description:string}>} */
   let rows = [];
   let pinnedIndex = -1;
   let pk = "";
@@ -325,6 +335,9 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
       // sourced distributor on open, so api()'s global toast would fire per failure.
       const bridge = /** @type {any} */ (window).pywebview.api;
       const product = await bridge[r.method](r.partNumber);
+      if (product && typeof product.description === "string") {
+        r.description = product.description;
+      }
       if (product && Array.isArray(product.prices) && product.prices.length) {
         r.prices = product.prices;
         recompute(i);
@@ -427,6 +440,7 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
         error: "",
         armed: false,
         editing: false,
+        description: "",
       };
     }).filter((r) => r.method);
 
@@ -441,7 +455,12 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
     return { canDelete: !lastHasPurchaseHistory, groupNames: lastGroupNames };
   }
 
-  return { configure, deleteEligibility };
+  return {
+    configure,
+    deleteEligibility,
+    hasSourcedRows: () => rows.length > 0,
+    bestDescription: () => pickBestDescription(rows, pinnedIndex, cheapestRow(rows)),
+  };
 }
 
 /**
@@ -481,6 +500,21 @@ export function init() {
       currentPart = freshItem;
       populateDetailFields(freshItem);
     },
+  });
+
+  modalDetailTable.addEventListener("click", (e) => {
+    const btn = /** @type {HTMLElement} */ (e.target).closest(".fetch-desc-btn");
+    if (!btn) return;
+    if (!adjFetch.hasSourcedRows()) { showToast("No distributor PN to fetch from"); return; }
+    const desc = adjFetch.bestDescription();
+    if (!desc) { showToast("No description available yet — try again in a moment"); return; }
+    const input = /** @type {HTMLInputElement} */ (
+      modalDetailTable.querySelector('.modal-field-input[data-field="description"]')
+    );
+    if (!input) return;
+    input.value = desc;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    showToast("Description filled — review and Apply");
   });
 
   deletePartBtn.addEventListener("click", async () => {
