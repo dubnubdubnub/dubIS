@@ -137,6 +137,11 @@ def scan_eventbus_refs(file_path: Path) -> tuple[list[str], list[str]]:
     except UnicodeDecodeError:
         return [], []
 
+    # Strip block comments to avoid false matches.
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+    # Strip line comments.
+    text = re.sub(r"//[^\n]*", "", text)
+
     emits = sorted(set(_EVENTBUS_EMIT_RE.findall(text)))
     listens = sorted(set(_EVENTBUS_ON_RE.findall(text)))
     return emits, listens

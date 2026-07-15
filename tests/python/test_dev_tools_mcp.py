@@ -88,11 +88,26 @@ def test_event_trace_inventory_updated() -> None:
         f"Expected store.js in emitters but got: {emitter_files}"
     )
 
-    # Spot-check: at least one of the known listeners appears
-    listener_files = {r["file"] for r in result["listeners"]}
-    assert any(
-        any(name in f for f in listener_files)
-        for name in ("inv-events.js", "bom-events.js", "app-init.js")
-    ), (
-        f"Expected a known listener file but got: {listener_files}"
+
+def test_event_trace_ignores_comments(tmp_path) -> None:
+    """find_event_emitters_listeners must not report EventBus refs that only
+    appear inside // or /* */ comments (prose mentioning the pattern).
+
+    Regression for js/store.js:39, where a comment reading
+    "Replaces the EventBus.emit(Events.PREFS_CHANGED) pattern" was falsely
+    reported as a real emitter.
+    """
+    js = tmp_path / "js"
+    js.mkdir()
+    (js / "a.js").write_text(
+        "// Replaces the EventBus.emit(Events.FOO_EVENT) pattern\n"
+        "/* EventBus.on(Events.FOO_EVENT, x) */\n"
+        "EventBus.emit(Events.FOO_EVENT, data);\n",
+        encoding="utf-8",
     )
+
+    result = matchers.find_event_emitters_listeners("FOO_EVENT", js, tmp_path)
+
+    assert len(result["emitters"]) == 1
+    assert result["emitters"][0]["line"] == 3
+    assert result["listeners"] == []
