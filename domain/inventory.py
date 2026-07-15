@@ -84,6 +84,7 @@ def rebuild(
     from domain import generic_parts as _gp  # noqa: PLC0415
     os.makedirs(events_dir, exist_ok=True)
     _gp.auto_generate_passive_groups(conn, events_dir)
+    _gp.load_into_db(conn, base_dir)
     import saved_searches  # noqa: PLC0415
     saved_searches.load_into_db(conn, base_dir)
     return cache_db.query_inventory(conn), migration_summary
@@ -658,7 +659,7 @@ def delete_part(
         raise ValueError(f"Part {part_key!r} has purchase history; cannot delete")
 
     for generic_part_id, _name in domain.generic_parts.group_memberships_for_part(conn, part_key):
-        domain.generic_parts.remove_member(conn, events_dir, generic_part_id, part_key)
+        domain.generic_parts.remove_member(conn, events_dir, base_dir, generic_part_id, part_key)
 
     if os.path.exists(adjustments_csv):
         with open(adjustments_csv, newline="", encoding="utf-8-sig") as f:

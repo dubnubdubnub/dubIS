@@ -13,6 +13,115 @@ import spec_extractor
 PART_EVENTS_FILE = "part_events.csv"
 PART_EVENTS_FIELDS = ["timestamp", "event_type", "part_id", "generic_part_id", "data_json"]
 
+_JSON_FILE = "generic_parts.json"
+
+
+def _json_path(data_dir: str) -> str:
+    return os.path.join(data_dir, _JSON_FILE)
+
+
+def _persist(conn: Any, data_dir: str) -> None:
+    """Write all manual generic-part state from SQLite to the durable JSON file.
+
+    Manual groups, manual/excluded memberships, and preferred flags are
+    user-created state; SQLite is a deletable cache, so this file is their
+    source of truth (same pattern as saved_searches.json).
+    """
+    import csv_io  # noqa: PLC0415
+
+    groups = [
+        {
+            "generic_part_id": r["generic_part_id"],
+            "name": r["name"],
+            "part_type": r["part_type"],
+            "spec": json.loads(r["spec_json"]),
+            "strictness": json.loads(r["strictness_json"]),
+        }
+        for r in conn.execute(
+            "SELECT * FROM generic_parts WHERE source='manual' ORDER BY generic_part_id"
+        ).fetchall()
+    ]
+    members = [
+        {"generic_part_id": r["generic_part_id"], "part_id": r["part_id"],
+         "source": r["source"]}
+        for r in conn.execute(
+            "SELECT generic_part_id, part_id, source FROM generic_part_members "
+            "WHERE source IN ('manual','excluded') ORDER BY generic_part_id, part_id"
+        ).fetchall()
+    ]
+    preferred = [
+        {"generic_part_id": r["generic_part_id"], "part_id": r["part_id"]}
+        for r in conn.execute(
+            "SELECT generic_part_id, part_id FROM generic_part_members "
+            "WHERE preferred=1 ORDER BY generic_part_id, part_id"
+        ).fetchall()
+    ]
+    os.makedirs(data_dir, exist_ok=True)
+    csv_io.atomic_write_text(
+        _json_path(data_dir),
+        json.dumps({"version": 1, "groups": groups, "members": members,
+                    "preferred": preferred}, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def load_into_db(conn: Any, data_dir: str) -> None:
+    """Restore manual generic-part state from generic_parts.json into SQLite.
+
+    Called during rebuild AFTER auto_generate_passive_groups.  Idempotent.
+    If the JSON file is missing but SQLite already holds manual state
+    (pre-overlay users), bootstraps the file from the DB instead.
+    """
+    import logging  # noqa: PLC0415
+    logger = logging.getLogger(__name__)
+
+    path = _json_path(data_dir)
+    if not os.path.exists(path):
+        has_manual = conn.execute(
+            "SELECT 1 FROM generic_parts WHERE source='manual' LIMIT 1"
+        ).fetchone()
+        if has_manual:
+            _persist(conn, data_dir)
+        return
+
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    known_parts = {r["part_id"] for r in conn.execute("SELECT part_id FROM parts").fetchall()}
+
+    for g in data.get("groups", []):
+        conn.execute(
+            """INSERT OR REPLACE INTO generic_parts
+               (generic_part_id, name, part_type, spec_json, strictness_json, source)
+               VALUES (?,?,?,?,?,'manual')""",
+            (g["generic_part_id"], g["name"], g["part_type"],
+             json.dumps(g["spec"]), json.dumps(g["strictness"])),
+        )
+        _auto_match(conn, g["generic_part_id"], g["part_type"], g["spec"], g["strictness"])
+
+    for m in data.get("members", []):
+        if m["part_id"] not in known_parts:
+            # Part was deleted from the ledger after this membership was saved;
+            # inserting would violate the FK.  Warn (visible), keep the record
+            # in JSON (the part may return), skip the DB row.
+            logger.warning("generic_parts.json member %s references unknown part %s — skipped",
+                           m["generic_part_id"], m["part_id"])
+            continue
+        conn.execute(
+            """INSERT OR REPLACE INTO generic_part_members
+               (generic_part_id, part_id, source, preferred) VALUES (?,?,?,0)""",
+            (m["generic_part_id"], m["part_id"], m["source"]),
+        )
+
+    for p in data.get("preferred", []):
+        conn.execute(
+            "UPDATE generic_part_members SET preferred=1 "
+            "WHERE generic_part_id=? AND part_id=?",
+            (p["generic_part_id"], p["part_id"]),
+        )
+    conn.commit()
+    logger.info("Loaded %d manual generic groups from %s", len(data.get("groups", [])), path)
+
 
 def _record_event(events_dir: str, event_type: str,
                    part_id: str = "", generic_part_id: str = "",
@@ -36,6 +145,7 @@ def _record_event(events_dir: str, event_type: str,
 def create_generic_part(
     conn: Any,
     events_dir: str,
+    data_dir: str,
     name: str,
     part_type: str,
     spec: dict,
@@ -56,6 +166,7 @@ def create_generic_part(
     _auto_match(conn, generic_part_id, part_type, spec, strictness)
 
     conn.commit()
+    _persist(conn, data_dir)
 
     os.makedirs(events_dir, exist_ok=True)
     _record_event(events_dir, "create_generic", generic_part_id=generic_part_id,
@@ -129,7 +240,7 @@ def preview_members(conn: Any, part_type: str, spec: dict, strictness: dict) -> 
     return matches
 
 
-def add_member(conn: Any, events_dir: str, generic_part_id: str,
+def add_member(conn: Any, events_dir: str, data_dir: str, generic_part_id: str,
                 part_id: str, source: str = "manual") -> None:
     """Add a part to a generic group (manual override)."""
     conn.execute(
@@ -139,12 +250,13 @@ def add_member(conn: Any, events_dir: str, generic_part_id: str,
         (generic_part_id, part_id, source),
     )
     conn.commit()
+    _persist(conn, data_dir)
     os.makedirs(events_dir, exist_ok=True)
     _record_event(events_dir, "add_member", part_id=part_id,
                    generic_part_id=generic_part_id, data={"source": source})
 
 
-def remove_member(conn: Any, events_dir: str, generic_part_id: str,
+def remove_member(conn: Any, events_dir: str, data_dir: str, generic_part_id: str,
                    part_id: str) -> None:
     """Remove a part from a generic group."""
     conn.execute(
@@ -152,6 +264,7 @@ def remove_member(conn: Any, events_dir: str, generic_part_id: str,
         (generic_part_id, part_id),
     )
     conn.commit()
+    _persist(conn, data_dir)
     os.makedirs(events_dir, exist_ok=True)
     _record_event(events_dir, "remove_member", part_id=part_id,
                    generic_part_id=generic_part_id)
@@ -174,7 +287,7 @@ def get_group_names_for_part(conn: Any, part_key: str) -> list[str]:
     return [name for _, name in group_memberships_for_part(conn, part_key)]
 
 
-def exclude_member(conn: Any, events_dir: str, generic_part_id: str,
+def exclude_member(conn: Any, events_dir: str, data_dir: str, generic_part_id: str,
                     part_id: str) -> None:
     """Mark a member as excluded — survives auto-regeneration."""
     conn.execute(
@@ -183,12 +296,13 @@ def exclude_member(conn: Any, events_dir: str, generic_part_id: str,
         (generic_part_id, part_id),
     )
     conn.commit()
+    _persist(conn, data_dir)
     os.makedirs(events_dir, exist_ok=True)
     _record_event(events_dir, "exclude_member", part_id=part_id,
                    generic_part_id=generic_part_id)
 
 
-def set_preferred(conn: Any, events_dir: str, generic_part_id: str,
+def set_preferred(conn: Any, events_dir: str, data_dir: str, generic_part_id: str,
                    part_id: str) -> None:
     """Mark a part as preferred within its generic group."""
     # Clear existing preferred in this group
@@ -201,6 +315,7 @@ def set_preferred(conn: Any, events_dir: str, generic_part_id: str,
         (generic_part_id, part_id),
     )
     conn.commit()
+    _persist(conn, data_dir)
     os.makedirs(events_dir, exist_ok=True)
     _record_event(events_dir, "set_preferred", part_id=part_id,
                    generic_part_id=generic_part_id)
@@ -424,6 +539,7 @@ def _parse_json(value: str | dict) -> dict:
 def create_generic_part_api(
     conn: Any,
     events_dir: str,
+    data_dir: str,
     name: str,
     part_type: str,
     spec_json: str | dict,
@@ -433,7 +549,7 @@ def create_generic_part_api(
     spec = _parse_json(spec_json)
     strictness = _parse_json(strictness_json)
     os.makedirs(events_dir, exist_ok=True)
-    gp = create_generic_part(conn, events_dir, name, part_type, spec, strictness)
+    gp = create_generic_part(conn, events_dir, data_dir, name, part_type, spec, strictness)
     gp["members"] = fetch_members(conn, gp["generic_part_id"])
     return gp
 
@@ -441,6 +557,7 @@ def create_generic_part_api(
 def update_generic_part_api(
     conn: Any,
     events_dir: str,
+    data_dir: str,
     generic_part_id: str,
     name: str,
     spec_json: str | dict,
@@ -465,6 +582,8 @@ def update_generic_part_api(
         (generic_part_id,),
     ).fetchone()["part_type"]
     _auto_match(conn, generic_part_id, part_type, spec, strictness)
+    conn.commit()
+    _persist(conn, data_dir)
     members = fetch_members(conn, generic_part_id)
     return {
         "generic_part_id": generic_part_id,
@@ -479,36 +598,39 @@ def update_generic_part_api(
 def add_member_api(
     conn: Any,
     events_dir: str,
+    data_dir: str,
     generic_part_id: str,
     part_id: str,
 ) -> list[dict[str, Any]]:
     """Add a real part to a generic group and return updated members."""
     os.makedirs(events_dir, exist_ok=True)
-    add_member(conn, events_dir, generic_part_id, part_id)
+    add_member(conn, events_dir, data_dir, generic_part_id, part_id)
     return fetch_members(conn, generic_part_id)
 
 
 def remove_member_api(
     conn: Any,
     events_dir: str,
+    data_dir: str,
     generic_part_id: str,
     part_id: str,
 ) -> list[dict[str, Any]]:
     """Remove a real part from a generic group and return updated members."""
     os.makedirs(events_dir, exist_ok=True)
-    remove_member(conn, events_dir, generic_part_id, part_id)
+    remove_member(conn, events_dir, data_dir, generic_part_id, part_id)
     return fetch_members(conn, generic_part_id)
 
 
 def set_preferred_api(
     conn: Any,
     events_dir: str,
+    data_dir: str,
     generic_part_id: str,
     part_id: str,
 ) -> list[dict[str, Any]]:
     """Set a member as preferred and return updated members."""
     os.makedirs(events_dir, exist_ok=True)
-    set_preferred(conn, events_dir, generic_part_id, part_id)
+    set_preferred(conn, events_dir, data_dir, generic_part_id, part_id)
     return fetch_members(conn, generic_part_id)
 
 
