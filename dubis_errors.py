@@ -31,3 +31,7 @@ class DistributorAuthError(DistributorError):
 
 class CacheError(DubISError):
     """Error in cache database operations."""
+
+
+class PartRegistryCollisionError(DubISError):
+    """A ledger row's part numbers map to two different registered parts."""
