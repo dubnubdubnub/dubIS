@@ -152,6 +152,33 @@ class InventoryCRUDFacade:
                 conn=self._api._get_cache(),
             )
 
+    def fetch_missing_descriptions(self) -> dict:
+        """Fetch descriptions for parts with a distributor PN but none set."""
+        dm = self._api._distributors
+        fetchers = {
+            "lcsc": dm.fetch_lcsc_product,
+            "digikey": dm.fetch_digikey_product,
+            "mouser": dm.fetch_mouser_product,
+            "pololu": dm.fetch_pololu_product,
+        }
+        # Lock is held across the distributor network fetches, not just the CSV
+        # read/write, so the read -> write -> rebuild stays atomic. This is
+        # intentional: the operation is a small, user-initiated cleanup batch
+        # (a handful of missing-description parts), not a bulk/background job -
+        # don't "optimize" the fetches out from under the lock, it would break
+        # atomicity for a workload that doesn't need the throughput.
+        with self._api._lock:
+            return domain.inventory.fetch_missing_descriptions(
+                fetchers=fetchers,
+                input_csv=self._api.input_csv,
+                adjustments_csv=self._api.adjustments_csv,
+                adj_fieldnames=self._api.ADJ_FIELDNAMES,
+                base_dir=self._api.base_dir,
+                fieldnames=self._api.FIELDNAMES,
+                events_dir=self._api.events_dir,
+                conn=self._api._get_cache(),
+            )
+
     def delete_part(self, part_key: str) -> "list[InventoryItem]":
         """Permanently delete a part with no purchase history. Returns fresh inventory."""
         with self._api._lock:
