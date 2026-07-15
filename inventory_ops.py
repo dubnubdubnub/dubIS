@@ -20,33 +20,32 @@ from domain.pricing import derive_missing_price, parse_price, parse_qty
 logger = logging.getLogger(__name__)
 
 
-def get_part_key(row: dict[str, str]) -> str:
-    """Return best unique identifier: LCSC (C-prefixed) > MPN > Digikey PN > Pololu PN > Mouser PN."""
-    lcsc = (row.get("LCSC Part Number") or "").strip()
-    if lcsc and lcsc.upper().startswith("C"):
-        return lcsc
-    mpn = (row.get("Manufacture Part Number") or "").strip()
-    if mpn:
-        return mpn
-    dk = (row.get("Digikey Part Number") or "").strip()
-    if dk:
-        return dk
-    pololu = (row.get("Pololu Part Number") or "").strip()
-    if pololu:
-        return pololu
-    mouser = (row.get("Mouser Part Number") or "").strip()
-    if mouser:
-        return mouser
-    return ""
+def get_part_key(row: dict[str, str], registry=None) -> str:
+    """Return the part's canonical identity.
+
+    With a registry: alias lookup first (stable across enrichment), falling
+    back to derived precedence.  Without: derived precedence, as always.
+    """
+    from domain import part_registry  # local import — domain imports inventory_ops
+
+    if registry is not None:
+        canonical = part_registry.canonical_for_row(registry, row)
+        if canonical:
+            return canonical
+    return part_registry.derive_key(row)
 
 
 def read_and_merge(purchase_csv: str,
-                   fieldnames: list[str]) -> tuple[list[str], dict[str, dict[str, str]]]:
+                   fieldnames: list[str],
+                   registry=None) -> tuple[list[str], dict[str, dict[str, str]]]:
     """Read purchase_ledger.csv, fix encoding, merge duplicates.
     Returns (fieldnames, merged_dict).
     """
     if not os.path.exists(purchase_csv):
         return list(fieldnames), {}
+
+    if registry is not None:
+        from domain import part_registry  # local import — domain imports inventory_ops
 
     with open(purchase_csv, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
@@ -62,7 +61,10 @@ def read_and_merge(purchase_csv: str,
     # Merge duplicates by part key
     merged: dict[str, dict[str, str]] = {}
     for r in rows:
-        pn = get_part_key(r)
+        if registry is not None:
+            pn = part_registry.register_row(registry, r)
+        else:
+            pn = get_part_key(r)
         if not pn:
             continue
         qty = parse_qty(r.get("Quantity"))

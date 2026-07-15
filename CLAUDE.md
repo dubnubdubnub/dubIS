@@ -6,9 +6,9 @@ Desktop app: Python (pywebview) backend + vanilla JS/HTML/CSS frontend.
 
 | Layer | Files |
 |-------|-------|
-| **Backend** | `app.pyw` (webview launcher; `.pyw` so Windows uses `pythonw.exe` and skips the console window), `inventory_api.py` (API facade, 74 methods), `inventory_ops.py` (merge/adjust/categorize/sort), `csv_io.py` (CSV read/write/migrate), `cache_db.py` (SQLite materialized view), `categorize.py` (part categorization), `generic_parts.py` (generic part CRUD + BOM resolution), `spec_extractor.py` (component spec parsing), `price_ops.py` + `price_history.py` (pricing), `distributor_manager.py` (client coordination), `base_client.py` (ABC), `digikey_client.py` + `digikey_cdp.py` + `digikey_normalizer.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`, `html_product_parser.py` (shared HTML extraction), `pnp_server.py` (OpenPnP HTTP API), `file_dialogs.py` (OS file dialogs), `dubis_errors.py` (exception hierarchy); `domain/` (extracted business logic: `inventory.py`, `pricing.py`, `generic_parts.py`) |
-| **Frontend** | `index.html`, `css/styles.css`, 73 JS ES modules in `js/` and subdirs (`a11y/`, `bom/`, `group-flyout/`, `import/`, `inventory/`, `vendor/`) — no build step, no framework |
-| **Data** | CSV in `data/` — `inventory.csv`, `purchase_ledger.csv`, `adjustments.csv`; events in `events/` — `price_observations.csv`, `part_events.csv`; config: `preferences.json`, `constants.json`, `pnp_part_map.json`; SQLite: `cache.db` (deletable, rebuilt from CSVs) |
+| **Backend** | `app.pyw` (webview launcher; `.pyw` so Windows uses `pythonw.exe` and skips the console window), `inventory_api.py` (API facade; composition root; surface frozen by `tests/python/test_api_surface.py`), `inventory_ops.py` (merge/adjust/categorize/sort), `csv_io.py` (CSV read/write/migrate), `cache_db.py` (SQLite materialized view), `categorize.py` (part categorization), `spec_extractor.py` (component spec parsing), `distributor_manager.py` (client coordination), `base_client.py` (ABC), `digikey_client.py` + `digikey_cdp.py` + `digikey_normalizer.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`, `html_product_parser.py` (shared HTML extraction), `pnp_server.py` (OpenPnP HTTP API), `file_dialogs.py` (OS file dialogs), `dubis_errors.py` (exception hierarchy); `domain/` (extracted business logic: `domain/inventory.py`, `domain/pricing.py`, `domain/generic_parts.py`, `domain/part_registry.py`) |
+| **Frontend** | `index.html`, `css/` (split stylesheets: `css/tokens/`, `css/components/`, `css/panels/`, `css/buttons.css`, `css/tables.css`, `css/modals.css`), JS ES modules in `js/` and subdirs (`js/a11y/`, `js/bom/`, `js/group-flyout/`, `js/import/`, `js/inventory/`, `js/vendor/`) — no build step, no framework |
+| **Data** | CSV in `data/` — `data/inventory.csv`, `data/purchase_ledger.csv`, `data/adjustments.csv`; events in `events/` — `events/price_observations.csv`, `events/part_events.csv`; config: `data/preferences.json`, `data/constants.json`, `data/pnp_part_map.json`, `data/part_registry.json`, `data/generic_parts.json`, `data/saved_searches.json`; SQLite: `cache.db` (deletable, rebuilt from CSVs); entity persistence rules: docs/entity-store.md |
 
 ## Data Flow
 
@@ -28,7 +28,7 @@ purchase_ledger.csv + adjustments.csv
   cache.db (SQLite)         (query_inventory() → list[InventoryItem] sent to JS)
         │
         ├── prices table    (populated by price_history.py from events/price_observations.csv)
-        └── generic_parts   (populated by generic_parts.py, stored directly in SQLite)
+        └── generic_parts   (manual state durable in data/generic_parts.json; auto groups regenerated)
 ```
 
 All inventory-mutating API methods (`adjust_part`, `import_purchases`, `consume_bom`) append to CSVs, then rebuild cache and return fresh `list[InventoryItem]`. The cache can be deleted at any time — it rebuilds on next `rebuild_inventory()`.
@@ -67,7 +67,7 @@ Remote access to the PnP machine and test runner over Tailscale — see `memory/
 
 ## EventBus Flow
 
-Events are centralized in `event-bus.js`. Store setters that emit are marked; unlisted setters do NOT emit.
+Events are centralized in `js/event-bus.js`. Store setters that emit are marked; unlisted setters do NOT emit.
 
 | Event | Emitted by | Listened by |
 |-------|-----------|-------------|
@@ -75,7 +75,6 @@ Events are centralized in `event-bus.js`. Store setters that emit are marked; un
 | `INVENTORY_UPDATED` | store.js (`onInventoryUpdated`) | inv-events.js, bom-events.js, app-init.js, label-selection.js |
 | `BOM_LOADED` | bom-panel.js | inv-events.js, app-init.js |
 | `BOM_CLEARED` | bom-events.js | inv-events.js |
-| `PREFS_CHANGED` | store.js (`setThreshold`), preferences-modal.js | inv-events.js |
 | `CONFIRMED_CHANGED` | store.js (`confirmMatch`, `unconfirmMatch`), app-init.js | bom-events.js |
 | `LINKING_MODE` | store.js (`setLinkingMode`, `setReverseLinkingMode`) | bom-events.js, inv-events.js |
 | `LINKS_CHANGED` | store.js (`addManualLink`), app-init.js | bom-events.js |
@@ -93,11 +92,13 @@ Events are centralized in `event-bus.js`. Store setters that emit are marked; un
 
 **Non-emitting setters:** `setInventory()`, `setBomResults()`, `setBomMeta()`, `setBomDirty()`, `setPreferences()`, `loadLinks()`, `clearLinks()` — callers handle emission or don't need it.
 
+**Signals vs EventBus:** preferences propagate via `preferencesSignal` in store.js (see `js/signals.js`), not EventBus. Rule: new cross-panel *state* uses signals; EventBus remains for discrete UI *events*.
+
 ## Key Policies
 
 - **Error policy**: prefer `AppLog.warn`/`AppLog.error` over silent catches. Throw errors rather than silently failing.
 - **Test policy**: never use `pytest.skip`, `pytest.importorskip`, or `@pytest.mark.skip` to hide missing dependencies — add them to `requirements-dev.txt` instead. Tests must run, not be skipped.
-- **UI clipping tests**: `sticky-buttons.spec.mjs` and `resize-visibility.spec.mjs` verify that action buttons (Adjust, Confirm, Link) are not clipped by panel overflow. Never weaken these tests (e.g., by relaxing tolerances, removing viewport sizes, or switching from individual-button checks to cell-level checks). If a CSS change causes these tests to fail, fix the CSS — the test is catching a real bug.
+- **UI clipping tests**: `tests/js/e2e/sticky-buttons.spec.mjs` and `tests/js/e2e/resize-visibility.spec.mjs` verify that action buttons (Adjust, Confirm, Link) are not clipped by panel overflow. Never weaken these tests (e.g., by relaxing tolerances, removing viewport sizes, or switching from individual-button checks to cell-level checks). If a CSS change causes these tests to fail, fix the CSS — the test is catching a real bug.
 
 ### Traps
 
@@ -151,7 +152,7 @@ Missing credentials cause a test failure with an actionable message — they do 
 python scripts/capture-distributor-fixtures.py
 git add tests/fixtures/generated/distributor-scrapes.json
 ```
-The public fixtures (LCSC + Pololu) self-refresh weekly via the scheduled `refresh-fixtures.yml` workflow, which opens a PR. DigiKey + Mouser are local-only (refresh them via `pytest -m live`); their credentials never run on CI.
+The public fixtures (LCSC + Pololu) self-refresh weekly via the scheduled `.github/workflows/refresh-fixtures.yml` workflow, which opens a PR. DigiKey + Mouser are local-only (refresh them via `pytest -m live`); their credentials never run on CI.
 
 ## Testing & Linting
 

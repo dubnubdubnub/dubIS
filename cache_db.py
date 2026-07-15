@@ -161,6 +161,7 @@ def populate_full(
     ledger_path: str | None = None,
     po_csv_path: str | None = None,
     vendors_json_path: str | None = None,
+    registry=None,
 ) -> None:
     """Full population from merge + categorize results. Clears existing data."""
     # generic_part_members.part_id has a NOT NULL REFERENCES parts(part_id) FK.
@@ -175,7 +176,7 @@ def populate_full(
 
         for section, parts_list in categorized.items():
             for part in parts_list:
-                part_id = get_part_key(part)
+                part_id = get_part_key(part, registry)
                 if not part_id:
                     continue
                 sk = sort_key_for_section(section, part.get("Description", ""))
@@ -227,7 +228,7 @@ def populate_full(
         if os.path.isfile(ledger_path):
             with open(ledger_path, newline="", encoding="utf-8-sig") as f:
                 for row in csv.DictReader(f):
-                    pk = get_part_key(row)
+                    pk = get_part_key(row, registry)
                     poid = (row.get("po_id") or "").strip()
                     if pk and poid:
                         po_id_for_part[pk] = poid  # last write wins (chronological)
@@ -258,7 +259,7 @@ def populate_full(
                          if v.get("type") in ("inferred", "real")}
         unknown_id = "v_unknown"
         for part in merged.values():
-            pk = get_part_key(part)
+            pk = get_part_key(part, registry)
             if pk and pk not in primary_vendor:
                 mfg = (part.get("Manufacturer") or "").strip().lower()
                 primary_vendor[pk] = mfg_to_vendor.get(mfg, unknown_id)
