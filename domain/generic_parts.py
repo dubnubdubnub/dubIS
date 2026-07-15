@@ -154,7 +154,11 @@ def load_into_db(conn: Any, data_dir: str) -> None:
 def _record_event(events_dir: str, event_type: str,
                    part_id: str = "", generic_part_id: str = "",
                    data: dict | None = None) -> None:
-    """Append an event to part_events.csv."""
+    """Append an event to part_events.csv (append-only AUDIT TRAIL).
+
+    This log is never replayed — it is not event-sourcing.  Durable state
+    lives in data/generic_parts.json (see load_into_db / docs/entity-store.md).
+    """
     csv_path = os.path.join(events_dir, PART_EVENTS_FILE)
     write_header = not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0
     with open(csv_path, "a", newline="", encoding="utf-8") as f:
