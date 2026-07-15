@@ -36,7 +36,7 @@ let preferences = {
 /**
  * Signal wrapping `preferences`. Listeners call `.get()` inside an effect;
  * writers call `.set(preferences)` after mutating the object.
- * Replaces the EventBus.emit(Events.PREFS_CHANGED) pattern for PREFS_CHANGED.
+ * Signal holding the preferences object (replaced the old PREFS_CHANGED EventBus event).
  */
 export const preferencesSignal = signal(preferences);
 let manualLinks = [];

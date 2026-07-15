@@ -8,7 +8,6 @@
  * INVENTORY_UPDATED:    InventoryItem[]          — updated inventory array
  * BOM_LOADED:           {rows, fileName, multiplier} — computed BOM rows + metadata
  * BOM_CLEARED:          (none)
- * PREFS_CHANGED:        (none)                   — listeners re-read store.preferences
  * CONFIRMED_CHANGED:    (none)                   — listeners re-read store.links
  * LINKING_MODE:         (none)                   — listeners re-read store.links.linkingMode etc.
  * LINKS_CHANGED:        (none)                   — listeners re-read store.links
@@ -26,7 +25,6 @@ export const Events = Object.freeze({
   INVENTORY_UPDATED: "inventory-updated",
   BOM_LOADED:        "bom-loaded",
   BOM_CLEARED:       "bom-cleared",
-  PREFS_CHANGED:     "preferences-changed",
   CONFIRMED_CHANGED: "confirmed-match-changed",
   LINKING_MODE:      "linking-mode",
   LINKS_CHANGED:     "links-changed",
