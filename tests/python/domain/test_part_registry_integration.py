@@ -1,0 +1,78 @@
+"""End-to-end: enriching a part with a higher-precedence PN keeps its identity."""
+
+import csv
+import os
+import sqlite3
+
+import cache_db
+import inventory_ops
+from domain import part_registry
+
+LEDGER_FIELDS = [
+    "LCSC Part Number", "Manufacture Part Number", "Digikey Part Number",
+    "Pololu Part Number", "Mouser Part Number", "Manufacturer", "Description",
+    "Package", "RoHS", "Quantity", "Unit Price($)", "Ext.Price($)",
+    "Date Code / Lot No.", "po_id",
+]
+
+
+def _write_ledger(path, rows):
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.DictWriter(f, fieldnames=LEDGER_FIELDS)
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: r.get(k, "") for k in LEDGER_FIELDS})
+
+
+def test_merge_key_stable_across_enrichment(tmp_path):
+    ledger = os.path.join(str(tmp_path), "purchase_ledger.csv")
+    _write_ledger(ledger, [{
+        "Manufacture Part Number": "STM32F405", "Description": "MCU",
+        "Quantity": "10", "Unit Price($)": "5.00", "Ext.Price($)": "50.00",
+    }])
+
+    # First merge: part registers under its MPN.
+    reg = part_registry.load(str(tmp_path))
+    _, merged1 = inventory_ops.read_and_merge(ledger, LEDGER_FIELDS, registry=reg)
+    assert "STM32F405" in merged1
+    part_registry.save(str(tmp_path), reg)
+
+    # Enrichment: the same row gains an LCSC number (higher precedence).
+    _write_ledger(ledger, [{
+        "LCSC Part Number": "C99", "Manufacture Part Number": "STM32F405",
+        "Description": "MCU", "Quantity": "10",
+        "Unit Price($)": "5.00", "Ext.Price($)": "50.00",
+    }])
+    reg2 = part_registry.load(str(tmp_path))
+    _, merged2 = inventory_ops.read_and_merge(ledger, LEDGER_FIELDS, registry=reg2)
+
+    # Identity did NOT flip to C99.
+    assert "STM32F405" in merged2
+    assert "C99" not in merged2
+
+
+def test_merge_without_registry_matches_today(tmp_path):
+    ledger = os.path.join(str(tmp_path), "purchase_ledger.csv")
+    _write_ledger(ledger, [{
+        "LCSC Part Number": "C99", "Manufacture Part Number": "STM32F405",
+        "Description": "MCU", "Quantity": "10",
+        "Unit Price($)": "5.00", "Ext.Price($)": "50.00",
+    }])
+    _, merged = inventory_ops.read_and_merge(ledger, LEDGER_FIELDS)
+    assert "C99" in merged  # derived-precedence behavior unchanged
+
+
+def test_populate_full_uses_registry_keys(tmp_path):
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    cache_db.create_schema(conn)
+
+    reg = part_registry.PartRegistry({"STM32F405": ["STM32F405", "C99"]})
+    part = {
+        "LCSC Part Number": "C99", "Manufacture Part Number": "STM32F405",
+        "Description": "MCU", "Package": "LQFP64", "Quantity": "10",
+        "Unit Price($)": "5.00", "Ext.Price($)": "50.00",
+    }
+    cache_db.populate_full(conn, {"STM32F405": part}, {"ICs": [part]}, registry=reg)
+    row = conn.execute("SELECT part_id FROM parts").fetchone()
+    assert row["part_id"] == "STM32F405"
