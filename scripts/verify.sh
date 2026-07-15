@@ -74,6 +74,9 @@ fi
 # 4. manifests
 run_step "manifests" "$PY" scripts/check-manifests.py
 
+# 4b. claude-md
+run_step "claude-md" "$PY" scripts/check-claude-md.py
+
 # 5. layout-tokens
 run_step "layout-tokens" "$PY" scripts/check-layout-tokens.py --check
 layout_rc=$?

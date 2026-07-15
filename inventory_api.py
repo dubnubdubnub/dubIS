@@ -204,7 +204,9 @@ class InventoryApi:
 
     def _record_import_prices(self, rows: list[dict[str, str]]) -> None:
         """Extract and record price observations from imported purchase rows."""
-        domain.inventory.record_import_prices(rows, self.events_dir, self._distributors)
+        domain.inventory.record_import_prices(
+            rows, self.events_dir, self._distributors, self.base_dir,
+        )
 
     # ── Public API methods (called from JS via pywebview) ────────────────
 

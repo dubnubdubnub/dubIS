@@ -17,6 +17,7 @@ import domain.generic_parts
 import domain.pricing
 import inventory_ops
 from csv_io import append_csv_rows, atomic_write_rows
+from domain import part_registry as _preg
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,28 @@ def parse_section_order(raw: list) -> tuple[list[str], list[dict]]:
     return flat_order, hierarchy
 
 
+def _restore_derived_entities(conn: sqlite3.Connection, base_dir: str, events_dir: str) -> None:
+    """Repopulate rebuild-only derived tables after a SCHEMA_VERSION bump.
+
+    create_schema drops generic_parts/generic_part_members/saved_searches on
+    version change while parts/stock/checkpoint survive, so the cache-hit
+    startup paths never reach rebuild(). Detect the wipe (generic_parts
+    empty while parts is not) and restore from durable stores.
+    NOTE: vendors/purchase_orders are also dropped on version bump and only
+    repopulated by populate_full — pre-existing gap, out of scope here.
+    """
+    if conn.execute("SELECT 1 FROM generic_parts LIMIT 1").fetchone():
+        return
+    if not conn.execute("SELECT 1 FROM parts LIMIT 1").fetchone():
+        return
+    from domain import generic_parts as _gp  # noqa: PLC0415
+    os.makedirs(events_dir, exist_ok=True)
+    _gp.auto_generate_passive_groups(conn, events_dir)
+    _gp.load_into_db(conn, base_dir)
+    import saved_searches  # noqa: PLC0415
+    saved_searches.load_into_db(conn, base_dir)
+
+
 # ── Pipeline helpers ───────────────────────────────────────────────────────────
 
 def rebuild(
@@ -63,7 +86,8 @@ def rebuild(
     vendors_json = os.path.join(base_dir, "vendors.json")
     migration_summary = inventory_ops.migrate_to_vendors(input_csv, vendors_json)
 
-    file_fieldnames, merged = inventory_ops.read_and_merge(input_csv, fieldnames)
+    registry = _preg.load(base_dir)
+    file_fieldnames, merged = inventory_ops.read_and_merge(input_csv, fieldnames, registry=registry)
     inventory_ops.apply_adjustments(merged, adjustments_csv, file_fieldnames)
     categorized = inventory_ops.categorize_and_sort(list(merged.values()))
     cache_db.populate_full(
@@ -71,7 +95,10 @@ def rebuild(
         ledger_path=input_csv,
         po_csv_path=os.path.join(base_dir, "purchase_orders.csv"),
         vendors_json_path=vendors_json,
+        registry=registry,
     )
+    if registry.dirty:
+        _preg.save(base_dir, registry)
     cache_db.write_checkpoint(conn, purchase_path=input_csv,
                               adjustments_path=adjustments_csv)
     if os.path.exists(events_dir):
@@ -79,6 +106,7 @@ def rebuild(
     from domain import generic_parts as _gp  # noqa: PLC0415
     os.makedirs(events_dir, exist_ok=True)
     _gp.auto_generate_passive_groups(conn, events_dir)
+    _gp.load_into_db(conn, base_dir)
     import saved_searches  # noqa: PLC0415
     saved_searches.load_into_db(conn, base_dir)
     return cache_db.query_inventory(conn), migration_summary
@@ -100,6 +128,7 @@ def load_or_rebuild(
     """
     result = cache_db.query_inventory(conn)
     if result:
+        _restore_derived_entities(conn, base_dir, events_dir)
         return result, {}
     return rebuild(
         base_dir=base_dir,
@@ -130,6 +159,7 @@ def rebuild_or_catchup(
     has_cache = conn.execute("SELECT 1 FROM parts LIMIT 1").fetchone() is not None
     if has_cache and cp["purchase_hash"]:
         if cache_db.catch_up(conn, input_csv, adjustments_csv, adj_fieldnames):
+            _restore_derived_entities(conn, base_dir, events_dir)
             return cache_db.query_inventory(conn), {}
     return rebuild(
         base_dir=base_dir,
@@ -165,12 +195,20 @@ def record_import_prices(
     rows: list[dict[str, str]],
     events_dir: str,
     distributors: Any,
+    base_dir: str,
 ) -> None:
-    """Extract and record price observations from imported purchase rows."""
+    """Extract and record price observations from imported purchase rows.
+
+    Resolves each row's part key registry-aware so that an enrichment import
+    (a row that adds a higher-precedence PN to an already-registered part)
+    records its price observation under the part's stable canonical key
+    rather than the newly-added alias.
+    """
     os.makedirs(events_dir, exist_ok=True)
+    registry = _preg.load(base_dir)
     observations = []
     for row in rows:
-        part_key = inventory_ops.get_part_key(row)
+        part_key = inventory_ops.get_part_key(row, registry)
         if not part_key:
             continue
         up = domain.pricing.parse_price(row.get("Unit Price($)"))
@@ -350,7 +388,7 @@ def import_purchases(
 
     normalized = [{fn: row.get(fn, "") for fn in fieldnames} for row in rows]
     append_csv_rows(input_csv, list(fieldnames), normalized)
-    record_import_prices(rows, events_dir, distributors)
+    record_import_prices(rows, events_dir, distributors, base_dir)
     result, _ = rebuild(
         base_dir=base_dir,
         input_csv=input_csv,
@@ -391,9 +429,10 @@ def update_part_price(
         file_fieldnames = reader.fieldnames
         rows = list(reader)
 
+    registry = _preg.load(base_dir)
     found = False
     for row in rows:
-        pk = inventory_ops.get_part_key(row)
+        pk = inventory_ops.get_part_key(row, registry)
         if pk == part_key:
             qty = domain.pricing.parse_qty(row.get("Quantity"))
             unit_price, ext_price = domain.pricing.derive_missing_price(unit_price, ext_price, qty)
@@ -469,9 +508,10 @@ def update_part_fields(
         file_fieldnames = reader.fieldnames
         rows = list(reader)
 
+    registry = _preg.load(base_dir)
     found = False
     for row in rows:
-        pk = inventory_ops.get_part_key(row)
+        pk = inventory_ops.get_part_key(row, registry)
         if pk == part_key:
             for js_name, value in fields.items():
                 col = field_to_col.get(js_name)
@@ -606,7 +646,13 @@ def truncate_and_rebuild(
 
 
 def has_purchase_history(input_csv: str, part_key: str) -> bool:
-    """Whether any purchase_ledger.csv row belongs to this part."""
+    """Whether any purchase_ledger.csv row belongs to this part.
+
+    Deliberately derived-key (registry-unaware), like `last_po_quantity` and
+    `get_sourced_distributors` — this call site doesn't have a registry handle
+    to thread through. Revisit once the Phase-1 service layer provides a
+    shared registry handle to callers like this one.
+    """
     if not os.path.exists(input_csv):
         return False
     with open(input_csv, newline="", encoding="utf-8-sig") as f:
@@ -635,7 +681,7 @@ def delete_part(
         raise ValueError(f"Part {part_key!r} has purchase history; cannot delete")
 
     for generic_part_id, _name in domain.generic_parts.group_memberships_for_part(conn, part_key):
-        domain.generic_parts.remove_member(conn, events_dir, generic_part_id, part_key)
+        domain.generic_parts.remove_member(conn, events_dir, base_dir, generic_part_id, part_key)
 
     if os.path.exists(adjustments_csv):
         with open(adjustments_csv, newline="", encoding="utf-8-sig") as f:

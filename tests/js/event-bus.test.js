@@ -11,7 +11,6 @@ describe('Events', () => {
     expect(Events.INVENTORY_UPDATED).toBe('inventory-updated');
     expect(Events.BOM_LOADED).toBe('bom-loaded');
     expect(Events.BOM_CLEARED).toBe('bom-cleared');
-    expect(Events.PREFS_CHANGED).toBe('preferences-changed');
     expect(Events.CONFIRMED_CHANGED).toBe('confirmed-match-changed');
     expect(Events.LINKING_MODE).toBe('linking-mode');
     expect(Events.LINKS_CHANGED).toBe('links-changed');

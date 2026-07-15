@@ -14,7 +14,8 @@ class GenericPartsFacade:
     def create_generic_part(self, name: str, part_type: str,
                              spec_json: str, strictness_json: str) -> dict[str, Any]:
         return domain.generic_parts.create_generic_part_api(
-            self._api._get_cache(), self._api.events_dir, name, part_type, spec_json, strictness_json,
+            self._api._get_cache(), self._api.events_dir, self._api.base_dir,
+            name, part_type, spec_json, strictness_json,
         )
 
     def resolve_bom_spec(self, part_type: str, value: float,
@@ -26,17 +27,17 @@ class GenericPartsFacade:
 
     def add_generic_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
         return domain.generic_parts.add_member_api(
-            self._api._get_cache(), self._api.events_dir, generic_part_id, part_id,
+            self._api._get_cache(), self._api.events_dir, self._api.base_dir, generic_part_id, part_id,
         )
 
     def remove_generic_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
         return domain.generic_parts.remove_member_api(
-            self._api._get_cache(), self._api.events_dir, generic_part_id, part_id,
+            self._api._get_cache(), self._api.events_dir, self._api.base_dir, generic_part_id, part_id,
         )
 
     def exclude_generic_member(self, generic_part_id: str, part_id: str) -> None:
         return domain.generic_parts.exclude_member(
-            self._api._get_cache(), self._api.events_dir, generic_part_id, part_id,
+            self._api._get_cache(), self._api.events_dir, self._api.base_dir, generic_part_id, part_id,
         )
 
     def get_generic_group_names(self, part_key: str) -> list[str]:
@@ -44,13 +45,13 @@ class GenericPartsFacade:
 
     def set_preferred_member(self, generic_part_id: str, part_id: str) -> list[dict[str, Any]]:
         return domain.generic_parts.set_preferred_api(
-            self._api._get_cache(), self._api.events_dir, generic_part_id, part_id,
+            self._api._get_cache(), self._api.events_dir, self._api.base_dir, generic_part_id, part_id,
         )
 
     def update_generic_part(self, generic_part_id: str, name: str,
                              spec_json: str, strictness_json: str) -> dict[str, Any]:
         return domain.generic_parts.update_generic_part_api(
-            self._api._get_cache(), self._api.events_dir, generic_part_id, name,
+            self._api._get_cache(), self._api.events_dir, self._api.base_dir, generic_part_id, name,
             spec_json, strictness_json,
         )
 

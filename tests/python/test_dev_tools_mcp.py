@@ -96,3 +96,27 @@ def test_event_trace_inventory_updated() -> None:
     ), (
         f"Expected a known listener file but got: {listener_files}"
     )
+
+
+def test_event_trace_ignores_comments(tmp_path) -> None:
+    """find_event_emitters_listeners must not report EventBus refs that only
+    appear inside // or /* */ comments (prose mentioning the pattern).
+
+    Regression for js/store.js:39, where a comment reading
+    "Replaces the EventBus.emit(Events.PREFS_CHANGED) pattern" was falsely
+    reported as a real emitter.
+    """
+    js = tmp_path / "js"
+    js.mkdir()
+    (js / "a.js").write_text(
+        "// Replaces the EventBus.emit(Events.FOO_EVENT) pattern\n"
+        "/* EventBus.on(Events.FOO_EVENT, x) */\n"
+        "EventBus.emit(Events.FOO_EVENT, data);\n",
+        encoding="utf-8",
+    )
+
+    result = matchers.find_event_emitters_listeners("FOO_EVENT", js, tmp_path)
+
+    assert len(result["emitters"]) == 1
+    assert result["emitters"][0]["line"] == 3
+    assert result["listeners"] == []
