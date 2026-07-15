@@ -88,6 +88,15 @@ def test_event_trace_inventory_updated() -> None:
         f"Expected store.js in emitters but got: {emitter_files}"
     )
 
+    # Spot-check: at least one of the known listeners appears
+    listener_files = {r["file"] for r in result["listeners"]}
+    assert any(
+        any(name in f for f in listener_files)
+        for name in ("inv-events.js", "bom-events.js", "app-init.js")
+    ), (
+        f"Expected a known listener file but got: {listener_files}"
+    )
+
 
 def test_event_trace_ignores_comments(tmp_path) -> None:
     """find_event_emitters_listeners must not report EventBus refs that only
