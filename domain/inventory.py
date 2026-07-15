@@ -170,12 +170,22 @@ def record_import_prices(
     rows: list[dict[str, str]],
     events_dir: str,
     distributors: Any,
+    base_dir: str,
 ) -> None:
-    """Extract and record price observations from imported purchase rows."""
+    """Extract and record price observations from imported purchase rows.
+
+    Resolves each row's part key registry-aware so that an enrichment import
+    (a row that adds a higher-precedence PN to an already-registered part)
+    records its price observation under the part's stable canonical key
+    rather than the newly-added alias.
+    """
+    from domain import part_registry as _preg
+
     os.makedirs(events_dir, exist_ok=True)
+    registry = _preg.load(base_dir)
     observations = []
     for row in rows:
-        part_key = inventory_ops.get_part_key(row)
+        part_key = inventory_ops.get_part_key(row, registry)
         if not part_key:
             continue
         up = domain.pricing.parse_price(row.get("Unit Price($)"))
@@ -355,7 +365,7 @@ def import_purchases(
 
     normalized = [{fn: row.get(fn, "") for fn in fieldnames} for row in rows]
     append_csv_rows(input_csv, list(fieldnames), normalized)
-    record_import_prices(rows, events_dir, distributors)
+    record_import_prices(rows, events_dir, distributors, base_dir)
     result, _ = rebuild(
         base_dir=base_dir,
         input_csv=input_csv,
@@ -613,7 +623,13 @@ def truncate_and_rebuild(
 
 
 def has_purchase_history(input_csv: str, part_key: str) -> bool:
-    """Whether any purchase_ledger.csv row belongs to this part."""
+    """Whether any purchase_ledger.csv row belongs to this part.
+
+    Deliberately derived-key (registry-unaware), like `last_po_quantity` and
+    `get_sourced_distributors` — this call site doesn't have a registry handle
+    to thread through. Revisit once the Phase-1 service layer provides a
+    shared registry handle to callers like this one.
+    """
     if not os.path.exists(input_csv):
         return False
     with open(input_csv, newline="", encoding="utf-8-sig") as f:

@@ -44,6 +44,9 @@ def read_and_merge(purchase_csv: str,
     if not os.path.exists(purchase_csv):
         return list(fieldnames), {}
 
+    if registry is not None:
+        from domain import part_registry  # local import — domain imports inventory_ops
+
     with open(purchase_csv, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         file_fieldnames = reader.fieldnames
@@ -59,7 +62,6 @@ def read_and_merge(purchase_csv: str,
     merged: dict[str, dict[str, str]] = {}
     for r in rows:
         if registry is not None:
-            from domain import part_registry
             pn = part_registry.register_row(registry, r)
         else:
             pn = get_part_key(r)
