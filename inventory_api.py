@@ -259,6 +259,9 @@ class InventoryApi:
     def delete_part(self, part_key: str) -> list[dict[str, Any]]:
         return self._inv.delete_part(part_key)
 
+    def fetch_missing_descriptions(self) -> dict:
+        return self._inv.fetch_missing_descriptions()
+
     def has_purchase_history(self, part_key: str) -> bool:
         return self._inv.has_purchase_history(part_key)
 
