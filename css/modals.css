@@ -66,6 +66,19 @@
 .modal-field-input:focus { border-color: var(--color-blue); }
 .modal-field-input.modal-field-warn { border-color: var(--color-yellow); }
 .modal-field-input.modal-field-warn:focus { border-color: var(--color-blue); }
+.fetch-desc-btn {
+  margin-top: var(--space-2xs);
+  padding: var(--space-2xs) var(--space-sm);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  color: var(--text-secondary);
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.fetch-desc-btn:hover { color: var(--color-blue); border-color: var(--color-blue); }
+.fetch-desc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .modal-divider { border-top: 1px solid var(--border-default); margin: var(--space-xs) 0 var(--space-xl); }
 .modal-actions {
   display: flex;
