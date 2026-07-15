@@ -6,6 +6,7 @@ import sqlite3
 
 import cache_db
 import inventory_ops
+from domain import inventory as domain_inventory
 from domain import part_registry
 
 LEDGER_FIELDS = [
@@ -76,3 +77,33 @@ def test_populate_full_uses_registry_keys(tmp_path):
     cache_db.populate_full(conn, {"STM32F405": part}, {"ICs": [part]}, registry=reg)
     row = conn.execute("SELECT part_id FROM parts").fetchone()
     assert row["part_id"] == "STM32F405"
+
+
+class _StubDistributors:
+    def infer_distributor(self, row):
+        return "lcsc"
+
+
+def test_record_import_prices_uses_registry_canonical_key(tmp_path):
+    """A row bearing an alias PN must record its price observation under the
+    part's canonical key, not the newly-added alias — otherwise price history
+    forks from the part's identity on enrichment imports."""
+    base_dir = str(tmp_path)
+    events_dir = os.path.join(base_dir, "events")
+
+    # C99 is already a registered alias of canonical STM32F405.
+    reg = part_registry.PartRegistry({"STM32F405": ["STM32F405", "C99"]})
+    part_registry.save(base_dir, reg)
+
+    row = {
+        "LCSC Part Number": "C99",
+        "Manufacture Part Number": "STM32F405",
+        "Unit Price($)": "5.00",
+    }
+    domain_inventory.record_import_prices([row], events_dir, _StubDistributors(), base_dir)
+
+    obs_path = os.path.join(events_dir, "price_observations.csv")
+    with open(obs_path, newline="", encoding="utf-8") as f:
+        obs_rows = list(csv.DictReader(f))
+    assert len(obs_rows) == 1
+    assert obs_rows[0]["part_id"] == "STM32F405"
