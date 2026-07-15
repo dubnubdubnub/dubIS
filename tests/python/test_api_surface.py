@@ -71,6 +71,7 @@ FROZEN_SURFACE = {
     'fetch_digikey_product': '(part_number)',
     'fetch_favicon': '(url)',
     'fetch_lcsc_product': '(product_code)',
+    'fetch_missing_descriptions': '()',
     'fetch_mouser_product': '(part_number)',
     'fetch_pololu_product': '(sku)',
     'get_digikey_login_status': '()',
