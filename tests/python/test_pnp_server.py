@@ -293,7 +293,10 @@ class TestPnPServerConsume:
 class TestPnPServerUIUpdate:
     def test_consume_publishes_sse_event(self, api, tmp_path):
         # Task 10: the evaluate_js UI push was deleted; SSE (server/events.py)
-        # is now the sole push mechanism for a PnP consume.
+        # is now the sole push mechanism for a PnP consume. A consume
+        # publishes TWO events, mirroring server/routes/pnp.py::_consume:
+        # inventory.consumed (placement-specific detail) followed by
+        # inventory.updated (generic refresh signal for other subscribers).
         _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
         api.rebuild_inventory()
         server = start_pnp_server(api, port=0)
@@ -301,10 +304,15 @@ class TestPnPServerUIUpdate:
         q = sse_events.subscribe()
         try:
             _http_post(f"http://127.0.0.1:{port}/api/consume", {"part_id": "C100000"})
-            name, data = q.get(timeout=2)
-            assert name == "inventory.consumed"
-            assert data["part_key"] == "C100000"
-            assert data["new_qty"] == 9
+            name1, data1 = q.get(timeout=2)
+            assert name1 == "inventory.consumed"
+            assert data1["part_key"] == "C100000"
+            assert data1["new_qty"] == 9
+
+            name2, data2 = q.get(timeout=2)
+            assert name2 == "inventory.updated"
+            assert data2["reason"] == "pnp-consume"
+            assert data2["detail"] == {"part_key": "C100000", "new_qty": 9}
         finally:
             sse_events.unsubscribe(q)
             server.shutdown()
