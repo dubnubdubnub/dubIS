@@ -99,6 +99,7 @@ graph LR
     "js/a11y/shortcut-help.js" --> "js/store.js"
     "js/a11y/shortcut-help.js" --> "js/ui-helpers.js"
     "js/a11y/shortcuts.js" --> "js/store.js"
+    "js/api.js" --> "js/api-map.js"
     "js/api.js" --> "js/ui-helpers.js"
     "js/app-init.js" --> "js/a11y/keyboard-nav.js"
     "js/app-init.js" --> "js/a11y/shortcut-help.js"
@@ -412,6 +413,9 @@ graph LR
     "scripts/gen-openapi.py" --> "server/app.py"
     "scripts/generate-test-fixtures.py" --> "inventory_api.py"
     "scripts/generate-test-fixtures.py" --> "inventory_ops.py"
+    "scripts/spike-webview-loopback.py" --> "server/__init__.py"
+    "scripts/spike-webview-loopback.py" --> "server/__main__.py"
+    "scripts/spike-webview-loopback.py" --> "server/run.py"
     "server/__main__.py" --> "inventory_api.py"
     "server/__main__.py" --> "server/app.py"
     "server/app.py" --> "server/errors.py"
@@ -431,6 +435,8 @@ graph LR
     "server/run.py" --> "server/app.py"
     "spec_extractor.py" --> "categorize.py"
     "tests/e2e-server.py" --> "inventory_api.py"
+    "tests/js/api-client.test.js" --> "js/api.js"
+    "tests/js/api-client.test.js" --> "js/ui-helpers.js"
     "tests/js/api.test.js" --> "js/api.js"
     "tests/js/api.test.js" --> "js/ui-helpers.js"
     "tests/js/bom-label-checkbox.test.js" --> "js/inventory/inv-mutations.js"
@@ -538,6 +544,7 @@ graph LR
     "tests/python/server/test_models.py" --> "server/models.py"
     "tests/python/server/test_parts_read.py" --> "tests/python/helpers.py"
     "tests/python/server/test_pnp_routes.py" --> "server/__init__.py"
+    "tests/python/server/test_static_serving.py" --> "server/app.py"
     "tests/python/server/test_v1_surface.py" --> "server/app.py"
     "tests/python/server/test_v1_surface.py" --> "tests/python/test_api_surface.py"
     "tests/python/server/test_vendors_pos_routes.py" --> "purchase_orders.py"
@@ -886,10 +893,15 @@ graph LR
 - **Imports:** `js/store.js`
 - **Imported by:** `js/app-init.js`, `tests/js/shortcuts.test.js`
 
+### js/api-map.js
+
+- **Imports:** —
+- **Imported by:** `js/api.js`
+
 ### js/api.js
 
-- **Imports:** `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/store.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api.test.js`, `tests/js/command-palette.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`
+- **Imports:** `js/api-map.js`, `js/ui-helpers.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/store.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/command-palette.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`
 
 ### js/app-init.js
 
@@ -1292,7 +1304,7 @@ graph LR
 ### js/ui-helpers.js
 
 - **Imports:** `js/a11y/focus-trap.js`
-- **Imported by:** `js/a11y/shortcut-help.js`, `js/api.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/components/form-modal.js`, `js/group-flyout/flyout-renderer.js`, `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js`, `js/import/mfg-direct/scan-grouping.js`, `js/import/mfg-direct/scan-shell.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inventory-renderer.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/vendors-modal.js`, `tests/js/api.test.js`, `tests/js/ui-helpers.test.js`
+- **Imported by:** `js/a11y/shortcut-help.js`, `js/api.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/components/form-modal.js`, `js/group-flyout/flyout-renderer.js`, `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js`, `js/import/mfg-direct/scan-grouping.js`, `js/import/mfg-direct/scan-shell.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inventory-renderer.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/ui-helpers.test.js`
 
 ### js/undo-redo.js
 
@@ -1494,6 +1506,11 @@ graph LR
 - **Imports:** `scripts/ci_watcher/triage_payload.py`
 - **Imported by:** `tests/python/test_ci_watcher_worker.py`
 
+### scripts/gen-api-client.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### scripts/gen-code-map.py
 
 - **Imports:** —
@@ -1519,20 +1536,25 @@ graph LR
 - **Imports:** —
 - **Imported by:** —
 
+### scripts/spike-webview-loopback.py
+
+- **Imports:** `server/__init__.py`, `server/__main__.py`, `server/run.py`
+- **Imported by:** —
+
 ### server/__init__.py
 
 - **Imports:** —
-- **Imported by:** `pnp_server.py`, `server/mutations.py`, `server/routes/events.py`, `server/routes/pnp.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_vendors_pos_routes.py`
+- **Imported by:** `pnp_server.py`, `scripts/spike-webview-loopback.py`, `server/mutations.py`, `server/routes/events.py`, `server/routes/pnp.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_vendors_pos_routes.py`
 
 ### server/__main__.py
 
 - **Imports:** `inventory_api.py`, `server/app.py`
-- **Imported by:** `tests/python/server/test_lifecycle.py`
+- **Imported by:** `scripts/spike-webview-loopback.py`, `tests/python/server/test_lifecycle.py`
 
 ### server/app.py
 
 - **Imports:** `server/errors.py`, `server/routes/__init__.py`
-- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_v1_surface.py`
+- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
 
 ### server/errors.py
 
@@ -1612,7 +1634,7 @@ graph LR
 ### server/run.py
 
 - **Imports:** `server/app.py`
-- **Imported by:** `tests/python/server/test_lifecycle.py`
+- **Imported by:** `scripts/spike-webview-loopback.py`, `tests/python/server/test_lifecycle.py`
 
 ### source_sanitizer.py
 
@@ -1627,6 +1649,11 @@ graph LR
 ### tests/e2e-server.py
 
 - **Imports:** `inventory_api.py`
+- **Imported by:** —
+
+### tests/js/api-client.test.js
+
+- **Imports:** `js/api.js`, `js/ui-helpers.js`
 - **Imported by:** —
 
 ### tests/js/api.test.js
@@ -2038,6 +2065,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** —
 
+### tests/python/server/test_static_serving.py
+
+- **Imports:** `server/app.py`
+- **Imported by:** —
+
 ### tests/python/server/test_v1_surface.py
 
 - **Imports:** `server/app.py`, `tests/python/test_api_surface.py`
@@ -2206,6 +2238,11 @@ graph LR
 ### tests/python/test_file_dialogs.py
 
 - **Imports:** `file_dialogs.py`
+- **Imported by:** —
+
+### tests/python/test_gen_api_client.py
+
+- **Imports:** —
 - **Imported by:** —
 
 ### tests/python/test_gen_code_map.py

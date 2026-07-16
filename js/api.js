@@ -1,8 +1,16 @@
-/* api.js — pywebview bridge + application log */
+/* api.js — /v1 HTTP transport + pywebview bridge fallback + application log */
 
 import { escHtml, showToast } from './ui-helpers.js';
+import { API_MAP } from './api-map.js';
 
 const LOG_MAX_ENTRIES = 200;
+
+// Step-1 mutation convention (see docs/plans/2026-07-16-phase1b-frontend-port-design.md,
+// Architecture decision 2): every mutating call asks the server to echo the
+// fresh inventory back in the same response, so call sites that do
+// `const fresh = await api(...); onInventoryUpdated(fresh);` keep working
+// unchanged. Flipped to SSE-driven refresh later in the phase.
+const INCLUDE_INVENTORY = true;
 
 export const AppLog = {
   _entries: [],
@@ -31,8 +39,96 @@ export const AppLog = {
   }
 };
 
+// Memoized HTTP-availability probe. Must be awaited INSIDE api(), never at
+// module top level — a top-level `await fetch(...)` crashes vitest
+// collection (see js/constants.js's trap, documented in CLAUDE.md). Computed
+// once per module load; under Playwright's serve-static.mjs (no /v1 backend)
+// or plain file://+bridge, this resolves false and every mapped call falls
+// through to the legacy bridge, so existing mocked-bridge specs keep passing
+// until the E2E mocks migrate to HTTP route fixtures.
+let _httpProbe = null;
+function probeHttp() {
+  if (_httpProbe === null) {
+    _httpProbe = (async () => {
+      try {
+        const res = await fetch('/v1/health', { method: 'GET' });
+        return !!(res && res.ok);
+      } catch {
+        return false;
+      }
+    })();
+  }
+  return _httpProbe;
+}
+
+async function httpAvailable() {
+  if (typeof window !== "undefined" && window.__DUBIS_HTTP__ === false) return false;
+  return probeHttp();
+}
+
+function buildUrl(entry, argMap) {
+  let path = entry.path;
+  for (const name of entry.pathParams) {
+    path = path.replace("{" + name + "}", encodeURIComponent(argMap[name]));
+  }
+  const query = new URLSearchParams();
+  for (const name of entry.queryParams) {
+    if (argMap[name] !== undefined) query.set(name, argMap[name]);
+  }
+  if (entry.mutating && INCLUDE_INVENTORY) query.set("include", "inventory");
+  const qs = query.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
+function buildBody(entry, argMap) {
+  if (entry.rawBody) {
+    const value = argMap[entry.argOrder[0]];
+    return typeof value === "string" ? value : JSON.stringify(value);
+  }
+  if (!entry.bodyParams.length) return undefined;
+  const body = {};
+  for (const name of entry.bodyParams) body[name] = argMap[name];
+  return JSON.stringify(body);
+}
+
+async function callHttp(entry, args) {
+  const argMap = {};
+  entry.argOrder.forEach((name, i) => { argMap[name] = args[i]; });
+
+  const url = buildUrl(entry, argMap);
+  const bodyStr = (entry.verb === "GET" || entry.verb === "DELETE")
+    ? undefined
+    : buildBody(entry, argMap);
+
+  const init = { method: entry.verb };
+  if (bodyStr !== undefined) {
+    init.headers = { "Content-Type": "application/json" };
+    init.body = bodyStr;
+  }
+
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    let message = res.statusText || `HTTP ${res.status}`;
+    try {
+      const errBody = await res.json();
+      if (errBody && errBody.error) message = errBody.error;
+    } catch {
+      // Non-JSON error body — fall back to statusText/status.
+    }
+    throw new Error(message);
+  }
+
+  const data = await res.json();
+  if (entry.unwrap) return data[entry.unwrap];
+  return data;
+}
+
 export async function api(method, ...args) {
   try {
+    const entry = API_MAP[method];
+    if (entry && await httpAvailable()) {
+      return await callHttp(entry, args);
+    }
     return await window.pywebview.api[method](...args);
   } catch (e) {
     AppLog.error(method + ": " + e.message);
