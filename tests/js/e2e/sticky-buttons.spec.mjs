@@ -3,7 +3,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows, loadBom, loadPurchaseOrder } from './helpers.mjs';
+import { waitForInventoryRows, loadBom, loadPurchaseOrder } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -17,7 +18,7 @@ const PO_CSV_PATH = path.join(__dirname, 'fixtures', 'purchase.csv');
 test.describe('Sticky button column — BOM comparison mode', () => {
 
   test('button column stays within viewport when table scrolls horizontally', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     // Narrow viewport so the BOM table overflows horizontally
     await page.setViewportSize({ width: 1100, height: 700 });
     await page.goto('/index.html');
@@ -46,7 +47,7 @@ test.describe('Sticky button column — BOM comparison mode', () => {
   });
 
   test('button column header is sticky', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1100, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -67,7 +68,7 @@ test.describe('Sticky button column — BOM comparison mode', () => {
   });
 
   test('button cell ::before composites row tint over opaque base', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1100, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -112,7 +113,7 @@ test.describe('Sticky button column — BOM comparison mode', () => {
   });
 
   test('buttons remain visible after scrolling table horizontally', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1100, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -155,7 +156,7 @@ test.describe('BOM table buttons not clipped by panel overflow', () => {
     { width: 2016, height: 1244, label: '2016×1244' },
   ]) {
     test(`BOM table buttons not clipped at ${vp.label}`, async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);
@@ -196,7 +197,7 @@ test.describe('BOM table buttons not clipped by panel overflow', () => {
 test.describe('Sticky button column — BOM + PO mode', () => {
 
   test('button column stays within viewport with PO loaded', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1100, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -222,7 +223,7 @@ test.describe('Sticky button column — BOM + PO mode', () => {
   });
 
   test('buttons remain visible after horizontal scroll with PO loaded', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1100, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -247,7 +248,7 @@ test.describe('Sticky button column — BOM + PO mode', () => {
   });
 
   test('button column header sticky at wide viewport (1920px)', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -267,7 +268,7 @@ test.describe('Sticky button column — BOM + PO mode', () => {
   });
 
   test('row tint compositing works with PO loaded', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1100, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);

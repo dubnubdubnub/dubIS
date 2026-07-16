@@ -68,12 +68,9 @@ def test_start_scan_session_returns_409_when_pnp_server_not_running(client):
 
 
 def test_start_scan_session_happy_path(api, client):
-    import types
-
     from pnp_server import start_pnp_server, stop_pnp_server
 
-    mock_window = types.SimpleNamespace(evaluate_js=lambda code: None)
-    server = start_pnp_server(api, mock_window, port=0)
+    server = start_pnp_server(api, port=0)
     api._pnp_server = server
     try:
         r = client.post("/v1/scan/sessions", json={"template": "generic"})

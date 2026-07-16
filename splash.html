@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dubIS</title>
+<!-- Splash-first parallel boot (Phase 1b Task 8 fix round 1): pywebview loads
+     THIS static file immediately at create_window time, before the /v1 server
+     (uvicorn+fastapi) has even been imported. That import + server startup now
+     happens in a background thread. Once it's ready, THIS PAGE navigates
+     itself (see the tiny inline script at the bottom) to
+     http://127.0.0.1:<port>/, replacing this document with the real
+     index.html (which has its own copy of this same inline skeleton for
+     continuity, removed by app-init.js on INVENTORY_LOADED).
+
+     Why the page navigates itself instead of app.pyw calling
+     window.load_url() from the server-boot thread: that was tried first and
+     reproduced a real, ~50%-reliable crash (JavascriptException:
+     "window.pywebview._returnValuesCallbacks.bench_mark.<id> is not a
+     function") on the first pywebview bridge call the real page makes after
+     navigating — even after marshaling the load_url() call onto the native
+     WinForms UI thread via Control.Invoke (same pattern set_icon() uses in
+     app.pyw), the corruption reproduced identically. Switching to a
+     page-initiated top-level navigation (location.href, below — the same
+     path pywebview handles for a user clicking any link) reduced but did
+     NOT eliminate the crash: it turned out to be a second, broader timing
+     race — navigating this window AT ALL too soon after pywebview shows it
+     corrupts the same bridge bookkeeping, regardless of who/what triggers
+     the navigation. See STARTUP_DELAY_MS in the script below for the
+     (empirically determined) fix: a short fixed delay before the first
+     health poll, paid concurrently with server startup so it doesn't add to
+     perceived latency.
+
+     This page has no ES module imports and no other stylesheet links — the
+     one inline script below only polls a health endpoint and navigates, no
+     app logic. Its main job is still to paint the exact same first frame as
+     index.html's startup skeleton as fast as pywebview can show a window, so
+     window-shown latency stays decoupled from the /v1 server's
+     import/startup cost. Keep the styles byte-identical to the block in
+     index.html so the swap from
+     splash.html to the served index.html is visually seamless (no flash/reflow). -->
+<style>
+  html, body { background: #0d1117; margin: 0; }
+  #startup-splash {
+    position: fixed; inset: 0; z-index: 99999;
+    display: flex; flex-direction: column;
+    background: #0d1117; color: #c9d1d9;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    transition: opacity .2s ease;
+  }
+  #startup-splash.hide { opacity: 0; pointer-events: none; }
+  /* shimmer block — base must stay lighter than the #161b22 panel so the
+     placeholder is visible at every frame of the animation, not just mid-sweep */
+  #startup-splash .sk {
+    border-radius: 6px;
+    background: linear-gradient(90deg, #21262d 25%, #30404f 50%, #21262d 75%);
+    background-size: 400% 100%;
+    animation: sk-shimmer 1.4s ease infinite;
+  }
+  @keyframes sk-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+  /* header strip */
+  #startup-splash .sk-header {
+    display: flex; align-items: center; gap: 12px;
+    height: 48px; padding: 0 14px;
+    background: #161b22; border-bottom: 1px solid #21262d; flex: 0 0 auto;
+  }
+  #startup-splash .sk-header .sk { height: 26px; }
+  #startup-splash .sk-spacer { flex: 1; }
+  /* panels row */
+  #startup-splash .sk-panels { flex: 1; display: flex; gap: 10px; padding: 10px; min-height: 0; }
+  #startup-splash .sk-panel {
+    background: #161b22; border: 1px solid #21262d; border-radius: 8px;
+    padding: 12px; display: flex; flex-direction: column; gap: 12px; min-height: 0;
+  }
+  #startup-splash .sk-col-left { flex: 0 0 20%; }
+  #startup-splash .sk-col-mid { flex: 1; }
+  #startup-splash .sk-col-right { flex: 0 0 24%; }
+  #startup-splash .sk-title { height: 20px; width: 45%; }
+  #startup-splash .sk-toolbar { display: flex; gap: 8px; }
+  #startup-splash .sk-toolbar .sk { height: 28px; flex: 1; }
+  #startup-splash .sk-rows { display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+  #startup-splash .sk-row { height: 30px; }
+  #startup-splash .wordmark {
+    position: absolute; bottom: 18px; right: 22px;
+    font-size: 13px; color: #484f58; letter-spacing: .5px;
+  }
+  /* Boot-failure state (see script below): shown in place of the shimmer
+     skeleton if the /v1 server never answers its health check within the
+     timeout. Never a silent white window — always dark-themed. */
+  #startup-splash.boot-failed .sk { animation: none; background: #21262d; }
+  #boot-error {
+    display: none;
+    position: fixed; inset: 0; z-index: 100000;
+    background: #0d1117; color: #e6edf3;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    align-items: center; justify-content: center;
+  }
+  #boot-error.show { display: flex; }
+  #boot-error .box { max-width: 640px; padding: 24px; }
+  #boot-error h1 { font-size: 18px; color: #f85149; margin: 0 0 8px; }
+  #boot-error pre {
+    white-space: pre-wrap; color: #c9d1d9; background: #161b22;
+    border: 1px solid #30363d; border-radius: 6px; padding: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div id="startup-splash" aria-hidden="true">
+  <div class="sk-header">
+    <div class="sk" style="width:96px"></div>
+    <div class="sk-spacer"></div>
+    <div class="sk" style="width:36px"></div>
+    <div class="sk" style="width:36px"></div>
+    <div class="sk-spacer"></div>
+    <div class="sk" style="width:120px"></div>
+  </div>
+  <div class="sk-panels">
+    <!-- Purchase Import -->
+    <div class="sk-panel sk-col-left">
+      <div class="sk sk-title"></div>
+      <div class="sk" style="height:90px"></div>
+      <div class="sk" style="height:28px"></div>
+      <div class="sk" style="height:28px"></div>
+      <div class="sk-spacer"></div>
+      <div class="sk" style="height:120px"></div>
+    </div>
+    <!-- Inventory grid -->
+    <div class="sk-panel sk-col-mid">
+      <div class="sk-toolbar">
+        <div class="sk" style="flex:0 0 130px"></div>
+        <div class="sk" style="flex:0 0 90px"></div>
+        <div class="sk-spacer"></div>
+        <div class="sk" style="flex:0 0 220px"></div>
+      </div>
+      <div class="sk-rows">
+        <div class="sk sk-row" style="height:34px"></div>
+        <div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div>
+        <div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div>
+        <div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div>
+        <div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div>
+        <div class="sk sk-row"></div><div class="sk sk-row"></div>
+      </div>
+    </div>
+    <!-- BOM Comparison -->
+    <div class="sk-panel sk-col-right">
+      <div class="sk sk-title"></div>
+      <div class="sk" style="height:60px"></div>
+      <div class="sk-spacer"></div>
+    </div>
+  </div>
+  <div class="wordmark">dubIS</div>
+</div>
+
+<div id="boot-error">
+  <div class="box">
+    <h1>dubIS failed to start</h1>
+    <p>The local /v1 server did not come up. Close this window and check the logs.</p>
+    <pre id="boot-error-detail"></pre>
+  </div>
+</div>
+
+<script>
+// Poll the /v1 server's health endpoint (port passed as a query param by
+// app.pyw, e.g. splash.html?port=54321) and navigate to it ourselves once
+// it's up. This is a page-initiated top-level navigation (location.href) —
+// the same path pywebview already handles correctly for any normal link
+// click — deliberately NOT driven by app.pyw calling window.load_url() from
+// its server-boot thread (see the comment at the top of this file for why
+// that was tried first and abandoned).
+//
+// STARTUP_DELAY_MS below exists because of a second, independent race:
+// navigating this window AT ALL — even via this page-initiated
+// location.href, with zero Python-thread involvement — too soon after
+// pywebview shows it corrupted the same bridge bookkeeping
+// (window.pywebview._returnValuesCallbacks) on the real page's first
+// bench_mark call, reproducing 100% of the time (8/8, 10/10 across repeated
+// manual test batches) with no delay. Empirically, a fixed delay before the
+// first health poll eliminates it: 0ms reproduced the crash on essentially
+// every launch; 250ms and 500ms were both clean across 8/8 repeated
+// launches each in testing. 500ms is used here for margin — it's paid
+// concurrently with the server import/startup (which itself takes
+// ~600-750ms end to end), so it does not add to total time-to-interactive
+// in practice. This is pywebview's own WinForms/WebView2 driver still
+// settling internal navigation-handling state shortly after window
+// creation, not something under this app's control to fix at the root.
+(function () {
+  "use strict";
+  var STARTUP_DELAY_MS = 500;
+  var port = new URLSearchParams(location.search).get("port");
+  if (!port) {
+    return; // no port supplied (e.g. opened directly for visual inspection)
+  }
+  var healthUrl = "http://127.0.0.1:" + port + "/v1/health";
+  var targetUrl = "http://127.0.0.1:" + port + "/";
+  var deadline = Date.now() + 15000;
+  var pollMs = 60;
+
+  function showError(detail) {
+    document.getElementById("startup-splash").classList.add("boot-failed");
+    document.getElementById("boot-error-detail").textContent = detail;
+    document.getElementById("boot-error").classList.add("show");
+  }
+
+  function poll() {
+    // mode: "no-cors" deliberately — this splash page and the /v1 server are
+    // different origins (different ports) and /v1/health sends no CORS
+    // headers. A normal "cors"-mode fetch would be rejected as a network
+    // error even once the server is healthy, since there's no
+    // Access-Control-Allow-Origin to satisfy. In "no-cors" mode the promise
+    // resolves (to an unreadable opaque response) as soon as the TCP
+    // connection + HTTP response complete — which is exactly the "is
+    // something listening" signal we need — and still rejects on connection
+    // refused, which is what happens while uvicorn hasn't bound the port yet.
+    fetch(healthUrl, { mode: "no-cors", cache: "no-store" }).then(function () {
+      location.href = targetUrl;
+    }, function (err) {
+      scheduleNext(String(err));
+    });
+  }
+
+  function scheduleNext(lastError) {
+    if (Date.now() > deadline) {
+      showError(
+        "Timed out waiting for the /v1 server at " + healthUrl +
+        ".\nLast error: " + lastError
+      );
+      return;
+    }
+    setTimeout(poll, pollMs);
+  }
+
+  setTimeout(poll, STARTUP_DELAY_MS);
+})();
+</script>
+
+</body>
+</html>

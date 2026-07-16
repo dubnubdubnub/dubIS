@@ -281,9 +281,6 @@ class InventoryApi:
                          links_json: str | list | None = None) -> dict[str, str] | None:
         return self._files.save_file_dialog(content, default_name, default_dir, links_json)
 
-    def convert_xls_to_csv(self, path: str) -> dict[str, Any] | None:
-        return self._files.convert_xls_to_csv(path)
-
     def open_file_dialog(self, title: str = "Select CSV file",
                          default_dir: str | None = None) -> dict[str, Any] | None:
         return self._files.open_file_dialog(title, default_dir)

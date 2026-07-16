@@ -5,7 +5,7 @@ import { EventBus, Events } from '../event-bus.js';
 import { api, AppLog } from '../api.js';
 import { showToast, escHtml, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { store, setBomDirty, setBomResults, setBomMeta, onInventoryUpdated, savePreferences } from '../store.js';
+import { store, setBomDirty, setBomResults, setBomMeta, scheduleInventoryRefresh, savePreferences } from '../store.js';
 import { bomAggKey } from '../part-keys.js';
 import { generateCSV } from '../csv-parser.js';
 import { computeRows, prepareConsumption } from './bom-logic.js';
@@ -119,7 +119,7 @@ export function setupEvents(handlers) {
     const mult = getMultiplier();
     const note = document.getElementById("consume-note").value;
 
-    const { matches, matchesJson } = prepareConsumption(state.lastResults);
+    const { matches } = prepareConsumption(state.lastResults);
 
     if (matches.length === 0) {
       showToast("No matched parts to consume");
@@ -131,26 +131,34 @@ export function setupEvents(handlers) {
     UndoRedo.save("consume", {
       _undoType: "consume",
       adjustmentCount: matches.length,
-      matchesJson: matchesJson,
+      matches: matches,
       mult: mult,
       bomName: state.lastFileName,
       note: note,
     });
 
-    const fresh = await api("consume_bom", matchesJson, mult, state.lastFileName, note);
-    if (!fresh) {
+    // LANDMINE (Task 6): pass the array itself, not a JSON.stringify'd blob —
+    // the /v1 body model (server/routes/inventory_mut.py's ConsumeBomBody)
+    // declares `matches: list[dict]`. api.js's HTTP path JSON.stringifies the
+    // whole body once in buildBody(); stringifying `matches` here too would
+    // nest a JSON string inside the body instead of a real array. The bridge
+    // fallback (inventory_api.consume_bom / domain.api_inventory's
+    // _ensure_parsed) already accepts either a list or a JSON string, so the
+    // array works unchanged over both transports.
+    const result = await api("consume_bom", matches, mult, state.lastFileName, note);
+    if (!result) {
       UndoRedo.popLast();
       return;
     }
     state.lastConsumeMeta = {
-      matchesJson: matchesJson,
+      matches: matches,
       mult: mult,
       bomName: state.lastFileName,
       note: note,
       adjustmentCount: matches.length,
     };
     state.consumeModal.close();
-    onInventoryUpdated(fresh);
+    scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
     showToast(`Consumed ${matches.length} parts x${mult}`);
     AppLog.info("Consumed " + matches.length + " parts x" + mult + " from " + state.lastFileName);
   });
@@ -247,22 +255,22 @@ export function setupEvents(handlers) {
       return { _undoType: "consume-none" };
     }
     if (data._undoType === "consume") {
-      const fresh = await api("remove_last_adjustments", data.adjustmentCount);
-      if (!fresh) throw new Error("Failed to undo consume");
+      const result = await api("remove_last_adjustments", data.adjustmentCount);
+      if (!result) throw new Error("Failed to undo consume");
       state.lastConsumeMeta = null;
-      onInventoryUpdated(fresh);
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Undid consume of " + data.adjustmentCount + " parts");
     } else if (data._undoType === "consume-done") {
-      const fresh = await api("consume_bom", data.matchesJson, data.mult, data.bomName, data.note);
-      if (!fresh) throw new Error("Failed to redo consume");
+      const result = await api("consume_bom", data.matches, data.mult, data.bomName, data.note);
+      if (!result) throw new Error("Failed to redo consume");
       state.lastConsumeMeta = {
-        matchesJson: data.matchesJson,
+        matches: data.matches,
         mult: data.mult,
         bomName: data.bomName,
         note: data.note,
         adjustmentCount: data.adjustmentCount,
       };
-      onInventoryUpdated(fresh);
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Redid consume of " + data.adjustmentCount + " parts");
     }
   });

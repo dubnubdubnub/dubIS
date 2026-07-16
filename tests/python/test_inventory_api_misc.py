@@ -2,7 +2,6 @@
 
 import base64
 import json
-import os
 import types
 
 import pytest
@@ -219,28 +218,6 @@ class TestConfirmClose:
         monkeypatch.setitem(__import__("sys").modules, "webview", mock_webview)
         api.confirm_close()
         assert api._force_close is True
-
-
-class TestConvertXls:
-    def test_mouser_cart_xls(self, api):
-        """Convert a committed Mouser-style cart XLS fixture to CSV.
-
-        The fixture (tests/fixtures/mouser_cart_sample.xls) is a small, valid
-        BIFF workbook generated once with xlwt and committed to the repo, so
-        this test runs unconditionally without depending on a non-committed
-        real export. xlrd (used by convert_xls_to_csv) is in requirements-dev.
-        """
-        xls_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "fixtures", "mouser_cart_sample.xls",
-        )
-        assert os.path.exists(xls_path), f"missing XLS fixture: {xls_path}"
-        result = api.convert_xls_to_csv(xls_path)
-        assert result is not None
-        assert result["row_count"] >= 1
-        # Header detection found the Mouser cart header row.
-        assert any("mouser" in h.lower() for h in result["headers"])
-        assert result["csv_text"]  # non-empty
 
 
 def test_get_po_with_items(api):

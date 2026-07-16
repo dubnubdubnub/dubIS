@@ -3,9 +3,10 @@
    Extracted from inventory-panel.js for focused maintainability. */
 
 import { api, AppLog } from './api.js';
+import { API_MAP } from './api-map.js';
 import { showToast, Modal, linkPriceInputs, escHtml } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
-import { onInventoryUpdated } from './store.js';
+import { store, scheduleInventoryRefresh } from './store.js';
 import { invPartKey } from './part-keys.js';
 import { el } from './dom/html.js';
 import { defineFormModal } from './components/form-modal.js';
@@ -179,6 +180,43 @@ function populateDetailFields(item) {
 }
 
 /**
+ * Fetch a single distributor product WITHOUT going through api() — the
+ * per-row fetch loop below relies on failures staying scoped to that row
+ * (no global error toast; see fetchRow). Mirrors api()'s own API_MAP-driven
+ * URL building (same as js/api.js's `callHttp`) but skips api()'s
+ * catch→toast wrapper entirely, so a thrown error here is the caller's to
+ * handle per-row.
+ *
+ * `method` is one of FETCH_SUPPLIERS' `fetch_<distributor>_product` names —
+ * each aliases the generated `fetch_distributor_product` route with a fixed
+ * distributor segment baked into `API_MAP[method].path` (e.g.
+ * `/v1/distributors/lcsc/product/{code}`), so building the URL from the
+ * method's own map entry — same pattern api-map aliases always use — needs
+ * no separate distributor-name argument.
+ *
+ * @param {string} method
+ * @param {string} code
+ * @returns {Promise<any>}
+ */
+async function fetchDistributorProduct(method, code) {
+  const entry = API_MAP[method];
+  const url = entry.path.replace("{code}", encodeURIComponent(code));
+  const res = await fetch(url, { method: entry.verb });
+  if (!res.ok) {
+    let message = res.statusText || ("HTTP " + res.status);
+    try {
+      const errBody = await res.json();
+      if (errBody && errBody.error) message = errBody.error;
+    } catch {
+      // Non-JSON error body — fall back to statusText/status.
+    }
+    throw new Error(message);
+  }
+  const data = await res.json();
+  return entry.unwrap ? data[entry.unwrap] : data;
+}
+
+/**
  * Wire the multi-distributor "current price" panel shared by the Adjust and
  * Price modals. Renders one row per distributor the part was sourced from
  * (union of record PNs + purchase-ledger PNs, from get_sourced_distributors),
@@ -256,10 +294,10 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
     const r = rows[i];
     const distributor = r.distributor;
     const label = r.label;
-    const fresh = await api("update_part_fields", pk, { [distributor]: newPn });
-    if (!fresh) return;   // api() already toasted the error
-    onInventoryUpdated(fresh);
-    const freshItem = fresh.find((it) => invPartKey(it) === pk) || null;
+    const result = await api("update_part_fields", pk, { [distributor]: newPn });
+    if (!result) return;   // api() already toasted the error
+    await scheduleInventoryRefresh();
+    const freshItem = store.inventory.find((it) => invPartKey(it) === pk) || null;
     if (onPartUpdated) onPartUpdated(freshItem);
     if (freshItem) await configure(freshItem);
 
@@ -330,11 +368,12 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
   async function fetchRow(i, priceSummary) {
     const r = rows[i];
     try {
-      // Call the bridge directly (not api()) so a scraper error becomes this row's
-      // "unavailable" state instead of a global error toast — we auto-fetch every
-      // sourced distributor on open, so api()'s global toast would fire per failure.
-      const bridge = /** @type {any} */ (window).pywebview.api;
-      const product = await bridge[r.method](r.partNumber);
+      // Deliberately bypasses api() (not a call to api("fetch_..._product", …))
+      // so a scraper error becomes this row's "unavailable" state instead of
+      // a global error toast — every sourced distributor auto-fetches
+      // concurrently on open, so api()'s global per-call toast would fire
+      // once per row and drown out the real signal. See fetchDistributorProduct.
+      const product = await fetchDistributorProduct(r.method, r.partNumber);
       if (product && typeof product.description === "string") {
         r.description = product.description;
       }
@@ -529,9 +568,9 @@ export function init() {
       deletePartBtn.classList.add("armed");
       return;
     }
-    const fresh = await api("delete_part", pk);
-    if (!fresh) return;   // api() already toasted the error
-    onInventoryUpdated(fresh);
+    const result = await api("delete_part", pk);
+    if (!result) return;   // api() already toasted the error
+    scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
     showToast("Deleted " + pk);
     adjModal.close();
   });
@@ -594,14 +633,14 @@ export function init() {
       if (!priceResult) {
         AppLog.warn("Qty adjusted, but price update failed for " + pk);
         UndoRedo._undo[UndoRedo._undo.length - 1].data.priceChanged = false;
-        onInventoryUpdated(result);
+        scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
         adjModal.close();
         return;
       }
       result = priceResult;
     }
 
-    onInventoryUpdated(result);
+    scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
 
     lastAdjustMeta = {
       partKey: pk, adjType: type, qty: qty, note: note,
@@ -689,8 +728,8 @@ export function init() {
       const rawEp = parseFloat(values.ext);
       const ep = isNaN(rawEp) ? null : rawEp;
 
-      const fresh = await api("update_part_price", pk, up, ep);
-      if (!fresh) return null;
+      const result = await api("update_part_price", pk, up, ep);
+      if (!result) return null;
 
       lastPriceMeta = {
         partKey: pk,
@@ -699,8 +738,8 @@ export function init() {
         newUp: up,
         newEp: ep,
       };
-      onInventoryUpdated(fresh);
-      return fresh;
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
+      return result;
     },
 
     undo: {
@@ -767,7 +806,7 @@ export function init() {
         if (!result) throw new Error("Failed to undo price change");
       }
       lastAdjustMeta = null;
-      onInventoryUpdated(result);
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Undid adjustment for " + data.partKey);
     } else if (data._undoType === "adjust-done") {
       const qtyResult = await api("adjust_part", data.adjType, data.partKey, data.qty, data.note);
@@ -779,7 +818,7 @@ export function init() {
       }
       lastAdjustMeta = { ...data };
       delete lastAdjustMeta._undoType;
-      onInventoryUpdated(result);
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Redid adjustment for " + data.partKey);
     }
   });
@@ -792,17 +831,17 @@ export function init() {
       return { _undoType: "price-none" };
     }
     if (data._undoType === "price") {
-      const fresh = await api("update_part_price", data.partKey, data.oldUp, data.oldEp);
-      if (!fresh) throw new Error("Failed to undo price update");
+      const result = await api("update_part_price", data.partKey, data.oldUp, data.oldEp);
+      if (!result) throw new Error("Failed to undo price update");
       lastPriceMeta = null;
-      onInventoryUpdated(fresh);
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Undid price update for " + data.partKey);
     } else if (data._undoType === "price-done") {
-      const fresh = await api("update_part_price", data.partKey, data.newUp, data.newEp);
-      if (!fresh) throw new Error("Failed to redo price update");
+      const result = await api("update_part_price", data.partKey, data.newUp, data.newEp);
+      if (!result) throw new Error("Failed to redo price update");
       lastPriceMeta = { ...data };
       delete lastPriceMeta._undoType;
-      onInventoryUpdated(fresh);
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Redid price update for " + data.partKey);
     }
   });

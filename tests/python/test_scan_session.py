@@ -4,6 +4,7 @@ inventory_api.start_scan_session."""
 import base64
 import json
 import os
+import queue as queue_mod
 import socket
 import types
 import urllib.error
@@ -13,6 +14,7 @@ import pytest
 
 import pnp_server
 from pnp_server import start_pnp_server, stop_pnp_server
+from server import events as sse_events
 
 # A tiny 1x1 PNG so uploads carry a real (valid-extension) image payload.
 _PNG_1X1_B64 = (
@@ -71,18 +73,35 @@ class _FakeApi:
         }
 
 
+def _drain_sse(q):
+    """Collect every (event, data) pair currently queued, without blocking."""
+    drained = []
+    try:
+        while True:
+            drained.append(q.get_nowait())
+    except queue_mod.Empty:
+        pass
+    return drained
+
+
 @pytest.fixture
 def scan_server(tmp_path):
-    """A running pnp server backed by a fake api + window capturing evaluate_js."""
+    """A running pnp server backed by a fake api, subscribed to server.events.
+
+    Phase 1b Task 10 deleted the evaluate_js UI pushes from pnp_server.py;
+    SSE (scan.receiving/scan.received, published via server/events.py) is now
+    the sole push mechanism the desktop UI consumes.
+    """
     api = _FakeApi(str(tmp_path))
-    js_calls = []
-    window = types.SimpleNamespace(evaluate_js=lambda code: js_calls.append(code))
-    server = start_pnp_server(api, window, port=0)
+    sse_queue = sse_events.subscribe()
+    server = start_pnp_server(api, port=0)
     port = server.server_address[1]
     base_url = f"http://127.0.0.1:{port}"
     yield types.SimpleNamespace(
-        server=server, base_url=base_url, api=api, window=window, js_calls=js_calls,
+        server=server, base_url=base_url, api=api,
+        sse_queue=sse_queue,
     )
+    sse_events.unsubscribe(sse_queue)
     stop_pnp_server(server)
 
 
@@ -189,20 +208,21 @@ class TestScanUpload:
         # OCR was invoked with the session's template.
         assert scan_server.api.calls == [(_PNG_1X1_B64, "po.png", "lcsc")]
 
-        # Two UI pushes fire: an instant "receiving" ack, then the OCR result.
-        assert len(scan_server.js_calls) == 2
-        code = next(c for c in scan_server.js_calls if "_scanReceived(" in c)
-        payload = json.loads(code[code.index("window._scanReceived(")
-                                   + len("window._scanReceived("):-1])
-        assert payload["template"] == "lcsc"
-        assert payload["filename"] == "po.png"
-        assert payload["image_b64"] == _PNG_1X1_B64
-        assert payload["line_items"] == scan_server.api._prefill_rows
+        # SSE is the sole UI push mechanism (evaluate_js was deleted in
+        # Phase 1b Task 10): pnp_server.py publishes scan.received.
+        sse = _drain_sse(scan_server.sse_queue)
+        received_events = [name for name, _ in sse]
+        assert "scan.received" in received_events
+        sse_payload = next(data for name, data in sse if name == "scan.received")
+        assert sse_payload["template"] == "lcsc"
+        assert sse_payload["filename"] == "po.png"
+        assert sse_payload["image_b64"] == _PNG_1X1_B64
+        assert sse_payload["line_items"] == scan_server.api._prefill_rows
         # Overlay payload present so the frontend opens the overlay modal.
-        assert payload["prefill_rows"] == scan_server.api._prefill_rows
-        assert isinstance(payload["pages"], list) and payload["pages"]
-        assert all(isinstance(p, dict) for p in payload["pages"])
-        assert payload["pages"] == scan_server.api._pages
+        assert sse_payload["prefill_rows"] == scan_server.api._prefill_rows
+        assert isinstance(sse_payload["pages"], list) and sse_payload["pages"]
+        assert all(isinstance(p, dict) for p in sse_payload["pages"])
+        assert sse_payload["pages"] == scan_server.api._pages
 
     def test_instant_receiving_push_fires_before_ocr_result(self, scan_server):
         sid = pnp_server.create_scan_session(scan_server.server, "lcsc")
@@ -211,14 +231,16 @@ class TestScanUpload:
             {"image_b64": _PNG_1X1_B64, "filename": "po.png"},
         )
         assert status == 200
-        calls = scan_server.js_calls
-        # The instant "receiving" ack is pushed first, the OCR'd result second.
-        assert "_scanReceiving(" in calls[0]
-        assert "_scanReceived(" in calls[1]
-        # The ack carries enough for the UI to show a "reading <template>" hint.
-        start = calls[0].index("window._scanReceiving(") + len("window._scanReceiving(")
-        ack = json.loads(calls[0][start:-1])
-        assert ack == {"filename": "po.png", "template": "lcsc", "count": 1}
+
+        # SSE ordering: scan.receiving (instant ack) fires before
+        # scan.received (the OCR'd result).
+        sse = _drain_sse(scan_server.sse_queue)
+        sse_names = [name for name, _ in sse]
+        assert sse_names[0] == "scan.receiving"
+        assert "scan.received" in sse_names
+        assert sse_names.index("scan.receiving") < sse_names.index("scan.received")
+        sse_ack = next(data for name, data in sse if name == "scan.receiving")
+        assert sse_ack == {"filename": "po.png", "template": "lcsc", "count": 1}
 
     def test_multi_image_upload_concats_and_saves_all(self, scan_server, tmp_path):
         sid = pnp_server.create_scan_session(scan_server.server, "lcsc")
@@ -238,17 +260,14 @@ class TestScanUpload:
         assert len(body["pages"]) == 2
         # Both photos persisted to <base_dir>/scans.
         assert len(list((tmp_path / "scans").glob("scan_*.png"))) == 2
-        # The merged desktop push carries both pages.
-        received = next(c for c in scan_server.js_calls if "_scanReceived(" in c)
-        payload = json.loads(received[received.index("window._scanReceived(")
-                                      + len("window._scanReceived("):-1])
+        # The merged SSE push carries both pages.
+        payload = self._received_payload(scan_server)
         assert len(payload["pages"]) == 2
         assert payload["image_count"] == 2
 
     def _received_payload(self, scan_server):
-        received = next(c for c in scan_server.js_calls if "_scanReceived(" in c)
-        start = received.index("window._scanReceived(") + len("window._scanReceived(")
-        return json.loads(received[start:-1])
+        sse = _drain_sse(scan_server.sse_queue)
+        return next(data for name, data in sse if name == "scan.received")
 
     def test_multi_image_default_groups_separate_pos(self, scan_server):
         sid = pnp_server.create_scan_session(scan_server.server, "lcsc")
@@ -440,26 +459,6 @@ class TestScanUpload:
         assert len(saved) == 1
         assert saved[0].read_bytes() == base64.b64decode(_PNG_1X1_B64)
 
-    def test_ui_push_failure_still_200(self, tmp_path):
-        api = _FakeApi(str(tmp_path))
-
-        def exploding(code):
-            raise RuntimeError("window closed")
-
-        window = types.SimpleNamespace(evaluate_js=exploding)
-        server = start_pnp_server(api, window, port=0)
-        port = server.server_address[1]
-        try:
-            sid = pnp_server.create_scan_session(server, "generic")
-            status, body = _post_json(
-                f"http://127.0.0.1:{port}/api/scan/upload?s={sid}",
-                {"image_b64": _PNG_1X1_B64, "filename": "po.png"},
-            )
-            assert status == 200
-            assert body["ok"] is True
-        finally:
-            stop_pnp_server(server)
-
 
 class TestNormalizeGroups:
     def test_default_one_per_photo_when_absent(self):
@@ -504,8 +503,7 @@ class TestSaveScanImage:
 
 class TestStartScanSession:
     def test_returns_session_and_urls(self, api):
-        window = types.SimpleNamespace(evaluate_js=lambda code: None)
-        server = start_pnp_server(api, window, port=0)
+        server = start_pnp_server(api, port=0)
         api._pnp_server = server
         try:
             result = api.start_scan_session("lcsc")
@@ -523,8 +521,7 @@ class TestStartScanSession:
             stop_pnp_server(server)
 
     def test_unknown_template_raises(self, api):
-        window = types.SimpleNamespace(evaluate_js=lambda code: None)
-        server = start_pnp_server(api, window, port=0)
+        server = start_pnp_server(api, port=0)
         api._pnp_server = server
         try:
             with pytest.raises(ValueError):

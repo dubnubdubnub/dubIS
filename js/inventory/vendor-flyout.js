@@ -1,8 +1,8 @@
 // @ts-check
 /* vendor-flyout.js — Popover anchored to a favicon for editing/merging/refreshing a vendor. */
 
-import { store, onInventoryUpdated } from '../store.js';
-import { api, apiVendors, AppLog } from '../api.js';
+import { store, scheduleInventoryRefresh } from '../store.js';
+import { apiVendors, AppLog } from '../api.js';
 import { escHtml, showToast } from '../ui-helpers.js';
 
 var PSEUDO_IDS = new Set(['v_self', 'v_salvage', 'v_unknown']);
@@ -109,11 +109,8 @@ export function openVendorPopover(anchorEl, vendorId) {
     var name = nameInput ? nameInput.value.trim() : (vendor.name || '');
     var url = urlInput ? urlInput.value.trim() : (vendor.url || '');
     apiVendors.upsert(vendorId, name, url).then(function () {
-      return api('rebuild_inventory');
-    }).then(function (freshInventory) {
-      if (freshInventory) {
-        onInventoryUpdated(freshInventory);
-      }
+      return scheduleInventoryRefresh();
+    }).then(function () {
       closeVendorPopover();
     }).catch(function (err) {
       AppLog.error('[vendor-flyout] save failed: ' + (err && err.message ? err.message : err));
@@ -132,11 +129,8 @@ export function openVendorPopover(anchorEl, vendorId) {
         return;
       }
       apiVendors.merge(vendorId, dstId).then(function () {
-        return api('rebuild_inventory');
-      }).then(function (freshInventory) {
-        if (freshInventory) {
-          onInventoryUpdated(freshInventory);
-        }
+        return scheduleInventoryRefresh();
+      }).then(function () {
         closeVendorPopover();
       }).catch(function (err) {
         AppLog.error('[vendor-flyout] merge failed: ' + (err && err.message ? err.message : err));

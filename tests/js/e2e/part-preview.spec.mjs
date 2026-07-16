@@ -1,6 +1,7 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 // ── Test inventory with parts from each distributor ──
 
@@ -196,8 +197,10 @@ async function hideTooltip(page) {
 
 test.describe('Part preview tooltip — data loading', () => {
 
+  let routeState;
+
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, TOOLTIP_INVENTORY, { productMocks: MOCK_PRODUCTS });
+    routeState = await installRouteMocks(page, TOOLTIP_INVENTORY, { productMocks: MOCK_PRODUCTS });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -244,6 +247,7 @@ test.describe('Part preview tooltip — data loading', () => {
     await expect(tooltip).toContainText('View on LCSC');
     // Provider accent
     await expect(page.locator('.part-preview-card')).toHaveClass(/provider-lcsc/);
+    await assertHttpExercised(routeState);
   });
 
   test('Pololu tooltip shows all product fields', async ({ page }) => {

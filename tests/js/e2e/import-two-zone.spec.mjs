@@ -14,7 +14,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows, loadPurchaseOrder } from './helpers.mjs';
+import { waitForInventoryRows, loadPurchaseOrder } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -43,8 +44,10 @@ const VENDORS = [
 ];
 
 test.describe('Two-zone import panel', () => {
+  let routeState;
+
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY, {
+    routeState = await installRouteMocks(page, MOCK_INVENTORY, {
       mfgDirectVendors: VENDORS,
       ocrOverlayResult: OCR_RESULT,
     });
@@ -82,6 +85,7 @@ test.describe('Two-zone import panel', () => {
     await expect(page.locator('#ocr-overlay .ocr-img-wrap img')).toBeVisible();
     // The CSV staging mapper stays hidden.
     await expect(page.locator('#import-mapper')).toHaveClass(/hidden/);
+    await assertHttpExercised(routeState);
   });
 
   test('clicking the OCR template dropdown does NOT also open the file picker', async ({ page }) => {

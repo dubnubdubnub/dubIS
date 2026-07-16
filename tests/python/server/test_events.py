@@ -59,7 +59,12 @@ def test_sse_stream_delivers_event(live_base_url):
     received = {}
 
     def _push_later():
-        time.sleep(0.3)
+        # Wait until the SSE handler has actually subscribed before publishing —
+        # a fixed sleep races under full-suite load (publish-before-subscribe
+        # drops the event and the stream read times out).
+        deadline = time.monotonic() + 5
+        while not events.has_subscribers() and time.monotonic() < deadline:
+            time.sleep(0.01)
         events.publish("scan.receiving", {"count": 1})
 
     t = threading.Thread(target=_push_later, daemon=True)

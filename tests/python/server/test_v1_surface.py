@@ -22,9 +22,44 @@ from pathlib import Path
 from fastapi.routing import APIRoute
 
 from server.app import create_app
-from tests.python.test_api_surface import FROZEN_SURFACE
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
+# The full InventoryApi method-name surface, as it stood before Phase 1b Task 8
+# shrank the *pywebview* bridge to ClientShell's ~9 methods
+# (tests/python/test_api_surface.py). InventoryApi itself is unchanged by that
+# task — it still has every one of these methods, /v1 route handlers still call
+# them, they're just no longer exposed to pywebview. This module keeps its own
+# copy (rather than importing test_api_surface.FROZEN_SURFACE, which now means
+# something narrower) purely as an op-id-legitimacy allowlist below: every /v1
+# operation_id should either name one of these InventoryApi methods, or be
+# explicitly enumerated in _NEW_OPERATIONS as having no InventoryApi equivalent.
+_INVENTORY_API_METHOD_NAMES = {
+    'add_generic_member', 'adjust_part', 'bench_mark', 'check_digikey_session',
+    'clear_mouser_api_key', 'confirm_close', 'consume_bom',
+    'create_generic_part', 'create_purchase_order_with_items', 'create_saved_search',
+    'delete_last_purchase_order', 'delete_purchase_order', 'delete_saved_search',
+    'delete_part', 'delete_vendor', 'detect_columns', 'disable_inventory_mirror',
+    'enable_inventory_mirror', 'exclude_generic_member', 'extract_spec',
+    'extract_spec_from_value', 'fetch_digikey_product', 'fetch_favicon',
+    'fetch_lcsc_product', 'fetch_missing_descriptions', 'fetch_mouser_product',
+    'fetch_pololu_product', 'get_digikey_login_status', 'get_generic_group_names',
+    'get_inventory_mirror_info', 'get_last_po_quantity', 'get_mouser_api_key_status',
+    'get_part_history', 'get_po_source_preview', 'get_po_with_items',
+    'get_price_summary', 'get_sourced_distributors', 'get_warnings',
+    'has_purchase_history', 'import_purchases', 'install_tesseract',
+    'list_generic_parts', 'list_purchase_orders', 'list_saved_searches',
+    'list_vendors', 'load_file', 'load_preferences', 'logout_digikey',
+    'match_part', 'merge_vendors', 'ocr_engine_available', 'ocr_overlay_b64',
+    'open_file_dialog', 'open_source_file', 'parse_source_file',
+    'parse_source_file_b64', 'rebuild_inventory', 'record_fetched_prices',
+    'remove_generic_member', 'remove_last_adjustments', 'remove_last_purchases',
+    'resolve_bom_spec', 'rollback_source', 'save_file_dialog', 'save_preferences',
+    'set_bom_dirty', 'set_mouser_api_key', 'set_preferred_member', 'shutdown',
+    'start_digikey_login', 'start_scan_session', 'sync_digikey_cookies',
+    'update_generic_part', 'update_part_fields', 'update_part_price',
+    'update_purchase_order', 'update_vendor', 'validate_digikey_session',
+}
 
 # Operation IDs that exist on the /v1 surface but have no equivalent in the
 # frozen pywebview bridge surface (`test_api_surface.FROZEN_SURFACE`) — either
@@ -190,14 +225,13 @@ def test_v1_surface_frozen():
 
 def test_v1_operation_ids_map_to_bridge_or_are_explicitly_new():
     op_ids = {op for _method, _path, op in FROZEN_V1_SURFACE}
-    bridge_names = set(FROZEN_SURFACE)
-    unaccounted = op_ids - bridge_names - _NEW_OPERATIONS
+    unaccounted = op_ids - _INVENTORY_API_METHOD_NAMES - _NEW_OPERATIONS
     assert not unaccounted, (
-        "operation_id(s) neither match a frozen pywebview bridge method name "
+        "operation_id(s) neither match a known InventoryApi method name "
         "nor are enumerated in _NEW_OPERATIONS: "
         f"{sorted(unaccounted)}. Add them to _NEW_OPERATIONS with a comment "
-        "explaining why there's no bridge equivalent, or fix the operation_id "
-        "to match the intended bridge method."
+        "explaining why there's no InventoryApi equivalent, or fix the "
+        "operation_id to match the intended method."
     )
     # Every _NEW_OPERATIONS entry must actually be used — otherwise the
     # allowlist silently rots as routes are renamed/removed.

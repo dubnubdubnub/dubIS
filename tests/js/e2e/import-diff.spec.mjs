@@ -16,7 +16,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows, loadPurchaseOrder } from './helpers.mjs';
+import { waitForInventoryRows, loadPurchaseOrder } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -29,21 +30,11 @@ const MOCK_INVENTORY = JSON.parse(
 // Headers match the LCSC column-detection fixture so auto-mapping fires correctly.
 const PO_DIFF_CSV = path.join(__dirname, 'fixtures', 'po-diff-test.csv');
 
-/**
- * Set up page with import-call tracking built in to the initial mock.
- * The tracker is on window.__importPurchasesArgs before any JS runs.
- */
-function addMockWithTracking(page) {
-  return addMockSetup(page, MOCK_INVENTORY, {
-    _trackImport: true,
-  });
-}
-
 test.describe('Import diff review modal', () => {
   // ── Happy path: review modal opens with correct counts ──────────────────────
 
   test('Import click shows review modal with correct insert/update counts', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    const routeState = await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -74,28 +65,16 @@ test.describe('Import diff review modal', () => {
     // There should be one "Update" badge and one "Insert" badge
     await expect(page.locator('.import-diff-badge--update')).toHaveCount(1);
     await expect(page.locator('.import-diff-badge--insert')).toHaveCount(1);
+    await assertHttpExercised(routeState);
   });
 
   // ── Confirm commits the rows ─────────────────────────────────────────────────
 
   test('Confirm button commits included rows and closes modal', async ({ page }) => {
-    // Inject tracking before page loads so it's available from the start
-    await page.addInitScript(() => {
-      window.__importPurchasesArgs = [];
-    });
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
-
-    // Patch import_purchases to record args
-    await page.evaluate(() => {
-      const orig = window.pywebview.api.import_purchases;
-      window.pywebview.api.import_purchases = async (...args) => {
-        window.__importPurchasesArgs.push(args);
-        return orig(...args);
-      };
-    });
 
     await loadPurchaseOrder(page, PO_DIFF_CSV);
     const importBtn = page.locator('#do-import-btn');
@@ -113,30 +92,22 @@ test.describe('Import diff review modal', () => {
     // Modal should close
     await expect(page.locator('#import-diff-overlay')).not.toBeAttached();
 
-    // import_purchases was called
-    const calls = await page.evaluate(() => window.__importPurchasesArgs);
+    // import_purchases was called (window.__apiCalls records positional args
+    // in argOrder: [rows]).
+    const calls = await page.evaluate(() => window.__apiCalls.import_purchases || []);
     expect(calls.length).toBeGreaterThan(0);
     // Committed 2 rows
-    const committed = JSON.parse(calls[0][0]);
+    const [committed] = calls[0];
     expect(committed).toHaveLength(2);
   });
 
   // ── Back does NOT commit ─────────────────────────────────────────────────────
 
   test('Back button closes modal and returns to staging without committing', async ({ page }) => {
-    await page.addInitScript(() => { window.__importPurchasesArgs = []; });
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
-
-    await page.evaluate(() => {
-      const orig = window.pywebview.api.import_purchases;
-      window.pywebview.api.import_purchases = async (...args) => {
-        window.__importPurchasesArgs.push(args);
-        return orig(...args);
-      };
-    });
 
     await loadPurchaseOrder(page, PO_DIFF_CSV);
     await page.locator('#do-import-btn').click();
@@ -155,26 +126,17 @@ test.describe('Import diff review modal', () => {
     await expect(page.locator('#import-mapper')).not.toHaveClass(/hidden/);
 
     // import_purchases must NOT have been called
-    const calls = await page.evaluate(() => window.__importPurchasesArgs);
+    const calls = await page.evaluate(() => window.__apiCalls.import_purchases || []);
     expect(calls.length).toBe(0);
   });
 
   // ── Cancel does NOT commit ───────────────────────────────────────────────────
 
   test('Cancel button closes modal without committing', async ({ page }) => {
-    await page.addInitScript(() => { window.__importPurchasesArgs = []; });
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
-
-    await page.evaluate(() => {
-      const orig = window.pywebview.api.import_purchases;
-      window.pywebview.api.import_purchases = async (...args) => {
-        window.__importPurchasesArgs.push(args);
-        return orig(...args);
-      };
-    });
 
     await loadPurchaseOrder(page, PO_DIFF_CSV);
     await page.locator('#do-import-btn').click();
@@ -186,26 +148,17 @@ test.describe('Import diff review modal', () => {
 
     await expect(page.locator('#import-diff-overlay')).not.toBeAttached();
 
-    const calls = await page.evaluate(() => window.__importPurchasesArgs);
+    const calls = await page.evaluate(() => window.__apiCalls.import_purchases || []);
     expect(calls.length).toBe(0);
   });
 
   // ── Escape key = Back ────────────────────────────────────────────────────────
 
   test('Escape key closes modal without committing (same as Back)', async ({ page }) => {
-    await page.addInitScript(() => { window.__importPurchasesArgs = []; });
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
-
-    await page.evaluate(() => {
-      const orig = window.pywebview.api.import_purchases;
-      window.pywebview.api.import_purchases = async (...args) => {
-        window.__importPurchasesArgs.push(args);
-        return orig(...args);
-      };
-    });
 
     await loadPurchaseOrder(page, PO_DIFF_CSV);
     await page.locator('#do-import-btn').click();
@@ -214,26 +167,17 @@ test.describe('Import diff review modal', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('#import-diff-overlay')).not.toBeAttached();
 
-    const calls = await page.evaluate(() => window.__importPurchasesArgs);
+    const calls = await page.evaluate(() => window.__apiCalls.import_purchases || []);
     expect(calls.length).toBe(0);
   });
 
   // ── Deselect row, confirm skips it ──────────────────────────────────────────
 
   test('Unchecking a row excludes it from the committed batch', async ({ page }) => {
-    await page.addInitScript(() => { window.__importPurchasesArgs = []; });
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
-
-    await page.evaluate(() => {
-      const orig = window.pywebview.api.import_purchases;
-      window.pywebview.api.import_purchases = async (...args) => {
-        window.__importPurchasesArgs.push(args);
-        return orig(...args);
-      };
-    });
 
     await loadPurchaseOrder(page, PO_DIFF_CSV);
     await page.locator('#do-import-btn').click();
@@ -251,9 +195,9 @@ test.describe('Import diff review modal', () => {
     await expect(page.locator('#import-diff-overlay')).not.toBeAttached();
 
     // import_purchases called with only 1 row (not 2)
-    const calls = await page.evaluate(() => window.__importPurchasesArgs);
+    const calls = await page.evaluate(() => window.__apiCalls.import_purchases || []);
     expect(calls.length).toBe(1);
-    const committed = JSON.parse(calls[0][0]);
+    const [committed] = calls[0];
     expect(committed).toHaveLength(1);
   });
 });

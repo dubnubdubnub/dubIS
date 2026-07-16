@@ -38,7 +38,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -74,29 +75,14 @@ const OCR_RESULT = {
 // ---------------------------------------------------------------------------
 test('multiple images: Reading shell appears immediately, then the grouping editor',
   async ({ page }) => {
-    // Standard mock setup — we override ocr_overlay_b64 below with a delayed
-    // version so the shell is observable before OCR finishes.
-    await addMockSetup(page, MOCK_INVENTORY, {
+    // Standard mock setup, with a delayed ocr_overlay_b64 (route-mocks'
+    // ocrOverlayDelayMs) so #scan-shell-overlay stays visible long enough for
+    // Playwright to assert it before both OCR calls resolve.
+    const routeState = await installRouteMocks(page, MOCK_INVENTORY, {
       mfgDirectVendors: VENDORS,
       ocrOverlayResult: OCR_RESULT,
+      ocrOverlayDelayMs: 200,
     });
-
-    // Override ocr_overlay_b64 with a delayed resolver so #scan-shell-overlay
-    // stays visible long enough for Playwright to assert it. This second
-    // addInitScript runs after the first (last-writer-wins for window.pywebview
-    // because both scripts run in the same context, with the second patching the
-    // already-installed object).
-    await page.addInitScript(({ result }) => {
-      // Unconditionally ensure window.pywebview.api exists and install the
-      // delayed mock. No conditional guard — a guarded override that silently
-      // does nothing would make the shell-visibility assertion tautological.
-      window.pywebview = window.pywebview || {};
-      window.pywebview.api = window.pywebview.api || {};
-      window.pywebview.api.ocr_overlay_b64 = async (b64, name, template) => {
-        await new Promise(r => setTimeout(r, 200));
-        return { ...result, template: template || result.template };
-      };
-    }, { result: OCR_RESULT });
 
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
@@ -117,6 +103,7 @@ test('multiple images: Reading shell appears immediately, then the grouping edit
     // the shell closes.
     await expect(page.locator('#scan-grouping-overlay')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#scan-shell-overlay')).toHaveCount(0);
+    await assertHttpExercised(routeState);
   });
 
 // ---------------------------------------------------------------------------
@@ -124,7 +111,7 @@ test('multiple images: Reading shell appears immediately, then the grouping edit
 // ---------------------------------------------------------------------------
 test('three images: grouping editor opens with three scan-thumb tiles',
   async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY, {
+    await installRouteMocks(page, MOCK_INVENTORY, {
       mfgDirectVendors: VENDORS,
       ocrOverlayResult: OCR_RESULT,
     });
@@ -152,7 +139,7 @@ test('three images: grouping editor opens with three scan-thumb tiles',
 // ---------------------------------------------------------------------------
 test('switching template to lcsc updates the dist-PN column header and prefills LCSC vendor',
   async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY, {
+    await installRouteMocks(page, MOCK_INVENTORY, {
       mfgDirectVendors: VENDORS,
       ocrOverlayResult: OCR_RESULT,
     });

@@ -2,9 +2,10 @@
 
 import { EventBus, Events } from './event-bus.js';
 import { api, AppLog, whenPywebviewReady } from './api.js';
+import { connectEvents, onEvent } from './sse.js';
 import { showToast, Modal, setEnterSubmitEnabled } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
-import { store, loadPreferences, loadInventory, onInventoryUpdated, getShortcutPrefs } from './store.js';
+import { store, loadPreferences, loadInventory, scheduleInventoryRefresh, onInventoryUpdated, getShortcutPrefs } from './store.js';
 import { processBOM } from './csv-parser.js';
 import { matchBOM } from './matching.js';
 import { colorizeRefs, REF_COLOR_MAP, invPartKey } from './part-keys.js';
@@ -85,17 +86,27 @@ async function initApp() {
   // Expose to Python's evaluate_js("closeModal.open()")
   window.closeModal = closeModal;
 
-  // ── PnP consumption handler (called by pnp_server.py via evaluate_js) ──
-  window._pnpConsume = function (freshInventory, detail) {
-    onInventoryUpdated(freshInventory);
+  // ── Phone-scan PO handler (called by the scan server) ──
+  // Registers window._scanReceived to land OCR'd line items in the mfg-direct
+  // staging editor.
+  registerScanHandler();
+
+  // ── SSE: inventory.consumed (PnP-consume push). The push carries only the
+  // adjustment detail (no full inventory snapshot), so the refresh goes
+  // through the normal debounced re-fetch. ──
+  onEvent('inventory.consumed', (detail) => {
     AppLog.info("PnP: consumed " + detail.qty + "x " + detail.part_key + " (new_qty=" + detail.new_qty + ")");
     showToast("PnP: -" + detail.qty + " " + detail.part_key);
-  };
+    scheduleInventoryRefresh().catch(e => AppLog.warn("SSE inventory.consumed refresh failed: " + e));
+  });
 
-  // ── Phone-scan PO handler (called by the scan server via evaluate_js) ──
-  // Registers window._scanReceived to land OCR'd line items in the mfg-direct
-  // staging editor (mirrors the _pnpConsume push pattern above).
-  registerScanHandler();
+  // ── SSE connection: the /v1 server is up before the page is ever served
+  // (by construction — see app.pyw's splash-first boot), so this is
+  // unconditional in the running app. Under Playwright's serve-static.mjs
+  // (no /v1 backend) connectEvents() will simply fail to open; specs that
+  // need inventory rendered use installRouteMocks + a direct post-mutation
+  // refetch instead of relying on a live SSE stream. ──
+  connectEvents();
 
   // ── Cross-panel designator hover highlighting ──────────
   var highlightedRef = null;

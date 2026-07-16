@@ -3,7 +3,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows, loadBomViaEmit, loadBomViaFileInput, loadPurchaseOrder } from './helpers.mjs';
+import { waitForInventoryRows, loadBomViaEmit, loadBomViaFileInput, loadPurchaseOrder } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -29,7 +30,7 @@ const EXPECTED_CLASSES = {
 test.describe('Designator colors — inventory panel BOM table', () => {
 
   test('designators have correct color classes', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -54,7 +55,7 @@ test.describe('Designator colors — inventory panel BOM table', () => {
   });
 
   test('all ref spans have data-ref attribute matching text', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -87,7 +88,7 @@ test.describe('Designator colors — inventory panel BOM table', () => {
 test.describe('Designator colors — inventory panel BOM table — with PO', () => {
 
   test('designators have correct color classes with PO loaded', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -110,7 +111,7 @@ test.describe('Designator colors — inventory panel BOM table — with PO', () 
   });
 
   test('designators have correct color classes at narrow viewport (1200px)', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -137,7 +138,7 @@ test.describe('Designator colors — inventory panel BOM table — with PO', () 
 test.describe('Designator colors — BOM panel staging table', () => {
 
   test('staging ref column shows colored display divs', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -168,7 +169,7 @@ test.describe('Designator colors — BOM panel staging table', () => {
   });
 
   test('clicking refs display reveals input for editing', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -203,7 +204,7 @@ test.describe('Designator colors — BOM panel staging table', () => {
 test.describe('Cross-panel designator hover highlighting', () => {
 
   test('hovering ref in inventory panel highlights matching refs everywhere', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -233,7 +234,7 @@ test.describe('Cross-panel designator hover highlighting', () => {
   });
 
   test('hovering ref in BOM panel highlights matching refs in inventory panel', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -263,7 +264,7 @@ test.describe('Cross-panel designator hover highlighting', () => {
     // 140px refs cell. The last designator in a multi-ref cell would shift away
     // from the cursor on highlight, causing the hover to oscillate and appear
     // dead. The highlight must apply without changing the element's bounding box.
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -305,7 +306,7 @@ test.describe('Cross-panel designator hover highlighting', () => {
   });
 
   test('moving mouse away clears highlights', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -332,7 +333,7 @@ test.describe('Cross-panel designator hover highlighting', () => {
 test.describe('Cross-panel designator hover highlighting — with PO', () => {
 
   test('hover highlighting works with BOM + PO loaded', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -354,7 +355,7 @@ test.describe('Cross-panel designator hover highlighting — with PO', () => {
   });
 
   test('hover highlighting works at narrow viewport (1200px) with BOM', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);

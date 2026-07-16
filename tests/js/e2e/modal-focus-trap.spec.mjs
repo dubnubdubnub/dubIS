@@ -3,13 +3,14 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'inventory.json'), 'utf8'));
 
 test('Enter key confirms the preferences modal (not in a textarea)', async ({ page }) => {
-  await addMockSetup(page, MOCK_INVENTORY);
+  await installRouteMocks(page, MOCK_INVENTORY);
   await page.goto('/index.html');
   await waitForInventoryRows(page);
 
@@ -27,7 +28,7 @@ test('Enter key confirms the preferences modal (not in a textarea)', async ({ pa
 });
 
 test('preferences modal traps focus and restores it on Escape', async ({ page }) => {
-  await addMockSetup(page, MOCK_INVENTORY);
+  await installRouteMocks(page, MOCK_INVENTORY);
   await page.goto('/index.html');
   await waitForInventoryRows(page);
 

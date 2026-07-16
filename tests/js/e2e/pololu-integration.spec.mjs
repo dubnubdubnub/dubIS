@@ -1,6 +1,7 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 // Small focused inventory with a Pololu part + a few others for search filtering
 const POLOLU_INVENTORY = [
@@ -46,9 +47,10 @@ const MOCK_PRODUCTS = {
 };
 
 test.describe('Pololu integration', () => {
+  let routeState;
 
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, POLOLU_INVENTORY, { productMocks: MOCK_PRODUCTS });
+    routeState = await installRouteMocks(page, POLOLU_INVENTORY, { productMocks: MOCK_PRODUCTS });
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -65,10 +67,14 @@ test.describe('Pololu integration', () => {
     await expect(icon).toBeVisible();
     const src = await icon.getAttribute('src');
     expect(src).toContain('pololu-icon');
+    await assertHttpExercised(routeState);
   });
 
   test('Pololu part uses correct brand color', async ({ page }) => {
     const pololuSpan = page.locator('.part-id-pololu[data-pololu="1992"]');
+    // Wait for the row to actually be visible before reading computed style —
+    // a one-shot evaluate() can otherwise race the render (no retry/polling).
+    await expect(pololuSpan).toBeVisible();
     const color = await pololuSpan.evaluate(el => getComputedStyle(el).color);
     // #1e2f94 = rgb(30, 47, 148)
     expect(color).toBe('rgb(30, 47, 148)');

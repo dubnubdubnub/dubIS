@@ -8,14 +8,14 @@
    - Guard: no-op if link mode active or flyout drag active.
    - Enter → commit (adjust_part SET for qty, update_part_price for unit price).
    - Esc or blur-without-change → cancel, restore display text.
-   - Reuses: UndoRedo.save → api → onInventoryUpdated → showToast exactly as
-     inventory-modals.js does (same code paths, same undo registration keys).
+   - Reuses: UndoRedo.save → api → scheduleInventoryRefresh → showToast exactly
+     as inventory-modals.js does (same code paths, same undo registration keys).
 */
 
 import { api, AppLog } from '../api.js';
 import { showToast } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { onInventoryUpdated } from '../store.js';
+import { scheduleInventoryRefresh } from '../store.js';
 import { invPartKey } from '../part-keys.js';
 import { isFlyoutDragActive } from './inv-events.js';
 import { store } from '../store.js';
@@ -194,7 +194,7 @@ async function commitQty(item, rawValue, restore) {
     return;
   }
 
-  onInventoryUpdated(result);
+  scheduleInventoryRefresh().catch(e => AppLog.warn('inventory refresh failed: ' + e));
   showToast('Updated qty for ' + pk);
 }
 
@@ -233,7 +233,7 @@ async function commitPrice(item, rawValue, restore) {
     return;
   }
 
-  onInventoryUpdated(result);
+  scheduleInventoryRefresh().catch(e => AppLog.warn('inventory refresh failed: ' + e));
   showToast('Updated price for ' + pk);
 }
 

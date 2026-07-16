@@ -3,6 +3,7 @@
 import csv
 from pathlib import Path
 
+from distributor_manager import DistributorManager
 from inventory_api import InventoryApi
 
 
@@ -19,6 +20,16 @@ def make_api(tmp_path):
     data_dir = tmp_path / "data"
     data_dir.mkdir(exist_ok=True)
     inst.cache_db_path = str(data_dir / "cache.db")
+    # InventoryApi.__init__ constructs self._distributors = DistributorManager
+    # bound to the DEFAULT base_dir (the real repo data/) before we ever get a
+    # chance to repoint inst.base_dir above — DistributorManager captures a
+    # plain string at construction time, not a live reference, so it doesn't
+    # follow the reassignment. Without this, tests that touch distributor
+    # credentials (set_mouser_api_key, digikey cookies, etc.) silently read
+    # and write the REAL repo's data/ directory instead of tmp_path. Found via
+    # test_distributors_routes.py::test_mouser_api_key_roundtrip polluting
+    # data/mouser_credentials.json during Phase 1b Task 9's live E2E work.
+    inst._distributors = DistributorManager(inst.base_dir, inst._get_cache)
     return inst
 
 

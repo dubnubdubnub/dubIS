@@ -4,6 +4,8 @@
 import logging
 import os
 import sys
+import threading
+import time
 
 import bench  # fixes t0 at first import; no-op unless DUBIS_BENCH_OUT is set
 
@@ -27,10 +29,31 @@ if sys.platform == "win32":
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("gehub.dubIS")
 
 import webview
+from client_shell import ClientShell
 from inventory_api import InventoryApi
 from pnp_server import start_pnp_server, stop_pnp_server
 
+# NOTE: server.run (uvicorn + fastapi, ~300-400ms to import) is deliberately
+# NOT imported here. It's imported lazily inside main()'s _boot_server(),
+# which runs on a background thread started BEFORE webview.create_window() —
+# see main() for the full boot sequence. Importing it at module level here
+# would put that cost back on the path to first paint, which is exactly the
+# Phase 1b Task 8 regression this file fixes.
+
 bench.mark("imports_done")
+
+SPLASH_PATH = os.path.join(APP_DIR, "splash.html")
+
+
+def _free_port() -> int:
+    """Bind an ephemeral loopback port and release it immediately for uvicorn
+    to reuse. Small TOCTOU risk (another process could grab it in between) —
+    matches the pattern already used by scripts/spike-webview-loopback.py and
+    tests/python/server/test_lifecycle.py."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
 
 def _hard_exit(code: int = 0) -> None:
@@ -81,20 +104,96 @@ def main():
     debug = "--debug" in sys.argv
     api = InventoryApi(debug=debug)
     bench.mark("api_constructed")
-    v1_port = os.environ.get("DUBIS_SERVER_PORT")
-    v1_server = None
-    if v1_port:
-        from server.run import start_server
-        v1_server = start_server(api, port=int(v1_port))
+
+    shell = ClientShell(api)
+
+    # ── Splash-first parallel boot (Phase 1b Task 8, fix round 1) ───────────
+    # The regression: app.pyw used to import server.run (uvicorn+fastapi,
+    # ~300-400ms) and block on server.started BEFORE create_window, so the
+    # window didn't appear until the server was already up. Fix: create the
+    # window immediately against a local, JS-free-except-a-health-poll
+    # splash.html (same first paint as baseline), and boot the /v1 server on
+    # a background thread that starts BEFORE create_window so the heavy
+    # import runs fully off the UI path.
+    #
+    # The port is picked HERE, on the main thread, before create_window —
+    # binding+releasing a socket (_free_port()) is a cheap stdlib-only call,
+    # nothing like importing uvicorn/fastapi — so the window can be created
+    # with the target port already baked into the splash URL
+    # (splash.html?port=<port>), and the boot thread just starts the server
+    # on that same port.
+    #
+    # Splash.html's own inline script polls http://127.0.0.1:<port>/v1/health
+    # and navigates itself there once it answers — a normal page-initiated
+    # top-level navigation, and app.pyw never touches the window object from
+    # the boot thread at all (not even for the failure path — splash.html's
+    # own script renders an inline error state after its poll times out).
+    #
+    # This is the second design tried here, not the first. Earlier, app.pyw
+    # itself called window.load_url() from the boot thread once the server
+    # was ready; that reproduced a real, ~50%-reliable pywebview
+    # bridge-corruption crash (JavascriptException:
+    # "...bench_mark.<id> is not a function") on the first bridge call the
+    # real page made after navigating — reproducible even after marshaling
+    # the call onto the native WinForms UI thread via Control.Invoke (the
+    # same pattern set_icon() uses below). Switching to a page-initiated
+    # navigation reduced but did NOT eliminate that crash on its own — it
+    # turned out to be a broader timing race (navigating this window at all
+    # too soon after creation corrupts the bridge, regardless of who
+    # triggers it). splash.html's script carries a short empirically-tuned
+    # delay before its first poll to work around that; see splash.html for
+    # the full writeup and the bisection results that picked the delay.
+    server_state: dict = {"server": None, "stop_server": None}
+    port = int(os.environ.get("DUBIS_SERVER_PORT", 0)) or _free_port()
+
+    def _boot_server() -> None:
+        """Background thread: import + start the /v1 server on the
+        already-chosen `port`. Started before create_window (see below) so
+        the uvicorn/fastapi import cost never sits on the path to first
+        paint. Never touches the window — splash.html's own script (started
+        by pywebview once it renders) polls /v1/health and navigates itself;
+        this thread's only job is getting uvicorn listening.
+
+        The whole body is wrapped in try/except so an exception anywhere in
+        here (import failure, port conflict, etc.) is logged instead of
+        silently killing this daemon thread with nothing in the log. The
+        splash's own 15s health-poll timeout already handles the user-facing
+        UX for a boot failure; this only closes the silent-log gap."""
+        try:
+            from server.run import start_server, stop_server  # deferred: heavy import
+
+            server_state["stop_server"] = stop_server
+            v1_server = start_server(api, static_dir=APP_DIR, port=port)
+            server_state["server"] = v1_server
+            bench.mark("server_starting")
+
+            start_deadline = time.monotonic() + 15
+            while not v1_server.started and time.monotonic() < start_deadline:
+                time.sleep(0.02)
+            if not v1_server.started:
+                # Loud, not silent: splash.html's own poll will also time out
+                # (15s) and render its inline error state, but log here too since
+                # that's the actionable signal for whoever's watching the logs.
+                logger.error(
+                    "/v1 loopback server did not start within 15s on port %s", port
+                )
+                return
+            bench.mark("server_started")
+        except Exception as e:
+            logger.error("v1 server boot failed: %s", e, exc_info=True)
+
+    threading.Thread(target=_boot_server, name="dubis-server-boot", daemon=True).start()
+
     window = webview.create_window(
         "dubIS",
-        url=os.path.join(APP_DIR, "index.html"),
-        js_api=api,
+        url=f"{SPLASH_PATH}?port={port}",
+        js_api=shell,
         width=1600,
         height=900,
         min_size=(1200, 700),
         background_color="#0d1117",  # match the dark theme so the shell doesn't flash white before first paint
     )
+    shell._window = window
 
     pnp_server = None
 
@@ -115,12 +214,13 @@ def main():
         except Exception as exc:
             logger.warning("Cleanup: stopping PnP server failed: %s", exc)
         bench.mark("pnp_stopped")
-        if v1_server:
-            try:
-                from server.run import stop_server
+        try:
+            v1_server = server_state.get("server")
+            stop_server = server_state.get("stop_server")
+            if v1_server is not None and stop_server is not None:
                 stop_server(v1_server)
-            except Exception as exc:
-                logger.warning("Cleanup: stopping /v1 server failed: %s", exc)
+        except Exception as exc:
+            logger.warning("Cleanup: stopping /v1 server failed: %s", exc)
         try:
             api.shutdown()
         except Exception as exc:
@@ -159,7 +259,7 @@ def main():
         nonlocal pnp_server
         bench.mark("on_ready")  # native window shown; WebView2 runtime up
         set_icon()
-        pnp_server = start_pnp_server(api, window)
+        pnp_server = start_pnp_server(api)
         # Expose the running server so api.start_scan_session() can mint sessions
         # on it (phone-scan transport). May be None if the port was unavailable.
         api._pnp_server = pnp_server
