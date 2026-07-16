@@ -14,7 +14,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { waitForInventoryRows } from './helpers.mjs';
-import { installRouteMocks } from './route-mocks.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -23,7 +23,7 @@ const MOCK_INVENTORY = JSON.parse(
 
 test.describe('Install Tesseract button', () => {
   test('engine missing: notice + Install button render with command fallback', async ({ page }) => {
-    await installRouteMocks(page, MOCK_INVENTORY, { ocrEngineAvailable: false });
+    const routeState = await installRouteMocks(page, MOCK_INVENTORY, { ocrEngineAvailable: false });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -32,6 +32,10 @@ test.describe('Install Tesseract button', () => {
     await expect(page.locator('#install-tesseract-btn')).toBeVisible();
     // The copyable winget command fallback is present.
     await expect(page.locator('#ocr-engine-missing code')).toContainText('UB-Mannheim.TesseractOCR');
+    // Canary (Finding 2): proves this assertion exercised the real HTTP
+    // envelope ({"available": false}) via ocr_engine_available's unwrap,
+    // not a bridge fallback.
+    await assertHttpExercised(routeState);
   });
 
   test('engine present: no notice renders', async ({ page }) => {

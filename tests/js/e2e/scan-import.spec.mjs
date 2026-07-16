@@ -20,7 +20,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { waitForInventoryRows } from './helpers.mjs';
-import { installRouteMocks } from './route-mocks.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -69,8 +69,10 @@ const MULTI_PHOTO = {
 };
 
 test.describe('Phone-scan desktop modal → end-to-end import', () => {
+  let routeState;
+
   test.beforeEach(async ({ page }) => {
-    await installRouteMocks(page, MOCK_INVENTORY, { mfgDirectVendors: VENDORS });
+    routeState = await installRouteMocks(page, MOCK_INVENTORY, { mfgDirectVendors: VENDORS });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -133,6 +135,7 @@ test.describe('Phone-scan desktop modal → end-to-end import', () => {
     // 10. After import the panel re-renders, but the OCR-template dropdown keeps
     //     the user's choice (lcsc) instead of snapping back to "generic".
     await expect(page.locator('#import-ocr-template')).toHaveValue('lcsc');
+    await assertHttpExercised(routeState);
   });
 
   test('_scanReceiving gives instant feedback before OCR completes', async ({ page }) => {

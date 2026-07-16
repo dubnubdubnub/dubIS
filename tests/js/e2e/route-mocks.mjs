@@ -168,6 +168,10 @@ const ROUTES = [
     return { ...ctx.options.ocrOverlayResult, template: a.template || ctx.options.ocrOverlayResult.template };
   }),
   route('match_part', () => ({ status: 'new' })),
+  // Real envelope per server/routes/import_scan.py: {"available": <bool>}.
+  // The client (js/api.js) unwraps "available" (see api-map.js), so call
+  // sites still see the bare bool — this handler must return the bool, and
+  // the dispatcher below wraps it under `match.unwrap` for non-mutation routes.
   route('ocr_engine_available', (_a, ctx) => {
     if (ctx.options.ocrEngineCheckThrows) throw new Error('bridge not ready (simulated)');
     return ctx.options.ocrEngineAvailable === undefined ? true : ctx.options.ocrEngineAvailable;
@@ -277,6 +281,12 @@ export async function installRouteMocks(page, inventory, options = {}) {
     // Mutable per-session state for stateful mocks (grows via create_* calls).
     savedSearches: (options.savedSearches || []).slice(),
     genericParts: (options.genericParts || []).slice(),
+    // Canary counter (Finding 2): incremented once per intercepted /v1
+    // request in the catch-all handler below, so specs can assert the HTTP
+    // transport was actually exercised rather than silently falling back to
+    // the bridge (which would make a bug in the HTTP path invisible to
+    // otherwise-passing, transport-agnostic specs).
+    httpHits: 0,
   };
 
   // Register the general '**/v1/**' catch-all BEFORE the specific
@@ -298,6 +308,11 @@ export async function installRouteMocks(page, inventory, options = {}) {
       await route.fulfill({ status: 404, json: { error: `route-mocks.mjs: no mock for ${verb} ${pathname}` } });
       return;
     }
+
+    // Canary (Finding 2): count every mapped /v1 request actually
+    // intercepted here, so specs can prove the HTTP transport (not the
+    // bridge fallback) served the call — see assertHttpExercised below.
+    ctx.httpHits += 1;
 
     const argMap = {};
     match.pathParamNames.forEach((name, i) => {
@@ -382,4 +397,29 @@ export async function installRouteMocks(page, inventory, options = {}) {
       body: ': hello\n\n',
     });
   });
+
+  // Canary accessor (Finding 2) — see assertHttpExercised.
+  return {
+    getHttpHits: () => ctx.httpHits,
+  };
+}
+
+/**
+ * Canary (Finding 2): throws if zero /v1 requests were intercepted by the
+ * route mocks installed above. A wave-1/wave-2 spec that passes ONLY because
+ * every call silently fell back to `window.pywebview.api` (the bridge) would
+ * still pass its own assertions — this catches that failure mode. Call at
+ * the END of at least one test per ported spec file, after the page has
+ * done its real work, so the count reflects genuine traffic.
+ *
+ * @param {{getHttpHits: () => number}} state Return value of installRouteMocks.
+ */
+export async function assertHttpExercised(state) {
+  const hits = state.getHttpHits();
+  if (hits === 0) {
+    throw new Error(
+      'assertHttpExercised: 0 /v1 requests were intercepted — the spec likely fell back to '
+      + 'the window.pywebview bridge instead of exercising the HTTP transport.',
+    );
+  }
 }

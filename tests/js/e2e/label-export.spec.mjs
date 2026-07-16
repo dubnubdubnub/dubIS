@@ -35,7 +35,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { waitForInventoryRows } from './helpers.mjs';
-import { installRouteMocks } from './route-mocks.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE_INVENTORY = JSON.parse(
@@ -87,8 +87,10 @@ function addSaveFileDialogRecorder(page) {
 }
 
 test.describe('Epson label export', () => {
+  let routeState;
+
   test.beforeEach(async ({ page }) => {
-    await installRouteMocks(page, MOCK_INVENTORY, {
+    routeState = await installRouteMocks(page, MOCK_INVENTORY, {
       purchaseOrders: [{ po_id: PO_ID, purchase_date: '2026-05-01', vendor_id: 'v_lcsc' }],
       poWithItems: { [PO_ID]: { po_id: PO_ID, line_items: PO_ITEMS } },
     });
@@ -212,6 +214,7 @@ test.describe('Epson label export', () => {
     const rowAfter = page.locator('.inv-part-row').first();
     await expect(rowAfter.locator('.adj-btn')).toBeVisible();
     await expect(rowAfter.locator('.label-select-checkbox')).toHaveCount(0);
+    await assertHttpExercised(routeState);
   });
 
   test('Select PO from the dimmed picker auto-enters label mode', async ({ page }) => {
@@ -257,8 +260,10 @@ test.describe('Purchase Orders picker ordering', () => {
   // 2026-03-01 POs (PO-MID-B) wins the tie; the blank-date PO sinks last.
   const EXPECTED_ORDER = ['PO-NEW', 'PO-MID-B', 'PO-MID-A', 'PO-OLD', 'PO-NODATE'];
 
+  let routeState;
+
   test.beforeEach(async ({ page }) => {
-    await installRouteMocks(page, MOCK_INVENTORY, { purchaseOrders: UNSORTED_POS });
+    routeState = await installRouteMocks(page, MOCK_INVENTORY, { purchaseOrders: UNSORTED_POS });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -272,5 +277,6 @@ test.describe('Purchase Orders picker ordering', () => {
     for (let i = 0; i < EXPECTED_ORDER.length; i++) {
       await expect(labels.nth(i)).toContainText(EXPECTED_ORDER[i]);
     }
+    await assertHttpExercised(routeState);
   });
 });

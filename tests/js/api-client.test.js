@@ -83,6 +83,17 @@ describe('api() HTTP transport (probe succeeds)', () => {
     expect(result).toBe(true);
   });
 
+  it('unwraps a scalar envelope (ocr_engine_available -> "available")', async () => {
+    // Real server envelope (server/routes/import_scan.py) is {"available": bool} —
+    // the client must unwrap it back to a bare bool for call sites.
+    global.fetch = vi.fn(async (url) => {
+      if (url === '/v1/health') return jsonResponse({ ok: true });
+      return jsonResponse({ available: false });
+    });
+    const result = await api('ocr_engine_available');
+    expect(result).toBe(false);
+  });
+
   it('distributor alias fixes the `name` path segment and derives from `code`', async () => {
     global.fetch = vi.fn(async (url) => {
       if (url === '/v1/health') return jsonResponse({ ok: true });

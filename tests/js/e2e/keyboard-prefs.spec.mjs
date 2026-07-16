@@ -4,13 +4,13 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { waitForInventoryRows } from './helpers.mjs';
-import { installRouteMocks } from './route-mocks.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'inventory.json'), 'utf8'));
 
 test('redo pref restricts the binding live', async ({ page }) => {
-  await installRouteMocks(page, MOCK_INVENTORY);
+  const routeState = await installRouteMocks(page, MOCK_INVENTORY);
   await page.goto('/index.html');
   await waitForInventoryRows(page);
 
@@ -23,6 +23,7 @@ test('redo pref restricts the binding live', async ({ page }) => {
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+,');
   await expect(page.locator('#pref-redo')).toHaveValue('ctrl-y');
+  await assertHttpExercised(routeState);
 });
 
 test('vim nav toggle moves the grid with j/k', async ({ page }) => {

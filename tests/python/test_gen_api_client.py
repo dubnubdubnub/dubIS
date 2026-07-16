@@ -72,6 +72,7 @@ def test_scalar_unwrap_overrides_applied(spec: dict) -> None:
     assert api_map["has_purchase_history"]["unwrap"] == "has_purchase_history"
     assert api_map["extract_spec"]["unwrap"] == "spec"
     assert api_map["resolve_bom_spec"]["unwrap"] == "match"
+    assert api_map["ocr_engine_available"]["unwrap"] == "available"
 
 
 def test_raw_body_op_has_single_synthetic_arg(spec: dict) -> None:
