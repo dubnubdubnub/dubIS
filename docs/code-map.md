@@ -126,6 +126,7 @@ graph LR
     "js/app-init.js" --> "js/part-preview.js"
     "js/app-init.js" --> "js/preferences-modal.js"
     "js/app-init.js" --> "js/resize-panels.js"
+    "js/app-init.js" --> "js/sse.js"
     "js/app-init.js" --> "js/store.js"
     "js/app-init.js" --> "js/ui-helpers.js"
     "js/app-init.js" --> "js/undo-redo.js"
@@ -209,6 +210,7 @@ graph LR
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/import/mfg-direct/vendor-picker.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/inventory/inv-state.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/part-keys.js"
+    "js/import/mfg-direct/mfg-direct-panel.js" --> "js/sse.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/store.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/ui-helpers.js"
     "js/import/mfg-direct/mfg-direct-panel.js" --> "js/undo-redo.js"
@@ -369,6 +371,7 @@ graph LR
     "js/store.js" --> "js/constants.js"
     "js/store.js" --> "js/event-bus.js"
     "js/store.js" --> "js/signals.js"
+    "js/store.js" --> "js/sse.js"
     "js/ui-helpers.js" --> "js/a11y/focus-trap.js"
     "js/undo-redo.js" --> "js/api.js"
     "js/vendors-modal.js" --> "js/api.js"
@@ -905,7 +908,7 @@ graph LR
 
 ### js/app-init.js
 
-- **Imports:** `js/a11y/keyboard-nav.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/api.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory-modals.js`, `js/inventory/fetch-descriptions-command.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`, `js/vendors-modal.js`
+- **Imports:** `js/a11y/keyboard-nav.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/api.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory-modals.js`, `js/inventory/fetch-descriptions-command.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/sse.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`, `js/vendors-modal.js`
 - **Imported by:** —
 - **Emits:** `CONFIRMED_CHANGED`, `LINKS_CHANGED`, `SAVE_AND_CLOSE`
 - **Listens:** `BOM_LOADED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`
@@ -1060,7 +1063,7 @@ graph LR
 
 ### js/import/mfg-direct/mfg-direct-panel.js
 
-- **Imports:** `js/api.js`, `js/import/import-logic.js`, `js/import/mfg-direct/mfg-direct-logic.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/scan-grouping.js`, `js/import/mfg-direct/scan-shell.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/inv-state.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`, `js/vendor/qrcode.js`
+- **Imports:** `js/api.js`, `js/import/import-logic.js`, `js/import/mfg-direct/mfg-direct-logic.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/scan-grouping.js`, `js/import/mfg-direct/scan-shell.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/inv-state.js`, `js/part-keys.js`, `js/sse.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`, `js/vendor/qrcode.js`
 - **Imported by:** `js/app-init.js`
 
 ### js/import/mfg-direct/mfg-direct-renderer.js
@@ -1289,9 +1292,14 @@ graph LR
 - **Imports:** —
 - **Imported by:** `js/inventory/inv-events.js`, `js/store.js`, `tests/js/signals.test.js`
 
+### js/sse.js
+
+- **Imports:** —
+- **Imported by:** `js/app-init.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/store.js`
+
 ### js/store.js
 
-- **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/signals.js`
+- **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/signals.js`, `js/sse.js`
 - **Imported by:** `js/a11y/roving-grid.js`, `js/a11y/scrollable.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/favicon-stack.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/preferences-modal.js`, `js/vendors-modal.js`, `tests/js/inventory-rendering.test.js`, `tests/js/saved-views.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
 - **Emits:** `CONFIRMED_CHANGED`, `GENERIC_PARTS_LOADED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LINKING_MODE`, `LINKS_CHANGED`, `PO_CHANGED`, `VENDORS_CHANGED`
 - **Listens:** —
@@ -1916,6 +1924,11 @@ graph LR
 ### tests/js/signals.test.js
 
 - **Imports:** `js/signals.js`
+- **Imported by:** —
+
+### tests/js/sse.test.js
+
+- **Imports:** —
 - **Imported by:** —
 
 ### tests/js/store.test.js
