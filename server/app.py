@@ -7,12 +7,15 @@ InventoryApi._lock serialize exactly like the bridge and PnP threads today.
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from server.errors import register_handlers
 
 
-def create_app(api) -> FastAPI:
+def create_app(api, static_dir: str | None = None) -> FastAPI:
     app = FastAPI(title="dubIS", version="1", docs_url="/v1/docs",
                   openapi_url="/v1/openapi.json")
     app.state.api = api
@@ -40,4 +43,9 @@ def create_app(api) -> FastAPI:
     app.include_router(distributors.router)
     app.include_router(pnp.router)
     app.include_router(preferences.router)
+
+    if static_dir is not None and os.path.isdir(static_dir):
+        # Mounted last so API routers above always win on path collisions.
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+
     return app
