@@ -23,6 +23,7 @@ from scan_image import (  # noqa: F401
     _validate_scan_image,
 )
 from scan_sessions import SCAN_SESSION_TTL, _get_scan_session, create_scan_session  # noqa: F401
+from server import events as sse_events
 
 logger = logging.getLogger(__name__)
 
@@ -161,15 +162,17 @@ class PnPHandler(BaseHTTPRequestHandler):
         # Instant desktop acknowledgement: tell the UI the photo(s) arrived
         # BEFORE the (slower) OCR pass, so the user sees feedback the moment the
         # upload lands instead of waiting out OCR. Best-effort — never blocks.
+        receiving_payload = {"filename": images[0]["filename"],
+                              "template": template, "count": len(images)}
         try:
             window.evaluate_js(
                 "window._scanReceiving && window._scanReceiving("
-                + json.dumps({"filename": images[0]["filename"],
-                              "template": template, "count": len(images)})
+                + json.dumps(receiving_payload)
                 + ")"
             )
         except Exception as exc:
             logger.warning("Scan 'receiving' UI push failed (window may be closed): %s", exc)
+        sse_events.publish("scan.receiving", receiving_payload)
 
         # OCR each image INDEPENDENTLY and keep the per-photo results separate so
         # the desktop can group photos into POs (each group → one PO). Also build
@@ -220,6 +223,7 @@ class PnPHandler(BaseHTTPRequestHandler):
             window.evaluate_js("window._scanReceived(" + json.dumps(payload) + ")")
         except Exception as exc:
             logger.warning("Scan UI push failed (window may be closed): %s", exc)
+        sse_events.publish("scan.received", payload)
 
         logger.info(
             "Scan upload OCR'd %d line item(s) from %d image(s) into %d order(s) (template=%s)",
@@ -320,6 +324,7 @@ class PnPHandler(BaseHTTPRequestHandler):
             window.evaluate_js(js_code)
         except Exception as exc:
             logger.warning("PnP UI push failed (window may be closed): %s", exc)
+        sse_events.publish("inventory.consumed", detail)
 
         logger.info("PnP consumed %dx %s (key=%s, new_qty=%s)", qty, part_id, part_key, new_qty)
         self._send_json(200, {

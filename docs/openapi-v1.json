@@ -1,0 +1,3715 @@
+{
+  "components": {
+    "schemas": {
+      "AddMemberBody": {
+        "properties": {
+          "part_id": {
+            "title": "Part Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "part_id"
+        ],
+        "title": "AddMemberBody",
+        "type": "object"
+      },
+      "AdjustPartBody": {
+        "properties": {
+          "adj_type": {
+            "enum": [
+              "set",
+              "add",
+              "remove"
+            ],
+            "title": "Adj Type",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "source": {
+            "default": "",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "adj_type",
+          "quantity"
+        ],
+        "title": "AdjustPartBody",
+        "type": "object"
+      },
+      "ConsumeBody": {
+        "properties": {
+          "part_id": {
+            "title": "Part Id",
+            "type": "string"
+          },
+          "qty": {
+            "default": 1,
+            "title": "Qty",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "part_id"
+        ],
+        "title": "ConsumeBody",
+        "type": "object"
+      },
+      "ConsumeBomBody": {
+        "properties": {
+          "board_qty": {
+            "title": "Board Qty",
+            "type": "integer"
+          },
+          "bom_name": {
+            "title": "Bom Name",
+            "type": "string"
+          },
+          "matches": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Matches",
+            "type": "array"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "source": {
+            "default": "",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "matches",
+          "board_qty",
+          "bom_name"
+        ],
+        "title": "ConsumeBomBody",
+        "type": "object"
+      },
+      "CreateGenericPartBody": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "part_type": {
+            "title": "Part Type",
+            "type": "string"
+          },
+          "spec": {
+            "additionalProperties": true,
+            "title": "Spec",
+            "type": "object"
+          },
+          "strictness": {
+            "additionalProperties": true,
+            "title": "Strictness",
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "part_type",
+          "spec",
+          "strictness"
+        ],
+        "title": "CreateGenericPartBody",
+        "type": "object"
+      },
+      "CreatePurchaseOrderBody": {
+        "properties": {
+          "line_items": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Line Items",
+            "type": "array"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "purchase_date": {
+            "default": "",
+            "title": "Purchase Date",
+            "type": "string"
+          },
+          "source_file_b64": {
+            "default": "",
+            "title": "Source File B64",
+            "type": "string"
+          },
+          "source_file_name": {
+            "default": "",
+            "title": "Source File Name",
+            "type": "string"
+          },
+          "vendor_id": {
+            "title": "Vendor Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vendor_id"
+        ],
+        "title": "CreatePurchaseOrderBody",
+        "type": "object"
+      },
+      "CreateSavedSearchBody": {
+        "properties": {
+          "frozen_members": {
+            "default": [],
+            "items": {},
+            "title": "Frozen Members",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "search_text": {
+            "default": "",
+            "title": "Search Text",
+            "type": "string"
+          },
+          "tag_state": {
+            "additionalProperties": true,
+            "title": "Tag State",
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "tag_state"
+        ],
+        "title": "CreateSavedSearchBody",
+        "type": "object"
+      },
+      "DetectColumnsBody": {
+        "properties": {
+          "headers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Headers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "headers"
+        ],
+        "title": "DetectColumnsBody",
+        "type": "object"
+      },
+      "ExtractSpecFromValueBody": {
+        "properties": {
+          "package_str": {
+            "title": "Package Str",
+            "type": "string"
+          },
+          "part_type": {
+            "title": "Part Type",
+            "type": "string"
+          },
+          "value_str": {
+            "title": "Value Str",
+            "type": "string"
+          }
+        },
+        "required": [
+          "part_type",
+          "value_str",
+          "package_str"
+        ],
+        "title": "ExtractSpecFromValueBody",
+        "type": "object"
+      },
+      "FetchFaviconBody": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "FetchFaviconBody",
+        "type": "object"
+      },
+      "GroupsResponse": {
+        "properties": {
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Groups",
+            "type": "array"
+          }
+        },
+        "required": [
+          "groups"
+        ],
+        "title": "GroupsResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ImportPurchasesBody": {
+        "properties": {
+          "rows": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "title": "ImportPurchasesBody",
+        "type": "object"
+      },
+      "InventoryEnvelope": {
+        "properties": {
+          "inventory": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryItemModel"
+            },
+            "title": "Inventory",
+            "type": "array"
+          }
+        },
+        "required": [
+          "inventory"
+        ],
+        "title": "InventoryEnvelope",
+        "type": "object"
+      },
+      "InventoryItemModel": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "digikey": {
+            "title": "Digikey",
+            "type": "string"
+          },
+          "ext_price": {
+            "title": "Ext Price",
+            "type": "number"
+          },
+          "lcsc": {
+            "title": "Lcsc",
+            "type": "string"
+          },
+          "manufacturer": {
+            "title": "Manufacturer",
+            "type": "string"
+          },
+          "mouser": {
+            "title": "Mouser",
+            "type": "string"
+          },
+          "mpn": {
+            "title": "Mpn",
+            "type": "string"
+          },
+          "package": {
+            "title": "Package",
+            "type": "string"
+          },
+          "po_history": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Po History",
+            "type": "array"
+          },
+          "pololu": {
+            "title": "Pololu",
+            "type": "string"
+          },
+          "primary_vendor_id": {
+            "title": "Primary Vendor Id",
+            "type": "string"
+          },
+          "qty": {
+            "title": "Qty",
+            "type": "integer"
+          },
+          "section": {
+            "title": "Section",
+            "type": "string"
+          },
+          "unit_price": {
+            "title": "Unit Price",
+            "type": "number"
+          }
+        },
+        "required": [
+          "section",
+          "lcsc",
+          "mpn",
+          "digikey",
+          "pololu",
+          "mouser",
+          "manufacturer",
+          "package",
+          "description",
+          "qty",
+          "unit_price",
+          "ext_price",
+          "primary_vendor_id",
+          "po_history"
+        ],
+        "title": "InventoryItemModel",
+        "type": "object"
+      },
+      "MatchPartBody": {
+        "properties": {
+          "manufacturer": {
+            "default": "",
+            "title": "Manufacturer",
+            "type": "string"
+          },
+          "mpn": {
+            "title": "Mpn",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mpn"
+        ],
+        "title": "MatchPartBody",
+        "type": "object"
+      },
+      "MergeVendorsBody": {
+        "properties": {
+          "dst_id": {
+            "title": "Dst Id",
+            "type": "string"
+          },
+          "src_id": {
+            "title": "Src Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "src_id",
+          "dst_id"
+        ],
+        "title": "MergeVendorsBody",
+        "type": "object"
+      },
+      "OcrOverlayBody": {
+        "properties": {
+          "file_b64": {
+            "title": "File B64",
+            "type": "string"
+          },
+          "file_name": {
+            "title": "File Name",
+            "type": "string"
+          },
+          "template": {
+            "default": "generic",
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_b64",
+          "file_name"
+        ],
+        "title": "OcrOverlayBody",
+        "type": "object"
+      },
+      "ParseImportBody": {
+        "properties": {
+          "file_b64": {
+            "default": "",
+            "title": "File B64",
+            "type": "string"
+          },
+          "file_name": {
+            "default": "",
+            "title": "File Name",
+            "type": "string"
+          },
+          "path": {
+            "default": "",
+            "title": "Path",
+            "type": "string"
+          },
+          "template": {
+            "default": "generic",
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "title": "ParseImportBody",
+        "type": "object"
+      },
+      "PurchaseHistoryResponse": {
+        "properties": {
+          "has_purchase_history": {
+            "title": "Has Purchase History",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "has_purchase_history"
+        ],
+        "title": "PurchaseHistoryResponse",
+        "type": "object"
+      },
+      "QuantityResponse": {
+        "properties": {
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          }
+        },
+        "required": [
+          "quantity"
+        ],
+        "title": "QuantityResponse",
+        "type": "object"
+      },
+      "RecordFetchedPricesBody": {
+        "properties": {
+          "distributor": {
+            "title": "Distributor",
+            "type": "string"
+          },
+          "price_tiers": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Price Tiers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "distributor",
+          "price_tiers"
+        ],
+        "title": "RecordFetchedPricesBody",
+        "type": "object"
+      },
+      "ResolveBomSpecBody": {
+        "properties": {
+          "package": {
+            "title": "Package",
+            "type": "string"
+          },
+          "part_type": {
+            "title": "Part Type",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "part_type",
+          "value",
+          "package"
+        ],
+        "title": "ResolveBomSpecBody",
+        "type": "object"
+      },
+      "SetMouserKeyBody": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "SetMouserKeyBody",
+        "type": "object"
+      },
+      "StartScanSessionBody": {
+        "properties": {
+          "template": {
+            "default": "generic",
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "title": "StartScanSessionBody",
+        "type": "object"
+      },
+      "UpdateGenericPartBody": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "spec": {
+            "additionalProperties": true,
+            "title": "Spec",
+            "type": "object"
+          },
+          "strictness": {
+            "additionalProperties": true,
+            "title": "Strictness",
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "spec",
+          "strictness"
+        ],
+        "title": "UpdateGenericPartBody",
+        "type": "object"
+      },
+      "UpdatePartFieldsBody": {
+        "properties": {
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "object"
+          }
+        },
+        "required": [
+          "fields"
+        ],
+        "title": "UpdatePartFieldsBody",
+        "type": "object"
+      },
+      "UpdatePartPriceBody": {
+        "properties": {
+          "ext_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ext Price"
+          },
+          "unit_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Price"
+          }
+        },
+        "title": "UpdatePartPriceBody",
+        "type": "object"
+      },
+      "UpdatePurchaseOrderBody": {
+        "properties": {
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "purchase_date": {
+            "default": "",
+            "title": "Purchase Date",
+            "type": "string"
+          },
+          "vendor_id": {
+            "default": "",
+            "title": "Vendor Id",
+            "type": "string"
+          }
+        },
+        "title": "UpdatePurchaseOrderBody",
+        "type": "object"
+      },
+      "UpdateVendorBody": {
+        "properties": {
+          "favicon_path": {
+            "default": "",
+            "title": "Favicon Path",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "url": {
+            "default": "",
+            "title": "Url",
+            "type": "string"
+          },
+          "vendor_id": {
+            "default": "",
+            "title": "Vendor Id",
+            "type": "string"
+          }
+        },
+        "title": "UpdateVendorBody",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "dubIS",
+    "version": "1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/consume": {
+      "post": {
+        "operationId": "legacy_consume",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsumeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Legacy Consume",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Legacy Consume",
+        "tags": [
+          "pnp"
+        ]
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "legacy_health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Legacy Health",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Legacy Health",
+        "tags": [
+          "pnp"
+        ]
+      }
+    },
+    "/api/parts": {
+      "get": {
+        "operationId": "legacy_parts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Legacy Parts",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Legacy Parts",
+        "tags": [
+          "pnp"
+        ]
+      }
+    },
+    "/v1/adjustments/by-source/{source}": {
+      "delete": {
+        "operationId": "rollback_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rollback Source",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rollback Source",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/adjustments/last": {
+      "delete": {
+        "operationId": "remove_last_adjustments",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "count",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Count",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Remove Last Adjustments",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Last Adjustments",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/bom/consume": {
+      "post": {
+        "operationId": "consume_bom",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsumeBomBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Consume Bom",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Consume Bom",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/bom/resolve-spec": {
+      "post": {
+        "operationId": "resolve_bom_spec",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveBomSpecBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Resolve Bom Spec",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve Bom Spec",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/distributors/digikey/cookies/sync": {
+      "post": {
+        "operationId": "sync_digikey_cookies",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Sync Digikey Cookies",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sync Digikey Cookies",
+        "tags": [
+          "distributors"
+        ]
+      }
+    },
+    "/v1/distributors/digikey/session": {
+      "delete": {
+        "operationId": "logout_digikey",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Logout Digikey",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout Digikey",
+        "tags": [
+          "distributors"
+        ]
+      },
+      "get": {
+        "operationId": "get_digikey_session",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Digikey Session",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Digikey Session",
+        "tags": [
+          "distributors"
+        ]
+      }
+    },
+    "/v1/distributors/digikey/session/validate": {
+      "post": {
+        "operationId": "validate_digikey_session",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Validate Digikey Session",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Validate Digikey Session",
+        "tags": [
+          "distributors"
+        ]
+      }
+    },
+    "/v1/distributors/mouser/key": {
+      "delete": {
+        "operationId": "clear_mouser_api_key",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Clear Mouser Api Key",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Clear Mouser Api Key",
+        "tags": [
+          "distributors"
+        ]
+      },
+      "get": {
+        "operationId": "get_mouser_api_key_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Mouser Api Key Status",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Mouser Api Key Status",
+        "tags": [
+          "distributors"
+        ]
+      },
+      "put": {
+        "operationId": "set_mouser_api_key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetMouserKeyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Mouser Api Key",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Mouser Api Key",
+        "tags": [
+          "distributors"
+        ]
+      }
+    },
+    "/v1/distributors/{name}/product/{code}": {
+      "get": {
+        "operationId": "fetch_distributor_product",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Fetch Distributor Product",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch Distributor Product",
+        "tags": [
+          "distributors"
+        ]
+      }
+    },
+    "/v1/events": {
+      "get": {
+        "operationId": "events_stream",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Events Stream",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/v1/generic-parts": {
+      "get": {
+        "operationId": "list_generic_parts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response List Generic Parts",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Generic Parts",
+        "tags": [
+          "generic-parts"
+        ]
+      },
+      "post": {
+        "operationId": "create_generic_part",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGenericPartBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Generic Part",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Generic Part",
+        "tags": [
+          "generic-parts"
+        ]
+      }
+    },
+    "/v1/generic-parts/{generic_part_id}": {
+      "put": {
+        "operationId": "update_generic_part",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "generic_part_id",
+            "required": true,
+            "schema": {
+              "title": "Generic Part Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGenericPartBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Generic Part",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Generic Part",
+        "tags": [
+          "generic-parts"
+        ]
+      }
+    },
+    "/v1/generic-parts/{generic_part_id}/members": {
+      "post": {
+        "operationId": "add_generic_member",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "generic_part_id",
+            "required": true,
+            "schema": {
+              "title": "Generic Part Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMemberBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Add Generic Member",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Generic Member",
+        "tags": [
+          "generic-parts"
+        ]
+      }
+    },
+    "/v1/generic-parts/{generic_part_id}/members/{part_id}": {
+      "delete": {
+        "operationId": "remove_generic_member",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "generic_part_id",
+            "required": true,
+            "schema": {
+              "title": "Generic Part Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part_id",
+            "required": true,
+            "schema": {
+              "title": "Part Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Remove Generic Member",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Generic Member",
+        "tags": [
+          "generic-parts"
+        ]
+      }
+    },
+    "/v1/generic-parts/{generic_part_id}/members/{part_id}/exclude": {
+      "post": {
+        "operationId": "exclude_generic_member",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "generic_part_id",
+            "required": true,
+            "schema": {
+              "title": "Generic Part Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part_id",
+            "required": true,
+            "schema": {
+              "title": "Part Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Exclude Generic Member",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Exclude Generic Member",
+        "tags": [
+          "generic-parts"
+        ]
+      }
+    },
+    "/v1/generic-parts/{generic_part_id}/members/{part_id}/preferred": {
+      "put": {
+        "operationId": "set_preferred_member",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "generic_part_id",
+            "required": true,
+            "schema": {
+              "title": "Generic Part Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part_id",
+            "required": true,
+            "schema": {
+              "title": "Part Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Preferred Member",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Preferred Member",
+        "tags": [
+          "generic-parts"
+        ]
+      }
+    },
+    "/v1/generic-parts/{generic_part_id}/saved-searches": {
+      "get": {
+        "operationId": "list_saved_searches",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "generic_part_id",
+            "required": true,
+            "schema": {
+              "title": "Generic Part Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response List Saved Searches",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Saved Searches",
+        "tags": [
+          "generic-parts"
+        ]
+      },
+      "post": {
+        "operationId": "create_saved_search",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "generic_part_id",
+            "required": true,
+            "schema": {
+              "title": "Generic Part Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSavedSearchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Saved Search",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Saved Search",
+        "tags": [
+          "generic-parts"
+        ]
+      }
+    },
+    "/v1/health": {
+      "get": {
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Health",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/v1/import/detect-columns": {
+      "post": {
+        "operationId": "detect_columns",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DetectColumnsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Detect Columns",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Detect Columns",
+        "tags": [
+          "import",
+          "scan"
+        ]
+      }
+    },
+    "/v1/import/match-part": {
+      "post": {
+        "operationId": "match_part",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MatchPartBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Match Part",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Match Part",
+        "tags": [
+          "import",
+          "scan"
+        ]
+      }
+    },
+    "/v1/import/ocr": {
+      "post": {
+        "operationId": "ocr_overlay",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OcrOverlayBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ocr Overlay",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ocr Overlay",
+        "tags": [
+          "import",
+          "scan"
+        ]
+      }
+    },
+    "/v1/import/ocr/available": {
+      "get": {
+        "operationId": "ocr_engine_available",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ocr Engine Available",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ocr Engine Available",
+        "tags": [
+          "import",
+          "scan"
+        ]
+      }
+    },
+    "/v1/import/parse": {
+      "post": {
+        "operationId": "parse_import_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParseImportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response Parse Import Source",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Parse Import Source",
+        "tags": [
+          "import",
+          "scan"
+        ]
+      }
+    },
+    "/v1/meta": {
+      "get": {
+        "operationId": "meta",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Meta",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Meta",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/v1/parts": {
+      "get": {
+        "operationId": "list_parts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Parts",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/parts/fetch-missing-descriptions": {
+      "post": {
+        "operationId": "fetch_missing_descriptions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Fetch Missing Descriptions",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch Missing Descriptions",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/parts/{part_key}": {
+      "delete": {
+        "operationId": "delete_part",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Part",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Part",
+        "tags": [
+          "parts"
+        ]
+      },
+      "patch": {
+        "operationId": "update_part_fields",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePartFieldsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Part Fields",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Part Fields",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/parts/{part_key}/adjust": {
+      "post": {
+        "operationId": "adjust_part",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustPartBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Adjust Part",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Adjust Part",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/parts/{part_key}/distributors": {
+      "get": {
+        "operationId": "get_sourced_distributors",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response Get Sourced Distributors",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Sourced Distributors",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/parts/{part_key}/fetched-prices": {
+      "post": {
+        "operationId": "record_fetched_prices",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordFetchedPricesBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Record Fetched Prices",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Fetched Prices",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/parts/{part_key}/groups": {
+      "get": {
+        "operationId": "get_generic_group_names",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Generic Group Names",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/parts/{part_key}/history": {
+      "get": {
+        "operationId": "get_part_history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response Get Part History",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Part History",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/parts/{part_key}/last-po-quantity": {
+      "get": {
+        "operationId": "get_last_po_quantity",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Last Po Quantity",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/parts/{part_key}/price": {
+      "put": {
+        "operationId": "update_part_price",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePartPriceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Part Price",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Part Price",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/parts/{part_key}/prices": {
+      "get": {
+        "operationId": "get_price_summary",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Price Summary",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Price Summary",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/parts/{part_key}/purchase-history": {
+      "get": {
+        "operationId": "has_purchase_history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Has Purchase History",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/parts/{part_key}/spec": {
+      "get": {
+        "operationId": "extract_spec",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Extract Spec",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Extract Spec",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/pnp/consume": {
+      "post": {
+        "operationId": "pnp_consume",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsumeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Pnp Consume",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pnp Consume",
+        "tags": [
+          "pnp"
+        ]
+      }
+    },
+    "/v1/preferences": {
+      "get": {
+        "operationId": "load_preferences",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Load Preferences",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Load Preferences",
+        "tags": [
+          "preferences"
+        ]
+      },
+      "put": {
+        "operationId": "save_preferences",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Save Preferences",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Preferences",
+        "tags": [
+          "preferences"
+        ]
+      }
+    },
+    "/v1/purchase-orders": {
+      "get": {
+        "operationId": "list_purchase_orders",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response List Purchase Orders",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Purchase Orders",
+        "tags": [
+          "vendors",
+          "purchase-orders"
+        ]
+      },
+      "post": {
+        "operationId": "create_purchase_order_with_items",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePurchaseOrderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Purchase Order With Items",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Purchase Order With Items",
+        "tags": [
+          "vendors",
+          "purchase-orders"
+        ]
+      }
+    },
+    "/v1/purchase-orders/last": {
+      "delete": {
+        "operationId": "delete_last_purchase_order",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Last Purchase Order",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Last Purchase Order",
+        "tags": [
+          "vendors",
+          "purchase-orders"
+        ]
+      }
+    },
+    "/v1/purchase-orders/{po_id}": {
+      "delete": {
+        "operationId": "delete_purchase_order",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "po_id",
+            "required": true,
+            "schema": {
+              "title": "Po Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Purchase Order",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Purchase Order",
+        "tags": [
+          "vendors",
+          "purchase-orders"
+        ]
+      },
+      "get": {
+        "operationId": "get_po_with_items",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "po_id",
+            "required": true,
+            "schema": {
+              "title": "Po Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Po With Items",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Po With Items",
+        "tags": [
+          "vendors",
+          "purchase-orders"
+        ]
+      },
+      "patch": {
+        "operationId": "update_purchase_order",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "po_id",
+            "required": true,
+            "schema": {
+              "title": "Po Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePurchaseOrderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Purchase Order",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Purchase Order",
+        "tags": [
+          "vendors",
+          "purchase-orders"
+        ]
+      }
+    },
+    "/v1/purchase-orders/{po_id}/preview": {
+      "get": {
+        "operationId": "get_po_source_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "po_id",
+            "required": true,
+            "schema": {
+              "title": "Po Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Po Source Preview",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Po Source Preview",
+        "tags": [
+          "vendors",
+          "purchase-orders"
+        ]
+      }
+    },
+    "/v1/purchase-orders/{po_id}/source": {
+      "get": {
+        "operationId": "get_po_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "po_id",
+            "required": true,
+            "schema": {
+              "title": "Po Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Po Source",
+        "tags": [
+          "vendors",
+          "purchase-orders"
+        ]
+      }
+    },
+    "/v1/purchases/import": {
+      "post": {
+        "operationId": "import_purchases",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportPurchasesBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Import Purchases",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Purchases",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/purchases/last": {
+      "delete": {
+        "operationId": "remove_last_purchases",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "count",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Count",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Remove Last Purchases",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Last Purchases",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/saved-searches/{search_id}": {
+      "delete": {
+        "operationId": "delete_saved_search",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "search_id",
+            "required": true,
+            "schema": {
+              "title": "Search Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Saved Search",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Saved Search",
+        "tags": [
+          "generic-parts"
+        ]
+      }
+    },
+    "/v1/scan/sessions": {
+      "post": {
+        "operationId": "start_scan_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartScanSessionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Start Scan Session",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Scan Session",
+        "tags": [
+          "import",
+          "scan"
+        ]
+      }
+    },
+    "/v1/spec/extract": {
+      "post": {
+        "operationId": "extract_spec_from_value",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtractSpecFromValueBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Extract Spec From Value",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Extract Spec From Value",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/vendors": {
+      "get": {
+        "operationId": "list_vendors",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response List Vendors",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Vendors",
+        "tags": [
+          "vendors",
+          "purchase-orders"
+        ]
+      },
+      "put": {
+        "operationId": "update_vendor",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVendorBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Vendor",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Vendor",
+        "tags": [
+          "vendors",
+          "purchase-orders"
+        ]
+      }
+    },
+    "/v1/vendors/favicon": {
+      "post": {
+        "operationId": "fetch_favicon",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FetchFaviconBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Fetch Favicon",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch Favicon",
+        "tags": [
+          "vendors",
+          "purchase-orders"
+        ]
+      }
+    },
+    "/v1/vendors/merge": {
+      "post": {
+        "operationId": "merge_vendors",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeVendorsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Merge Vendors",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Merge Vendors",
+        "tags": [
+          "vendors",
+          "purchase-orders"
+        ]
+      }
+    },
+    "/v1/vendors/{vendor_id}": {
+      "delete": {
+        "operationId": "delete_vendor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vendor_id",
+            "required": true,
+            "schema": {
+              "title": "Vendor Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Vendor",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Vendor",
+        "tags": [
+          "vendors",
+          "purchase-orders"
+        ]
+      }
+    },
+    "/v1/warnings": {
+      "get": {
+        "operationId": "get_warnings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Warnings",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Warnings",
+        "tags": [
+          "parts"
+        ]
+      }
+    }
+  }
+}

@@ -397,6 +397,7 @@ graph LR
     "pnp_server.py" --> "scan_capture_page.py"
     "pnp_server.py" --> "scan_image.py"
     "pnp_server.py" --> "scan_sessions.py"
+    "pnp_server.py" --> "server/__init__.py"
     "pololu_client.py" --> "base_client.py"
     "pololu_client.py" --> "html_product_parser.py"
     "purchase_orders.py" --> "csv_io.py"
@@ -408,8 +409,26 @@ graph LR
     "scripts/ci_watcher/listener.py" --> "scripts/ci_watcher/state.py"
     "scripts/ci_watcher/worker.py" --> "scripts/ci_watcher/triage_payload.py"
     "scripts/gen-inventory-types.py" --> "domain/schema.py"
+    "scripts/gen-openapi.py" --> "server/app.py"
     "scripts/generate-test-fixtures.py" --> "inventory_api.py"
     "scripts/generate-test-fixtures.py" --> "inventory_ops.py"
+    "server/__main__.py" --> "inventory_api.py"
+    "server/__main__.py" --> "server/app.py"
+    "server/app.py" --> "server/errors.py"
+    "server/app.py" --> "server/routes/__init__.py"
+    "server/errors.py" --> "dubis_errors.py"
+    "server/models.py" --> "domain/schema.py"
+    "server/mutations.py" --> "server/__init__.py"
+    "server/routes/events.py" --> "server/__init__.py"
+    "server/routes/generic_parts.py" --> "server/mutations.py"
+    "server/routes/inventory_mut.py" --> "server/mutations.py"
+    "server/routes/meta.py" --> "cache_db.py"
+    "server/routes/parts_read.py" --> "server/models.py"
+    "server/routes/pnp.py" --> "pnp_part_map.py"
+    "server/routes/pnp.py" --> "server/__init__.py"
+    "server/routes/vendors_pos.py" --> "purchase_orders.py"
+    "server/routes/vendors_pos.py" --> "server/mutations.py"
+    "server/run.py" --> "server/app.py"
     "spec_extractor.py" --> "categorize.py"
     "tests/e2e-server.py" --> "inventory_api.py"
     "tests/js/api.test.js" --> "js/api.js"
@@ -504,6 +523,26 @@ graph LR
     "tests/python/domain/test_pricing.py" --> "cache_db.py"
     "tests/python/domain/test_pricing.py" --> "domain/pricing.py"
     "tests/python/helpers.py" --> "inventory_api.py"
+    "tests/python/server/conftest.py" --> "server/app.py"
+    "tests/python/server/conftest.py" --> "tests/python/helpers.py"
+    "tests/python/server/test_app_skeleton.py" --> "dubis_errors.py"
+    "tests/python/server/test_events.py" --> "server/__init__.py"
+    "tests/python/server/test_events.py" --> "tests/python/server/conftest.py"
+    "tests/python/server/test_generic_parts_routes.py" --> "server/__init__.py"
+    "tests/python/server/test_import_scan_routes.py" --> "pnp_server.py"
+    "tests/python/server/test_inventory_mut.py" --> "server/__init__.py"
+    "tests/python/server/test_inventory_mut.py" --> "tests/python/helpers.py"
+    "tests/python/server/test_lifecycle.py" --> "server/__main__.py"
+    "tests/python/server/test_lifecycle.py" --> "server/run.py"
+    "tests/python/server/test_models.py" --> "domain/schema.py"
+    "tests/python/server/test_models.py" --> "server/models.py"
+    "tests/python/server/test_parts_read.py" --> "tests/python/helpers.py"
+    "tests/python/server/test_pnp_routes.py" --> "server/__init__.py"
+    "tests/python/server/test_v1_surface.py" --> "server/app.py"
+    "tests/python/server/test_v1_surface.py" --> "tests/python/test_api_surface.py"
+    "tests/python/server/test_vendors_pos_routes.py" --> "purchase_orders.py"
+    "tests/python/server/test_vendors_pos_routes.py" --> "server/__init__.py"
+    "tests/python/server/test_vendors_pos_routes.py" --> "vendors.py"
     "tests/python/test_api_mirror.py" --> "tests/python/helpers.py"
     "tests/python/test_api_surface.py" --> "inventory_api.py"
     "tests/python/test_app_mirror_hooks.py" --> "tests/python/helpers.py"
@@ -645,7 +684,7 @@ graph LR
 ### cache_db.py
 
 - **Imports:** `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`
-- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `tests/python/conftest.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_saved_searches.py`
+- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `server/routes/meta.py`, `tests/python/conftest.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_saved_searches.py`
 
 ### categorize.py
 
@@ -780,12 +819,12 @@ graph LR
 ### domain/schema.py
 
 - **Imports:** —
-- **Imported by:** `cache_db.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/inventory.py`, `inventory_ops.py`, `scripts/gen-inventory-types.py`, `tests/python/test_cache_db.py`
+- **Imported by:** `cache_db.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/inventory.py`, `inventory_ops.py`, `scripts/gen-inventory-types.py`, `server/models.py`, `tests/python/server/test_models.py`, `tests/python/test_cache_db.py`
 
 ### dubis_errors.py
 
 - **Imports:** —
-- **Imported by:** `base_client.py`, `digikey_client.py`, `domain/part_registry.py`, `tests/python/domain/test_part_registry.py`, `tests/python/test_base_client.py`, `tests/python/test_dubis_errors.py`
+- **Imported by:** `base_client.py`, `digikey_client.py`, `domain/part_registry.py`, `server/errors.py`, `tests/python/domain/test_part_registry.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/test_base_client.py`, `tests/python/test_dubis_errors.py`
 
 ### file_dialogs.py
 
@@ -800,7 +839,7 @@ graph LR
 ### inventory_api.py
 
 - **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`, `mirror_push.py`
-- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`
+- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `server/__main__.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`
 
 ### inventory_mirror.py
 
@@ -1348,12 +1387,12 @@ graph LR
 ### pnp_part_map.py
 
 - **Imports:** —
-- **Imported by:** `pnp_server.py`
+- **Imported by:** `pnp_server.py`, `server/routes/pnp.py`
 
 ### pnp_server.py
 
-- **Imports:** `pnp_part_map.py`, `scan_capture_page.py`, `scan_image.py`, `scan_sessions.py`
-- **Imported by:** `domain/api_scan.py`, `tests/js/e2e/scan-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/test_capture_page.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
+- **Imports:** `pnp_part_map.py`, `scan_capture_page.py`, `scan_image.py`, `scan_sessions.py`, `server/__init__.py`
+- **Imported by:** `domain/api_scan.py`, `tests/js/e2e/scan-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/server/test_import_scan_routes.py`, `tests/python/test_capture_page.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
 
 ### pololu_client.py
 
@@ -1363,7 +1402,7 @@ graph LR
 ### purchase_orders.py
 
 - **Imports:** `csv_io.py`, `pdf_raster.py`, `source_sanitizer.py`
-- **Imported by:** `domain/api_purchase_orders.py`, `mfg_direct_import.py`, `tests/python/test_purchase_orders.py`
+- **Imported by:** `domain/api_purchase_orders.py`, `mfg_direct_import.py`, `server/routes/vendors_pos.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_purchase_orders.py`
 
 ### saved_searches.py
 
@@ -1465,6 +1504,11 @@ graph LR
 - **Imports:** `domain/schema.py`
 - **Imported by:** —
 
+### scripts/gen-openapi.py
+
+- **Imports:** `server/app.py`
+- **Imported by:** —
+
 ### scripts/generate-test-fixtures.py
 
 - **Imports:** `inventory_api.py`, `inventory_ops.py`
@@ -1474,6 +1518,101 @@ graph LR
 
 - **Imports:** —
 - **Imported by:** —
+
+### server/__init__.py
+
+- **Imports:** —
+- **Imported by:** `pnp_server.py`, `server/mutations.py`, `server/routes/events.py`, `server/routes/pnp.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_vendors_pos_routes.py`
+
+### server/__main__.py
+
+- **Imports:** `inventory_api.py`, `server/app.py`
+- **Imported by:** `tests/python/server/test_lifecycle.py`
+
+### server/app.py
+
+- **Imports:** `server/errors.py`, `server/routes/__init__.py`
+- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_v1_surface.py`
+
+### server/errors.py
+
+- **Imports:** `dubis_errors.py`
+- **Imported by:** `server/app.py`
+
+### server/events.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### server/models.py
+
+- **Imports:** `domain/schema.py`
+- **Imported by:** `server/routes/parts_read.py`, `tests/python/server/test_models.py`
+
+### server/mutations.py
+
+- **Imports:** `server/__init__.py`
+- **Imported by:** `server/routes/generic_parts.py`, `server/routes/inventory_mut.py`, `server/routes/vendors_pos.py`
+
+### server/routes/__init__.py
+
+- **Imports:** —
+- **Imported by:** `server/app.py`
+
+### server/routes/distributors.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### server/routes/events.py
+
+- **Imports:** `server/__init__.py`
+- **Imported by:** —
+
+### server/routes/generic_parts.py
+
+- **Imports:** `server/mutations.py`
+- **Imported by:** —
+
+### server/routes/import_scan.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### server/routes/inventory_mut.py
+
+- **Imports:** `server/mutations.py`
+- **Imported by:** —
+
+### server/routes/meta.py
+
+- **Imports:** `cache_db.py`
+- **Imported by:** —
+
+### server/routes/parts_read.py
+
+- **Imports:** `server/models.py`
+- **Imported by:** —
+
+### server/routes/pnp.py
+
+- **Imports:** `pnp_part_map.py`, `server/__init__.py`
+- **Imported by:** —
+
+### server/routes/preferences.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### server/routes/vendors_pos.py
+
+- **Imports:** `purchase_orders.py`, `server/mutations.py`
+- **Imported by:** —
+
+### server/run.py
+
+- **Imports:** `server/app.py`
+- **Imported by:** `tests/python/server/test_lifecycle.py`
 
 ### source_sanitizer.py
 
@@ -1837,7 +1976,77 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `inventory_api.py`
-- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
+
+### tests/python/server/conftest.py
+
+- **Imports:** `server/app.py`, `tests/python/helpers.py`
+- **Imported by:** `tests/python/server/test_events.py`
+
+### tests/python/server/test_app_skeleton.py
+
+- **Imports:** `dubis_errors.py`
+- **Imported by:** —
+
+### tests/python/server/test_distributors_routes.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### tests/python/server/test_events.py
+
+- **Imports:** `server/__init__.py`, `tests/python/server/conftest.py`
+- **Imported by:** —
+
+### tests/python/server/test_generic_parts_routes.py
+
+- **Imports:** `server/__init__.py`
+- **Imported by:** —
+
+### tests/python/server/test_import_scan_routes.py
+
+- **Imports:** `pnp_server.py`
+- **Imported by:** —
+
+### tests/python/server/test_inventory_mut.py
+
+- **Imports:** `server/__init__.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
+### tests/python/server/test_lifecycle.py
+
+- **Imports:** `server/__main__.py`, `server/run.py`
+- **Imported by:** —
+
+### tests/python/server/test_models.py
+
+- **Imports:** `domain/schema.py`, `server/models.py`
+- **Imported by:** —
+
+### tests/python/server/test_parts_read.py
+
+- **Imports:** `tests/python/helpers.py`
+- **Imported by:** —
+
+### tests/python/server/test_pnp_routes.py
+
+- **Imports:** `server/__init__.py`
+- **Imported by:** —
+
+### tests/python/server/test_preferences_routes.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### tests/python/server/test_v1_surface.py
+
+- **Imports:** `server/app.py`, `tests/python/test_api_surface.py`
+- **Imported by:** —
+
+### tests/python/server/test_vendors_pos_routes.py
+
+- **Imports:** `purchase_orders.py`, `server/__init__.py`, `vendors.py`
+- **Imported by:** —
 
 ### tests/python/test_api_mirror.py
 
@@ -1847,7 +2056,7 @@ graph LR
 ### tests/python/test_api_surface.py
 
 - **Imports:** `inventory_api.py`
-- **Imported by:** —
+- **Imported by:** `tests/python/server/test_v1_surface.py`
 
 ### tests/python/test_app_mirror_hooks.py
 
@@ -2192,7 +2401,7 @@ graph LR
 ### vendors.py
 
 - **Imports:** `csv_io.py`
-- **Imported by:** `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `inventory_ops.py`, `tests/python/test_mfg_direct_import.py`, `tests/python/test_vendors.py`
+- **Imported by:** `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `inventory_ops.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_mfg_direct_import.py`, `tests/python/test_vendors.py`
 
 ### vitest.config.js
 
