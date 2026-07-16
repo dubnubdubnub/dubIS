@@ -175,7 +175,7 @@ CI details (suite selection, override tags, troubleshooting, PnP E2E): see `docs
 ### Inventory test safety
 
 Adjustments have a `source` field (`"openpnp"`, `"test:<session_id>"`, etc.).
-The headless test server (`dubis_headless.py --test-source <tag> --rollback-on-exit`)
+The headless test server (`python -m server --test-source <tag> --rollback-on-exit`)
 tags all test adjustments and rolls them back on shutdown.
 
 ## Plan Execution

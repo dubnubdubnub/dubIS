@@ -4,7 +4,7 @@
 #
 # Only checks when Python backend files are staged.
 
-BACKEND_PY=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^[^/]+\.py$' | grep -vE '^(app|dubis_headless)\.py$' || true)
+BACKEND_PY=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^[^/]+\.py$' | grep -vE '^(app)\.py$' || true)
 
 if [ -n "$BACKEND_PY" ]; then
     python scripts/generate-test-fixtures.py --check > /dev/null 2>&1

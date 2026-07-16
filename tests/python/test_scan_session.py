@@ -4,6 +4,7 @@ inventory_api.start_scan_session."""
 import base64
 import json
 import os
+import queue as queue_mod
 import socket
 import types
 import urllib.error
@@ -13,6 +14,7 @@ import pytest
 
 import pnp_server
 from pnp_server import start_pnp_server, stop_pnp_server
+from server import events as sse_events
 
 # A tiny 1x1 PNG so uploads carry a real (valid-extension) image payload.
 _PNG_1X1_B64 = (
@@ -71,18 +73,38 @@ class _FakeApi:
         }
 
 
+def _drain_sse(q):
+    """Collect every (event, data) pair currently queued, without blocking."""
+    drained = []
+    try:
+        while True:
+            drained.append(q.get_nowait())
+    except queue_mod.Empty:
+        pass
+    return drained
+
+
 @pytest.fixture
 def scan_server(tmp_path):
-    """A running pnp server backed by a fake api + window capturing evaluate_js."""
+    """A running pnp server backed by a fake api + window capturing evaluate_js.
+
+    Also subscribes to server.events so tests can assert the SSE dual-write
+    (pnp_server.py publishes scan.receiving/scan.received alongside the
+    evaluate_js pushes — see server/events.py; the evaluate_js pushes are
+    deleted in Phase 1b Task 10, once the frontend consumes SSE only).
+    """
     api = _FakeApi(str(tmp_path))
     js_calls = []
     window = types.SimpleNamespace(evaluate_js=lambda code: js_calls.append(code))
+    sse_queue = sse_events.subscribe()
     server = start_pnp_server(api, window, port=0)
     port = server.server_address[1]
     base_url = f"http://127.0.0.1:{port}"
     yield types.SimpleNamespace(
         server=server, base_url=base_url, api=api, window=window, js_calls=js_calls,
+        sse_queue=sse_queue,
     )
+    sse_events.unsubscribe(sse_queue)
     stop_pnp_server(server)
 
 
@@ -204,6 +226,18 @@ class TestScanUpload:
         assert all(isinstance(p, dict) for p in payload["pages"])
         assert payload["pages"] == scan_server.api._pages
 
+        # SSE dual-write: pnp_server.py publishes scan.received alongside the
+        # evaluate_js push above (both asserted here until Task 10 deletes
+        # the evaluate_js side and the frontend consumes SSE only).
+        sse = _drain_sse(scan_server.sse_queue)
+        received_events = [name for name, _ in sse]
+        assert "scan.received" in received_events
+        sse_payload = next(data for name, data in sse if name == "scan.received")
+        assert sse_payload["template"] == "lcsc"
+        assert sse_payload["filename"] == "po.png"
+        assert sse_payload["line_items"] == scan_server.api._prefill_rows
+        assert sse_payload["prefill_rows"] == scan_server.api._prefill_rows
+
     def test_instant_receiving_push_fires_before_ocr_result(self, scan_server):
         sid = pnp_server.create_scan_session(scan_server.server, "lcsc")
         status, _ = _post_json(
@@ -219,6 +253,16 @@ class TestScanUpload:
         start = calls[0].index("window._scanReceiving(") + len("window._scanReceiving(")
         ack = json.loads(calls[0][start:-1])
         assert ack == {"filename": "po.png", "template": "lcsc", "count": 1}
+
+        # SSE dual-write mirrors the same ordering: scan.receiving before
+        # scan.received (see pnp_server.py's evaluate_js pushes above).
+        sse = _drain_sse(scan_server.sse_queue)
+        sse_names = [name for name, _ in sse]
+        assert sse_names[0] == "scan.receiving"
+        assert "scan.received" in sse_names
+        assert sse_names.index("scan.receiving") < sse_names.index("scan.received")
+        sse_ack = next(data for name, data in sse if name == "scan.receiving")
+        assert sse_ack == ack
 
     def test_multi_image_upload_concats_and_saves_all(self, scan_server, tmp_path):
         sid = pnp_server.create_scan_session(scan_server.server, "lcsc")

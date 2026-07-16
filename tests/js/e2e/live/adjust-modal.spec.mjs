@@ -10,7 +10,6 @@ test.describe('Adjustment modal', () => {
   test.beforeEach(async ({ page }) => {
     await resetServer();
     await setupPage(page);
-    await page.goto('/index.html');
     await waitForInventoryRows(page);
   });
 

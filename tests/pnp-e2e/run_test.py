@@ -449,7 +449,7 @@ def _restart_dubis(dubis_proc, tmp_dir, test_source, base_url):
         os.unlink(cache_path)
 
     dubis_cmd = [
-        sys.executable, os.path.join(os.path.dirname(__file__), "dubis_headless.py"),
+        sys.executable, "-m", "server",
         "--data-dir", tmp_dir, "--port", str(DUBIS_PORT),
         "--test-source", test_source,
     ]
@@ -492,7 +492,7 @@ def run_test(remote_openpnp=None):
 
         # ── Start headless dubIS ──
         dubis_cmd = [
-            sys.executable, os.path.join(os.path.dirname(__file__), "dubis_headless.py"),
+            sys.executable, "-m", "server",
             "--data-dir", tmp_dir, "--port", str(DUBIS_PORT),
             "--test-source", test_source,
         ]
@@ -852,7 +852,7 @@ def _test_offline_queue(base_url, dubis_proc, tmp_dir, test_source, failures):
 
     # Restart dubIS for remaining assertions
     dubis_cmd = [
-        sys.executable, os.path.join(os.path.dirname(__file__), "dubis_headless.py"),
+        sys.executable, "-m", "server",
         "--data-dir", tmp_dir, "--port", str(DUBIS_PORT),
         "--test-source", test_source,
     ]

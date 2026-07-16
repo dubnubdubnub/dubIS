@@ -1,18 +1,15 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-import { resetServer, setupPage } from './setup-page.mjs';
+import { fetchApi, resetServer, setupPage } from './setup-page.mjs';
 import { waitForInventoryRows } from '../helpers.mjs';
 
 test.describe('Mouser API key in preferences modal', () => {
   test.beforeEach(async ({ page }) => {
     await resetServer();
     await setupPage(page);
-    await page.goto('/index.html');
     await waitForInventoryRows(page);
     // Ensure no leftover key from a prior test run.
-    await page.evaluate(async () => {
-      await window.pywebview.api.clear_mouser_api_key();
-    });
+    await fetchApi('/v1/distributors/mouser/key', { method: 'DELETE' });
   });
 
   test('save → status flips to configured, clear → status flips back', async ({ page }) => {
@@ -43,8 +40,7 @@ test.describe('Mouser API key in preferences modal', () => {
     await expect(keyInput).toHaveAttribute('placeholder', /Replace key/);
 
     // Backend confirms it persisted.
-    const status1 = await page.evaluate(async () =>
-      window.pywebview.api.get_mouser_api_key_status());
+    const status1 = await fetchApi('/v1/distributors/mouser/key');
     expect(status1.configured).toBe(true);
 
     // Clear it.
@@ -52,8 +48,7 @@ test.describe('Mouser API key in preferences modal', () => {
     await expect(status).toHaveText(/No API key/);
     await expect(clearBtn).toHaveClass(/hidden/);
 
-    const status2 = await page.evaluate(async () =>
-      window.pywebview.api.get_mouser_api_key_status());
+    const status2 = await fetchApi('/v1/distributors/mouser/key');
     expect(status2.configured).toBe(false);
   });
 
@@ -65,8 +60,7 @@ test.describe('Mouser API key in preferences modal', () => {
     await page.click('#mouser-save');
     // Status stays unchanged; backend still has no key.
     await expect(status).toHaveText(/No API key/);
-    const result = await page.evaluate(async () =>
-      window.pywebview.api.get_mouser_api_key_status());
+    const result = await fetchApi('/v1/distributors/mouser/key');
     expect(result.configured).toBe(false);
   });
 
@@ -77,8 +71,7 @@ test.describe('Mouser API key in preferences modal', () => {
     await keyInput.press('Enter');
 
     await expect(page.locator('#mouser-status')).toHaveText(/API key saved/);
-    const result = await page.evaluate(async () =>
-      window.pywebview.api.get_mouser_api_key_status());
+    const result = await fetchApi('/v1/distributors/mouser/key');
     expect(result.configured).toBe(true);
   });
 });

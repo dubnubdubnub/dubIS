@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resetServer, setupPage } from './setup-page.mjs';
+import { fetchApi, resetServer, setupPage } from './setup-page.mjs';
 import { waitForInventoryRows, loadBomViaFileInput } from '../helpers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -12,7 +12,6 @@ test.describe('BOM consumption', () => {
   test.beforeEach(async ({ page }) => {
     await resetServer();
     await setupPage(page);
-    await page.goto('/index.html');
     await waitForInventoryRows(page);
   });
 
@@ -61,9 +60,7 @@ test.describe('BOM consumption', () => {
     await expect(page.locator('#consume-modal')).toHaveClass(/hidden/);
 
     // Verify inventory quantities changed — rebuild from backend
-    const inventory = await page.evaluate(async () =>
-      window.pywebview.api.rebuild_inventory()
-    );
+    const { inventory } = await fetchApi('/v1/parts');
 
     // C25794 had 500, BOM needs 28 of CL05B104KB54PNC — should be < 500
     const c25794 = inventory.find(p => p.lcsc === 'C25794');
@@ -98,9 +95,7 @@ test.describe('BOM consumption', () => {
     await expect(page.locator('#consume-modal')).toHaveClass(/hidden/);
 
     // Verify inventory unchanged
-    const inventory = await page.evaluate(async () =>
-      window.pywebview.api.rebuild_inventory()
-    );
+    const { inventory } = await fetchApi('/v1/parts');
 
     const c25794 = inventory.find(p => p.lcsc === 'C25794');
     expect(c25794).toBeTruthy();
