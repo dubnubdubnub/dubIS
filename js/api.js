@@ -52,7 +52,12 @@ function probeHttp() {
     _httpProbe = (async () => {
       try {
         const res = await fetch('/v1/health', { method: 'GET' });
-        return !!(res && res.ok);
+        if (!res || !res.ok) return false;
+        // Status alone is not proof: static test servers (serve-static.mjs)
+        // answer unknown paths with 200 + index.html. Require the real
+        // /v1/health JSON contract before routing traffic over HTTP.
+        const body = await res.json();
+        return body && body.ok === true;
       } catch {
         return false;
       }
