@@ -15,6 +15,7 @@ import { invPartKey } from '../../part-keys.js';
 import { recordImportGeneration, popImportGeneration } from '../../inventory/inv-state.js';
 import { openGroupingEditor } from './scan-grouping.js';
 import { openScanShell, markShellTile, closeScanShell } from './scan-shell.js';
+import { onEvent } from '../../sse.js';
 
 const state = {
   active: false,
@@ -584,10 +585,19 @@ function scanReceiving(payload) {
   AppLog.info(`Scan: ${count} photo(s) received, OCR in progress` + (tmpl ? ` (${tmpl})` : ''));
 }
 
-/** Register the global push handlers (called once from app-init). */
+/**
+ * Register the phone-scan push handlers (called once from app-init).
+ * Keeps the `window._scanReceived`/`_scanReceiving` globals assigned (E2E
+ * depends on calling them directly via evaluate_js) AND subscribes the same
+ * functions to the equivalent SSE events (`scan.received`/`scan.receiving`)
+ * published by pnp_server.py — see js/sse.js and Task 3 of
+ * docs/plans/2026-07-16-phase1b-frontend-port-plan.md.
+ */
 export function registerScanHandler() {
   window._scanReceived = scanReceived;
   window._scanReceiving = scanReceiving;
+  onEvent('scan.receiving', scanReceiving);
+  onEvent('scan.received', scanReceived);
 }
 
 function cancelFlow() {

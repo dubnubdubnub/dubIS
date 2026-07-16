@@ -6,7 +6,13 @@
 import { EventBus, Events } from './event-bus.js';
 import { signal } from './signals.js';
 import { SECTION_ORDER } from './constants.js';
-import { api, AppLog } from './api.js';
+import { api, AppLog, INCLUDE_INVENTORY } from './api.js';
+import { onEvent } from './sse.js';
+
+// Debounce window for the SSE-driven inventory refresh (trailing debounce:
+// the timer resets on every event and fires once quiet). 250ms per Task 3
+// of docs/plans/2026-07-16-phase1b-frontend-port-plan.md.
+const INVENTORY_UPDATED_DEBOUNCE_MS = 250;
 
 // ── Shortcut preferences defaults ──────────────────────────
 
@@ -366,6 +372,36 @@ export function onInventoryUpdated(freshInventory) {
   // Refresh vendors and purchase orders after any inventory mutation
   loadVendorsAndPOs().catch(e => AppLog.warn("Failed to refresh vendors/POs: " + e));
 }
+
+/**
+ * SSE-driven counterpart to `loadInventory()`: re-fetches inventory and feeds
+ * it through the normal update path, but skips the one-time load side effects
+ * (splash dismissal, generic-parts/vendor bootstrap, migration warnings) —
+ * those already ran during the initial `loadInventory()` and re-running them
+ * on every push would be redundant and noisy.
+ */
+export async function loadInventoryQuiet() {
+  const fresh = await api("rebuild_inventory");
+  if (!fresh) return;
+  onInventoryUpdated(fresh);
+}
+
+// ── SSE wiring (Task 3) ────────────────────────────────────
+// Registered unconditionally so the handler exists once the phase-close flip
+// (INCLUDE_INVENTORY -> false) lands, but stays inert until then: Step 1 of
+// the mutation convention (docs/plans/2026-07-16-phase1b-frontend-port-design.md,
+// decision 2) already refreshes inventory via each mutation's own
+// `?include=inventory` response, so acting on `inventory.updated` too would
+// double-render. `onEvent` is safe to call before `connectEvents()` opens the
+// connection — see js/sse.js.
+let _inventoryUpdatedTimer = null;
+onEvent('inventory.updated', () => {
+  if (INCLUDE_INVENTORY) return;
+  clearTimeout(_inventoryUpdatedTimer);
+  _inventoryUpdatedTimer = setTimeout(() => {
+    loadInventoryQuiet().catch(e => AppLog.warn("SSE inventory.updated refresh failed: " + e));
+  }, INVENTORY_UPDATED_DEBOUNCE_MS);
+});
 
 // ── Shortcut preferences ──────────────────────────────────
 

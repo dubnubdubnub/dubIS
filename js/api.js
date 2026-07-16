@@ -10,7 +10,7 @@ const LOG_MAX_ENTRIES = 200;
 // fresh inventory back in the same response, so call sites that do
 // `const fresh = await api(...); onInventoryUpdated(fresh);` keep working
 // unchanged. Flipped to SSE-driven refresh later in the phase.
-const INCLUDE_INVENTORY = true;
+export const INCLUDE_INVENTORY = true;
 
 export const AppLog = {
   _entries: [],
@@ -61,7 +61,10 @@ function probeHttp() {
   return _httpProbe;
 }
 
-async function httpAvailable() {
+// Exported so app-init.js can gate `connectEvents()` on the same probe that
+// `api()` uses to decide HTTP vs. bridge transport — SSE is only meaningful
+// once the /v1 server is actually reachable (see Task 3 of the phase-1b plan).
+export async function httpAvailable() {
   if (typeof window !== "undefined" && window.__DUBIS_HTTP__ === false) return false;
   return probeHttp();
 }

@@ -1,10 +1,11 @@
 /* app-init.js — Application entry point: wires up modals, global shortcuts, loads inventory */
 
 import { EventBus, Events } from './event-bus.js';
-import { api, AppLog, whenPywebviewReady } from './api.js';
+import { api, AppLog, whenPywebviewReady, httpAvailable, INCLUDE_INVENTORY } from './api.js';
+import { connectEvents, onEvent } from './sse.js';
 import { showToast, Modal, setEnterSubmitEnabled } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
-import { store, loadPreferences, loadInventory, onInventoryUpdated, getShortcutPrefs } from './store.js';
+import { store, loadPreferences, loadInventory, loadInventoryQuiet, onInventoryUpdated, getShortcutPrefs } from './store.js';
 import { processBOM } from './csv-parser.js';
 import { matchBOM } from './matching.js';
 import { colorizeRefs, REF_COLOR_MAP, invPartKey } from './part-keys.js';
@@ -96,6 +97,25 @@ async function initApp() {
   // Registers window._scanReceived to land OCR'd line items in the mfg-direct
   // staging editor (mirrors the _pnpConsume push pattern above).
   registerScanHandler();
+
+  // ── SSE: inventory.consumed (pnp_server.py's evaluate_js-free counterpart
+  // to window._pnpConsume above). The push carries only the adjustment detail
+  // (no full inventory snapshot), so the refresh is a normal (gated) re-fetch
+  // rather than a passed-in array — see Task 3 of
+  // docs/plans/2026-07-16-phase1b-frontend-port-plan.md. ──
+  onEvent('inventory.consumed', (detail) => {
+    AppLog.info("PnP: consumed " + detail.qty + "x " + detail.part_key + " (new_qty=" + detail.new_qty + ")");
+    showToast("PnP: -" + detail.qty + " " + detail.part_key);
+    if (!INCLUDE_INVENTORY) {
+      loadInventoryQuiet().catch(e => AppLog.warn("SSE inventory.consumed refresh failed: " + e));
+    }
+  });
+
+  // ── SSE connection: only meaningful once the /v1 server is actually
+  // reachable (file://+bridge and Playwright's serve-static.mjs have no /v1,
+  // so the probe fails there and connectEvents() is never called — SSE stays
+  // fully inert under those transports). ──
+  httpAvailable().then((ok) => { if (ok) connectEvents(); });
 
   // ── Cross-panel designator hover highlighting ──────────
   var highlightedRef = null;
