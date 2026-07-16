@@ -109,63 +109,69 @@ def _free_port() -> int:
 
 
 def main() -> int:
-    data_dir = tempfile.mkdtemp(prefix="dubis-spike-data-")
-    static_dir = tempfile.mkdtemp(prefix="dubis-spike-static-")
-    (Path(static_dir) / "spike.html").write_text(SPIKE_HTML, encoding="utf-8")
+    with (
+        tempfile.TemporaryDirectory(prefix="dubis-spike-data-") as data_dir,
+        tempfile.TemporaryDirectory(prefix="dubis-spike-static-") as static_dir,
+    ):
+        (Path(static_dir) / "spike.html").write_text(SPIKE_HTML, encoding="utf-8")
 
-    api = _build_api(data_dir)
-    port = _free_port()
-    server = start_server(api, port=port, static_dir=static_dir)
+        api = _build_api(data_dir)
+        port = _free_port()
+        server = start_server(api, port=port, static_dir=static_dir)
 
-    start_deadline = time.monotonic() + 5
-    while not server.started and time.monotonic() < start_deadline:
-        time.sleep(0.05)
-    if not server.started:
-        print("SPIKE FAIL: server did not start")
-        return 1
+        # try/finally so stop_server + api.shutdown always run, even on an
+        # early return (e.g. server-didn't-start) or an unexpected exception —
+        # previously those cleanup calls only ran on the success path.
+        try:
+            start_deadline = time.monotonic() + 5
+            while not server.started and time.monotonic() < start_deadline:
+                time.sleep(0.05)
+            if not server.started:
+                print("SPIKE FAIL: server did not start")
+                return 1
 
-    url = f"http://127.0.0.1:{port}/spike.html"
-    window = webview.create_window("dubIS spike (no js_api)", url, width=400, height=300)
+            url = f"http://127.0.0.1:{port}/spike.html"
+            window = webview.create_window("dubIS spike (no js_api)", url, width=400, height=300)
 
-    result: dict[str, str] = {"state": "SPIKE_INIT"}
+            result: dict[str, str] = {"state": "SPIKE_INIT"}
 
-    def poll() -> None:
-        from server import events as sse_events  # noqa: PLC0415
+            def poll() -> None:
+                from server import events as sse_events  # noqa: PLC0415
 
-        poll_deadline = time.monotonic() + 30
-        state = "SPIKE_INIT"
-        published = False
-        while time.monotonic() < poll_deadline:
-            time.sleep(0.25)
-            try:
-                state = window.evaluate_js("document.title")
-            except Exception as exc:  # window may already be gone
-                state = f"EVAL_ERR:{exc}"
-                break
-            print(f"[poll] title={state!r}", flush=True)
+                poll_deadline = time.monotonic() + 30
+                state = "SPIKE_INIT"
+                published = False
+                while time.monotonic() < poll_deadline:
+                    time.sleep(0.25)
+                    try:
+                        state = window.evaluate_js("document.title")
+                    except Exception as exc:  # window may already be gone
+                        state = f"EVAL_ERR:{exc}"
+                        break
+                    print(f"[poll] title={state!r}", flush=True)
+                    if state == "SSE_OK":
+                        break
+                    # Once the browser-side readyState reports OPEN, push a real
+                    # event through the broker so success is proven by actual
+                    # message delivery, not just the (separately flaky-observed)
+                    # 'open' DOM event dispatch.
+                    if not published and "rs=1" in state:
+                        sse_events.publish("spike.test", {"ok": True})
+                        published = True
+                result["state"] = state
+                window.destroy()
+
+            webview.start(poll, debug=False)
+
+            state = result["state"]
             if state == "SSE_OK":
-                break
-            # Once the browser-side readyState reports OPEN, push a real
-            # event through the broker so success is proven by actual
-            # message delivery, not just the (separately flaky-observed)
-            # 'open' DOM event dispatch.
-            if not published and "rs=1" in state:
-                sse_events.publish("spike.test", {"ok": True})
-                published = True
-        result["state"] = state
-        window.destroy()
-
-    webview.start(poll, debug=False)
-
-    stop_server(server)
-    api.shutdown()
-
-    state = result["state"]
-    if state == "SSE_OK":
-        print("SPIKE PASS: fetch+SSE OK in WebView2")
-        return 0
-    print(f"SPIKE FAIL: {state}")
-    return 1
+                print("SPIKE PASS: fetch+SSE OK in WebView2")
+                return 0
+            print(f"SPIKE FAIL: {state}")
+            return 1
+        finally:
+            stop_server(server)
+            api.shutdown()
 
 
 if __name__ == "__main__":

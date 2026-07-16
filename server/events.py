@@ -31,6 +31,11 @@ def unsubscribe(q: queue.Queue) -> None:
         _subscribers.discard(q)
 
 
+def has_subscribers() -> bool:
+    with _sub_lock:
+        return bool(_subscribers)
+
+
 def publish(event: str, data: dict) -> None:
     with _sub_lock:
         subs = list(_subscribers)

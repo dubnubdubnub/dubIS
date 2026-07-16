@@ -382,7 +382,10 @@ export function onInventoryUpdated(freshInventory) {
  */
 export async function loadInventoryQuiet() {
   const fresh = await api("rebuild_inventory");
-  if (!fresh) return;
+  if (!fresh) {
+    AppLog.warn("inventory refresh failed (SSE)");
+    return;
+  }
   onInventoryUpdated(fresh);
 }
 

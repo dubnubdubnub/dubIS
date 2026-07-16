@@ -9,6 +9,9 @@
    auto-reconnect (built into EventSource) is sufficient; do not build a
    custom reconnect loop on top of it. */
 
+// Safe to import: api.js does not import sse.js (checked — no cycle).
+import { AppLog } from './api.js';
+
 /** @type {EventSource|null} */
 let _es = null;
 
@@ -24,8 +27,20 @@ function _wire(name) {
   _es.addEventListener(name, (e) => {
     const fns = _handlers.get(name);
     if (!fns || fns.size === 0) return;
-    const data = JSON.parse(/** @type {MessageEvent} */(e).data);
-    fns.forEach((fn) => fn(data));
+    let data;
+    try {
+      data = JSON.parse(/** @type {MessageEvent} */(e).data);
+    } catch (err) {
+      AppLog.error("sse " + name + ": " + err.message);
+      return;
+    }
+    fns.forEach((fn) => {
+      try {
+        fn(data);
+      } catch (err) {
+        AppLog.error("sse " + name + ": " + err.message);
+      }
+    });
   });
 }
 

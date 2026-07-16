@@ -152,26 +152,35 @@ def main():
         the uvicorn/fastapi import cost never sits on the path to first
         paint. Never touches the window — splash.html's own script (started
         by pywebview once it renders) polls /v1/health and navigates itself;
-        this thread's only job is getting uvicorn listening."""
-        from server.run import start_server, stop_server  # deferred: heavy import
+        this thread's only job is getting uvicorn listening.
 
-        server_state["stop_server"] = stop_server
-        v1_server = start_server(api, static_dir=APP_DIR, port=port)
-        server_state["server"] = v1_server
-        bench.mark("server_starting")
+        The whole body is wrapped in try/except so an exception anywhere in
+        here (import failure, port conflict, etc.) is logged instead of
+        silently killing this daemon thread with nothing in the log. The
+        splash's own 15s health-poll timeout already handles the user-facing
+        UX for a boot failure; this only closes the silent-log gap."""
+        try:
+            from server.run import start_server, stop_server  # deferred: heavy import
 
-        start_deadline = time.monotonic() + 15
-        while not v1_server.started and time.monotonic() < start_deadline:
-            time.sleep(0.02)
-        if not v1_server.started:
-            # Loud, not silent: splash.html's own poll will also time out
-            # (15s) and render its inline error state, but log here too since
-            # that's the actionable signal for whoever's watching the logs.
-            logger.error(
-                "/v1 loopback server did not start within 15s on port %s", port
-            )
-            return
-        bench.mark("server_started")
+            server_state["stop_server"] = stop_server
+            v1_server = start_server(api, static_dir=APP_DIR, port=port)
+            server_state["server"] = v1_server
+            bench.mark("server_starting")
+
+            start_deadline = time.monotonic() + 15
+            while not v1_server.started and time.monotonic() < start_deadline:
+                time.sleep(0.02)
+            if not v1_server.started:
+                # Loud, not silent: splash.html's own poll will also time out
+                # (15s) and render its inline error state, but log here too since
+                # that's the actionable signal for whoever's watching the logs.
+                logger.error(
+                    "/v1 loopback server did not start within 15s on port %s", port
+                )
+                return
+            bench.mark("server_started")
+        except Exception as e:
+            logger.error("v1 server boot failed: %s", e, exc_info=True)
 
     threading.Thread(target=_boot_server, name="dubis-server-boot", daemon=True).start()
 

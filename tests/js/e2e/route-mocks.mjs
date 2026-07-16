@@ -473,6 +473,23 @@ export async function installRouteMocks(page, inventory, options = {}) {
       // this resolves — nothing left to record into, so it's safe to ignore.
     }
 
+    // fetch_distributor_product's real route (server/routes/distributors.py)
+    // returns 404 + {error, code: "product_not_found", detail: null} when the
+    // underlying fetch returns None — never 200 + null. Mirror that shape
+    // here so specs exercising the "no mock" path see the real contract
+    // (fetchRow etc. must treat 404 as unavailable, not a valid null product).
+    if (match.method === 'fetch_distributor_product' && value === null) {
+      await route.fulfill({
+        status: 404,
+        json: {
+          error: `Product not found: ${argMap.name}/${argMap.code}`,
+          code: 'product_not_found',
+          detail: null,
+        },
+      });
+      return;
+    }
+
     // `mutation: true` routes are backed by a real `finish_mutation(...)`
     // call server-side — mirror ITS envelope shape (`{"ok": true, "detail":
     // ...}`, plus `"inventory"` only when `?include=inventory` was
