@@ -20,6 +20,7 @@ import tempfile
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
+import csv_io  # noqa: E402
 from inventory_api import InventoryApi  # noqa: E402
 from inventory_ops import load_organized  # noqa: E402
 
@@ -81,7 +82,10 @@ def generate_xls_conversions() -> dict[str, dict]:
 
     Returns {filename: {csv_text, headers, row_count}}.
     """
-    api = InventoryApi()
+    # csv_io.convert_xls_to_csv is a module-level function, not an InventoryApi
+    # facade method (Phase 1b Task 10 removed the unused-by-JS facade wrapper;
+    # nothing ever called it via api()/the bridge — see mfg_direct_import.py
+    # and file_dialogs.py for the real callers).
     results: dict[str, dict] = {}
 
     for d in [DATA_DIR, E2E_FIXTURES, FIXTURES_DIR]:
@@ -92,7 +96,7 @@ def generate_xls_conversions() -> dict[str, dict]:
                 continue
             path = os.path.join(d, name)
             try:
-                conversion = api.convert_xls_to_csv(path)
+                conversion = csv_io.convert_xls_to_csv(path)
                 if conversion:
                     results[name] = conversion
             except Exception:

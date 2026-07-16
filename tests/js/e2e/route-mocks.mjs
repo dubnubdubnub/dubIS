@@ -1,26 +1,25 @@
 /**
  * route-mocks.mjs — /v1 HTTP fixture server for Playwright specs.
  *
- * Replaces (for the panels ported so far) the `window.pywebview.api` mocks in
- * helpers.mjs's `addMockSetup` with `page.route('**\/v1/**')` interception, so
- * js/api.js's HTTP transport is exercised instead of the bridge fallback.
+ * Since Phase 1b Task 10, `js/api.js`'s `api()` is HTTP-only for every method
+ * in `js/api-map.js` — there is no bridge fallback left to fall through to.
+ * Every spec that renders the inventory grid (or calls any mapped method)
+ * MUST use `installRouteMocks`, not `addMockSetup` alone, or its `/v1`
+ * requests hit nothing and fail (no server, no bridge).
  *
  * Design:
  *   - `addMockSetup` is reused UNCHANGED as the shim layer: dialog/window
  *     methods (`open_file_dialog`, `save_file_dialog`, `load_file`,
  *     `set_bom_dirty`, `confirm_close`, `bench_mark`, `install_tesseract`,
  *     `start_digikey_login`, `open_source_file`) and the inventory-mirror
- *     endpoints (deliberately NOT on /v1 — see Task 4 brief) stay served by
- *     `window.pywebview.api`, exactly as before. Every OTHER method addMockSetup
- *     stubs is still installed on `window.pywebview.api` too, but becomes dead
- *     weight once HTTP wins the probe — harmless, and keeps this file from
- *     having to re-derive shim behavior.
+ *     endpoints (deliberately NOT on /v1 — see Task 4 brief) are the only
+ *     methods actually still reachable through `window.pywebview.api` (the
+ *     ~9-method ClientShell). Every OTHER method addMockSetup stubs is still
+ *     installed on `window.pywebview.api` too, but is dead weight now — kept
+ *     only so this file doesn't have to re-derive shim behavior.
  *   - `installRouteMocks` ADDITIONALLY installs `page.route('**\/v1/**')` to
- *     serve every method THIS WAVE's panels call over HTTP, keyed off the SAME
- *     `options` object addMockSetup takes (so a spec passes one options bag to
- *     both). The `/v1/health` route is installed ONLY here — unported specs
- *     never get it, so their probe fails and they keep falling back to the
- *     bridge (see js/api.js's `probeHttp`).
+ *     serve every mapped method over HTTP, keyed off the SAME `options`
+ *     object addMockSetup takes (so a spec passes one options bag to both).
  *   - Route→method mapping is read from js/api-map.js so path templates never
  *     drift from the generated client; this file supplies the MOCK DATA/LOGIC
  *     per method (paralleling, not reimplementing, addMockSetup's bridge mocks).
@@ -91,13 +90,14 @@ function compilePath(template) {
  * `check_digikey_session`/`get_digikey_login_status` too, since they resolve
  * to the identical route). `handler(argMap, ctx)` returns the UNWRAPPED value
  * — for `mutation: true` routes, that's the payload that belongs under
- * `entry.unwrap` in the real server's `{"ok": true, "detail": ...}` envelope
- * (see server/mutations.py's `finish_mutation`); this file's dispatcher wraps
- * it into that real envelope shape rather than the bare `{[unwrap]: value}`
- * used for ordinary (non-finish_mutation) GET/lookup routes. Pass
- * `{ mutation: true }` for any route backed by a `finish_mutation(...)` call
- * server-side (server/routes/*.py) — this includes both INV-class ops
- * (unwrap "inventory") and CFG-class ops (unwrap "detail").
+ * `entry.unwrap` (always "detail" post-Task-10) in the real server's
+ * `{"ok": true, "detail": ...}` envelope (see server/mutations.py's
+ * `finish_mutation`); this file's dispatcher wraps it into that real envelope
+ * shape rather than the bare `{[unwrap]: value}` used for ordinary
+ * (non-finish_mutation) GET/lookup routes. Pass `{ mutation: true }` for any
+ * route backed by a `finish_mutation(...)` call server-side
+ * (server/routes/*.py) — none of these carry inventory data anymore (see the
+ * dispatcher below).
  */
 function route(method, handler, { mutation = false } = {}) {
   const entry = API_MAP[method];
@@ -149,8 +149,8 @@ const ROUTES = [
       favicon_path: '', icon: '',
     };
   }, { mutation: true }),
-  route('delete_vendor', (_a, ctx) => ctx.inventory, { mutation: true }),
-  route('merge_vendors', (_a, ctx) => ctx.inventory, { mutation: true }),
+  route('delete_vendor', (a) => ({ vendor_id: a.vendor_id }), { mutation: true }),
+  route('merge_vendors', (a) => ({ src_id: a.src_id, dst_id: a.dst_id }), { mutation: true }),
   // Real detail shape per server/routes/inventory_mut.py's record_fetched_prices:
   // detail is {part_key, distributor}, mirroring the route's own `detail`
   // dict — never the raw inventory array. Callers (js/inventory-modals.js,
@@ -169,8 +169,8 @@ const ROUTES = [
     (ctx.options.poWithItems || {})[a.po_id] || { po_id: a.po_id, line_items: [] }),
 
   // ── import-panel.js (Task 5) ──────────────────────────────────────────────
-  route('import_purchases', (_a, ctx) => ctx.inventory, { mutation: true }),
-  route('remove_last_purchases', (_a, ctx) => ctx.inventory, { mutation: true }),
+  route('import_purchases', (a) => ({ count: (a.rows || []).length }), { mutation: true }),
+  route('remove_last_purchases', (a) => ({ count: a.count }), { mutation: true }),
   route('detect_columns', (a) => {
     const headers = Array.isArray(a.headers) ? a.headers : JSON.parse(a.headers);
     return _COLUMN_DETECTIONS[headers.join(',')] || {};
@@ -238,6 +238,15 @@ const ROUTES = [
     ? ctx.options.addMemberResult : []), { mutation: true }),
   route('remove_generic_member', () => [], { mutation: true }),
   route('exclude_generic_member', (a) => ({ generic_part_id: a.generic_part_id, part_id: a.part_id }), { mutation: true }),
+  // Task 8 census (saved-views.spec.mjs): mirrors server/routes/generic_parts.py's
+  // delete_saved_search exactly — {"ok": true, "detail": {"search_id": ...}} — and
+  // mutates the SAME stateful ctx.savedSearches array create_saved_search/
+  // list_saved_searches above share, so a delete is reflected in the next
+  // list_saved_searches call within the same test.
+  route('delete_saved_search', (a, ctx) => {
+    ctx.savedSearches = ctx.savedSearches.filter((s) => s.id !== a.search_id);
+    return { search_id: a.search_id };
+  }, { mutation: true }),
 
   // ── Incidental to group-flyout.spec.mjs's BOM auto-create-group flow (owned
   // by js/inventory/inv-mutations.js, ported properly in Task 7) — a flyout
@@ -276,37 +285,43 @@ const ROUTES = [
   }, { mutation: true }),
 
   // ── bom-panel.js / bom-events.js (Task 6) ─────────────────────────────────
-  // Mirrors the other stateful-inventory mutation mocks above (import_purchases,
-  // delete_vendor, etc.): returns ctx.inventory unchanged rather than actually
-  // decrementing quantities per-match. Specs assert on UI reaction to a fresh
-  // (truthy) inventory payload and on the mutation's own request/response
-  // shape, not on computed decrement math — that behavior is covered by the
-  // Python domain tests (tests/python/test_inventory_api_adjustments.py) and
-  // the live E2E suite (tests/js/e2e/live/bom-consume.spec.mjs).
-  route('consume_bom', (_a, ctx) => ctx.inventory, { mutation: true }),
-  route('remove_last_adjustments', (_a, ctx) => ctx.inventory, { mutation: true }),
+  // Real detail shape per server/routes/inventory_mut.py's consume_bom/
+  // remove_last_adjustments — a small dict, never the inventory array (Task
+  // 10 removed the `?include=inventory` echo entirely). ctx.inventory itself
+  // is left unmutated (no per-match decrement) — Task 10's sweep means call
+  // sites no longer consume the mutation's own return value for rendering
+  // anyway (they trigger `scheduleInventoryRefresh()` and re-read
+  // `store.inventory`, which re-fetches this same unchanged fixture via
+  // `rebuild_inventory`); computed decrement math is covered by the Python
+  // domain tests (tests/python/test_inventory_api_adjustments.py) and the
+  // live E2E suite (tests/js/e2e/live/bom-consume.spec.mjs).
+  route('consume_bom', (a) => ({ bom_name: a.bom_name, board_qty: a.board_qty }), { mutation: true }),
+  route('remove_last_adjustments', (a) => ({ count: a.count }), { mutation: true }),
 
   // ── inventory-modals.js / inv-inline-edit.js (Task 7) ──────────────────────
-  // adjust_part/update_part_price echo ctx.inventory unchanged, exactly like
-  // addMockSetup's bridge mocks (`adjust_part: async () => inv`) — same
-  // rationale as consume_bom above: specs assert UI reaction to a fresh
-  // payload, not computed qty/price math (covered by Python domain tests).
-  route('adjust_part', (_a, ctx) => ctx.inventory, { mutation: true }),
-  route('update_part_price', (_a, ctx) => ctx.inventory, { mutation: true }),
+  // Real detail shapes per server/routes/inventory_mut.py — small dicts, not
+  // the inventory array (see the consume_bom comment above for why an
+  // unchanged ctx.inventory is fine for adjust_part/update_part_price, which
+  // don't mutate it here either).
+  route('adjust_part', (a) => ({ part_key: a.part_key, adj_type: a.adj_type, quantity: a.quantity }), { mutation: true }),
+  route('update_part_price', (a) => ({ part_key: a.part_key, unit_price: a.unit_price, ext_price: a.ext_price }), { mutation: true }),
   // update_part_fields DOES mutate the matching row in place (mirrors
   // addMockSetup's bridge mock) because inventory-modals.js's applyFix()
   // re-fetches get_sourced_distributors right after and asserts the write
   // landed — an unchanged echo would make every distributor-PN-correction
-  // spec see its own edit silently discarded.
+  // spec see its own edit silently discarded. Its RETURN value is still the
+  // small real `{part_key, fields}` detail dict, though — the mutation is a
+  // side effect on `ctx.inventory` for later reads (get_sourced_distributors,
+  // the post-mutation rebuild_inventory refetch), not part of the response.
   route('update_part_fields', (a, ctx) => {
     const part = ctx.inventory.find((p) => mockPartKey(p) === a.part_key);
     if (part) Object.assign(part, a.fields);
-    return ctx.inventory;
+    return { part_key: a.part_key, fields: a.fields };
   }, { mutation: true }),
   route('delete_part', (a, ctx) => {
     ctx.inventory = ctx.inventory.filter((p) =>
       ![p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser].includes(a.part_key));
-    return ctx.inventory;
+    return { part_key: a.part_key };
   }, { mutation: true }),
   route('get_last_po_quantity', (a, ctx) => {
     const m = ctx.options.lastPoQty || {};
@@ -334,15 +349,12 @@ const ROUTES = [
     return out;
   }),
   route('get_generic_group_names', (a, ctx) => (ctx.options.genericGroupNames || {})[a.part_key] || []),
-  // detail is shaped {summary, inventory} per server/routes/inventory_mut.py
-  // (the one CFG-class op whose caller needs both from a single response —
-  // see fetch-descriptions-command.js) — never the bare summary dict. The
-  // dispatcher below ALSO sets a top-level `inventory` key (the generic
-  // `mutation: true` + `?include=inventory` path) that the real route
-  // deliberately omits (see tests/python/server/test_inventory_mut.py's
-  // `"inventory" not in body` assertion) — harmless here since the client
-  // only ever reads `res.detail.{summary,inventory}` for this method, never
-  // the top-level key.
+  // detail is shaped {summary, inventory} per server/routes/inventory_mut.py:
+  // `api.fetch_missing_descriptions()`'s own facade return already carries
+  // both (it rebuilds after writing descriptions), and the route passes that
+  // whole thing through as `detail` unchanged — never the bare summary dict,
+  // and never a top-level `inventory` key (that affordance was removed
+  // entirely in Task 10; see fetch-descriptions-command.js).
   route('fetch_missing_descriptions', (_a, ctx) => ({
     summary: ctx.options.fetchDescriptionsSummary || { updated: 0, failed: 0, skipped: 0 },
     inventory: ctx.inventory,
@@ -394,8 +406,10 @@ export async function installRouteMocks(page, inventory, options = {}) {
   // narrower routes last is what lets them win over this catch-all for their
   // exact paths; registering them first (as this file originally did) let the
   // catch-all's 404-for-unknown-method fallback silently swallow /v1/health
-  // itself, which made httpAvailable()'s probe always fail and every mapped
-  // call fall through to the bridge, undetected by transport-agnostic specs.
+  // itself — back when api.js still probed it before choosing a transport,
+  // that made the probe always fail (pre-Task-10 history; api() is HTTP-only
+  // now, so a swallowed /v1/health would instead just break app-init.js's
+  // SSE-connect check, still worth avoiding).
   await page.route('**/v1/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -491,19 +505,17 @@ export async function installRouteMocks(page, inventory, options = {}) {
     }
 
     // `mutation: true` routes are backed by a real `finish_mutation(...)`
-    // call server-side — mirror ITS envelope shape (`{"ok": true, "detail":
-    // ...}`, plus `"inventory"` only when `?include=inventory` was
-    // requested), never the client's post-unwrap expectation. Non-mutation
-    // routes (plain GETs / bespoke-shape lookups like fetch_favicon's
-    // `{"path"}`) keep returning the bare `{[unwrap]: value}` (or raw value)
-    // they always have.
+    // call server-side — mirror ITS envelope shape exactly:
+    // `{"ok": true, "detail": ...}`, always, never an `inventory` key (Task
+    // 10 removed the `?include=inventory` affordance entirely — mutation
+    // responses never carry inventory data; the frontend's sole re-render
+    // path is the SSE-driven `scheduleInventoryRefresh()`, see js/store.js).
+    // Non-mutation routes (plain GETs / bespoke-shape lookups like
+    // fetch_favicon's `{"path"}`) keep returning the bare `{[unwrap]: value}`
+    // (or raw value) they always have.
     let body;
     if (match.mutation) {
-      const includeInventory = url.searchParams.get('include') === 'inventory';
-      body = { ok: true, detail: match.unwrap === 'detail' ? value : {} };
-      if (includeInventory) {
-        body.inventory = match.unwrap === 'inventory' ? value : ctx.inventory;
-      }
+      body = { ok: true, detail: value };
     } else {
       body = match.unwrap ? { [match.unwrap]: value } : value;
     }
@@ -530,6 +542,48 @@ export async function installRouteMocks(page, inventory, options = {}) {
   return {
     getHttpHits: () => ctx.httpHits,
   };
+}
+
+/**
+ * Task 8 census (inv-col-header.spec.mjs): stateful round-trip for
+ * GET/PUT /v1/preferences over sessionStorage, mirroring helpers.mjs's
+ * pre-HTTP `addPersistentPrefsMock` bridge patch (which trapped
+ * `window.pywebview.api.load_preferences`/`save_preferences`) — that bridge
+ * trap is now dead code since the client-shell bridge no longer carries
+ * `load_preferences`/`save_preferences` at all (they moved to /v1). Must be
+ * called AFTER installRouteMocks so this page.route registration wins
+ * (Playwright matches last-registered-first) over installRouteMocks' generic
+ * '**\/v1/**' catch-all, which only serves ctx.options.preferences statically
+ * (no write-back).
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+export async function addPersistentPrefsRouteMock(page) {
+  // Matches the literal sessionStorage key inv-col-header.spec.mjs's own
+  // "Group state persists across reload" test polls via waitForFunction —
+  // that inline check is spec-owned (pre-existing, part of the test's own
+  // assertion of the mock's flush timing) and deliberately left untouched;
+  // this mock must write under the SAME key or the test hangs waiting for a
+  // key that's never written.
+  const STORAGE_KEY = '__test_prefs_inv_view';
+  await page.route('**/v1/preferences', async (route) => {
+    const request = route.request();
+    if (request.method() === 'GET') {
+      const stored = await page.evaluate((k) => window.sessionStorage.getItem(k), STORAGE_KEY);
+      const prefs = stored ? JSON.parse(stored) : { thresholds: {} };
+      await route.fulfill({ json: prefs });
+      return;
+    }
+    if (request.method() === 'PUT') {
+      // save_preferences is a rawBody route (js/api-map.js) — the request body
+      // IS the JSON-stringified prefs object, no wrapper to unwrap.
+      const body = request.postData() || '{}';
+      await page.evaluate(({ k, v }) => window.sessionStorage.setItem(k, v), { k: STORAGE_KEY, v: body });
+      await route.fulfill({ json: true });
+      return;
+    }
+    await route.continue();
+  });
 }
 
 /**

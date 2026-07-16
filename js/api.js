@@ -5,13 +5,6 @@ import { API_MAP } from './api-map.js';
 
 const LOG_MAX_ENTRIES = 200;
 
-// Step-1 mutation convention (see docs/plans/2026-07-16-phase1b-frontend-port-design.md,
-// Architecture decision 2): every mutating call asks the server to echo the
-// fresh inventory back in the same response, so call sites that do
-// `const fresh = await api(...); onInventoryUpdated(fresh);` keep working
-// unchanged. Flipped to SSE-driven refresh later in the phase.
-export const INCLUDE_INVENTORY = true;
-
 export const AppLog = {
   _entries: [],
   _max: LOG_MAX_ENTRIES,
@@ -39,41 +32,6 @@ export const AppLog = {
   }
 };
 
-// Memoized HTTP-availability probe. Must be awaited INSIDE api(), never at
-// module top level — a top-level `await fetch(...)` crashes vitest
-// collection (see js/constants.js's trap, documented in CLAUDE.md). Computed
-// once per module load; under Playwright's serve-static.mjs (no /v1 backend)
-// or plain file://+bridge, this resolves false and every mapped call falls
-// through to the legacy bridge, so existing mocked-bridge specs keep passing
-// until the E2E mocks migrate to HTTP route fixtures.
-let _httpProbe = null;
-function probeHttp() {
-  if (_httpProbe === null) {
-    _httpProbe = (async () => {
-      try {
-        const res = await fetch('/v1/health', { method: 'GET' });
-        if (!res || !res.ok) return false;
-        // Status alone is not proof: static test servers (serve-static.mjs)
-        // answer unknown paths with 200 + index.html. Require the real
-        // /v1/health JSON contract before routing traffic over HTTP.
-        const body = await res.json();
-        return body && body.ok === true;
-      } catch {
-        return false;
-      }
-    })();
-  }
-  return _httpProbe;
-}
-
-// Exported so app-init.js can gate `connectEvents()` on the same probe that
-// `api()` uses to decide HTTP vs. bridge transport — SSE is only meaningful
-// once the /v1 server is actually reachable (see Task 3 of the phase-1b plan).
-export async function httpAvailable() {
-  if (typeof window !== "undefined" && window.__DUBIS_HTTP__ === false) return false;
-  return probeHttp();
-}
-
 function buildUrl(entry, argMap) {
   let path = entry.path;
   for (const name of entry.pathParams) {
@@ -83,7 +41,6 @@ function buildUrl(entry, argMap) {
   for (const name of entry.queryParams) {
     if (argMap[name] !== undefined) query.set(name, argMap[name]);
   }
-  if (entry.mutating && INCLUDE_INVENTORY) query.set("include", "inventory");
   const qs = query.toString();
   return qs ? `${path}?${qs}` : path;
 }
@@ -134,7 +91,7 @@ async function callHttp(entry, args) {
 export async function api(method, ...args) {
   try {
     const entry = API_MAP[method];
-    if (entry && await httpAvailable()) {
+    if (entry) {
       return await callHttp(entry, args);
     }
     return await window.pywebview.api[method](...args);

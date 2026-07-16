@@ -4,7 +4,6 @@ import json
 import os
 import socket
 import threading
-import types
 import urllib.request
 
 import pytest
@@ -15,6 +14,7 @@ from pnp_server import (
     start_pnp_server,
     stop_pnp_server,
 )
+from server import events as sse_events
 
 from tests.python.helpers import make_part as _make_part
 from tests.python.helpers import write_ledger as _write_ledger
@@ -25,11 +25,10 @@ from tests.python.helpers import write_ledger as _write_ledger
 
 @pytest.fixture
 def pnp_server(api):
-    mock_window = types.SimpleNamespace(evaluate_js=lambda code: None)
-    server = start_pnp_server(api, mock_window, port=0)
+    server = start_pnp_server(api, port=0)
     port = server.server_address[1]
     base_url = f"http://127.0.0.1:{port}"
-    yield server, base_url, mock_window
+    yield server, base_url
     stop_pnp_server(server)
 
 
@@ -136,21 +135,19 @@ class TestPnPServerStartup:
     def test_returns_none_when_port_taken(self, api):
         """A second instance on an already-bound port must not raise — it
         returns None so the caller can run without the PnP server."""
-        mock_window = types.SimpleNamespace(evaluate_js=lambda code: None)
         # Bind a socket to grab a port, then keep it bound.
         blocker = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         blocker.bind(("0.0.0.0", 0))
         blocker.listen(1)
         taken_port = blocker.getsockname()[1]
         try:
-            result = start_pnp_server(api, mock_window, port=taken_port)
+            result = start_pnp_server(api, port=taken_port)
             assert result is None
         finally:
             blocker.close()
 
     def test_returns_server_on_free_port(self, api):
-        mock_window = types.SimpleNamespace(evaluate_js=lambda code: None)
-        server = start_pnp_server(api, mock_window, port=0)
+        server = start_pnp_server(api, port=0)
         try:
             assert server is not None
             # Server is actually listening.
@@ -172,13 +169,13 @@ class TestPnPServerStartup:
 
 class TestPnPServerGET:
     def test_health(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         status, body = _http_get(f"{base_url}/api/health")
         assert status == 200
         assert body == {"ok": True}
 
     def test_parts_seeded(self, api, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         _write_ledger(api, [
             _make_part(lcsc="C100000", qty=10),
             _make_part(lcsc="C200000", qty=20, desc="Capacitor 100nF 25V"),
@@ -190,13 +187,13 @@ class TestPnPServerGET:
         assert len(body["parts"]) == 2
 
     def test_parts_empty(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         status, body = _http_get(f"{base_url}/api/parts")
         assert status == 200
         assert body["parts"] == []
 
     def test_unknown_route(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         status, body = _http_get(f"{base_url}/api/unknown")
         assert status == 404
 
@@ -214,7 +211,7 @@ class TestPnPServerConsume:
         api.rebuild_inventory()
 
     def test_consume_by_lcsc(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         status, body = _http_post(f"{base_url}/api/consume", {"part_id": "C100000"})
         assert status == 200
         assert body["ok"] is True
@@ -222,14 +219,14 @@ class TestPnPServerConsume:
         assert body["new_qty"] == 99
 
     def test_consume_by_mpn(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         status, body = _http_post(f"{base_url}/api/consume", {"part_id": "RC0402-10K"})
         assert status == 200
         assert body["part_key"] == "C100000"
         assert body["new_qty"] == 99
 
     def test_consume_via_mapping(self, api, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         _write_part_map(api, {"R100k_0402": "C100000"})
         status, body = _http_post(f"{base_url}/api/consume", {"part_id": "R100k_0402"})
         assert status == 200
@@ -237,55 +234,55 @@ class TestPnPServerConsume:
         assert body["new_qty"] == 99
 
     def test_custom_qty(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         status, body = _http_post(f"{base_url}/api/consume", {"part_id": "C100000", "qty": 5})
         assert status == 200
         assert body["new_qty"] == 95
 
     def test_unknown_part(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         status, body = _http_post(f"{base_url}/api/consume", {"part_id": "NOPE"})
         assert status == 404
         assert "Unknown part ID" in body["error"]
 
     def test_missing_part_id(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         status, body = _http_post(f"{base_url}/api/consume", {})
         assert status == 400
         assert "part_id is required" in body["error"]
 
     def test_empty_part_id(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         status, body = _http_post(f"{base_url}/api/consume", {"part_id": "   "})
         assert status == 400
         assert "part_id is required" in body["error"]
 
     def test_bad_json(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         status, body = _http_post_raw(f"{base_url}/api/consume", b"not json{{{")
         assert status == 400
         assert "Bad JSON" in body["error"]
 
     def test_qty_zero(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         status, body = _http_post(f"{base_url}/api/consume", {"part_id": "C100000", "qty": 0})
         assert status == 400
         assert "qty must be positive" in body["error"]
 
     def test_qty_negative(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         status, body = _http_post(f"{base_url}/api/consume", {"part_id": "C100000", "qty": -1})
         assert status == 400
         assert "qty must be positive" in body["error"]
 
     def test_qty_non_numeric(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         status, body = _http_post(f"{base_url}/api/consume", {"part_id": "C100000", "qty": "abc"})
         assert status == 400
         assert "Bad request" in body["error"]
 
     def test_post_unknown_route(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         status, body = _http_post(f"{base_url}/api/unknown", {"part_id": "C100000"})
         assert status == 404
 
@@ -294,37 +291,22 @@ class TestPnPServerConsume:
 
 
 class TestPnPServerUIUpdate:
-    def test_evaluate_js_called(self, api, tmp_path):
+    def test_consume_publishes_sse_event(self, api, tmp_path):
+        # Task 10: the evaluate_js UI push was deleted; SSE (server/events.py)
+        # is now the sole push mechanism for a PnP consume.
         _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
         api.rebuild_inventory()
-        calls = []
-        mock_window = types.SimpleNamespace(evaluate_js=lambda code: calls.append(code))
-        server = start_pnp_server(api, mock_window, port=0)
+        server = start_pnp_server(api, port=0)
         port = server.server_address[1]
+        q = sse_events.subscribe()
         try:
             _http_post(f"http://127.0.0.1:{port}/api/consume", {"part_id": "C100000"})
-            assert len(calls) == 1
-            assert "_pnpConsume" in calls[0]
+            name, data = q.get(timeout=2)
+            assert name == "inventory.consumed"
+            assert data["part_key"] == "C100000"
+            assert data["new_qty"] == 9
         finally:
-            server.shutdown()
-
-    def test_evaluate_js_raises_still_200(self, api, tmp_path):
-        _write_ledger(api, [_make_part(lcsc="C100000", qty=10)])
-        api.rebuild_inventory()
-
-        def exploding_js(code):
-            raise RuntimeError("window closed")
-
-        mock_window = types.SimpleNamespace(evaluate_js=exploding_js)
-        server = start_pnp_server(api, mock_window, port=0)
-        port = server.server_address[1]
-        try:
-            status, body = _http_post(
-                f"http://127.0.0.1:{port}/api/consume", {"part_id": "C100000"},
-            )
-            assert status == 200
-            assert body["ok"] is True
-        finally:
+            sse_events.unsubscribe(q)
             server.shutdown()
 
 
@@ -333,7 +315,7 @@ class TestPnPServerUIUpdate:
 
 class TestPnPServerCORS:
     def test_cors_header_present(self, pnp_server):
-        _, base_url, _ = pnp_server
+        _, base_url = pnp_server
         resp = urllib.request.urlopen(f"{base_url}/api/health")
         assert resp.headers.get("Access-Control-Allow-Origin") == "*"
 
@@ -384,8 +366,7 @@ class TestPnPFullFlow:
         api.rebuild_inventory()
         _write_part_map(api, {"R100k_0402": "C100000"})
 
-        mock_window = types.SimpleNamespace(evaluate_js=lambda code: None)
-        server = start_pnp_server(api, mock_window, port=0)
+        server = start_pnp_server(api, port=0)
         port = server.server_address[1]
         base_url = f"http://127.0.0.1:{port}"
 

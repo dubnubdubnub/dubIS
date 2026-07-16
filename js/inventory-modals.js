@@ -2,11 +2,11 @@
 /* inventory-modals.js — Adjustment and price modals for inventory parts.
    Extracted from inventory-panel.js for focused maintainability. */
 
-import { api, AppLog, httpAvailable } from './api.js';
+import { api, AppLog } from './api.js';
 import { API_MAP } from './api-map.js';
 import { showToast, Modal, linkPriceInputs, escHtml } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
-import { onInventoryUpdated } from './store.js';
+import { store, scheduleInventoryRefresh } from './store.js';
 import { invPartKey } from './part-keys.js';
 import { el } from './dom/html.js';
 import { defineFormModal } from './components/form-modal.js';
@@ -182,10 +182,10 @@ function populateDetailFields(item) {
 /**
  * Fetch a single distributor product WITHOUT going through api() — the
  * per-row fetch loop below relies on failures staying scoped to that row
- * (no global error toast; see fetchRow). Mirrors api()'s own HTTP-vs-bridge
- * transport decision (same `httpAvailable()` probe, same API_MAP-driven URL
- * building as js/api.js's `callHttp`) but skips api()'s catch→toast wrapper
- * entirely, so a thrown error here is the caller's to handle per-row.
+ * (no global error toast; see fetchRow). Mirrors api()'s own API_MAP-driven
+ * URL building (same as js/api.js's `callHttp`) but skips api()'s
+ * catch→toast wrapper entirely, so a thrown error here is the caller's to
+ * handle per-row.
  *
  * `method` is one of FETCH_SUPPLIERS' `fetch_<distributor>_product` names —
  * each aliases the generated `fetch_distributor_product` route with a fixed
@@ -199,27 +199,21 @@ function populateDetailFields(item) {
  * @returns {Promise<any>}
  */
 async function fetchDistributorProduct(method, code) {
-  if (await httpAvailable()) {
-    const entry = API_MAP[method];
-    const url = entry.path.replace("{code}", encodeURIComponent(code));
-    const res = await fetch(url, { method: entry.verb });
-    if (!res.ok) {
-      let message = res.statusText || ("HTTP " + res.status);
-      try {
-        const errBody = await res.json();
-        if (errBody && errBody.error) message = errBody.error;
-      } catch {
-        // Non-JSON error body — fall back to statusText/status.
-      }
-      throw new Error(message);
+  const entry = API_MAP[method];
+  const url = entry.path.replace("{code}", encodeURIComponent(code));
+  const res = await fetch(url, { method: entry.verb });
+  if (!res.ok) {
+    let message = res.statusText || ("HTTP " + res.status);
+    try {
+      const errBody = await res.json();
+      if (errBody && errBody.error) message = errBody.error;
+    } catch {
+      // Non-JSON error body — fall back to statusText/status.
     }
-    const data = await res.json();
-    return entry.unwrap ? data[entry.unwrap] : data;
+    throw new Error(message);
   }
-  // No /v1 server reachable (mixed-mode transport until Task 10 deletes the
-  // bridge fallback entirely) — fall back to the bridge object as before.
-  const bridge = /** @type {any} */ (window).pywebview.api;
-  return await bridge[method](code);
+  const data = await res.json();
+  return entry.unwrap ? data[entry.unwrap] : data;
 }
 
 /**
@@ -300,10 +294,10 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
     const r = rows[i];
     const distributor = r.distributor;
     const label = r.label;
-    const fresh = await api("update_part_fields", pk, { [distributor]: newPn });
-    if (!fresh) return;   // api() already toasted the error
-    onInventoryUpdated(fresh);
-    const freshItem = fresh.find((it) => invPartKey(it) === pk) || null;
+    const result = await api("update_part_fields", pk, { [distributor]: newPn });
+    if (!result) return;   // api() already toasted the error
+    await scheduleInventoryRefresh();
+    const freshItem = store.inventory.find((it) => invPartKey(it) === pk) || null;
     if (onPartUpdated) onPartUpdated(freshItem);
     if (freshItem) await configure(freshItem);
 
@@ -574,9 +568,9 @@ export function init() {
       deletePartBtn.classList.add("armed");
       return;
     }
-    const fresh = await api("delete_part", pk);
-    if (!fresh) return;   // api() already toasted the error
-    onInventoryUpdated(fresh);
+    const result = await api("delete_part", pk);
+    if (!result) return;   // api() already toasted the error
+    scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
     showToast("Deleted " + pk);
     adjModal.close();
   });
@@ -639,14 +633,14 @@ export function init() {
       if (!priceResult) {
         AppLog.warn("Qty adjusted, but price update failed for " + pk);
         UndoRedo._undo[UndoRedo._undo.length - 1].data.priceChanged = false;
-        onInventoryUpdated(result);
+        scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
         adjModal.close();
         return;
       }
       result = priceResult;
     }
 
-    onInventoryUpdated(result);
+    scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
 
     lastAdjustMeta = {
       partKey: pk, adjType: type, qty: qty, note: note,
@@ -734,8 +728,8 @@ export function init() {
       const rawEp = parseFloat(values.ext);
       const ep = isNaN(rawEp) ? null : rawEp;
 
-      const fresh = await api("update_part_price", pk, up, ep);
-      if (!fresh) return null;
+      const result = await api("update_part_price", pk, up, ep);
+      if (!result) return null;
 
       lastPriceMeta = {
         partKey: pk,
@@ -744,8 +738,8 @@ export function init() {
         newUp: up,
         newEp: ep,
       };
-      onInventoryUpdated(fresh);
-      return fresh;
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
+      return result;
     },
 
     undo: {
@@ -812,7 +806,7 @@ export function init() {
         if (!result) throw new Error("Failed to undo price change");
       }
       lastAdjustMeta = null;
-      onInventoryUpdated(result);
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Undid adjustment for " + data.partKey);
     } else if (data._undoType === "adjust-done") {
       const qtyResult = await api("adjust_part", data.adjType, data.partKey, data.qty, data.note);
@@ -824,7 +818,7 @@ export function init() {
       }
       lastAdjustMeta = { ...data };
       delete lastAdjustMeta._undoType;
-      onInventoryUpdated(result);
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Redid adjustment for " + data.partKey);
     }
   });
@@ -837,17 +831,17 @@ export function init() {
       return { _undoType: "price-none" };
     }
     if (data._undoType === "price") {
-      const fresh = await api("update_part_price", data.partKey, data.oldUp, data.oldEp);
-      if (!fresh) throw new Error("Failed to undo price update");
+      const result = await api("update_part_price", data.partKey, data.oldUp, data.oldEp);
+      if (!result) throw new Error("Failed to undo price update");
       lastPriceMeta = null;
-      onInventoryUpdated(fresh);
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Undid price update for " + data.partKey);
     } else if (data._undoType === "price-done") {
-      const fresh = await api("update_part_price", data.partKey, data.newUp, data.newEp);
-      if (!fresh) throw new Error("Failed to redo price update");
+      const result = await api("update_part_price", data.partKey, data.newUp, data.newEp);
+      if (!result) throw new Error("Failed to redo price update");
       lastPriceMeta = { ...data };
       delete lastPriceMeta._undoType;
-      onInventoryUpdated(fresh);
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Redid price update for " + data.partKey);
     }
   });

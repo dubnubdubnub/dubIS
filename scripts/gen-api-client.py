@@ -18,7 +18,7 @@ request from positional arguments:
       "queryParams": [],
       "bodyParams": ["adj_type", "quantity", "note", "source"],
       "rawBody": false,
-      "unwrap": "inventory",
+      "unwrap": "detail",
       "mutating": true
     }
 
@@ -33,10 +33,17 @@ operation with 2+ total params MUST have an explicit entry in ``ARG_ORDER``
 below — seeded by hand from the frozen signatures — or generation fails loud.
 Operations with 0 or 1 params are unambiguous and skip that requirement.
 
-``mutating`` is true exactly when the operation exposes an ``include`` query
-parameter (i.e. it goes through ``server.mutations.finish_mutation``);
-``js/api.js`` uses this flag to auto-append ``?include=inventory``, and the
-same condition drives the default ``unwrap: "inventory"``.
+``mutating`` is true exactly for operation_ids in
+``FINISH_MUTATION_OPERATION_IDS`` — routes whose handler ends with
+``return finish_mutation(...)`` (server/mutations.py), whose envelope is
+always ``{"ok": true, "detail": ...}`` — never an inventory list. This is
+deliberately NOT verb-based: many POST/PUT/PATCH/DELETE routes are pure
+lookups/config toggles (detect_columns, match_part, save_preferences, etc.)
+that return their payload raw, un-enveloped. The default ``unwrap`` is
+mutating-keyed: mutating ops default to ``unwrap: "detail"``, everything
+else defaults to ``unwrap: None`` — both defaults are overridden for
+``list_parts`` (whose own GET body IS the inventory envelope) and for any
+entry in ``UNWRAP_OVERRIDES``.
 
 Special-cased alias methods (same route, different bridge method name) are
 declared in ALIASES; they get their own API_MAP entries derived from the
@@ -104,22 +111,48 @@ ARG_ORDER: dict[str, list[str]] = {
     "update_vendor": ["vendor_id", "name", "url", "favicon_path"],
 }
 
-# Scalar-envelope unwraps for operations that don't go through
-# finish_mutation's ?include=inventory convention. `list_parts` is the one
-# GET whose *own* body IS the inventory envelope (unwrap "inventory") even
-# though it has no `include` query param / isn't "mutating".
-#
-# CFG (config-mutation) class: these mutate config/generic-parts/saved-search
-# state, not inventory rows. Their routes call finish_mutation with
-# `include=None` (no `?include=inventory` support) or, for
-# fetch_missing_descriptions/record_fetched_prices, DO accept `include` but
-# put the client-relevant payload in `detail` regardless (see
-# server/routes/*.py). Call sites (js/vendors-modal.js, js/inventory/
+# Operations whose route ends in `return finish_mutation(...)`
+# (server/mutations.py) — the ONLY routes whose envelope is really
+# `{"ok": true, "detail": ...}`. This must be an explicit allowlist, not a
+# verb-based heuristic ("POST/PUT/PATCH/DELETE => mutating"): plenty of
+# state-changing-verb routes are pure lookups/config toggles that return
+# their payload raw, un-enveloped (detect_columns, match_part, ocr_overlay,
+# parse_import_source, start_scan_session, extract_spec_from_value,
+# validate_digikey_session, sync_digikey_cookies, set/clear_mouser_api_key,
+# logout_digikey, save_preferences, pnp_consume, resolve_bom_spec,
+# fetch_favicon, create_saved_search, delete_saved_search — none of these
+# call finish_mutation). Getting this wrong makes `unwrap` default to
+# "detail" for a route with no "detail" key, silently returning `undefined`
+# to every caller — a live-only regression (route-mocked tests build their
+# envelope from these SAME entries, so they can't catch this drift; only a
+# real server response can). Keep this list in sync with
+# `grep -rn 'finish_mutation(' server/routes/*.py`.
+FINISH_MUTATION_OPERATION_IDS: set[str] = {
+    # generic_parts.py
+    "create_generic_part", "update_generic_part", "add_generic_member",
+    "remove_generic_member", "exclude_generic_member", "set_preferred_member",
+    # inventory_mut.py
+    "adjust_part", "update_part_fields", "update_part_price", "delete_part",
+    "fetch_missing_descriptions", "record_fetched_prices", "import_purchases",
+    "remove_last_purchases", "remove_last_adjustments", "rollback_source",
+    "consume_bom",
+    # vendors_pos.py
+    "update_vendor", "delete_vendor", "merge_vendors",
+    "create_purchase_order_with_items", "delete_last_purchase_order",
+    "update_purchase_order", "delete_purchase_order",
+}
+
+# Scalar-envelope unwraps for operations whose response shape isn't the
+# mutating-keyed default (see build_api_map). `list_parts` is the one GET
+# whose *own* body IS the inventory envelope (unwrap "inventory") even though
+# GETs otherwise default to no unwrap. The finish_mutation-backed ops below
+# (mirroring FINISH_MUTATION_OPERATION_IDS) are listed here mainly for
+# readability/documentation, since the mutating-keyed default already
+# produces "detail" for them; call sites (js/vendors-modal.js, js/inventory/
 # inv-mutations.js, js/group-flyout/flyout-drag.js, js/group-flyout/
 # flyout-events.js, js/inventory/fetch-descriptions-command.js) consume the
-# facade return directly (e.g. `v.name`, `result.generic_part_id`,
-# `result.id`), so these must unwrap "detail" — the envelope's `detail` field
-# carries exactly that facade return — never "inventory".
+# facade return via `detail` directly (e.g. `v.name`, `result.generic_part_id`,
+# `result.id`).
 UNWRAP_OVERRIDES: dict[str, str] = {
     "list_parts": "inventory",
     "get_generic_group_names": "groups",
@@ -209,10 +242,8 @@ def _build_base_entries(spec: dict) -> dict[str, dict[str, Any]]:
 
             params = op.get("parameters", [])
             path_params = [p["name"] for p in params if p["in"] == "path"]
-            query_params = [
-                p["name"] for p in params if p["in"] == "query" and p["name"] != "include"
-            ]
-            mutating = any(p["name"] == "include" for p in params)
+            query_params = [p["name"] for p in params if p["in"] == "query"]
+            mutating = op_id in FINISH_MUTATION_OPERATION_IDS
             body_params, raw_body = _resolve_body_params(op, schemas)
 
             if raw_body:
@@ -249,12 +280,9 @@ def _build_base_entries(spec: dict) -> dict[str, dict[str, Any]]:
             if op_id == "list_parts":
                 unwrap = "inventory"
             elif op_id in UNWRAP_OVERRIDES:
-                # Checked before the `mutating` default so CFG-class mutating
-                # ops (fetch_missing_descriptions, record_fetched_prices) can
-                # override "inventory" with "detail" — see UNWRAP_OVERRIDES.
                 unwrap = UNWRAP_OVERRIDES[op_id]
             elif mutating:
-                unwrap = "inventory"
+                unwrap = "detail"
             else:
                 unwrap = None
 

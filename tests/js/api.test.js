@@ -10,28 +10,42 @@ import { AppLog, api, whenPywebviewReady, apiMfgDirect } from '../../js/api.js';
 import { showToast } from '../../js/ui-helpers.js';
 
 describe('apiMfgDirect', () => {
-  beforeEach(() => { AppLog.clear(); });
+  // start_scan_session / parse_source_file_b64 are HTTP-mapped (js/api-map.js) —
+  // Task 10 flip made HTTP unconditional for mapped methods, so these go over
+  // fetch, not the pywebview bridge.
+  beforeEach(() => {
+    AppLog.clear();
+    delete window.pywebview;
+  });
+
+  function jsonResponse(body) {
+    return { ok: true, status: 200, statusText: 'OK', json: async () => body };
+  }
 
   it('startScanSession passes the template through', async () => {
-    const start = vi.fn().mockResolvedValue({ session_id: 's1', urls: ['http://x'] });
-    window.pywebview = { api: { start_scan_session: start } };
+    // start_scan_session (server/routes/import_scan.py) is a pure lookup —
+    // it never calls server.mutations.finish_mutation, so its response is
+    // the raw payload, NOT a {"ok","detail"} envelope (unwrap: null).
+    global.fetch = vi.fn(async () => jsonResponse({ session_id: 's1', urls: ['http://x'] }));
     const res = await apiMfgDirect.startScanSession('lcsc');
-    expect(start).toHaveBeenCalledWith('lcsc');
+    const [url, init] = global.fetch.mock.calls[0];
+    expect(url).toBe('/v1/scan/sessions');
+    expect(JSON.parse(init.body)).toEqual({ template: 'lcsc' });
     expect(res.session_id).toBe('s1');
   });
 
   it('parseFileB64 defaults template to generic (backward compatible)', async () => {
-    const parse = vi.fn().mockResolvedValue([]);
-    window.pywebview = { api: { parse_source_file_b64: parse } };
+    global.fetch = vi.fn(async () => jsonResponse({ ok: true, detail: [] }));
     await apiMfgDirect.parseFileB64('b64', 'po.pdf');
-    expect(parse).toHaveBeenCalledWith('b64', 'po.pdf', 'generic');
+    const [, init] = global.fetch.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({ file_b64: 'b64', file_name: 'po.pdf', template: 'generic' });
   });
 
   it('parseFileB64 forwards an explicit template', async () => {
-    const parse = vi.fn().mockResolvedValue([]);
-    window.pywebview = { api: { parse_source_file_b64: parse } };
+    global.fetch = vi.fn(async () => jsonResponse({ ok: true, detail: [] }));
     await apiMfgDirect.parseFileB64('b64', 'po.pdf', 'digikey');
-    expect(parse).toHaveBeenCalledWith('b64', 'po.pdf', 'digikey');
+    const [, init] = global.fetch.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({ file_b64: 'b64', file_name: 'po.pdf', template: 'digikey' });
   });
 });
 

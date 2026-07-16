@@ -1,10 +1,10 @@
 """Inventory-mutating /v1 routes.
 
 Every mutating endpoint below ends with `return finish_mutation(...)`, which
-builds the `{"ok", "detail", ["inventory"]}` envelope and publishes
-`inventory.updated` on the SSE broker. `resolve_bom_spec` and
-`extract_spec_from_value` are read-only lookups (no cache mutation, no
-publish) and return their result directly.
+builds the `{"ok", "detail"}` envelope and publishes `inventory.updated` on
+the SSE broker. `resolve_bom_spec` and `extract_spec_from_value` are
+read-only lookups (no cache mutation, no publish) and return their result
+directly.
 """
 
 from __future__ import annotations
@@ -75,12 +75,11 @@ def adjust_part(
     request: Request,
     part_key: str,
     body: AdjustPartBody,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
-    result = api.adjust_part(body.adj_type, part_key, body.quantity, body.note, body.source)
+    api.adjust_part(body.adj_type, part_key, body.quantity, body.note, body.source)
     return finish_mutation(
-        api, result, include, reason="adjust",
+        reason="adjust",
         detail={"part_key": part_key, "adj_type": body.adj_type, "quantity": body.quantity},
     )
 
@@ -90,12 +89,11 @@ def update_part_fields(
     request: Request,
     part_key: str,
     body: UpdatePartFieldsBody,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
-    result = api.update_part_fields(part_key, body.fields)
+    api.update_part_fields(part_key, body.fields)
     return finish_mutation(
-        api, result, include, reason="update_fields",
+        reason="update_fields",
         detail={"part_key": part_key, "fields": body.fields},
     )
 
@@ -105,12 +103,11 @@ def update_part_price(
     request: Request,
     part_key: str,
     body: UpdatePartPriceBody,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
-    result = api.update_part_price(part_key, body.unit_price, body.ext_price)
+    api.update_part_price(part_key, body.unit_price, body.ext_price)
     return finish_mutation(
-        api, result, include, reason="update_price",
+        reason="update_price",
         detail={"part_key": part_key, "unit_price": body.unit_price, "ext_price": body.ext_price},
     )
 
@@ -119,25 +116,22 @@ def update_part_price(
 def delete_part(
     request: Request,
     part_key: str,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
-    result = api.delete_part(part_key)
+    api.delete_part(part_key)
     return finish_mutation(
-        api, result, include, reason="delete_part", detail={"part_key": part_key},
+        reason="delete_part", detail={"part_key": part_key},
     )
 
 
 @router.post("/parts/fetch-missing-descriptions", operation_id="fetch_missing_descriptions")
 def fetch_missing_descriptions(
     request: Request,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
     summary = api.fetch_missing_descriptions()
-    result = api._load_organized() if include == "inventory" else summary
     return finish_mutation(
-        api, result, include, reason="fetch_missing_descriptions", detail=summary,
+        reason="fetch_missing_descriptions", detail=summary,
     )
 
 
@@ -146,25 +140,22 @@ def record_fetched_prices(
     request: Request,
     part_key: str,
     body: RecordFetchedPricesBody,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
     api.record_fetched_prices(part_key, body.distributor, body.price_tiers)
     detail = {"part_key": part_key, "distributor": body.distributor}
-    result = api._load_organized() if include == "inventory" else None
-    return finish_mutation(api, result, include, reason="prices", detail=detail)
+    return finish_mutation(reason="prices", detail=detail)
 
 
 @router.post("/purchases/import", operation_id="import_purchases")
 def import_purchases(
     request: Request,
     body: ImportPurchasesBody,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
-    result = api.import_purchases(body.rows)
+    api.import_purchases(body.rows)
     return finish_mutation(
-        api, result, include, reason="import_purchases", detail={"count": len(body.rows)},
+        reason="import_purchases", detail={"count": len(body.rows)},
     )
 
 
@@ -172,12 +163,11 @@ def import_purchases(
 def remove_last_purchases(
     request: Request,
     count: int = Query(..., ge=1),
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
-    result = api.remove_last_purchases(count)
+    api.remove_last_purchases(count)
     return finish_mutation(
-        api, result, include, reason="remove_last_purchases", detail={"count": count},
+        reason="remove_last_purchases", detail={"count": count},
     )
 
 
@@ -185,12 +175,11 @@ def remove_last_purchases(
 def remove_last_adjustments(
     request: Request,
     count: int = Query(..., ge=1),
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
-    result = api.remove_last_adjustments(count)
+    api.remove_last_adjustments(count)
     return finish_mutation(
-        api, result, include, reason="remove_last_adjustments", detail={"count": count},
+        reason="remove_last_adjustments", detail={"count": count},
     )
 
 
@@ -198,25 +187,22 @@ def remove_last_adjustments(
 def rollback_source(
     request: Request,
     source: str,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
     removed = api.rollback_source(source)
     detail = {"removed": removed}
-    result = api._load_organized() if include == "inventory" else None
-    return finish_mutation(api, result, include, reason="rollback_source", detail=detail)
+    return finish_mutation(reason="rollback_source", detail=detail)
 
 
 @router.post("/bom/consume", operation_id="consume_bom")
 def consume_bom(
     request: Request,
     body: ConsumeBomBody,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
-    result = api.consume_bom(body.matches, body.board_qty, body.bom_name, body.note, body.source)
+    api.consume_bom(body.matches, body.board_qty, body.bom_name, body.note, body.source)
     return finish_mutation(
-        api, result, include, reason="consume_bom",
+        reason="consume_bom",
         detail={"bom_name": body.bom_name, "board_qty": body.board_qty},
     )
 

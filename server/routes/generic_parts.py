@@ -4,8 +4,7 @@ Generic-part/member mutations (create/update/add/remove/exclude/preferred)
 change flyout state derived from inventory, so they end with
 `finish_mutation(..., reason="generic-parts")`, which publishes
 `inventory.updated`. The facade's own return value (members list or dict)
-is passed through as `detail` — there is no `include=inventory` support
-here since these facades don't return the inventory list.
+is passed through as `detail`.
 
 Saved-search create/delete do NOT publish: saved searches are UI-scoped
 convenience state (a named tag/search snapshot), not inventory-derived
@@ -44,7 +43,7 @@ class AddMemberBody(BaseModel):
 
 class CreateSavedSearchBody(BaseModel):
     name: str
-    tag_state: dict
+    tag_state: dict | list
     search_text: str = ""
     frozen_members: list = []
 
@@ -62,21 +61,21 @@ def list_generic_parts(request: Request) -> list:
 def create_generic_part(request: Request, body: CreateGenericPartBody) -> dict:
     api = request.app.state.api
     result = api.create_generic_part(body.name, body.part_type, body.spec, body.strictness)
-    return finish_mutation(api, None, None, reason="generic-parts", detail=result)
+    return finish_mutation(reason="generic-parts", detail=result)
 
 
 @router.put("/generic-parts/{generic_part_id}", operation_id="update_generic_part")
 def update_generic_part(request: Request, generic_part_id: str, body: UpdateGenericPartBody) -> dict:
     api = request.app.state.api
     result = api.update_generic_part(generic_part_id, body.name, body.spec, body.strictness)
-    return finish_mutation(api, None, None, reason="generic-parts", detail=result)
+    return finish_mutation(reason="generic-parts", detail=result)
 
 
 @router.post("/generic-parts/{generic_part_id}/members", operation_id="add_generic_member")
 def add_generic_member(request: Request, generic_part_id: str, body: AddMemberBody) -> dict:
     api = request.app.state.api
     members = api.add_generic_member(generic_part_id, body.part_id)
-    return finish_mutation(api, None, None, reason="generic-parts", detail=members)
+    return finish_mutation(reason="generic-parts", detail=members)
 
 
 @router.delete(
@@ -85,7 +84,7 @@ def add_generic_member(request: Request, generic_part_id: str, body: AddMemberBo
 def remove_generic_member(request: Request, generic_part_id: str, part_id: str) -> dict:
     api = request.app.state.api
     members = api.remove_generic_member(generic_part_id, part_id)
-    return finish_mutation(api, None, None, reason="generic-parts", detail=members)
+    return finish_mutation(reason="generic-parts", detail=members)
 
 
 @router.post(
@@ -95,7 +94,7 @@ def exclude_generic_member(request: Request, generic_part_id: str, part_id: str)
     api = request.app.state.api
     api.exclude_generic_member(generic_part_id, part_id)
     return finish_mutation(
-        api, None, None, reason="generic-parts",
+        reason="generic-parts",
         detail={"generic_part_id": generic_part_id, "part_id": part_id},
     )
 
@@ -106,7 +105,7 @@ def exclude_generic_member(request: Request, generic_part_id: str, part_id: str)
 def set_preferred_member(request: Request, generic_part_id: str, part_id: str) -> dict:
     api = request.app.state.api
     members = api.set_preferred_member(generic_part_id, part_id)
-    return finish_mutation(api, None, None, reason="generic-parts", detail=members)
+    return finish_mutation(reason="generic-parts", detail=members)
 
 
 # ── Saved searches (no publish — UI-scoped, not inventory-derived) ─────────

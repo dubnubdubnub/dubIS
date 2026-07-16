@@ -6,13 +6,15 @@
 // files only and cannot render the Python /scan capture page or run the upload
 // route. Rather than invent a parallel harness, this spec boots the REAL
 // pnp_server via tests/js/e2e/scan-server.py on an ephemeral port (a fake
-// api/window record OCR + UI-push calls), then drives the genuinely-served
-// mobile capture page with real user interactions:
+// api records OCR calls; SSE events are recorded via server/events.py —
+// there's no window/evaluate_js to fake since Phase 1b Task 10 deleted that
+// push path), then drives the genuinely-served mobile capture page with real
+// user interactions:
 //   - real navigation to http://127.0.0.1:<port>/scan?s=<valid_session>
 //   - real setInputFiles on the camera <input type=file accept image capture>
 //   - real .click() on the Send button
-// and asserts the success state plus that the backend ran OCR and fired the
-// window._scanReceived push. No dispatchEvent, no force, no faked clicks.
+// and asserts the success state plus that the backend ran OCR and published
+// the scan.received SSE event. No dispatchEvent, no force, no faked clicks.
 //
 // Prefer throwing over silent failure: helper code aborts loudly if the server
 // process never prints its READY handshake.
@@ -123,9 +125,11 @@ test.describe('Phone-scan capture page → upload', () => {
 
     const rec = JSON.parse(readFileSync(recordPath, 'utf8'));
     expect(rec.ocr_calls[0]).toMatchObject({ filename: 'po.png', template: 'lcsc' });
-    // Two pushes fire: an instant "_scanReceiving" ack, then the OCR result.
-    expect(rec.js_calls.some((c) => c.includes('window._scanReceiving('))).toBe(true);
-    expect(rec.js_calls.some((c) => c.includes('window._scanReceived('))).toBe(true);
+    // Two SSE pushes fire: an instant "scan.receiving" ack, then the OCR
+    // result (scan.received) — the sole UI-push mechanism since Phase 1b
+    // Task 10 deleted pnp_server.py's window.evaluate_js pushes.
+    expect(rec.sse_events).toContain('scan.receiving');
+    expect(rec.sse_events).toContain('scan.received');
 
     // The raw photo was saved to <data_dir>/scans the moment it was uploaded.
     const scansDir = join(dataDir, 'scans');

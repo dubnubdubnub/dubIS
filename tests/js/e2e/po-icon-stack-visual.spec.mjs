@@ -9,7 +9,8 @@
  * bottom-right, and the cascade does not blow out the row height.
  */
 import { test, expect } from '@playwright/test';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 import { capture, rectOf } from './visual/capture.mjs';
 import { detectClipping } from './visual/measure.mjs';
 
@@ -55,7 +56,7 @@ function iconIndexAt(page, x, y) {
 }
 
 test('most-recent PO is on top; older POs cascade down-right and stay visible', async ({ page }) => {
-  await addMockSetup(page, INVENTORY, { mfgDirectVendors: VENDORS, purchaseOrders: PURCHASE_ORDERS });
+  await installRouteMocks(page, INVENTORY, { mfgDirectVendors: VENDORS, purchaseOrders: PURCHASE_ORDERS });
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/index.html');
   await waitForInventoryRows(page);
@@ -102,7 +103,7 @@ test('most-recent PO is on top; older POs cascade down-right and stay visible', 
 });
 
 test('the older icon is actually painted in the bottom-right sliver', async ({ page }) => {
-  await addMockSetup(page, INVENTORY, { mfgDirectVendors: VENDORS, purchaseOrders: PURCHASE_ORDERS });
+  await installRouteMocks(page, INVENTORY, { mfgDirectVendors: VENDORS, purchaseOrders: PURCHASE_ORDERS });
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/index.html');
   await waitForInventoryRows(page);

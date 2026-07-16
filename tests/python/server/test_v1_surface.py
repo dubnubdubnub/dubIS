@@ -36,7 +36,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 # explicitly enumerated in _NEW_OPERATIONS as having no InventoryApi equivalent.
 _INVENTORY_API_METHOD_NAMES = {
     'add_generic_member', 'adjust_part', 'bench_mark', 'check_digikey_session',
-    'clear_mouser_api_key', 'confirm_close', 'consume_bom', 'convert_xls_to_csv',
+    'clear_mouser_api_key', 'confirm_close', 'consume_bom',
     'create_generic_part', 'create_purchase_order_with_items', 'create_saved_search',
     'delete_last_purchase_order', 'delete_purchase_order', 'delete_saved_search',
     'delete_part', 'delete_vendor', 'detect_columns', 'disable_inventory_mirror',

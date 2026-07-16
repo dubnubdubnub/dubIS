@@ -10,7 +10,7 @@ import { EventBus, Events } from './event-bus.js';
 import { store } from './store.js';
 import { invPartKey } from './part-keys.js';
 import { showToast, escHtml } from './ui-helpers.js';
-import { api, AppLog, whenPywebviewReady } from './api.js';
+import { api, AppLog } from './api.js';
 import { openPoImageLightbox } from './po-image-lightbox.js';
 
 // Source extensions the backend can return as an inline image (images render
@@ -384,7 +384,7 @@ export function init() {
   syncToolbar();
   syncCount();
 
-  // Populate the PO history once the pywebview bridge is hydrated. api() would
-  // otherwise swallow the pre-ready error and cache an empty list.
-  if (poList) whenPywebviewReady().then(() => renderPoList(poList));
+  // `list_purchase_orders` is an HTTP-mapped /v1 method — no bridge readiness
+  // gate needed.
+  if (poList) renderPoList(poList);
 }

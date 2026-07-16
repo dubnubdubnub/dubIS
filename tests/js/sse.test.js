@@ -120,49 +120,52 @@ describe('store.js: inventory.updated wiring (gating + debounce)', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
+    // updateInventoryHeader() (called by onInventoryUpdated, invoked at the
+    // end of the debounced refresh chain) writes into these two elements —
+    // stub them so awaiting scheduleInventoryRefresh() to full completion
+    // doesn't crash on a null getElementById in this DOM-less test file.
+    document.body.innerHTML = '<span id="inv-count"></span><span id="inv-total-value"></span>';
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  /** Fresh store.js + sse.js pair with a given INCLUDE_INVENTORY, wired to a fake EventSource. */
-  async function setup(includeInventory) {
+  /** Fresh store.js + sse.js pair, wired to a fake EventSource. */
+  async function setup() {
     vi.doMock('../../js/constants.js', constantsMock);
     const apiSpy = vi.fn().mockResolvedValue([{ part_key: 'A', qty: 1 }]);
     const AppLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), clear: vi.fn() };
     vi.doMock('../../js/api.js', () => ({
       api: apiSpy,
       AppLog,
-      INCLUDE_INVENTORY: includeInventory,
     }));
     const { connectEvents } = await import('../../js/sse.js');
-    await import('../../js/store.js'); // side effect: registers the 'inventory.updated' handler
+    const store = await import('../../js/store.js'); // side effect: registers the 'inventory.updated' handler
     connectEvents();
     const es = FakeEventSource.instances[0];
-    return { apiSpy, AppLog, es };
+    // `onInventoryUpdated` (invoked at the end of the refresh chain) also
+    // cascades into `loadVendorsAndPOs()` (list_vendors + list_purchase_orders),
+    // all through this same apiSpy — count only the rebuild_inventory calls.
+    const rebuildCalls = () => apiSpy.mock.calls.filter(([m]) => m === 'rebuild_inventory');
+    return { apiSpy, rebuildCalls, AppLog, es, store };
   }
 
-  it('INCLUDE_INVENTORY=true (current step-1 default): gate stays closed, no refresh call', async () => {
-    const { apiSpy } = await setup(true);
-    FakeEventSource.instances[0].emit('inventory.updated', { reason: 'adjust' });
-    await vi.advanceTimersByTimeAsync(500);
-    expect(apiSpy).not.toHaveBeenCalledWith('rebuild_inventory');
-  });
-
-  it('INCLUDE_INVENTORY=false: refreshes via rebuild_inventory after the debounce window', async () => {
-    const { apiSpy, es } = await setup(false);
+  // Task 10: SSE is the sole gate-free re-render source — there is no
+  // INCLUDE_INVENTORY flag anymore, so every 'inventory.updated' push always
+  // schedules a debounced rebuild_inventory refetch.
+  it('refreshes via rebuild_inventory after the debounce window', async () => {
+    const { apiSpy, rebuildCalls, es } = await setup();
     es.emit('inventory.updated', { reason: 'adjust' });
     // Not yet — debounce hasn't elapsed.
     await vi.advanceTimersByTimeAsync(100);
     expect(apiSpy).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(200); // total 300ms > 250ms debounce
-    expect(apiSpy).toHaveBeenCalledWith('rebuild_inventory');
-    expect(apiSpy).toHaveBeenCalledTimes(1);
+    expect(rebuildCalls()).toHaveLength(1);
   });
 
-  it('INCLUDE_INVENTORY=false: rapid-fire events collapse into a single trailing refresh', async () => {
-    const { apiSpy, es } = await setup(false);
+  it('rapid-fire events collapse into a single trailing refresh', async () => {
+    const { apiSpy, rebuildCalls, es } = await setup();
     es.emit('inventory.updated', { reason: 'a' });
     await vi.advanceTimersByTimeAsync(100);
     es.emit('inventory.updated', { reason: 'b' }); // resets the debounce timer
@@ -170,6 +173,20 @@ describe('store.js: inventory.updated wiring (gating + debounce)', () => {
     es.emit('inventory.updated', { reason: 'c' }); // resets again
     expect(apiSpy).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(250);
-    expect(apiSpy).toHaveBeenCalledTimes(1);
+    expect(rebuildCalls()).toHaveLength(1);
+  });
+
+  it('scheduleInventoryRefresh() (direct post-mutation call) shares the debounce with SSE', async () => {
+    const { rebuildCalls, es, store } = await setup();
+    // A mutation call site fires a direct refresh...
+    const p = store.scheduleInventoryRefresh();
+    await vi.advanceTimersByTimeAsync(100);
+    // ...then the mutation's own SSE echo arrives before the debounce fires —
+    // it must NOT restart a second independent refresh cycle beyond the
+    // shared timer resetting (still just one eventual rebuild_inventory call).
+    es.emit('inventory.updated', { reason: 'adjust' });
+    await vi.advanceTimersByTimeAsync(250);
+    await p;
+    expect(rebuildCalls()).toHaveLength(1);
   });
 });

@@ -2,7 +2,7 @@
 
 import { api, AppLog, apiPurchaseOrders, apiMfgDirect } from '../../api.js';
 import { showToast } from '../../ui-helpers.js';
-import { onInventoryUpdated, store, loadVendorsAndPOs } from '../../store.js';
+import { scheduleInventoryRefresh, store, loadVendorsAndPOs } from '../../store.js';
 import { renderEditor, renderScanModal } from './mfg-direct-renderer.js';
 import { emptyLineItem, validateLineItems,
   mapScanLineItems, scanSourceFile } from './mfg-direct-logic.js';
@@ -83,9 +83,9 @@ UndoRedo.register('po-import', async (action, data) => {
       template: data?.template, sourceBytes: data?.sourceBytes, sourceName: data?.sourceName };
   }
   if (data && data._undoType === 'po-import') {
-    const fresh = await apiPurchaseOrders.deleteLast();
-    if (!fresh) throw new Error('Failed to undo PO import');
-    onInventoryUpdated(fresh);
+    const result = await apiPurchaseOrders.deleteLast();
+    if (!result) throw new Error('Failed to undo PO import');
+    scheduleInventoryRefresh().catch(e => AppLog.warn('inventory refresh failed: ' + e));
     popImportGeneration();
     showToast(`Undid import of ${data.importedCount} rows`);
     await reopenReviewForUndo(data);
@@ -651,9 +651,9 @@ async function importPO() {
   if (state.editingPoId) {
     // Edit path: only metadata updates (vendor/date/notes). Per-row qty/price
     // edits flow through the existing adjust/price endpoints.
-    const fresh = await apiPurchaseOrders.update(
+    await apiPurchaseOrders.update(
       state.editingPoId, state.vendor.id, '', '');
-    onInventoryUpdated(fresh);
+    scheduleInventoryRefresh().catch(e => AppLog.warn('inventory refresh failed: ' + e));
     showToast('PO updated');
     cancelFlow();
     return;
@@ -687,7 +687,7 @@ async function importPO() {
   }));
 
   try {
-    const fresh = await apiPurchaseOrders.create(
+    await apiPurchaseOrders.create(
       state.vendor.id, fileB64, fileName, '', '', items);
 
     // Record the import generation BEFORE the inventory re-renders, so the
@@ -698,7 +698,7 @@ async function importPO() {
     const keys = state.lineItems.map(lineItemPartKey).filter(Boolean);
     recordImportGeneration(keys);
 
-    onInventoryUpdated(fresh);
+    scheduleInventoryRefresh().catch(e => AppLog.warn('inventory refresh failed: ' + e));
     await loadVendorsAndPOs();
 
     UndoRedo.save('po-import', {

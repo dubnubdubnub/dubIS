@@ -3,7 +3,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -24,7 +25,7 @@ for (const item of MOCK_INVENTORY) DIST_COUNTS[inferDistributor(item)]++;
 test.describe('Distributor filter buttons', () => {
 
   test('filter buttons visible at default viewport', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -68,7 +69,7 @@ test.describe('Distributor filter buttons', () => {
   });
 
   test('clicking a filter button filters inventory to that distributor', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -96,7 +97,7 @@ test.describe('Distributor filter buttons', () => {
   });
 
   test('multi-select: clicking two distributors shows combined inventory', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -127,7 +128,7 @@ test.describe('Distributor filter buttons', () => {
   });
 
   test('clicking same button again deactivates filter and shows all parts', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -153,7 +154,7 @@ test.describe('Distributor filter buttons', () => {
   });
 
   test('Clear Filters button resets active filter', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -182,7 +183,7 @@ test.describe('Distributor filter buttons', () => {
   });
 
   test('button text shows distributor counts', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -196,7 +197,7 @@ test.describe('Distributor filter buttons', () => {
   });
 
   test('filter bar compact at narrow panel width', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     // At 800px viewport, the inventory panel is narrow enough to trigger compact mode.
     // The ResizeObserver adds .compact when panel body width < 700px.
     await page.setViewportSize({ width: 800, height: 600 });
@@ -216,7 +217,7 @@ test.describe('Distributor filter buttons', () => {
   });
 
   test('filter buttons not clipped at minimum window size (1200x700)', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);

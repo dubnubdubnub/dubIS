@@ -1,9 +1,9 @@
 /* import/import-panel.js — Thin wiring: DOM events, API calls, undo/redo */
 
-import { api, AppLog, apiMfgDirect, whenPywebviewReady } from '../api.js';
+import { api, AppLog, apiMfgDirect } from '../api.js';
 import { showToast, escHtml, setupDropZone, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { store, onInventoryUpdated, savePreferences } from '../store.js';
+import { store, scheduleInventoryRefresh, savePreferences } from '../store.js';
 import { parseCSV, generateCSV } from '../csv-parser.js';
 import { TARGET_FIELDS, PO_TEMPLATES, classifyRow, countWarnings, transformImportRows, seedManualRows } from './import-logic.js';
 import { renderDropZone, renderMapper as renderMapperHtml, renderOcrEngineNotice } from './import-renderer.js';
@@ -20,9 +20,9 @@ let lastImportMeta = null; // set after successful import for undo
 
 // ── Undo/Redo for import panel (registered once at module scope) ──
 async function handleImportUndo(data) {
-  const fresh = await api("remove_last_purchases", data.importedCount);
-  if (!fresh) throw new Error("Failed to undo import");
-  onInventoryUpdated(fresh);
+  const result = await api("remove_last_purchases", data.importedCount);
+  if (!result) throw new Error("Failed to undo import");
+  scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
   // Restore staging panel state
   parsedHeaders = data.parsedHeaders;
   parsedRows = data.parsedRows;
@@ -40,9 +40,9 @@ async function handleImportUndo(data) {
 }
 
 async function handleImportRedo(data) {
-  const fresh = await api("import_purchases", data.invRows);
-  if (!fresh) throw new Error("Failed to redo import");
-  onInventoryUpdated(fresh);
+  const result = await api("import_purchases", data.invRows);
+  if (!result) throw new Error("Failed to redo import");
+  scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
   lastImportMeta = {
     importedCount: data.invRows.length,
     invRows: data.invRows,
@@ -138,13 +138,9 @@ export function init() {
  * engine notice (with Install button + copyable command) into the OCR zone.
  */
 async function refreshOcrEngineNotice() {
-  // The panel inits before the pywebview bridge is hydrated (app-init.js calls
-  // initImportPanel() synchronously, ahead of its own whenPywebviewReady()).
-  // Without this gate the engine check fires against the empty placeholder
-  // bridge; api() swallows the resulting "not a function" error to undefined,
-  // and the missing-engine notice renders on every launch even when Tesseract
-  // is installed.
-  await whenPywebviewReady();
+  // `ocr_engine_available` is an HTTP-mapped /v1 method (Task 10 flip) — no
+  // pywebview bridge readiness gate needed; the /v1 server is up before the
+  // page is ever served.
   let available;
   try {
     available = await apiMfgDirect.ocrEngineAvailable();
@@ -460,14 +456,14 @@ async function doImport() {
         invRows: includedRows,
       });
 
-      const fresh = await api("import_purchases", includedRows);
-      if (!fresh) {
+      const result = await api("import_purchases", includedRows);
+      if (!result) {
         // Roll back the undo entry we just pushed
         UndoRedo.popLast();
         if (btn) btn.disabled = false;
         return;
       }
-      onInventoryUpdated(fresh);
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast(`Imported ${includedRows.length} rows from ${importFileName}`);
       AppLog.info("Imported " + includedRows.length + " parts from " + importFileName);
 

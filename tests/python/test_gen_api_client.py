@@ -58,11 +58,35 @@ def test_list_parts_unwraps_inventory(spec: dict) -> None:
     assert api_map["rebuild_inventory"]["unwrap"] == "inventory"
 
 
-def test_mutating_ops_default_to_inventory_unwrap(spec: dict) -> None:
+def test_mutating_ops_default_to_detail_unwrap(spec: dict) -> None:
     api_map = gen_api_client.build_api_map(spec)
     entry = api_map["adjust_part"]
     assert entry["mutating"] is True
-    assert entry["unwrap"] == "inventory"
+    assert entry["unwrap"] == "detail"
+
+
+def test_non_finish_mutation_post_routes_do_not_default_to_detail_unwrap(spec: dict) -> None:
+    """Regression: `mutating` must be an explicit allowlist keyed off
+    FINISH_MUTATION_OPERATION_IDS, not a verb-based heuristic. A POST/PUT/
+    PATCH/DELETE route that never calls server.mutations.finish_mutation
+    returns its payload raw (un-enveloped) — defaulting its unwrap to
+    "detail" silently returns `undefined` to every real caller (only a live
+    server, not a route-mocked test, can catch this, because mocks build
+    their envelope from these same api-map entries). This broke
+    detect_columns/save_preferences/match_part/etc. once, live-only — see
+    docs/plans Task 10 report.
+    """
+    api_map = gen_api_client.build_api_map(spec)
+    for op_id in (
+        "detect_columns", "match_part", "ocr_overlay", "parse_import_source",
+        "start_scan_session", "extract_spec_from_value",
+        "validate_digikey_session", "sync_digikey_cookies",
+        "set_mouser_api_key", "clear_mouser_api_key", "logout_digikey",
+        "save_preferences", "pnp_consume",
+    ):
+        entry = api_map[op_id]
+        assert entry["mutating"] is False, f"{op_id} wrongly marked mutating"
+        assert entry["unwrap"] is None, f"{op_id} wrongly defaults to a 'detail' unwrap"
 
 
 def test_scalar_unwrap_overrides_applied(spec: dict) -> None:
