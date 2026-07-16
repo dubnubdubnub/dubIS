@@ -136,6 +136,30 @@ describe('api() HTTP transport (probe succeeds)', () => {
     expect(result).toEqual([{ part_key: 'A' }]);
   });
 
+  it('mutating op with unwrap "detail" still appends ?include=inventory but returns the detail payload', async () => {
+    // record_fetched_prices (server/routes/prices.py): mutating: true AND
+    // unwrap: "detail" — distinct from the ?include=inventory+unwrap:"inventory"
+    // case above (adjust_part) and from the non-mutating unwrap:"detail" case
+    // above (update_vendor). The client must still append ?include=inventory
+    // (mutating: true) but unwrap "detail" out of the envelope, not "inventory".
+    global.fetch = vi.fn(async (url) => {
+      if (url === '/v1/health') return jsonResponse({ ok: true });
+      return jsonResponse({
+        ok: true,
+        detail: { part_key: 'PART-1', distributor: 'lcsc' },
+        inventory: [{ part_key: 'PART-1' }],
+      });
+    });
+    const result = await api('record_fetched_prices', 'PART-1', 'lcsc', [{ qty: 1, price: 0.5 }]);
+    const [url, init] = global.fetch.mock.calls.find(([u]) => u !== '/v1/health');
+    expect(url).toBe('/v1/parts/PART-1/fetched-prices?include=inventory');
+    expect(JSON.parse(init.body)).toEqual({
+      distributor: 'lcsc',
+      price_tiers: [{ qty: 1, price: 0.5 }],
+    });
+    expect(result).toEqual({ part_key: 'PART-1', distributor: 'lcsc' });
+  });
+
   it('non-ok response parses {error} and hits the failure contract: undefined + AppLog + toast', async () => {
     global.fetch = vi.fn(async (url) => {
       if (url === '/v1/health') return jsonResponse({ ok: true });
