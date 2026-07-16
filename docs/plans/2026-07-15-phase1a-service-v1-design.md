@@ -109,9 +109,9 @@ Mutating endpoints return a small result (`{ok, detail}` or the created/changed 
 
 The legacy `/api/*` aliases (`/api/consume`, `/api/parts`, `/api/health`, `/scan`) are mounted for OpenPnP/phone compatibility and return the pnp_server-shaped payloads. The mirror's `/api/inventory` shape is NOT replicated — the mirror daemon remains standalone until 1c. `/v1/parts` is the one canonical inventory read going forward.
 
-## Schema SSOT migration
+## Schema SSOT
 
-`domain/schema.py` fields become pydantic v2 models (`InventoryItem` et al.). `scripts/gen-inventory-types.py` is updated to read pydantic model fields (same generated `js/inventory-record.d.ts` output — byte-identical target so `--check` guards keep working). FastAPI response models reference the same classes, so `/openapi.json` is generated, and a new guard `scripts/gen-openapi.py --check` snapshots it to `docs/openapi-v1.json` (staleness-guarded like code-map). MCP tool schemas (Phase 2) will be generated from this snapshot.
+`domain/schema.py`'s `INVENTORY_FIELDS: list[FieldDef]` is already the SSOT (the d.ts generator reads it). It stays untouched. `server/models.py` **derives** the pydantic `InventoryItemModel` from `INVENTORY_FIELDS` at import time via `pydantic.create_model` (ts_type→Python type map: string→str, number→float|int by default's type, string[]→list[str]; `to_js=False` fields excluded). FastAPI response models use the derived class, so `/openapi.json` reflects the same single source. New guard: `scripts/gen-openapi.py` snapshots the app's OpenAPI to `docs/openapi-v1.json` with a `--check` staleness mode wired into verify.sh. MCP tool schemas (Phase 2) generate from this snapshot.
 
 ## Server lifecycle (1a)
 
