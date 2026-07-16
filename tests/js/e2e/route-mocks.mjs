@@ -255,6 +255,17 @@ const ROUTES = [
     ctx.genericParts.push(gp);
     return gp;
   }, { mutation: true }),
+
+  // ── bom-panel.js / bom-events.js (Task 6) ─────────────────────────────────
+  // Mirrors the other stateful-inventory mutation mocks above (import_purchases,
+  // delete_vendor, etc.): returns ctx.inventory unchanged rather than actually
+  // decrementing quantities per-match. Specs assert on UI reaction to a fresh
+  // (truthy) inventory payload and on the mutation's own request/response
+  // shape, not on computed decrement math — that behavior is covered by the
+  // Python domain tests (tests/python/test_inventory_api_adjustments.py) and
+  // the live E2E suite (tests/js/e2e/live/bom-consume.spec.mjs).
+  route('consume_bom', (_a, ctx) => ctx.inventory, { mutation: true }),
+  route('remove_last_adjustments', (_a, ctx) => ctx.inventory, { mutation: true }),
 ];
 
 /** Record a call the same shape a pywebview mock would: [positional args...]. */
@@ -320,6 +331,18 @@ export async function installRouteMocks(page, inventory, options = {}) {
     });
 
     const entry = API_MAP[match.method];
+
+    // Query params (Task 6): api.js's buildUrl() puts non-path, non-body args
+    // (e.g. remove_last_adjustments' `count`) on the querystring — decode them
+    // into argMap too, coercing to a number when the raw text is numeric so
+    // handlers/recorded __apiCalls args match the number the JS call site
+    // originally passed (URLSearchParams only deals in strings).
+    entry.queryParams.forEach((name) => {
+      const raw = url.searchParams.get(name);
+      if (raw === null) return;
+      const num = Number(raw);
+      argMap[name] = (raw !== '' && !Number.isNaN(num)) ? num : raw;
+    });
     if (entry.bodyParams.length || entry.rawBody) {
       const postData = request.postData();
       if (postData) {

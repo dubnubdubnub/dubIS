@@ -119,7 +119,7 @@ export function setupEvents(handlers) {
     const mult = getMultiplier();
     const note = document.getElementById("consume-note").value;
 
-    const { matches, matchesJson } = prepareConsumption(state.lastResults);
+    const { matches } = prepareConsumption(state.lastResults);
 
     if (matches.length === 0) {
       showToast("No matched parts to consume");
@@ -131,19 +131,27 @@ export function setupEvents(handlers) {
     UndoRedo.save("consume", {
       _undoType: "consume",
       adjustmentCount: matches.length,
-      matchesJson: matchesJson,
+      matches: matches,
       mult: mult,
       bomName: state.lastFileName,
       note: note,
     });
 
-    const fresh = await api("consume_bom", matchesJson, mult, state.lastFileName, note);
+    // LANDMINE (Task 6): pass the array itself, not a JSON.stringify'd blob —
+    // the /v1 body model (server/routes/inventory_mut.py's ConsumeBomBody)
+    // declares `matches: list[dict]`. api.js's HTTP path JSON.stringifies the
+    // whole body once in buildBody(); stringifying `matches` here too would
+    // nest a JSON string inside the body instead of a real array. The bridge
+    // fallback (inventory_api.consume_bom / domain.api_inventory's
+    // _ensure_parsed) already accepts either a list or a JSON string, so the
+    // array works unchanged over both transports.
+    const fresh = await api("consume_bom", matches, mult, state.lastFileName, note);
     if (!fresh) {
       UndoRedo.popLast();
       return;
     }
     state.lastConsumeMeta = {
-      matchesJson: matchesJson,
+      matches: matches,
       mult: mult,
       bomName: state.lastFileName,
       note: note,
@@ -253,10 +261,10 @@ export function setupEvents(handlers) {
       onInventoryUpdated(fresh);
       showToast("Undid consume of " + data.adjustmentCount + " parts");
     } else if (data._undoType === "consume-done") {
-      const fresh = await api("consume_bom", data.matchesJson, data.mult, data.bomName, data.note);
+      const fresh = await api("consume_bom", data.matches, data.mult, data.bomName, data.note);
       if (!fresh) throw new Error("Failed to redo consume");
       state.lastConsumeMeta = {
-        matchesJson: data.matchesJson,
+        matches: data.matches,
         mult: data.mult,
         bomName: data.bomName,
         note: data.note,
