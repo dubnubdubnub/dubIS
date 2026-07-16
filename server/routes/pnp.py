@@ -72,6 +72,10 @@ def pnp_consume(request: Request, body: ConsumeBody) -> dict:
 
 
 # ── Legacy aliases (no /v1 prefix) ──────────────────────────────────────────
+# Note: legacy /api/consume error responses use the /v1 {error, code, detail}
+# contract (via the shared FastAPI exception handlers), diverging from
+# pnp_server.py's {"ok": False, "error": ...} shape. This is happy-path parity
+# only, by design — error-shape parity is deferred to the 1c OpenPnP cutover.
 
 
 @router.get("/api/health", operation_id="legacy_health")

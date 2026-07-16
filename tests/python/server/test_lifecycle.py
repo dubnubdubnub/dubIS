@@ -10,12 +10,14 @@ actually accepting connections.
 
 from __future__ import annotations
 
+import os
 import socket
 import time
 
 import httpx
 import pytest
 
+from server.__main__ import _build_api
 from server.run import start_server, stop_server
 
 
@@ -23,6 +25,37 @@ def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+def test_build_api_repoints_every_base_dir_derived_attribute(tmp_path):
+    """server/__main__.py's _build_api must repoint ALL base_dir-derived
+
+    attributes onto --data-dir, not just the ones dubis_headless.py already
+    covers. Regression for the bug where cache_db_path/events_dir were left
+    pointed at the repo's own data/events dirs, so a standalone server would
+    write its SQLite cache and price/part events outside --data-dir.
+    """
+    data_dir = str(tmp_path / "standalone-data")
+    os.makedirs(data_dir, exist_ok=True)
+
+    api = _build_api(data_dir)
+
+    repointed = {
+        "base_dir": api.base_dir,
+        "input_csv": api.input_csv,
+        "output_csv": api.output_csv,
+        "adjustments_csv": api.adjustments_csv,
+        "prefs_json": api.prefs_json,
+        "cache_db_path": api.cache_db_path,
+        "events_dir": api.events_dir,
+    }
+    for name, path in repointed.items():
+        assert os.path.commonpath([os.path.abspath(path), data_dir]) == data_dir, (
+            f"api.{name} ({path!r}) is not under the target data dir {data_dir!r}"
+        )
+
+    assert api.cache_db_path == os.path.join(data_dir, "cache.db")
+    assert api.events_dir == os.path.join(data_dir, "events")
 
 
 def test_start_server_serves_health_then_stop_closes_port(api):
