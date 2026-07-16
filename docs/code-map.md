@@ -532,6 +532,7 @@ graph LR
     "tests/python/server/test_import_scan_routes.py" --> "pnp_server.py"
     "tests/python/server/test_inventory_mut.py" --> "server/__init__.py"
     "tests/python/server/test_inventory_mut.py" --> "tests/python/helpers.py"
+    "tests/python/server/test_lifecycle.py" --> "server/__main__.py"
     "tests/python/server/test_lifecycle.py" --> "server/run.py"
     "tests/python/server/test_models.py" --> "domain/schema.py"
     "tests/python/server/test_models.py" --> "server/models.py"
@@ -1526,7 +1527,7 @@ graph LR
 ### server/__main__.py
 
 - **Imports:** `inventory_api.py`, `server/app.py`
-- **Imported by:** —
+- **Imported by:** `tests/python/server/test_lifecycle.py`
 
 ### server/app.py
 
@@ -2014,7 +2015,7 @@ graph LR
 
 ### tests/python/server/test_lifecycle.py
 
-- **Imports:** `server/run.py`
+- **Imports:** `server/__main__.py`, `server/run.py`
 - **Imported by:** —
 
 ### tests/python/server/test_models.py
