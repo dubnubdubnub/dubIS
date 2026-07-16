@@ -11,6 +11,8 @@ graph LR
     "cache_db.py" --> "domain/pricing.py"
     "cache_db.py" --> "domain/schema.py"
     "cache_db.py" --> "inventory_ops.py"
+    "client_shell.py" --> "file_dialogs.py"
+    "client_shell.py" --> "inventory_api.py"
     "digikey_client.py" --> "base_client.py"
     "digikey_client.py" --> "digikey_cdp.py"
     "digikey_client.py" --> "digikey_normalizer.py"
@@ -235,6 +237,7 @@ graph LR
     "js/import/mfg-direct/vendor-picker.js" --> "js/import/mfg-direct/mfg-direct-logic.js"
     "js/import/mfg-direct/vendor-picker.js" --> "js/store.js"
     "js/import/mfg-direct/vendor-picker.js" --> "js/ui-helpers.js"
+    "js/inventory-modals.js" --> "js/api-map.js"
     "js/inventory-modals.js" --> "js/api.js"
     "js/inventory-modals.js" --> "js/components/form-modal.js"
     "js/inventory-modals.js" --> "js/dom/html.js"
@@ -549,11 +552,11 @@ graph LR
     "tests/python/server/test_pnp_routes.py" --> "server/__init__.py"
     "tests/python/server/test_static_serving.py" --> "server/app.py"
     "tests/python/server/test_v1_surface.py" --> "server/app.py"
-    "tests/python/server/test_v1_surface.py" --> "tests/python/test_api_surface.py"
     "tests/python/server/test_vendors_pos_routes.py" --> "purchase_orders.py"
     "tests/python/server/test_vendors_pos_routes.py" --> "server/__init__.py"
     "tests/python/server/test_vendors_pos_routes.py" --> "vendors.py"
     "tests/python/test_api_mirror.py" --> "tests/python/helpers.py"
+    "tests/python/test_api_surface.py" --> "client_shell.py"
     "tests/python/test_api_surface.py" --> "inventory_api.py"
     "tests/python/test_app_mirror_hooks.py" --> "tests/python/helpers.py"
     "tests/python/test_base_client.py" --> "base_client.py"
@@ -569,6 +572,8 @@ graph LR
     "tests/python/test_ci_watcher_payload.py" --> "scripts/ci_watcher/triage_payload.py"
     "tests/python/test_ci_watcher_state.py" --> "scripts/ci_watcher/state.py"
     "tests/python/test_ci_watcher_worker.py" --> "scripts/ci_watcher/worker.py"
+    "tests/python/test_client_shell.py" --> "client_shell.py"
+    "tests/python/test_client_shell.py" --> "tests/python/test_api_surface.py"
     "tests/python/test_clients_base.py" --> "digikey_client.py"
     "tests/python/test_clients_base.py" --> "inventory_api.py"
     "tests/python/test_clients_base.py" --> "lcsc_client.py"
@@ -700,6 +705,11 @@ graph LR
 
 - **Imports:** —
 - **Imported by:** `inventory_ops.py`, `spec_extractor.py`, `tests/python/test_inventory_api_categorize.py`
+
+### client_shell.py
+
+- **Imports:** `file_dialogs.py`, `inventory_api.py`
+- **Imported by:** `tests/python/test_api_surface.py`, `tests/python/test_client_shell.py`
 
 ### csv_io.py
 
@@ -839,7 +849,7 @@ graph LR
 ### file_dialogs.py
 
 - **Imports:** `csv_io.py`, `domain/pricing.py`
-- **Imported by:** `domain/api_fileio.py`, `tests/python/test_file_dialogs.py`
+- **Imported by:** `client_shell.py`, `domain/api_fileio.py`, `tests/python/test_file_dialogs.py`
 
 ### html_product_parser.py
 
@@ -849,7 +859,7 @@ graph LR
 ### inventory_api.py
 
 - **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`, `mirror_push.py`
-- **Imported by:** `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `server/__main__.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`
+- **Imported by:** `client_shell.py`, `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `server/__main__.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`
 
 ### inventory_mirror.py
 
@@ -899,7 +909,7 @@ graph LR
 ### js/api-map.js
 
 - **Imports:** —
-- **Imported by:** `js/api.js`
+- **Imported by:** `js/api.js`, `js/inventory-modals.js`
 
 ### js/api.js
 
@@ -1118,7 +1128,7 @@ graph LR
 
 ### js/inventory-modals.js
 
-- **Imports:** `js/api.js`, `js/components/form-modal.js`, `js/dom/html.js`, `js/inventory/pick-description.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
+- **Imports:** `js/api-map.js`, `js/api.js`, `js/components/form-modal.js`, `js/dom/html.js`, `js/inventory/pick-description.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
 - **Imported by:** `js/app-init.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `tests/js/fetch-rows.test.js`, `tests/js/pick-tier.test.js`
 
 ### js/inventory/favicon-stack.js
@@ -2085,7 +2095,7 @@ graph LR
 
 ### tests/python/server/test_v1_surface.py
 
-- **Imports:** `server/app.py`, `tests/python/test_api_surface.py`
+- **Imports:** `server/app.py`
 - **Imported by:** —
 
 ### tests/python/server/test_vendors_pos_routes.py
@@ -2100,8 +2110,8 @@ graph LR
 
 ### tests/python/test_api_surface.py
 
-- **Imports:** `inventory_api.py`
-- **Imported by:** `tests/python/server/test_v1_surface.py`
+- **Imports:** `client_shell.py`, `inventory_api.py`
+- **Imported by:** `tests/python/test_client_shell.py`
 
 ### tests/python/test_app_mirror_hooks.py
 
@@ -2166,6 +2176,11 @@ graph LR
 ### tests/python/test_ci_watcher_worker.py
 
 - **Imports:** `scripts/ci_watcher/worker.py`
+- **Imported by:** —
+
+### tests/python/test_client_shell.py
+
+- **Imports:** `client_shell.py`, `tests/python/test_api_surface.py`
 - **Imported by:** —
 
 ### tests/python/test_clients_base.py

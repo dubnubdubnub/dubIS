@@ -4,6 +4,7 @@
 import logging
 import os
 import sys
+import threading
 import time
 
 import bench  # fixes t0 at first import; no-op unless DUBIS_BENCH_OUT is set
@@ -31,9 +32,17 @@ import webview
 from client_shell import ClientShell
 from inventory_api import InventoryApi
 from pnp_server import start_pnp_server, stop_pnp_server
-from server.run import start_server, stop_server
+
+# NOTE: server.run (uvicorn + fastapi, ~300-400ms to import) is deliberately
+# NOT imported here. It's imported lazily inside main()'s _boot_server(),
+# which runs on a background thread started BEFORE webview.create_window() —
+# see main() for the full boot sequence. Importing it at module level here
+# would put that cost back on the path to first paint, which is exactly the
+# Phase 1b Task 8 regression this file fixes.
 
 bench.mark("imports_done")
+
+SPLASH_PATH = os.path.join(APP_DIR, "splash.html")
 
 
 def _free_port() -> int:
@@ -96,22 +105,79 @@ def main():
     api = InventoryApi(debug=debug)
     bench.mark("api_constructed")
 
-    port = int(os.environ.get("DUBIS_SERVER_PORT", 0)) or _free_port()
-    v1_server = start_server(api, static_dir=APP_DIR, port=port)
-    bench.mark("server_starting")
-    start_deadline = time.monotonic() + 10
-    while not v1_server.started and time.monotonic() < start_deadline:
-        time.sleep(0.02)
-    if not v1_server.started:
-        raise RuntimeError(
-            f"/v1 loopback server did not start within 10s on port {port}"
-        )
-    bench.mark("server_started")
-
     shell = ClientShell(api)
+
+    # ── Splash-first parallel boot (Phase 1b Task 8, fix round 1) ───────────
+    # The regression: app.pyw used to import server.run (uvicorn+fastapi,
+    # ~300-400ms) and block on server.started BEFORE create_window, so the
+    # window didn't appear until the server was already up. Fix: create the
+    # window immediately against a local, JS-free-except-a-health-poll
+    # splash.html (same first paint as baseline), and boot the /v1 server on
+    # a background thread that starts BEFORE create_window so the heavy
+    # import runs fully off the UI path.
+    #
+    # The port is picked HERE, on the main thread, before create_window —
+    # binding+releasing a socket (_free_port()) is a cheap stdlib-only call,
+    # nothing like importing uvicorn/fastapi — so the window can be created
+    # with the target port already baked into the splash URL
+    # (splash.html?port=<port>), and the boot thread just starts the server
+    # on that same port.
+    #
+    # Splash.html's own inline script polls http://127.0.0.1:<port>/v1/health
+    # and navigates itself there once it answers — a normal page-initiated
+    # top-level navigation, and app.pyw never touches the window object from
+    # the boot thread at all (not even for the failure path — splash.html's
+    # own script renders an inline error state after its poll times out).
+    #
+    # This is the second design tried here, not the first. Earlier, app.pyw
+    # itself called window.load_url() from the boot thread once the server
+    # was ready; that reproduced a real, ~50%-reliable pywebview
+    # bridge-corruption crash (JavascriptException:
+    # "...bench_mark.<id> is not a function") on the first bridge call the
+    # real page made after navigating — reproducible even after marshaling
+    # the call onto the native WinForms UI thread via Control.Invoke (the
+    # same pattern set_icon() uses below). Switching to a page-initiated
+    # navigation reduced but did NOT eliminate that crash on its own — it
+    # turned out to be a broader timing race (navigating this window at all
+    # too soon after creation corrupts the bridge, regardless of who
+    # triggers it). splash.html's script carries a short empirically-tuned
+    # delay before its first poll to work around that; see splash.html for
+    # the full writeup and the bisection results that picked the delay.
+    server_state: dict = {"server": None, "stop_server": None}
+    port = int(os.environ.get("DUBIS_SERVER_PORT", 0)) or _free_port()
+
+    def _boot_server() -> None:
+        """Background thread: import + start the /v1 server on the
+        already-chosen `port`. Started before create_window (see below) so
+        the uvicorn/fastapi import cost never sits on the path to first
+        paint. Never touches the window — splash.html's own script (started
+        by pywebview once it renders) polls /v1/health and navigates itself;
+        this thread's only job is getting uvicorn listening."""
+        from server.run import start_server, stop_server  # deferred: heavy import
+
+        server_state["stop_server"] = stop_server
+        v1_server = start_server(api, static_dir=APP_DIR, port=port)
+        server_state["server"] = v1_server
+        bench.mark("server_starting")
+
+        start_deadline = time.monotonic() + 15
+        while not v1_server.started and time.monotonic() < start_deadline:
+            time.sleep(0.02)
+        if not v1_server.started:
+            # Loud, not silent: splash.html's own poll will also time out
+            # (15s) and render its inline error state, but log here too since
+            # that's the actionable signal for whoever's watching the logs.
+            logger.error(
+                "/v1 loopback server did not start within 15s on port %s", port
+            )
+            return
+        bench.mark("server_started")
+
+    threading.Thread(target=_boot_server, name="dubis-server-boot", daemon=True).start()
+
     window = webview.create_window(
         "dubIS",
-        url=f"http://127.0.0.1:{port}/",
+        url=f"{SPLASH_PATH}?port={port}",
         js_api=shell,
         width=1600,
         height=900,
@@ -140,7 +206,10 @@ def main():
             logger.warning("Cleanup: stopping PnP server failed: %s", exc)
         bench.mark("pnp_stopped")
         try:
-            stop_server(v1_server)
+            v1_server = server_state.get("server")
+            stop_server = server_state.get("stop_server")
+            if v1_server is not None and stop_server is not None:
+                stop_server(v1_server)
         except Exception as exc:
             logger.warning("Cleanup: stopping /v1 server failed: %s", exc)
         try:
