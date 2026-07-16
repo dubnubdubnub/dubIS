@@ -15,7 +15,8 @@ import AxeBuilder from '@axe-core/playwright';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows, loadBomViaEmit } from './helpers.mjs';
+import { waitForInventoryRows, loadBomViaEmit } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -76,7 +77,7 @@ function formatViolations(violations) {
 test.describe('Accessibility — WCAG 2.2 AA', () => {
 
   test('empty state — catalog violations', async ({ page }) => {
-    addMockSetup(page, []);
+    await installRouteMocks(page, []);
     await page.goto('/index.html');
     await page.waitForSelector('.header');
 
@@ -93,7 +94,7 @@ test.describe('Accessibility — WCAG 2.2 AA', () => {
   });
 
   test('BOM comparison — catalog violations', async ({ page }) => {
-    addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -112,7 +113,7 @@ test.describe('Accessibility — WCAG 2.2 AA', () => {
   });
 
   test('color contrast — detailed report', async ({ page }) => {
-    addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);

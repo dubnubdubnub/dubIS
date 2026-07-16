@@ -13,7 +13,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -22,7 +23,7 @@ const MOCK_INVENTORY = JSON.parse(
 
 test.describe('Install Tesseract button', () => {
   test('engine missing: notice + Install button render with command fallback', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY, { ocrEngineAvailable: false });
+    const routeState = await installRouteMocks(page, MOCK_INVENTORY, { ocrEngineAvailable: false });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -31,10 +32,14 @@ test.describe('Install Tesseract button', () => {
     await expect(page.locator('#install-tesseract-btn')).toBeVisible();
     // The copyable winget command fallback is present.
     await expect(page.locator('#ocr-engine-missing code')).toContainText('UB-Mannheim.TesseractOCR');
+    // Canary (Finding 2): proves this assertion exercised the real HTTP
+    // envelope ({"available": false}) via ocr_engine_available's unwrap,
+    // not a bridge fallback.
+    await assertHttpExercised(routeState);
   });
 
   test('engine present: no notice renders', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY, { ocrEngineAvailable: true });
+    await installRouteMocks(page, MOCK_INVENTORY, { ocrEngineAvailable: true });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -50,7 +55,7 @@ test.describe('Install Tesseract button', () => {
     // *definitive* "engine absent" (false) — never on an inconclusive result,
     // or the Install Tesseract button reappears on every launch even though
     // Tesseract is installed.
-    await addMockSetup(page, MOCK_INVENTORY, { ocrEngineCheckThrows: true });
+    await installRouteMocks(page, MOCK_INVENTORY, { ocrEngineCheckThrows: true });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -60,7 +65,7 @@ test.describe('Install Tesseract button', () => {
   });
 
   test('success path: real click installs and removes the notice', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY, {
+    await installRouteMocks(page, MOCK_INVENTORY, {
       ocrEngineAvailable: false,
       installTesseractResult: { ok: true, message: 'Tesseract installed.', available: true },
     });
@@ -78,7 +83,7 @@ test.describe('Install Tesseract button', () => {
   });
 
   test('failure path: button re-enabled, message shown, fallback still visible', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY, {
+    await installRouteMocks(page, MOCK_INVENTORY, {
       ocrEngineAvailable: false,
       installTesseractResult: { ok: false, available: false, message: 'winget exited 1. boom' },
     });

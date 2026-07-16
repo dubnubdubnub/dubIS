@@ -7,6 +7,12 @@ import { EventBus, Events } from './event-bus.js';
 import { signal } from './signals.js';
 import { SECTION_ORDER } from './constants.js';
 import { api, AppLog } from './api.js';
+import { onEvent } from './sse.js';
+
+// Debounce window for the SSE-driven inventory refresh (trailing debounce:
+// the timer resets on every event and fires once quiet). 250ms per Task 3
+// of docs/plans/2026-07-16-phase1b-frontend-port-plan.md.
+const INVENTORY_UPDATED_DEBOUNCE_MS = 250;
 
 // ── Shortcut preferences defaults ──────────────────────────
 
@@ -366,6 +372,62 @@ export function onInventoryUpdated(freshInventory) {
   // Refresh vendors and purchase orders after any inventory mutation
   loadVendorsAndPOs().catch(e => AppLog.warn("Failed to refresh vendors/POs: " + e));
 }
+
+/**
+ * SSE-driven counterpart to `loadInventory()`: re-fetches inventory and feeds
+ * it through the normal update path, but skips the one-time load side effects
+ * (splash dismissal, generic-parts/vendor bootstrap, migration warnings) —
+ * those already ran during the initial `loadInventory()` and re-running them
+ * on every push would be redundant and noisy.
+ */
+export async function loadInventoryQuiet() {
+  const fresh = await api("rebuild_inventory");
+  if (!fresh) {
+    AppLog.warn("inventory refresh failed");
+    return;
+  }
+  onInventoryUpdated(fresh);
+}
+
+// ── SSE-driven refresh (Task 10 flip) ──────────────────────
+// SSE is the single re-render source, but mutation call sites also call
+// this directly (belt-and-braces): under real usage the mutation's own
+// `inventory.updated` SSE push and the direct call collapse into ONE
+// refresh via this shared debounce (both share `_inventoryUpdatedTimer` /
+// `_inventoryUpdatedResolvers`, so a mutation call site's await and the SSE
+// push it triggers resolve together off a single `loadInventoryQuiet()`);
+// under route-mocked tests (no live SSE stream) the direct call is what
+// actually drives the post-mutation refetch. Call sites that need the
+// freshly-updated item read it from `store.inventory` after the returned
+// promise resolves — mutation responses no longer carry inventory data.
+// `onEvent` is safe to call before `connectEvents()` opens the connection —
+// see js/sse.js.
+let _inventoryUpdatedTimer = null;
+let _inventoryUpdatedResolvers = [];
+
+function fireInventoryRefresh() {
+  _inventoryUpdatedTimer = null;
+  const resolvers = _inventoryUpdatedResolvers;
+  _inventoryUpdatedResolvers = [];
+  loadInventoryQuiet().then(
+    () => resolvers.forEach((r) => r.resolve()),
+    (e) => resolvers.forEach((r) => r.reject(e)),
+  );
+}
+
+/** @returns {Promise<void>} resolves once the (possibly-shared) debounced refresh completes. */
+export function scheduleInventoryRefresh() {
+  clearTimeout(_inventoryUpdatedTimer);
+  const p = new Promise((resolve, reject) => {
+    _inventoryUpdatedResolvers.push({ resolve, reject });
+  });
+  _inventoryUpdatedTimer = setTimeout(fireInventoryRefresh, INVENTORY_UPDATED_DEBOUNCE_MS);
+  return p;
+}
+
+onEvent('inventory.updated', () => {
+  scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
+});
 
 // ── Shortcut preferences ──────────────────────────────────
 

@@ -11,7 +11,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from '../helpers.mjs';
+import { waitForInventoryRows } from '../helpers.mjs';
+import { installRouteMocks } from '../route-mocks.mjs';
 import { capture, rectOf } from './capture.mjs';
 import { measureGap, detectClipping, measureAlignment } from './measure.mjs';
 import { channelDominant } from './color.mjs';
@@ -23,7 +24,7 @@ const MOCK_INVENTORY = JSON.parse(
 const isBluishStroke = (rgb) => channelDominant(rgb, 2, 28, 60);
 
 async function setup(page) {
-  await addMockSetup(page, MOCK_INVENTORY, {});
+  await installRouteMocks(page, MOCK_INVENTORY, {});
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto('/index.html');
   await waitForInventoryRows(page);

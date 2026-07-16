@@ -10,28 +10,42 @@ import { AppLog, api, whenPywebviewReady, apiMfgDirect } from '../../js/api.js';
 import { showToast } from '../../js/ui-helpers.js';
 
 describe('apiMfgDirect', () => {
-  beforeEach(() => { AppLog.clear(); });
+  // start_scan_session / parse_source_file_b64 are HTTP-mapped (js/api-map.js) —
+  // Task 10 flip made HTTP unconditional for mapped methods, so these go over
+  // fetch, not the pywebview bridge.
+  beforeEach(() => {
+    AppLog.clear();
+    delete window.pywebview;
+  });
+
+  function jsonResponse(body) {
+    return { ok: true, status: 200, statusText: 'OK', json: async () => body };
+  }
 
   it('startScanSession passes the template through', async () => {
-    const start = vi.fn().mockResolvedValue({ session_id: 's1', urls: ['http://x'] });
-    window.pywebview = { api: { start_scan_session: start } };
+    // start_scan_session (server/routes/import_scan.py) is a pure lookup —
+    // it never calls server.mutations.finish_mutation, so its response is
+    // the raw payload, NOT a {"ok","detail"} envelope (unwrap: null).
+    global.fetch = vi.fn(async () => jsonResponse({ session_id: 's1', urls: ['http://x'] }));
     const res = await apiMfgDirect.startScanSession('lcsc');
-    expect(start).toHaveBeenCalledWith('lcsc');
+    const [url, init] = global.fetch.mock.calls[0];
+    expect(url).toBe('/v1/scan/sessions');
+    expect(JSON.parse(init.body)).toEqual({ template: 'lcsc' });
     expect(res.session_id).toBe('s1');
   });
 
   it('parseFileB64 defaults template to generic (backward compatible)', async () => {
-    const parse = vi.fn().mockResolvedValue([]);
-    window.pywebview = { api: { parse_source_file_b64: parse } };
+    global.fetch = vi.fn(async () => jsonResponse({ ok: true, detail: [] }));
     await apiMfgDirect.parseFileB64('b64', 'po.pdf');
-    expect(parse).toHaveBeenCalledWith('b64', 'po.pdf', 'generic');
+    const [, init] = global.fetch.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({ file_b64: 'b64', file_name: 'po.pdf', template: 'generic' });
   });
 
   it('parseFileB64 forwards an explicit template', async () => {
-    const parse = vi.fn().mockResolvedValue([]);
-    window.pywebview = { api: { parse_source_file_b64: parse } };
+    global.fetch = vi.fn(async () => jsonResponse({ ok: true, detail: [] }));
     await apiMfgDirect.parseFileB64('b64', 'po.pdf', 'digikey');
-    expect(parse).toHaveBeenCalledWith('b64', 'po.pdf', 'digikey');
+    const [, init] = global.fetch.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({ file_b64: 'b64', file_name: 'po.pdf', template: 'digikey' });
   });
 });
 
@@ -117,7 +131,7 @@ describe('whenPywebviewReady', () => {
   });
 
   it('resolves immediately when API methods are populated', async () => {
-    window.pywebview = { api: { load_preferences: vi.fn() } };
+    window.pywebview = { api: { set_bom_dirty: vi.fn() } };
     let resolved = false;
     whenPywebviewReady().then(() => { resolved = true; });
     // Allow pending microtasks to flush
@@ -153,17 +167,17 @@ describe('whenPywebviewReady', () => {
     expect(resolved).toBe(false);
 
     // Simulate finish.js: attach methods then dispatch the ready event
-    window.pywebview.api.load_preferences = vi.fn();
+    window.pywebview.api.set_bom_dirty = vi.fn();
     window.dispatchEvent(new Event('pywebviewready'));
 
     await promise;
     expect(resolved).toBe(true);
   });
 
-  it('treats a truthy non-function load_preferences as not ready', async () => {
+  it('treats a truthy non-function set_bom_dirty as not ready', async () => {
     // Defensive: only an actual function counts as hydrated. An accidental
     // truthy placeholder value (string, object, etc.) must not pass the check.
-    window.pywebview = { api: { load_preferences: 'not-a-function' } };
+    window.pywebview = { api: { set_bom_dirty: 'not-a-function' } };
     let resolved = false;
     whenPywebviewReady().then(() => { resolved = true; });
     await Promise.resolve();

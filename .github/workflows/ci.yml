@@ -315,7 +315,11 @@ jobs:
         run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
       - name: Live-backend E2E
         # Single-worker isolation is pinned in playwright.config.mjs (live project).
-        run: npx playwright test --project live
+        # DUBIS_PYTHON points global-setup.mjs at the venv where fastapi/uvicorn
+        # are actually installed — plain `python` on PATH here has neither.
+        # (Set inline via bash, not a YAML `env:` value, so `~` expands to $HOME —
+        # GitHub Actions does not shell-expand literal env values.)
+        run: DUBIS_PYTHON=~/dubis-venv/bin/python npx playwright test --project live
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -335,7 +339,9 @@ jobs:
       always() && !failure() &&
       needs.parse-tags.outputs.run_js == 'true'
     runs-on: [self-hosted, win11]
-    timeout-minutes: 30
+    # Route-mocked E2E (HTTP interception) runs ~15m of test time on the win11
+    # VM plus ~15m setup — 30 was cancelling seconds before natural completion.
+    timeout-minutes: 45
     defaults:
       run:
         shell: powershell

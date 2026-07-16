@@ -15,7 +15,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -57,7 +58,7 @@ function rowsWithQtyLessThanAndSearch(threshold, term) {
 test.describe('Filter chips bar', () => {
 
   test('filter chips bar is rendered in the inventory panel header', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -67,7 +68,7 @@ test.describe('Filter chips bar', () => {
   });
 
   test('"+ Filter" button is visible and labelled', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -78,7 +79,7 @@ test.describe('Filter chips bar', () => {
   });
 
   test('clicking "+ Filter" opens a popover with a predicate editor', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -93,7 +94,7 @@ test.describe('Filter chips bar', () => {
   });
 
   test('cancelling the popover does not add a chip', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -113,7 +114,7 @@ test.describe('Filter chips bar', () => {
   });
 
   test('add a qty < N chip → row count drops to matching subset', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -166,7 +167,7 @@ test.describe('Filter chips bar', () => {
   });
 
   test('chip shows field, operator, and value labels', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -191,7 +192,7 @@ test.describe('Filter chips bar', () => {
   });
 
   test('clicking chip × removes it and restores full row count', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -225,7 +226,7 @@ test.describe('Filter chips bar', () => {
   });
 
   test('chip filter ANDs with distributor pill filter', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -265,7 +266,7 @@ test.describe('Filter chips bar', () => {
   });
 
   test('chip filter ANDs with search box', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -305,7 +306,7 @@ test.describe('Filter chips bar', () => {
   });
 
   test('editing a chip (clicking chip body) opens a popover for editing', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -347,7 +348,7 @@ test.describe('Filter chips bar', () => {
   });
 
   test('Clear Filters button also clears filter chips', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -381,7 +382,7 @@ test.describe('Filter chips bar', () => {
   });
 
   test('saved view captures and restores a filter chip', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -442,7 +443,7 @@ test.describe('Filter chips bar', () => {
   });
 
   test('screenshot: inventory with active filter chips', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);

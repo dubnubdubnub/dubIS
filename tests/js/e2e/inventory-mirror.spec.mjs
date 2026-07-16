@@ -3,14 +3,15 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(fs.readFileSync(
   path.join(__dirname, 'fixtures', 'inventory.json'), 'utf8'));
 
 test('mirror toggle enables and shows serve URL', async ({ page }) => {
-  await addMockSetup(page, MOCK_INVENTORY);
+  const routeState = await installRouteMocks(page, MOCK_INVENTORY);
   await page.goto('/index.html');
   await waitForInventoryRows(page);
 
@@ -22,10 +23,11 @@ test('mirror toggle enables and shows serve URL', async ({ page }) => {
   await expect(cb).toBeChecked();
   await expect(page.locator('#mirror-url')).toHaveValue('https://mauler.example.ts.net');
   await expect(page.locator('#mirror-status')).toContainText('Running');
+  await assertHttpExercised(routeState);
 });
 
 test('mirror toggle disables and clears URL', async ({ page }) => {
-  await addMockSetup(page, MOCK_INVENTORY);
+  await installRouteMocks(page, MOCK_INVENTORY);
   await page.goto('/index.html');
   await waitForInventoryRows(page);
 

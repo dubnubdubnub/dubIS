@@ -17,7 +17,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -93,11 +94,21 @@ async function openOverlay(page) {
   });
 
   await expect(page.locator('#ocr-overlay')).toBeVisible();
+  // The overlay opens immediately in a "scanning" skeleton state (see
+  // ocr-scanning-skeleton.spec.mjs) while ocr_overlay_b64 resolves, then
+  // morphs into the real grid in place. Over HTTP transport (this suite's
+  // installRouteMocks) that resolution is no longer effectively-synchronous
+  // like the old bridge mock, so wait for the skeleton to be gone before
+  // callers read grid content — otherwise a one-shot count/read can land
+  // mid-skeleton (0 real rows).
+  await expect(page.locator('#ocr-overlay .ocr-overlay-modal.ocr-loading')).toHaveCount(0);
 }
 
 test.describe('OCR overlay PO review modal', () => {
+  let routeState;
+
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY, {
+    routeState = await installRouteMocks(page, MOCK_INVENTORY, {
       mfgDirectVendors: VENDORS,
       ocrOverlayResult: OCR_RESULT_1PAGE,
     });
@@ -113,6 +124,7 @@ test.describe('OCR overlay PO review modal', () => {
     // Tokens carry their text in title/textContent.
     await expect(page.locator('.ocr-token[data-token="0:w:0"]')).toHaveAttribute('title', 'C12624');
     await expect(page.locator('.ocr-token[data-token="0:w:1"]')).toHaveAttribute('title', 'KT-0603G');
+    await assertHttpExercised(routeState);
   });
 
   test('Lines toggle: switch to line mode renders one token per OCR line', async ({ page }) => {
@@ -268,14 +280,16 @@ test.describe('OCR overlay PO review modal', () => {
     await expect(page.locator('#ocr-overlay')).toHaveCount(0);
     await expect(page.locator('.toast')).toContainText('Imported');
 
+    // Positional args in argOrder: [vendor_id, source_file_b64, source_file_name,
+    // purchase_date, notes, line_items].
     const call = await page.evaluate(() => {
       const calls = window.__apiCalls.create_purchase_order_with_items || [];
       return calls[calls.length - 1] || null;
     });
     expect(call).not.toBeNull();
-    expect(call.vendorId).toBe('v_self');
-    const items = JSON.parse(call.itemsJson);
-    // The corrected/edited values are present in the serialized items payload.
+    const [vendorId, , , , , items] = call;
+    expect(vendorId).toBe('v_self');
+    // The corrected/edited values are present in the items payload.
     expect(items[0].distributor_pn).toBe('C12624');
     expect(items[0].mpn).toBe('KT-0603G');
     expect(items[1].mpn).toBe('RC0402');
@@ -426,9 +440,9 @@ test.describe('OCR overlay PO review modal', () => {
 
   test('multi-page: next button switches the page image', async ({ page }) => {
     // beforeEach installed the 1-page mock + navigated. Install a 2-page mock as
-    // a later init script (last writer wins for window.pywebview) and reload so
-    // this test sees the multi-page payload from ocr_overlay_b64.
-    await addMockSetup(page, MOCK_INVENTORY, {
+    // a second set of routes (Playwright routes newest-registered-first) and
+    // reload so this test sees the multi-page payload from ocr_overlay_b64.
+    await installRouteMocks(page, MOCK_INVENTORY, {
       mfgDirectVendors: VENDORS,
       ocrOverlayResult: OCR_RESULT_2PAGE,
     });

@@ -2,7 +2,8 @@
 import { test, expect } from '@playwright/test';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { addMockSetup, waitForInventoryRows, loadBomViaFileInput } from './helpers.mjs';
+import { waitForInventoryRows, loadBomViaFileInput } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BOM_CSV = join(__dirname, 'fixtures', 'bom-footprint.csv');
@@ -29,8 +30,10 @@ const INVENTORY = [
 ];
 
 test.describe('BOM footprint hard-rejection and resistor plain-number match', () => {
+  let routeState;
+
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, INVENTORY);
+    routeState = await installRouteMocks(page, INVENTORY);
     await page.goto('/index.html');
     await waitForInventoryRows(page);
     await loadBomViaFileInput(page, BOM_CSV);
@@ -47,6 +50,7 @@ test.describe('BOM footprint hard-rejection and resistor plain-number match', ()
     expect(title).toContain('0402');
     expect(title).toContain('0603');
     expect(title).toContain('override');
+    await assertHttpExercised(routeState);
   });
 
   test('R1 1k 0402 BOM row ends up missing (no false 0603 match)', async ({ page }) => {

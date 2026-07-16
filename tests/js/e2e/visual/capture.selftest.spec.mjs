@@ -5,7 +5,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from '../helpers.mjs';
+import { waitForInventoryRows } from '../helpers.mjs';
+import { installRouteMocks } from '../route-mocks.mjs';
 import { capture, rectOf } from './capture.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -14,7 +15,7 @@ const MOCK_INVENTORY = JSON.parse(
 );
 
 test('capture decodes a frame and maps coordinates', async ({ page }) => {
-  await addMockSetup(page, MOCK_INVENTORY, {});
+  await installRouteMocks(page, MOCK_INVENTORY, {});
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto('/index.html');
   await waitForInventoryRows(page);

@@ -123,7 +123,7 @@ export async function autoCreateGroupAndOpenFlyout(btn, row) {
   // Step 3: create new generic group
   var name = bomValue + (bomPkg ? " " + bomPkg : "");
   var strictness = { required: ["value", "package"] };
-  var result = await api("create_generic_part", name, partType, JSON.stringify(spec), JSON.stringify(strictness));
+  var result = await api("create_generic_part", name, partType, spec, strictness);
   if (!result || !result.generic_part_id) {
     AppLog.warn("Auto-create group: create_generic_part failed for " + name);
     return;

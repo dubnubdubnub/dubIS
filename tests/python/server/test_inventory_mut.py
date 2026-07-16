@@ -39,21 +39,25 @@ def test_adjust_part_publishes_inventory_updated(client):
         events.unsubscribe(q)
 
 
-def test_adjust_part_include_inventory_returns_fresh_list(client):
-    r = client.post(
+def test_adjust_part_response_never_carries_inventory(client):
+    # Phase 1b Task 10 removed the `?include=inventory` echo entirely — the
+    # query param is now just an unknown/ignored param (FastAPI silently
+    # drops it), and the response is always the plain `{"ok", "detail"}`
+    # envelope, never an `inventory` key, whether or not the (now-inert)
+    # query param is present. Frontend refresh is SSE-driven.
+    r_with_include = client.post(
         "/v1/parts/C100000/adjust?include=inventory",
         json={"adj_type": "set", "quantity": 7},
     )
-    assert r.status_code == 200
-    body = r.json()
-    assert "inventory" in body
-    item = next(i for i in body["inventory"] if i["lcsc"] == "C100000")
-    assert item["qty"] == 7
+    assert r_with_include.status_code == 200
+    body_with_include = r_with_include.json()
+    assert "inventory" not in body_with_include
+    assert body_with_include["detail"]["part_key"] == "C100000"
 
-
-def test_adjust_part_without_include_omits_inventory(client):
-    r = client.post("/v1/parts/C100000/adjust", json={"adj_type": "set", "quantity": 1})
-    assert "inventory" not in r.json()
+    r_without_include = client.post(
+        "/v1/parts/C100000/adjust", json={"adj_type": "set", "quantity": 1},
+    )
+    assert "inventory" not in r_without_include.json()
 
 
 def test_update_part_fields_roundtrip(client):

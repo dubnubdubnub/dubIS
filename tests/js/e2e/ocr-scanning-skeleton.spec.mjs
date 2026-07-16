@@ -15,7 +15,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -51,8 +52,10 @@ async function dropImage(page) {
 }
 
 test.describe('OCR scanning skeleton (drop zone)', () => {
+  let routeState;
+
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY, {
+    routeState = await installRouteMocks(page, MOCK_INVENTORY, {
       ocrOverlayResult: OCR_RESULT,
       ocrOverlayDelayMs: 700,  // hold OCR so the skeleton is observable
     });
@@ -75,6 +78,7 @@ test.describe('OCR scanning skeleton (drop zone)', () => {
     await expect(page.locator('#ocr-overlay .ocr-token')).toHaveCount(2);
     await expect(page.locator('#ocr-overlay .ocr-overlay-modal.ocr-loading')).toHaveCount(0);
     await expect(page.locator('#ocr-overlay .ocr-img-wrap img')).toBeVisible();
+    await assertHttpExercised(routeState);
   });
 
   test('Cancel during scanning closes the skeleton', async ({ page }) => {

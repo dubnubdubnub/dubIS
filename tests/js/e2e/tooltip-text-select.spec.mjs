@@ -3,54 +3,47 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'fixtures', 'inventory.json'), 'utf8')
 );
 
-/** Inject mock product-fetch APIs so the tooltip can render content. */
-async function addProductMocks(page) {
-  await page.addInitScript(() => {
-    const MOCK_LCSC_PRODUCT = {
-      productCode: 'C429942',
-      title: 'DF40C-30DP-0.4V(51) Connector',
-      manufacturer: 'HRS (Hirose)',
-      mpn: 'DF40C-30DP-0.4V(51)',
-      package: 'SMD,P=0.4mm',
-      description: 'Board to Board Connector Header 30 position 0.4mm Pitch Surface Mount',
-      stock: 15000,
-      prices: [
-        { qty: 1, price: 0.4123 },
-        { qty: 10, price: 0.3856 },
-        { qty: 100, price: 0.2856 },
-      ],
-      imageUrl: '',
-      pdfUrl: '',
-      lcscUrl: 'https://www.lcsc.com/product-detail/C429942.html',
-      category: 'Connectors',
-      subcategory: 'Board to Board Connectors',
-      attributes: [
-        { name: 'Pitch', value: '0.4mm' },
-        { name: 'Positions', value: '30' },
-      ],
-      provider: 'lcsc',
-    };
-    window.pywebview.api.fetch_lcsc_product = async (code) => {
-      if (code === 'C429942') return MOCK_LCSC_PRODUCT;
-      return null;
-    };
-    window.pywebview.api.fetch_digikey_product = async () => null;
-    window.pywebview.api.fetch_pololu_product = async () => null;
-    window.pywebview.api.get_digikey_login_status = async () => ({ logged_in: false });
-  });
-}
+// Mock product data for the LCSC part under hover — passed to installRouteMocks
+// as a `productMocks` override rather than patching `window.pywebview.api`
+// post-hoc: fetch_lcsc_product is HTTP-routed under installRouteMocks, so a
+// pywebview.api patch applied after the fact would never be hit.
+const MOCK_LCSC_PRODUCT = {
+  productCode: 'C429942',
+  title: 'DF40C-30DP-0.4V(51) Connector',
+  manufacturer: 'HRS (Hirose)',
+  mpn: 'DF40C-30DP-0.4V(51)',
+  package: 'SMD,P=0.4mm',
+  description: 'Board to Board Connector Header 30 position 0.4mm Pitch Surface Mount',
+  stock: 15000,
+  prices: [
+    { qty: 1, price: 0.4123 },
+    { qty: 10, price: 0.3856 },
+    { qty: 100, price: 0.2856 },
+  ],
+  imageUrl: '',
+  pdfUrl: '',
+  lcscUrl: 'https://www.lcsc.com/product-detail/C429942.html',
+  category: 'Connectors',
+  subcategory: 'Board to Board Connectors',
+  attributes: [
+    { name: 'Pitch', value: '0.4mm' },
+    { name: 'Positions', value: '30' },
+  ],
+  provider: 'lcsc',
+};
+const MOCK_PRODUCTS = { 'lcsc:C429942': MOCK_LCSC_PRODUCT };
 
 /** Open the page and hover over the LCSC trigger to show the tooltip. */
 async function showTooltip(page) {
-  await addMockSetup(page, MOCK_INVENTORY);
-  await addProductMocks(page);
+  const routeState = await installRouteMocks(page, MOCK_INVENTORY, { productMocks: MOCK_PRODUCTS });
   await page.setViewportSize({ width: 1920, height: 900 });
   await page.goto('/index.html');
   await waitForInventoryRows(page);
@@ -59,6 +52,7 @@ async function showTooltip(page) {
   const trigger = page.locator('[data-lcsc="C429942"]').first();
   await trigger.hover();
   await page.locator('.part-preview-title').waitFor({ state: 'visible', timeout: 5000 });
+  return routeState;
 }
 
 /** Click-drag across the tooltip title to select text. */
@@ -77,11 +71,12 @@ async function selectTitleText(page) {
 test.describe('Tooltip text selection', () => {
 
   test('tooltip shows product data when hovering LCSC part number', async ({ page }) => {
-    await showTooltip(page);
+    const routeState = await showTooltip(page);
 
     const tooltip = page.locator('.part-preview');
     await expect(tooltip).not.toHaveClass(/hidden/);
     await expect(page.locator('.part-preview-title')).toContainText('DF40C-30DP');
+    await assertHttpExercised(routeState);
   });
 
   test('tooltip card has user-select: text computed style', async ({ page }) => {

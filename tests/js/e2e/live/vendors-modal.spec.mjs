@@ -1,6 +1,6 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-import { resetServer, setupPage } from './setup-page.mjs';
+import { fetchApi, resetServer, setupPage } from './setup-page.mjs';
 import { waitForInventoryRows } from '../helpers.mjs';
 
 /** Open the Vendors modal and wait for the list to render. */
@@ -26,7 +26,6 @@ test.describe('Vendors modal', () => {
   test.beforeEach(async ({ page }) => {
     await resetServer();
     await setupPage(page);
-    await page.goto('/index.html');
     await waitForInventoryRows(page);
   });
 
@@ -55,7 +54,7 @@ test.describe('Vendors modal', () => {
     ).toBeVisible();
 
     // Backend persisted the rename.
-    const vendors = await page.evaluate(async () => window.pywebview.api.list_vendors());
+    const vendors = await fetchApi('/v1/vendors');
     expect(vendors.some(v => v.name === 'Acme Components')).toBe(true);
     expect(vendors.some(v => v.name === 'Acme Parts')).toBe(false);
   });
@@ -114,16 +113,14 @@ test.describe('Vendors modal', () => {
 
   test('empty name shows a toast and does not save', async ({ page }) => {
     await openVendors(page);
-    const before = await page.evaluate(async () =>
-      (await window.pywebview.api.list_vendors()).length);
+    const before = (await fetchApi('/v1/vendors')).length;
 
     await page.click('#vendor-add-btn');
     await page.fill('#vendor-name', '   ');
     await page.click('#vendor-save-btn');
 
     await expect(page.locator('#toast')).toHaveText(/Vendor name required/);
-    const after = await page.evaluate(async () =>
-      (await window.pywebview.api.list_vendors()).length);
+    const after = (await fetchApi('/v1/vendors')).length;
     expect(after).toBe(before);
   });
 });

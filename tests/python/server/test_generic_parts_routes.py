@@ -117,6 +117,30 @@ def test_saved_search_create_list_delete_roundtrip(client):
     assert search_id not in ids_after
 
 
+def test_saved_search_create_accepts_array_tag_state(client):
+    """The JS caller sends `tag_state` as an array (js/group-flyout/
+    flyout-events.js), not a dict — the route must accept both shapes rather
+    than 422ing on an array."""
+    gid = _create_generic_part(client)
+
+    r = client.post(
+        f"/v1/generic-parts/{gid}/saved-searches",
+        json={
+            "name": "array tag state",
+            "tag_state": [{"tag": "value-10k", "state": "include"}],
+            "search_text": "resistor",
+        },
+    )
+    assert r.status_code == 200, r.text
+    search = r.json()["detail"]
+    assert search["tag_state"] == [{"tag": "value-10k", "state": "include"}]
+
+    r2 = client.get(f"/v1/generic-parts/{gid}/saved-searches")
+    assert r2.status_code == 200
+    found = next(s for s in r2.json() if s["id"] == search["id"])
+    assert found["tag_state"] == [{"tag": "value-10k", "state": "include"}]
+
+
 def test_saved_search_create_does_not_publish(client):
     gid = _create_generic_part(client)
     q = events.subscribe()

@@ -3,8 +3,8 @@
 Vendor/PO mutations that change inventory-derived state (delete/merge vendor,
 create/update/delete PO) end with `finish_mutation(..., reason="vendors"/"...",
 detail=...)`, publishing `inventory.updated`. `update_vendor` mutates only
-vendor config (not inventory rows), so it publishes with `result=None` (no
-`include=inventory` support) via the CFG convention used elsewhere.
+vendor config (not inventory rows), but still publishes — any change is
+inventory-adjacent and the frontend re-fetches on any `inventory.updated`.
 `fetch_favicon` is a pure network read with no cache mutation — no publish.
 
 `GET /v1/purchase-orders/{po_id}/source` streams the archived source file
@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import os
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -75,19 +75,18 @@ def list_vendors(request: Request) -> list:
 def update_vendor(request: Request, body: UpdateVendorBody) -> dict:
     api = request.app.state.api
     result = api.update_vendor(body.vendor_id, body.name, body.url, body.favicon_path)
-    return finish_mutation(api, None, None, reason="vendors", detail=result)
+    return finish_mutation(reason="vendors", detail=result)
 
 
 @router.delete("/vendors/{vendor_id}", operation_id="delete_vendor")
 def delete_vendor(
     request: Request,
     vendor_id: str,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
-    result = api.delete_vendor(vendor_id)
+    api.delete_vendor(vendor_id)
     return finish_mutation(
-        api, result, include, reason="vendors", detail={"vendor_id": vendor_id},
+        reason="vendors", detail={"vendor_id": vendor_id},
     )
 
 
@@ -95,12 +94,11 @@ def delete_vendor(
 def merge_vendors(
     request: Request,
     body: MergeVendorsBody,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
-    result = api.merge_vendors(body.src_id, body.dst_id)
+    api.merge_vendors(body.src_id, body.dst_id)
     return finish_mutation(
-        api, result, include, reason="vendors",
+        reason="vendors",
         detail={"src_id": body.src_id, "dst_id": body.dst_id},
     )
 
@@ -125,15 +123,14 @@ def list_purchase_orders(request: Request) -> list:
 def create_purchase_order_with_items(
     request: Request,
     body: CreatePurchaseOrderBody,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
-    result = api.create_purchase_order_with_items(
+    api.create_purchase_order_with_items(
         body.vendor_id, body.source_file_b64, body.source_file_name,
         body.purchase_date, body.notes, body.line_items,
     )
     return finish_mutation(
-        api, result, include, reason="create_po",
+        reason="create_po",
         detail={"vendor_id": body.vendor_id, "count": len(body.line_items)},
     )
 
@@ -143,12 +140,11 @@ def create_purchase_order_with_items(
 @router.delete("/purchase-orders/last", operation_id="delete_last_purchase_order")
 def delete_last_purchase_order(
     request: Request,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
-    result = api.delete_last_purchase_order()
+    api.delete_last_purchase_order()
     return finish_mutation(
-        api, result, include, reason="delete_last_po", detail={},
+        reason="delete_last_po", detail={},
     )
 
 
@@ -163,12 +159,11 @@ def update_purchase_order(
     request: Request,
     po_id: str,
     body: UpdatePurchaseOrderBody,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
-    result = api.update_purchase_order(po_id, body.vendor_id, body.purchase_date, body.notes)
+    api.update_purchase_order(po_id, body.vendor_id, body.purchase_date, body.notes)
     return finish_mutation(
-        api, result, include, reason="update_po", detail={"po_id": po_id},
+        reason="update_po", detail={"po_id": po_id},
     )
 
 
@@ -176,12 +171,11 @@ def update_purchase_order(
 def delete_purchase_order(
     request: Request,
     po_id: str,
-    include: str | None = Query(None),
 ) -> dict:
     api = request.app.state.api
-    result = api.delete_purchase_order(po_id)
+    api.delete_purchase_order(po_id)
     return finish_mutation(
-        api, result, include, reason="delete_po", detail={"po_id": po_id},
+        reason="delete_po", detail={"po_id": po_id},
     )
 
 

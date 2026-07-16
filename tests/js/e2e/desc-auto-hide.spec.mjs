@@ -3,7 +3,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows, loadBom, loadPurchaseOrder } from './helpers.mjs';
+import { waitForInventoryRows, loadBom, loadPurchaseOrder } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -103,7 +104,7 @@ async function measureBomRows(page, n) {
 test.describe('Description auto-hide — normal inventory mode', () => {
 
   test('narrow viewport (1200px) — descriptions hidden', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -118,7 +119,7 @@ test.describe('Description auto-hide — normal inventory mode', () => {
   });
 
   test('wide viewport (1920px) — descriptions visible', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -133,7 +134,7 @@ test.describe('Description auto-hide — normal inventory mode', () => {
   });
 
   test('resize wide → narrow — descriptions disappear', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -149,7 +150,7 @@ test.describe('Description auto-hide — normal inventory mode', () => {
   });
 
   test('resize narrow → wide — descriptions appear', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -165,7 +166,7 @@ test.describe('Description auto-hide — normal inventory mode', () => {
   });
 
   test('medium viewport (~1500px) — boundary check', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1500, height: 800 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -186,7 +187,7 @@ test.describe('Description auto-hide — normal inventory mode', () => {
 test.describe('Description auto-hide — with PO loaded', () => {
 
   test('narrow viewport (1200px) with PO — descriptions hidden', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -200,7 +201,7 @@ test.describe('Description auto-hide — with PO loaded', () => {
   });
 
   test('wide viewport (1920px) with PO — descriptions visible', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -214,7 +215,7 @@ test.describe('Description auto-hide — with PO loaded', () => {
   });
 
   test('resize wide → narrow with PO — descriptions disappear', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -236,7 +237,7 @@ test.describe('Description auto-hide — with PO loaded', () => {
 test.describe('Description auto-hide — with BOM + PO', () => {
 
   test('narrow viewport (1200px) with BOM + PO — descriptions hidden', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -251,7 +252,7 @@ test.describe('Description auto-hide — with BOM + PO', () => {
   });
 
   test('wide viewport (1920px) with BOM + PO — row heights and descs', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -273,7 +274,7 @@ test.describe('Description auto-hide — with BOM + PO', () => {
 test.describe('Row heights — BOM comparison mode', () => {
 
   test('BOM loaded at wide viewport — row heights', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -303,7 +304,7 @@ test.describe('Row heights — BOM comparison mode', () => {
   });
 
   test('BOM loaded at narrow viewport — row heights', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -333,7 +334,7 @@ test.describe('Row heights — BOM comparison mode', () => {
   });
 
   test('BOM loaded — resize wide to narrow', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -386,7 +387,7 @@ const VIEWPORTS = [
 test.describe('Row height survey — without BOM', () => {
   for (const vp of VIEWPORTS) {
     test(`inventory rows at ${vp.label}`, async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);
@@ -405,7 +406,7 @@ test.describe('Row height survey — without BOM', () => {
 test.describe('Row height survey — with BOM', () => {
   for (const vp of VIEWPORTS) {
     test(`BOM + inv rows at ${vp.label}`, async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);
@@ -433,7 +434,7 @@ test.describe('Row height survey — with BOM', () => {
 test.describe('Row height survey — with PO', () => {
   for (const vp of VIEWPORTS) {
     test(`PO + inv rows at ${vp.label}`, async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);
@@ -454,7 +455,7 @@ test.describe('Row height survey — with PO', () => {
 test.describe('Row height survey — with BOM + PO', () => {
   for (const vp of VIEWPORTS) {
     test(`BOM + PO + inv rows at ${vp.label}`, async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);

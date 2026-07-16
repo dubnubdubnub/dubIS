@@ -1,6 +1,7 @@
-/* api.js — pywebview bridge + application log */
+/* api.js — /v1 HTTP transport + pywebview bridge fallback + application log */
 
 import { escHtml, showToast } from './ui-helpers.js';
+import { API_MAP } from './api-map.js';
 
 const LOG_MAX_ENTRIES = 200;
 
@@ -31,8 +32,68 @@ export const AppLog = {
   }
 };
 
+function buildUrl(entry, argMap) {
+  let path = entry.path;
+  for (const name of entry.pathParams) {
+    path = path.replace("{" + name + "}", encodeURIComponent(argMap[name]));
+  }
+  const query = new URLSearchParams();
+  for (const name of entry.queryParams) {
+    if (argMap[name] !== undefined) query.set(name, argMap[name]);
+  }
+  const qs = query.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
+function buildBody(entry, argMap) {
+  if (entry.rawBody) {
+    const value = argMap[entry.argOrder[0]];
+    return typeof value === "string" ? value : JSON.stringify(value);
+  }
+  if (!entry.bodyParams.length) return undefined;
+  const body = {};
+  for (const name of entry.bodyParams) body[name] = argMap[name];
+  return JSON.stringify(body);
+}
+
+async function callHttp(entry, args) {
+  const argMap = {};
+  entry.argOrder.forEach((name, i) => { argMap[name] = args[i]; });
+
+  const url = buildUrl(entry, argMap);
+  const bodyStr = (entry.verb === "GET" || entry.verb === "DELETE")
+    ? undefined
+    : buildBody(entry, argMap);
+
+  const init = { method: entry.verb };
+  if (bodyStr !== undefined) {
+    init.headers = { "Content-Type": "application/json" };
+    init.body = bodyStr;
+  }
+
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    let message = res.statusText || `HTTP ${res.status}`;
+    try {
+      const errBody = await res.json();
+      if (errBody && errBody.error) message = errBody.error;
+    } catch {
+      // Non-JSON error body — fall back to statusText/status.
+    }
+    throw new Error(message);
+  }
+
+  const data = await res.json();
+  if (entry.unwrap) return data[entry.unwrap];
+  return data;
+}
+
 export async function api(method, ...args) {
   try {
+    const entry = API_MAP[method];
+    if (entry) {
+      return await callHttp(entry, args);
+    }
     return await window.pywebview.api[method](...args);
   } catch (e) {
     AppLog.error(method + ": " + e.message);
@@ -45,8 +106,13 @@ export async function api(method, ...args) {
 // (a truthy empty placeholder), then finish.js calls _createApi(funcList) and dispatches
 // `pywebviewready`. Code that calls API methods before phase 2 hits "is not a function".
 // Probe for a known stable method to distinguish the placeholder from a hydrated bridge.
+// Since Phase 1b Task 8, the bridge is the ~9-method ClientShell (client_shell.py) —
+// `set_bom_dirty` is one of its methods and is as stable a sentinel as the old
+// `load_preferences` (which moved to the /v1 HTTP surface and is no longer on the
+// bridge at all). This probe is bridge-readiness only; HTTP readiness is separate
+// (the /v1 server is up before the page is ever served, by construction).
 export function whenPywebviewReady() {
-  if (typeof window.pywebview?.api?.load_preferences === "function") {
+  if (typeof window.pywebview?.api?.set_bom_dirty === "function") {
     return Promise.resolve();
   }
   return new Promise((resolve) => {
@@ -65,7 +131,7 @@ export const apiVendors = {
 export const apiPurchaseOrders = {
   list:   () => api('list_purchase_orders'),
   create: (vendorId, fileB64, fileName, date, notes, items) =>
-    api('create_purchase_order_with_items', vendorId, fileB64, fileName, date, notes, JSON.stringify(items)),
+    api('create_purchase_order_with_items', vendorId, fileB64, fileName, date, notes, items),
   update: (poId, vendorId, date, notes) =>
     api('update_purchase_order', poId, vendorId, date, notes),
   delete: (poId) => api('delete_purchase_order', poId),

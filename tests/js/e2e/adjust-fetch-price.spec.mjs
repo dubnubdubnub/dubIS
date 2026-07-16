@@ -1,6 +1,7 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 // ── Test inventory ──
 const INVENTORY = [
@@ -112,8 +113,11 @@ const partRow = (page, lcsc) =>
 const readNumber = async (loc) => Number(await loc.inputValue());
 
 test.describe('Multi-distributor fetch price — Adjust & Price modals', () => {
+  /** @type {{getHttpHits: () => number}} */
+  let routeState;
+
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, INVENTORY, {
+    routeState = await installRouteMocks(page, INVENTORY, {
       productMocks: MOCK_PRODUCTS,
       lastPoQty: { ...LAST_PO_QTY, "ADJONLY-1": null, "ADJONLY-2": null, "C-BLANKQTY": null, "C-UNCERTAIN": null },
       hasPurchaseHistory: { "C-BLANKQTY": true, "C-UNCERTAIN": null },
@@ -130,11 +134,12 @@ test.describe('Multi-distributor fetch price — Adjust & Price modals', () => {
     await expect(page.locator('#adjust-modal')).not.toHaveClass(/hidden/);
 
     const rows = page.locator('#adj-fetch-panel .fetch-drow');
-    await expect(rows).toHaveCount(1);
+    await expect(rows).toHaveCount(1, { timeout: 15_000 });
     // qty-100 tier auto-picked (lastPoQty 100) and auto-selected as cheapest.
-    await expect(page.locator('#adj-fetch-panel .fetch-drow.selected')).toHaveCount(1);
-    await expect.poll(async () => Number(await page.locator('#adj-unit-price').inputValue())).toBeCloseTo(0.001, 6);
-    await expect.poll(async () => Number(await page.locator('#adj-ext-price').inputValue())).toBeCloseTo(0.2, 6);
+    await expect(page.locator('#adj-fetch-panel .fetch-drow.selected')).toHaveCount(1, { timeout: 15_000 });
+    await expect.poll(async () => Number(await page.locator('#adj-unit-price').inputValue()), { timeout: 15_000 }).toBeCloseTo(0.001, 6);
+    await expect.poll(async () => Number(await page.locator('#adj-ext-price').inputValue()), { timeout: 15_000 }).toBeCloseTo(0.2, 6);
+    await assertHttpExercised(routeState);
   });
 
   test('multi source: two rows, cheapest auto-selected into unit price', async ({ page }) => {
@@ -142,12 +147,12 @@ test.describe('Multi-distributor fetch price — Adjust & Price modals', () => {
     await expect(page.locator('#adjust-modal')).not.toHaveClass(/hidden/);
 
     const rows = page.locator('#adj-fetch-panel .fetch-drow');
-    await expect(rows).toHaveCount(2);   // lcsc + mouser
+    await expect(rows).toHaveCount(2, { timeout: 15_000 });   // lcsc + mouser
     // At qty 10: lcsc 4.44 < mouser 8.00 → lcsc auto-selected.
     const selected = page.locator('#adj-fetch-panel .fetch-drow.selected');
     await expect(selected).toHaveCount(1);
     await expect(selected).toHaveAttribute('data-idx', '0');
-    await expect.poll(async () => Number(await page.locator('#adj-unit-price').inputValue())).toBeCloseTo(4.44, 4);
+    await expect.poll(async () => Number(await page.locator('#adj-unit-price').inputValue()), { timeout: 15_000 }).toBeCloseTo(4.44, 4);
 
     // record_fetched_prices fired for both distributors.
     await expect.poll(async () =>

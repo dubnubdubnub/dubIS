@@ -24,7 +24,6 @@ test.describe('Undo and redo', () => {
   test.beforeEach(async ({ page }) => {
     await resetServer();
     await setupPage(page);
-    await page.goto('/index.html');
     await waitForInventoryRows(page);
   });
 

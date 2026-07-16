@@ -1,6 +1,7 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const INVENTORY = [
   {
@@ -24,8 +25,10 @@ const INVENTORY = [
 ];
 
 test.describe('Row handler mapping', () => {
+  /** @type {{getHttpHits: () => number}} */
+  let routeState;
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, INVENTORY);
+    routeState = await installRouteMocks(page, INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -52,5 +55,9 @@ test.describe('Row handler mapping', () => {
       await modal.locator('#adj-cancel').click();
       await expect(modal).not.toBeVisible();
     }
+    // openAdjustModal's adjFetch.configure() hits get_sourced_distributors/
+    // get_last_po_quantity/get_price_summary/get_generic_group_names/
+    // has_purchase_history over HTTP for every row opened above.
+    await assertHttpExercised(routeState);
   });
 });

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import csv_io
 import file_dialogs
 
 
@@ -21,10 +20,6 @@ class FileIOFacade:
                          links_json: str | list | None = None) -> dict[str, str] | None:
         """Open native Save As dialog and write content to the chosen path."""
         return file_dialogs.save_file_dialog(content, default_name, default_dir, links_json)
-
-    def convert_xls_to_csv(self, path: str) -> dict[str, Any] | None:
-        """Convert a binary XLS file to CSV text for the import panel."""
-        return csv_io.convert_xls_to_csv(path)
 
     def open_file_dialog(self, title: str = "Select CSV file",
                          default_dir: str | None = None) -> dict[str, Any] | None:
