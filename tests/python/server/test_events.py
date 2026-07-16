@@ -1,5 +1,4 @@
 import json
-import socket
 import threading
 import time
 
@@ -26,6 +25,46 @@ def test_publish_without_subscribers_is_noop():
     events.publish("inventory.updated", {"reason": "nobody-listening"})  # must not raise
 
 
+def _start_live_server(api):
+    """Start a real uvicorn server bound to an ephemeral loopback port.
+
+    Binds directly to port 0 and reads the real port back from the started
+    server (rather than pre-binding a probe socket, closing it, and hoping
+    the port is still free) — avoids a bind-close-rebind TOCTOU race.
+
+    Returns (server, thread, base_url). Caller is responsible for shutdown:
+    set server.should_exit = True, then thread.join(...) and assert it
+    stopped.
+
+    `timeout_graceful_shutdown` is set to a small value: uvicorn's HTTP
+    protocol implementations (h11/httptools) only mark an in-flight
+    streaming response `keep_alive = False` on shutdown — they never force
+    a still-connected response to complete. Without a bound, `Server.
+    shutdown()` awaits response completion with no timeout at all and would
+    hang forever against a client that never disconnects. With the bound,
+    uvicorn cancels the handler task once it expires; our generator's
+    ~POLL_SECONDS yield cadence (see server/routes/events.py) then lets that
+    cancellation actually take effect promptly instead of stalling for the
+    remainder of a blocked call.
+    """
+    config = uvicorn.Config(
+        create_app(api),
+        host="127.0.0.1",
+        port=0,
+        log_level="warning",
+        timeout_graceful_shutdown=3,
+    )
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 5
+    while not server.started and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert server.started, "uvicorn server did not start in time"
+    port = server.servers[0].sockets[0].getsockname()[1]
+    return server, thread, f"http://127.0.0.1:{port}"
+
+
 @pytest.fixture
 def live_base_url(api):
     """A real uvicorn server bound to a loopback socket.
@@ -37,24 +76,13 @@ def live_base_url(api):
     caller). A real socket is required to observe partial/streamed output
     while the generator is still running.
     """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind(("127.0.0.1", 0))
-    port = sock.getsockname()[1]
-    sock.close()
-
-    config = uvicorn.Config(create_app(api), host="127.0.0.1", port=port, log_level="warning")
-    server = uvicorn.Server(config)
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    deadline = time.monotonic() + 5
-    while not server.started and time.monotonic() < deadline:
-        time.sleep(0.01)
-    assert server.started, "uvicorn server did not start in time"
+    server, thread, base_url = _start_live_server(api)
     try:
-        yield f"http://127.0.0.1:{port}"
+        yield base_url
     finally:
         server.should_exit = True
-        thread.join(timeout=5)
+        thread.join(timeout=10)
+        assert not thread.is_alive(), "uvicorn server thread failed to stop"
 
 
 def test_sse_stream_delivers_event(live_base_url):
@@ -76,3 +104,30 @@ def test_sse_stream_delivers_event(live_base_url):
                 break
     assert received["event"] == "scan.receiving"
     assert received["data"] == {"count": 1}
+
+
+def test_shutdown_is_prompt_with_open_sse_connection(api):
+    """Server shutdown must not be gated by the 15s heartbeat wait.
+
+    Opens an SSE connection (parking a worker thread inside the generator's
+    poll loop), then triggers shutdown and measures how long it takes the
+    server thread to actually stop. Must be well under HEARTBEAT_SECONDS —
+    proves the granular poll (Finding 1) actually shortens shutdown latency
+    rather than just changing the code shape.
+    """
+    server, thread, base_url = _start_live_server(api)
+    with httpx.stream("GET", f"{base_url}/v1/events", timeout=10) as resp:
+        assert resp.headers["content-type"].startswith("text/event-stream")
+        # Headers are only sent once the generator's first next() call has
+        # run, so by the time we're past the `with` statement the worker
+        # thread is already parked in its poll loop. Give it one full poll
+        # cycle to settle before timing shutdown.
+        time.sleep(1.5)
+
+        start = time.monotonic()
+        server.should_exit = True
+        thread.join(timeout=10)
+        elapsed = time.monotonic() - start
+
+    assert not thread.is_alive(), "uvicorn server thread failed to stop"
+    assert elapsed < 8, f"shutdown took {elapsed:.2f}s, expected well under HEARTBEAT_SECONDS"
