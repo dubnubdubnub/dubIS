@@ -16,8 +16,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import webview
-
 import client_shell
 from client_shell import ClientShell
 from tests.python.test_api_surface import FROZEN_SURFACE
@@ -107,6 +105,9 @@ class TestFlagsRoundtripThroughApi:
     def test_confirm_close_sets_force_close_flag(self, api, monkeypatch):
         # Exercise the real InventoryApi.confirm_close (not mocked) to prove
         # the flag genuinely lives on api, not on a shell-local copy.
+        # Imported lazily (only usage of `webview` in this file) so the module
+        # stays importable without pulling in the GUI dependency at collection time.
+        import webview
         monkeypatch.setattr(webview, "windows", [MagicMock()])
         shell = ClientShell(api)
         assert api._force_close is False
