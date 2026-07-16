@@ -6,6 +6,12 @@
 export async function runFetchMissingDescriptions({ api, onInventoryUpdated, showToast }) {
   const res = await api('fetch_missing_descriptions');
   if (!res) return; // api() already toasted the error
+  // unwrap: "detail" (js/api-map.js) — domain/inventory.py's
+  // fetch_missing_descriptions already returns `{inventory, summary}` (it
+  // rebuilds after writing descriptions), and server/routes/inventory_mut.py
+  // passes that facade return straight through as `detail`, so `res` here
+  // already IS that shape — no separate round trip needed for the fresh
+  // inventory.
   const { inventory, summary } = res;
   if (Array.isArray(inventory)) onInventoryUpdated(inventory);
   const s = summary || { updated: 0, failed: 0 };

@@ -9,7 +9,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows, loadBom } from './helpers.mjs';
+import { waitForInventoryRows, loadBom } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BOM_CSV = fs.readFileSync(path.join(__dirname, 'fixtures', 'bom.csv'), 'utf8');
@@ -40,7 +41,7 @@ const rowOf = (page, lcsc) => page.locator('.inv-part-row:has([data-lcsc="' + lc
 const scrollTop = (page) => body(page).evaluate((el) => el.scrollTop);
 
 async function setup(page, { withBom }) {
-  await addMockSetup(page, INVENTORY, { productMocks: MOCK_PRODUCTS, lastPoQty: { [PRICELESS_LCSC]: 100 } });
+  const routeState = await installRouteMocks(page, INVENTORY, { productMocks: MOCK_PRODUCTS, lastPoQty: { [PRICELESS_LCSC]: 100 } });
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/index.html');
   await waitForInventoryRows(page);
@@ -48,6 +49,7 @@ async function setup(page, { withBom }) {
     await loadBom(page, BOM_CSV);   // inventory panel → BOM-comparison render path
     await page.waitForTimeout(150);
   }
+  return routeState;
 }
 
 /** Scroll the body to the bottom and assert a non-trivial position. */
@@ -66,7 +68,9 @@ async function expectPreserved(page, before) {
 
 for (const mode of [{ name: 'normal mode', withBom: false }, { name: 'BOM mode', withBom: true }]) {
   test.describe('inventory scroll preserved across mutations — ' + mode.name, () => {
-    test.beforeEach(async ({ page }) => { await setup(page, { withBom: mode.withBom }); });
+    /** @type {{getHttpHits: () => number}} */
+    let routeState;
+    test.beforeEach(async ({ page }) => { routeState = await setup(page, { withBom: mode.withBom }); });
 
     test('saving a fetched price from the ⚠ price modal', async ({ page }) => {
       await scrollToBottom(page);
@@ -84,6 +88,7 @@ for (const mode of [{ name: 'normal mode', withBom: false }, { name: 'BOM mode',
       await page.locator('#price-apply').click();
       await expect(page.locator('#price-modal')).toHaveClass(/hidden/);
       await expectPreserved(page, before);
+      await assertHttpExercised(routeState);
     });
 
     test('typing a price in the ⚠ price modal and saving', async ({ page }) => {
@@ -136,7 +141,7 @@ for (const mode of [{ name: 'normal mode', withBom: false }, { name: 'BOM mode',
 // A mid-list scroll position (not the bottom) must also survive a mutation —
 // guards against a fix that only "works" because the bottom clamps.
 test('mid-list scroll position is preserved (BOM mode, Adjust)', async ({ page }) => {
-  await setup(page, { withBom: true });
+  const routeState = await setup(page, { withBom: true });
   await body(page).focus();
   await page.keyboard.press('PageDown');
   await page.keyboard.press('PageDown');
@@ -153,4 +158,5 @@ test('mid-list scroll position is preserved (BOM mode, Adjust)', async ({ page }
   await page.locator('#adj-apply').click();
   await expect(page.locator('#adjust-modal')).toHaveClass(/hidden/);
   await expectPreserved(page, before);
+  await assertHttpExercised(routeState);
 });

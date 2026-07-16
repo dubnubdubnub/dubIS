@@ -1,6 +1,7 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 // ── Test inventory ──
 const INVENTORY = [
@@ -112,8 +113,11 @@ const partRow = (page, lcsc) =>
 const readNumber = async (loc) => Number(await loc.inputValue());
 
 test.describe('Multi-distributor fetch price — Adjust & Price modals', () => {
+  /** @type {{getHttpHits: () => number}} */
+  let routeState;
+
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, INVENTORY, {
+    routeState = await installRouteMocks(page, INVENTORY, {
       productMocks: MOCK_PRODUCTS,
       lastPoQty: { ...LAST_PO_QTY, "ADJONLY-1": null, "ADJONLY-2": null, "C-BLANKQTY": null, "C-UNCERTAIN": null },
       hasPurchaseHistory: { "C-BLANKQTY": true, "C-UNCERTAIN": null },
@@ -135,6 +139,7 @@ test.describe('Multi-distributor fetch price — Adjust & Price modals', () => {
     await expect(page.locator('#adj-fetch-panel .fetch-drow.selected')).toHaveCount(1);
     await expect.poll(async () => Number(await page.locator('#adj-unit-price').inputValue())).toBeCloseTo(0.001, 6);
     await expect.poll(async () => Number(await page.locator('#adj-ext-price').inputValue())).toBeCloseTo(0.2, 6);
+    await assertHttpExercised(routeState);
   });
 
   test('multi source: two rows, cheapest auto-selected into unit price', async ({ page }) => {

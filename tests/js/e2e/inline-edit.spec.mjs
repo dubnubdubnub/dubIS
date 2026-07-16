@@ -8,7 +8,8 @@
  * specified in the task brief, then the test deletes itself after capturing.
  */
 import { test, expect } from '@playwright/test';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 // ── Mock inventory with well-known values so assertions are deterministic ──
 
@@ -34,8 +35,10 @@ const partRow = (page, lcsc) =>
   page.locator(`.inv-part-row:has([data-lcsc="${lcsc}"])`);
 
 test.describe('Inline editing — qty cell', () => {
+  /** @type {{getHttpHits: () => number}} */
+  let routeState;
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, INVENTORY, {});
+    routeState = await installRouteMocks(page, INVENTORY, {});
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -74,6 +77,7 @@ test.describe('Inline editing — qty cell', () => {
     // After onInventoryUpdated the row re-renders; qty shown is from mock data.
     // We just need to confirm the edit mode ended (input gone).
     await expect(qtyCell.locator('input')).toHaveCount(0);
+    await assertHttpExercised(routeState);
   });
 
   test('Escape cancels edit and restores original qty display', async ({ page }) => {
@@ -102,7 +106,10 @@ test.describe('Inline editing — qty cell', () => {
   });
 
   test('double-click on qty calls adjust_part with new value', async ({ page }) => {
-    // Track calls via __apiCalls recorder in addMockSetup
+    // route-mocks.mjs's generic dispatcher records every intercepted /v1
+    // request into window.__apiCalls with the same [positional-args] shape a
+    // pywebview mock would — this asserts the real HTTP-transport call, not
+    // just that the commit path didn't throw.
     const row = partRow(page, 'C555');
     const qtyCell = row.locator('.part-qty');
 
@@ -113,21 +120,20 @@ test.describe('Inline editing — qty cell', () => {
 
     await expect(qtyCell.locator('input')).toHaveCount(0);
 
-    const calls = await page.evaluate(() => window.__apiCalls);
-    // adjust_part should have been recorded
-    // (the mock records all calls via record())
-    // Note: addMockSetup records via record() only for explicitly tracked methods.
-    // adjust_part is not separately tracked, but we verify indirectly that
-    // onInventoryUpdated was called by checking no JS error was thrown.
-    // The mock adjust_part returns the inventory array (truthy), so the
-    // commit path should complete without errors.
-    expect(calls).toBeDefined();
+    await expect.poll(async () =>
+      (await page.evaluate(() => window.__apiCalls['adjust_part'] || [])).length
+    ).toBeGreaterThanOrEqual(1);
+    const calls = await page.evaluate(() => window.__apiCalls['adjust_part']);
+    expect(calls[calls.length - 1]).toEqual(['set', 'C555', 77, 'inline-edit', undefined]);
+    await assertHttpExercised(routeState);
   });
 });
 
 test.describe('Inline editing — unit-price cell', () => {
+  /** @type {{getHttpHits: () => number}} */
+  let routeState;
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, INVENTORY, {});
+    routeState = await installRouteMocks(page, INVENTORY, {});
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -155,6 +161,7 @@ test.describe('Inline editing — unit-price cell', () => {
     await input.press('Enter');
 
     await expect(priceCell.locator('input')).toHaveCount(0);
+    await assertHttpExercised(routeState);
   });
 
   test('Escape cancels price edit and restores original display', async ({ page }) => {
@@ -183,7 +190,7 @@ test.describe('Inline editing — unit-price cell', () => {
 
 test.describe('Inline editing — link mode guard', () => {
   test('double-click on qty does NOT enter edit when link mode is active', async ({ page }) => {
-    await addMockSetup(page, INVENTORY, {});
+    await installRouteMocks(page, INVENTORY, {});
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);

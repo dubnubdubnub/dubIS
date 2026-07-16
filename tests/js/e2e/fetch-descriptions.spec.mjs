@@ -4,7 +4,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -32,7 +33,7 @@ test.describe('Fetch descriptions', () => {
       },
     };
 
-    await addMockSetup(page, INVENTORY, {
+    const routeState = await installRouteMocks(page, INVENTORY, {
       productMocks: MOCK_PRODUCTS,
       lastPoQty: { C2040: 100 },
     });
@@ -54,19 +55,15 @@ test.describe('Fetch descriptions', () => {
 
     await page.getByRole('button', { name: 'Fetch description' }).click();
     await expect(descInput).toHaveValue('Mock Cap 47uF');
+    await assertHttpExercised(routeState);
   });
 
   test('command palette Fetch Missing Descriptions toasts a summary', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
-    await page.addInitScript(() => {
-      window.pywebview.api.fetch_missing_descriptions = async () => ({
-        inventory: window.__mockInventoryAfterFetch || [],
-        summary: { updated: 2, failed: 0, skipped: 0 },
-      });
-    });
     // Reuse the same seeded inventory as the "post-fetch" result — the test
     // only asserts the toast summary text, not per-row description changes.
-    await page.addInitScript((inv) => { window.__mockInventoryAfterFetch = inv; }, MOCK_INVENTORY);
+    const routeState = await installRouteMocks(page, MOCK_INVENTORY, {
+      fetchDescriptionsSummary: { updated: 2, failed: 0, skipped: 0 },
+    });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
 
@@ -77,5 +74,6 @@ test.describe('Fetch descriptions', () => {
 
     await expect(page.locator('#toast')).toHaveClass(/show/);
     await expect(page.locator('#toast')).toContainText('Fetched 2 descriptions');
+    await assertHttpExercised(routeState);
   });
 });
