@@ -22,14 +22,42 @@ let serverProcess = null;
 let serverDataDir = null;
 
 /**
+ * `config.projects` always lists every project declared in playwright.config.mjs
+ * (functional/quality/live), regardless of which project(s) were actually
+ * requested with `--project` on the CLI — so checking `config.projects.find(...)`
+ * alone would spawn the live backend even for a plain `--project functional`
+ * run. Playwright's globalSetup doesn't otherwise expose "which projects were
+ * selected", so parse it out of argv the same way the CLI does.
+ *
+ * @returns {boolean} true if no --project filter was given (all projects,
+ *   including 'live', will run) or if 'live' is one of the requested projects.
+ */
+function isLiveProjectSelected() {
+  const args = process.argv.slice(2);
+  const requested = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--project') {
+      requested.push(args[i + 1]);
+    } else {
+      const match = arg.match(/^--project=(.+)$/);
+      if (match) requested.push(match[1]);
+    }
+  }
+  return requested.length === 0 || requested.includes('live');
+}
+
+/**
  * @param {import('@playwright/test').FullConfig} config
  */
 export default async function globalSetup(config) {
-  // Only start the server when the 'live' project is selected.
+  // Only start the server when the 'live' project is actually selected for
+  // this run — not merely defined in the config (see isLiveProjectSelected).
   const liveProject = config.projects.find(p => p.name === 'live');
-  if (!liveProject) return;
+  if (!liveProject || !isLiveProjectSelected()) return;
 
-  const pythonExe = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
+  const pythonExe = process.env.DUBIS_PYTHON || process.env.PYTHON ||
+    (process.platform === 'win32' ? 'python' : 'python3');
 
   // Copy fixtures into a fresh temp data dir ourselves — python -m server
   // doesn't do fixture staging (that was tests/e2e-server.py's job, now
