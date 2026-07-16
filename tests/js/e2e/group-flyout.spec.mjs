@@ -1,6 +1,7 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-import { addMockSetup, waitForInventoryRows, loadBom } from './helpers.mjs';
+import { waitForInventoryRows, loadBom } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -55,55 +56,15 @@ const MOCK_GENERIC_PARTS = [
 ];
 
 /**
- * Add a secondary init script that patches the base pywebview mock with
- * stateful generic-parts API methods. Must be called AFTER addMockSetup.
- */
-function addGenericPartsMockPatch(page, genericParts) {
-  return page.addInitScript((gps) => {
-    // Stateful list — grows as create_generic_part is called.
-    const mockGpList = gps.slice();
-
-    // Patch in the generic-parts-aware methods over the base mock.
-    Object.assign(window.pywebview.api, {
-      list_generic_parts: async () => mockGpList.slice(),
-      list_saved_searches: async () => [],
-      create_saved_search: async (_gpId, name) => ({ id: 'saved-1', name }),
-      delete_saved_search: async () => null,
-      exclude_generic_member: async () => null,
-      extract_spec_from_value: async (type, val, pkg) => ({
-        type, value: 1e-7, value_display: val, package: pkg,
-      }),
-      create_generic_part: async (name, type, specJson, strictnessJson) => {
-        const gpId = 'new_' + type + '_' + Date.now();
-        const newGp = {
-          generic_part_id: gpId,
-          name,
-          part_type: type,
-          spec: specJson ? JSON.parse(specJson) : {},
-          strictness: strictnessJson ? JSON.parse(strictnessJson) : {},
-          source: 'auto',
-          members: [],
-        };
-        mockGpList.push(newGp);
-        return newGp;
-      },
-      resolve_bom_spec: async () => null,
-      preview_generic_members: async () => [],
-      add_generic_member: async (_gpId, partId) => [
-        { part_id: partId, quantity: 10, description: 'Added part', spec: {} },
-      ],
-      remove_generic_member: async () => [],
-    });
-  }, genericParts);
-}
-
-/**
- * Set up mock API with generic parts support.
- * Uses the proven addMockSetup from helpers.mjs + a patch for generic parts.
+ * Set up HTTP route mocks with generic-parts support. route-mocks.mjs's
+ * list_generic_parts/create_generic_part are already stateful (a
+ * create_generic_part call — fired by the BOM auto-create-group flow when a
+ * value-only BOM row has no matching group — appends to the same list a
+ * later list_generic_parts sees), so this is just installRouteMocks with a
+ * genericParts seed, replacing the old addGenericPartsMockPatch bridge patch.
  */
 async function addMockSetupWithGenerics(page, inventory, genericParts) {
-  await addMockSetup(page, inventory);
-  await addGenericPartsMockPatch(page, genericParts);
+  await installRouteMocks(page, inventory, { genericParts });
 }
 
 test.describe('[functional] Group flyout — opening and closing', () => {
@@ -276,6 +237,48 @@ test.describe('[functional] Group flyout — search', () => {
     const mainSearch = page.locator('#inv-search');
     const mainVal = await mainSearch.inputValue();
     expect(mainVal).toBe('test query');
+  });
+});
+
+test.describe('[functional] Group flyout — saved searches', () => {
+  test.beforeEach(async ({ page }) => {
+    await addMockSetupWithGenerics(page, MOCK_INVENTORY, MOCK_GENERIC_PARTS);
+    await page.setViewportSize({ width: 1920, height: 900 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await loadBom(page, VALUE_ONLY_BOM);
+    await page.waitForTimeout(300);
+    await page.locator('button.group-flyout-btn').first().click();
+    await page.waitForTimeout(500);
+  });
+
+  // Regression pin for the get_saved_search dead-call fix (flyout-events.js):
+  // the method never existed on the bridge/server, so clicking a saved-search
+  // tab always hit the fallback warn path and never restored anything. The
+  // fix derives the record from a fresh list_saved_searches call instead.
+  // This test fails without the fix (the search input would stay 'different'
+  // after clicking the saved tab) and passes with it.
+  test('clicking a saved-search tab restores its search text', async ({ page }) => {
+    const searchInput = page.locator('.flyout-search-input');
+    await searchInput.fill('hello');
+
+    // Save the current (unpromoted) search text as a named saved search.
+    page.once('dialog', (dialog) => dialog.accept('My search'));
+    await page.locator('.flyout-save-btn').click();
+
+    // A new saved-search tab appears.
+    const savedTab = page.locator('.flyout-saved-tab', { hasText: 'My search' });
+    await expect(savedTab).toBeVisible();
+
+    // Change the live search text so the flyout's current state no longer
+    // matches what was saved.
+    await searchInput.fill('different');
+    await expect(searchInput).toHaveValue('different');
+
+    // Clicking the saved tab must re-fetch and restore the saved search text.
+    await savedTab.click();
+    await expect(page.locator('.flyout-search-input')).toHaveValue('hello');
+    await expect(savedTab).toHaveClass(/tab-active/);
   });
 });
 

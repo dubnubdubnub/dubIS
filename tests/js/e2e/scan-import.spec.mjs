@@ -19,7 +19,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -69,7 +70,7 @@ const MULTI_PHOTO = {
 
 test.describe('Phone-scan desktop modal → end-to-end import', () => {
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY, { mfgDirectVendors: VENDORS });
+    await installRouteMocks(page, MOCK_INVENTORY, { mfgDirectVendors: VENDORS });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -116,15 +117,17 @@ test.describe('Phone-scan desktop modal → end-to-end import', () => {
     await expect(page.locator('.toast')).toContainText('Imported');
 
     // 9. The create-PO call received the scanned photo bytes + filename.
+    // window.__apiCalls records positional args in argOrder:
+    // [vendor_id, source_file_b64, source_file_name, purchase_date, notes, line_items].
     const call = await page.evaluate(() => {
       const calls = window.__apiCalls.create_purchase_order_with_items || [];
       return calls[calls.length - 1] || null;
     });
     expect(call).not.toBeNull();
-    expect(call.fileB64).toBe(PNG_1X1_B64);
-    expect(call.fileName).toBe('po.png');
-    // Distributor PNs are carried in the serialized items payload.
-    const items = JSON.parse(call.itemsJson);
+    const [, fileB64, fileName, , , items] = call;
+    expect(fileB64).toBe(PNG_1X1_B64);
+    expect(fileName).toBe('po.png');
+    // Distributor PNs are carried in the items payload.
     expect(items.map((i) => i.distributor_pn)).toEqual(['C25744', 'C15525']);
 
     // 10. After import the panel re-renders, but the OCR-template dropdown keeps

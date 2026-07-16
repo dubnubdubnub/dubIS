@@ -70,6 +70,9 @@ test.describe('Pololu integration', () => {
 
   test('Pololu part uses correct brand color', async ({ page }) => {
     const pololuSpan = page.locator('.part-id-pololu[data-pololu="1992"]');
+    // Wait for the row to actually be visible before reading computed style —
+    // a one-shot evaluate() can otherwise race the render (no retry/polling).
+    await expect(pololuSpan).toBeVisible();
     const color = await pololuSpan.evaluate(el => getComputedStyle(el).color);
     // #1e2f94 = rgb(30, 47, 148)
     expect(color).toBe('rgb(30, 47, 148)');

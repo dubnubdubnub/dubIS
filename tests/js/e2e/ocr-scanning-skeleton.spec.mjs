@@ -15,7 +15,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -52,7 +53,7 @@ async function dropImage(page) {
 
 test.describe('OCR scanning skeleton (drop zone)', () => {
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY, {
+    await installRouteMocks(page, MOCK_INVENTORY, {
       ocrOverlayResult: OCR_RESULT,
       ocrOverlayDelayMs: 700,  // hold OCR so the skeleton is observable
     });

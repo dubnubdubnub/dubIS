@@ -169,7 +169,7 @@ export const apiVendors = {
 export const apiPurchaseOrders = {
   list:   () => api('list_purchase_orders'),
   create: (vendorId, fileB64, fileName, date, notes, items) =>
-    api('create_purchase_order_with_items', vendorId, fileB64, fileName, date, notes, JSON.stringify(items)),
+    api('create_purchase_order_with_items', vendorId, fileB64, fileName, date, notes, items),
   update: (poId, vendorId, date, notes) =>
     api('update_purchase_order', poId, vendorId, date, notes),
   delete: (poId) => api('delete_purchase_order', poId),

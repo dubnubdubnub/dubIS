@@ -254,18 +254,27 @@ function handleClick(e) {
       return;
     }
 
-    // Load from API
-    api("get_saved_search", inst.genericPartId, searchId).then(function (result) {
+    // Load from API. `get_saved_search` never existed on the bridge (and has
+    // no /v1 route) — derive the record from list_saved_searches instead,
+    // re-fetched fresh (rather than reused from inst.savedSearches) because a
+    // search created earlier in this flyout session is pushed into
+    // inst.savedSearches as only {id, name} (see the Save-button handler
+    // above), missing tag_state/search_text/frozen_members.
+    api("list_saved_searches", inst.genericPartId).then(function (searches) {
+      var result = Array.isArray(searches)
+        ? searches.find(function (s) { return String(s.id) === String(searchId); })
+        : null;
       if (!result) {
         AppLog.warn("flyout: get_saved_search returned nothing for id=" + searchId);
         return;
       }
-      // Restore tag state
-      if (Array.isArray(result.tags)) {
+      // Restore tag state (server field is tag_state, a list of
+      // {label,dimension,enabled} — same shape create_saved_search sent).
+      if (Array.isArray(result.tag_state)) {
         // Merge: update enabled state on existing tags, add new ones
         var incomingMap = {};
-        for (var j = 0; j < result.tags.length; j++) {
-          var rt = result.tags[j];
+        for (var j = 0; j < result.tag_state.length; j++) {
+          var rt = result.tag_state[j];
           incomingMap[rt.dimension + ":" + rt.label] = rt;
         }
         for (var k = 0; k < inst.tags.length; k++) {
@@ -278,12 +287,12 @@ function handleClick(e) {
         }
       }
 
-      if (result.searchText !== undefined) inst.searchText = result.searchText || "";
+      if (result.search_text !== undefined) inst.searchText = result.search_text || "";
 
       // Freeze: show only members that matched at the time of saving
-      if (Array.isArray(result.frozenMemberIds) && result.frozenMemberIds.length > 0) {
+      if (Array.isArray(result.frozen_members) && result.frozen_members.length > 0) {
         inst.frozen = true;
-        inst.frozenMemberIds = result.frozenMemberIds;
+        inst.frozenMemberIds = result.frozen_members;
       } else {
         inst.frozen = false;
         inst.frozenMemberIds = null;
