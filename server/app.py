@@ -19,11 +19,14 @@ def create_app(api) -> FastAPI:
     register_handlers(app)
 
     from server.routes import (
+        distributors,
         events,
         generic_parts,
+        import_scan,
         inventory_mut,
         meta,
         parts_read,
+        pnp,
         vendors_pos,
     )
     app.include_router(meta.router)
@@ -32,4 +35,7 @@ def create_app(api) -> FastAPI:
     app.include_router(inventory_mut.router)
     app.include_router(generic_parts.router)
     app.include_router(vendors_pos.router)
+    app.include_router(import_scan.router)
+    app.include_router(distributors.router)
+    app.include_router(pnp.router)
     return app
