@@ -19,21 +19,23 @@
  * E2E HARNESS NOTES
  * -----------------
  * The functional Playwright project serves the static app (no Python backend)
- * and stubs `window.pywebview.api` via `addMockSetup` (helpers.mjs). The base
- * stub returns `null` for `save_file_dialog` (which the app treats as "user
- * cancelled") and `[]` for `list_purchase_orders`. This spec layers a SECOND
- * `addInitScript` on top that:
- *   - overrides `save_file_dialog` to record each (csv, name) call on
- *     `window.__savedFiles` and return a fake `{ path }` — so no native dialog
- *     can open and hang the run, and the test can assert on the CSV bytes.
- *   - overrides `list_purchase_orders` / `get_po_with_items` to supply one PO.
+ * and intercepts `/v1/**` via `installRouteMocks` (route-mocks.mjs). PO data
+ * (`list_purchase_orders` / `get_po_with_items`) is supplied via that helper's
+ * `purchaseOrders`/`poWithItems` options — both are HTTP-routed under
+ * installRouteMocks, so they must go through route-mock fixture data rather
+ * than a post-hoc `window.pywebview.api` patch. `save_file_dialog` stays a
+ * shim method (not in API_MAP), so a second `addInitScript` still overrides it
+ * on `window.pywebview.api` to record each (csv, name) call on
+ * `window.__savedFiles` and return a fake `{ path }` — so no native dialog can
+ * open and hang the run, and the test can assert on the CSV bytes.
  * Inventory items are given a matching `po_history` so `selectPo` resolves them.
  */
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE_INVENTORY = JSON.parse(
@@ -48,33 +50,31 @@ const MOCK_INVENTORY = BASE_INVENTORY.map((item, i) =>
   i < 3 ? { ...item, po_history: [PO_ID] } : item,
 );
 
-/** Layer the save_file_dialog recorder + PO data over the base api stub. */
-function addLabelExportStubs(page) {
-  return page.addInitScript(({ poId, inv }) => {
-    const poItems = inv.filter((it) => (it.po_history || []).includes(poId));
+const PO_ITEMS = MOCK_INVENTORY
+  .filter((it) => (it.po_history || []).includes(PO_ID))
+  .map((it) => ({
+    mpn: it.mpn,
+    manufacturer: it.manufacturer,
+    package: it.package,
+    quantity: it.qty,
+  }));
+
+/**
+ * Record save_file_dialog calls on window.__savedFiles. save_file_dialog is a
+ * shim method (not in API_MAP), so it always stays on window.pywebview.api —
+ * unlike list_purchase_orders/get_po_with_items below, which ARE HTTP-routed
+ * under installRouteMocks and must instead be supplied as route-mock options.
+ */
+function addSaveFileDialogRecorder(page) {
+  return page.addInitScript(() => {
     window.__savedFiles = [];
-    // Wait until the base helpers stub has installed window.pywebview.api,
-    // then patch the two methods we need without clobbering the rest.
     const patch = () => {
       if (!window.pywebview || !window.pywebview.api) return false;
-      const api = window.pywebview.api;
-      api.save_file_dialog = async (csv, name) => {
+      window.pywebview.api.save_file_dialog = async (csv, name) => {
         const fakePath = '/fake/exports/' + name;
         window.__savedFiles.push({ name, csv, path: fakePath });
         return { path: fakePath };
       };
-      api.list_purchase_orders = async () => [
-        { po_id: poId, purchase_date: '2026-05-01', vendor_id: 'v_lcsc' },
-      ];
-      api.get_po_with_items = async () => ({
-        po_id: poId,
-        line_items: poItems.map((it) => ({
-          mpn: it.mpn,
-          manufacturer: it.manufacturer,
-          package: it.package,
-          quantity: it.qty,
-        })),
-      });
       return true;
     };
     if (!patch()) {
@@ -83,13 +83,16 @@ function addLabelExportStubs(page) {
       const t = setInterval(() => { if (patch()) clearInterval(t); }, 5);
       setTimeout(() => clearInterval(t), 2000);
     }
-  }, { poId: PO_ID, inv: MOCK_INVENTORY });
+  });
 }
 
 test.describe('Epson label export', () => {
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
-    await addLabelExportStubs(page);
+    await installRouteMocks(page, MOCK_INVENTORY, {
+      purchaseOrders: [{ po_id: PO_ID, purchase_date: '2026-05-01', vendor_id: 'v_lcsc' }],
+      poWithItems: { [PO_ID]: { po_id: PO_ID, line_items: PO_ITEMS } },
+    });
+    await addSaveFileDialogRecorder(page);
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -255,18 +258,7 @@ test.describe('Purchase Orders picker ordering', () => {
   const EXPECTED_ORDER = ['PO-NEW', 'PO-MID-B', 'PO-MID-A', 'PO-OLD', 'PO-NODATE'];
 
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
-    await page.addInitScript((pos) => {
-      const patch = () => {
-        if (!window.pywebview || !window.pywebview.api) return false;
-        window.pywebview.api.list_purchase_orders = async () => pos;
-        return true;
-      };
-      if (!patch()) {
-        const t = setInterval(() => { if (patch()) clearInterval(t); }, 5);
-        setTimeout(() => clearInterval(t), 2000);
-      }
-    }, UNSORTED_POS);
+    await installRouteMocks(page, MOCK_INVENTORY, { purchaseOrders: UNSORTED_POS });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);

@@ -1,6 +1,7 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 // Small focused inventory with a Pololu part + a few others for search filtering
 const POLOLU_INVENTORY = [
@@ -48,7 +49,7 @@ const MOCK_PRODUCTS = {
 test.describe('Pololu integration', () => {
 
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, POLOLU_INVENTORY, { productMocks: MOCK_PRODUCTS });
+    await installRouteMocks(page, POLOLU_INVENTORY, { productMocks: MOCK_PRODUCTS });
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);

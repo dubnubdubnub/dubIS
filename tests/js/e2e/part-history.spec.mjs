@@ -6,7 +6,8 @@
  * get_part_history is mocked via helpers.mjs's partHistory option.
  */
 import { test, expect } from '@playwright/test';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const INVENTORY = [
   {
@@ -63,7 +64,7 @@ const PRODUCT_MOCKS = {
 
 test.describe('Part preview — History section', () => {
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, INVENTORY, { partHistory: PART_HISTORY, productMocks: PRODUCT_MOCKS });
+    await installRouteMocks(page, INVENTORY, { partHistory: PART_HISTORY, productMocks: PRODUCT_MOCKS });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
