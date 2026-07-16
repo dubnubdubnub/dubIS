@@ -18,10 +18,18 @@ def create_app(api) -> FastAPI:
     app.state.api = api
     register_handlers(app)
 
-    from server.routes import events, generic_parts, inventory_mut, meta, parts_read
+    from server.routes import (
+        events,
+        generic_parts,
+        inventory_mut,
+        meta,
+        parts_read,
+        vendors_pos,
+    )
     app.include_router(meta.router)
     app.include_router(events.router)
     app.include_router(parts_read.router)
     app.include_router(inventory_mut.router)
     app.include_router(generic_parts.router)
+    app.include_router(vendors_pos.router)
     return app
