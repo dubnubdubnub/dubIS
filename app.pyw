@@ -4,6 +4,7 @@
 import logging
 import os
 import sys
+import time
 
 import bench  # fixes t0 at first import; no-op unless DUBIS_BENCH_OUT is set
 
@@ -27,10 +28,23 @@ if sys.platform == "win32":
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("gehub.dubIS")
 
 import webview
+from client_shell import ClientShell
 from inventory_api import InventoryApi
 from pnp_server import start_pnp_server, stop_pnp_server
+from server.run import start_server, stop_server
 
 bench.mark("imports_done")
+
+
+def _free_port() -> int:
+    """Bind an ephemeral loopback port and release it immediately for uvicorn
+    to reuse. Small TOCTOU risk (another process could grab it in between) —
+    matches the pattern already used by scripts/spike-webview-loopback.py and
+    tests/python/server/test_lifecycle.py."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
 
 def _hard_exit(code: int = 0) -> None:
@@ -81,20 +95,30 @@ def main():
     debug = "--debug" in sys.argv
     api = InventoryApi(debug=debug)
     bench.mark("api_constructed")
-    v1_port = os.environ.get("DUBIS_SERVER_PORT")
-    v1_server = None
-    if v1_port:
-        from server.run import start_server
-        v1_server = start_server(api, port=int(v1_port))
+
+    port = int(os.environ.get("DUBIS_SERVER_PORT", 0)) or _free_port()
+    v1_server = start_server(api, static_dir=APP_DIR, port=port)
+    bench.mark("server_starting")
+    start_deadline = time.monotonic() + 10
+    while not v1_server.started and time.monotonic() < start_deadline:
+        time.sleep(0.02)
+    if not v1_server.started:
+        raise RuntimeError(
+            f"/v1 loopback server did not start within 10s on port {port}"
+        )
+    bench.mark("server_started")
+
+    shell = ClientShell(api)
     window = webview.create_window(
         "dubIS",
-        url=os.path.join(APP_DIR, "index.html"),
-        js_api=api,
+        url=f"http://127.0.0.1:{port}/",
+        js_api=shell,
         width=1600,
         height=900,
         min_size=(1200, 700),
         background_color="#0d1117",  # match the dark theme so the shell doesn't flash white before first paint
     )
+    shell._window = window
 
     pnp_server = None
 
@@ -115,12 +139,10 @@ def main():
         except Exception as exc:
             logger.warning("Cleanup: stopping PnP server failed: %s", exc)
         bench.mark("pnp_stopped")
-        if v1_server:
-            try:
-                from server.run import stop_server
-                stop_server(v1_server)
-            except Exception as exc:
-                logger.warning("Cleanup: stopping /v1 server failed: %s", exc)
+        try:
+            stop_server(v1_server)
+        except Exception as exc:
+            logger.warning("Cleanup: stopping /v1 server failed: %s", exc)
         try:
             api.shutdown()
         except Exception as exc:
