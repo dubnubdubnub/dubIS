@@ -81,6 +81,11 @@ def main():
     debug = "--debug" in sys.argv
     api = InventoryApi(debug=debug)
     bench.mark("api_constructed")
+    v1_port = os.environ.get("DUBIS_SERVER_PORT")
+    v1_server = None
+    if v1_port:
+        from server.run import start_server
+        v1_server = start_server(api, port=int(v1_port))
     window = webview.create_window(
         "dubIS",
         url=os.path.join(APP_DIR, "index.html"),
@@ -110,6 +115,12 @@ def main():
         except Exception as exc:
             logger.warning("Cleanup: stopping PnP server failed: %s", exc)
         bench.mark("pnp_stopped")
+        if v1_server:
+            try:
+                from server.run import stop_server
+                stop_server(v1_server)
+            except Exception as exc:
+                logger.warning("Cleanup: stopping /v1 server failed: %s", exc)
         try:
             api.shutdown()
         except Exception as exc:

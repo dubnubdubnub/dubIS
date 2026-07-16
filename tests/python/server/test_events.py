@@ -4,10 +4,9 @@ import time
 
 import httpx
 import pytest
-import uvicorn
 
 from server import events
-from server.app import create_app
+from tests.python.server.conftest import start_live_server
 
 
 def test_publish_reaches_subscriber_queue():
@@ -25,16 +24,16 @@ def test_publish_without_subscribers_is_noop():
     events.publish("inventory.updated", {"reason": "nobody-listening"})  # must not raise
 
 
-def _start_live_server(api):
-    """Start a real uvicorn server bound to an ephemeral loopback port.
+@pytest.fixture
+def live_base_url(api):
+    """A real uvicorn server bound to a loopback socket.
 
-    Binds directly to port 0 and reads the real port back from the started
-    server (rather than pre-binding a probe socket, closing it, and hoping
-    the port is still free) — avoids a bind-close-rebind TOCTOU race.
-
-    Returns (server, thread, base_url). Caller is responsible for shutdown:
-    set server.should_exit = True, then thread.join(...) and assert it
-    stopped.
+    /v1/events is an infinite generator (heartbeats forever), and Starlette's
+    TestClient fully drains an ASGI app's response before returning it to
+    httpx — so `TestClient(app).stream(...)` deadlocks forever on this
+    endpoint (confirmed: it never even yields response headers back to the
+    caller). A real socket is required to observe partial/streamed output
+    while the generator is still running.
 
     `timeout_graceful_shutdown` is set to a small value: uvicorn's HTTP
     protocol implementations (h11/httptools) only mark an in-flight
@@ -47,36 +46,7 @@ def _start_live_server(api):
     cancellation actually take effect promptly instead of stalling for the
     remainder of a blocked call.
     """
-    config = uvicorn.Config(
-        create_app(api),
-        host="127.0.0.1",
-        port=0,
-        log_level="warning",
-        timeout_graceful_shutdown=3,
-    )
-    server = uvicorn.Server(config)
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    deadline = time.monotonic() + 5
-    while not server.started and time.monotonic() < deadline:
-        time.sleep(0.01)
-    assert server.started, "uvicorn server did not start in time"
-    port = server.servers[0].sockets[0].getsockname()[1]
-    return server, thread, f"http://127.0.0.1:{port}"
-
-
-@pytest.fixture
-def live_base_url(api):
-    """A real uvicorn server bound to a loopback socket.
-
-    /v1/events is an infinite generator (heartbeats forever), and Starlette's
-    TestClient fully drains an ASGI app's response before returning it to
-    httpx — so `TestClient(app).stream(...)` deadlocks forever on this
-    endpoint (confirmed: it never even yields response headers back to the
-    caller). A real socket is required to observe partial/streamed output
-    while the generator is still running.
-    """
-    server, thread, base_url = _start_live_server(api)
+    server, thread, base_url = start_live_server(api, timeout_graceful_shutdown=3)
     try:
         yield base_url
     finally:
@@ -115,7 +85,7 @@ def test_shutdown_is_prompt_with_open_sse_connection(api):
     proves the granular poll (Finding 1) actually shortens shutdown latency
     rather than just changing the code shape.
     """
-    server, thread, base_url = _start_live_server(api)
+    server, thread, base_url = start_live_server(api)
     with httpx.stream("GET", f"{base_url}/v1/events", timeout=10) as resp:
         assert resp.headers["content-type"].startswith("text/event-stream")
         # Headers are only sent once the generator's first next() call has

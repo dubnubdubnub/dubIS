@@ -27,6 +27,7 @@ def create_app(api) -> FastAPI:
         meta,
         parts_read,
         pnp,
+        preferences,
         vendors_pos,
     )
     app.include_router(meta.router)
@@ -38,4 +39,5 @@ def create_app(api) -> FastAPI:
     app.include_router(import_scan.router)
     app.include_router(distributors.router)
     app.include_router(pnp.router)
+    app.include_router(preferences.router)
     return app
