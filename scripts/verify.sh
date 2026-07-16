@@ -80,6 +80,9 @@ run_step "claude-md" "$PY" scripts/check-claude-md.py
 # 4c. openapi
 run_step "openapi" "$PY" scripts/gen-openapi.py --check
 
+# 4d. api-client
+run_step "api-client" "$PY" scripts/gen-api-client.py --check
+
 # 5. layout-tokens
 run_step "layout-tokens" "$PY" scripts/check-layout-tokens.py --check
 layout_rc=$?
