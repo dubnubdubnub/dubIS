@@ -18,7 +18,8 @@ def create_app(api) -> FastAPI:
     app.state.api = api
     register_handlers(app)
 
-    from server.routes import events, meta
+    from server.routes import events, meta, parts_read
     app.include_router(meta.router)
     app.include_router(events.router)
+    app.include_router(parts_read.router)
     return app
