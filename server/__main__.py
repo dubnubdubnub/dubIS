@@ -16,6 +16,30 @@ from inventory_api import InventoryApi
 from server.app import create_app
 
 
+def _build_api(data_dir: str) -> InventoryApi:
+    """Construct an InventoryApi pointed at ``data_dir`` instead of the repo.
+
+    Mirrors tests/pnp-e2e/dubis_headless.py's repointing block, plus the two
+    attributes that block was missing: ``cache_db_path`` and ``events_dir``.
+    InventoryApi.__init__ derives ALL of base_dir, input_csv, output_csv,
+    adjustments_csv, prefs_json, cache_db_path, and events_dir from base_dir
+    at construction time — every one of those must be repointed here, or a
+    standalone server run against --data-dir X silently writes its SQLite
+    cache and price/part events into the repo's own data/ and events/ dirs
+    instead of X. (dubis_headless.py shares this incomplete-repointing bug —
+    it dies in Phase 1b; not fixed here.)
+    """
+    api = InventoryApi()
+    api.base_dir = data_dir
+    api.input_csv = os.path.join(data_dir, "purchase_ledger.csv")
+    api.output_csv = os.path.join(data_dir, "inventory.csv")
+    api.adjustments_csv = os.path.join(data_dir, "adjustments.csv")
+    api.prefs_json = os.path.join(data_dir, "preferences.json")
+    api.cache_db_path = os.path.join(data_dir, "cache.db")
+    api.events_dir = os.path.join(data_dir, "events")
+    return api
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Standalone dubIS /v1 server")
     parser.add_argument("--data-dir", default=".", help="Directory with CSV data")
@@ -25,12 +49,7 @@ def main() -> None:
 
     data_dir = os.path.abspath(args.data_dir)
 
-    api = InventoryApi()
-    api.base_dir = data_dir
-    api.input_csv = os.path.join(data_dir, "purchase_ledger.csv")
-    api.output_csv = os.path.join(data_dir, "inventory.csv")
-    api.adjustments_csv = os.path.join(data_dir, "adjustments.csv")
-    api.prefs_json = os.path.join(data_dir, "preferences.json")
+    api = _build_api(data_dir)
 
     config = uvicorn.Config(create_app(api), host=args.host, port=args.port,
                              log_level="info")
