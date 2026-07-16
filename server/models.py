@@ -36,3 +36,15 @@ InventoryItemModel = create_model(
 
 class InventoryEnvelope(BaseModel):
     inventory: list[InventoryItemModel]
+
+
+class QuantityResponse(BaseModel):
+    quantity: int | None
+
+
+class PurchaseHistoryResponse(BaseModel):
+    has_purchase_history: bool
+
+
+class GroupsResponse(BaseModel):
+    groups: list[str]
