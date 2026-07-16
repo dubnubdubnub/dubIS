@@ -56,6 +56,25 @@ if (!_apiMapMatch) {
 }
 const API_MAP = JSON.parse(_apiMapMatch[1]);
 
+/**
+ * Mirrors inventory_ops.get_part_key's priority (LCSC C-prefixed > mpn >
+ * digikey > pololu > mouser) — the real backend's STRICT single-key match,
+ * used by update_part_fields (Task 7). Deliberately NOT used by
+ * get_sourced_distributors, which mirrors the real backend's looser "any PN
+ * column matches" scan (see that route's own inline logic below).
+ */
+function mockPartKey(item) {
+  const lcsc = (item.lcsc || '').trim();
+  if (lcsc && /^c/i.test(lcsc)) return lcsc;
+  const mpn = (item.mpn || '').trim();
+  if (mpn) return mpn;
+  const dk = (item.digikey || '').trim();
+  if (dk) return dk;
+  const pol = (item.pololu || '').trim();
+  if (pol) return pol;
+  return (item.mouser || '').trim();
+}
+
 /** Turn a `/v1/foo/{bar}/baz` template into a matcher + param-name list. */
 function compilePath(template) {
   const names = [];
@@ -239,16 +258,16 @@ const ROUTES = [
   route('resolve_bom_spec', () => null),
   route('list_generic_parts', (_a, ctx) => ctx.genericParts),
   route('create_generic_part', (a, ctx) => {
-    // inv-mutations.js's create_generic_part call passes spec/strictness as
-    // JSON-stringified strings (matching the legacy bridge contract) — parse
-    // defensively like the old bridge mock patch did.
-    const parseMaybe = (v) => (typeof v === 'string' ? JSON.parse(v) : (v || {}));
+    // Task 7 fix: inv-mutations.js now passes spec/strictness as raw dicts
+    // (matching the real /v1 route's CreateGenericPartBody, which types both
+    // as `dict`) — no more JSON.stringify double-encoding landmine. This
+    // handler mirrors the real request body shape 1:1.
     const gp = {
       generic_part_id: 'new_' + a.part_type + '_' + Date.now(),
       name: a.name,
       part_type: a.part_type,
-      spec: parseMaybe(a.spec),
-      strictness: parseMaybe(a.strictness),
+      spec: a.spec || {},
+      strictness: a.strictness || {},
       source: 'auto',
       members: [],
     };
@@ -266,6 +285,68 @@ const ROUTES = [
   // the live E2E suite (tests/js/e2e/live/bom-consume.spec.mjs).
   route('consume_bom', (_a, ctx) => ctx.inventory, { mutation: true }),
   route('remove_last_adjustments', (_a, ctx) => ctx.inventory, { mutation: true }),
+
+  // ── inventory-modals.js / inv-inline-edit.js (Task 7) ──────────────────────
+  // adjust_part/update_part_price echo ctx.inventory unchanged, exactly like
+  // addMockSetup's bridge mocks (`adjust_part: async () => inv`) — same
+  // rationale as consume_bom above: specs assert UI reaction to a fresh
+  // payload, not computed qty/price math (covered by Python domain tests).
+  route('adjust_part', (_a, ctx) => ctx.inventory, { mutation: true }),
+  route('update_part_price', (_a, ctx) => ctx.inventory, { mutation: true }),
+  // update_part_fields DOES mutate the matching row in place (mirrors
+  // addMockSetup's bridge mock) because inventory-modals.js's applyFix()
+  // re-fetches get_sourced_distributors right after and asserts the write
+  // landed — an unchanged echo would make every distributor-PN-correction
+  // spec see its own edit silently discarded.
+  route('update_part_fields', (a, ctx) => {
+    const part = ctx.inventory.find((p) => mockPartKey(p) === a.part_key);
+    if (part) Object.assign(part, a.fields);
+    return ctx.inventory;
+  }, { mutation: true }),
+  route('delete_part', (a, ctx) => {
+    ctx.inventory = ctx.inventory.filter((p) =>
+      ![p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser].includes(a.part_key));
+    return ctx.inventory;
+  }, { mutation: true }),
+  route('get_last_po_quantity', (a, ctx) => {
+    const m = ctx.options.lastPoQty || {};
+    return (a.part_key in m) ? m[a.part_key] : null;
+  }),
+  route('has_purchase_history', (a, ctx) => {
+    const m = ctx.options.hasPurchaseHistory || {};
+    if (a.part_key in m) return m[a.part_key] === null ? undefined : m[a.part_key];
+    const lp = ctx.options.lastPoQty || {};
+    return typeof lp[a.part_key] === 'number';
+  }),
+  route('get_sourced_distributors', (a, ctx) => {
+    const over = ctx.options.sourcedDistributors || {};
+    if (a.part_key in over) return over[a.part_key];
+    // Default: has-PN set derived from the matching inventory row — the
+    // real backend's looser "any PN column matches" scan (deliberately NOT
+    // mockPartKey's strict single-key match; see that helper's comment).
+    const part = ctx.inventory.find((p) =>
+      [p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser].includes(a.part_key));
+    if (!part) return [];
+    const out = [];
+    for (const d of ['lcsc', 'digikey', 'mouser', 'pololu']) {
+      if ((part[d] || '').trim()) out.push({ distributor: d, part_number: part[d] });
+    }
+    return out;
+  }),
+  route('get_generic_group_names', (a, ctx) => (ctx.options.genericGroupNames || {})[a.part_key] || []),
+  // detail is shaped {summary, inventory} per server/routes/inventory_mut.py
+  // (the one CFG-class op whose caller needs both from a single response —
+  // see fetch-descriptions-command.js) — never the bare summary dict. The
+  // dispatcher below ALSO sets a top-level `inventory` key (the generic
+  // `mutation: true` + `?include=inventory` path) that the real route
+  // deliberately omits (see tests/python/server/test_inventory_mut.py's
+  // `"inventory" not in body` assertion) — harmless here since the client
+  // only ever reads `res.detail.{summary,inventory}` for this method, never
+  // the top-level key.
+  route('fetch_missing_descriptions', (_a, ctx) => ({
+    summary: ctx.options.fetchDescriptionsSummary || { updated: 0, failed: 0, skipped: 0 },
+    inventory: ctx.inventory,
+  }), { mutation: true }),
 ];
 
 /** Record a call the same shape a pywebview mock would: [positional args...]. */
@@ -287,7 +368,14 @@ export async function installRouteMocks(page, inventory, options = {}) {
   await addMockSetup(page, inventory, options);
 
   const ctx = {
-    inventory,
+    // Deep-cloned (Task 7): update_part_fields/delete_part mutate matching
+    // rows/filter the array in place (mirroring addMockSetup's bridge mocks,
+    // which mutate a copy addInitScript already serialized independently
+    // into the browser context per test). Without this clone, ctx.inventory
+    // would alias the SAME array object a spec file's module-level
+    // `INVENTORY` constant points to across every test in the file — one
+    // test's write would silently corrupt every later test's fixture data.
+    inventory: JSON.parse(JSON.stringify(inventory)),
     options,
     // Mutable per-session state for stateful mocks (grows via create_* calls).
     savedSearches: (options.savedSearches || []).slice(),

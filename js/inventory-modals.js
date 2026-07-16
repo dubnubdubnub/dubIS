@@ -2,7 +2,8 @@
 /* inventory-modals.js — Adjustment and price modals for inventory parts.
    Extracted from inventory-panel.js for focused maintainability. */
 
-import { api, AppLog } from './api.js';
+import { api, AppLog, httpAvailable } from './api.js';
+import { API_MAP } from './api-map.js';
 import { showToast, Modal, linkPriceInputs, escHtml } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
 import { onInventoryUpdated } from './store.js';
@@ -179,6 +180,49 @@ function populateDetailFields(item) {
 }
 
 /**
+ * Fetch a single distributor product WITHOUT going through api() — the
+ * per-row fetch loop below relies on failures staying scoped to that row
+ * (no global error toast; see fetchRow). Mirrors api()'s own HTTP-vs-bridge
+ * transport decision (same `httpAvailable()` probe, same API_MAP-driven URL
+ * building as js/api.js's `callHttp`) but skips api()'s catch→toast wrapper
+ * entirely, so a thrown error here is the caller's to handle per-row.
+ *
+ * `method` is one of FETCH_SUPPLIERS' `fetch_<distributor>_product` names —
+ * each aliases the generated `fetch_distributor_product` route with a fixed
+ * distributor segment baked into `API_MAP[method].path` (e.g.
+ * `/v1/distributors/lcsc/product/{code}`), so building the URL from the
+ * method's own map entry — same pattern api-map aliases always use — needs
+ * no separate distributor-name argument.
+ *
+ * @param {string} method
+ * @param {string} code
+ * @returns {Promise<any>}
+ */
+async function fetchDistributorProduct(method, code) {
+  if (await httpAvailable()) {
+    const entry = API_MAP[method];
+    const url = entry.path.replace("{code}", encodeURIComponent(code));
+    const res = await fetch(url, { method: entry.verb });
+    if (!res.ok) {
+      let message = res.statusText || ("HTTP " + res.status);
+      try {
+        const errBody = await res.json();
+        if (errBody && errBody.error) message = errBody.error;
+      } catch {
+        // Non-JSON error body — fall back to statusText/status.
+      }
+      throw new Error(message);
+    }
+    const data = await res.json();
+    return entry.unwrap ? data[entry.unwrap] : data;
+  }
+  // No /v1 server reachable (mixed-mode transport until Task 10 deletes the
+  // bridge fallback entirely) — fall back to the bridge object as before.
+  const bridge = /** @type {any} */ (window).pywebview.api;
+  return await bridge[method](code);
+}
+
+/**
  * Wire the multi-distributor "current price" panel shared by the Adjust and
  * Price modals. Renders one row per distributor the part was sourced from
  * (union of record PNs + purchase-ledger PNs, from get_sourced_distributors),
@@ -330,11 +374,12 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
   async function fetchRow(i, priceSummary) {
     const r = rows[i];
     try {
-      // Call the bridge directly (not api()) so a scraper error becomes this row's
-      // "unavailable" state instead of a global error toast — we auto-fetch every
-      // sourced distributor on open, so api()'s global toast would fire per failure.
-      const bridge = /** @type {any} */ (window).pywebview.api;
-      const product = await bridge[r.method](r.partNumber);
+      // Deliberately bypasses api() (not a call to api("fetch_..._product", …))
+      // so a scraper error becomes this row's "unavailable" state instead of
+      // a global error toast — every sourced distributor auto-fetches
+      // concurrently on open, so api()'s global per-call toast would fire
+      // once per row and drown out the real signal. See fetchDistributorProduct.
+      const product = await fetchDistributorProduct(r.method, r.partNumber);
       if (product && typeof product.description === "string") {
         r.description = product.description;
       }
