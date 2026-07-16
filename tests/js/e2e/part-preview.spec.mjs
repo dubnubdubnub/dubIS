@@ -1,6 +1,7 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 // ── Test inventory with parts from each distributor ──
 
@@ -197,7 +198,7 @@ async function hideTooltip(page) {
 test.describe('Part preview tooltip — data loading', () => {
 
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, TOOLTIP_INVENTORY, { productMocks: MOCK_PRODUCTS });
+    await installRouteMocks(page, TOOLTIP_INVENTORY, { productMocks: MOCK_PRODUCTS });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
