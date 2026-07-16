@@ -40,7 +40,7 @@ async function handleImportUndo(data) {
 }
 
 async function handleImportRedo(data) {
-  const fresh = await api("import_purchases", JSON.stringify(data.invRows));
+  const fresh = await api("import_purchases", data.invRows);
   if (!fresh) throw new Error("Failed to redo import");
   onInventoryUpdated(fresh);
   lastImportMeta = {
@@ -287,7 +287,7 @@ async function loadImportText(text, fileName) {
   lastImportMeta = null;
 
   // Auto-detect columns via Python API
-  const detected = await api("detect_columns", JSON.stringify(parsedHeaders));
+  const detected = await api("detect_columns", parsedHeaders);
   columnMapping = {};
   if (detected) {
     for (const [idx, field] of Object.entries(detected)) {
@@ -460,7 +460,7 @@ async function doImport() {
         invRows: includedRows,
       });
 
-      const fresh = await api("import_purchases", JSON.stringify(includedRows));
+      const fresh = await api("import_purchases", includedRows);
       if (!fresh) {
         // Roll back the undo entry we just pushed
         UndoRedo.popLast();

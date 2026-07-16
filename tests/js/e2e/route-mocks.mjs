@@ -34,6 +34,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { addMockSetup } from './helpers.mjs';
 
+// Pre-computed column detections from Python (same fixture helpers.mjs's
+// detect_columns bridge mock reads — keyed by comma-joined header string).
+const _COLUMN_DETECTIONS = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'fixtures', 'generated', 'column-detections.json'), 'utf8'),
+);
+
 // js/api-map.js is a plain .js file with ESM `export const` syntax but no
 // "type": "module" in package.json to disambiguate it. Plain `node` (and
 // vitest's Vite-based loader) auto-detect and reparse it as ESM fine, but
@@ -94,7 +100,6 @@ const ROUTES = [
   route('load_preferences', (_a, ctx) => ctx.options.preferences || { thresholds: {} }),
   route('save_preferences', () => true),
   route('rebuild_inventory', (_a, ctx) => ctx.inventory),
-  route('list_generic_parts', () => []),
   route('get_warnings', () => ({
     migration: { inferred_count: 0, unknown_count: 0 },
     duplicates: [],
@@ -143,6 +148,109 @@ const ROUTES = [
   route('list_purchase_orders', (_a, ctx) => ctx.options.purchaseOrders || []),
   route('get_po_with_items', (a, ctx) =>
     (ctx.options.poWithItems || {})[a.po_id] || { po_id: a.po_id, line_items: [] }),
+
+  // ── import-panel.js (Task 5) ──────────────────────────────────────────────
+  route('import_purchases', (_a, ctx) => ctx.inventory, { mutation: true }),
+  route('remove_last_purchases', (_a, ctx) => ctx.inventory, { mutation: true }),
+  route('detect_columns', (a) => {
+    const headers = Array.isArray(a.headers) ? a.headers : JSON.parse(a.headers);
+    return _COLUMN_DETECTIONS[headers.join(',')] || {};
+  }),
+
+  // ── mfg-direct-panel.js (Task 5) ──────────────────────────────────────────
+  route('parse_source_file_b64', (_a, ctx) => ctx.options.mdtInvoiceParseResult || []),
+  route('ocr_overlay_b64', async (a, ctx) => {
+    if (ctx.options.ocrOverlayDelayMs) {
+      await new Promise((r) => setTimeout(r, ctx.options.ocrOverlayDelayMs));
+    }
+    if (ctx.options.ocrEngineCheckThrows) throw new Error('bridge not ready (simulated)');
+    if (!ctx.options.ocrOverlayResult) return null;
+    return { ...ctx.options.ocrOverlayResult, template: a.template || ctx.options.ocrOverlayResult.template };
+  }),
+  route('match_part', () => ({ status: 'new' })),
+  route('ocr_engine_available', (_a, ctx) => {
+    if (ctx.options.ocrEngineCheckThrows) throw new Error('bridge not ready (simulated)');
+    return ctx.options.ocrEngineAvailable === undefined ? true : ctx.options.ocrEngineAvailable;
+  }),
+  route('start_scan_session', (a, ctx) => {
+    const session = ctx.options.scanSession || {
+      session_id: 'sess-test-1',
+      template: a.template || 'generic',
+      port: 7890,
+      urls: ['http://192.168.1.50:7890/scan?s=sess-test-1'],
+    };
+    return { ...session, template: a.template || session.template };
+  }),
+  route('create_purchase_order_with_items', (_a, ctx) => ctx.inventory, { mutation: true }),
+  route('update_purchase_order', (_a, ctx) => ctx.inventory, { mutation: true }),
+  // delete_last_purchase_order's literal `/v1/purchase-orders/last` MUST be
+  // registered before delete_purchase_order's `/v1/purchase-orders/{po_id}` —
+  // ROUTES.find takes the first regex match, and {po_id}'s wildcard capture
+  // matches the literal segment "last" too, so registering it first would
+  // silently swallow every delete_last_purchase_order call under the wrong
+  // route (still functionally correct — same mutation shape — but recorded
+  // in __apiCalls under the wrong method name).
+  route('delete_last_purchase_order', (_a, ctx) => ctx.options.deleteLastResult || ctx.inventory, { mutation: true }),
+  route('delete_purchase_order', (_a, ctx) => ctx.inventory, { mutation: true }),
+
+  // ── group-flyout (Task 5) ─────────────────────────────────────────────────
+  // Stateful across a single installRouteMocks session: create_saved_search
+  // pushes into this list so a subsequent list_saved_searches (including the
+  // one the get_saved_search-dead-call fix now issues) sees it.
+  route('list_saved_searches', (a, ctx) => ctx.savedSearches.filter((s) => s.generic_part_id === a.generic_part_id)),
+  route('create_saved_search', (a, ctx) => {
+    const tagState = Array.isArray(a.tag_state) ? a.tag_state : JSON.parse(a.tag_state || '[]');
+    const record = {
+      id: 'saved-' + (ctx.savedSearches.length + 1),
+      generic_part_id: a.generic_part_id,
+      name: a.name,
+      tag_state: tagState,
+      search_text: a.search_text || '',
+      frozen_members: a.frozen_members || [],
+    };
+    ctx.savedSearches.push(record);
+    return record;
+  }, { mutation: true }),
+  route('add_generic_member', (a, ctx) => (ctx.options.addMemberResult !== undefined
+    ? ctx.options.addMemberResult : []), { mutation: true }),
+  route('remove_generic_member', () => [], { mutation: true }),
+  route('exclude_generic_member', (a) => ({ generic_part_id: a.generic_part_id, part_id: a.part_id }), { mutation: true }),
+
+  // ── Incidental to group-flyout.spec.mjs's BOM auto-create-group flow (owned
+  // by js/inventory/inv-mutations.js, ported properly in Task 7) — a flyout
+  // opened via an unmatched value-only BOM row goes through
+  // autoCreateGroupAndOpenFlyout(), which calls these before ever touching
+  // flyout code. Stateful list_generic_parts/create_generic_part mirror
+  // group-flyout.spec.mjs's old addGenericPartsMockPatch bridge patch so the
+  // spec's assertions (flyout opens, shows the right group) still hold once
+  // the whole page session is on HTTP transport.
+  // Mirrors group-flyout.spec.mjs's old addGenericPartsMockPatch bridge
+  // override exactly (a hardcoded hardcoded capacitor-shaped value, not
+  // derived from the actual value string) — a pre-existing test shortcut,
+  // not something introduced here. A real spec.value is required for
+  // generateTags() (flyout-logic.js) to produce any tags at all.
+  route('extract_spec_from_value', (a) => ({
+    type: a.part_type, value: 1e-7, value_display: a.value_str, package: a.package_str,
+  })),
+  route('resolve_bom_spec', () => null),
+  route('list_generic_parts', (_a, ctx) => ctx.genericParts),
+  route('create_generic_part', (a, ctx) => {
+    // inv-mutations.js's create_generic_part call passes spec/strictness as
+    // JSON-stringified strings (matching the legacy bridge contract) — parse
+    // defensively like the old bridge mock patch did.
+    const parseMaybe = (v) => (typeof v === 'string' ? JSON.parse(v) : (v || {}));
+    const gp = {
+      generic_part_id: 'new_' + a.part_type + '_' + Date.now(),
+      name: a.name,
+      part_type: a.part_type,
+      spec: parseMaybe(a.spec),
+      strictness: parseMaybe(a.strictness),
+      source: 'auto',
+      members: [],
+    };
+    ctx.genericParts.push(gp);
+    return gp;
+  }, { mutation: true }),
 ];
 
 /** Record a call the same shape a pywebview mock would: [positional args...]. */
@@ -163,22 +271,22 @@ function recordCallScript(method, args) {
 export async function installRouteMocks(page, inventory, options = {}) {
   await addMockSetup(page, inventory, options);
 
-  const ctx = { inventory, options };
+  const ctx = {
+    inventory,
+    options,
+    // Mutable per-session state for stateful mocks (grows via create_* calls).
+    savedSearches: (options.savedSearches || []).slice(),
+    genericParts: (options.genericParts || []).slice(),
+  };
 
-  await page.route('**/v1/health', async (route) => {
-    await route.fulfill({ json: { ok: true } });
-  });
-
-  await page.route('**/v1/events', async (route) => {
-    // Immediately-closing 200 text/event-stream — EventSource will retry with
-    // native backoff, which is fine for test-length runs (see Task 4 brief).
-    await route.fulfill({
-      status: 200,
-      contentType: 'text/event-stream',
-      body: ': hello\n\n',
-    });
-  });
-
+  // Register the general '**/v1/**' catch-all BEFORE the specific
+  // '/v1/health' and '/v1/events' routes below. Playwright matches routes in
+  // REVERSE registration order (last-registered wins first) — registering the
+  // narrower routes last is what lets them win over this catch-all for their
+  // exact paths; registering them first (as this file originally did) let the
+  // catch-all's 404-for-unknown-method fallback silently swallow /v1/health
+  // itself, which made httpAvailable()'s probe always fail and every mapped
+  // call fall through to the bridge, undetected by transport-agnostic specs.
   await page.route('**/v1/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -213,15 +321,31 @@ export async function installRouteMocks(page, inventory, options = {}) {
       }
     }
 
-    const value = await match.handler(argMap, ctx);
+    // A handler may throw to simulate a backend failure (e.g. ocrEngineCheckThrows) —
+    // fulfill a non-ok response so api.js's real failure contract (catch →
+    // AppLog.error + toast + undefined) engages, exactly like a thrown bridge
+    // call does.
+    let value;
+    try {
+      value = await match.handler(argMap, ctx);
+    } catch (e) {
+      await route.fulfill({ status: 500, json: { error: e.message } });
+      return;
+    }
 
     // Preserve the __apiCalls recorder contract with the SAME positional-args
     // shape a pywebview mock would have recorded.
     const args = entry.argOrder.map((name) => argMap[name]);
-    await page.evaluate(({ name, args: recordedArgs }) => {
-      window.__apiCalls = window.__apiCalls || {};
-      (window.__apiCalls[name] = window.__apiCalls[name] || []).push(recordedArgs);
-    }, recordCallScript(match.method, args));
+    try {
+      await page.evaluate(({ method, args: recordedArgs }) => {
+        window.__apiCalls = window.__apiCalls || {};
+        (window.__apiCalls[method] = window.__apiCalls[method] || []).push(recordedArgs);
+      }, recordCallScript(match.method, args));
+    } catch {
+      // A request in flight from a page the test has since navigated away
+      // from (e.g. a mid-test reload) destroys the execution context before
+      // this resolves — nothing left to record into, so it's safe to ignore.
+    }
 
     // `mutation: true` routes are backed by a real `finish_mutation(...)`
     // call server-side — mirror ITS envelope shape (`{"ok": true, "detail":
@@ -241,5 +365,21 @@ export async function installRouteMocks(page, inventory, options = {}) {
       body = match.unwrap ? { [match.unwrap]: value } : value;
     }
     await route.fulfill({ json: body === undefined ? null : body });
+  });
+
+  // Registered AFTER the catch-all above so they win (Playwright tries
+  // last-registered-first): the real narrow contract for the probe + SSE.
+  await page.route('**/v1/health', async (route) => {
+    await route.fulfill({ json: { ok: true } });
+  });
+
+  await page.route('**/v1/events', async (route) => {
+    // Immediately-closing 200 text/event-stream — EventSource will retry with
+    // native backoff, which is fine for test-length runs (see Task 4 brief).
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: ': hello\n\n',
+    });
   });
 }

@@ -3,7 +3,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 import { capture, rectOf } from './visual/capture.mjs';
 import { scanRay } from './visual/measure.mjs';
 import { channelDominant } from './visual/color.mjs';
@@ -62,7 +63,7 @@ async function openEditorViaScan(page) {
 
 test.describe('Direct-from-mfg import', () => {
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY, {
+    await installRouteMocks(page, MOCK_INVENTORY, {
       mfgDirectVendors: VENDORS,
     });
     await page.setViewportSize({ width: 1400, height: 900 });

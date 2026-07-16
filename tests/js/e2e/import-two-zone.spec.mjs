@@ -14,7 +14,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows, loadPurchaseOrder } from './helpers.mjs';
+import { waitForInventoryRows, loadPurchaseOrder } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -44,7 +45,7 @@ const VENDORS = [
 
 test.describe('Two-zone import panel', () => {
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY, {
+    await installRouteMocks(page, MOCK_INVENTORY, {
       mfgDirectVendors: VENDORS,
       ocrOverlayResult: OCR_RESULT,
     });
