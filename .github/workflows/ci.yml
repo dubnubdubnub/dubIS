@@ -339,7 +339,9 @@ jobs:
       always() && !failure() &&
       needs.parse-tags.outputs.run_js == 'true'
     runs-on: [self-hosted, win11]
-    timeout-minutes: 30
+    # Route-mocked E2E (HTTP interception) runs ~15m of test time on the win11
+    # VM plus ~15m setup — 30 was cancelling seconds before natural completion.
+    timeout-minutes: 45
     defaults:
       run:
         shell: powershell

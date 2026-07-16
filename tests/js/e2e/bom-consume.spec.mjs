@@ -45,7 +45,7 @@ test.describe('BOM consume/undo — HTTP route mocks', () => {
 
   test('consume button enabled once BOM has matched parts', async ({ page }) => {
     await loadBomViaFileInput(page, BOM_CSV);
-    await expect(page.locator('#bom-consume-btn')).not.toBeDisabled();
+    await expect(page.locator('#bom-consume-btn')).not.toBeDisabled({ timeout: 15_000 });
   });
 
   test('consume executes over HTTP: fresh inventory applied, modal closes, undo enabled', async ({ page }) => {
@@ -55,8 +55,13 @@ test.describe('BOM consume/undo — HTTP route mocks', () => {
     // consume_bom was routed over HTTP with the un-stringified matches array
     // (LANDMINE fix) — the mutation's real envelope (`{ok, detail, inventory}`)
     // round-tripped and onInventoryUpdated() ran, enabling global undo.
+    // Poll: the intercepted round trip is async and races an immediate read
+    // on slow runners (win11 CI VM).
+    await expect.poll(
+      async () => (await page.evaluate(() => window.__apiCalls.consume_bom || [])).length,
+      { timeout: 15_000 },
+    ).toBe(1);
     const calls = await page.evaluate(() => window.__apiCalls.consume_bom);
-    expect(calls).toHaveLength(1);
     const [matches, boardQty, bomName] = calls[0];
     expect(Array.isArray(matches)).toBe(true);
     expect(matches.length).toBeGreaterThan(0);
@@ -65,7 +70,7 @@ test.describe('BOM consume/undo — HTTP route mocks', () => {
     expect(boardQty).toBe(1);
     expect(bomName).toBe('bom.csv');
 
-    await expect(page.locator('#global-undo')).not.toBeDisabled();
+    await expect(page.locator('#global-undo')).not.toBeDisabled({ timeout: 15_000 });
     await assertHttpExercised(routeState);
   });
 
@@ -116,11 +121,11 @@ test.describe('BOM interleaved shim + HTTP transport flow', () => {
     // served by the bridge shim above, NOT by the /v1 route mocks.
     await page.locator('#bom-drop-zone').click();
     await page.waitForSelector('#bom-tbody tr', { timeout: 10_000 });
-    await expect(page.locator('#bom-consume-btn')).not.toBeDisabled();
+    await expect(page.locator('#bom-consume-btn')).not.toBeDisabled({ timeout: 15_000 });
 
     // Consume -> HTTP mutation (consume_bom).
     await consumeAndExecute(page);
-    await expect(page.locator('#global-undo')).not.toBeDisabled();
+    await expect(page.locator('#global-undo')).not.toBeDisabled({ timeout: 15_000 });
 
     // Undo -> HTTP mutation (remove_last_adjustments), reusing the same
     // global undo stack the inventory panel's adjustments use.

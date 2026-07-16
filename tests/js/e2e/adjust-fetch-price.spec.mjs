@@ -134,11 +134,11 @@ test.describe('Multi-distributor fetch price — Adjust & Price modals', () => {
     await expect(page.locator('#adjust-modal')).not.toHaveClass(/hidden/);
 
     const rows = page.locator('#adj-fetch-panel .fetch-drow');
-    await expect(rows).toHaveCount(1);
+    await expect(rows).toHaveCount(1, { timeout: 15_000 });
     // qty-100 tier auto-picked (lastPoQty 100) and auto-selected as cheapest.
-    await expect(page.locator('#adj-fetch-panel .fetch-drow.selected')).toHaveCount(1);
-    await expect.poll(async () => Number(await page.locator('#adj-unit-price').inputValue())).toBeCloseTo(0.001, 6);
-    await expect.poll(async () => Number(await page.locator('#adj-ext-price').inputValue())).toBeCloseTo(0.2, 6);
+    await expect(page.locator('#adj-fetch-panel .fetch-drow.selected')).toHaveCount(1, { timeout: 15_000 });
+    await expect.poll(async () => Number(await page.locator('#adj-unit-price').inputValue()), { timeout: 15_000 }).toBeCloseTo(0.001, 6);
+    await expect.poll(async () => Number(await page.locator('#adj-ext-price').inputValue()), { timeout: 15_000 }).toBeCloseTo(0.2, 6);
     await assertHttpExercised(routeState);
   });
 
@@ -147,12 +147,12 @@ test.describe('Multi-distributor fetch price — Adjust & Price modals', () => {
     await expect(page.locator('#adjust-modal')).not.toHaveClass(/hidden/);
 
     const rows = page.locator('#adj-fetch-panel .fetch-drow');
-    await expect(rows).toHaveCount(2);   // lcsc + mouser
+    await expect(rows).toHaveCount(2, { timeout: 15_000 });   // lcsc + mouser
     // At qty 10: lcsc 4.44 < mouser 8.00 → lcsc auto-selected.
     const selected = page.locator('#adj-fetch-panel .fetch-drow.selected');
     await expect(selected).toHaveCount(1);
     await expect(selected).toHaveAttribute('data-idx', '0');
-    await expect.poll(async () => Number(await page.locator('#adj-unit-price').inputValue())).toBeCloseTo(4.44, 4);
+    await expect.poll(async () => Number(await page.locator('#adj-unit-price').inputValue()), { timeout: 15_000 }).toBeCloseTo(4.44, 4);
 
     // record_fetched_prices fired for both distributors.
     await expect.poll(async () =>
