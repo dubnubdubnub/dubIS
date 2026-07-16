@@ -208,6 +208,34 @@ def test_v1_operation_ids_map_to_bridge_or_are_explicitly_new():
     )
 
 
+def test_walker_count_matches_openapi_operation_count():
+    """Completeness invariant: if _walk_api_routes ever silently drops a route
+    type, this cross-check against FastAPI's own OpenAPI paths catches it.
+
+    The set-equality check in test_v1_surface_frozen would miss this: if the
+    walker drops a route type (e.g., stops recursing into _IncludedRouter), both
+    the live walk and frozen list would shrink together, and set diff would
+    still pass. This test independently counts operations in the OpenAPI schema
+    and asserts the walker found them all.
+    """
+    app = create_app(types.SimpleNamespace())
+    walked = _live_v1_surface()
+    schema = app.openapi()
+
+    verbs = {"get", "post", "put", "patch", "delete"}
+    openapi_ops = sum(
+        1 for methods in schema["paths"].values() for m in methods if m in verbs
+    )
+
+    assert len(walked) == openapi_ops, (
+        f"Route walker completeness check failed: walked {len(walked)} routes "
+        f"but OpenAPI schema has {openapi_ops} operations. "
+        f"If _walk_api_routes silently drops a route type, both counts "
+        f"would drift together and set-equality in test_v1_surface_frozen "
+        f"would miss the drift."
+    )
+
+
 def test_openapi_schema_builds_with_stub_api():
     """app.openapi() must succeed with a stub api — proves every response_model
     is schema-able without touching real InventoryApi state."""
