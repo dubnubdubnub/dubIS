@@ -440,7 +440,6 @@ graph LR
     "server/routes/vendors_pos.py" --> "server/mutations.py"
     "server/run.py" --> "server/app.py"
     "spec_extractor.py" --> "categorize.py"
-    "tests/e2e-server.py" --> "inventory_api.py"
     "tests/js/api-client.test.js" --> "js/api.js"
     "tests/js/api-client.test.js" --> "js/ui-helpers.js"
     "tests/js/api.test.js" --> "js/api.js"
@@ -515,8 +514,6 @@ graph LR
     "tests/js/undo-redo.test.js" --> "js/store.js"
     "tests/js/undo-redo.test.js" --> "js/undo-redo.js"
     "tests/js/vendor-flyout.test.js" --> "js/inventory/vendor-flyout.js"
-    "tests/pnp-e2e/dubis_headless.py" --> "inventory_api.py"
-    "tests/pnp-e2e/dubis_headless.py" --> "pnp_server.py"
     "tests/python/conftest.py" --> "cache_db.py"
     "tests/python/conftest.py" --> "distributor_fixtures.py"
     "tests/python/conftest.py" --> "inventory_api.py"
@@ -546,6 +543,10 @@ graph LR
     "tests/python/server/test_inventory_mut.py" --> "tests/python/helpers.py"
     "tests/python/server/test_lifecycle.py" --> "server/__main__.py"
     "tests/python/server/test_lifecycle.py" --> "server/run.py"
+    "tests/python/server/test_main_flags.py" --> "inventory_api.py"
+    "tests/python/server/test_main_flags.py" --> "server/__main__.py"
+    "tests/python/server/test_main_flags.py" --> "server/app.py"
+    "tests/python/server/test_main_flags.py" --> "tests/python/helpers.py"
     "tests/python/server/test_models.py" --> "domain/schema.py"
     "tests/python/server/test_models.py" --> "server/models.py"
     "tests/python/server/test_parts_read.py" --> "tests/python/helpers.py"
@@ -859,7 +860,7 @@ graph LR
 ### inventory_api.py
 
 - **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`, `mirror_push.py`
-- **Imported by:** `client_shell.py`, `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `server/__main__.py`, `tests/e2e-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`
+- **Imported by:** `client_shell.py`, `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `server/__main__.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/server/test_main_flags.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`
 
 ### inventory_mirror.py
 
@@ -1422,7 +1423,7 @@ graph LR
 ### pnp_server.py
 
 - **Imports:** `pnp_part_map.py`, `scan_capture_page.py`, `scan_image.py`, `scan_sessions.py`, `server/__init__.py`
-- **Imported by:** `domain/api_scan.py`, `tests/js/e2e/scan-server.py`, `tests/pnp-e2e/dubis_headless.py`, `tests/python/server/test_import_scan_routes.py`, `tests/python/test_capture_page.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
+- **Imported by:** `domain/api_scan.py`, `tests/js/e2e/scan-server.py`, `tests/python/server/test_import_scan_routes.py`, `tests/python/test_capture_page.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
 
 ### pololu_client.py
 
@@ -1567,12 +1568,12 @@ graph LR
 ### server/__main__.py
 
 - **Imports:** `inventory_api.py`, `server/app.py`
-- **Imported by:** `scripts/spike-webview-loopback.py`, `tests/python/server/test_lifecycle.py`
+- **Imported by:** `scripts/spike-webview-loopback.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_main_flags.py`
 
 ### server/app.py
 
 - **Imports:** `server/errors.py`, `server/routes/__init__.py`
-- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
+- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
 
 ### server/errors.py
 
@@ -1663,11 +1664,6 @@ graph LR
 
 - **Imports:** `categorize.py`
 - **Imported by:** `domain/api_generic_parts.py`, `domain/generic_parts.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/test_spec_extractor.py`
-
-### tests/e2e-server.py
-
-- **Imports:** `inventory_api.py`
-- **Imported by:** —
 
 ### tests/js/api-client.test.js
 
@@ -1978,11 +1974,6 @@ graph LR
 - **Imports:** —
 - **Imported by:** —
 
-### tests/pnp-e2e/dubis_headless.py
-
-- **Imports:** `inventory_api.py`, `pnp_server.py`
-- **Imported by:** —
-
 ### tests/pnp-e2e/remote.py
 
 - **Imports:** —
@@ -2026,7 +2017,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `inventory_api.py`
-- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/server/conftest.py
 
@@ -2066,6 +2057,11 @@ graph LR
 ### tests/python/server/test_lifecycle.py
 
 - **Imports:** `server/__main__.py`, `server/run.py`
+- **Imported by:** —
+
+### tests/python/server/test_main_flags.py
+
+- **Imports:** `inventory_api.py`, `server/__main__.py`, `server/app.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/server/test_models.py

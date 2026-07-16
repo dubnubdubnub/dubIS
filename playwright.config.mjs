@@ -36,8 +36,9 @@ export default defineConfig({
       testDir: 'tests/js/e2e/live',
       testMatch: ['**/*.spec.mjs'],
       timeout: 45_000,
-      // The live backend (tests/e2e-server.py) is a single-threaded HTTPServer with
-      // module-global mutable state reset via POST /api/_reset in beforeEach. Pin this
+      // The live backend (a real `python -m server` instance, started by
+      // tests/js/e2e/live/global-setup.mjs) is one process with module-global
+      // mutable state reset via POST /v1/_test/reset in beforeEach. Pin this
       // project to a single, non-parallel worker so isolation no longer depends on CI
       // remembering to pass --workers 1 on the command line.
       workers: 1,
