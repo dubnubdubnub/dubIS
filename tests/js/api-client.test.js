@@ -31,12 +31,12 @@ describe('api() HTTP transport (probe succeeds)', () => {
     // The probe result is memoized at module scope; force it healthy for
     // every call in this block by having every fetch (including the /v1/health
     // probe itself) resolve ok.
-    global.fetch = vi.fn(async () => jsonResponse({ status: 'ok' }));
+    global.fetch = vi.fn(async () => jsonResponse({ ok: true }));
   });
 
   it('GET with a path param builds the URL and unwraps nothing', async () => {
     global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ status: 'ok' });
+      if (url === '/v1/health') return jsonResponse({ ok: true });
       return jsonResponse({ unit_price: 1.5, ext_price: 3 });
     });
     const result = await api('get_price_summary', 'PART-1');
@@ -47,7 +47,7 @@ describe('api() HTTP transport (probe succeeds)', () => {
 
   it('POST sends a JSON body assembled from bodyParams in order', async () => {
     global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ status: 'ok' });
+      if (url === '/v1/health') return jsonResponse({ ok: true });
       return jsonResponse({ id: 'gp-1' });
     });
     await api('create_generic_part', 'Resistor 10k', 'resistor', { ohms: 10000 }, 'loose');
@@ -63,7 +63,7 @@ describe('api() HTTP transport (probe succeeds)', () => {
 
   it('DELETE with a query param encodes it in the URL (no body)', async () => {
     global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ status: 'ok' });
+      if (url === '/v1/health') return jsonResponse({ ok: true });
       return jsonResponse({ inventory: [{ part_key: 'X' }] });
     });
     const result = await api('remove_last_purchases', 3);
@@ -76,7 +76,7 @@ describe('api() HTTP transport (probe succeeds)', () => {
 
   it('unwraps a scalar envelope (has_purchase_history)', async () => {
     global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ status: 'ok' });
+      if (url === '/v1/health') return jsonResponse({ ok: true });
       return jsonResponse({ has_purchase_history: true });
     });
     const result = await api('has_purchase_history', 'PART-1');
@@ -85,7 +85,7 @@ describe('api() HTTP transport (probe succeeds)', () => {
 
   it('distributor alias fixes the `name` path segment and derives from `code`', async () => {
     global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ status: 'ok' });
+      if (url === '/v1/health') return jsonResponse({ ok: true });
       return jsonResponse({ mpn: 'C12345' });
     });
     await api('fetch_lcsc_product', 'C12345');
@@ -95,7 +95,7 @@ describe('api() HTTP transport (probe succeeds)', () => {
 
   it('mutating ops auto-append ?include=inventory and unwrap it', async () => {
     global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ status: 'ok' });
+      if (url === '/v1/health') return jsonResponse({ ok: true });
       return jsonResponse({ ok: true, detail: {}, inventory: [{ part_key: 'A' }] });
     });
     const result = await api('adjust_part', 'add', 'PART-1', 5, 'note', 'test');
@@ -109,7 +109,7 @@ describe('api() HTTP transport (probe succeeds)', () => {
 
   it('non-ok response parses {error} and hits the failure contract: undefined + AppLog + toast', async () => {
     global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ status: 'ok' });
+      if (url === '/v1/health') return jsonResponse({ ok: true });
       return jsonResponse({ error: 'part not found' }, false, 404);
     });
     const result = await api('get_price_summary', 'MISSING');
@@ -142,7 +142,7 @@ describe('api() falls back to the pywebview bridge when the HTTP probe fails', (
 
   it('window.__DUBIS_HTTP__ === false forces the bridge without probing', async () => {
     vi.resetModules();
-    global.fetch = vi.fn(async () => jsonResponse({ status: 'ok' }));
+    global.fetch = vi.fn(async () => jsonResponse({ ok: true }));
     window.__DUBIS_HTTP__ = false;
     const bridged = vi.fn().mockResolvedValue([{ part_key: 'A' }]);
     window.pywebview = { api: { rebuild_inventory: bridged } };
