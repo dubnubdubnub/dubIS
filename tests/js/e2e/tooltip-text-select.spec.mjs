@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { waitForInventoryRows } from './helpers.mjs';
-import { installRouteMocks } from './route-mocks.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -43,7 +43,7 @@ const MOCK_PRODUCTS = { 'lcsc:C429942': MOCK_LCSC_PRODUCT };
 
 /** Open the page and hover over the LCSC trigger to show the tooltip. */
 async function showTooltip(page) {
-  await installRouteMocks(page, MOCK_INVENTORY, { productMocks: MOCK_PRODUCTS });
+  const routeState = await installRouteMocks(page, MOCK_INVENTORY, { productMocks: MOCK_PRODUCTS });
   await page.setViewportSize({ width: 1920, height: 900 });
   await page.goto('/index.html');
   await waitForInventoryRows(page);
@@ -52,6 +52,7 @@ async function showTooltip(page) {
   const trigger = page.locator('[data-lcsc="C429942"]').first();
   await trigger.hover();
   await page.locator('.part-preview-title').waitFor({ state: 'visible', timeout: 5000 });
+  return routeState;
 }
 
 /** Click-drag across the tooltip title to select text. */
@@ -70,11 +71,12 @@ async function selectTitleText(page) {
 test.describe('Tooltip text selection', () => {
 
   test('tooltip shows product data when hovering LCSC part number', async ({ page }) => {
-    await showTooltip(page);
+    const routeState = await showTooltip(page);
 
     const tooltip = page.locator('.part-preview');
     await expect(tooltip).not.toHaveClass(/hidden/);
     await expect(page.locator('.part-preview-title')).toContainText('DF40C-30DP');
+    await assertHttpExercised(routeState);
   });
 
   test('tooltip card has user-select: text computed style', async ({ page }) => {

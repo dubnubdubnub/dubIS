@@ -717,7 +717,7 @@ export const API_MAP = {
     "pathParams": [],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": null,
+    "unwrap": "available",
     "verb": "GET"
   },
   "ocr_overlay": {

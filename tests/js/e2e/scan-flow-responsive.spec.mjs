@@ -39,7 +39,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { waitForInventoryRows } from './helpers.mjs';
-import { installRouteMocks } from './route-mocks.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -78,7 +78,7 @@ test('multiple images: Reading shell appears immediately, then the grouping edit
     // Standard mock setup, with a delayed ocr_overlay_b64 (route-mocks'
     // ocrOverlayDelayMs) so #scan-shell-overlay stays visible long enough for
     // Playwright to assert it before both OCR calls resolve.
-    await installRouteMocks(page, MOCK_INVENTORY, {
+    const routeState = await installRouteMocks(page, MOCK_INVENTORY, {
       mfgDirectVendors: VENDORS,
       ocrOverlayResult: OCR_RESULT,
       ocrOverlayDelayMs: 200,
@@ -103,6 +103,7 @@ test('multiple images: Reading shell appears immediately, then the grouping edit
     // the shell closes.
     await expect(page.locator('#scan-grouping-overlay')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#scan-shell-overlay')).toHaveCount(0);
+    await assertHttpExercised(routeState);
   });
 
 // ---------------------------------------------------------------------------

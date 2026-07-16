@@ -18,7 +18,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { waitForInventoryRows } from './helpers.mjs';
-import { installRouteMocks } from './route-mocks.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -105,8 +105,10 @@ async function openOverlay(page) {
 }
 
 test.describe('OCR overlay PO review modal', () => {
+  let routeState;
+
   test.beforeEach(async ({ page }) => {
-    await installRouteMocks(page, MOCK_INVENTORY, {
+    routeState = await installRouteMocks(page, MOCK_INVENTORY, {
       mfgDirectVendors: VENDORS,
       ocrOverlayResult: OCR_RESULT_1PAGE,
     });
@@ -122,6 +124,7 @@ test.describe('OCR overlay PO review modal', () => {
     // Tokens carry their text in title/textContent.
     await expect(page.locator('.ocr-token[data-token="0:w:0"]')).toHaveAttribute('title', 'C12624');
     await expect(page.locator('.ocr-token[data-token="0:w:1"]')).toHaveAttribute('title', 'KT-0603G');
+    await assertHttpExercised(routeState);
   });
 
   test('Lines toggle: switch to line mode renders one token per OCR line', async ({ page }) => {

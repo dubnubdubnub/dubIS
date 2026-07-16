@@ -1,7 +1,7 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
 import { waitForInventoryRows, loadBom } from './helpers.mjs';
-import { installRouteMocks } from './route-mocks.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,12 +64,14 @@ const MOCK_GENERIC_PARTS = [
  * genericParts seed, replacing the old addGenericPartsMockPatch bridge patch.
  */
 async function addMockSetupWithGenerics(page, inventory, genericParts) {
-  await installRouteMocks(page, inventory, { genericParts });
+  return installRouteMocks(page, inventory, { genericParts });
 }
 
 test.describe('[functional] Group flyout — opening and closing', () => {
+  let routeState;
+
   test.beforeEach(async ({ page }) => {
-    await addMockSetupWithGenerics(page, MOCK_INVENTORY, MOCK_GENERIC_PARTS);
+    routeState = await addMockSetupWithGenerics(page, MOCK_INVENTORY, MOCK_GENERIC_PARTS);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -84,6 +86,7 @@ test.describe('[functional] Group flyout — opening and closing', () => {
     // U1 (ATmega328P) has no value/footprint match, may or may not show
     const count = await flyoutBtns.count();
     expect(count).toBeGreaterThanOrEqual(2);
+    await assertHttpExercised(routeState);
   });
 
   test('clicking flyout button opens the flyout panel', async ({ page }) => {

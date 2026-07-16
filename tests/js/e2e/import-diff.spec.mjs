@@ -17,7 +17,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { waitForInventoryRows, loadPurchaseOrder } from './helpers.mjs';
-import { installRouteMocks } from './route-mocks.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -34,7 +34,7 @@ test.describe('Import diff review modal', () => {
   // ── Happy path: review modal opens with correct counts ──────────────────────
 
   test('Import click shows review modal with correct insert/update counts', async ({ page }) => {
-    await installRouteMocks(page, MOCK_INVENTORY);
+    const routeState = await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -65,6 +65,7 @@ test.describe('Import diff review modal', () => {
     // There should be one "Update" badge and one "Insert" badge
     await expect(page.locator('.import-diff-badge--update')).toHaveCount(1);
     await expect(page.locator('.import-diff-badge--insert')).toHaveCount(1);
+    await assertHttpExercised(routeState);
   });
 
   // ── Confirm commits the rows ─────────────────────────────────────────────────

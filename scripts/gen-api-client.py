@@ -128,6 +128,7 @@ UNWRAP_OVERRIDES: dict[str, str] = {
     "extract_spec": "spec",
     "resolve_bom_spec": "match",
     "fetch_favicon": "path",
+    "ocr_engine_available": "available",
     # CFG class — see comment above.
     "update_vendor": "detail",
     "create_generic_part": "detail",

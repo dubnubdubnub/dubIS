@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { waitForInventoryRows, loadPurchaseOrder } from './helpers.mjs';
-import { installRouteMocks } from './route-mocks.mjs';
+import { installRouteMocks, assertHttpExercised } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -40,8 +40,10 @@ async function getStagingRowCount(page) {
 
 test.describe('Purchase order import — column auto-detection', () => {
 
+  let routeState;
+
   test.beforeEach(async ({ page }) => {
-    await installRouteMocks(page, MOCK_INVENTORY);
+    routeState = await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -63,6 +65,7 @@ test.describe('Purchase order import — column auto-detection', () => {
 
     // 2 data rows in staging table
     expect(await getStagingRowCount(page)).toBe(2);
+    await assertHttpExercised(routeState);
   });
 
   test('DigiKey PO: columns auto-detected correctly', async ({ page }) => {
