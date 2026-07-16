@@ -11,10 +11,10 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
-from pnp_part_map import _load_part_map, _resolve_part_id  # noqa: F401
-from scan_capture_page import _capture_page_html, _expired_page_html  # noqa: F401
-from scan_image import (  # noqa: F401
-    SCAN_IMAGE_EXTS,
+from pnp_part_map import _load_part_map, _resolve_part_id
+from scan_capture_page import _capture_page_html, _expired_page_html
+from scan_image import (
+    SCAN_IMAGE_EXTS,  # noqa: F401 -- re-exported for tests/js/e2e/scan-server.py, unused here
     SCAN_MAX_IMAGE_BYTES,
     SCAN_MAX_IMAGES,
     _normalize_groups,
@@ -22,7 +22,11 @@ from scan_image import (  # noqa: F401
     _ScanUploadError,
     _validate_scan_image,
 )
-from scan_sessions import SCAN_SESSION_TTL, _get_scan_session, create_scan_session  # noqa: F401
+from scan_sessions import (
+    SCAN_SESSION_TTL,  # noqa: F401 -- re-exported for tests, unused here
+    _get_scan_session,
+    create_scan_session,  # noqa: F401 -- re-exported for tests, unused here
+)
 from server import events as sse_events
 
 logger = logging.getLogger(__name__)
@@ -303,6 +307,14 @@ class PnPHandler(BaseHTTPRequestHandler):
         # Push UI update
         detail = {"part_id": part_id, "part_key": part_key, "qty": qty, "new_qty": new_qty}
         sse_events.publish("inventory.consumed", detail)
+        # Mirror server/routes/pnp.py::_consume: also publish a generic
+        # inventory.updated so /v1/events subscribers watching for any
+        # inventory change (not just PnP-specific consume detail) get
+        # notified too, matching every other mutating route's convention.
+        sse_events.publish(
+            "inventory.updated",
+            {"reason": "pnp-consume", "detail": {"part_key": part_key, "new_qty": new_qty}},
+        )
 
         logger.info("PnP consumed %dx %s (key=%s, new_qty=%s)", qty, part_id, part_key, new_qty)
         self._send_json(200, {

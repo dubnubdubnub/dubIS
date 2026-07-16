@@ -1,6 +1,7 @@
 """Tests for scripts/gen-api-client.py."""
 from __future__ import annotations
 
+import ast
 import copy
 import importlib
 import json
@@ -17,11 +18,116 @@ gen_api_client = importlib.import_module("gen-api-client")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SPEC_PATH = REPO_ROOT / "docs" / "openapi-v1.json"
+ROUTES_DIR = REPO_ROOT / "server" / "routes"
 
 
 @pytest.fixture(scope="module")
 def spec() -> dict:
     return json.loads(SPEC_PATH.read_text(encoding="utf-8"))
+
+
+# ── AST-walk of server/routes/*.py: source of truth for which operation_ids
+# actually call finish_mutation(...), independent of the hand-maintained
+# FINISH_MUTATION_OPERATION_IDS allowlist in gen-api-client.py. If the two
+# ever diverge, `unwrap` silently defaults wrong for the drifted op_id (see
+# the big comment above FINISH_MUTATION_OPERATION_IDS) — a live-only
+# regression no route-mocked test can catch. This scan makes the allowlist
+# self-checking. ──────────────────────────────────────────────────────────
+
+def _decorator_operation_id(decorator: ast.expr) -> str | None:
+    """Extract `operation_id="..."` from a `@router.<verb>(...)` decorator call."""
+    if not isinstance(decorator, ast.Call):
+        return None
+    for kw in decorator.keywords:
+        if kw.arg == "operation_id" and isinstance(kw.value, ast.Constant):
+            return kw.value.value
+    return None
+
+
+def _calls_finish_mutation(node: ast.AST) -> bool:
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Call):
+            func = sub.func
+            if isinstance(func, ast.Name) and func.id == "finish_mutation":
+                return True
+            if isinstance(func, ast.Attribute) and func.attr == "finish_mutation":
+                return True
+    return False
+
+
+def _hand_builds_ok_detail_envelope(node: ast.AST) -> bool:
+    """True if any `return {...}` in the function body is a dict literal with
+    BOTH string keys "ok" and "detail" (the finish_mutation-shaped envelope,
+    built by hand instead of via the helper)."""
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Return) and isinstance(sub.value, ast.Dict):
+            keys = {
+                k.value for k in sub.value.keys
+                if isinstance(k, ast.Constant) and isinstance(k.value, str)
+            }
+            if {"ok", "detail"} <= keys:
+                return True
+    return False
+
+
+def _scan_routes() -> tuple[set[str], set[str]]:
+    """Return (finish_mutation_op_ids, hand_built_envelope_op_ids) discovered
+    by AST-walking every route function in server/routes/*.py."""
+    finish_mutation_op_ids: set[str] = set()
+    hand_built_envelope_op_ids: set[str] = set()
+    for path in sorted(ROUTES_DIR.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            op_id = None
+            for decorator in node.decorator_list:
+                op_id = _decorator_operation_id(decorator)
+                if op_id is not None:
+                    break
+            if op_id is None:
+                continue
+            if _calls_finish_mutation(node):
+                finish_mutation_op_ids.add(op_id)
+            elif _hand_builds_ok_detail_envelope(node):
+                hand_built_envelope_op_ids.add(op_id)
+    return finish_mutation_op_ids, hand_built_envelope_op_ids
+
+
+def test_finish_mutation_route_set_matches_allowlist() -> None:
+    """FINISH_MUTATION_OPERATION_IDS must exactly match the set of route
+    functions whose body actually calls finish_mutation(...). This is the
+    guard the big comment above the allowlist asks for: keep it in sync with
+    `grep -rn 'finish_mutation(' server/routes/*.py` — this test does that
+    grep (via AST, so decorator-detached helpers like pnp.py's `_consume`
+    don't get miscounted) and fails loud on any drift in either direction.
+    """
+    finish_mutation_op_ids, _ = _scan_routes()
+    assert finish_mutation_op_ids == gen_api_client.FINISH_MUTATION_OPERATION_IDS
+
+
+def test_hand_built_envelope_routes_resolve_to_detail_unwrap(spec: dict) -> None:
+    """Routes that hand-build an `{"ok", "detail"}` envelope WITHOUT calling
+    finish_mutation (currently: create_saved_search, delete_saved_search) are
+    NOT in FINISH_MUTATION_OPERATION_IDS, so the mutating-keyed default would
+    give them `unwrap: None` — wrong. Each such op_id must have an explicit
+    UNWRAP_OVERRIDES entry resolving to "detail", or the generated API_MAP
+    silently returns the whole envelope instead of `detail` to every caller.
+    """
+    _, hand_built_envelope_op_ids = _scan_routes()
+    assert hand_built_envelope_op_ids == {"create_saved_search", "delete_saved_search"}
+
+    api_map = gen_api_client.build_api_map(spec)
+    for op_id in hand_built_envelope_op_ids:
+        assert op_id not in gen_api_client.FINISH_MUTATION_OPERATION_IDS, (
+            f"{op_id} calls finish_mutation and hand-builds an envelope — "
+            "pick one, both is a contradiction the scan can't resolve"
+        )
+        assert api_map[op_id]["unwrap"] == "detail", (
+            f"{op_id} hand-builds an {{ok, detail}} envelope but is missing "
+            "from UNWRAP_OVERRIDES (or overridden to the wrong value) — "
+            "callers would get the whole envelope instead of `detail`"
+        )
 
 
 # ── coverage of the real committed spec ────────────────────────────────

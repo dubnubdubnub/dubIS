@@ -145,14 +145,29 @@ FINISH_MUTATION_OPERATION_IDS: set[str] = {
 # Scalar-envelope unwraps for operations whose response shape isn't the
 # mutating-keyed default (see build_api_map). `list_parts` is the one GET
 # whose *own* body IS the inventory envelope (unwrap "inventory") even though
-# GETs otherwise default to no unwrap. The finish_mutation-backed ops below
-# (mirroring FINISH_MUTATION_OPERATION_IDS) are listed here mainly for
-# readability/documentation, since the mutating-keyed default already
-# produces "detail" for them; call sites (js/vendors-modal.js, js/inventory/
-# inv-mutations.js, js/group-flyout/flyout-drag.js, js/group-flyout/
-# flyout-events.js, js/inventory/fetch-descriptions-command.js) consume the
-# facade return via `detail` directly (e.g. `v.name`, `result.generic_part_id`,
-# `result.id`).
+# GETs otherwise default to no unwrap.
+#
+# The entries below split into two different categories — don't conflate them:
+#
+# 1. finish_mutation-backed ops (mirroring FINISH_MUTATION_OPERATION_IDS):
+#    update_vendor, create_generic_part, update_generic_part,
+#    add_generic_member, remove_generic_member, exclude_generic_member,
+#    set_preferred_member, record_fetched_prices, fetch_missing_descriptions.
+#    These are listed here mainly for readability/documentation, since the
+#    mutating-keyed default already produces "detail" for them — removing
+#    them would NOT change behavior. Call sites (js/vendors-modal.js,
+#    js/inventory/inv-mutations.js, js/group-flyout/flyout-drag.js,
+#    js/group-flyout/flyout-events.js, js/inventory/
+#    fetch-descriptions-command.js) consume the facade return via `detail`
+#    directly (e.g. `v.name`, `result.generic_part_id`, `result.id`).
+#
+# 2. create_saved_search, delete_saved_search: LOAD-BEARING, NOT documentation.
+#    Neither op_id is in FINISH_MUTATION_OPERATION_IDS — both hand-build a
+#    plain `{"ok": True, "detail": ...}` dict in server/routes/generic_parts.py
+#    without calling finish_mutation. Since they're not mutating (per that
+#    allowlist), the mutating-keyed default would give them `unwrap: None`,
+#    silently returning the whole envelope instead of `detail` to callers.
+#    Removing these two entries WOULD break their JS call sites.
 UNWRAP_OVERRIDES: dict[str, str] = {
     "list_parts": "inventory",
     "get_generic_group_names": "groups",
@@ -162,7 +177,7 @@ UNWRAP_OVERRIDES: dict[str, str] = {
     "resolve_bom_spec": "match",
     "fetch_favicon": "path",
     "ocr_engine_available": "available",
-    # CFG class — see comment above.
+    # Category 1 (documentation only, see above):
     "update_vendor": "detail",
     "create_generic_part": "detail",
     "update_generic_part": "detail",
@@ -170,10 +185,11 @@ UNWRAP_OVERRIDES: dict[str, str] = {
     "remove_generic_member": "detail",
     "exclude_generic_member": "detail",
     "set_preferred_member": "detail",
-    "create_saved_search": "detail",
-    "delete_saved_search": "detail",
     "record_fetched_prices": "detail",
     "fetch_missing_descriptions": "detail",
+    # Category 2 (load-bearing, see above):
+    "create_saved_search": "detail",
+    "delete_saved_search": "detail",
 }
 
 # Aliases: same route as `target`, different bridge method name, with an
