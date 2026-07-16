@@ -64,17 +64,26 @@ function compilePath(template) {
  * Build one router entry from a canonical API_MAP method name (pick any alias
  * that shares the verb+path+unwrap — e.g. `get_digikey_session` covers
  * `check_digikey_session`/`get_digikey_login_status` too, since they resolve
- * to the identical route). `handler(argMap, ctx)` returns the UNWRAPPED value;
- * this file's dispatcher applies `entry.unwrap` the same way js/api.js's
- * `callHttp` expects the server to.
+ * to the identical route). `handler(argMap, ctx)` returns the UNWRAPPED value
+ * — for `mutation: true` routes, that's the payload that belongs under
+ * `entry.unwrap` in the real server's `{"ok": true, "detail": ...}` envelope
+ * (see server/mutations.py's `finish_mutation`); this file's dispatcher wraps
+ * it into that real envelope shape rather than the bare `{[unwrap]: value}`
+ * used for ordinary (non-finish_mutation) GET/lookup routes. Pass
+ * `{ mutation: true }` for any route backed by a `finish_mutation(...)` call
+ * server-side (server/routes/*.py) — this includes both INV-class ops
+ * (unwrap "inventory") and CFG-class ops (unwrap "detail").
  */
-function route(method, handler) {
+function route(method, handler, { mutation = false } = {}) {
   const entry = API_MAP[method];
   if (!entry) {
     throw new Error(`route-mocks.mjs: "${method}" is not in js/api-map.js — regenerate or fix the name`);
   }
   const { regex, names } = compilePath(entry.path);
-  return { method, verb: entry.verb, regex, pathParamNames: names, unwrap: entry.unwrap, handler };
+  return {
+    method, verb: entry.verb, regex, pathParamNames: names,
+    unwrap: entry.unwrap, mutation, handler,
+  };
 }
 
 // ── Per-method mock logic (mirrors addMockSetup's bridge mocks; Node-side, so
@@ -115,10 +124,15 @@ const ROUTES = [
       name: a.name || '', url: a.url || '', type: a.url ? 'real' : 'inferred',
       favicon_path: '', icon: '',
     };
-  }),
-  route('delete_vendor', (_a, ctx) => ctx.inventory),
-  route('merge_vendors', (_a, ctx) => ctx.inventory),
-  route('record_fetched_prices', (_a, ctx) => ctx.inventory),
+  }, { mutation: true }),
+  route('delete_vendor', (_a, ctx) => ctx.inventory, { mutation: true }),
+  route('merge_vendors', (_a, ctx) => ctx.inventory, { mutation: true }),
+  // Real detail shape per server/routes/inventory_mut.py's record_fetched_prices:
+  // detail is {part_key, distributor}, mirroring the route's own `detail`
+  // dict — never the raw inventory array. Callers (js/inventory-modals.js,
+  // js/part-preview.js) ignore the resolved value (`.catch(() => {})`), but
+  // the mock must still shape it like the real envelope.
+  route('record_fetched_prices', (a) => ({ part_key: a.part_key, distributor: a.distributor }), { mutation: true }),
   route('get_price_summary', (a, ctx) => (ctx.options.priceSummaries || {})[a.part_key] || {}),
   route('get_part_history', (a, ctx) => (ctx.options.partHistory || {})[a.part_key] || []),
   // Covers fetch_lcsc_product/fetch_digikey_product/fetch_pololu_product/fetch_mouser_product —
@@ -209,7 +223,23 @@ export async function installRouteMocks(page, inventory, options = {}) {
       (window.__apiCalls[name] = window.__apiCalls[name] || []).push(recordedArgs);
     }, recordCallScript(match.method, args));
 
-    const body = match.unwrap ? { [match.unwrap]: value } : value;
+    // `mutation: true` routes are backed by a real `finish_mutation(...)`
+    // call server-side — mirror ITS envelope shape (`{"ok": true, "detail":
+    // ...}`, plus `"inventory"` only when `?include=inventory` was
+    // requested), never the client's post-unwrap expectation. Non-mutation
+    // routes (plain GETs / bespoke-shape lookups like fetch_favicon's
+    // `{"path"}`) keep returning the bare `{[unwrap]: value}` (or raw value)
+    // they always have.
+    let body;
+    if (match.mutation) {
+      const includeInventory = url.searchParams.get('include') === 'inventory';
+      body = { ok: true, detail: match.unwrap === 'detail' ? value : {} };
+      if (includeInventory) {
+        body.inventory = match.unwrap === 'inventory' ? value : ctx.inventory;
+      }
+    } else {
+      body = match.unwrap ? { [match.unwrap]: value } : value;
+    }
     await route.fulfill({ json: body === undefined ? null : body });
   });
 }

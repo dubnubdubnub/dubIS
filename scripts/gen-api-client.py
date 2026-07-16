@@ -108,6 +108,18 @@ ARG_ORDER: dict[str, list[str]] = {
 # finish_mutation's ?include=inventory convention. `list_parts` is the one
 # GET whose *own* body IS the inventory envelope (unwrap "inventory") even
 # though it has no `include` query param / isn't "mutating".
+#
+# CFG (config-mutation) class: these mutate config/generic-parts/saved-search
+# state, not inventory rows. Their routes call finish_mutation with
+# `include=None` (no `?include=inventory` support) or, for
+# fetch_missing_descriptions/record_fetched_prices, DO accept `include` but
+# put the client-relevant payload in `detail` regardless (see
+# server/routes/*.py). Call sites (js/vendors-modal.js, js/inventory/
+# inv-mutations.js, js/group-flyout/flyout-drag.js, js/group-flyout/
+# flyout-events.js, js/inventory/fetch-descriptions-command.js) consume the
+# facade return directly (e.g. `v.name`, `result.generic_part_id`,
+# `result.id`), so these must unwrap "detail" — the envelope's `detail` field
+# carries exactly that facade return — never "inventory".
 UNWRAP_OVERRIDES: dict[str, str] = {
     "list_parts": "inventory",
     "get_generic_group_names": "groups",
@@ -116,6 +128,18 @@ UNWRAP_OVERRIDES: dict[str, str] = {
     "extract_spec": "spec",
     "resolve_bom_spec": "match",
     "fetch_favicon": "path",
+    # CFG class — see comment above.
+    "update_vendor": "detail",
+    "create_generic_part": "detail",
+    "update_generic_part": "detail",
+    "add_generic_member": "detail",
+    "remove_generic_member": "detail",
+    "exclude_generic_member": "detail",
+    "set_preferred_member": "detail",
+    "create_saved_search": "detail",
+    "delete_saved_search": "detail",
+    "record_fetched_prices": "detail",
+    "fetch_missing_descriptions": "detail",
 }
 
 # Aliases: same route as `target`, different bridge method name, with an
@@ -223,10 +247,15 @@ def _build_base_entries(spec: dict) -> dict[str, dict[str, Any]]:
 
             if op_id == "list_parts":
                 unwrap = "inventory"
+            elif op_id in UNWRAP_OVERRIDES:
+                # Checked before the `mutating` default so CFG-class mutating
+                # ops (fetch_missing_descriptions, record_fetched_prices) can
+                # override "inventory" with "detail" — see UNWRAP_OVERRIDES.
+                unwrap = UNWRAP_OVERRIDES[op_id]
             elif mutating:
                 unwrap = "inventory"
             else:
-                unwrap = UNWRAP_OVERRIDES.get(op_id)
+                unwrap = None
 
             entries[op_id] = {
                 "verb": verb.upper(),

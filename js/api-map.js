@@ -18,7 +18,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": null,
+    "unwrap": "detail",
     "verb": "POST"
   },
   "adjust_part": {
@@ -108,7 +108,7 @@ export const API_MAP = {
     "pathParams": [],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": null,
+    "unwrap": "detail",
     "verb": "POST"
   },
   "create_purchase_order_with_items": {
@@ -157,7 +157,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": null,
+    "unwrap": "detail",
     "verb": "POST"
   },
   "delete_last_purchase_order": {
@@ -213,7 +213,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": null,
+    "unwrap": "detail",
     "verb": "DELETE"
   },
   "delete_vendor": {
@@ -260,7 +260,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": null,
+    "unwrap": "detail",
     "verb": "POST"
   },
   "extract_spec": {
@@ -367,7 +367,7 @@ export const API_MAP = {
     "pathParams": [],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "POST"
   },
   "fetch_mouser_product": {
@@ -860,7 +860,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "POST"
   },
   "remove_generic_member": {
@@ -877,7 +877,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": null,
+    "unwrap": "detail",
     "verb": "DELETE"
   },
   "remove_last_adjustments": {
@@ -986,7 +986,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": null,
+    "unwrap": "detail",
     "verb": "PUT"
   },
   "start_scan_session": {
@@ -1034,7 +1034,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": null,
+    "unwrap": "detail",
     "verb": "PUT"
   },
   "update_part_fields": {
@@ -1115,7 +1115,7 @@ export const API_MAP = {
     "pathParams": [],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": null,
+    "unwrap": "detail",
     "verb": "PUT"
   },
   "validate_digikey_session": {
