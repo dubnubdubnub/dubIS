@@ -19,7 +19,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE_INVENTORY = JSON.parse(
@@ -40,36 +41,33 @@ const POS = [
     source_file_hash: 'def456', source_file_ext: '.csv' },
 ];
 
-function addPreviewStubs(page) {
-  return page.addInitScript(({ pos, dataUri, imgPo }) => {
-    const patch = () => {
-      if (!window.pywebview || !window.pywebview.api) return false;
-      const api = window.pywebview.api;
-      api.list_purchase_orders = async () => pos;
-      api.get_po_with_items = async (poId) => ({
-        po_id: poId,
-        line_items: [
-          { mpn: 'PART-1', manufacturer: 'ACME', package: '0402', quantity: 10 },
-        ],
-      });
-      api.get_po_source_preview = async (poId) =>
-        poId === imgPo
-          ? { kind: 'image', mime: 'image/png', data_uri: dataUri,
-              width: 1, height: 1, page_count: 1 }
-          : { kind: 'none', reason: 'unsupported source type .csv' };
-      return true;
-    };
-    if (!patch()) {
-      const t = setInterval(() => { if (patch()) clearInterval(t); }, 5);
-      setTimeout(() => clearInterval(t), 2000);
-    }
-  }, { pos: POS, dataUri: PNG_DATA_URI, imgPo: IMG_PO });
-}
+// Was addPreviewStubs — a window.pywebview.api bridge patch for
+// list_purchase_orders/get_po_with_items/get_po_source_preview. All three are
+// now plain ctx.options-driven /v1 route mocks in route-mocks.mjs
+// (purchaseOrders, poWithItems, poSourcePreview — keyed by po_id), so this
+// spec just supplies the same fixture data as installRouteMocks options.
+const PO_WITH_ITEMS = {
+  [IMG_PO]: {
+    po_id: IMG_PO,
+    line_items: [{ mpn: 'PART-1', manufacturer: 'ACME', package: '0402', quantity: 10 }],
+  },
+  [CSV_PO]: {
+    po_id: CSV_PO,
+    line_items: [{ mpn: 'PART-1', manufacturer: 'ACME', package: '0402', quantity: 10 }],
+  },
+};
+const PO_SOURCE_PREVIEW = {
+  [IMG_PO]: { kind: 'image', mime: 'image/png', data_uri: PNG_DATA_URI, width: 1, height: 1, page_count: 1 },
+  [CSV_PO]: { kind: 'none', reason: 'unsupported source type .csv' },
+};
 
 test.describe('PO source-image preview', () => {
   test.beforeEach(async ({ page }) => {
-    await addMockSetup(page, BASE_INVENTORY);
-    await addPreviewStubs(page);
+    await installRouteMocks(page, BASE_INVENTORY, {
+      purchaseOrders: POS,
+      poWithItems: PO_WITH_ITEMS,
+      poSourcePreview: PO_SOURCE_PREVIEW,
+    });
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);

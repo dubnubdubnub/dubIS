@@ -39,16 +39,19 @@ def test_adjust_part_publishes_inventory_updated(client):
         events.unsubscribe(q)
 
 
-def test_adjust_part_include_inventory_returns_fresh_list(client):
+def test_adjust_part_include_inventory_affordance_removed(client):
+    # Phase 1b Task 10 removed the `?include=inventory` echo entirely — the
+    # query param is now just an unknown/ignored param (FastAPI silently
+    # drops it), and the response is always the plain `{"ok", "detail"}`
+    # envelope, never an `inventory` key. Frontend refresh is SSE-driven.
     r = client.post(
         "/v1/parts/C100000/adjust?include=inventory",
         json={"adj_type": "set", "quantity": 7},
     )
     assert r.status_code == 200
     body = r.json()
-    assert "inventory" in body
-    item = next(i for i in body["inventory"] if i["lcsc"] == "C100000")
-    assert item["qty"] == 7
+    assert "inventory" not in body
+    assert body["detail"]["part_key"] == "C100000"
 
 
 def test_adjust_part_without_include_omits_inventory(client):

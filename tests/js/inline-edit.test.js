@@ -27,7 +27,7 @@ vi.mock('../../js/undo-redo.js', () => ({
 }));
 
 vi.mock('../../js/store.js', () => ({
-  onInventoryUpdated: vi.fn(),
+  scheduleInventoryRefresh: vi.fn().mockResolvedValue(undefined),
   store: {
     links: {
       get linkingMode() { return mockLinkingMode; },
@@ -57,7 +57,7 @@ let mockFlyoutDragActive = false;
 // ── Lazy import after mocks are registered ─────────────────────────────────
 
 let activateInlineEdit, cancelActiveInlineEdit;
-let api, showToast, UndoRedo, onInventoryUpdated;
+let api, showToast, UndoRedo, scheduleInventoryRefresh;
 
 beforeEach(async () => {
   // Reset guard flags
@@ -79,7 +79,7 @@ beforeEach(async () => {
   UndoRedo = undoMod.UndoRedo;
 
   const storeMod = await import('../../js/store.js');
-  onInventoryUpdated = storeMod.onInventoryUpdated;
+  scheduleInventoryRefresh = storeMod.scheduleInventoryRefresh;
 
   // Clear call history on each test
   vi.clearAllMocks();
@@ -149,7 +149,7 @@ describe('activateInlineEdit — qty cell', () => {
     expect(input.getAttribute('aria-label')).toBe('Edit quantity');
   });
 
-  it('Enter calls adjust_part with set + new qty and calls onInventoryUpdated', async () => {
+  it('Enter calls adjust_part with set + new qty and schedules an inventory refresh', async () => {
     dblclick(qtyCell);
     const input = qtyCell.querySelector('input');
     input.value = '50';
@@ -158,7 +158,7 @@ describe('activateInlineEdit — qty cell', () => {
     await new Promise(r => setTimeout(r, 0));
 
     expect(api).toHaveBeenCalledWith('adjust_part', 'set', 'C42', 50, 'inline-edit');
-    expect(onInventoryUpdated).toHaveBeenCalledTimes(1);
+    expect(scheduleInventoryRefresh).toHaveBeenCalledTimes(1);
     expect(showToast).toHaveBeenCalledWith(expect.stringContaining('C42'));
   });
 
@@ -207,7 +207,7 @@ describe('activateInlineEdit — qty cell', () => {
 
     expect(UndoRedo.popLast).toHaveBeenCalledTimes(1);
     expect(qtyCell.querySelector('input')).toBeNull();
-    expect(onInventoryUpdated).not.toHaveBeenCalled();
+    expect(scheduleInventoryRefresh).not.toHaveBeenCalled();
   });
 
   it('invalid (negative) qty shows toast and restores without calling api', async () => {
@@ -255,7 +255,7 @@ describe('activateInlineEdit — unit-price cell', () => {
     expect(input.getAttribute('aria-label')).toBe('Edit unit price');
   });
 
-  it('Enter calls update_part_price with new unit price and calls onInventoryUpdated', async () => {
+  it('Enter calls update_part_price with new unit price and schedules an inventory refresh', async () => {
     dblclick(priceCell);
     const input = priceCell.querySelector('input');
     input.value = '3.75';
@@ -263,7 +263,7 @@ describe('activateInlineEdit — unit-price cell', () => {
     await new Promise(r => setTimeout(r, 0));
 
     expect(api).toHaveBeenCalledWith('update_part_price', 'C99', 3.75, null);
-    expect(onInventoryUpdated).toHaveBeenCalledTimes(1);
+    expect(scheduleInventoryRefresh).toHaveBeenCalledTimes(1);
     expect(showToast).toHaveBeenCalledWith(expect.stringContaining('C99'));
   });
 

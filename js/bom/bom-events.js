@@ -5,7 +5,7 @@ import { EventBus, Events } from '../event-bus.js';
 import { api, AppLog } from '../api.js';
 import { showToast, escHtml, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { store, setBomDirty, setBomResults, setBomMeta, onInventoryUpdated, savePreferences } from '../store.js';
+import { store, setBomDirty, setBomResults, setBomMeta, scheduleInventoryRefresh, savePreferences } from '../store.js';
 import { bomAggKey } from '../part-keys.js';
 import { generateCSV } from '../csv-parser.js';
 import { computeRows, prepareConsumption } from './bom-logic.js';
@@ -145,8 +145,8 @@ export function setupEvents(handlers) {
     // fallback (inventory_api.consume_bom / domain.api_inventory's
     // _ensure_parsed) already accepts either a list or a JSON string, so the
     // array works unchanged over both transports.
-    const fresh = await api("consume_bom", matches, mult, state.lastFileName, note);
-    if (!fresh) {
+    const result = await api("consume_bom", matches, mult, state.lastFileName, note);
+    if (!result) {
       UndoRedo.popLast();
       return;
     }
@@ -158,7 +158,7 @@ export function setupEvents(handlers) {
       adjustmentCount: matches.length,
     };
     state.consumeModal.close();
-    onInventoryUpdated(fresh);
+    scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
     showToast(`Consumed ${matches.length} parts x${mult}`);
     AppLog.info("Consumed " + matches.length + " parts x" + mult + " from " + state.lastFileName);
   });
@@ -255,14 +255,14 @@ export function setupEvents(handlers) {
       return { _undoType: "consume-none" };
     }
     if (data._undoType === "consume") {
-      const fresh = await api("remove_last_adjustments", data.adjustmentCount);
-      if (!fresh) throw new Error("Failed to undo consume");
+      const result = await api("remove_last_adjustments", data.adjustmentCount);
+      if (!result) throw new Error("Failed to undo consume");
       state.lastConsumeMeta = null;
-      onInventoryUpdated(fresh);
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Undid consume of " + data.adjustmentCount + " parts");
     } else if (data._undoType === "consume-done") {
-      const fresh = await api("consume_bom", data.matches, data.mult, data.bomName, data.note);
-      if (!fresh) throw new Error("Failed to redo consume");
+      const result = await api("consume_bom", data.matches, data.mult, data.bomName, data.note);
+      if (!result) throw new Error("Failed to redo consume");
       state.lastConsumeMeta = {
         matches: data.matches,
         mult: data.mult,
@@ -270,7 +270,7 @@ export function setupEvents(handlers) {
         note: data.note,
         adjustmentCount: data.adjustmentCount,
       };
-      onInventoryUpdated(fresh);
+      scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Redid consume of " + data.adjustmentCount + " parts");
     }
   });

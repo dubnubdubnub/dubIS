@@ -259,7 +259,7 @@ def main():
         nonlocal pnp_server
         bench.mark("on_ready")  # native window shown; WebView2 runtime up
         set_icon()
-        pnp_server = start_pnp_server(api, window)
+        pnp_server = start_pnp_server(api)
         # Expose the running server so api.start_scan_session() can mint sessions
         # on it (phone-scan transport). May be None if the port was unavailable.
         api._pnp_server = pnp_server

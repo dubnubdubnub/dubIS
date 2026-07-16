@@ -6,7 +6,7 @@
 import { EventBus, Events } from './event-bus.js';
 import { signal } from './signals.js';
 import { SECTION_ORDER } from './constants.js';
-import { api, AppLog, INCLUDE_INVENTORY } from './api.js';
+import { api, AppLog } from './api.js';
 import { onEvent } from './sse.js';
 
 // Debounce window for the SSE-driven inventory refresh (trailing debounce:
@@ -383,27 +383,50 @@ export function onInventoryUpdated(freshInventory) {
 export async function loadInventoryQuiet() {
   const fresh = await api("rebuild_inventory");
   if (!fresh) {
-    AppLog.warn("inventory refresh failed (SSE)");
+    AppLog.warn("inventory refresh failed");
     return;
   }
   onInventoryUpdated(fresh);
 }
 
-// ── SSE wiring (Task 3) ────────────────────────────────────
-// Registered unconditionally so the handler exists once the phase-close flip
-// (INCLUDE_INVENTORY -> false) lands, but stays inert until then: Step 1 of
-// the mutation convention (docs/plans/2026-07-16-phase1b-frontend-port-design.md,
-// decision 2) already refreshes inventory via each mutation's own
-// `?include=inventory` response, so acting on `inventory.updated` too would
-// double-render. `onEvent` is safe to call before `connectEvents()` opens the
-// connection — see js/sse.js.
+// ── SSE-driven refresh (Task 10 flip) ──────────────────────
+// SSE is the single re-render source, but mutation call sites also call
+// this directly (belt-and-braces): under real usage the mutation's own
+// `inventory.updated` SSE push and the direct call collapse into ONE
+// refresh via this shared debounce (both share `_inventoryUpdatedTimer` /
+// `_inventoryUpdatedResolvers`, so a mutation call site's await and the SSE
+// push it triggers resolve together off a single `loadInventoryQuiet()`);
+// under route-mocked tests (no live SSE stream) the direct call is what
+// actually drives the post-mutation refetch. Call sites that need the
+// freshly-updated item read it from `store.inventory` after the returned
+// promise resolves — mutation responses no longer carry inventory data.
+// `onEvent` is safe to call before `connectEvents()` opens the connection —
+// see js/sse.js.
 let _inventoryUpdatedTimer = null;
-onEvent('inventory.updated', () => {
-  if (INCLUDE_INVENTORY) return;
+let _inventoryUpdatedResolvers = [];
+
+function fireInventoryRefresh() {
+  _inventoryUpdatedTimer = null;
+  const resolvers = _inventoryUpdatedResolvers;
+  _inventoryUpdatedResolvers = [];
+  loadInventoryQuiet().then(
+    () => resolvers.forEach((r) => r.resolve()),
+    (e) => resolvers.forEach((r) => r.reject(e)),
+  );
+}
+
+/** @returns {Promise<void>} resolves once the (possibly-shared) debounced refresh completes. */
+export function scheduleInventoryRefresh() {
   clearTimeout(_inventoryUpdatedTimer);
-  _inventoryUpdatedTimer = setTimeout(() => {
-    loadInventoryQuiet().catch(e => AppLog.warn("SSE inventory.updated refresh failed: " + e));
-  }, INVENTORY_UPDATED_DEBOUNCE_MS);
+  const p = new Promise((resolve, reject) => {
+    _inventoryUpdatedResolvers.push({ resolve, reject });
+  });
+  _inventoryUpdatedTimer = setTimeout(fireInventoryRefresh, INVENTORY_UPDATED_DEBOUNCE_MS);
+  return p;
+}
+
+onEvent('inventory.updated', () => {
+  scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
 });
 
 // ── Shortcut preferences ──────────────────────────────────

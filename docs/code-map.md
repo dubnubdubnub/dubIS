@@ -26,7 +26,6 @@ graph LR
     "distributor_manager.py" --> "mouser_client.py"
     "distributor_manager.py" --> "pololu_client.py"
     "distributor_profiles.py" --> "mfg_direct_import.py"
-    "domain/api_fileio.py" --> "csv_io.py"
     "domain/api_fileio.py" --> "file_dialogs.py"
     "domain/api_generic_parts.py" --> "domain/generic_parts.py"
     "domain/api_generic_parts.py" --> "saved_searches.py"
@@ -370,6 +369,7 @@ graph LR
     "js/preferences-modal.js" --> "js/api.js"
     "js/preferences-modal.js" --> "js/store.js"
     "js/preferences-modal.js" --> "js/ui-helpers.js"
+    "js/sse.js" --> "js/api.js"
     "js/store.js" --> "js/api.js"
     "js/store.js" --> "js/constants.js"
     "js/store.js" --> "js/event-bus.js"
@@ -417,11 +417,13 @@ graph LR
     "scripts/ci_watcher/worker.py" --> "scripts/ci_watcher/triage_payload.py"
     "scripts/gen-inventory-types.py" --> "domain/schema.py"
     "scripts/gen-openapi.py" --> "server/app.py"
+    "scripts/generate-test-fixtures.py" --> "csv_io.py"
     "scripts/generate-test-fixtures.py" --> "inventory_api.py"
     "scripts/generate-test-fixtures.py" --> "inventory_ops.py"
     "scripts/spike-webview-loopback.py" --> "server/__init__.py"
     "scripts/spike-webview-loopback.py" --> "server/__main__.py"
     "scripts/spike-webview-loopback.py" --> "server/run.py"
+    "server/__main__.py" --> "distributor_manager.py"
     "server/__main__.py" --> "inventory_api.py"
     "server/__main__.py" --> "server/app.py"
     "server/app.py" --> "server/errors.py"
@@ -455,6 +457,7 @@ graph LR
     "tests/js/data-grid.test.js" --> "js/components/data-grid.js"
     "tests/js/delegate.test.js" --> "js/dom/delegate.js"
     "tests/js/e2e/scan-server.py" --> "pnp_server.py"
+    "tests/js/e2e/scan-server.py" --> "server/__init__.py"
     "tests/js/event-bus.test.js" --> "js/event-bus.js"
     "tests/js/favicon-stack.test.js" --> "js/inventory/favicon-stack.js"
     "tests/js/fetch-rows.test.js" --> "js/inventory-modals.js"
@@ -531,6 +534,7 @@ graph LR
     "tests/python/domain/test_part_registry_integration.py" --> "inventory_ops.py"
     "tests/python/domain/test_pricing.py" --> "cache_db.py"
     "tests/python/domain/test_pricing.py" --> "domain/pricing.py"
+    "tests/python/helpers.py" --> "distributor_manager.py"
     "tests/python/helpers.py" --> "inventory_api.py"
     "tests/python/server/conftest.py" --> "server/app.py"
     "tests/python/server/conftest.py" --> "tests/python/helpers.py"
@@ -648,12 +652,14 @@ graph LR
     "tests/python/test_part_history.py" --> "inventory_api.py"
     "tests/python/test_pdf_raster.py" --> "pdf_raster.py"
     "tests/python/test_pnp_server.py" --> "pnp_server.py"
+    "tests/python/test_pnp_server.py" --> "server/__init__.py"
     "tests/python/test_pnp_server.py" --> "tests/python/helpers.py"
     "tests/python/test_purchase_orders.py" --> "purchase_orders.py"
     "tests/python/test_real_data.py" --> "inventory_api.py"
     "tests/python/test_saved_searches.py" --> "cache_db.py"
     "tests/python/test_saved_searches.py" --> "saved_searches.py"
     "tests/python/test_scan_session.py" --> "pnp_server.py"
+    "tests/python/test_scan_session.py" --> "server/__init__.py"
     "tests/python/test_source_sanitizer.py" --> "source_sanitizer.py"
     "tests/python/test_spec_extractor.py" --> "spec_extractor.py"
     "tests/python/test_vendors.py" --> "vendors.py"
@@ -715,7 +721,7 @@ graph LR
 ### csv_io.py
 
 - **Imports:** —
-- **Imported by:** `domain/api_fileio.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/part_registry.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `tests/python/test_csv_io.py`, `vendors.py`
+- **Imported by:** `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/part_registry.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_csv_io.py`, `vendors.py`
 
 ### digikey_cdp.py
 
@@ -750,7 +756,7 @@ graph LR
 ### distributor_manager.py
 
 - **Imports:** `base_client.py`, `digikey_client.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`
-- **Imported by:** `inventory_api.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_live.py`, `tests/python/test_distributor_manager.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_mfg_direct_import.py`
+- **Imported by:** `inventory_api.py`, `server/__main__.py`, `tests/python/helpers.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_live.py`, `tests/python/test_distributor_manager.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_mfg_direct_import.py`
 
 ### distributor_profiles.py
 
@@ -769,7 +775,7 @@ graph LR
 
 ### domain/api_fileio.py
 
-- **Imports:** `csv_io.py`, `file_dialogs.py`
+- **Imports:** `file_dialogs.py`
 - **Imported by:** `inventory_api.py`
 
 ### domain/api_generic_parts.py
@@ -915,7 +921,7 @@ graph LR
 ### js/api.js
 
 - **Imports:** `js/api-map.js`, `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/store.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/command-palette.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/sse.js`, `js/store.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/command-palette.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`
 
 ### js/app-init.js
 
@@ -1305,7 +1311,7 @@ graph LR
 
 ### js/sse.js
 
-- **Imports:** —
+- **Imports:** `js/api.js`
 - **Imported by:** `js/app-init.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/store.js`
 
 ### js/store.js
@@ -1547,7 +1553,7 @@ graph LR
 
 ### scripts/generate-test-fixtures.py
 
-- **Imports:** `inventory_api.py`, `inventory_ops.py`
+- **Imports:** `csv_io.py`, `inventory_api.py`, `inventory_ops.py`
 - **Imported by:** —
 
 ### scripts/regen-layout-ignore.py
@@ -1563,11 +1569,11 @@ graph LR
 ### server/__init__.py
 
 - **Imports:** —
-- **Imported by:** `pnp_server.py`, `scripts/spike-webview-loopback.py`, `server/mutations.py`, `server/routes/events.py`, `server/routes/pnp.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_vendors_pos_routes.py`
+- **Imported by:** `pnp_server.py`, `scripts/spike-webview-loopback.py`, `server/mutations.py`, `server/routes/events.py`, `server/routes/pnp.py`, `tests/js/e2e/scan-server.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
 
 ### server/__main__.py
 
-- **Imports:** `inventory_api.py`, `server/app.py`
+- **Imports:** `distributor_manager.py`, `inventory_api.py`, `server/app.py`
 - **Imported by:** `scripts/spike-webview-loopback.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_main_flags.py`
 
 ### server/app.py
@@ -1722,7 +1728,7 @@ graph LR
 
 ### tests/js/e2e/scan-server.py
 
-- **Imports:** `pnp_server.py`
+- **Imports:** `pnp_server.py`, `server/__init__.py`
 - **Imported by:** —
 
 ### tests/js/event-bus.test.js
@@ -2016,7 +2022,7 @@ graph LR
 
 ### tests/python/helpers.py
 
-- **Imports:** `inventory_api.py`
+- **Imports:** `distributor_manager.py`, `inventory_api.py`
 - **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/server/conftest.py
@@ -2406,7 +2412,7 @@ graph LR
 
 ### tests/python/test_pnp_server.py
 
-- **Imports:** `pnp_server.py`, `tests/python/helpers.py`
+- **Imports:** `pnp_server.py`, `server/__init__.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/test_purchase_orders.py
@@ -2426,7 +2432,7 @@ graph LR
 
 ### tests/python/test_scan_session.py
 
-- **Imports:** `pnp_server.py`
+- **Imports:** `pnp_server.py`, `server/__init__.py`
 - **Imported by:** —
 
 ### tests/python/test_source_sanitizer.py

@@ -3,64 +3,27 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks, addPersistentPrefsRouteMock } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'fixtures', 'inventory.json'), 'utf8')
 );
 
-/**
- * Adds a stateful preferences mock that round-trips inventory_view across reloads.
- * Must be called BEFORE addMockSetup so this init script registers first and the
- * setter trap below is installed before addMockSetup assigns `window.pywebview`.
- * Uses sessionStorage so the next page-load init script reads the saved state.
- */
-async function addPersistentPrefsMock(page) {
-  await page.addInitScript(() => {
-    const STORAGE_KEY = '__test_prefs_inv_view';
-    let prefs = { thresholds: {} };
-    try {
-      const stored = window.sessionStorage.getItem(STORAGE_KEY);
-      if (stored) prefs = JSON.parse(stored);
-    } catch (_) {}
-
-    function patch(api) {
-      if (!api) return;
-      api.load_preferences = async () => prefs;
-      api.save_preferences = async (json) => {
-        try {
-          prefs = typeof json === 'string' ? JSON.parse(json) : json;
-          window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
-        } catch (_) {}
-        return true;
-      };
-    }
-
-    // Trap the future `window.pywebview = { api: {...} }` assignment from
-    // addMockSetup so we patch synchronously the moment the API exists. The
-    // previous setInterval(5) version raced against the app's first
-    // `await api("load_preferences")` call on fast machines (m4-air).
-    if (window.pywebview && window.pywebview.api) {
-      patch(window.pywebview.api);
-    } else {
-      let _pw;
-      Object.defineProperty(window, 'pywebview', {
-        configurable: true,
-        get() { return _pw; },
-        set(v) {
-          _pw = v;
-          if (v && v.api) patch(v.api);
-        },
-      });
-    }
-  });
-}
+// Was addPersistentPrefsMock — a window.pywebview.api bridge trap for
+// load_preferences/save_preferences. Both moved to the /v1 HTTP surface (the
+// bridge no longer carries them at all — see js/api.js), so the stateful
+// round-trip-across-reloads mock is now route-mocks.mjs's
+// addPersistentPrefsRouteMock (GET/PUT /v1/preferences over sessionStorage).
 
 test.describe('Inventory column header — sort/group/reset', () => {
   test.beforeEach(async ({ page }) => {
-    await addPersistentPrefsMock(page);
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
+    // Must be called AFTER installRouteMocks so this route registration wins
+    // (Playwright matches last-registered-first) over the generic /v1 catch-all,
+    // which only serves ctx.options.preferences statically (no write-back).
+    await addPersistentPrefsRouteMock(page);
     await page.setViewportSize({ width: 1400, height: 800 });
   });
 

@@ -3,7 +3,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows } from './helpers.mjs';
+import { waitForInventoryRows } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -50,7 +51,7 @@ test.describe('Inventory column header alignment with row cells', () => {
     { name: 'wide',   width: 2400, height: 1200 },  // panel ~900px, descriptions visible
   ]) {
     test(`columns align at ${vp.name} viewport (${vp.width}x${vp.height})`, async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.goto('/index.html');
       await waitForInventoryRows(page);

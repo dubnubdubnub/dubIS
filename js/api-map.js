@@ -11,7 +11,7 @@ export const API_MAP = {
     "bodyParams": [
       "part_id"
     ],
-    "mutating": false,
+    "mutating": true,
     "path": "/v1/generic-parts/{generic_part_id}/members",
     "pathParams": [
       "generic_part_id"
@@ -42,7 +42,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "POST"
   },
   "check_digikey_session": {
@@ -87,7 +87,7 @@ export const API_MAP = {
     "pathParams": [],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "POST"
   },
   "create_generic_part": {
@@ -103,7 +103,7 @@ export const API_MAP = {
       "spec",
       "strictness"
     ],
-    "mutating": false,
+    "mutating": true,
     "path": "/v1/generic-parts",
     "pathParams": [],
     "queryParams": [],
@@ -133,7 +133,7 @@ export const API_MAP = {
     "pathParams": [],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "POST"
   },
   "create_saved_search": {
@@ -168,7 +168,7 @@ export const API_MAP = {
     "pathParams": [],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "DELETE"
   },
   "delete_part": {
@@ -183,7 +183,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "DELETE"
   },
   "delete_purchase_order": {
@@ -198,7 +198,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "DELETE"
   },
   "delete_saved_search": {
@@ -228,7 +228,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "DELETE"
   },
   "detect_columns": {
@@ -252,7 +252,7 @@ export const API_MAP = {
       "part_id"
     ],
     "bodyParams": [],
-    "mutating": false,
+    "mutating": true,
     "path": "/v1/generic-parts/{generic_part_id}/members/{part_id}/exclude",
     "pathParams": [
       "generic_part_id",
@@ -591,7 +591,7 @@ export const API_MAP = {
     "pathParams": [],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "POST"
   },
   "list_generic_parts": {
@@ -706,7 +706,7 @@ export const API_MAP = {
     "pathParams": [],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "POST"
   },
   "ocr_engine_available": {
@@ -869,7 +869,7 @@ export const API_MAP = {
       "part_id"
     ],
     "bodyParams": [],
-    "mutating": false,
+    "mutating": true,
     "path": "/v1/generic-parts/{generic_part_id}/members/{part_id}",
     "pathParams": [
       "generic_part_id",
@@ -892,7 +892,7 @@ export const API_MAP = {
       "count"
     ],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "DELETE"
   },
   "remove_last_purchases": {
@@ -907,7 +907,7 @@ export const API_MAP = {
       "count"
     ],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "DELETE"
   },
   "resolve_bom_spec": {
@@ -941,7 +941,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "DELETE"
   },
   "save_preferences": {
@@ -978,7 +978,7 @@ export const API_MAP = {
       "part_id"
     ],
     "bodyParams": [],
-    "mutating": false,
+    "mutating": true,
     "path": "/v1/generic-parts/{generic_part_id}/members/{part_id}/preferred",
     "pathParams": [
       "generic_part_id",
@@ -1027,7 +1027,7 @@ export const API_MAP = {
       "spec",
       "strictness"
     ],
-    "mutating": false,
+    "mutating": true,
     "path": "/v1/generic-parts/{generic_part_id}",
     "pathParams": [
       "generic_part_id"
@@ -1052,7 +1052,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "PATCH"
   },
   "update_part_price": {
@@ -1072,7 +1072,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "PUT"
   },
   "update_purchase_order": {
@@ -1094,7 +1094,7 @@ export const API_MAP = {
     ],
     "queryParams": [],
     "rawBody": false,
-    "unwrap": "inventory",
+    "unwrap": "detail",
     "verb": "PATCH"
   },
   "update_vendor": {
@@ -1110,7 +1110,7 @@ export const API_MAP = {
       "url",
       "vendor_id"
     ],
-    "mutating": false,
+    "mutating": true,
     "path": "/v1/vendors",
     "pathParams": [],
     "queryParams": [],

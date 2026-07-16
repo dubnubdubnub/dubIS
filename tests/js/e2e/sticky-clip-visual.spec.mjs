@@ -3,7 +3,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { addMockSetup, waitForInventoryRows, loadBom } from './helpers.mjs';
+import { waitForInventoryRows, loadBom } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 import { detectClipping } from './visual/measure.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -41,7 +42,7 @@ const BOM_CSV = fs.readFileSync(path.join(__dirname, 'fixtures', 'bom.csv'), 'ut
  * @param {number} h
  */
 async function boot(page, w, h) {
-  await addMockSetup(page, MOCK_INVENTORY);
+  await installRouteMocks(page, MOCK_INVENTORY);
   await page.setViewportSize({ width: w, height: h });
   await page.goto('/index.html');
   await waitForInventoryRows(page);
@@ -95,7 +96,7 @@ test.describe('Action buttons — clipping/occlusion at standard widths', () => 
 test.describe('BOM sticky button — not clipped after horizontal scroll', () => {
   test('td.btn-group remains unclipped after scrolling table-wrap right', async ({ page }) => {
     // Use 1100px — the width sticky-buttons.spec.mjs uses to force horizontal overflow.
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1100, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);

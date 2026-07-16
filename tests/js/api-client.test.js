@@ -2,8 +2,10 @@
 //
 // Table-driven coverage of js/api.js's HTTP transport: one representative
 // operation per class from js/api-map.js (GET path-param, POST body, DELETE
-// query, scalar unwrap, distributor alias, mutation include=inventory),
-// plus the failure contract and the HTTP-probe → bridge fallback path.
+// query, scalar unwrap, distributor alias, mutating unwrap:"detail"),
+// plus the failure contract and the bridge path for methods not in
+// API_MAP. Task 10 flip: HTTP is unconditional for mapped methods — no
+// probe, no bridge fallback, no `?include=inventory`.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../js/ui-helpers.js', () => ({
@@ -23,35 +25,26 @@ function jsonResponse(body, ok = true, status = 200) {
   };
 }
 
-describe('api() HTTP transport (probe succeeds)', () => {
+describe('api() HTTP transport', () => {
   beforeEach(() => {
     AppLog.clear();
     vi.mocked(showToast).mockClear();
     delete window.pywebview;
-    // The probe result is memoized at module scope; force it healthy for
-    // every call in this block by having every fetch (including the /v1/health
-    // probe itself) resolve ok.
-    global.fetch = vi.fn(async () => jsonResponse({ ok: true }));
   });
 
   it('GET with a path param builds the URL and unwraps nothing', async () => {
-    global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ ok: true });
-      return jsonResponse({ unit_price: 1.5, ext_price: 3 });
-    });
+    global.fetch = vi.fn(async () => jsonResponse({ unit_price: 1.5, ext_price: 3 }));
     const result = await api('get_price_summary', 'PART-1');
-    const calls = global.fetch.mock.calls.map(([url]) => url);
-    expect(calls).toContain('/v1/parts/PART-1/prices');
+    const [url] = global.fetch.mock.calls[0];
+    expect(url).toBe('/v1/parts/PART-1/prices');
     expect(result).toEqual({ unit_price: 1.5, ext_price: 3 });
   });
 
   it('POST sends a JSON body assembled from bodyParams in order', async () => {
-    global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ ok: true });
-      return jsonResponse({ id: 'gp-1' });
-    });
+    global.fetch = vi.fn(async () => jsonResponse({ ok: true, detail: { id: 'gp-1' } }));
     await api('create_generic_part', 'Resistor 10k', 'resistor', { ohms: 10000 }, 'loose');
-    const [, init] = global.fetch.mock.calls.find(([url]) => url === '/v1/generic-parts');
+    const [url, init] = global.fetch.mock.calls[0];
+    expect(url).toBe('/v1/generic-parts');
     expect(init.method).toBe('POST');
     expect(JSON.parse(init.body)).toEqual({
       name: 'Resistor 10k',
@@ -61,110 +54,64 @@ describe('api() HTTP transport (probe succeeds)', () => {
     });
   });
 
-  it('DELETE with a query param encodes it in the URL (no body)', async () => {
-    global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ ok: true });
-      return jsonResponse({ inventory: [{ part_key: 'X' }] });
-    });
+  it('DELETE with a query param encodes it in the URL (no body, no ?include)', async () => {
+    global.fetch = vi.fn(async () => jsonResponse({ ok: true, detail: { count: 3 } }));
     const result = await api('remove_last_purchases', 3);
-    const [url, init] = global.fetch.mock.calls.find(([u]) => u !== '/v1/health');
-    expect(url).toBe('/v1/purchases/last?count=3&include=inventory');
+    const [url, init] = global.fetch.mock.calls[0];
+    expect(url).toBe('/v1/purchases/last?count=3');
     expect(init.method).toBe('DELETE');
     expect(init.body).toBeUndefined();
-    expect(result).toEqual([{ part_key: 'X' }]);
+    expect(result).toEqual({ count: 3 });
   });
 
   it('unwraps a scalar envelope (has_purchase_history)', async () => {
-    global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ ok: true });
-      return jsonResponse({ has_purchase_history: true });
-    });
+    global.fetch = vi.fn(async () => jsonResponse({ has_purchase_history: true }));
     const result = await api('has_purchase_history', 'PART-1');
     expect(result).toBe(true);
   });
 
   it('unwraps a scalar envelope (ocr_engine_available -> "available")', async () => {
-    // Real server envelope (server/routes/import_scan.py) is {"available": bool} —
-    // the client must unwrap it back to a bare bool for call sites.
-    global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ ok: true });
-      return jsonResponse({ available: false });
-    });
+    global.fetch = vi.fn(async () => jsonResponse({ available: false }));
     const result = await api('ocr_engine_available');
     expect(result).toBe(false);
   });
 
   it('distributor alias fixes the `name` path segment and derives from `code`', async () => {
-    global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ ok: true });
-      return jsonResponse({ mpn: 'C12345' });
-    });
+    global.fetch = vi.fn(async () => jsonResponse({ mpn: 'C12345' }));
     await api('fetch_lcsc_product', 'C12345');
-    const calls = global.fetch.mock.calls.map(([url]) => url);
-    expect(calls).toContain('/v1/distributors/lcsc/product/C12345');
+    const [url] = global.fetch.mock.calls[0];
+    expect(url).toBe('/v1/distributors/lcsc/product/C12345');
   });
 
-  it('CFG mutation (no ?include support) unwraps "detail" to the facade payload', async () => {
-    // update_vendor's route (server/routes/vendors_pos.py) has no `include`
-    // query param — it's not "mutating" in the ?include=inventory sense —
-    // but its response is still the real finish_mutation envelope
-    // `{"ok": true, "detail": <vendor>}`. js/vendors-modal.js reads vendor
-    // fields (`v.name`) straight off the api() return, so the client must
-    // unwrap "detail", not receive the envelope itself.
-    global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ ok: true });
-      return jsonResponse({ ok: true, detail: { id: 'v1', name: 'Acme', url: 'acme.com' } });
+  it('mutating op unwraps "detail" to the facade payload — no ?include=inventory', async () => {
+    // adjust_part (server/routes/inventory_mut.py): Task 10 removed the
+    // `?include=inventory` echo entirely — mutation responses are always
+    // `{"ok": true, "detail": <facade detail>}`. Frontend refresh is
+    // SSE-driven (js/store.js's scheduleInventoryRefresh), not carried in
+    // the mutation response.
+    global.fetch = vi.fn(async () => jsonResponse({ ok: true, detail: { part_key: 'PART-1', adj_type: 'add', quantity: 5 } }));
+    const result = await api('adjust_part', 'add', 'PART-1', 5, 'note', 'test');
+    const [url, init] = global.fetch.mock.calls[0];
+    expect(url).toBe('/v1/parts/PART-1/adjust');
+    expect(JSON.parse(init.body)).toEqual({
+      adj_type: 'add', note: 'note', quantity: 5, source: 'test',
     });
+    expect(result).toEqual({ part_key: 'PART-1', adj_type: 'add', quantity: 5 });
+  });
+
+  it('CFG mutation (update_vendor) also unwraps "detail" to the facade payload', async () => {
+    // js/vendors-modal.js reads vendor fields (`v.name`) straight off the
+    // api() return, so the client must unwrap "detail", not the envelope.
+    global.fetch = vi.fn(async () => jsonResponse({ ok: true, detail: { id: 'v1', name: 'Acme', url: 'acme.com' } }));
     const result = await api('update_vendor', 'v1', 'Acme', 'acme.com');
-    const [url, init] = global.fetch.mock.calls.find(([u]) => u !== '/v1/health');
+    const [url, init] = global.fetch.mock.calls[0];
     expect(url).toBe('/v1/vendors');
     expect(init.method).toBe('PUT');
     expect(result).toEqual({ id: 'v1', name: 'Acme', url: 'acme.com' });
   });
 
-  it('mutating ops auto-append ?include=inventory and unwrap it', async () => {
-    global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ ok: true });
-      return jsonResponse({ ok: true, detail: {}, inventory: [{ part_key: 'A' }] });
-    });
-    const result = await api('adjust_part', 'add', 'PART-1', 5, 'note', 'test');
-    const [url, init] = global.fetch.mock.calls.find(([u]) => u !== '/v1/health');
-    expect(url).toBe('/v1/parts/PART-1/adjust?include=inventory');
-    expect(JSON.parse(init.body)).toEqual({
-      adj_type: 'add', note: 'note', quantity: 5, source: 'test',
-    });
-    expect(result).toEqual([{ part_key: 'A' }]);
-  });
-
-  it('mutating op with unwrap "detail" still appends ?include=inventory but returns the detail payload', async () => {
-    // record_fetched_prices (server/routes/prices.py): mutating: true AND
-    // unwrap: "detail" — distinct from the ?include=inventory+unwrap:"inventory"
-    // case above (adjust_part) and from the non-mutating unwrap:"detail" case
-    // above (update_vendor). The client must still append ?include=inventory
-    // (mutating: true) but unwrap "detail" out of the envelope, not "inventory".
-    global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ ok: true });
-      return jsonResponse({
-        ok: true,
-        detail: { part_key: 'PART-1', distributor: 'lcsc' },
-        inventory: [{ part_key: 'PART-1' }],
-      });
-    });
-    const result = await api('record_fetched_prices', 'PART-1', 'lcsc', [{ qty: 1, price: 0.5 }]);
-    const [url, init] = global.fetch.mock.calls.find(([u]) => u !== '/v1/health');
-    expect(url).toBe('/v1/parts/PART-1/fetched-prices?include=inventory');
-    expect(JSON.parse(init.body)).toEqual({
-      distributor: 'lcsc',
-      price_tiers: [{ qty: 1, price: 0.5 }],
-    });
-    expect(result).toEqual({ part_key: 'PART-1', distributor: 'lcsc' });
-  });
-
   it('non-ok response parses {error} and hits the failure contract: undefined + AppLog + toast', async () => {
-    global.fetch = vi.fn(async (url) => {
-      if (url === '/v1/health') return jsonResponse({ ok: true });
-      return jsonResponse({ error: 'part not found' }, false, 404);
-    });
+    global.fetch = vi.fn(async () => jsonResponse({ error: 'part not found' }, false, 404));
     const result = await api('get_price_summary', 'MISSING');
     expect(result).toBeUndefined();
     expect(AppLog._entries.some(
@@ -174,54 +121,33 @@ describe('api() HTTP transport (probe succeeds)', () => {
   });
 });
 
-describe('api() falls back to the pywebview bridge when the HTTP probe fails', () => {
+describe('api() bridge path for methods not in API_MAP', () => {
   beforeEach(() => {
     AppLog.clear();
     vi.mocked(showToast).mockClear();
   });
 
-  it('mapped method still goes to the bridge if /v1/health is unreachable', async () => {
-    vi.resetModules();
-    global.fetch = vi.fn(async () => { throw new Error('network error'); });
-    const bridged = vi.fn().mockResolvedValue({ unit_price: 1 });
-    window.pywebview = { api: { get_price_summary: bridged } };
-
-    const { api: freshApi } = await import('../../js/api.js');
-    const result = await freshApi('get_price_summary', 'PART-1');
-
-    expect(bridged).toHaveBeenCalledWith('PART-1');
-    expect(result).toEqual({ unit_price: 1 });
-  });
-
-  it('window.__DUBIS_HTTP__ === false forces the bridge without probing', async () => {
-    vi.resetModules();
-    global.fetch = vi.fn(async () => jsonResponse({ ok: true }));
-    window.__DUBIS_HTTP__ = false;
-    const bridged = vi.fn().mockResolvedValue([{ part_key: 'A' }]);
-    window.pywebview = { api: { rebuild_inventory: bridged } };
-
-    const { api: freshApi } = await import('../../js/api.js');
-    const result = await freshApi('rebuild_inventory');
-
-    expect(bridged).toHaveBeenCalled();
-    expect(result).toEqual([{ part_key: 'A' }]);
-    // fetch was never even attempted for the mapped call (only possibly for /v1/health,
-    // which the __DUBIS_HTTP__ guard should also skip).
-    expect(global.fetch).not.toHaveBeenCalled();
-    delete window.__DUBIS_HTTP__;
-  });
-
-  it('a method not in API_MAP always goes straight to the bridge (no probe)', async () => {
-    vi.resetModules();
+  it('a method not in API_MAP always goes straight to the bridge (no HTTP attempt)', async () => {
     global.fetch = vi.fn(async () => { throw new Error('should not be called'); });
     const bridged = vi.fn().mockResolvedValue('ok');
     window.pywebview = { api: { open_file_dialog: bridged } };
 
-    const { api: freshApi } = await import('../../js/api.js');
-    const result = await freshApi('open_file_dialog', 'Select', null);
+    const result = await api('open_file_dialog', 'Select', null);
 
     expect(bridged).toHaveBeenCalledWith('Select', null);
     expect(result).toBe('ok');
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('a mapped method never falls back to the bridge, even if fetch fails', async () => {
+    global.fetch = vi.fn(async () => { throw new Error('network error'); });
+    const bridged = vi.fn().mockResolvedValue({ unit_price: 1 });
+    window.pywebview = { api: { get_price_summary: bridged } };
+
+    const result = await api('get_price_summary', 'PART-1');
+
+    expect(bridged).not.toHaveBeenCalled();
+    expect(result).toBeUndefined();
+    expect(showToast).toHaveBeenCalledWith('Error: network error');
   });
 });

@@ -7,7 +7,7 @@
 
 import { apiVendors, AppLog } from './api.js';
 import { showToast, escHtml, Modal } from './ui-helpers.js';
-import { onInventoryUpdated } from './store.js';
+import { scheduleInventoryRefresh } from './store.js';
 
 const PSEUDO_TYPES = new Set(["self", "salvage", "unknown"]);
 
@@ -179,17 +179,17 @@ async function save(id, name, url) {
 }
 
 async function remove(id) {
-  const fresh = await apiVendors.delete(id);
-  if (fresh === undefined) return;   // e.g. "vendor has POs; merge first" — api() toasted it
-  onInventoryUpdated(fresh);
+  const result = await apiVendors.delete(id);
+  if (result === undefined) return;   // e.g. "vendor has POs; merge first" — api() toasted it
+  scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
   showToast("Vendor deleted");
   await refresh(null);
 }
 
 async function merge(srcId, dstId) {
-  const fresh = await apiVendors.merge(srcId, dstId);
-  if (fresh === undefined) return;
-  onInventoryUpdated(fresh);
+  const result = await apiVendors.merge(srcId, dstId);
+  if (result === undefined) return;
+  scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
   showToast("Vendors merged");
   AppLog.info(`Merged vendor ${srcId} → ${dstId}`);
   await refresh(dstId);

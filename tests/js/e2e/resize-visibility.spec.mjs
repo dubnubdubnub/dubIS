@@ -4,9 +4,10 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {
-  addMockSetup, waitForInventoryRows, loadBom, loadBomViaEmit, loadBomViaFileInput,
+  waitForInventoryRows, loadBom, loadBomViaEmit, loadBomViaFileInput,
   loadPurchaseOrder, checkElementVisibility, isReachableByScroll,
 } from './helpers.mjs';
+import { installRouteMocks } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -45,7 +46,7 @@ function modeLabel({ bom = false, po = false } = {}) {
 test.describe('Header elements visibility on resize', () => {
 
   test('header buttons visible at minimum viable width (1024px)', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -67,7 +68,7 @@ test.describe('Header elements visibility on resize', () => {
   });
 
   test('header buttons visible at narrow width (800px)', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 800, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -86,7 +87,7 @@ test.describe('Header elements visibility on resize', () => {
   });
 
   test('header buttons not clipped after resize from wide to narrow', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -113,7 +114,7 @@ test.describe('Header elements visibility on resize', () => {
 test.describe('Inventory panel header controls on resize', () => {
 
   test('rebuild button and search input visible at 1200px', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -129,7 +130,7 @@ test.describe('Inventory panel header controls on resize', () => {
   });
 
   test('rebuild button and search fit within panel header at narrow width', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -166,7 +167,7 @@ test.describe('Inventory panel header controls on resize', () => {
 test.describe('BOM multiplier bar buttons on resize', () => {
 
   test('all BOM action buttons visible at 1920px', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -190,7 +191,7 @@ test.describe('BOM multiplier bar buttons on resize', () => {
   });
 
   test('BOM action buttons overflow check at 1200px', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -222,7 +223,7 @@ test.describe('BOM multiplier bar buttons on resize', () => {
   });
 
   test('BOM action buttons reachable by scroll at narrow viewport', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -249,7 +250,7 @@ test.describe('Panel minimum widths vs viewport', () => {
 
   // Panel min-widths sum to 240+300+380 = 920px + 10px handles = ~930px
   test('all three panels visible at 1024px', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -275,7 +276,7 @@ test.describe('Panel minimum widths vs viewport', () => {
   });
 
   test('panels overflow at very narrow viewport (800px)', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 800, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -309,7 +310,7 @@ test.describe('Panel minimum widths vs viewport', () => {
   });
 
   test('all three panels visible at 1024px with PO loaded', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -336,7 +337,7 @@ test.describe('Panel minimum widths vs viewport', () => {
   });
 
   test('all three panels visible at 1024px with BOM + PO', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -362,7 +363,7 @@ test.describe('Panel minimum widths vs viewport', () => {
   });
 
   test('panels resize proportionally when viewport shrinks', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -400,7 +401,7 @@ test.describe('Panel minimum widths vs viewport', () => {
 test.describe('BOM comparison table buttons', () => {
 
   test('button group stays visible when table scrolled horizontally', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -432,7 +433,7 @@ test.describe('BOM comparison table buttons', () => {
   });
 
   test('button group stays visible when table scrolled horizontally — with PO', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -462,7 +463,7 @@ test.describe('BOM comparison table buttons', () => {
   });
 
   test('Adjust/Confirm/Link buttons visible in first BOM row at narrow width', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -504,7 +505,7 @@ test.describe('BOM comparison table buttons', () => {
    */
   function checkBomButtonsNotClipped(viewportWidth, { withPO = false } = {}) {
     return async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize({ width: viewportWidth, height: 700 });
       await page.goto('/index.html');
       await waitForInventoryRows(page);
@@ -555,7 +556,7 @@ test.describe('BOM comparison table buttons', () => {
 test.describe('Filter bar wrapping', () => {
 
   test('filter bar wraps gracefully at narrow width', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -595,7 +596,7 @@ test.describe('Filter bar wrapping', () => {
   });
 
   test('filter bar wraps gracefully at narrow width — with PO', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -635,7 +636,7 @@ test.describe('Filter bar wrapping', () => {
 test.describe('Modal dialogs at narrow viewports', () => {
 
   test('adjustment modal fits within 800px viewport', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 800, height: 600 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -674,7 +675,7 @@ test.describe('Modal dialogs at narrow viewports', () => {
   });
 
   test('preferences modal at narrow viewport', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 800, height: 600 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -705,7 +706,7 @@ test.describe('Modal dialogs at narrow viewports', () => {
   });
 
   test('preferences modal sliders share left and right edges across categories and subcategories', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.goto('/index.html');
     await waitForInventoryRows(page);
 
@@ -730,7 +731,7 @@ test.describe('Modal dialogs at narrow viewports', () => {
   });
 
   test('adjustment modal fits within 800px viewport — with BOM + PO', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 800, height: 600 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -770,7 +771,7 @@ test.describe('Modal dialogs at narrow viewports', () => {
 test.describe('Import panel elements on resize', () => {
 
   test('drop zone visible at all viewport widths', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     for (const width of [800, 1024, 1200, 1920]) {
       await page.setViewportSize({ width, height: 700 });
       await page.goto('/index.html');
@@ -783,7 +784,7 @@ test.describe('Import panel elements on resize', () => {
   });
 
   test('PO staging table and import button visible after loading purchase CSV', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -800,7 +801,7 @@ test.describe('Import panel elements on resize', () => {
   });
 
   test('PO staging table visible at narrow viewport (1024px)', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -813,7 +814,7 @@ test.describe('Import panel elements on resize', () => {
   });
 
   test('PO staging table visible with BOM loaded', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -825,7 +826,7 @@ test.describe('Import panel elements on resize', () => {
   });
 
   test('console log clear button visible at narrow width', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -845,7 +846,7 @@ test.describe('Import panel elements on resize', () => {
    */
   for (const width of [1280, 1366, 1440, 1600, 1800]) {
     test(`drop-zone content stays inside its box at ${width}px`, async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize({ width, height: 800 });
       await page.goto('/index.html');
       await waitForInventoryRows(page);
@@ -885,7 +886,7 @@ test.describe('Import panel elements on resize', () => {
 test.describe('Console log vs import body at short viewport', () => {
 
   test('import body retains usable height with console log at 500px viewport height', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 500 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -909,7 +910,7 @@ test.describe('Console log vs import body at short viewport', () => {
   });
 
   test('import body retains usable height with PO staging at 500px viewport height', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 500 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -939,7 +940,7 @@ test.describe('Console log vs import body at short viewport', () => {
 test.describe('Panel body scrollability', () => {
 
   test('inventory panel body scrolls when content exceeds height', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 600 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -964,7 +965,7 @@ test.describe('Panel body scrollability', () => {
   });
 
   test('inventory panel body scrolls with PO loaded', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 600 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -986,7 +987,7 @@ test.describe('Panel body scrollability', () => {
   });
 
   test('BOM table scrolls horizontally when narrow', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -1026,7 +1027,7 @@ test.describe('Inventory row elements at narrow widths', () => {
    */
   function checkRowButtonsNotClipped(viewportWidth, { withBom = false, withPO = false } = {}) {
     return async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize({ width: viewportWidth, height: 700 });
       await page.goto('/index.html');
       await waitForInventoryRows(page);
@@ -1076,7 +1077,7 @@ test.describe('Inventory row elements at narrow widths', () => {
   test('adjust+link buttons not clipped at 900px with BOM + PO', checkRowButtonsNotClipped(900, { withBom: true, withPO: true }));
 
   test('part-id, mpn, qty visible in narrow inventory rows', async ({ page }) => {
-    await addMockSetup(page, MOCK_INVENTORY);
+    await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
@@ -1151,7 +1152,7 @@ const AUDIT_VIEWPORTS = [
 test.describe('Cross-viewport visibility audit — no BOM', () => {
   for (const vp of AUDIT_VIEWPORTS) {
     test(`UI elements at ${vp.width}x${vp.height}`, async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);
@@ -1188,7 +1189,7 @@ const BOM_AUDIT_ELEMENTS = [
 test.describe('Cross-viewport visibility audit — with BOM', () => {
   for (const vp of AUDIT_VIEWPORTS) {
     test(`BOM elements at ${vp.width}x${vp.height}`, async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);
@@ -1229,7 +1230,7 @@ const PO_AUDIT_ELEMENTS = [
 test.describe('Cross-viewport visibility audit — with PO', () => {
   for (const vp of AUDIT_VIEWPORTS) {
     test(`PO elements at ${vp.width}x${vp.height}`, async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);
@@ -1262,7 +1263,7 @@ test.describe('Cross-viewport visibility audit — with PO', () => {
 test.describe('Cross-viewport visibility audit — with BOM + PO', () => {
   for (const vp of AUDIT_VIEWPORTS) {
     test(`BOM + PO elements at ${vp.width}x${vp.height}`, async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);
@@ -1310,7 +1311,7 @@ const WRAP_VIEWPORTS = [
 test.describe('Designator wrapping audit — with BOM', () => {
   for (const vp of WRAP_VIEWPORTS) {
     test(`designator cells contained at ${vp.width}x${vp.height}`, async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);
@@ -1369,7 +1370,7 @@ const STRESS_VIEWPORTS = [
 test.describe('Large designator stress test — with stress BOM', () => {
   for (const vp of STRESS_VIEWPORTS) {
     test(`stress BOM rows contained at ${vp.width}x${vp.height}`, async ({ page }) => {
-      await addMockSetup(page, MOCK_INVENTORY);
+      await installRouteMocks(page, MOCK_INVENTORY);
       await page.setViewportSize(vp);
       await page.goto('/index.html');
       await waitForInventoryRows(page);

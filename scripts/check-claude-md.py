@@ -21,7 +21,7 @@ _PATHISH_RE = re.compile(r"^[A-Za-z0-9_\-./]+$")
 _BARE_EXT_RE = re.compile(r"^\.[A-Za-z0-9]+$")
 _SRC_EXTS = (".py", ".pyw", ".js", ".mjs", ".ts", ".css", ".html", ".json",
              ".sh", ".md", ".csv", ".yml", ".yaml")
-_SKIP_PREFIXES = ("data/", "events/", "memory/", "~", "claude/")
+_SKIP_PREFIXES = ("data/", "events/", "memory/", "~", "claude/", "/v1")
 _SKIP_EXACT = {
     ".mcp.json",  # gitignored local MCP config; documented but not checked in
 }
