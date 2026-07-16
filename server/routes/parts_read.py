@@ -9,7 +9,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
-from server.models import InventoryEnvelope
+from server.models import (
+    GroupsResponse,
+    InventoryEnvelope,
+    PurchaseHistoryResponse,
+    QuantityResponse,
+)
 
 router = APIRouter(prefix="/v1", tags=["parts"])
 
@@ -38,19 +43,31 @@ def get_sourced_distributors(request: Request, part_key: str) -> list:
     return api.get_sourced_distributors(part_key)
 
 
-@router.get("/parts/{part_key}/last-po-quantity", operation_id="get_last_po_quantity")
+@router.get(
+    "/parts/{part_key}/last-po-quantity",
+    operation_id="get_last_po_quantity",
+    response_model=QuantityResponse,
+)
 def get_last_po_quantity(request: Request, part_key: str) -> dict:
     api = request.app.state.api
     return {"quantity": api.get_last_po_quantity(part_key)}
 
 
-@router.get("/parts/{part_key}/purchase-history", operation_id="has_purchase_history")
+@router.get(
+    "/parts/{part_key}/purchase-history",
+    operation_id="has_purchase_history",
+    response_model=PurchaseHistoryResponse,
+)
 def has_purchase_history(request: Request, part_key: str) -> dict:
     api = request.app.state.api
     return {"has_purchase_history": api.has_purchase_history(part_key)}
 
 
-@router.get("/parts/{part_key}/groups", operation_id="get_generic_group_names")
+@router.get(
+    "/parts/{part_key}/groups",
+    operation_id="get_generic_group_names",
+    response_model=GroupsResponse,
+)
 def get_generic_group_names(request: Request, part_key: str) -> dict:
     api = request.app.state.api
     return {"groups": api.get_generic_group_names(part_key)}
