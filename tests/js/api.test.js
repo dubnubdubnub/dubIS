@@ -117,7 +117,7 @@ describe('whenPywebviewReady', () => {
   });
 
   it('resolves immediately when API methods are populated', async () => {
-    window.pywebview = { api: { load_preferences: vi.fn() } };
+    window.pywebview = { api: { set_bom_dirty: vi.fn() } };
     let resolved = false;
     whenPywebviewReady().then(() => { resolved = true; });
     // Allow pending microtasks to flush
@@ -153,17 +153,17 @@ describe('whenPywebviewReady', () => {
     expect(resolved).toBe(false);
 
     // Simulate finish.js: attach methods then dispatch the ready event
-    window.pywebview.api.load_preferences = vi.fn();
+    window.pywebview.api.set_bom_dirty = vi.fn();
     window.dispatchEvent(new Event('pywebviewready'));
 
     await promise;
     expect(resolved).toBe(true);
   });
 
-  it('treats a truthy non-function load_preferences as not ready', async () => {
+  it('treats a truthy non-function set_bom_dirty as not ready', async () => {
     // Defensive: only an actual function counts as hydrated. An accidental
     // truthy placeholder value (string, object, etc.) must not pass the check.
-    window.pywebview = { api: { load_preferences: 'not-a-function' } };
+    window.pywebview = { api: { set_bom_dirty: 'not-a-function' } };
     let resolved = false;
     whenPywebviewReady().then(() => { resolved = true; });
     await Promise.resolve();

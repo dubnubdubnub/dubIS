@@ -149,8 +149,13 @@ export async function api(method, ...args) {
 // (a truthy empty placeholder), then finish.js calls _createApi(funcList) and dispatches
 // `pywebviewready`. Code that calls API methods before phase 2 hits "is not a function".
 // Probe for a known stable method to distinguish the placeholder from a hydrated bridge.
+// Since Phase 1b Task 8, the bridge is the ~9-method ClientShell (client_shell.py) —
+// `set_bom_dirty` is one of its methods and is as stable a sentinel as the old
+// `load_preferences` (which moved to the /v1 HTTP surface and is no longer on the
+// bridge at all). This probe is bridge-readiness only; HTTP readiness is separate
+// (the /v1 server is up before the page is ever served, by construction).
 export function whenPywebviewReady() {
-  if (typeof window.pywebview?.api?.load_preferences === "function") {
+  if (typeof window.pywebview?.api?.set_bom_dirty === "function") {
     return Promise.resolve();
   }
   return new Promise((resolve) => {

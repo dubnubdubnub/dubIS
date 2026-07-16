@@ -1,15 +1,28 @@
-"""Freeze the public pywebview API surface of ``InventoryApi``.
+"""Freeze the public pywebview API surface: ``ClientShell``.
 
 pywebview's ``webview/util.py:get_functions()`` registers exactly the attributes
 that (a) do not start with ``_`` and (b) pass ``inspect.ismethod()`` — i.e. bound
 instance methods. Those become ``window.pywebview.api.<name>`` and the JS frontend
 calls them *positionally* via the ``api("name", ...args)`` bridge in ``js/api.js``.
 
-This test freezes that surface — the method-name set plus each method's parameter
-shape (names, order, defaults) — so the planned split of ``InventoryApi`` into
-facades cannot silently rename, drop, reorder-params, or change-a-default on any
-method the frontend depends on. It is the safety net the facade refactor is
-verified against.
+Since Phase 1b Task 8 (``feat(app): desktop = browser on loopback /v1; bridge
+shrinks to 9-method client shell``), ``app.pyw`` passes ``ClientShell``
+(``client_shell.py``), not ``InventoryApi``, as ``js_api`` — the desktop app
+is a browser pointed at the loopback ``/v1`` server, and all business/
+inventory traffic goes over HTTP instead of this bridge. This test freezes
+*that* surface — the ~9-method OS/window-integration shell — so it cannot
+silently rename, drop, reorder-params, or change-a-default on any method the
+frontend's bridge fallback (``window.pywebview.api[method]`` in ``js/api.js``)
+still depends on.
+
+Tombstone: before this task, this file froze ``InventoryApi``'s full
+~76-method surface (the previous bridge). That surface's *route* equivalent
+is now frozen by ``tests/python/server/test_v1_surface.py`` (the /v1 HTTP
+API is InventoryApi's successor as the primary JS↔Python contract) — that
+module keeps its own copy of the old bridge-name list for its
+op-id-legitimacy cross-check, since ``InventoryApi`` itself still has all
+those methods (unexposed to pywebview, but still called by /v1 route
+handlers).
 
 Annotations and return types are intentionally excluded from the frozen signature:
 pywebview only passes positional args, so only parameter names/order/defaults are
@@ -17,23 +30,25 @@ part of the JS contract, and dropping annotations keeps this stable across Pytho
 versions (string annotations render differently between interpreters).
 
 If this fails after an *intentional* API change, update ``FROZEN_SURFACE``
-deliberately — and check whether ``js/`` callers and the generated
-``tests/fixtures/`` need updating too.
+deliberately — and check whether ``js/`` callers depend on the changed shape.
 """
 import inspect
 
+from client_shell import ClientShell
 from inventory_api import InventoryApi
 
 # Hardcoded in js/api.js whenPywebviewReady(): the bridge is probed for this exact
 # method name to detect readiness. Losing/renaming it hangs app startup silently.
-SENTINEL = "load_preferences"
+SENTINEL = "set_bom_dirty"
 
 # Public @staticmethods (NOT part of the pywebview bridge — staticmethods fail
 # inspect.ismethod — but public API other Python code uses; assert they survive).
+# These live on InventoryApi, not ClientShell — the bridge shrank, InventoryApi
+# (and the rest of Python that imports it directly) didn't.
 PUBLIC_STATICS = ("fix_double_utf8", "get_part_key")
 
 # Public class attributes read directly by other modules/tests
-# (mfg_direct_import.py, test_cache_db.py, test_real_data.py).
+# (mfg_direct_import.py, test_cache_db.py, test_real_data.py). Also InventoryApi.
 PUBLIC_CLASS_ATTRS = (
     "FIELDNAMES",
     "ADJ_FIELDNAMES",
@@ -42,89 +57,18 @@ PUBLIC_CLASS_ATTRS = (
     "SECTION_HIERARCHY",
 )
 
-# name -> annotation-free parameter signature. The frozen pywebview surface.
+# name -> annotation-free parameter signature. The frozen pywebview surface
+# (ClientShell — see module docstring for how this differs from before Task 8).
 FROZEN_SURFACE = {
-    'add_generic_member': '(generic_part_id, part_id)',
-    'adjust_part': "(adj_type, part_key, quantity, note='', source='')",
     'bench_mark': "(label, detail='')",
-    'check_digikey_session': '()',
-    'clear_mouser_api_key': '()',
     'confirm_close': '()',
-    'consume_bom': "(matches_json, board_qty, bom_name, note='', source='')",
-    'convert_xls_to_csv': '(path)',
-    'create_generic_part': '(name, part_type, spec_json, strictness_json)',
-    'create_purchase_order_with_items': (
-        '(vendor_id, source_file_b64, source_file_name, purchase_date, notes, line_items_json)'
-    ),
-    'create_saved_search': '(generic_part_id, name, tag_state_json, search_text, frozen_members_json)',
-    'delete_last_purchase_order': '()',
-    'delete_purchase_order': '(po_id)',
-    'delete_saved_search': '(search_id)',
-    'delete_part': '(part_key)',
-    'delete_vendor': '(vendor_id)',
-    'detect_columns': '(headers_json)',
-    'disable_inventory_mirror': '()',
-    'enable_inventory_mirror': '()',
-    'exclude_generic_member': '(generic_part_id, part_id)',
-    'extract_spec': '(part_key)',
-    'extract_spec_from_value': '(part_type, value_str, package_str)',
-    'fetch_digikey_product': '(part_number)',
-    'fetch_favicon': '(url)',
-    'fetch_lcsc_product': '(product_code)',
-    'fetch_missing_descriptions': '()',
-    'fetch_mouser_product': '(part_number)',
-    'fetch_pololu_product': '(sku)',
-    'get_digikey_login_status': '()',
-    'get_generic_group_names': '(part_key)',
-    'get_inventory_mirror_info': '()',
-    'get_last_po_quantity': '(part_key)',
-    'get_mouser_api_key_status': '()',
-    'get_part_history': '(part_key)',
-    'get_po_source_preview': '(po_id)',
-    'get_po_with_items': '(po_id)',
-    'get_price_summary': '(part_key)',
-    'get_sourced_distributors': '(part_key)',
-    'get_warnings': '()',
-    'has_purchase_history': '(part_key)',
-    'import_purchases': '(rows_json)',
     'install_tesseract': '()',
-    'list_generic_parts': '()',
-    'list_purchase_orders': '()',
-    'list_saved_searches': '(generic_part_id)',
-    'list_vendors': '()',
     'load_file': '(path)',
-    'load_preferences': '()',
-    'logout_digikey': '()',
-    'match_part': "(mpn, manufacturer='')",
-    'merge_vendors': '(src_id, dst_id)',
-    'ocr_engine_available': '()',
-    'ocr_overlay_b64': "(file_b64, file_name, template='generic')",
     'open_file_dialog': "(title='Select CSV file', default_dir=None)",
     'open_source_file': '(po_id)',
-    'parse_source_file': "(path, template='generic')",
-    'parse_source_file_b64': "(file_b64, file_name, template='generic')",
-    'rebuild_inventory': '()',
-    'record_fetched_prices': '(part_key, distributor, price_tiers)',
-    'remove_generic_member': '(generic_part_id, part_id)',
-    'remove_last_adjustments': '(count)',
-    'remove_last_purchases': '(count)',
-    'resolve_bom_spec': '(part_type, value, package)',
-    'rollback_source': '(source)',
     'save_file_dialog': "(content, default_name='export.csv', default_dir=None, links_json=None)",
-    'save_preferences': '(prefs_json)',
     'set_bom_dirty': '(dirty)',
-    'set_mouser_api_key': '(key)',
-    'set_preferred_member': '(generic_part_id, part_id)',
-    'shutdown': '()',
     'start_digikey_login': '()',
-    'start_scan_session': "(template='generic')",
-    'sync_digikey_cookies': '()',
-    'update_generic_part': '(generic_part_id, name, spec_json, strictness_json)',
-    'update_part_fields': '(part_key, fields_json)',
-    'update_part_price': '(part_key, unit_price=None, ext_price=None)',
-    'update_purchase_order': "(po_id, vendor_id='', purchase_date='', notes='')",
-    'update_vendor': "(vendor_id='', name='', url='', favicon_path='')",
-    'validate_digikey_session': '()',
 }
 
 
@@ -145,11 +89,11 @@ def _norm_sig(method) -> str:
 
 def _live_surface() -> dict[str, str]:
     """The exact filter pywebview applies: public + bound-method, mapped to its signature."""
-    api = InventoryApi()
+    shell = ClientShell(InventoryApi())
     return {
-        n: _norm_sig(getattr(api, n))
-        for n in dir(api)
-        if not n.startswith("_") and inspect.ismethod(getattr(api, n))
+        n: _norm_sig(getattr(shell, n))
+        for n in dir(shell)
+        if not n.startswith("_") and inspect.ismethod(getattr(shell, n))
     }
 
 
