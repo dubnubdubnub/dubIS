@@ -93,6 +93,24 @@ describe('api() HTTP transport (probe succeeds)', () => {
     expect(calls).toContain('/v1/distributors/lcsc/product/C12345');
   });
 
+  it('CFG mutation (no ?include support) unwraps "detail" to the facade payload', async () => {
+    // update_vendor's route (server/routes/vendors_pos.py) has no `include`
+    // query param — it's not "mutating" in the ?include=inventory sense —
+    // but its response is still the real finish_mutation envelope
+    // `{"ok": true, "detail": <vendor>}`. js/vendors-modal.js reads vendor
+    // fields (`v.name`) straight off the api() return, so the client must
+    // unwrap "detail", not receive the envelope itself.
+    global.fetch = vi.fn(async (url) => {
+      if (url === '/v1/health') return jsonResponse({ ok: true });
+      return jsonResponse({ ok: true, detail: { id: 'v1', name: 'Acme', url: 'acme.com' } });
+    });
+    const result = await api('update_vendor', 'v1', 'Acme', 'acme.com');
+    const [url, init] = global.fetch.mock.calls.find(([u]) => u !== '/v1/health');
+    expect(url).toBe('/v1/vendors');
+    expect(init.method).toBe('PUT');
+    expect(result).toEqual({ id: 'v1', name: 'Acme', url: 'acme.com' });
+  });
+
   it('mutating ops auto-append ?include=inventory and unwrap it', async () => {
     global.fetch = vi.fn(async (url) => {
       if (url === '/v1/health') return jsonResponse({ ok: true });
