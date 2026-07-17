@@ -8,7 +8,7 @@ Desktop app: Python backend + vanilla JS/HTML/CSS frontend, served over HTTP. `a
 |-------|-------|
 | **Backend** | `app.pyw` (webview launcher; boots `server/` then opens the window at `splash.html`; `.pyw` so Windows uses `pythonw.exe` and skips the console window), `splash.html` (first paint; polls `/v1/health` then self-navigates to `index.html`), `client_shell.py` (the ~9-method pywebview bridge: file dialogs, close-confirm, BOM-dirty — the only surface still exposed to `window.pywebview.api`), `server/` (FastAPI `/v1` app: `server/app.py` composition root, `server/routes/` resource routes, `server/mutations.py` command routes + SSE dual-write publish points, `server/events.py` SSE pub/sub, `server/models.py` Pydantic request/response models), `inventory_api.py` (business-logic facade the server calls into; composition root; surface frozen by `tests/python/test_api_surface.py`), `inventory_ops.py` (merge/adjust/categorize/sort), `csv_io.py` (CSV read/write/migrate), `cache_db.py` (SQLite materialized view), `categorize.py` (part categorization), `spec_extractor.py` (component spec parsing), `distributor_manager.py` (client coordination), `base_client.py` (ABC), `digikey_client.py` + `digikey_cdp.py` + `digikey_normalizer.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`, `html_product_parser.py` (shared HTML extraction), `pnp_server.py` (OpenPnP HTTP API; pushes to the frontend via SSE only — no more direct `evaluate_js` injection), `file_dialogs.py` (OS file dialogs), `dubis_errors.py` (exception hierarchy); `domain/` (extracted business logic: `domain/inventory.py`, `domain/pricing.py`, `domain/generic_parts.py`, `domain/part_registry.py`) |
 | **Frontend** | `index.html`, `css/` (split stylesheets: `css/tokens/`, `css/components/`, `css/panels/`, `css/buttons.css`, `css/tables.css`, `css/modals.css`), JS ES modules in `js/` and subdirs (`js/a11y/`, `js/bom/`, `js/group-flyout/`, `js/import/`, `js/inventory/`, `js/vendor/`) — no build step, no framework. `js/api.js` talks to `/v1` over `fetch` (`js/api-map.js`, generated from `docs/openapi-v1.json`, drives URL/verb/body building) for every method it maps; only the handful of client-shell methods still go through `window.pywebview.api`. `js/sse.js` + `js/store.js`'s `scheduleInventoryRefresh()` are the sole inventory re-render path: an `inventory.updated` SSE push (or a direct post-mutation call, sharing the same debounce) triggers a debounced re-fetch — mutation responses no longer carry inventory data. |
-| **Data** | CSV in `data/` — `data/inventory.csv`, `data/purchase_ledger.csv`, `data/adjustments.csv`; events in `events/` — `events/price_observations.csv`, `events/part_events.csv`; config: `data/preferences.json`, `data/constants.json`, `data/pnp_part_map.json`, `data/part_registry.json`, `data/generic_parts.json`, `data/saved_searches.json`; SQLite: `cache.db` (deletable, rebuilt from CSVs); entity persistence rules: docs/entity-store.md |
+| **Data** | CSV in `data/` — `data/inventory.csv`, `data/purchase_ledger.csv`, `data/adjustments.csv`; events in `events/` — `events/price_observations.csv`, `events/part_events.csv`; config: `data/preferences.json`, `data/constants.json`, `data/pnp_part_map.json`, `data/part_registry.json`, `data/generic_parts.json`, `data/saved_searches.json`; runtime: `data/.v1_port` (bound `/v1` port, written on server startup, removed on clean shutdown — lets `tools/dubis-mcp` discover a running server); SQLite: `cache.db` (deletable, rebuilt from CSVs); entity persistence rules: docs/entity-store.md |
 
 ## Data Flow
 
@@ -35,7 +35,7 @@ All inventory-mutating API methods (`adjust_part`, `import_purchases`, `consume_
 
 ## Agent Tooling
 
-Two custom MCP servers are configured in `.mcp.json` at the repo root:
+Three custom MCP servers are configured in `.mcp.json` at the repo root:
 
 ### devtools MCP (`tools/dev-tools-mcp/server.py`)
 
@@ -64,6 +64,15 @@ event_trace("INVENTORY_UPDATED")
 ### ssh MCP (`tools/ssh-mcp/server.py`)
 
 Remote access to the PnP machine and test runner over Tailscale — see `memory/reference_pnp_machine.md` and `memory/reference_ux430_testbox.md` for connection details.
+
+### dubis MCP (`tools/dubis-mcp/server.py`)
+
+10 curated inventory tools over the `/v1` API (search, get, spec-search, low-stock, prices, history, generic-parts, adjust, consume) — a stdio HTTP client of `/v1`, not a direct CSV/SQLite reader. Discovers a running server via `DUBIS_URL` env → `data/.v1_port` (health-checked) → a spawned `python -m server` fallback. See `tools/dubis-mcp/README.md` for registration, discovery detail, and the `adjust_stock` `set`-creates vs `add`/`remove`-require-existing semantics.
+
+```
+# Substring search returning a compact {part_key, description, qty, section, package, unit_price} projection:
+search_parts("100nF")
+```
 
 ## EventBus Flow
 
