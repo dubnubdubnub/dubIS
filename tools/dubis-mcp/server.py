@@ -34,7 +34,22 @@ otherwise come back as a misleading {"new_qty": None} instead of any error
 at all. adjust_stock pre-checks existence via _find_part for "add"/"remove"
 and raises ValueError("Part not found: <key>") itself, before ever calling
 /v1, giving the same "Part not found" wording get_part uses. "set" is left
-alone — it intentionally creates new parts, so no precheck applies to it.
+alone when part_key resolves to no existing part — it intentionally creates
+new parts, so no precheck applies to that specific case.
+
+Canonical-key normalization: several /v1 routes are canonical-key-strict —
+they key straight off the `part_key` path/body value with no lookup of
+their own (POST /v1/parts/{part_key}/adjust, POST /v1/bom/consume, GET
+/v1/parts/{part_key}/prices, GET /v1/parts/{part_key}/history). Passing an
+alias PN (e.g. an MPN when the part's canonical key is its LCSC number)
+straight through would write or read against the alias key, never the
+canonical part — for adjust_stock this used to mean silently creating a
+disconnected adjustment row while reporting the canonical part's unchanged
+quantity back as "new_qty". get_part, price_summary, part_history,
+adjust_stock, and consume_bom all resolve every part_key/match through
+_find_part + _derive_part_key first (the same lookup+precedence get_part
+has always used) so an alias PN and its part's canonical key behave
+identically everywhere.
 """
 
 from __future__ import annotations
@@ -265,6 +280,10 @@ def low_stock(threshold: int | None = None) -> dict:
         threshold: quantity ceiling to flag; when omitted, uses each part's
             own per-section threshold from GET /v1/preferences (sections with
             no configured threshold default to 0, i.e. only zero-stock parts).
+            This is a flat lookup keyed on the item's exact section string —
+            unlike the desktop UI, a compound section like "Parent > Sub"
+            does NOT inherit its parent section's threshold here; only an
+            exact "Parent > Sub" entry in /v1/preferences applies.
 
     Returns:
         {parts: [{part_key, description, qty, section, package, unit_price, threshold}, ...],
@@ -287,39 +306,57 @@ def low_stock(threshold: int | None = None) -> dict:
 
 
 @mcp.tool()
-def price_summary(part_key: str) -> dict:
+def price_summary(part_key: str) -> dict | str:
     """Per-distributor price aggregates plus the last purchase-order quantity.
 
     Args:
-        part_key: LCSC/MPN/Digikey/Pololu/Mouser PN, or a derived part_key.
+        part_key: LCSC/MPN/Digikey/Pololu/Mouser PN, or a derived part_key —
+            an alias PN is resolved to its part's canonical part_key (same
+            precedence as get_part) before querying /v1, since those routes
+            are canonical-key-strict.
 
     Returns:
         {part_key, distributors: {distributor: {latest_unit_price, avg_unit_price,
-         price_count, last_observed, moq, source}, ...}, last_po_quantity}
+         price_count, last_observed, moq, source}, ...}, last_po_quantity},
+        or a plain error string if part_key matches nothing.
     """
+    item = _find_part(part_key)
+    if item is None:
+        return f"Part not found: {part_key}"
+    key = _derive_part_key(item)
+
     client = _get_client()
-    prices = client.get(f"/v1/parts/{part_key}/prices")
-    last_po = client.get(f"/v1/parts/{part_key}/last-po-quantity")
+    prices = client.get(f"/v1/parts/{key}/prices")
+    last_po = client.get(f"/v1/parts/{key}/last-po-quantity")
     return {
-        "part_key": part_key,
+        "part_key": key,
         "distributors": prices,
         "last_po_quantity": last_po.get("quantity") if isinstance(last_po, dict) else None,
     }
 
 
 @mcp.tool()
-def part_history(part_key: str, limit: int = 10) -> dict:
+def part_history(part_key: str, limit: int = 10) -> dict | str:
     """Adjustment log for one part, most recent entries first up to *limit*.
 
     Args:
-        part_key: LCSC/MPN/Digikey/Pololu/Mouser PN, or a derived part_key.
+        part_key: LCSC/MPN/Digikey/Pololu/Mouser PN, or a derived part_key —
+            an alias PN is resolved to its part's canonical part_key (same
+            precedence as get_part) before querying /v1, since this route is
+            canonical-key-strict.
         limit: max entries to return.
 
     Returns:
-        {part_key, history: [{timestamp, kind, qty_delta, source, note}, ...]}
+        {part_key, history: [{timestamp, kind, qty_delta, source, note}, ...]},
+        or a plain error string if part_key matches nothing.
     """
-    entries = _get_client().get(f"/v1/parts/{part_key}/history")
-    return {"part_key": part_key, "history": entries[:limit]}
+    item = _find_part(part_key)
+    if item is None:
+        return f"Part not found: {part_key}"
+    key = _derive_part_key(item)
+
+    entries = _get_client().get(f"/v1/parts/{key}/history")
+    return {"part_key": key, "history": entries[:limit]}
 
 
 @mcp.tool()
@@ -369,7 +406,17 @@ def adjust_stock(part_key: str, adj_type: str, quantity: int, note: str = "") ->
     """Apply a stock adjustment to one part and report its resulting quantity.
 
     Args:
-        part_key: LCSC/MPN/Digikey/Pololu/Mouser PN, or a derived part_key.
+        part_key: LCSC/MPN/Digikey/Pololu/Mouser PN, or a derived part_key —
+            when part_key matches an EXISTING part (any of "set"/"add"/
+            "remove"), it is resolved to that part's canonical part_key (same
+            precedence as get_part) before POSTing to /v1, since POST
+            /v1/parts/{part_key}/adjust is canonical-key-strict: adjusting by
+            an unresolved alias PN would write a spurious adjustment row
+            under the alias key that never merges into the canonical part,
+            and the resulting new_qty would silently be the canonical part's
+            unchanged quantity. "set" against a part_key that matches
+            nothing is the one case with no canonical key to resolve to —
+            the raw part_key is used as-is to create the new part.
         adj_type: one of "set" (absolute new quantity — may CREATE a brand-new
             part_key that has no prior ledger/adjustment row), "add"
             (increase an EXISTING part's quantity by quantity), "remove"
@@ -379,9 +426,10 @@ def adjust_stock(part_key: str, adj_type: str, quantity: int, note: str = "") ->
         note: optional free-text note recorded on the adjustment.
 
     Returns:
-        {part_key, new_qty} — new_qty comes from refetching the part after
-        the adjustment. The adjustment is recorded with source="mcp"
-        (visible afterward via part_history).
+        {part_key, new_qty} — part_key is the canonical key actually written
+        to (may differ from the input alias PN); new_qty comes from
+        refetching the part after the adjustment. The adjustment is recorded
+        with source="mcp" (visible afterward via part_history).
 
     Raises:
         ValueError: adj_type is "add" or "remove" and part_key matches no
@@ -389,14 +437,19 @@ def adjust_stock(part_key: str, adj_type: str, quantity: int, note: str = "") ->
             wording get_part uses for a lookup miss) — /v1 itself would
             otherwise silently no-op the request rather than error.
     """
-    if adj_type in ("add", "remove") and _find_part(part_key) is None:
+    existing = _find_part(part_key)
+    if adj_type in ("add", "remove") and existing is None:
         raise ValueError(f"Part not found: {part_key}")
+    # "set" on an unresolved key intentionally falls through with the raw
+    # part_key — that's the one case allowed to create a brand-new part.
+    key = _derive_part_key(existing) if existing is not None else part_key
+
     _get_client().post(
-        f"/v1/parts/{part_key}/adjust",
+        f"/v1/parts/{key}/adjust",
         json={"adj_type": adj_type, "quantity": quantity, "note": note, "source": "mcp"},
     )
-    item = _find_part(part_key)
-    return {"part_key": part_key, "new_qty": item.get("qty", 0) if item is not None else None}
+    item = _find_part(key)
+    return {"part_key": key, "new_qty": item.get("qty", 0) if item is not None else None}
 
 
 @mcp.tool()
@@ -410,24 +463,60 @@ def consume_bom(matches: list[dict], board_qty: int = 1, bom_name: str = "mcp-bo
             domain/inventory.py's consume_bom): ``bom_qty`` is how many units
             of that part one board uses; the server multiplies it by
             board_qty before subtracting from stock. Extra keys are ignored.
+            Each ``part_key`` may be an alias PN (LCSC/MPN/Digikey/Pololu/
+            Mouser) or a derived part_key — ALL matches are resolved to their
+            canonical part_key (same precedence as get_part) before POSTing,
+            since POST /v1/bom/consume writes the adjustments CSV keyed by
+            whatever string it's given with no lookup of its own: an
+            unresolved alias would create a spurious row that never merges
+            into the canonical part's stock.
         board_qty: number of boards being built.
         bom_name: label recorded on the adjustment (e.g. a BOM file name).
 
     Returns:
-        {bom_name, board_qty, consumed: matches} echoing what was submitted.
-        The adjustment is recorded with source="mcp".
+        {bom_name, board_qty, consumed: [{part_key, new_qty}, ...]} — part_key
+        per entry is the canonical key actually written to; new_qty comes
+        from refetching each consumed part after the POST. The adjustment is
+        recorded with source="mcp".
+
+    Raises:
+        ValueError: one or more ``matches[i]["part_key"]`` match no existing
+            part — every unknown key is collected and reported together in
+            one error (rather than failing on the first), since /v1/bom/
+            consume itself has no existence check and would otherwise write
+            spurious rows for the unknown keys before ever erroring.
     """
+    resolved: list[dict[str, Any]] = []
+    unknown: list[str] = []
+    for m in matches:
+        raw_key = m["part_key"]
+        item = _find_part(raw_key)
+        if item is None:
+            unknown.append(raw_key)
+            continue
+        resolved.append({**m, "part_key": _derive_part_key(item)})
+
+    if unknown:
+        raise ValueError(f"Part(s) not found: {', '.join(unknown)}")
+
     _get_client().post(
         "/v1/bom/consume",
         json={
-            "matches": matches,
+            "matches": resolved,
             "board_qty": board_qty,
             "bom_name": bom_name,
             "note": "",
             "source": "mcp",
         },
     )
-    return {"bom_name": bom_name, "board_qty": board_qty, "consumed": matches}
+    consumed = []
+    for m in resolved:
+        item = _find_part(m["part_key"])
+        consumed.append({
+            "part_key": m["part_key"],
+            "new_qty": item.get("qty", 0) if item is not None else None,
+        })
+    return {"bom_name": bom_name, "board_qty": board_qty, "consumed": consumed}
 
 
 # ── OpenAPI-snapshot contract guard ──────────────────────────────────────────
