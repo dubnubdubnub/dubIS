@@ -131,10 +131,12 @@ def _spawn_server(data_dir: str, timeout: float = 30.0) -> str:
             _atexit_registered = True
 
     lines: queue.Queue[str] = queue.Queue()
+    captured: list[str] = []
 
     def _reader() -> None:
         try:
             for line in proc.stdout:
+                captured.append(line)
                 lines.put(line)
         except ValueError:
             pass  # pipe closed underneath us during shutdown
@@ -156,9 +158,11 @@ def _spawn_server(data_dir: str, timeout: float = 30.0) -> str:
 
     if port is None:
         shutdown_spawned()
+        output = "".join(captured).rstrip()
+        detail = f"; captured output:\n{output}" if output else "; no output was captured"
         raise RuntimeError(
             f"spawned `python -m server --data-dir {data_dir}` never printed "
-            "READY:<port> within the timeout"
+            f"READY:<port> within the timeout{detail}"
         )
 
     return f"http://127.0.0.1:{port}"

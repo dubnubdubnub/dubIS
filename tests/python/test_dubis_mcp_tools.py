@@ -305,6 +305,7 @@ def test_adjust_stock_set_then_remove_roundtrip(mcp_client):
 
 
 def test_adjust_stock_records_source_mcp_visible_via_history(mcp_client):
+    mcp_client.adjust_stock(part_key="C3002", adj_type="set", quantity=1)
     mcp_client.adjust_stock(part_key="C3002", adj_type="add", quantity=3, note="source check")
     history = mcp_client.part_history("C3002")["history"]
     assert history
@@ -312,10 +313,27 @@ def test_adjust_stock_records_source_mcp_visible_via_history(mcp_client):
 
 
 def test_adjust_stock_bad_part_key_error_surfaces(mcp_client):
-    from v1client import V1Error
-
-    with pytest.raises(V1Error):
+    # "bad/part/key" matches no seeded part, so the existence precheck raises
+    # before any /v1 request is sent (see the next two tests) — this used to
+    # only error by accident (the slashes broke the /v1 URL's route match),
+    # which no longer applies now that the precheck runs first.
+    with pytest.raises(ValueError, match="Part not found: bad/part/key"):
         mcp_client.adjust_stock(part_key="bad/part/key", adj_type="add", quantity=1)
+
+
+def test_adjust_stock_add_on_unknown_key_raises_clear_error(mcp_client):
+    with pytest.raises(ValueError, match="Part not found: C3099"):
+        mcp_client.adjust_stock(part_key="C3099", adj_type="add", quantity=5)
+
+
+def test_adjust_stock_remove_on_unknown_key_raises_clear_error(mcp_client):
+    with pytest.raises(ValueError, match="Part not found: C3098"):
+        mcp_client.adjust_stock(part_key="C3098", adj_type="remove", quantity=5)
+
+
+def test_adjust_stock_set_on_new_key_still_creates_part(mcp_client):
+    result = mcp_client.adjust_stock(part_key="C3097", adj_type="set", quantity=12)
+    assert result == {"part_key": "C3097", "new_qty": 12}
 
 
 # ── consume_bom ──────────────────────────────────────────────────────────────
