@@ -278,3 +278,82 @@ def test_list_generic_parts_type_filter_excludes_other_types(mcp_client):
 def test_list_generic_parts_type_filter_matches(mcp_client):
     result = mcp_client.list_generic_parts(part_type="capacitor")
     assert len(result["groups"]) == 1
+
+
+# ── adjust_stock ─────────────────────────────────────────────────────────────
+#
+# Mutation tests use their own seeded parts (not C1000/C1001/etc, which the
+# read-tool tests above assert exact quantities against) so tests stay
+# order-independent within this shared session-scoped server.
+
+
+def test_adjust_stock_add_roundtrip(mcp_client):
+    # "add"/"remove" on a part_key with no prior ledger/adjustment row is a
+    # no-op at the domain layer (domain/inventory_ops.apply_adjustments only
+    # materializes a brand-new part_key on adj_type == "set" with a positive
+    # quantity), so seed with a positive "set" first, mirroring the UI's own
+    # adjust-modal flow for new parts.
+    mcp_client.adjust_stock(part_key="C3000", adj_type="set", quantity=1)
+    result = mcp_client.adjust_stock(part_key="C3000", adj_type="add", quantity=7, note="mcp test add")
+    assert result == {"part_key": "C3000", "new_qty": 8}
+
+
+def test_adjust_stock_set_then_remove_roundtrip(mcp_client):
+    mcp_client.adjust_stock(part_key="C3001", adj_type="set", quantity=50)
+    result = mcp_client.adjust_stock(part_key="C3001", adj_type="remove", quantity=20)
+    assert result == {"part_key": "C3001", "new_qty": 30}
+
+
+def test_adjust_stock_records_source_mcp_visible_via_history(mcp_client):
+    mcp_client.adjust_stock(part_key="C3002", adj_type="add", quantity=3, note="source check")
+    history = mcp_client.part_history("C3002")["history"]
+    assert history
+    assert history[0]["source"] == "mcp"
+
+
+def test_adjust_stock_bad_part_key_error_surfaces(mcp_client):
+    from v1client import V1Error
+
+    with pytest.raises(V1Error):
+        mcp_client.adjust_stock(part_key="bad/part/key", adj_type="add", quantity=1)
+
+
+# ── consume_bom ──────────────────────────────────────────────────────────────
+
+
+def test_consume_bom_roundtrip(mcp_client):
+    mcp_client.adjust_stock(part_key="C3010", adj_type="set", quantity=100)
+    result = mcp_client.consume_bom(
+        matches=[{"part_key": "C3010", "bom_qty": 2}],
+        board_qty=3,
+        bom_name="mcp-test-bom",
+    )
+    assert result == {
+        "bom_name": "mcp-test-bom",
+        "board_qty": 3,
+        "consumed": [{"part_key": "C3010", "bom_qty": 2}],
+    }
+    detail = mcp_client.get_part("C3010")
+    assert detail["qty"] == 100 - (2 * 3)
+
+
+def test_consume_bom_records_source_mcp(mcp_client):
+    mcp_client.adjust_stock(part_key="C3011", adj_type="set", quantity=10)
+    mcp_client.consume_bom(matches=[{"part_key": "C3011", "bom_qty": 1}], board_qty=1)
+    history = mcp_client.part_history("C3011")["history"]
+    assert history
+    assert history[0]["source"] == "mcp"
+
+
+def test_consume_bom_defaults(mcp_client):
+    mcp_client.adjust_stock(part_key="C3012", adj_type="set", quantity=5)
+    result = mcp_client.consume_bom(matches=[{"part_key": "C3012", "bom_qty": 1}])
+    assert result["board_qty"] == 1
+    assert result["bom_name"] == "mcp-bom"
+
+
+def test_consume_bom_bad_match_error_surfaces(mcp_client):
+    from v1client import V1Error
+
+    with pytest.raises(V1Error):
+        mcp_client.consume_bom(matches=[{"part_key": "C3020"}], board_qty=1)

@@ -6,8 +6,10 @@ InventoryApi directly — this process never touches the CSVs/SQLite cache
 itself; the /v1 server (desktop app, or a spawned standalone instance) is the
 single writer.
 
-Task 1 shipped dubis_status(). Task 2 (this revision) adds the seven read
-tools; mutation tools (adjust_stock, consume_bom) land in Task 3
+Task 1 shipped dubis_status(). Task 2 added the seven read tools. Task 3
+(this revision) adds the two mutation tools (adjust_stock, consume_bom) and
+USED_ROUTES/check_used_routes — the OpenAPI-snapshot contract guard exercised
+by tests/python/test_dubis_mcp_contract.py
 (see docs/plans/2026-07-16-phase2-mcp-server-plan.md).
 
 Read tools return COMPACT projections only — trimmed fields + counts, never
@@ -16,6 +18,13 @@ full inventory list" rule. Every projection derives a stable ``part_key``
 via ``_derive_part_key`` (mirrors ``domain/part_registry.derive_key``'s
 precedence: LCSC (C-prefixed) > MPN > Digikey > Pololu > Mouser) since
 GET /v1/parts does not itself send a ``part_key`` field.
+
+Mutation tools do not catch V1Error — a failing /v1 call (bad part_key,
+validation error, etc.) propagates out of the tool function and FastMCP
+turns it into the MCP tool call's error result, carrying the server's
+message. This matches the read tools' style: only get_part translates a
+"not found" case into a plain string because it's a lookup miss, not a
+request error.
 """
 
 from __future__ import annotations
@@ -339,6 +348,131 @@ def list_generic_parts(part_type: str = "") -> dict:
             ),
         })
     return {"groups": result}
+
+
+@mcp.tool()
+def adjust_stock(part_key: str, adj_type: str, quantity: int, note: str = "") -> dict:
+    """Apply a stock adjustment to one part and report its resulting quantity.
+
+    Args:
+        part_key: LCSC/MPN/Digikey/Pololu/Mouser PN, or a derived part_key.
+        adj_type: one of "set" (absolute new quantity), "add" (increase by
+            quantity), "remove" (decrease by quantity).
+        quantity: non-negative integer; interpretation depends on adj_type.
+        note: optional free-text note recorded on the adjustment.
+
+    Returns:
+        {part_key, new_qty} — new_qty comes from refetching the part after
+        the adjustment. The adjustment is recorded with source="mcp"
+        (visible afterward via part_history).
+    """
+    _get_client().post(
+        f"/v1/parts/{part_key}/adjust",
+        json={"adj_type": adj_type, "quantity": quantity, "note": note, "source": "mcp"},
+    )
+    item = _find_part(part_key)
+    return {"part_key": part_key, "new_qty": item.get("qty", 0) if item is not None else None}
+
+
+@mcp.tool()
+def consume_bom(matches: list[dict], board_qty: int = 1, bom_name: str = "mcp-bom") -> dict:
+    """Consume a batch of BOM part matches against inventory as one operation.
+
+    Args:
+        matches: list of ``{"part_key": str, "bom_qty": int}`` dicts — this is
+            the minimal shape POST /v1/bom/consume's ConsumeBomBody accepts
+            (see server/routes/inventory_mut.py's ConsumeBomBody /
+            domain/inventory.py's consume_bom): ``bom_qty`` is how many units
+            of that part one board uses; the server multiplies it by
+            board_qty before subtracting from stock. Extra keys are ignored.
+        board_qty: number of boards being built.
+        bom_name: label recorded on the adjustment (e.g. a BOM file name).
+
+    Returns:
+        {bom_name, board_qty, consumed: matches} echoing what was submitted.
+        The adjustment is recorded with source="mcp".
+    """
+    _get_client().post(
+        "/v1/bom/consume",
+        json={
+            "matches": matches,
+            "board_qty": board_qty,
+            "bom_name": bom_name,
+            "note": "",
+            "source": "mcp",
+        },
+    )
+    return {"bom_name": bom_name, "board_qty": board_qty, "consumed": matches}
+
+
+# ── OpenAPI-snapshot contract guard ──────────────────────────────────────────
+#
+# Every (verb, path-template, body-field-names) tuple this module actually
+# sends over /v1, declared once here so tests/python/test_dubis_mcp_contract.py
+# can assert each one still exists in docs/openapi-v1.json (path + verb) and
+# that every body field name is a real property of that operation's request
+# body schema. Path templates use the snapshot's `{param}` style. GET routes
+# and read-only POSTs with no body fields to pin use an empty tuple.
+UsedRoute = tuple[str, str, tuple[str, ...]]
+
+USED_ROUTES: list[UsedRoute] = [
+    ("get", "/v1/health", ()),
+    ("get", "/v1/meta", ()),
+    ("get", "/v1/parts", ()),
+    ("get", "/v1/parts/{part_key}/prices", ()),
+    ("get", "/v1/parts/{part_key}/purchase-history", ()),
+    ("get", "/v1/parts/{part_key}/groups", ()),
+    ("get", "/v1/parts/{part_key}/history", ()),
+    ("get", "/v1/parts/{part_key}/last-po-quantity", ()),
+    ("get", "/v1/preferences", ()),
+    ("get", "/v1/generic-parts", ()),
+    ("post", "/v1/spec/extract", ("part_type", "value_str", "package_str")),
+    ("post", "/v1/bom/resolve-spec", ("part_type", "value", "package")),
+    ("post", "/v1/parts/{part_key}/adjust", ("adj_type", "quantity", "note", "source")),
+    ("post", "/v1/bom/consume", ("matches", "board_qty", "bom_name", "note", "source")),
+]
+
+
+def _request_body_fields(openapi: dict, verb: str, path: str) -> set[str] | None:
+    """Property names of the named operation's JSON request-body schema, or
+    None if that operation has no requestBody at all (resolves a single
+    top-level $ref into components.schemas, which is all this snapshot uses)."""
+    operation = openapi["paths"][path][verb]
+    body = operation.get("requestBody")
+    if body is None:
+        return None
+    schema = body["content"]["application/json"]["schema"]
+    ref = schema.get("$ref")
+    if ref:
+        schema = openapi["components"]["schemas"][ref.rsplit("/", 1)[-1]]
+    return set(schema.get("properties", {}).keys())
+
+
+def check_used_routes(routes: list[UsedRoute], openapi: dict) -> None:
+    """Raise AssertionError if any (verb, path) in *routes* is missing from
+    *openapi*'s paths, or if any declared body field isn't a real property of
+    that operation's request-body schema. Pure function of its arguments —
+    tests call it both with USED_ROUTES (must pass) and with a fabricated
+    entry appended (must raise), so the guard is proven to actually guard."""
+    paths = openapi.get("paths", {})
+    for verb, path, body_fields in routes:
+        methods = paths.get(path)
+        if methods is None or verb not in methods:
+            raise AssertionError(f"route not in OpenAPI snapshot: {verb.upper()} {path}")
+        if not body_fields:
+            continue
+        allowed = _request_body_fields(openapi, verb, path)
+        if allowed is None:
+            raise AssertionError(
+                f"{verb.upper()} {path} is used with body fields {body_fields} "
+                "but the snapshot's operation has no requestBody"
+            )
+        extra = set(body_fields) - allowed
+        if extra:
+            raise AssertionError(
+                f"{verb.upper()} {path} sends body field(s) {sorted(extra)} not in "
+                f"its OpenAPI schema (allowed: {sorted(allowed)})"
+            )
 
 
 if __name__ == "__main__":
