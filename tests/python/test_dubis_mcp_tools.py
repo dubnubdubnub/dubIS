@@ -243,6 +243,17 @@ def test_price_summary_shape(mcp_client):
     assert isinstance(result["distributors"], dict)
 
 
+def test_price_summary_unknown_key_returns_error_string(mcp_client):
+    result = mcp_client.price_summary("C-does-not-exist")
+    assert isinstance(result, str)
+    assert result == "Part not found: C-does-not-exist"
+
+
+def test_price_summary_by_alias_pn_resolves_to_canonical_key(mcp_client):
+    result = mcp_client.price_summary("LM358DR")  # LM358DR has no LCSC PN
+    assert result["part_key"] == "LM358DR"
+
+
 # ── part_history ─────────────────────────────────────────────────────────────
 
 
@@ -251,6 +262,11 @@ def test_part_history_shape_and_limit(mcp_client):
     assert set(result.keys()) == {"part_key", "history"}
     assert result["part_key"] == "C1000"
     assert len(result["history"]) <= 3
+
+
+def test_part_history_unknown_key_returns_error_string(mcp_client):
+    result = mcp_client.part_history("C-does-not-exist")
+    assert result == "Part not found: C-does-not-exist"
 
 
 # ── list_generic_parts ───────────────────────────────────────────────────────
@@ -336,6 +352,28 @@ def test_adjust_stock_set_on_new_key_still_creates_part(mcp_client):
     assert result == {"part_key": "C3097", "new_qty": 12}
 
 
+def test_adjust_stock_by_alias_pn_resolves_to_canonical_key(mcp_client):
+    # Seed a part keyed canonically by its LCSC PN (via a real purchase
+    # import, so it carries a genuine MPN alias), then adjust by its MPN --
+    # the adjustment must land on the canonical part, not a disconnected
+    # adjustment row under the MPN string, and new_qty must reflect the
+    # canonical part's ACTUAL new quantity (not its stale unchanged qty).
+    mcp_client._client.post(
+        "/v1/purchases/import",
+        json={"rows": [
+            make_part(lcsc="C3096", mpn="MPN-ALIAS-3096", qty=10,
+                      desc="Alias-resolution adjust test part", pkg="0402",
+                      unit_price="0.01", ext_price="0.10"),
+        ]},
+    )
+    result = mcp_client.adjust_stock(
+        part_key="MPN-ALIAS-3096", adj_type="add", quantity=15, note="alias add",
+    )
+    assert result == {"part_key": "C3096", "new_qty": 25}
+    detail = mcp_client.get_part("C3096")
+    assert detail["qty"] == 25
+
+
 # ── consume_bom ──────────────────────────────────────────────────────────────
 
 
@@ -349,7 +387,7 @@ def test_consume_bom_roundtrip(mcp_client):
     assert result == {
         "bom_name": "mcp-test-bom",
         "board_qty": 3,
-        "consumed": [{"part_key": "C3010", "bom_qty": 2}],
+        "consumed": [{"part_key": "C3010", "new_qty": 100 - (2 * 3)}],
     }
     detail = mcp_client.get_part("C3010")
     assert detail["qty"] == 100 - (2 * 3)
@@ -371,7 +409,60 @@ def test_consume_bom_defaults(mcp_client):
 
 
 def test_consume_bom_bad_match_error_surfaces(mcp_client):
-    from v1client import V1Error
-
-    with pytest.raises(V1Error):
+    # C3020 matches no seeded/adjusted part -- the existence precheck raises
+    # a clear, local ValueError before any /v1 request is sent (nothing is
+    # consumed, no spurious adjustment row is written under the typo'd key).
+    with pytest.raises(ValueError, match=r"Part\(s\) not found: C3020"):
         mcp_client.consume_bom(matches=[{"part_key": "C3020"}], board_qty=1)
+
+
+def test_consume_bom_unknown_key_consumes_nothing(mcp_client):
+    mcp_client.adjust_stock(part_key="C3021", adj_type="set", quantity=10)
+    with pytest.raises(ValueError, match=r"Part\(s\) not found: bad-typo-key"):
+        mcp_client.consume_bom(
+            matches=[
+                {"part_key": "C3021", "bom_qty": 1},
+                {"part_key": "bad-typo-key", "bom_qty": 1},
+            ],
+            board_qty=1,
+        )
+    # Neither match was consumed -- the precheck runs over ALL matches
+    # before any /v1/bom/consume POST is issued.
+    detail = mcp_client.get_part("C3021")
+    assert detail["qty"] == 10
+
+
+def test_consume_bom_returns_real_new_qty_per_part(mcp_client):
+    mcp_client.adjust_stock(part_key="C3022", adj_type="set", quantity=40)
+    mcp_client.adjust_stock(part_key="C3023", adj_type="set", quantity=60)
+    result = mcp_client.consume_bom(
+        matches=[
+            {"part_key": "C3022", "bom_qty": 2},
+            {"part_key": "C3023", "bom_qty": 3},
+        ],
+        board_qty=2,
+    )
+    consumed = {c["part_key"]: c["new_qty"] for c in result["consumed"]}
+    assert consumed == {"C3022": 40 - (2 * 2), "C3023": 60 - (3 * 2)}
+
+
+def test_consume_bom_resolves_alias_pn_to_canonical_key(mcp_client):
+    # Seed a part keyed canonically by its LCSC PN (via a real purchase
+    # import, so it carries a genuine MPN alias), then consume by its MPN --
+    # consume_bom must resolve the alias to the canonical key so the
+    # adjustment lands on the real part rather than a disconnected row under
+    # the MPN string.
+    mcp_client._client.post(
+        "/v1/purchases/import",
+        json={"rows": [
+            make_part(lcsc="C3024", mpn="MPN-ALIAS-3024", qty=30,
+                      desc="Alias-resolution test part", pkg="0402",
+                      unit_price="0.01", ext_price="0.30"),
+        ]},
+    )
+    result = mcp_client.consume_bom(
+        matches=[{"part_key": "MPN-ALIAS-3024", "bom_qty": 5}], board_qty=1,
+    )
+    assert result["consumed"] == [{"part_key": "C3024", "new_qty": 25}]
+    detail = mcp_client.get_part("C3024")
+    assert detail["qty"] == 25
