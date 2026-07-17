@@ -179,12 +179,27 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return None
 
 
-def set_session_cookie(response: Response, config: AuthConfig, identity: str) -> None:
+def set_session_cookie(
+    response: Response, config: AuthConfig, identity: str, *, secure: bool = False,
+) -> None:
+    """`secure` should be `request.url.scheme == "https"` from the caller.
+
+    Unconditional `secure=True` was tried first but breaks
+    `test_cookie_session_flow`: Starlette's `TestClient` (httpx under the
+    hood) talks to `http://testserver`, and httpx's cookie jar -- like any
+    real browser -- refuses to attach a Secure cookie back to a plain-http
+    request, so the follow-up `GET /v1/parts` in that test would come back
+    401 even though the cookie was set correctly. Making it scheme-conditional
+    keeps local/test traffic (http, `DUBIS_AUTH_MODE=off` by default anyway)
+    working unchanged while the real deployment -- always reached over the
+    tailscale ingress's HTTPS -- gets the Secure attribute.
+    """
     response.set_cookie(
         COOKIE_NAME,
         config.sign_identity(identity),
         httponly=True,
         samesite="lax",
+        secure=secure,
     )
 
 

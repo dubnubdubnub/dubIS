@@ -233,6 +233,14 @@ back 401, `DUBIS_AUTH_MODE` isn't actually `on` in the running Pod — check
 the Secret and that the Deployment picked it up (`kubectl rollout restart`
 after any Secret edit; `envFrom` isn't live-reloaded).
 
+**MCP footgun:** if you point the desktop at this remote instance (`DUBIS_URL`
+env or `data/preferences.json`'s `server_url`), set the same `DUBIS_URL` (and
+`DUBIS_TOKEN`) for `tools/dubis-mcp` too. Otherwise the desktop shows the
+remote's inventory while the MCP server, seeing no `DUBIS_URL`, falls through
+to its local-discovery path and spawns its own `python -m server` against the
+local CSVs — giving agents a stale/divergent view of the inventory the user is
+actually looking at.
+
 ## 7. Longhorn backup-group confirmation
 
 `deploy/pvc.yaml` labels the PVC
