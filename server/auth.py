@@ -188,6 +188,38 @@ def set_session_cookie(response: Response, config: AuthConfig, identity: str) ->
     )
 
 
+class LoopbackRequiredError(Exception):
+    """Raised by `require_loopback` when a filesystem-path-accepting route is
+    called by a resolved identity other than `local`.
+
+    Mapped to 403 `{error, code:"loopback_only", detail}` by
+    `server/errors.py::register_handlers` -- see design doc
+    `docs/plans/2026-07-16-phase1c-remote-deploy-design.md` §3.
+    """
+
+
+def require_loopback(request: Request) -> None:
+    """Gate a route (or a branch of one) that reads from the server's own
+    filesystem, e.g. `/v1/import/parse`'s `path` field.
+
+    - No `request.state.identity` attribute at all (auth `off` mode, or the
+      route is exempt from `AuthMiddleware`) -> everything is loopback by
+      definition -> allowed, unchanged from today's behavior.
+    - Identity `local` (loopback peer resolved by `AuthMiddleware` in `on`
+      mode) -> allowed.
+    - Any other identity (bearer token, cookie session, tailnet header) ->
+      raises `LoopbackRequiredError`, regardless of whether that identity is
+      otherwise fully authenticated -- a remote caller must never read
+      arbitrary paths off the server's disk.
+    """
+    identity = getattr(request.state, "identity", None)
+    if identity is not None and identity != "local":
+        raise LoopbackRequiredError(
+            "This operation reads a file from the server's local disk and is "
+            "only available to loopback callers."
+        )
+
+
 def stamp_source(request: Request, source: str) -> str:
     """Compose the mutation `source` field with the resolved caller identity.
 
