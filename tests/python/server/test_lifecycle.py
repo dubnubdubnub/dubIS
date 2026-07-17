@@ -110,3 +110,67 @@ def test_stop_server_is_idempotent_with_should_exit_flag(api):
         assert server.should_exit is True
         # Calling again must not raise.
         stop_server(server)
+
+
+def _wait_until_serving(port: int) -> None:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            httpx.get(f"http://127.0.0.1:{port}/v1/health", timeout=1)
+            return
+        except httpx.TransportError:
+            time.sleep(0.05)
+    raise AssertionError(f"server on port {port} never became reachable")
+
+
+def test_stop_server_joins_thread_before_returning(api):
+    """Regression for the review finding that stop_server() used to set
+    should_exit and return immediately, without waiting for uvicorn's
+    background thread to actually finish — the caller (e.g. app.pyw's
+    _cleanup()) could then proceed to release the data-dir lock, or close
+    the cache, while the server thread was still mid-shutdown.
+
+    Against the OLD code (should_exit = True; release lock; return, no
+    join), server._dubis_thread.is_alive() right after stop_server()
+    returns is not reliably False — the assertion below can only be
+    trusted to pass deterministically once stop_server() actually joins
+    the thread before returning."""
+    port = _free_port()
+    server = start_server(api, port=port)
+    _wait_until_serving(port)
+
+    stop_server(server)
+
+    assert server._dubis_thread is not None
+    assert server._dubis_thread.is_alive() is False, (
+        "stop_server() returned before the uvicorn thread actually stopped"
+    )
+
+
+def test_stop_server_release_lock_false_defers_lock_release(tmp_path, api):
+    """Proves the release_lock=False seam app.pyw's _cleanup() relies on:
+    the lock survives stop_server() and is only released by an explicit
+    later call — so a second process cannot acquire it (and start writing
+    to the same CSVs/cache.db) until the caller has finished its own
+    teardown (e.g. api.shutdown() committing/closing cache.db)."""
+    from dubis_errors import DataDirLockedError
+    from server.lockfile import acquire_lock
+
+    data_dir = str(tmp_path)
+    port = _free_port()
+    server = start_server(api, port=port, data_dir=data_dir)
+    _wait_until_serving(port)
+
+    stop_server(server, data_dir=data_dir, release_lock=False)
+
+    assert server._dubis_thread.is_alive() is False
+    # Lock must still be held — a second acquire fails.
+    with pytest.raises(DataDirLockedError):
+        acquire_lock(data_dir)
+
+    # Caller finishes its own teardown, then releases explicitly.
+    server._dubis_lock.release()
+
+    # Now a second acquire succeeds immediately.
+    handle = acquire_lock(data_dir)
+    handle.release()

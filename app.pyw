@@ -30,8 +30,10 @@ if sys.platform == "win32":
 
 import webview
 from client_shell import ClientShell
+from dubis_errors import DataDirLockedError
 from inventory_api import InventoryApi
 from pnp_server import start_pnp_server, stop_pnp_server
+from remote_mode import resolve_remote_base_url
 
 # NOTE: server.run (uvicorn + fastapi, ~300-400ms to import) is deliberately
 # NOT imported here. It's imported lazily inside main()'s _boot_server(),
@@ -54,6 +56,25 @@ def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+def _show_error_dialog(title: str, message: str) -> None:
+    """Show a native, blocking error dialog. Called from the server-boot
+    background thread (never the pywebview UI thread) when startup fails in
+    a way the user needs to know about immediately rather than discovering
+    via splash.html's silent 15s health-poll timeout — e.g. DataDirLockedError.
+
+    Windows-only MessageBoxW (this app only ships on Windows — see the
+    win32-gated AppUserModelID call above); falls back to stderr elsewhere
+    so this never crashes the boot thread on a dev machine running a
+    non-Windows platform."""
+    if sys.platform == "win32":
+        MB_OK = 0x0
+        MB_ICONERROR = 0x10
+        MB_SYSTEMMODAL = 0x1000
+        ctypes.windll.user32.MessageBoxW(None, message, title, MB_OK | MB_ICONERROR | MB_SYSTEMMODAL)
+    else:
+        print(f"{title}: {message}", file=sys.stderr, flush=True)
 
 
 def _hard_exit(code: int = 0) -> None:
@@ -104,6 +125,22 @@ def main():
     debug = "--debug" in sys.argv
     api = InventoryApi(debug=debug)
     bench.mark("api_constructed")
+
+    # Remote-server mode (Phase 1c Task 7): DUBIS_URL env or preferences.json's
+    # server_url point this desktop client at an already-deployed dubis-server
+    # instead of spawning one locally. Constructing InventoryApi above is
+    # still fine to do unconditionally even in remote mode — __init__ does no
+    # I/O beyond building path strings (the SQLite cache connection is opened
+    # lazily by _get_cache() on first access, which nothing here triggers),
+    # and load_preferences() below is a single small JSON read. Neither
+    # touches cache.db, so there's no wasted work building a local cache that
+    # a remote-mode session will never use.
+    #
+    # remote_base is None for today's local path — byte-identical: same free
+    # port, same _boot_server thread, same splash.html?port=<port> URL, same
+    # PnP server + mirror push wiring in on_ready/_cleanup below.
+    remote_base = resolve_remote_base_url(os.environ, api.load_preferences())
+    is_remote = remote_base is not None
 
     shell = ClientShell(api)
 
@@ -179,14 +216,50 @@ def main():
                 )
                 return
             bench.mark("server_started")
+        except DataDirLockedError as e:
+            # Distinct from the generic except below: this is a common,
+            # user-actionable case (another dubIS instance is already
+            # running against this data dir — e.g. launched twice by
+            # accident) rather than a boot bug, so it gets a real dialog
+            # instead of just a log line splash.html's timeout silently
+            # papers over.
+            logger.error("v1 server boot failed: %s", e, exc_info=True)
+            _show_error_dialog(
+                "dubIS is already running",
+                f"Another dubIS server is already running against this data "
+                f"directory (pid={e.pid}, port={e.port}).\n\n"
+                f"Close the other instance before opening a new one.",
+            )
         except Exception as e:
             logger.error("v1 server boot failed: %s", e, exc_info=True)
 
-    threading.Thread(target=_boot_server, name="dubis-server-boot", daemon=True).start()
+    # Remote mode: no local server to spawn, so skip the boot thread entirely
+    # (no port bound either — port is meaningless when is_remote, only used
+    # for the splash.html?port= URL below and DUBIS_SERVER_PORT lookups, both
+    # skipped). splash.html?base=<url> polls the REMOTE /v1/health instead
+    # and navigates the webview there once it answers.
+    #
+    # Browser auth in remote mode: per the design (§7), humans reach the
+    # tailnet-fronted server via tailnet identity — the webview just performs
+    # a normal top-level navigation to remote_base, with no Authorization
+    # header involved (pywebview navigation can't attach custom headers
+    # cleanly, and the tailnet path doesn't need one). Bearer tokens
+    # (DUBIS_TOKEN) are for headless clients only — see tools/dubis-mcp/v1client.py
+    # — never injected into this webview navigation. Out of scope: a
+    # non-tailnet/token browser auth story (e.g. a `?token=` cookie
+    # bootstrap) — see the design doc's open question in §7.
+    if not is_remote:
+        threading.Thread(target=_boot_server, name="dubis-server-boot", daemon=True).start()
+
+    if is_remote:
+        import urllib.parse
+        splash_url = f"{SPLASH_PATH}?base={urllib.parse.quote(remote_base, safe='')}"
+    else:
+        splash_url = f"{SPLASH_PATH}?port={port}"
 
     window = webview.create_window(
         "dubIS",
-        url=f"{SPLASH_PATH}?port={port}",
+        url=splash_url,
         js_api=shell,
         width=1600,
         height=900,
@@ -201,30 +274,53 @@ def main():
         """Best-effort teardown before os._exit. Order matters: stop the PnP
         server FIRST (no new requests; in-flight ones finish) so a mid-flight
         adjust_part can't write to a connection we're about to close, THEN
-        commit+close the cache. Both steps log rather than raise so a cleanup
-        failure can't block process exit. Idempotent — safe to call repeatedly
-        (e.g. closing then closed both fire)."""
+        commit+close the cache, THEN release the data-dir lock LAST.
+
+        The lock must outlive both the /v1 server and the cache close: if it
+        were released as soon as stop_server() is called (the old behavior),
+        a second dubIS instance could acquire it and start writing to the
+        same CSVs/cache.db while this process's uvicorn thread was still
+        mid-shutdown or api.shutdown() hadn't committed/closed cache.db yet.
+        stop_server() is called with release_lock=False here so it only
+        joins the server thread (bounded by its own timeout) and removes the
+        port file; the lock itself is released in the `finally` below, after
+        api.shutdown() has run — whether or not api.shutdown() raised.
+
+        All steps log rather than raise so a cleanup failure can't block
+        process exit. Idempotent — safe to call repeatedly (e.g. closing
+        then closed both fire); a second call finds no lock on server_state
+        (or an already-released LockHandle, itself idempotent) and no-ops."""
         # Mirror: push current inventory on shutdown (no-op unless enabled).
-        try:
-            api._mirror_ctl.push_event(api._load_organized(), dubis_running=False, block=True)
-        except Exception as exc:
-            logger.warning("Mirror shutdown push failed: %s", exc)
+        # Remote mode has no local inventory to mirror — the deployed server
+        # is the source of truth there, not this thin client's local CSVs.
+        if not is_remote:
+            try:
+                api._mirror_ctl.push_event(api._load_organized(), dubis_running=False, block=True)
+            except Exception as exc:
+                logger.warning("Mirror shutdown push failed: %s", exc)
         try:
             stop_pnp_server(pnp_server)
         except Exception as exc:
             logger.warning("Cleanup: stopping PnP server failed: %s", exc)
         bench.mark("pnp_stopped")
+        v1_server = server_state.get("server")
+        lock = getattr(v1_server, "_dubis_lock", None) if v1_server is not None else None
         try:
-            v1_server = server_state.get("server")
             stop_server = server_state.get("stop_server")
             if v1_server is not None and stop_server is not None:
-                stop_server(v1_server, data_dir=api.base_dir)
+                stop_server(v1_server, data_dir=api.base_dir, release_lock=False)
         except Exception as exc:
             logger.warning("Cleanup: stopping /v1 server failed: %s", exc)
         try:
             api.shutdown()
         except Exception as exc:
             logger.warning("Cleanup: api.shutdown failed: %s", exc)
+        finally:
+            if lock is not None:
+                try:
+                    lock.release()
+                except Exception as exc:
+                    logger.warning("Cleanup: releasing data-dir lock failed: %s", exc)
         bench.mark("cache_closed")
 
     def on_closing():
@@ -259,15 +355,21 @@ def main():
         nonlocal pnp_server
         bench.mark("on_ready")  # native window shown; WebView2 runtime up
         set_icon()
-        pnp_server = start_pnp_server(api)
-        # Expose the running server so api.start_scan_session() can mint sessions
-        # on it (phone-scan transport). May be None if the port was unavailable.
-        api._pnp_server = pnp_server
-        # Mirror: push current inventory on startup (no-op unless enabled).
-        try:
-            api._mirror_ctl.push_event(api._load_organized(), dubis_running=True)
-        except Exception as exc:
-            logger.warning("Mirror startup push failed: %s", exc)
+        # PnP server + mirror are local concerns (they operate on this
+        # process's local CSVs/cache); in remote mode the desktop is a thin
+        # client of the deployed server, so both are skipped entirely rather
+        # than started against a local api that isn't the source of truth.
+        if not is_remote:
+            pnp_server = start_pnp_server(api)
+            # Expose the running server so api.start_scan_session() can mint
+            # sessions on it (phone-scan transport). May be None if the port
+            # was unavailable.
+            api._pnp_server = pnp_server
+            # Mirror: push current inventory on startup (no-op unless enabled).
+            try:
+                api._mirror_ctl.push_event(api._load_organized(), dubis_running=True)
+            except Exception as exc:
+                logger.warning("Mirror startup push failed: %s", exc)
         # Bench harness hook: once the grid is interactive, trigger a close so
         # scripts/bench-close.py can time the teardown. Mirrors the user clicking
         # X (destroy() raises FormClosing → on_closing, like the real path).

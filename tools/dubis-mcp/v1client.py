@@ -42,12 +42,28 @@ class V1Error(Exception):
 
 
 class V1Client:
-    """Thin sync HTTP client over the /v1 API."""
+    """Thin sync HTTP client over the /v1 API.
 
-    def __init__(self, base_url: str, discovered_via: str = "env", timeout: float = 10.0):
+    Attaches ``Authorization: Bearer <token>`` to every request when a token
+    is passed (or, via `connect()`, when the ``DUBIS_TOKEN`` env var is set) —
+    Phase 1c Task 7 (docs/plans/2026-07-16-phase1c-remote-deploy-design.md
+    §7): "MCP server: v1client gains an Authorization header from DUBIS_TOKEN
+    env when set". This is for headless clients only (CI, OpenPnP, MCP) —
+    browsers reach a tailnet-fronted server via tailnet identity instead; see
+    app.pyw's remote-mode comment for that split.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        discovered_via: str = "env",
+        timeout: float = 10.0,
+        token: str | None = None,
+    ):
         self.base_url = base_url.rstrip("/")
         self.discovered_via = discovered_via
-        self._client = httpx.Client(base_url=self.base_url, timeout=timeout)
+        headers = {"Authorization": f"Bearer {token}"} if token else None
+        self._client = httpx.Client(base_url=self.base_url, timeout=timeout, headers=headers)
 
     def get(self, path: str, **params):
         resp = self._client.get(path, params=params or None)
@@ -191,16 +207,18 @@ def connect(repo_root: str) -> V1Client:
     Order: DUBIS_URL env -> <repo_root>/data/.v1_port (health-checked) ->
     spawned fallback (`python -m server --data-dir <repo_root>/data --port 0`).
     """
+    token = os.environ.get("DUBIS_TOKEN") or None
+
     env_url = os.environ.get("DUBIS_URL")
     if env_url:
-        return V1Client(env_url, discovered_via="env")
+        return V1Client(env_url, discovered_via="env", token=token)
 
     data_dir = os.path.join(repo_root, "data")
     port = _read_port_file(data_dir)
     if port is not None:
         base_url = f"http://127.0.0.1:{port}"
         if _is_healthy(base_url):
-            return V1Client(base_url, discovered_via="port_file")
+            return V1Client(base_url, discovered_via="port_file", token=token)
         # Stale port file (dead port, or a crashed server's leftover) — ignore
         # and fall through to spawning rather than trusting it.
 
@@ -208,4 +226,4 @@ def connect(repo_root: str) -> V1Client:
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline and not _is_healthy(base_url):
         time.sleep(0.1)
-    return V1Client(base_url, discovered_via="spawned")
+    return V1Client(base_url, discovered_via="spawned", token=token)

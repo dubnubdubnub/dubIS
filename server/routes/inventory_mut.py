@@ -14,6 +14,7 @@ from typing import Literal
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
 
+from server.auth import stamp_source
 from server.mutations import finish_mutation
 
 router = APIRouter(prefix="/v1", tags=["parts"])
@@ -77,7 +78,8 @@ def adjust_part(
     body: AdjustPartBody,
 ) -> dict:
     api = request.app.state.api
-    api.adjust_part(body.adj_type, part_key, body.quantity, body.note, body.source)
+    source = stamp_source(request, body.source)
+    api.adjust_part(body.adj_type, part_key, body.quantity, body.note, source)
     return finish_mutation(
         reason="adjust",
         detail={"part_key": part_key, "adj_type": body.adj_type, "quantity": body.quantity},
@@ -200,7 +202,8 @@ def consume_bom(
     body: ConsumeBomBody,
 ) -> dict:
     api = request.app.state.api
-    api.consume_bom(body.matches, body.board_qty, body.bom_name, body.note, body.source)
+    source = stamp_source(request, body.source)
+    api.consume_bom(body.matches, body.board_qty, body.bom_name, body.note, source)
     return finish_mutation(
         reason="consume_bom",
         detail={"bom_name": body.bom_name, "board_qty": body.board_qty},

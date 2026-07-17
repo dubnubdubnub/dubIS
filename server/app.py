@@ -44,8 +44,19 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
     app.include_router(pnp.router)
     app.include_router(preferences.router)
 
+    if os.environ.get("DUBIS_AUTH_MODE", "off") == "on":
+        from server.auth import AuthConfig, AuthMiddleware
+        from server.routes import auth as auth_routes
+
+        auth_config = AuthConfig.from_env()
+        app.state.auth_config = auth_config
+        app.add_middleware(AuthMiddleware, config=auth_config)
+        app.include_router(auth_routes.router)
+
     if static_dir is not None and os.path.isdir(static_dir):
         # Mounted last so API routers above always win on path collisions.
+        # AuthMiddleware (added above, if `on`) wraps the whole ASGI app
+        # regardless of mount order, so static assets are gated too.
         app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
     return app

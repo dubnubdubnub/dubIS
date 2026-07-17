@@ -164,6 +164,15 @@ git add tests/fixtures/generated/distributor-scrapes.json
 ```
 The public fixtures (LCSC + Pololu) self-refresh weekly via the scheduled `.github/workflows/refresh-fixtures.yml` workflow, which opens a PR. DigiKey + Mouser are local-only (refresh them via `pytest -m live`); their credentials never run on CI.
 
+## Remote deployment (Phase 1c)
+
+`dubis-server` can also run as an always-on remote instance on the k3s cluster (tailnet), instead of (or alongside) the desktop app spawning it locally.
+
+- **Auth** (`server/auth.py`): off by default (`DUBIS_AUTH_MODE=off`, today's loopback behavior, byte-identical). `on` mode resolves identity per request: loopback peer → `local`; `Authorization: Bearer <token>` matching `DUBIS_TOKENS` (`name:token,...`); the `POST /v1/auth/session` cookie; `Tailscale-User-Login` header when `DUBIS_TRUST_TAILSCALE_HEADER=1` and the login is in `DUBIS_TAILNET_ALLOWLIST`. Non-local identity gets suffixed into mutation `source` (e.g. `mcp@ci`). `/v1/import/parse` (reads server-local files) is loopback-only regardless of auth mode.
+- **Deploy**: container image is `Dockerfile` (repo root) + `deploy/` (kustomize: namespace/deployment/service/ingress/pvc/argocd-application). CI (`.github/workflows/build-image.yml`) builds+pushes `ghcr.io/dubnubdubnub/dubis-server:<sha>` on merges to `main` and writes the sha back into `deploy/kustomization.yaml`. Full step-by-step: `docs/deploy-runbook.md`.
+- **Remote desktop mode**: set `DUBIS_URL` env or `data/preferences.json`'s `server_url` to point the desktop app at an already-deployed `dubis-server` instead of spawning one locally — `app.pyw` skips the local server boot thread and the webview navigates straight to the remote URL. `tools/dubis-mcp` picks up `DUBIS_TOKEN` for its bearer header the same way.
+- **Container feature gaps**: the container image is desktop-feature-limited by design — no DigiKey WebView2/CDP scraping, no OS file dialogs, no OCR (tesseract not installed). Those API methods already fail with typed errors when their dependency is unavailable; this is documented, not a bug to fix in-container.
+
 ## Testing & Linting
 
 **Before any PR, run the single catch-all command:**

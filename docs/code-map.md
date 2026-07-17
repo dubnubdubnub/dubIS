@@ -424,24 +424,34 @@ graph LR
     "scripts/spike-webview-loopback.py" --> "server/__main__.py"
     "scripts/spike-webview-loopback.py" --> "server/run.py"
     "server/__main__.py" --> "distributor_manager.py"
+    "server/__main__.py" --> "dubis_errors.py"
     "server/__main__.py" --> "inventory_api.py"
     "server/__main__.py" --> "server/app.py"
+    "server/__main__.py" --> "server/lockfile.py"
     "server/__main__.py" --> "server/run.py"
+    "server/app.py" --> "server/auth.py"
     "server/app.py" --> "server/errors.py"
     "server/app.py" --> "server/routes/__init__.py"
     "server/errors.py" --> "dubis_errors.py"
+    "server/errors.py" --> "server/auth.py"
+    "server/lockfile.py" --> "dubis_errors.py"
     "server/models.py" --> "domain/schema.py"
     "server/mutations.py" --> "server/__init__.py"
+    "server/routes/auth.py" --> "server/auth.py"
     "server/routes/events.py" --> "server/__init__.py"
     "server/routes/generic_parts.py" --> "server/mutations.py"
+    "server/routes/import_scan.py" --> "server/auth.py"
+    "server/routes/inventory_mut.py" --> "server/auth.py"
     "server/routes/inventory_mut.py" --> "server/mutations.py"
     "server/routes/meta.py" --> "cache_db.py"
     "server/routes/parts_read.py" --> "server/models.py"
     "server/routes/pnp.py" --> "pnp_part_map.py"
     "server/routes/pnp.py" --> "server/__init__.py"
+    "server/routes/pnp.py" --> "server/auth.py"
     "server/routes/vendors_pos.py" --> "purchase_orders.py"
     "server/routes/vendors_pos.py" --> "server/mutations.py"
     "server/run.py" --> "server/app.py"
+    "server/run.py" --> "server/lockfile.py"
     "spec_extractor.py" --> "categorize.py"
     "tests/js/api-client.test.js" --> "js/api.js"
     "tests/js/api-client.test.js" --> "js/ui-helpers.js"
@@ -540,14 +550,22 @@ graph LR
     "tests/python/server/conftest.py" --> "server/app.py"
     "tests/python/server/conftest.py" --> "tests/python/helpers.py"
     "tests/python/server/test_app_skeleton.py" --> "dubis_errors.py"
+    "tests/python/server/test_auth.py" --> "server/app.py"
+    "tests/python/server/test_auth.py" --> "tests/python/helpers.py"
+    "tests/python/server/test_error_contract.py" --> "server/app.py"
+    "tests/python/server/test_error_contract.py" --> "tests/python/helpers.py"
     "tests/python/server/test_events.py" --> "server/__init__.py"
     "tests/python/server/test_events.py" --> "tests/python/server/conftest.py"
     "tests/python/server/test_generic_parts_routes.py" --> "server/__init__.py"
     "tests/python/server/test_import_scan_routes.py" --> "pnp_server.py"
     "tests/python/server/test_inventory_mut.py" --> "server/__init__.py"
     "tests/python/server/test_inventory_mut.py" --> "tests/python/helpers.py"
+    "tests/python/server/test_lifecycle.py" --> "dubis_errors.py"
     "tests/python/server/test_lifecycle.py" --> "server/__main__.py"
+    "tests/python/server/test_lifecycle.py" --> "server/lockfile.py"
     "tests/python/server/test_lifecycle.py" --> "server/run.py"
+    "tests/python/server/test_lockfile.py" --> "dubis_errors.py"
+    "tests/python/server/test_lockfile.py" --> "server/lockfile.py"
     "tests/python/server/test_main_flags.py" --> "inventory_api.py"
     "tests/python/server/test_main_flags.py" --> "server/__main__.py"
     "tests/python/server/test_main_flags.py" --> "server/app.py"
@@ -660,6 +678,7 @@ graph LR
     "tests/python/test_pnp_server.py" --> "tests/python/helpers.py"
     "tests/python/test_purchase_orders.py" --> "purchase_orders.py"
     "tests/python/test_real_data.py" --> "inventory_api.py"
+    "tests/python/test_remote_mode.py" --> "remote_mode.py"
     "tests/python/test_saved_searches.py" --> "cache_db.py"
     "tests/python/test_saved_searches.py" --> "saved_searches.py"
     "tests/python/test_scan_session.py" --> "pnp_server.py"
@@ -855,7 +874,7 @@ graph LR
 ### dubis_errors.py
 
 - **Imports:** —
-- **Imported by:** `base_client.py`, `digikey_client.py`, `domain/part_registry.py`, `server/errors.py`, `tests/python/domain/test_part_registry.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/test_base_client.py`, `tests/python/test_dubis_errors.py`
+- **Imported by:** `base_client.py`, `digikey_client.py`, `domain/part_registry.py`, `server/__main__.py`, `server/errors.py`, `server/lockfile.py`, `tests/python/domain/test_part_registry.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/test_base_client.py`, `tests/python/test_dubis_errors.py`
 
 ### file_dialogs.py
 
@@ -1445,6 +1464,11 @@ graph LR
 - **Imports:** `csv_io.py`, `pdf_raster.py`, `source_sanitizer.py`
 - **Imported by:** `domain/api_purchase_orders.py`, `mfg_direct_import.py`, `server/routes/vendors_pos.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_purchase_orders.py`
 
+### remote_mode.py
+
+- **Imports:** —
+- **Imported by:** `tests/python/test_remote_mode.py`
+
 ### saved_searches.py
 
 - **Imports:** `csv_io.py`
@@ -1577,23 +1601,33 @@ graph LR
 
 ### server/__main__.py
 
-- **Imports:** `distributor_manager.py`, `inventory_api.py`, `server/app.py`, `server/run.py`
+- **Imports:** `distributor_manager.py`, `dubis_errors.py`, `inventory_api.py`, `server/app.py`, `server/lockfile.py`, `server/run.py`
 - **Imported by:** `scripts/spike-webview-loopback.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_main_flags.py`
 
 ### server/app.py
 
-- **Imports:** `server/errors.py`, `server/routes/__init__.py`
-- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
+- **Imports:** `server/auth.py`, `server/errors.py`, `server/routes/__init__.py`
+- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
+
+### server/auth.py
+
+- **Imports:** —
+- **Imported by:** `server/app.py`, `server/errors.py`, `server/routes/auth.py`, `server/routes/import_scan.py`, `server/routes/inventory_mut.py`, `server/routes/pnp.py`
 
 ### server/errors.py
 
-- **Imports:** `dubis_errors.py`
+- **Imports:** `dubis_errors.py`, `server/auth.py`
 - **Imported by:** `server/app.py`
 
 ### server/events.py
 
 - **Imports:** —
 - **Imported by:** —
+
+### server/lockfile.py
+
+- **Imports:** `dubis_errors.py`
+- **Imported by:** `server/__main__.py`, `server/run.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`
 
 ### server/models.py
 
@@ -1609,6 +1643,11 @@ graph LR
 
 - **Imports:** —
 - **Imported by:** `server/app.py`
+
+### server/routes/auth.py
+
+- **Imports:** `server/auth.py`
+- **Imported by:** —
 
 ### server/routes/distributors.py
 
@@ -1627,12 +1666,12 @@ graph LR
 
 ### server/routes/import_scan.py
 
-- **Imports:** —
+- **Imports:** `server/auth.py`
 - **Imported by:** —
 
 ### server/routes/inventory_mut.py
 
-- **Imports:** `server/mutations.py`
+- **Imports:** `server/auth.py`, `server/mutations.py`
 - **Imported by:** —
 
 ### server/routes/meta.py
@@ -1647,7 +1686,7 @@ graph LR
 
 ### server/routes/pnp.py
 
-- **Imports:** `pnp_part_map.py`, `server/__init__.py`
+- **Imports:** `pnp_part_map.py`, `server/__init__.py`, `server/auth.py`
 - **Imported by:** —
 
 ### server/routes/preferences.py
@@ -1662,7 +1701,7 @@ graph LR
 
 ### server/run.py
 
-- **Imports:** `server/app.py`
+- **Imports:** `server/app.py`, `server/lockfile.py`
 - **Imported by:** `scripts/spike-webview-loopback.py`, `server/__main__.py`, `tests/python/server/test_lifecycle.py`, `tests/python/test_dubis_mcp_client.py`
 
 ### source_sanitizer.py
@@ -2027,7 +2066,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `distributor_manager.py`, `inventory_api.py`
-- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_dubis_mcp_tools.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_dubis_mcp_tools.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/server/conftest.py
 
@@ -2039,9 +2078,19 @@ graph LR
 - **Imports:** `dubis_errors.py`
 - **Imported by:** —
 
+### tests/python/server/test_auth.py
+
+- **Imports:** `server/app.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
 ### tests/python/server/test_distributors_routes.py
 
 - **Imports:** —
+- **Imported by:** —
+
+### tests/python/server/test_error_contract.py
+
+- **Imports:** `server/app.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/server/test_events.py
@@ -2066,7 +2115,12 @@ graph LR
 
 ### tests/python/server/test_lifecycle.py
 
-- **Imports:** `server/__main__.py`, `server/run.py`
+- **Imports:** `dubis_errors.py`, `server/__main__.py`, `server/lockfile.py`, `server/run.py`
+- **Imported by:** —
+
+### tests/python/server/test_lockfile.py
+
+- **Imports:** `dubis_errors.py`, `server/lockfile.py`
 - **Imported by:** —
 
 ### tests/python/server/test_main_flags.py
@@ -2217,6 +2271,11 @@ graph LR
 ### tests/python/test_csv_io.py
 
 - **Imports:** `csv_io.py`
+- **Imported by:** —
+
+### tests/python/test_deploy_manifests.py
+
+- **Imports:** —
 - **Imported by:** —
 
 ### tests/python/test_dev_tools_mcp.py
@@ -2442,6 +2501,11 @@ graph LR
 ### tests/python/test_real_data.py
 
 - **Imports:** `inventory_api.py`
+- **Imported by:** —
+
+### tests/python/test_remote_mode.py
+
+- **Imports:** `remote_mode.py`
 - **Imported by:** —
 
 ### tests/python/test_saved_searches.py
