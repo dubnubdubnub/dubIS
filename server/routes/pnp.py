@@ -2,9 +2,12 @@
 
 `_consume` replicates `pnp_server.PnPHandler.do_POST`'s `/api/consume`
 resolution+adjust flow exactly (same `pnp_part_map` helpers, same
-`adjust_part("remove", ..., source="openpnp")` call), so both the `/v1` route
-and the legacy `/api/consume` alias share one implementation. Unlike a plain
-inventory mutation, a PnP consume publishes two events: `inventory.consumed`
+`adjust_part("remove", ..., source=...)` call), so both the `/v1` route
+and the legacy `/api/consume` alias share one implementation. The `source` is
+composed via `stamp_source(request, "openpnp")` so a remote identity (bearer
+token or tailnet header) yields e.g. `openpnp@ci` in the ledger, while a
+loopback caller or `off`-mode request records plain `"openpnp"` unchanged.
+Unlike a plain inventory mutation, a PnP consume publishes two events: `inventory.consumed`
 (the placement-specific detail OpenPnP/other consumers care about) followed
 by `inventory.updated` (so `/v1/events` subscribers watching for generic
 inventory changes — e.g. a second desktop client — also get notified,
@@ -23,6 +26,7 @@ from pydantic import BaseModel
 
 from pnp_part_map import _load_part_map, _resolve_part_id
 from server import events
+from server.auth import stamp_source
 
 router = APIRouter(tags=["pnp"])
 
@@ -32,7 +36,7 @@ class ConsumeBody(BaseModel):
     qty: int = 1
 
 
-def _consume(api, part_id: str, qty: int) -> dict:
+def _consume(api, request: Request, part_id: str, qty: int) -> dict:
     part_id = (part_id or "").strip()
     if not part_id:
         raise ValueError("part_id is required")
@@ -45,7 +49,8 @@ def _consume(api, part_id: str, qty: int) -> dict:
     if not part_key:
         raise KeyError(f"Unknown part ID: {part_id}")
 
-    fresh = api.adjust_part("remove", part_key, qty, "OpenPnP placement", source="openpnp")
+    source = stamp_source(request, "openpnp")
+    fresh = api.adjust_part("remove", part_key, qty, "OpenPnP placement", source=source)
 
     new_qty = None
     for item in fresh:
@@ -68,7 +73,7 @@ def _consume(api, part_id: str, qty: int) -> dict:
 @router.post("/v1/pnp/consume", operation_id="pnp_consume")
 def pnp_consume(request: Request, body: ConsumeBody) -> dict:
     api = request.app.state.api
-    return _consume(api, body.part_id, body.qty)
+    return _consume(api, request, body.part_id, body.qty)
 
 
 # ── Legacy aliases (no /v1 prefix) ──────────────────────────────────────────
@@ -92,4 +97,4 @@ def legacy_parts(request: Request) -> dict:
 @router.post("/api/consume", operation_id="legacy_consume")
 def legacy_consume(request: Request, body: ConsumeBody) -> dict:
     api = request.app.state.api
-    return _consume(api, body.part_id, body.qty)
+    return _consume(api, request, body.part_id, body.qty)

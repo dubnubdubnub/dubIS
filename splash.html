@@ -161,13 +161,27 @@
 </div>
 
 <script>
-// Poll the /v1 server's health endpoint (port passed as a query param by
-// app.pyw, e.g. splash.html?port=54321) and navigate to it ourselves once
+// Poll the /v1 server's health endpoint and navigate to it ourselves once
 // it's up. This is a page-initiated top-level navigation (location.href) —
 // the same path pywebview already handles correctly for any normal link
 // click — deliberately NOT driven by app.pyw calling window.load_url() from
 // its server-boot thread (see the comment at the top of this file for why
 // that was tried first and abandoned).
+//
+// Two query-param shapes, mutually exclusive (app.pyw picks exactly one —
+// see the is_remote branch in app.pyw's main()):
+//   ?port=<n>            — local mode (default, byte-identical to before
+//                           remote mode existed): health-poll/navigate to
+//                           http://127.0.0.1:<n>.
+//   ?base=<url-encoded>  — remote mode (Phase 1c Task 7, DUBIS_URL env or
+//                           preferences.json's server_url): health-poll/
+//                           navigate to the given base URL instead. No
+//                           Authorization header is attached to either the
+//                           poll or the navigation — browser auth for a
+//                           tailnet-fronted remote server is via tailnet
+//                           identity, not a bearer token (see app.pyw's
+//                           comment above the is_remote branch and
+//                           docs/plans/2026-07-16-phase1c-remote-deploy-design.md §7).
 //
 // STARTUP_DELAY_MS below exists because of a second, independent race:
 // navigating this window AT ALL — even via this page-initiated
@@ -187,12 +201,19 @@
 (function () {
   "use strict";
   var STARTUP_DELAY_MS = 500;
-  var port = new URLSearchParams(location.search).get("port");
-  if (!port) {
-    return; // no port supplied (e.g. opened directly for visual inspection)
+  var params = new URLSearchParams(location.search);
+  var base = params.get("base");
+  var port = params.get("port");
+  var origin;
+  if (base) {
+    origin = base.replace(/\/+$/, ""); // strip trailing slash(es) for consistent concatenation below
+  } else if (port) {
+    origin = "http://127.0.0.1:" + port;
+  } else {
+    return; // neither supplied (e.g. opened directly for visual inspection)
   }
-  var healthUrl = "http://127.0.0.1:" + port + "/v1/health";
-  var targetUrl = "http://127.0.0.1:" + port + "/";
+  var healthUrl = origin + "/v1/health";
+  var targetUrl = origin + "/";
   var deadline = Date.now() + 15000;
   var pollMs = 60;
 

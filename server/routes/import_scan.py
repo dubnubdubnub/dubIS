@@ -16,6 +16,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from server.auth import require_loopback
+
 router = APIRouter(prefix="/v1", tags=["import", "scan"])
 
 
@@ -55,6 +57,10 @@ class StartScanSessionBody(BaseModel):
 def parse_import_source(request: Request, body: ParseImportBody) -> list:
     api = request.app.state.api
     if body.path:
+        # Reads directly off the server's own disk -- loopback callers only,
+        # even when otherwise authenticated. The b64-upload branch below is
+        # the browser-upload path remote callers use instead and stays open.
+        require_loopback(request)
         return api.parse_source_file(body.path, body.template)
     return api.parse_source_file_b64(body.file_b64, body.file_name, body.template)
 

@@ -1,0 +1,36 @@
+# Argo CD Application for dubis-server. Applied by Isaac out-of-band per
+# docs/deploy-runbook.md (not itself managed by this kustomization).
+#
+# CreateNamespace=false: namespace.yaml is already one of this
+# kustomization's resources (see deploy/kustomization.yaml), so Argo syncing
+# `deploy/` creates/owns the Namespace object directly — a redundant
+# `CreateNamespace=true` syncOption would just double-manage the same
+# object. If namespace.yaml is ever removed from the kustomize resources
+# list, flip this to true (and drop the ghcr-pull label management back to
+# Argo/manual).
+#
+# prune: false initially per cluster answers — flip to true only after
+# confirming the first sync applied cleanly and nothing unexpected gets
+# pruned (e.g. resources some other tool may have created in this
+# namespace). automated.selfHeal is also left off for the same
+# conservatism during initial rollout.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dubis-server
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/dubnubdubnub/dubIS.git
+    targetRevision: main
+    path: deploy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: dubis
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=false

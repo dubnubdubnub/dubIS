@@ -17,13 +17,16 @@ from __future__ import annotations
 import argparse
 import atexit
 import os
+import sys
 import threading
 
 import uvicorn
 
 from distributor_manager import DistributorManager
+from dubis_errors import DataDirLockedError
 from inventory_api import InventoryApi
 from server.app import create_app
+from server.lockfile import acquire_lock
 from server.run import _remove_port_file, _write_port_file, wait_until_started
 
 
@@ -126,13 +129,16 @@ def _mount_test_routes(app, api: InventoryApi, test_source: str) -> None:
 
 
 def _print_ready_when_started(
-    server: "uvicorn.Server", port_arg: int, data_dir: str | None = None,
+    server: "uvicorn.Server", port_arg: int, data_dir: str | None = None, lock=None,
 ) -> None:
     """Print READY:<port> once uvicorn has actually bound its socket, and
     (when data_dir is given) write the bound port to <data_dir>/.v1_port —
     the same discovery signal server/run.py's start_server() writes for the
     in-thread desktop-app path, so a standalone `python -m server` instance
-    is equally discoverable by tools/dubis-mcp/v1client.py.
+    is equally discoverable by tools/dubis-mcp/v1client.py. Also updates
+    the data-dir lockfile's content with the resolved port, if *lock* is
+    given (it was acquired with port=None in main(), before the actual
+    port was known).
 
     Mirrors the tests/e2e-server.py contract that Playwright's global-setup
     parses to learn the port when --port 0 is used. Runs in a daemon thread
@@ -145,6 +151,8 @@ def _print_ready_when_started(
         port = server.servers[0].sockets[0].getsockname()[1]
     if data_dir is not None:
         _write_port_file(data_dir, port)
+    if lock is not None:
+        lock.update_port(port)
     print(f"READY:{port}", flush=True)
 
 
@@ -164,6 +172,13 @@ def main() -> None:
         parser.error("--rollback-on-exit requires --test-source")
 
     data_dir = os.path.abspath(args.data_dir)
+
+    try:
+        lock = acquire_lock(data_dir)
+    except DataDirLockedError as exc:
+        print(f"error: {exc}", file=sys.stderr, flush=True)
+        raise SystemExit(1) from exc
+
     api = _build_api(data_dir)
 
     if args.test_source:
@@ -174,16 +189,54 @@ def main() -> None:
     if args.test_source:
         _mount_test_routes(app, api, args.test_source)
 
-    if args.rollback_on_exit:
-        atexit.register(_rollback_on_exit, api, args.test_source)
+    def _teardown() -> None:
+        """Single atexit hook, run in explicit order, so the data-dir lock
+        is held for the entire teardown rather than relying on atexit's
+        LIFO registration order to get that implicitly (fragile — the next
+        person to add a hook here could easily reorder registrations without
+        realizing the lock's release position matters). server.run() below
+        blocks the main thread directly (unlike server/run.py's
+        start_server(), which runs uvicorn on a background thread), so by
+        the time this fires uvicorn has already fully stopped — no thread
+        join is needed here the way stop_server() needs one.
 
-    atexit.register(_remove_port_file, data_dir)
+        Order: roll back test adjustments (if any) -> remove the discovery
+        port file -> commit+close cache.db -> release the lock last, so a
+        second process can't acquire it and start writing until this
+        process's cache connection is fully closed. Wrapped in try/finally
+        (rather than one un-nested sequence) so a failure in an earlier step
+        still lets later steps run — in particular, the lock must be
+        released even if rollback or port-file removal blows up, or a
+        crashed teardown would leave the data dir permanently locked for
+        the rest of this process's lifetime (atexit hooks don't get a
+        second chance)."""
+        try:
+            if args.rollback_on_exit:
+                _rollback_on_exit(api, args.test_source)
+        except Exception as exc:
+            print(f"[server] teardown: rollback failed: {exc}", file=sys.stderr, flush=True)
+        try:
+            _remove_port_file(data_dir)
+        except Exception as exc:
+            print(f"[server] teardown: port-file removal failed: {exc}", file=sys.stderr, flush=True)
+        try:
+            api.shutdown()  # best-effort internally; never raises
+        finally:
+            lock.release()
 
-    config = uvicorn.Config(app, host=args.host, port=args.port, log_level="info")
+    atexit.register(_teardown)
+
+    # timeout_graceful_shutdown: see server/routes/events.py's module docstring
+    # -- without a bound, a connected SSE client stalls Server.shutdown() for
+    # uvicorn's 30s default on every container rollout. Matches the value
+    # tests/python/server/conftest.py's start_live_server() defaults to.
+    config = uvicorn.Config(
+        app, host=args.host, port=args.port, log_level="info", timeout_graceful_shutdown=5,
+    )
     server = uvicorn.Server(config)
 
     threading.Thread(
-        target=_print_ready_when_started, args=(server, args.port, data_dir), daemon=True,
+        target=_print_ready_when_started, args=(server, args.port, data_dir, lock), daemon=True,
     ).start()
 
     server.run()

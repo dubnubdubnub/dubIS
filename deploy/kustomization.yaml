@@ -1,0 +1,24 @@
+# dubis-server k3s deployment base. Namespace is a resource here (not set
+# via kustomize's `namespace:` transformer) so its `ghcr-pull=enabled` label
+# is authored explicitly in namespace.yaml rather than being synthesized —
+# see argocd-application.yaml for the matching CreateNamespace=false choice.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: dubis
+
+resources:
+  - namespace.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+images:
+  # Task 6's CI workflow rewrites newTag to the built image's sha after each
+  # push to main (`kustomize edit set image ...` or equivalent). This
+  # placeholder must never be applied to a live cluster — Kyverno also
+  # independently blocks `:latest`, but sha-PLACEHOLDER is neither `:latest`
+  # nor a real digest, so it would simply fail to pull if it ever escaped.
+  - name: ghcr.io/dubnubdubnub/dubis-server
+    newTag: sha-PLACEHOLDER

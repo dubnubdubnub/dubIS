@@ -35,3 +35,19 @@ class CacheError(DubISError):
 
 class PartRegistryCollisionError(DubISError):
     """A ledger row's part numbers map to two different registered parts."""
+
+
+class DataDirLockedError(DubISError):
+    """Another dubIS server process already holds the exclusive lock on this
+    data directory (`<data_dir>/.dubis_lock`) — see server/lockfile.py.
+
+    Carries the other process's pid/port (read from the lock file's
+    content) so callers can build an actionable error message/dialog
+    without re-reading the lock file themselves."""
+
+    def __init__(self, message: str, *, pid: int | None = None,
+                 port: int | None = None, data_dir: str = ""):
+        super().__init__(message)
+        self.pid = pid
+        self.port = port
+        self.data_dir = data_dir

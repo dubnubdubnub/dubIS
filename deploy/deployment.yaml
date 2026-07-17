@@ -1,0 +1,88 @@
+# SQLite (cache.db) + the CSV source-of-truth files under /data are
+# single-writer, so this MUST stay replicas: 1 with strategy.type: Recreate
+# (never RollingUpdate — that would briefly run two Pods against the same
+# RWO PVC). Do not scale this Deployment.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dubis-server
+  labels:
+    app: dubis-server
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dubis-server
+  template:
+    metadata:
+      labels:
+        app: dubis-server
+    spec:
+      # uid/gid 10001 matches the non-root `appuser` baked into the image
+      # (Dockerfile: `useradd -m -u 10001 appuser` + `USER appuser`). fsGroup
+      # is what makes Kubernetes chown the PVC's group ownership to 10001 on
+      # mount — without it a fresh (root-owned) Longhorn volume causes the
+      # container to crash-loop on its own startup lockfile acquisition
+      # (`/data/.dubis_lock`). Verified in Task 4's Docker smoke test with an
+      # equivalent host-volume ownership mismatch.
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: dubis-server
+          # newTag is rewritten to a real content digest/sha by the Task 6
+          # CI workflow after each image build — sha-PLACEHOLDER must never
+          # reach a live cluster. Kyverno also independently blocks `:latest`
+          # cluster-wide as a second line of defense.
+          image: ghcr.io/dubnubdubnub/dubis-server:sha-PLACEHOLDER
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            # Created out-of-band by Isaac per docs/deploy-runbook.md
+            # (`kubectl create secret ... dubis-server-auth`) — carries
+            # DUBIS_AUTH_MODE, DUBIS_TOKENS, DUBIS_TAILNET_ALLOWLIST,
+            # DUBIS_TRUST_TAILSCALE_HEADER. Not created by this kustomization;
+            # the Deployment will fail to start until the Secret exists.
+            - secretRef:
+                name: dubis-server-auth
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          # Modest estimates, not load-tested — revisit once the server has
+          # real remote traffic. Kyverno guardrails require both requests
+          # and limits to be set on every container.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /v1/health
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: 8080
+            # Longer initial grace than readiness: liveness restarts the
+            # container on failure, so it should tolerate a slow first boot
+            # (cache rebuild from CSVs) that readiness is allowed to be
+            # stricter about.
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: dubis-server-data
