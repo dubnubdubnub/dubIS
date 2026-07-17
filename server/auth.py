@@ -104,11 +104,27 @@ class AuthConfig:
             return None
         return identity
 
+    def lookup_token(self, token: str) -> str | None:
+        """Constant-time bearer-token lookup.
+
+        A plain `dict.get` short-circuits on the first differing byte of each
+        key, which leaks timing information about how close a guess is to a
+        valid token. Token counts here are tiny (operator-configured), so the
+        cost of comparing against every entry with `hmac.compare_digest` is
+        negligible — this keeps the bearer path timing-consistent with the
+        cookie path above.
+        """
+        match = None
+        for candidate, name in self.tokens_by_token.items():
+            if hmac.compare_digest(candidate, token):
+                match = name
+        return match
+
 
 def _unauthorized(detail: str) -> JSONResponse:
     return JSONResponse(
         status_code=401,
-        content={"error": "unauthorized", "code": "unauthorized", "detail": detail},
+        content={"error": "Authentication required", "code": "unauthorized", "detail": detail},
     )
 
 
@@ -142,9 +158,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return "local"
 
         authz = request.headers.get("Authorization", "")
-        if authz.startswith("Bearer "):
-            token = authz[len("Bearer "):].strip()
-            name = self.config.tokens_by_token.get(token)
+        scheme, _, param = authz.partition(" ")
+        if scheme.lower() == "bearer":
+            token = param.strip()
+            name = self.config.lookup_token(token)
             if name is not None:
                 return name
 

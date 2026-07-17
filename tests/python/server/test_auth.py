@@ -75,6 +75,17 @@ def test_bearer_token_wrong_value_rejected(tmp_path, monkeypatch):
     assert r.status_code == 401
 
 
+def test_bearer_scheme_is_case_insensitive(tmp_path, monkeypatch):
+    """RFC 7235: the auth-scheme token ('Bearer') is case-insensitive, only
+    the credential (the token itself) is case-sensitive."""
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TOKENS", "ci:abc123")
+    api = _api(tmp_path)
+    with TestClient(create_app(api), client=REMOTE) as c:
+        r = c.get("/v1/parts", headers={"Authorization": "bearer abc123"})
+    assert r.status_code == 200
+
+
 def test_tailscale_header_allowed_when_trusted_and_allowlisted(tmp_path, monkeypatch):
     monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
     monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
@@ -116,7 +127,7 @@ def test_no_credentials_401_shape(tmp_path, monkeypatch):
         r = c.get("/v1/parts")
     assert r.status_code == 401
     body = r.json()
-    assert body["error"]
+    assert body["error"] == "Authentication required"
     assert body["code"] == "unauthorized"
     assert "detail" in body
 
@@ -242,3 +253,65 @@ def test_forged_cookie_rejected(tmp_path, monkeypatch):
         c.cookies.set("dubis_session", "local.deadbeef")
         r = c.get("/v1/parts")
     assert r.status_code == 401
+
+
+def test_session_route_401_for_remote_peer_with_no_credentials(tmp_path, monkeypatch):
+    """The session-bootstrap route is itself behind the middleware -- a
+    remote caller with nothing to exchange (no bearer, no loopback, no
+    tailnet header) must be turned away with the same 401 as any other
+    route, not silently issue a session."""
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    api = _api(tmp_path)
+    with TestClient(create_app(api), client=REMOTE) as c:
+        r = c.post("/v1/auth/session")
+    assert r.status_code == 401
+    body = r.json()
+    assert body["error"] == "Authentication required"
+    assert body["code"] == "unauthorized"
+
+
+# ── pnp/legacy consume identity stamping ─────────────────────────────────────
+
+
+def test_pnp_consume_source_stamped_with_identity_for_remote_bearer_caller(tmp_path, monkeypatch):
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TOKENS", "ci:abc123")
+    api = _api(tmp_path)
+    headers = {"Authorization": "Bearer abc123"}
+    with TestClient(create_app(api), client=REMOTE) as c:
+        r = c.post("/v1/pnp/consume", json={"part_id": "C100000", "qty": 1}, headers=headers)
+        assert r.status_code == 200
+        history = c.get("/v1/parts/C100000/history", headers=headers).json()
+    assert history[-1]["source"] == "openpnp@ci"
+
+
+def test_legacy_consume_source_stamped_with_identity_for_remote_bearer_caller(tmp_path, monkeypatch):
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TOKENS", "openpnp:xyz789")
+    api = _api(tmp_path)
+    headers = {"Authorization": "Bearer xyz789"}
+    with TestClient(create_app(api), client=REMOTE) as c:
+        r = c.post("/api/consume", json={"part_id": "C100000", "qty": 1}, headers=headers)
+        assert r.status_code == 200
+        history = c.get("/v1/parts/C100000/history", headers=headers).json()
+    assert history[-1]["source"] == "openpnp@openpnp"
+
+
+def test_pnp_consume_source_unchanged_for_loopback_caller(tmp_path, monkeypatch):
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    api = _api(tmp_path)
+    with TestClient(create_app(api), client=LOOPBACK) as c:
+        r = c.post("/v1/pnp/consume", json={"part_id": "C100000", "qty": 1})
+        assert r.status_code == 200
+        history = c.get("/v1/parts/C100000/history").json()
+    assert history[-1]["source"] == "openpnp"
+
+
+def test_pnp_consume_source_unchanged_in_off_mode(tmp_path, monkeypatch):
+    monkeypatch.delenv("DUBIS_AUTH_MODE", raising=False)
+    api = _api(tmp_path)
+    with TestClient(create_app(api), client=REMOTE) as c:
+        r = c.post("/v1/pnp/consume", json={"part_id": "C100000", "qty": 1})
+        assert r.status_code == 200
+        history = c.get("/v1/parts/C100000/history").json()
+    assert history[-1]["source"] == "openpnp"
