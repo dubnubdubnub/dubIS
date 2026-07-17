@@ -1,0 +1,17 @@
+# ClusterIP :80 -> container :8080. CI smoke (Task 6) hits this by cluster
+# DNS as http://dubis-server.dubis.svc:80; the tailscale Ingress fronts the
+# same Service for tailnet access.
+apiVersion: v1
+kind: Service
+metadata:
+  name: dubis-server
+  labels:
+    app: dubis-server
+spec:
+  type: ClusterIP
+  selector:
+    app: dubis-server
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

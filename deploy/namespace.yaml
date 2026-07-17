@@ -1,0 +1,13 @@
+# dubis namespace. The `ghcr-pull=enabled` label is a Kyverno trigger label
+# per the cluster's GHCR-pull convention: a Kyverno policy watches for this
+# label on namespaces and clones/generates the GHCR image-pull Secret into
+# it automatically. Do NOT add `imagePullSecrets` by hand anywhere in this
+# kustomization — Kyverno injects it based on this label, and a hand-added
+# secret reference would just point at a Secret that doesn't exist yet (or
+# would fight the generated one).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dubis
+  labels:
+    ghcr-pull: enabled

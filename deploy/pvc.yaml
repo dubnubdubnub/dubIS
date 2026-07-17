@@ -1,0 +1,27 @@
+# Single RWO PVC for /data — SQLite (cache.db) + the CSVs are single-writer,
+# so this deployment is pinned to replicas: 1 / strategy: Recreate (see
+# deployment.yaml) and must never be scaled or run with a second Pod attached
+# to this same volume.
+#
+# recurring-job-group.longhorn.io label: this is the documented Longhorn
+# recurring-job-group selector convention (label a PVC with
+# `recurring-job-group.longhorn.io/<group-name>: enabled` to opt it into a
+# named Longhorn RecurringJob group for scheduled snapshots/backups). Per the
+# cluster team's answer, "app-data" is the group name to join here. CONFIRM
+# the exact label key against this cluster's backup/README.md at deploy time
+# before relying on it for backup coverage — it is unverified against this
+# specific cluster's Longhorn RecurringJob objects, only against the general
+# Longhorn documentation pattern.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dubis-server-data
+  labels:
+    recurring-job-group.longhorn.io/app-data: enabled
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn-r2
+  resources:
+    requests:
+      storage: 1Gi
