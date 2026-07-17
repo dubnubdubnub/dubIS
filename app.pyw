@@ -163,7 +163,7 @@ def main():
             from server.run import start_server, stop_server  # deferred: heavy import
 
             server_state["stop_server"] = stop_server
-            v1_server = start_server(api, static_dir=APP_DIR, port=port)
+            v1_server = start_server(api, static_dir=APP_DIR, port=port, data_dir=api.base_dir)
             server_state["server"] = v1_server
             bench.mark("server_starting")
 
@@ -218,7 +218,7 @@ def main():
             v1_server = server_state.get("server")
             stop_server = server_state.get("stop_server")
             if v1_server is not None and stop_server is not None:
-                stop_server(v1_server)
+                stop_server(v1_server, data_dir=api.base_dir)
         except Exception as exc:
             logger.warning("Cleanup: stopping /v1 server failed: %s", exc)
         try:

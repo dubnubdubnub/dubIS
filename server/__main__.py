@@ -18,13 +18,13 @@ import argparse
 import atexit
 import os
 import threading
-import time
 
 import uvicorn
 
 from distributor_manager import DistributorManager
 from inventory_api import InventoryApi
 from server.app import create_app
+from server.run import _remove_port_file, _write_port_file, wait_until_started
 
 
 def _build_api(data_dir: str) -> InventoryApi:
@@ -125,21 +125,26 @@ def _mount_test_routes(app, api: InventoryApi, test_source: str) -> None:
     app.router.routes.insert(0, app.router.routes.pop())
 
 
-def _print_ready_when_started(server: "uvicorn.Server", port_arg: int) -> None:
-    """Print READY:<port> once uvicorn has actually bound its socket.
+def _print_ready_when_started(
+    server: "uvicorn.Server", port_arg: int, data_dir: str | None = None,
+) -> None:
+    """Print READY:<port> once uvicorn has actually bound its socket, and
+    (when data_dir is given) write the bound port to <data_dir>/.v1_port —
+    the same discovery signal server/run.py's start_server() writes for the
+    in-thread desktop-app path, so a standalone `python -m server` instance
+    is equally discoverable by tools/dubis-mcp/v1client.py.
 
     Mirrors the tests/e2e-server.py contract that Playwright's global-setup
     parses to learn the port when --port 0 is used. Runs in a daemon thread
     started before server.run() blocks the main thread.
     """
-    deadline = time.monotonic() + 10
-    while not server.started and time.monotonic() < deadline:
-        time.sleep(0.01)
-    if not server.started:
+    if not wait_until_started(server, timeout=10, poll=0.01):
         return
     port = port_arg
     if port == 0:
         port = server.servers[0].sockets[0].getsockname()[1]
+    if data_dir is not None:
+        _write_port_file(data_dir, port)
     print(f"READY:{port}", flush=True)
 
 
@@ -172,11 +177,13 @@ def main() -> None:
     if args.rollback_on_exit:
         atexit.register(_rollback_on_exit, api, args.test_source)
 
+    atexit.register(_remove_port_file, data_dir)
+
     config = uvicorn.Config(app, host=args.host, port=args.port, log_level="info")
     server = uvicorn.Server(config)
 
     threading.Thread(
-        target=_print_ready_when_started, args=(server, args.port), daemon=True,
+        target=_print_ready_when_started, args=(server, args.port, data_dir), daemon=True,
     ).start()
 
     server.run()
