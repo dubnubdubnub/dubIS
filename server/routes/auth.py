@@ -24,5 +24,8 @@ class SessionResponse(BaseModel):
 @router.post("/session", operation_id="create_auth_session")
 def create_session(request: Request, response: Response) -> SessionResponse:
     identity = request.state.identity
-    set_session_cookie(response, request.app.state.auth_config, identity)
+    set_session_cookie(
+        response, request.app.state.auth_config, identity,
+        secure=request.url.scheme == "https",
+    )
     return SessionResponse(identity=identity)

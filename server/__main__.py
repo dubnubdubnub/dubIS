@@ -226,7 +226,13 @@ def main() -> None:
 
     atexit.register(_teardown)
 
-    config = uvicorn.Config(app, host=args.host, port=args.port, log_level="info")
+    # timeout_graceful_shutdown: see server/routes/events.py's module docstring
+    # -- without a bound, a connected SSE client stalls Server.shutdown() for
+    # uvicorn's 30s default on every container rollout. Matches the value
+    # tests/python/server/conftest.py's start_live_server() defaults to.
+    config = uvicorn.Config(
+        app, host=args.host, port=args.port, log_level="info", timeout_graceful_shutdown=5,
+    )
     server = uvicorn.Server(config)
 
     threading.Thread(

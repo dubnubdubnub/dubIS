@@ -62,9 +62,18 @@ def _validation_error_handler(request: Request, exc: RequestValidationError) -> 
     """Pydantic request-validation failure -> {error, code:"validation_error",
     detail:<field errors>}. `detail` carries the pydantic error list
     (jsonable-encoded, since some error `ctx` values aren't natively JSON
-    serializable) so callers can see exactly which field(s) failed and why."""
+    serializable) so callers can see exactly which field(s) failed and why.
+
+    The `detail` returned to the caller keeps pydantic's `input` field intact
+    -- it goes only to the same authed caller who submitted it, so echoing
+    their own (possibly-invalid) value back is fine and useful for debugging.
+    The LOGGED copy strips `input` from each error dict before logging: a
+    malformed body (e.g. `PUT /v1/distributors/mouser/key` with a bad
+    `SetMouserKeyBody.key`) would otherwise write the rejected secret
+    verbatim into server logs."""
     errors = jsonable_encoder(exc.errors())
-    logger.warning("/v1 %s -> validation_error: %s", request.url.path, errors)
+    redacted = [{k: v for k, v in err.items() if k != "input"} for err in errors]
+    logger.warning("/v1 %s -> validation_error: %s", request.url.path, redacted)
     return JSONResponse(
         status_code=422,
         content={"error": "Validation error", "code": "validation_error", "detail": errors},

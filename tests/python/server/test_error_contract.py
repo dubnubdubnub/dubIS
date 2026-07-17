@@ -40,8 +40,6 @@ Conclusion: only `/v1/import/parse`'s `path` field needed gating.
 
 from __future__ import annotations
 
-import os
-
 from fastapi.testclient import TestClient
 
 from server.app import create_app
