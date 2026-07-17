@@ -235,9 +235,22 @@ def main():
         """Best-effort teardown before os._exit. Order matters: stop the PnP
         server FIRST (no new requests; in-flight ones finish) so a mid-flight
         adjust_part can't write to a connection we're about to close, THEN
-        commit+close the cache. Both steps log rather than raise so a cleanup
-        failure can't block process exit. Idempotent — safe to call repeatedly
-        (e.g. closing then closed both fire)."""
+        commit+close the cache, THEN release the data-dir lock LAST.
+
+        The lock must outlive both the /v1 server and the cache close: if it
+        were released as soon as stop_server() is called (the old behavior),
+        a second dubIS instance could acquire it and start writing to the
+        same CSVs/cache.db while this process's uvicorn thread was still
+        mid-shutdown or api.shutdown() hadn't committed/closed cache.db yet.
+        stop_server() is called with release_lock=False here so it only
+        joins the server thread (bounded by its own timeout) and removes the
+        port file; the lock itself is released in the `finally` below, after
+        api.shutdown() has run — whether or not api.shutdown() raised.
+
+        All steps log rather than raise so a cleanup failure can't block
+        process exit. Idempotent — safe to call repeatedly (e.g. closing
+        then closed both fire); a second call finds no lock on server_state
+        (or an already-released LockHandle, itself idempotent) and no-ops."""
         # Mirror: push current inventory on shutdown (no-op unless enabled).
         try:
             api._mirror_ctl.push_event(api._load_organized(), dubis_running=False, block=True)
@@ -248,17 +261,24 @@ def main():
         except Exception as exc:
             logger.warning("Cleanup: stopping PnP server failed: %s", exc)
         bench.mark("pnp_stopped")
+        v1_server = server_state.get("server")
+        lock = getattr(v1_server, "_dubis_lock", None) if v1_server is not None else None
         try:
-            v1_server = server_state.get("server")
             stop_server = server_state.get("stop_server")
             if v1_server is not None and stop_server is not None:
-                stop_server(v1_server, data_dir=api.base_dir)
+                stop_server(v1_server, data_dir=api.base_dir, release_lock=False)
         except Exception as exc:
             logger.warning("Cleanup: stopping /v1 server failed: %s", exc)
         try:
             api.shutdown()
         except Exception as exc:
             logger.warning("Cleanup: api.shutdown failed: %s", exc)
+        finally:
+            if lock is not None:
+                try:
+                    lock.release()
+                except Exception as exc:
+                    logger.warning("Cleanup: releasing data-dir lock failed: %s", exc)
         bench.mark("cache_closed")
 
     def on_closing():

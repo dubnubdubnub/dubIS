@@ -18,10 +18,20 @@ on Windows, where `msvcrt.locking` is a MANDATORY lock that blocks ALL
 access (not just writes) to the locked byte range from other file handles.
 Byte 0 is a sentinel byte used only to hold the lock; the JSON content
 starts at byte 1, which is never locked, so it's always readable.
+
+Note on POSIX vs Windows locking granularity: `msvcrt.locking` on Windows
+locks exactly the byte range requested (here, byte 0 only) — that's why the
+byte/content split above works at all on that platform. `fcntl.flock` on
+POSIX has no byte-range concept: it locks the *entire underlying file*,
+not just byte 0. The byte/content split is harmless there (flock still
+only blocks other *processes'* flock() calls, not raw reads via a
+different fd/open()), but don't read the POSIX branch as "locking byte 0"
+the way the Windows branch literally does.
 """
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import sys
@@ -31,9 +41,35 @@ from dubis_errors import DataDirLockedError
 _LOCK_FILENAME = ".dubis_lock"
 _LOCK_BYTE_LEN = 1
 
+# errno values that mean "already locked by someone else" — i.e. genuine
+# lock contention, as opposed to some other OSError (permission denied on
+# the containing directory, disk full, antivirus holding the file open,
+# etc.) that happens to be raised from the same call. Only these should be
+# translated into DataDirLockedError; everything else must propagate
+# unchanged so it isn't misreported as "another dubIS server is running."
+#
+# Windows: msvcrt.locking() on a already-locked region raises OSError with
+# errno EACCES (13, the common case) or occasionally EDEADLK (36, seen when
+# the same process/thread re-locks). POSIX: fcntl.flock(..., LOCK_NB) on a
+# held lock raises BlockingIOError, a OSError subclass, with errno EAGAIN
+# or (on some platforms) EWOULDBLOCK — CPython normalizes both spellings to
+# the same errno on the vast majority of systems, but both are listed for
+# safety since the C constants aren't guaranteed equal everywhere.
+_WIN_CONTENTION_ERRNOS = frozenset({errno.EACCES, errno.EDEADLK})
+_POSIX_CONTENTION_ERRNOS = frozenset({errno.EAGAIN, errno.EWOULDBLOCK})
+
 
 def _lock_path(data_dir: str) -> str:
     return os.path.join(data_dir, _LOCK_FILENAME)
+
+
+def _is_lock_contention(exc: OSError) -> bool:
+    """True if *exc* (raised by `_lock_region`) represents genuine lock
+    contention (the region is already held by another process), as opposed
+    to an unrelated OSError that happens to share the exception type."""
+    if sys.platform == "win32":
+        return exc.errno in _WIN_CONTENTION_ERRNOS
+    return isinstance(exc, BlockingIOError) or exc.errno in _POSIX_CONTENTION_ERRNOS
 
 
 def _lock_region(f) -> None:
@@ -41,7 +77,9 @@ def _lock_region(f) -> None:
 
     Raises OSError (or a subclass, e.g. BlockingIOError on POSIX) if the
     region is already locked by another process. Callers on both platforms
-    can catch plain OSError."""
+    can catch plain OSError, but should narrow with `_is_lock_contention`
+    before treating it as "locked by someone else" — see that function's
+    docstring for why."""
     f.seek(0)
     if sys.platform == "win32":
         import msvcrt
@@ -155,7 +193,15 @@ def acquire_lock(data_dir: str) -> LockHandle:
 
     try:
         _lock_region(f)
-    except OSError:
+    except OSError as exc:
+        if not _is_lock_contention(exc):
+            # Not contention — permission denied, disk full, antivirus, etc.
+            # Must NOT be relabeled as "another server is running"; close
+            # the handle we just opened (nothing acquired it) and let the
+            # real error propagate unchanged, per this repo's error policy
+            # (throw, don't silently swallow/misreport).
+            f.close()
+            raise
         content = _read_content(f) or {}
         f.close()
         pid = content.get("pid")
@@ -168,7 +214,14 @@ def acquire_lock(data_dir: str) -> LockHandle:
             pid=pid,
             port=port,
             data_dir=data_dir,
-        ) from None
+        ) from exc
 
-    _write_content(f, {"pid": os.getpid(), "port": None})
+    try:
+        _write_content(f, {"pid": os.getpid(), "port": None})
+    except Exception:
+        # We hold the OS lock at this point — release it and close the
+        # handle rather than leaking both on this (rare) write failure.
+        _unlock_region(f)
+        f.close()
+        raise
     return LockHandle(f, path, data_dir)
