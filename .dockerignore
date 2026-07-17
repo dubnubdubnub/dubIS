@@ -1,0 +1,41 @@
+# Runtime data — the image ships no user data; /data is a VOLUME populated at
+# deploy time. EXCEPT data/constants.json, which is baked-in static config
+# (SECTION_ORDER etc.), not user data — inventory_api.py loads it at *import*
+# time from a path relative to the module's own directory (not --data-dir),
+# so the image needs its own copy regardless of what gets mounted at /data.
+# Found the hard way: `docker build` failed at the `import server` sanity
+# check with FileNotFoundError('/app/data/constants.json') before this
+# exception was added.
+data/**
+!data/constants.json
+
+# Test suites, tooling, and docs never needed at runtime.
+tests/
+node_modules/
+docs/
+.superpowers/
+.claude*
+scripts/
+tools/
+openpnp/
+
+# Playwright / JS test artifacts.
+*.spec.mjs
+playwright-report/
+test-results/
+
+# VCS / misc.
+.git/
+.gitignore
+.dockerignore
+Dockerfile
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Editor/OS cruft.
+.vscode/
+.idea/
+*.log
