@@ -1,0 +1,32 @@
+# Tailscale Kubernetes operator ingress. Per the operator's documented
+# pattern, the exposed MagicDNS hostname comes from `spec.tls[].hosts[0]`
+# (and/or the `tailscale.com/hostname` annotation, set here too for
+# belt-and-suspenders) rather than a normal DNS `rules[].host` — the
+# operator provisions its own tailnet cert/hostname and a plain
+# `networking.k8s.io/v1` Ingress with `ingressClassName: tailscale` plus a
+# `defaultBackend` is the shape shown in the operator's docs. This yields
+# https://dubis-server.<tailnet>.ts.net.
+#
+# UNVERIFIED (design doc §7 open question): whether the tailscale operator
+# injects a tailnet-identity header (e.g. Tailscale-User-Login) into
+# forwarded requests that this app could trust for browser-based auth
+# without a bearer token. Confirm against the operator's current docs /
+# a live test before flipping DUBIS_TRUST_TAILSCALE_HEADER on in the
+# dubis-server-auth Secret; until confirmed, the app ships with a bearer
+# baseline + cookie-fallback per the design doc's Risks section.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dubis-server
+  annotations:
+    tailscale.com/hostname: dubis-server
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: dubis-server
+      port:
+        number: 80
+  tls:
+    - hosts:
+        - dubis-server
