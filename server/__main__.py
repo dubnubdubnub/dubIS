@@ -18,14 +18,13 @@ import argparse
 import atexit
 import os
 import threading
-import time
 
 import uvicorn
 
 from distributor_manager import DistributorManager
 from inventory_api import InventoryApi
 from server.app import create_app
-from server.run import _remove_port_file, _write_port_file
+from server.run import _remove_port_file, _write_port_file, wait_until_started
 
 
 def _build_api(data_dir: str) -> InventoryApi:
@@ -139,10 +138,7 @@ def _print_ready_when_started(
     parses to learn the port when --port 0 is used. Runs in a daemon thread
     started before server.run() blocks the main thread.
     """
-    deadline = time.monotonic() + 10
-    while not server.started and time.monotonic() < deadline:
-        time.sleep(0.01)
-    if not server.started:
+    if not wait_until_started(server, timeout=10, poll=0.01):
         return
     port = port_arg
     if port == 0:

@@ -25,6 +25,16 @@ turns it into the MCP tool call's error result, carrying the server's
 message. This matches the read tools' style: only get_part translates a
 "not found" case into a plain string because it's a lookup miss, not a
 request error.
+
+adjust_stock is a partial exception to "always let /v1 raise the error":
+POST /v1/parts/{part_key}/adjust silently no-ops "add"/"remove" against a
+part_key with no existing ledger/adjustment row (the domain layer only
+materializes a brand-new row for adj_type == "set"), so a bad key would
+otherwise come back as a misleading {"new_qty": None} instead of any error
+at all. adjust_stock pre-checks existence via _find_part for "add"/"remove"
+and raises ValueError("Part not found: <key>") itself, before ever calling
+/v1, giving the same "Part not found" wording get_part uses. "set" is left
+alone — it intentionally creates new parts, so no precheck applies to it.
 """
 
 from __future__ import annotations
@@ -122,6 +132,10 @@ def dubis_status() -> dict:
     client = _get_client()
     client.get("/v1/health")
     meta = client.get("/v1/meta")
+    # GET /v1/meta (server/routes/meta.py) carries only schema_version and
+    # section orders, no part count — this phase makes no server changes, so
+    # part_count is derived from a full GET /v1/parts fetch instead of a
+    # dedicated cheap count endpoint.
     parts = client.get("/v1/parts")
     part_count = len(parts.get("inventory", [])) if isinstance(parts, dict) else len(parts)
     return {
@@ -356,8 +370,11 @@ def adjust_stock(part_key: str, adj_type: str, quantity: int, note: str = "") ->
 
     Args:
         part_key: LCSC/MPN/Digikey/Pololu/Mouser PN, or a derived part_key.
-        adj_type: one of "set" (absolute new quantity), "add" (increase by
-            quantity), "remove" (decrease by quantity).
+        adj_type: one of "set" (absolute new quantity — may CREATE a brand-new
+            part_key that has no prior ledger/adjustment row), "add"
+            (increase an EXISTING part's quantity by quantity), "remove"
+            (decrease an EXISTING part's quantity by quantity). "add" and
+            "remove" require part_key to already exist.
         quantity: non-negative integer; interpretation depends on adj_type.
         note: optional free-text note recorded on the adjustment.
 
@@ -365,7 +382,15 @@ def adjust_stock(part_key: str, adj_type: str, quantity: int, note: str = "") ->
         {part_key, new_qty} — new_qty comes from refetching the part after
         the adjustment. The adjustment is recorded with source="mcp"
         (visible afterward via part_history).
+
+    Raises:
+        ValueError: adj_type is "add" or "remove" and part_key matches no
+            existing part (the message reads "Part not found: <key>", same
+            wording get_part uses for a lookup miss) — /v1 itself would
+            otherwise silently no-op the request rather than error.
     """
+    if adj_type in ("add", "remove") and _find_part(part_key) is None:
+        raise ValueError(f"Part not found: {part_key}")
     _get_client().post(
         f"/v1/parts/{part_key}/adjust",
         json={"adj_type": adj_type, "quantity": quantity, "note": note, "source": "mcp"},
