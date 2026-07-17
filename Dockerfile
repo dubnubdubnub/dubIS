@@ -8,7 +8,9 @@
 # Pillow, and opencv-python-headless all ship manylinux wheels so `pip install`
 # succeeds without extra apt packages — only `python -c "import server, inventory_api"`
 # at the end of this build proves the runtime import graph is actually satisfied.
-FROM python:3.12-slim
+# python:3.12-slim, resolved 2026-07-17 via:
+#   docker pull python:3.12-slim && docker inspect --format='{{index .RepoDigests 0}}' python:3.12-slim
+FROM python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de
 
 WORKDIR /app
 
@@ -47,6 +49,15 @@ COPY data/constants.json data/constants.json
 # pulls in every domain/api_*.py facade; server/__main__.py's _build_api() wraps
 # it directly, so if this import fails the container would fail at startup too.
 RUN python -c "import server, inventory_api"
+
+# Run as a fixed non-root uid — never as root in the container. The app
+# writes CSVs/cache.db/.v1_port/.dubis_lock under /data at runtime (a VOLUME
+# here; a PVC in k8s), so whatever owns/can-write /data at runtime must match
+# this uid. NOTE for Task 5 (k8s Deployment): set
+#   securityContext: { runAsUser: 10001, fsGroup: 10001 }
+# on the pod so the PVC-backed /data mount is group-writable by this uid.
+RUN useradd -m -u 10001 appuser
+USER appuser
 
 VOLUME /data
 EXPOSE 8080
