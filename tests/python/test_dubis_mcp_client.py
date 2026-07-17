@@ -203,3 +203,57 @@ def test_connect_spawns_standalone_server_when_nothing_else_available(tmp_path, 
         assert (tmp_path / "data" / ".v1_port").exists()
     finally:
         v1client.shutdown_spawned()
+
+
+# ── DUBIS_TOKEN bearer auth (Phase 1c Task 7) ────────────────────────────────
+#
+# docs/plans/2026-07-16-phase1c-remote-deploy-design.md §7: "v1client gains
+# an Authorization header from DUBIS_TOKEN env when set".
+#
+# The two tests below prove V1Client actually attaches (or omits) the header
+# httpx would send on the wire — the thing that matters for a real remote
+# server. They don't hit a live server: server/auth.py's AuthMiddleware
+# unconditionally trusts loopback peers (identity "local") regardless of any
+# token (see server/auth.py's resolution order, item 1), so a real HTTP round
+# trip against a server bound to 127.0.0.1 — the only address available in
+# this test environment — could never observe a 401-without-token /
+# 200-with-token difference; the loopback bypass always wins first. That
+# distinction (token vs. no token, for a genuinely non-loopback caller) is
+# exactly what tests/python/server/test_auth.py's
+# test_bearer_token_allowed / test_bearer_token_wrong_value_rejected already
+# cover via FastAPI's TestClient with a simulated remote peer address — this
+# module doesn't duplicate that; it covers the client-side half (does
+# V1Client build the header V1Client is supposed to build).
+
+
+def test_v1client_attaches_bearer_token_when_given():
+    client = V1Client("http://example.invalid", token="abc123")
+    assert client._client.headers["Authorization"] == "Bearer abc123"
+
+
+def test_v1client_omits_authorization_header_when_no_token():
+    client = V1Client("http://example.invalid")
+    assert "Authorization" not in client._client.headers
+
+
+def test_connect_passes_dubis_token_env_to_client(tmp_path, monkeypatch):
+    """connect()'s env-URL path (the one used against a real remote deploy)
+    must forward DUBIS_TOKEN onto the returned V1Client."""
+    monkeypatch.setenv("DUBIS_URL", "http://example.invalid")
+    monkeypatch.setenv("DUBIS_TOKEN", "abc123")
+    try:
+        client = connect(str(tmp_path))
+        assert client._client.headers["Authorization"] == "Bearer abc123"
+    finally:
+        monkeypatch.delenv("DUBIS_URL", raising=False)
+        monkeypatch.delenv("DUBIS_TOKEN", raising=False)
+
+
+def test_connect_without_dubis_token_omits_header(tmp_path, monkeypatch):
+    monkeypatch.setenv("DUBIS_URL", "http://example.invalid")
+    monkeypatch.delenv("DUBIS_TOKEN", raising=False)
+    try:
+        client = connect(str(tmp_path))
+        assert "Authorization" not in client._client.headers
+    finally:
+        monkeypatch.delenv("DUBIS_URL", raising=False)
