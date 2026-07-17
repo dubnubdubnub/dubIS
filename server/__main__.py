@@ -178,7 +178,6 @@ def main() -> None:
     except DataDirLockedError as exc:
         print(f"error: {exc}", file=sys.stderr, flush=True)
         raise SystemExit(1) from exc
-    atexit.register(lock.release)
 
     api = _build_api(data_dir)
 
@@ -190,10 +189,42 @@ def main() -> None:
     if args.test_source:
         _mount_test_routes(app, api, args.test_source)
 
-    if args.rollback_on_exit:
-        atexit.register(_rollback_on_exit, api, args.test_source)
+    def _teardown() -> None:
+        """Single atexit hook, run in explicit order, so the data-dir lock
+        is held for the entire teardown rather than relying on atexit's
+        LIFO registration order to get that implicitly (fragile — the next
+        person to add a hook here could easily reorder registrations without
+        realizing the lock's release position matters). server.run() below
+        blocks the main thread directly (unlike server/run.py's
+        start_server(), which runs uvicorn on a background thread), so by
+        the time this fires uvicorn has already fully stopped — no thread
+        join is needed here the way stop_server() needs one.
 
-    atexit.register(_remove_port_file, data_dir)
+        Order: roll back test adjustments (if any) -> remove the discovery
+        port file -> commit+close cache.db -> release the lock last, so a
+        second process can't acquire it and start writing until this
+        process's cache connection is fully closed. Wrapped in try/finally
+        (rather than one un-nested sequence) so a failure in an earlier step
+        still lets later steps run — in particular, the lock must be
+        released even if rollback or port-file removal blows up, or a
+        crashed teardown would leave the data dir permanently locked for
+        the rest of this process's lifetime (atexit hooks don't get a
+        second chance)."""
+        try:
+            if args.rollback_on_exit:
+                _rollback_on_exit(api, args.test_source)
+        except Exception as exc:
+            print(f"[server] teardown: rollback failed: {exc}", file=sys.stderr, flush=True)
+        try:
+            _remove_port_file(data_dir)
+        except Exception as exc:
+            print(f"[server] teardown: port-file removal failed: {exc}", file=sys.stderr, flush=True)
+        try:
+            api.shutdown()  # best-effort internally; never raises
+        finally:
+            lock.release()
+
+    atexit.register(_teardown)
 
     config = uvicorn.Config(app, host=args.host, port=args.port, log_level="info")
     server = uvicorn.Server(config)

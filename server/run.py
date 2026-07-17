@@ -90,6 +90,7 @@ def start_server(
     server = uvicorn.Server(config)
     server._dubis_lock = lock
     thread = threading.Thread(target=server.run, name="dubis-v1-server", daemon=True)
+    server._dubis_thread = thread
     thread.start()
     if data_dir is not None:
         threading.Thread(
@@ -101,10 +102,38 @@ def start_server(
     return server
 
 
-def stop_server(server: "uvicorn.Server", data_dir: str | None = None) -> None:
+def stop_server(
+    server: "uvicorn.Server",
+    data_dir: str | None = None,
+    release_lock: bool = True,
+    join_timeout: float = 5.0,
+) -> None:
+    """Signal uvicorn to shut down, wait for its background thread to
+    actually stop, then (by default) release the data-dir lock.
+
+    `should_exit = True` only *requests* an async shutdown — uvicorn's
+    serving thread (started in start_server()) may still be mid-flight,
+    still handling requests or flushing connections, when this function
+    would otherwise return. Joining that thread (bounded by *join_timeout*
+    so a wedged shutdown can't hang the caller forever) before releasing
+    the lock closes the race where a second process acquires the lock and
+    starts writing to the same CSVs/cache.db while the first server is
+    still shutting down.
+
+    *release_lock* lets a caller defer the release past this call — e.g.
+    app.pyw's _cleanup() calls this with release_lock=False, then releases
+    the lock itself only after api.shutdown() has committed and closed
+    cache.db, so the lock is held for the entire teardown, not just the
+    server's part of it. Standalone callers that don't need finer-grained
+    ordering (tests, `python -m server` — which doesn't use this function
+    at all) can rely on the default True.
+    """
     server.should_exit = True
+    thread = getattr(server, "_dubis_thread", None)
+    if thread is not None:
+        thread.join(timeout=join_timeout)
     if data_dir is not None:
         _remove_port_file(data_dir)
     lock = getattr(server, "_dubis_lock", None)
-    if lock is not None:
+    if lock is not None and release_lock:
         lock.release()

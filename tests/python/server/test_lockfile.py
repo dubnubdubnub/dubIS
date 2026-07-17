@@ -11,6 +11,7 @@ non-zero with the error on stderr).
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import subprocess
@@ -101,6 +102,61 @@ def test_release_is_idempotent(tmp_path):
     handle = acquire_lock(str(tmp_path))
     handle.release()
     handle.release()  # must not raise
+
+
+def test_unrelated_oserror_propagates_unchanged(tmp_path, monkeypatch):
+    """Regression for the review finding that acquire_lock() used to catch
+    plain `OSError` around `_lock_region` and relabel ANY OSError (not just
+    genuine lock contention) as DataDirLockedError with pid=None — masking
+    real failures like permission-denied or disk-full as a bogus "another
+    server is running" message. A non-contention OSError must propagate
+    unchanged."""
+    import server.lockfile as lockfile_mod
+
+    def _boom(f):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(lockfile_mod, "_lock_region", _boom)
+
+    with pytest.raises(OSError) as exc_info:
+        acquire_lock(str(tmp_path))
+    assert not isinstance(exc_info.value, DataDirLockedError)
+    assert exc_info.value.errno == errno.ENOSPC
+
+
+def test_genuine_contention_still_raises_data_dir_locked_error(tmp_path):
+    """Sanity check alongside the narrowing fix above: real contention
+    (the common case — second acquire on an already-held lock) must still
+    map to DataDirLockedError, not propagate as a raw OSError."""
+    handle = acquire_lock(str(tmp_path))
+    try:
+        with pytest.raises(DataDirLockedError):
+            acquire_lock(str(tmp_path))
+    finally:
+        handle.release()
+
+
+def test_write_content_failure_after_lock_closes_handle_and_unlocks(tmp_path, monkeypatch):
+    """Regression for the review's minor finding: if `_write_content` raises
+    AFTER `_lock_region` already succeeded, acquire_lock() used to leak both
+    the file handle and the held OS lock (never reachable again, since the
+    LockHandle was never constructed/returned). It must close the handle
+    and release the OS lock so a subsequent acquire can still succeed."""
+    import server.lockfile as lockfile_mod
+
+    def _boom(f, content):
+        raise ValueError("simulated write failure")
+
+    monkeypatch.setattr(lockfile_mod, "_write_content", _boom)
+
+    with pytest.raises(ValueError):
+        acquire_lock(str(tmp_path))
+
+    # The lock must have been released (not leaked) — a fresh acquire (with
+    # the real _write_content restored) succeeds.
+    monkeypatch.undo()
+    handle = acquire_lock(str(tmp_path))
+    handle.release()
 
 
 def test_two_live_servers_second_process_exits_nonzero(tmp_path):
