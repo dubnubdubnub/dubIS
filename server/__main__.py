@@ -17,13 +17,16 @@ from __future__ import annotations
 import argparse
 import atexit
 import os
+import sys
 import threading
 
 import uvicorn
 
 from distributor_manager import DistributorManager
+from dubis_errors import DataDirLockedError
 from inventory_api import InventoryApi
 from server.app import create_app
+from server.lockfile import acquire_lock
 from server.run import _remove_port_file, _write_port_file, wait_until_started
 
 
@@ -126,13 +129,16 @@ def _mount_test_routes(app, api: InventoryApi, test_source: str) -> None:
 
 
 def _print_ready_when_started(
-    server: "uvicorn.Server", port_arg: int, data_dir: str | None = None,
+    server: "uvicorn.Server", port_arg: int, data_dir: str | None = None, lock=None,
 ) -> None:
     """Print READY:<port> once uvicorn has actually bound its socket, and
     (when data_dir is given) write the bound port to <data_dir>/.v1_port —
     the same discovery signal server/run.py's start_server() writes for the
     in-thread desktop-app path, so a standalone `python -m server` instance
-    is equally discoverable by tools/dubis-mcp/v1client.py.
+    is equally discoverable by tools/dubis-mcp/v1client.py. Also updates
+    the data-dir lockfile's content with the resolved port, if *lock* is
+    given (it was acquired with port=None in main(), before the actual
+    port was known).
 
     Mirrors the tests/e2e-server.py contract that Playwright's global-setup
     parses to learn the port when --port 0 is used. Runs in a daemon thread
@@ -145,6 +151,8 @@ def _print_ready_when_started(
         port = server.servers[0].sockets[0].getsockname()[1]
     if data_dir is not None:
         _write_port_file(data_dir, port)
+    if lock is not None:
+        lock.update_port(port)
     print(f"READY:{port}", flush=True)
 
 
@@ -164,6 +172,14 @@ def main() -> None:
         parser.error("--rollback-on-exit requires --test-source")
 
     data_dir = os.path.abspath(args.data_dir)
+
+    try:
+        lock = acquire_lock(data_dir)
+    except DataDirLockedError as exc:
+        print(f"error: {exc}", file=sys.stderr, flush=True)
+        raise SystemExit(1) from exc
+    atexit.register(lock.release)
+
     api = _build_api(data_dir)
 
     if args.test_source:
@@ -183,7 +199,7 @@ def main() -> None:
     server = uvicorn.Server(config)
 
     threading.Thread(
-        target=_print_ready_when_started, args=(server, args.port, data_dir), daemon=True,
+        target=_print_ready_when_started, args=(server, args.port, data_dir, lock), daemon=True,
     ).start()
 
     server.run()

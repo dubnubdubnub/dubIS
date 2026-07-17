@@ -30,6 +30,7 @@ if sys.platform == "win32":
 
 import webview
 from client_shell import ClientShell
+from dubis_errors import DataDirLockedError
 from inventory_api import InventoryApi
 from pnp_server import start_pnp_server, stop_pnp_server
 
@@ -54,6 +55,25 @@ def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+def _show_error_dialog(title: str, message: str) -> None:
+    """Show a native, blocking error dialog. Called from the server-boot
+    background thread (never the pywebview UI thread) when startup fails in
+    a way the user needs to know about immediately rather than discovering
+    via splash.html's silent 15s health-poll timeout — e.g. DataDirLockedError.
+
+    Windows-only MessageBoxW (this app only ships on Windows — see the
+    win32-gated AppUserModelID call above); falls back to stderr elsewhere
+    so this never crashes the boot thread on a dev machine running a
+    non-Windows platform."""
+    if sys.platform == "win32":
+        MB_OK = 0x0
+        MB_ICONERROR = 0x10
+        MB_SYSTEMMODAL = 0x1000
+        ctypes.windll.user32.MessageBoxW(None, message, title, MB_OK | MB_ICONERROR | MB_SYSTEMMODAL)
+    else:
+        print(f"{title}: {message}", file=sys.stderr, flush=True)
 
 
 def _hard_exit(code: int = 0) -> None:
@@ -179,6 +199,20 @@ def main():
                 )
                 return
             bench.mark("server_started")
+        except DataDirLockedError as e:
+            # Distinct from the generic except below: this is a common,
+            # user-actionable case (another dubIS instance is already
+            # running against this data dir — e.g. launched twice by
+            # accident) rather than a boot bug, so it gets a real dialog
+            # instead of just a log line splash.html's timeout silently
+            # papers over.
+            logger.error("v1 server boot failed: %s", e, exc_info=True)
+            _show_error_dialog(
+                "dubIS is already running",
+                f"Another dubIS server is already running against this data "
+                f"directory (pid={e.pid}, port={e.port}).\n\n"
+                f"Close the other instance before opening a new one.",
+            )
         except Exception as e:
             logger.error("v1 server boot failed: %s", e, exc_info=True)
 
