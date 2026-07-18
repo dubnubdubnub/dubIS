@@ -17,6 +17,13 @@ from tests.python.helpers import make_api, make_part, write_ledger
 
 LOOPBACK = ("127.0.0.1", 51234)
 REMOTE = ("100.64.1.2", 51234)
+# Simulated tailscale-operator-proxy peer -- the only source that should be
+# allowed to assert Tailscale-User-Login.
+PROXY = ("10.42.2.176", 51234)
+# Simulated in-cluster pod hitting the ClusterIP directly -- the forge vector
+# the source-IP gate exists to close. Deliberately NOT the same host as
+# REMOTE so these tests can't accidentally pass via some other allowlist.
+OTHER_POD = ("10.42.9.9", 51234)
 
 
 def _api(tmp_path):
@@ -145,11 +152,13 @@ def test_token_scheme_is_case_insensitive(tmp_path, monkeypatch):
 
 
 def test_tailscale_header_allowed_when_trusted_and_allowlisted(tmp_path, monkeypatch):
+    """Header honored only when the peer IS the configured trusted proxy."""
     monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
     monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
+    monkeypatch.setenv("DUBIS_TRUSTED_PROXY_IPS", "10.42.2.176")
     monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", "alice@example.com,bob@example.com")
     api = _api(tmp_path)
-    with TestClient(create_app(api), client=REMOTE) as c:
+    with TestClient(create_app(api), client=PROXY) as c:
         r = c.get("/v1/parts", headers={"Tailscale-User-Login": "alice@example.com"})
     assert r.status_code == 200
 
@@ -157,9 +166,10 @@ def test_tailscale_header_allowed_when_trusted_and_allowlisted(tmp_path, monkeyp
 def test_tailscale_header_login_not_in_allowlist_rejected(tmp_path, monkeypatch):
     monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
     monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
+    monkeypatch.setenv("DUBIS_TRUSTED_PROXY_IPS", "10.42.2.176")
     monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", "alice@example.com")
     api = _api(tmp_path)
-    with TestClient(create_app(api), client=REMOTE) as c:
+    with TestClient(create_app(api), client=PROXY) as c:
         r = c.get("/v1/parts", headers={"Tailscale-User-Login": "eve@example.com"})
     assert r.status_code == 401
 
@@ -171,11 +181,166 @@ def test_tailscale_header_ignored_when_trust_flag_unset_spoof(tmp_path, monkeypa
     past) it."""
     monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
     monkeypatch.delenv("DUBIS_TRUST_TAILSCALE_HEADER", raising=False)
+    monkeypatch.setenv("DUBIS_TRUSTED_PROXY_IPS", "10.42.2.176")
     monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", "alice@example.com")
     api = _api(tmp_path)
-    with TestClient(create_app(api), client=REMOTE) as c:
+    with TestClient(create_app(api), client=PROXY) as c:
         r = c.get("/v1/parts", headers={"Tailscale-User-Login": "alice@example.com"})
     assert r.status_code == 401
+
+
+def test_tailscale_header_ignored_when_peer_is_not_the_trusted_proxy(tmp_path, monkeypatch):
+    """The key security regression: trust=1 + a valid, allowlisted login are
+    NOT enough on their own -- an in-cluster pod hitting the ClusterIP
+    directly (bypassing the tailscale operator proxy that legitimately
+    injects this header) must not be able to forge its way in just because it
+    knows a real tailnet login name."""
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
+    monkeypatch.setenv("DUBIS_TRUSTED_PROXY_IPS", "10.42.2.176")
+    monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", "alice@example.com")
+    api = _api(tmp_path)
+    with TestClient(create_app(api), client=OTHER_POD) as c:
+        r = c.get("/v1/parts", headers={"Tailscale-User-Login": "alice@example.com"})
+    assert r.status_code == 401
+
+
+def test_tailscale_header_ignored_failsafe_when_trusted_proxy_ips_unset(tmp_path, monkeypatch):
+    """Fail-safe: trust=1 with an otherwise-valid, allowlisted login but no
+    DUBIS_TRUSTED_PROXY_IPS configured at all must NOT fall back to trusting
+    every peer -- it must ignore the header entirely."""
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
+    monkeypatch.delenv("DUBIS_TRUSTED_PROXY_IPS", raising=False)
+    monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", "alice@example.com")
+    api = _api(tmp_path)
+    # Even the "real" proxy peer address must not help -- there's no
+    # configured trusted-proxy list to match it against.
+    with TestClient(create_app(api), client=PROXY) as c:
+        r = c.get("/v1/parts", headers={"Tailscale-User-Login": "alice@example.com"})
+    assert r.status_code == 401
+
+
+def test_tailscale_header_ignored_failsafe_when_trusted_proxy_ips_empty_string(tmp_path, monkeypatch):
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
+    monkeypatch.setenv("DUBIS_TRUSTED_PROXY_IPS", "")
+    monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", "alice@example.com")
+    api = _api(tmp_path)
+    with TestClient(create_app(api), client=PROXY) as c:
+        r = c.get("/v1/parts", headers={"Tailscale-User-Login": "alice@example.com"})
+    assert r.status_code == 401
+
+
+def test_tailscale_header_failsafe_logs_one_warning(tmp_path, monkeypatch, caplog):
+    """The fail-safe path must not crash and must surface exactly one clear
+    warning explaining why the header is being ignored."""
+    import logging as _logging
+
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
+    monkeypatch.delenv("DUBIS_TRUSTED_PROXY_IPS", raising=False)
+    monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", "alice@example.com")
+    api = _api(tmp_path)
+    with caplog.at_level(_logging.WARNING):
+        create_app(api)
+    warnings = [
+        rec for rec in caplog.records
+        if rec.levelno == _logging.WARNING and "DUBIS_TRUSTED_PROXY_IPS" in rec.message
+    ]
+    assert len(warnings) == 1
+
+
+def test_tailscale_header_cidr_peer_inside_range_accepted(tmp_path, monkeypatch):
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
+    monkeypatch.setenv("DUBIS_TRUSTED_PROXY_IPS", "10.42.0.0/16")
+    monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", "alice@example.com")
+    api = _api(tmp_path)
+    with TestClient(create_app(api), client=("10.42.7.42", 51234)) as c:
+        r = c.get("/v1/parts", headers={"Tailscale-User-Login": "alice@example.com"})
+    assert r.status_code == 200
+
+
+def test_tailscale_header_cidr_peer_outside_range_rejected(tmp_path, monkeypatch):
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
+    monkeypatch.setenv("DUBIS_TRUSTED_PROXY_IPS", "10.42.0.0/16")
+    monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", "alice@example.com")
+    api = _api(tmp_path)
+    with TestClient(create_app(api), client=("10.43.0.1", 51234)) as c:
+        r = c.get("/v1/parts", headers={"Tailscale-User-Login": "alice@example.com"})
+    assert r.status_code == 401
+
+
+def test_tailscale_header_multiple_entries_comma_separated(tmp_path, monkeypatch):
+    """A bare IP entry (parsed as /32) alongside a CIDR entry in the same
+    comma-separated DUBIS_TRUSTED_PROXY_IPS value."""
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
+    monkeypatch.setenv("DUBIS_TRUSTED_PROXY_IPS", "10.42.2.176,192.168.5.0/24")
+    monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", "alice@example.com")
+    api = _api(tmp_path)
+    with TestClient(create_app(api), client=("192.168.5.9", 51234)) as c:
+        r = c.get("/v1/parts", headers={"Tailscale-User-Login": "alice@example.com"})
+    assert r.status_code == 200
+
+
+def test_malformed_trusted_proxy_ips_entry_raises(tmp_path, monkeypatch):
+    """Fail-loud, not fail-safe: an unparseable DUBIS_TRUSTED_PROXY_IPS entry
+    must blow up at startup (create_app -> AuthConfig.from_env ->
+    _parse_trusted_proxies), exactly like a malformed DUBIS_TOKENS entry does
+    -- silently dropping/ignoring a bad proxy-IP entry would be a security
+    footgun (operator thinks the gate is configured; it isn't)."""
+    import pytest
+
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
+    monkeypatch.setenv("DUBIS_TRUSTED_PROXY_IPS", "not-an-ip")
+    monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", "alice@example.com")
+    api = _api(tmp_path)
+    with pytest.raises(ValueError):
+        create_app(api)
+
+
+def test_malformed_trusted_proxy_ips_bad_cidr_raises(tmp_path, monkeypatch):
+    """Same fail-loud behavior for a syntactically IP-shaped but out-of-range
+    CIDR prefix (/99 has no meaning for IPv4)."""
+    import pytest
+
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
+    monkeypatch.setenv("DUBIS_TRUSTED_PROXY_IPS", "10.0.0.0/99")
+    monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", "alice@example.com")
+    api = _api(tmp_path)
+    with pytest.raises(ValueError):
+        create_app(api)
+
+
+def test_ipv6_peer_inside_configured_cidr_accepted():
+    """IPv6 CIDR matching via the `_is_trusted_proxy` seam directly -- the
+    same seam AuthMiddleware._resolve calls, exercised here rather than
+    end-to-end because TestClient's `client=(host, port)` tuple isn't a
+    reliable way to stamp an IPv6 literal onto request.client.host across
+    ASGI transports."""
+    from server.auth import _is_trusted_proxy, _parse_trusted_proxies
+
+    networks = _parse_trusted_proxies("fd7a:115c:a1e0::/48")
+    assert _is_trusted_proxy("fd7a:115c:a1e0::1", networks) is True
+    assert _is_trusted_proxy("fd7a:115c:a1e1::1", networks) is False
+
+
+def test_resolve_helper_handles_none_client_gracefully():
+    """`request.client` can be None (malformed/missing peer info per ASGI
+    spec). `_is_trusted_proxy` -- the seam AuthMiddleware._resolve calls --
+    must treat that as untrusted rather than raising."""
+    from server.auth import _is_trusted_proxy, _parse_trusted_proxies
+
+    networks = _parse_trusted_proxies("10.42.2.176")
+    assert _is_trusted_proxy(None, networks) is False
+    assert _is_trusted_proxy("not-an-ip", networks) is False
+    assert _is_trusted_proxy("10.42.2.176", networks) is True
+    assert _is_trusted_proxy("10.42.2.176", ()) is False
 
 
 def test_no_credentials_401_shape(tmp_path, monkeypatch):
