@@ -19,13 +19,16 @@ extending -- they mark exactly what changes and what doesn't):
   JLCPCB-taxonomy lookup, or the `categorize.py` bucket-match fallback,
   per design doc §2.3). Task 5 extends this one function; nothing else in
   this module, nor any route handler, needs to change when it does.
-- `is_eligible` -- TASK 4's scope. For now this only honors the explicit
-  per-SKU `eligible_override` tri-state (`False` force-excludes, `True`/
-  `None` both currently pass) and does NOT yet apply the category-level
-  default-exclude rule for the "Development Boards, Kits, Programmers"
-  bucket (design doc §3 point 3). Task 3 intentionally "expose[s] all
-  mapped parts for now" per the plan brief -- Task 4 adds the bucket check
-  inside this one function.
+- `is_eligible` -- TASK 4's scope, now fully implemented per design doc §3
+  point 3: the per-SKU `eligible_override` tri-state wins outright in
+  either direction (`True` force-includes even in the excluded bucket --
+  the ESP32/SoM case; `False` force-excludes even outside it -- the
+  mislabeled-tool case); `None` defers to the category-level default,
+  excluding iff the resolved category's `categorize_bucket` is the literal
+  `"Development Boards, Kits, Programmers"` string (matched against
+  `kicad_categories.categorize_bucket`, never re-derived from
+  `categorize.py` directly -- that literal lives in `_DEFAULT_EXCLUDED_BUCKET`
+  below and in the `kicad_mapping.json` category rows Task 2 seeds).
 
 Everything else here (symbol resolution, the visibility AND of the three
 gates, field/summary/detail shaping, string-encoding) is this task's real,
@@ -42,6 +45,10 @@ from spec_extractor import extract_spec
 
 # Fixed visible-field set for v1 (design doc §1.4/§2.4) -- not configurable.
 _VISIBLE_FIELDS = frozenset({"Value", "MPN", "LCSC", "Datasheet"})
+
+# Default-excluded categorize.py bucket (design doc §3 point 3), matched
+# literally against `kicad_categories.categorize_bucket` -- not re-derived.
+_DEFAULT_EXCLUDED_BUCKET = "Development Boards, Kits, Programmers"
 
 
 def resolve_category_id(conn: sqlite3.Connection, part_id: str) -> str | None:
@@ -84,16 +91,34 @@ def resolve_symbol(
 def is_eligible(conn: sqlite3.Connection, part_id: str, category_id: str | None) -> bool:
     """Eligibility gate (design doc §3 point 3).
 
-    TASK 4 SEAM: currently only honors the explicit `eligible_override`
-    tri-state force-exclude (`False`); the category-level default-exclude
-    bucket rule is not yet applied -- "expose all mapped parts for now"
-    per the plan brief. See module docstring.
+    Tri-state per-SKU `eligible_override` wins outright in either direction:
+    `False` force-excludes, `True` force-includes (even in the excluded
+    bucket -- the ESP32/SoM case). `None` defers to the category-level
+    default: exclude iff the resolved category's `categorize_bucket` is the
+    literal `"Development Boards, Kits, Programmers"` string (matched
+    against `kicad_categories.categorize_bucket`, not re-derived); every
+    other category defaults to included.
+
+    `category_id=None` (unresolved category) has nothing to match the
+    bucket against, so this function alone treats it as eligible --
+    `is_visible()` independently invalidates unresolved-category SKUs via
+    its earlier, higher-precedence check (design doc §3 point 1).
     """
     row = conn.execute(
         "SELECT eligible_override FROM kicad_part_state WHERE part_id = ?", (part_id,),
     ).fetchone()
     override = row["eligible_override"] if row else None  # 1 / 0 / None
     if override == 0:
+        return False
+    if override == 1:
+        return True
+
+    if category_id is None:
+        return True
+    cat = conn.execute(
+        "SELECT categorize_bucket FROM kicad_categories WHERE id = ?", (category_id,),
+    ).fetchone()
+    if cat is not None and cat["categorize_bucket"] == _DEFAULT_EXCLUDED_BUCKET:
         return False
     return True
 
