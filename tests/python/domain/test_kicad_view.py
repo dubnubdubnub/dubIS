@@ -62,20 +62,12 @@ class TestDevBoardDefaultExclude:
 
 
 class TestNormalCategoryDefaultInclude:
-    def test_normal_category_no_override_is_eligible(self):
-        pass  # covered via db-fixture variant below
-
     def test_normal_category_no_override_is_eligible_db(self, db):
         _insert_part(db, "C15850")
         _insert_category(db, "1", categorize_bucket="Passives - Capacitors")
         _insert_part_state(db, "C15850", "1", eligible_override=None)
 
         assert kicad_view.is_eligible(db, "C15850", "1") is True
-
-    def test_normal_category_force_exclude_override_is_excluded(self):
-        """The mislabeled bench tool case: force-exclude wins even outside
-        the excluded bucket."""
-        pass
 
     def test_normal_category_force_exclude_override_is_excluded_db(self, db):
         _insert_part(db, "BENCH-TOOL-1")
@@ -128,6 +120,84 @@ class TestIsVisibleIntegration:
         assert visible is True
         assert category_id == "2"
         assert symbol == "Device:U"
+
+
+class TestOverrideCannotRescueUnresolvedCategory:
+    """Scenario 5 (brief): a SKU whose category does not resolve at all
+    (no kicad_part_state row, or a row with category_id=None) must stay
+    invisible even with eligible_override=True force-include -- is_visible's
+    unresolved-category gate (design doc §3 point 1) has higher precedence
+    than the eligibility override and short-circuits before is_eligible is
+    even consulted."""
+
+    def test_force_include_cannot_rescue_no_category_row_at_all(self, db):
+        _insert_part(db, "NOROW1")
+        # No kicad_part_state row at all -> resolve_category_id returns None.
+
+        visible, category_id, symbol = kicad_view.is_visible(db, "NOROW1")
+        assert visible is False
+        assert category_id is None
+        assert symbol is None
+
+    def test_force_include_cannot_rescue_explicit_null_category(self, db):
+        # Also supply a per-SKU kicad_symbol override so that -- if the
+        # category-unresolved gate were ever bypassed -- symbol resolution
+        # would NOT independently save this test from a false pass: the
+        # category gate itself must be what makes this invisible.
+        _insert_part(db, "NULLCAT1")
+        db.execute(
+            "INSERT INTO kicad_part_state (part_id, category_id, kicad_symbol, eligible_override)"
+            " VALUES (?,?,?,?)",
+            ("NULLCAT1", None, "Device:R", 1),
+        )
+        db.commit()
+
+        visible, category_id, symbol = kicad_view.is_visible(db, "NULLCAT1")
+        assert visible is False
+        assert category_id is None
+        assert symbol is None
+
+
+class TestNullSymbolInvisibleEvenIfEligible:
+    """Scenario 6 (brief): resolved category + eligible SKU but no resolvable
+    symbolIdStr (category default_symbol is null, no per-SKU kicad_symbol
+    override) -- must be invisible (no symbol to place is protocol-invalid,
+    per design doc §3 point 2)."""
+
+    def test_no_default_symbol_and_no_override_is_invisible(self, db):
+        _insert_part(db, "NOSYM1")
+        _insert_category(db, "1", categorize_bucket="Passives - Capacitors", default_symbol=None)
+        _insert_part_state(db, "NOSYM1", "1", eligible_override=None)
+
+        visible, category_id, symbol = kicad_view.is_visible(db, "NOSYM1")
+        assert visible is False
+        assert category_id == "1"
+        assert symbol is None
+
+
+class TestSymbolOverrideWinsOverCategoryDefault:
+    """Scenario 7 (brief, genuine gap): a SKU with BOTH a category
+    default_symbol AND a per-SKU kicad_symbol override -- the override's
+    literal string must win, not the category default."""
+
+    def test_per_sku_symbol_override_wins_over_category_default(self, db):
+        _insert_part(db, "SYMOVERRIDE1")
+        _insert_category(db, "1", categorize_bucket="Passives - Capacitors", default_symbol="Device:R")
+        db.execute(
+            "INSERT INTO kicad_part_state (part_id, category_id, kicad_symbol, eligible_override)"
+            " VALUES (?,?,?,?)",
+            ("SYMOVERRIDE1", "1", "Device:C_Small", None),
+        )
+        db.commit()
+
+        symbol = kicad_view.resolve_symbol(db, "SYMOVERRIDE1", "1")
+        assert symbol == "Device:C_Small"
+        assert symbol != "Device:R"
+
+        visible, category_id, resolved_symbol = kicad_view.is_visible(db, "SYMOVERRIDE1")
+        assert visible is True
+        assert category_id == "1"
+        assert resolved_symbol == "Device:C_Small"
 
 
 class TestSectionNeverLeaks:
