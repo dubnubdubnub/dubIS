@@ -444,6 +444,7 @@ graph LR
     "server/routes/inventory_mut.py" --> "server/auth.py"
     "server/routes/inventory_mut.py" --> "server/mutations.py"
     "server/routes/meta.py" --> "cache_db.py"
+    "server/routes/openpnp.py" --> "domain/__init__.py"
     "server/routes/parts_read.py" --> "server/models.py"
     "server/routes/pnp.py" --> "pnp_part_map.py"
     "server/routes/pnp.py" --> "server/__init__.py"
@@ -573,6 +574,9 @@ graph LR
     "tests/python/server/test_main_flags.py" --> "tests/python/helpers.py"
     "tests/python/server/test_models.py" --> "domain/schema.py"
     "tests/python/server/test_models.py" --> "server/models.py"
+    "tests/python/server/test_openpnp_routes.py" --> "domain/__init__.py"
+    "tests/python/server/test_openpnp_routes.py" --> "server/app.py"
+    "tests/python/server/test_openpnp_routes.py" --> "tests/python/helpers.py"
     "tests/python/server/test_parts_read.py" --> "tests/python/helpers.py"
     "tests/python/server/test_pnp_routes.py" --> "server/__init__.py"
     "tests/python/server/test_static_serving.py" --> "server/app.py"
@@ -790,7 +794,7 @@ graph LR
 ### domain/__init__.py
 
 - **Imports:** —
-- **Imported by:** `domain/inventory.py`, `inventory_ops.py`, `tests/python/domain/test_part_registry.py`, `tests/python/domain/test_part_registry_integration.py`
+- **Imported by:** `domain/inventory.py`, `inventory_ops.py`, `server/routes/openpnp.py`, `tests/python/domain/test_part_registry.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/server/test_openpnp_routes.py`
 
 ### domain/api_distributor.py
 
@@ -1608,7 +1612,7 @@ graph LR
 ### server/app.py
 
 - **Imports:** `server/auth.py`, `server/errors.py`, `server/routes/__init__.py`
-- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
+- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
 
 ### server/auth.py
 
@@ -1678,6 +1682,11 @@ graph LR
 ### server/routes/meta.py
 
 - **Imports:** `cache_db.py`
+- **Imported by:** —
+
+### server/routes/openpnp.py
+
+- **Imports:** `domain/__init__.py`
 - **Imported by:** —
 
 ### server/routes/parts_read.py
@@ -2067,7 +2076,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `distributor_manager.py`, `inventory_api.py`
-- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_dubis_mcp_tools.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_dubis_mcp_tools.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/server/conftest.py
 
@@ -2132,6 +2141,11 @@ graph LR
 ### tests/python/server/test_models.py
 
 - **Imports:** `domain/schema.py`, `server/models.py`
+- **Imported by:** —
+
+### tests/python/server/test_openpnp_routes.py
+
+- **Imports:** `domain/__init__.py`, `server/app.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/server/test_parts_read.py
