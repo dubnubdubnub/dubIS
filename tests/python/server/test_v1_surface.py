@@ -73,10 +73,6 @@ _NEW_OPERATIONS = {
     "get_digikey_session",       # GET /v1/distributors/digikey/session — merges check_digikey_session + get_digikey_login_status
     "get_po_source",             # GET /v1/purchase-orders/{po_id}/source — streams the file; no bridge equivalent (open_source_file shells out)
     "health",                    # GET /v1/health — server liveness, no bridge equivalent
-    "kicad_categories",          # GET /v1/kicad/categories.json — KiCad HTTP Library protocol, no bridge equivalent
-    "kicad_part_detail",         # GET /v1/kicad/parts/{part_id}.json — KiCad HTTP Library protocol, no bridge equivalent
-    "kicad_parts_by_category",   # GET /v1/kicad/parts/category/{category_id}.json — KiCad HTTP Library protocol, no bridge equivalent
-    "kicad_root",                # GET /v1/kicad/ — KiCad HTTP Library protocol, no bridge equivalent
     "legacy_consume",            # POST /api/consume — non-/v1 OpenPnP alias
     "legacy_health",             # GET /api/health — non-/v1 OpenPnP alias
     "legacy_parts",              # GET /api/parts — non-/v1 OpenPnP alias
@@ -114,10 +110,6 @@ FROZEN_V1_SURFACE = [
     ("GET", "/v1/generic-parts/{generic_part_id}/saved-searches", "list_saved_searches"),
     ("GET", "/v1/health", "health"),
     ("GET", "/v1/import/ocr/available", "ocr_engine_available"),
-    ("GET", "/v1/kicad/", "kicad_root"),
-    ("GET", "/v1/kicad/categories.json", "kicad_categories"),
-    ("GET", "/v1/kicad/parts/category/{category_id}.json", "kicad_parts_by_category"),
-    ("GET", "/v1/kicad/parts/{part_id}.json", "kicad_part_detail"),
     ("GET", "/v1/meta", "meta"),
     ("GET", "/v1/parts", "list_parts"),
     ("GET", "/v1/parts/{part_key}/distributors", "get_sourced_distributors"),
