@@ -71,6 +71,7 @@ Every env the Deployment's `envFrom` expects (see `server/auth.py` and
 | `DUBIS_TOKENS` | `name:token,name2:token2` — one entry per bearer client (CI, OpenPnP, MCP) |
 | `DUBIS_TAILNET_ALLOWLIST` | leave empty for now |
 | `DUBIS_TRUST_TAILSCALE_HEADER` | `0` — **leave unset/0 until step 6 confirms** the tailscale operator ingress actually injects the identity header. Flipping this on before verifying just trusts a header nobody is proving. |
+| `DUBIS_TRUSTED_PROXY_IPS` | leave empty for now — see step 5's source-IP gate note before ever setting `DUBIS_TRUST_TAILSCALE_HEADER=1` |
 
 Generate tokens with e.g. `openssl rand -hex 32`. Re-running the same
 `create ... --dry-run=client -o yaml | kubectl apply -f -` command later
@@ -190,23 +191,46 @@ presence in its unauthorized response during this check).
 
 **Decision:**
 - **Header IS present and trustworthy** (comes only from the operator's
-  in-cluster sidecar, never client-forgeable) → update the Secret:
+  in-cluster sidecar, never client-forgeable) → update the Secret. As of the
+  source-IP gate (`server/auth.py`), `DUBIS_TRUST_TAILSCALE_HEADER=1` on its
+  own is no longer enough — the pod is still reachable via ClusterIP, so any
+  other in-cluster pod that discovers a valid tailnet login name could
+  otherwise forge the header directly, bypassing the proxy entirely. You
+  **must** also set `DUBIS_TRUSTED_PROXY_IPS` to the tailscale operator
+  proxy's pod IP (find it with `kubectl get pods -n tailscale -o wide`, or
+  whatever namespace the operator's proxy pod runs in on this cluster —
+  currently `10.42.2.176`, but **this churns**: it's a pod IP, and the pod
+  gets a new one on every restart/reschedule):
   ```bash
   kubectl create secret generic dubis-server-auth --namespace dubis \
     --from-literal=DUBIS_AUTH_MODE=on \
     --from-literal=DUBIS_TOKENS='ci:<token>,openpnp:<token>' \
     --from-literal=DUBIS_TAILNET_ALLOWLIST='isaac@github' \
     --from-literal=DUBIS_TRUST_TAILSCALE_HEADER=1 \
+    --from-literal=DUBIS_TRUSTED_PROXY_IPS='10.42.2.176' \
     --dry-run=client -o yaml | kubectl apply -f -
   kubectl rollout restart deployment/dubis-server -n dubis
   ```
+  Fail-safe: if `DUBIS_TRUST_TAILSCALE_HEADER=1` is set but
+  `DUBIS_TRUSTED_PROXY_IPS` is left empty, the header is ignored entirely
+  (one warning logged, not a crash) — so a stale/missing proxy IP degrades to
+  "tailnet-header login doesn't work", never to "the gate silently opens."
   Humans then get transparent browser access via tailnet identity — no token
   needed in the browser (see `app.pyw`'s remote-mode navigation comment,
   §7 of the design doc).
+
+  Because the proxy pod IP churns on restart, treat the IP allowlist as a
+  belt, not the only belt: the robust complement is a **NetworkPolicy**
+  restricting ingress to the `dubis-server` pod to the `tailscale` namespace
+  (or wherever the operator's proxy pods live), so even a same-cluster pod
+  that happens to spoof or reuse the current trusted IP still can't reach
+  `dubis-server` on the network layer at all. Add/verify that NetworkPolicy
+  alongside this change rather than relying on the pod-IP allowlist alone.
 - **Header is ABSENT or unverifiable** → leave `DUBIS_TRUST_TAILSCALE_HEADER`
-  at `0`. Humans and headless clients alike use bearer tokens; the browser
-  falls back to the `POST /v1/auth/session` cookie route (`server/auth.py`)
-  for a persistent browser session instead of a header-based one.
+  at `0` (and `DUBIS_TRUSTED_PROXY_IPS` empty). Humans and headless clients
+  alike use bearer tokens; the browser falls back to the `POST
+  /v1/auth/session` cookie route (`server/auth.py`) for a persistent browser
+  session instead of a header-based one.
 
 Do not guess here — this is exactly the kind of assumption the design doc
 flags as UNVERIFIED against this specific cluster's Tailscale operator
