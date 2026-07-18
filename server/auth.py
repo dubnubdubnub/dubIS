@@ -13,8 +13,10 @@ Configured entirely by env (12-factor; container-friendly), read once at
 Resolution order per request, when mode is `on`:
 1. Loopback peer (`request.client.host` in `127.0.0.0/8`, `::1`) -> identity
    `local`, allowed.
-2. `Authorization: Bearer <token>` matching `DUBIS_TOKENS` -> identity = the
-   token's name.
+2. `Authorization: Bearer <token>` or `Authorization: Token <token>` (the
+   latter accepted for KiCad's HTTP library client, which uses the DRF
+   `TokenAuthentication` convention) matching `DUBIS_TOKENS` -> identity =
+   the token's name.
 3. Signed session cookie (set by `POST /v1/auth/session`) -> identity from
    the cookie.
 4. `Tailscale-User-Login` header, when `DUBIS_TRUST_TAILSCALE_HEADER=1` and
@@ -159,7 +161,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         authz = request.headers.get("Authorization", "")
         scheme, _, param = authz.partition(" ")
-        if scheme.lower() == "bearer":
+        if scheme.lower() in ("bearer", "token"):
             token = param.strip()
             name = self.config.lookup_token(token)
             if name is not None:
