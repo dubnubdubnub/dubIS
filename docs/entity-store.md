@@ -29,6 +29,7 @@ Existing entities and their durable stores:
 | Generic parts (manual state) | `data/generic_parts.json` | `domain/generic_parts.load_into_db` |
 | Part identity registry | `data/part_registry.json` | loaded each rebuild (`domain/part_registry.py`) |
 | Price observations | `events/price_observations.csv` | `populate_prices_cache` |
+| KiCad category/part mapping | `data/kicad_mapping.json` | `domain/kicad_mapping.load_into_db` |
 
 **Audit trails (never replayed):** `events/part_events.csv` records generic-part
 mutations for forensics only. Do not build restore logic on it.
