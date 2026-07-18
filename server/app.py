@@ -27,7 +27,6 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
         generic_parts,
         import_scan,
         inventory_mut,
-        kicad,
         meta,
         parts_read,
         pnp,
@@ -44,7 +43,6 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
     app.include_router(distributors.router)
     app.include_router(pnp.router)
     app.include_router(preferences.router)
-    app.include_router(kicad.router)
 
     if os.environ.get("DUBIS_AUTH_MODE", "off") == "on":
         from server.auth import AuthConfig, AuthMiddleware
