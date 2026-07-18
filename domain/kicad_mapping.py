@@ -37,6 +37,7 @@ import os
 from typing import Any
 
 import csv_io
+from categorize import categorize
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,48 @@ def _category_row_to_dict(row: Any) -> dict[str, Any]:
     cat["default_footprint_from_package"] = bool(row["default_footprint_from_package"])
     cat["default_reference"] = row["default_reference"]
     return cat
+
+
+def resolve_category_for_part(row: dict[str, Any], mapping: dict[str, Any]) -> str | None:
+    """Task 5: category resolution fallback chain, operating on the raw
+    `kicad_mapping.json` shape (not SQLite) -- design doc §2.3/§4.1 MVP.
+
+    Deliberately does NOT check the per-SKU explicit `part_overrides`
+    category -- that check has strictly higher precedence and happens one
+    level up (`domain.kicad_view.resolve_category_id` reads
+    `kicad_part_state.category_id` before ever calling this). This
+    function is only the "no explicit override" fallback:
+
+    1. `part_category_cache[row["part_id"]].resolved_category_id`, if
+       present -- a memoized LCSC->JLCPCB (or any future) resolution wins
+       outright; `categorize.py` is not even consulted (proves the
+       cache-hit short-circuit -- see the required "cache wins" test).
+    2. Else, run `categorize.categorize(row)` (dubIS's existing shelf-
+       taxonomy bucketing -- reused, not reimplemented) and match the
+       resulting bucket string against a `source: "categorize_fallback"`
+       category entry's `categorize_bucket` field.
+    3. Else `None` -- unresolved, therefore invisible (per the visibility
+       gate in `domain/kicad_view.py`), not an error.
+
+    `row` is a ledger-shaped dict (`categorize.categorize`'s expected
+    keys: "Description", "Manufacture Part Number", "Manufacturer") with
+    an additional `"part_id"` key used only for the cache lookup here.
+    `mapping` is the full `kicad_mapping.json`-shaped dict (or an
+    equivalent in-memory projection built from SQLite by
+    `domain.kicad_view`).
+    """
+    part_id = row.get("part_id")
+    cache = mapping.get("part_category_cache", {})
+    if part_id and part_id in cache:
+        cached_id = cache[part_id].get("resolved_category_id")
+        if cached_id:
+            return cached_id
+
+    bucket = categorize(row)
+    for cat in mapping.get("categories", []):
+        if cat.get("source") == "categorize_fallback" and cat.get("categorize_bucket") == bucket:
+            return cat.get("id")
+    return None
 
 
 def load_into_db(conn: Any, data_dir: str) -> None:

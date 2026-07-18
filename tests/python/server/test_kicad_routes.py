@@ -272,6 +272,60 @@ def test_auth_on_mode_no_token_is_401(tmp_path, monkeypatch):
     api.shutdown()
 
 
+# ── Task 5: categorize.py-fallback category resolution, full HTTP flow ──────
+
+
+_RESISTOR_CATEGORY = {
+    "id": "10",
+    "name": "Passives/Resistors",
+    "source": "categorize_fallback",
+    "categorize_bucket": "Passives - Resistors > Chip Resistors",
+    "jlcpcb_catalog_name": None,
+    "default_symbol": "Device:R",
+    "default_footprint_from_package": True,
+    "default_reference": "R",
+}
+
+
+def test_resistor_with_no_override_resolves_via_categorize_fallback_end_to_end(tmp_path):
+    """A SKU with NO explicit kicad_mapping.json part_overrides entry, whose
+    description categorize.py buckets as a resistor, resolves a category
+    purely via the Task 5 fallback chain, gets a symbol from that category's
+    default_symbol, passes the (non-dev-board) eligibility default -- and
+    therefore appears in categories.json, parts/category/{id}.json, and
+    parts/{id}.json (200, not 404)."""
+    api = make_api(tmp_path)
+    write_ledger(api, [
+        make_part(
+            lcsc="C900000", mpn="RC0402FR-0710KL", qty=50,
+            desc="RES SMD 10K OHM 1% 1/10W 0402", pkg="0402",
+        ) | {"Manufacturer": "Yageo"},
+    ])
+    mapping = {
+        "version": 1,
+        "categories": [_RESISTOR_CATEGORY],
+        "part_overrides": {},  # No override for C900000 -- pure fallback.
+        "part_category_cache": {},
+    }
+    path = os.path.join(api.base_dir, "kicad_mapping.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(mapping, f)
+
+    with TestClient(create_app(api)) as c:
+        cats = c.get("/v1/kicad/categories.json").json()
+        assert {cat["id"] for cat in cats} == {"10"}
+
+        members = c.get("/v1/kicad/parts/category/10.json").json()
+        assert {p["id"] for p in members} == {"C900000"}
+
+        detail = c.get("/v1/kicad/parts/C900000.json")
+        assert detail.status_code == 200
+        body = detail.json()
+        assert body["symbolIdStr"] == "Device:R"
+        assert body["fields"]["MPN"]["value"] == "RC0402FR-0710KL"
+    api.shutdown()
+
+
 def test_auth_on_mode_token_scheme_is_accepted(tmp_path, monkeypatch):
     monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
     monkeypatch.setenv("DUBIS_TOKENS", "kicad-user:secret123")
