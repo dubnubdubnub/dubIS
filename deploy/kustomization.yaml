@@ -9,6 +9,7 @@ namespace: dubis
 
 resources:
   - namespace.yaml
+  - secret-bootstrap.yaml
   - pvc.yaml
   - deployment.yaml
   - service.yaml
@@ -21,4 +22,4 @@ images:
   # independently blocks `:latest`, but sha-PLACEHOLDER is neither `:latest`
   # nor a real digest, so it would simply fail to pull if it ever escaped.
   - name: ghcr.io/dubnubdubnub/dubis-server
-    newTag: sha-PLACEHOLDER
+    newTag: "410b1e959cb0d5fd39175b38e0c6602ee0f45875"
