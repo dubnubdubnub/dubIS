@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 import cache_db
 import domain.generic_parts
+import domain.kicad_mapping
 import domain.pricing
 import inventory_ops
 from csv_io import append_csv_rows, atomic_write_rows
@@ -63,6 +64,7 @@ def _restore_derived_entities(conn: sqlite3.Connection, base_dir: str, events_di
     os.makedirs(events_dir, exist_ok=True)
     _gp.auto_generate_passive_groups(conn, events_dir)
     _gp.load_into_db(conn, base_dir)
+    domain.kicad_mapping.load_into_db(conn, base_dir)
     import saved_searches  # noqa: PLC0415
     saved_searches.load_into_db(conn, base_dir)
 
@@ -107,6 +109,7 @@ def rebuild(
     os.makedirs(events_dir, exist_ok=True)
     _gp.auto_generate_passive_groups(conn, events_dir)
     _gp.load_into_db(conn, base_dir)
+    domain.kicad_mapping.load_into_db(conn, base_dir)
     import saved_searches  # noqa: PLC0415
     saved_searches.load_into_db(conn, base_dir)
     return cache_db.query_inventory(conn), migration_summary
