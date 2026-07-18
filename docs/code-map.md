@@ -551,6 +551,7 @@ graph LR
     "tests/python/server/conftest.py" --> "tests/python/helpers.py"
     "tests/python/server/test_app_skeleton.py" --> "dubis_errors.py"
     "tests/python/server/test_auth.py" --> "server/app.py"
+    "tests/python/server/test_auth.py" --> "server/auth.py"
     "tests/python/server/test_auth.py" --> "tests/python/helpers.py"
     "tests/python/server/test_error_contract.py" --> "server/app.py"
     "tests/python/server/test_error_contract.py" --> "tests/python/helpers.py"
@@ -1612,7 +1613,7 @@ graph LR
 ### server/auth.py
 
 - **Imports:** —
-- **Imported by:** `server/app.py`, `server/errors.py`, `server/routes/auth.py`, `server/routes/import_scan.py`, `server/routes/inventory_mut.py`, `server/routes/pnp.py`
+- **Imported by:** `server/app.py`, `server/errors.py`, `server/routes/auth.py`, `server/routes/import_scan.py`, `server/routes/inventory_mut.py`, `server/routes/pnp.py`, `tests/python/server/test_auth.py`
 
 ### server/errors.py
 
@@ -2080,7 +2081,7 @@ graph LR
 
 ### tests/python/server/test_auth.py
 
-- **Imports:** `server/app.py`, `tests/python/helpers.py`
+- **Imports:** `server/app.py`, `server/auth.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/server/test_distributors_routes.py
