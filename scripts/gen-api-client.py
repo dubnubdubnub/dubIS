@@ -67,6 +67,7 @@ DEFAULT_OUT = REPO_ROOT / "js" / "api-map.js"
 SKIP_OPERATION_IDS = {
     "legacy_consume", "legacy_health", "legacy_parts",  # /api/* back-compat
     "health", "meta", "events_stream",  # infra, not bridge methods
+    "get_openpnp_part",  # OpenPnP-side Jython script calls this, not dubIS's own JS
 }
 
 # Operations whose request body is a raw opaque JSON object (no named

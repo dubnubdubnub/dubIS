@@ -28,6 +28,7 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
         import_scan,
         inventory_mut,
         meta,
+        openpnp,
         parts_read,
         pnp,
         preferences,
@@ -43,6 +44,7 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
     app.include_router(distributors.router)
     app.include_router(pnp.router)
     app.include_router(preferences.router)
+    app.include_router(openpnp.router)
 
     if os.environ.get("DUBIS_AUTH_MODE", "off") == "on":
         from server.auth import AuthConfig, AuthMiddleware
