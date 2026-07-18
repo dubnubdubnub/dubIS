@@ -21,7 +21,7 @@ from inventory_ops import apply_adjustments, compute_adjusted_qty, get_part_key,
 if TYPE_CHECKING:
     from domain.schema import InventoryItem
 
-SCHEMA_VERSION = "7"
+SCHEMA_VERSION = "8"
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,8 @@ def create_schema(conn: sqlite3.Connection) -> None:
             DROP TABLE IF EXISTS saved_searches;
             DROP TABLE IF EXISTS purchase_orders;
             DROP TABLE IF EXISTS vendors;
+            DROP TABLE IF EXISTS kicad_part_state;
+            DROP TABLE IF EXISTS kicad_categories;
         """)
     # Idempotent column migrations: add columns to parts if they exist but lack them
     parts_exists = conn.execute(
@@ -144,6 +146,29 @@ def create_schema(conn: sqlite3.Connection) -> None:
             source_file_ext    TEXT DEFAULT '',
             purchase_date      TEXT DEFAULT '',
             notes              TEXT DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS kicad_categories (
+            id                              TEXT PRIMARY KEY,
+            name                            TEXT NOT NULL,
+            source                          TEXT NOT NULL,
+            jlcpcb_catalog_name             TEXT,
+            categorize_bucket               TEXT,
+            default_symbol                  TEXT,
+            default_footprint_from_package  INTEGER NOT NULL DEFAULT 0,
+            default_reference               TEXT
+        );
+        CREATE TABLE IF NOT EXISTS kicad_part_state (
+            part_id                      TEXT PRIMARY KEY REFERENCES parts(part_id),
+            category_id                  TEXT,
+            kicad_symbol                  TEXT,
+            kicad_footprint               TEXT,
+            kicad_datasheet               TEXT,
+            eligible_override             INTEGER,
+            cache_lcsc                    TEXT,
+            cache_jlcpcb_catalog_name     TEXT,
+            cache_resolved_category_id    TEXT,
+            cache_resolved_via            TEXT,
+            cache_resolved_at             TEXT
         );
     """)
     conn.execute(
