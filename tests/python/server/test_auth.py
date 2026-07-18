@@ -286,6 +286,50 @@ def test_tailscale_header_multiple_entries_comma_separated(tmp_path, monkeypatch
     assert r.status_code == 200
 
 
+def test_malformed_trusted_proxy_ips_entry_raises(tmp_path, monkeypatch):
+    """Fail-loud, not fail-safe: an unparseable DUBIS_TRUSTED_PROXY_IPS entry
+    must blow up at startup (create_app -> AuthConfig.from_env ->
+    _parse_trusted_proxies), exactly like a malformed DUBIS_TOKENS entry does
+    -- silently dropping/ignoring a bad proxy-IP entry would be a security
+    footgun (operator thinks the gate is configured; it isn't)."""
+    import pytest
+
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
+    monkeypatch.setenv("DUBIS_TRUSTED_PROXY_IPS", "not-an-ip")
+    monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", "alice@example.com")
+    api = _api(tmp_path)
+    with pytest.raises(ValueError):
+        create_app(api)
+
+
+def test_malformed_trusted_proxy_ips_bad_cidr_raises(tmp_path, monkeypatch):
+    """Same fail-loud behavior for a syntactically IP-shaped but out-of-range
+    CIDR prefix (/99 has no meaning for IPv4)."""
+    import pytest
+
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
+    monkeypatch.setenv("DUBIS_TRUSTED_PROXY_IPS", "10.0.0.0/99")
+    monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", "alice@example.com")
+    api = _api(tmp_path)
+    with pytest.raises(ValueError):
+        create_app(api)
+
+
+def test_ipv6_peer_inside_configured_cidr_accepted():
+    """IPv6 CIDR matching via the `_is_trusted_proxy` seam directly -- the
+    same seam AuthMiddleware._resolve calls, exercised here rather than
+    end-to-end because TestClient's `client=(host, port)` tuple isn't a
+    reliable way to stamp an IPv6 literal onto request.client.host across
+    ASGI transports."""
+    from server.auth import _is_trusted_proxy, _parse_trusted_proxies
+
+    networks = _parse_trusted_proxies("fd7a:115c:a1e0::/48")
+    assert _is_trusted_proxy("fd7a:115c:a1e0::1", networks) is True
+    assert _is_trusted_proxy("fd7a:115c:a1e1::1", networks) is False
+
+
 def test_resolve_helper_handles_none_client_gracefully():
     """`request.client` can be None (malformed/missing peer info per ASGI
     spec). `_is_trusted_proxy` -- the seam AuthMiddleware._resolve calls --
