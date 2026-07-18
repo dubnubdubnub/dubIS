@@ -6,6 +6,7 @@ data/*.csv
 data/*.json
 !data/constants.json
 !data/pnp_part_map.json
+!data/openpnp_families.json
 node_modules/
 .claude/
 .mcp.json

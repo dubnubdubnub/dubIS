@@ -76,6 +76,7 @@ _NEW_OPERATIONS = {
     "legacy_consume",            # POST /api/consume — non-/v1 OpenPnP alias
     "legacy_health",             # GET /api/health — non-/v1 OpenPnP alias
     "legacy_parts",              # GET /api/parts — non-/v1 OpenPnP alias
+    "get_openpnp_part",          # GET /v1/openpnp/part/{part_key} — OpenPnP-ready part-attrs projection, no bridge equivalent
     "list_parts",                # GET /v1/parts — server name for InventoryApi's internal _load_organized
     "meta",                      # GET /v1/meta — server liveness/schema metadata, no bridge equivalent
     "ocr_overlay",                # POST /v1/import/ocr — renamed from ocr_overlay_b64
@@ -111,6 +112,7 @@ FROZEN_V1_SURFACE = [
     ("GET", "/v1/health", "health"),
     ("GET", "/v1/import/ocr/available", "ocr_engine_available"),
     ("GET", "/v1/meta", "meta"),
+    ("GET", "/v1/openpnp/part/{part_key}", "get_openpnp_part"),
     ("GET", "/v1/parts", "list_parts"),
     ("GET", "/v1/parts/{part_key}/distributors", "get_sourced_distributors"),
     ("GET", "/v1/parts/{part_key}/groups", "get_generic_group_names"),
