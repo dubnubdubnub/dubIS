@@ -67,6 +67,11 @@ DEFAULT_OUT = REPO_ROOT / "js" / "api-map.js"
 SKIP_OPERATION_IDS = {
     "legacy_consume", "legacy_health", "legacy_parts",  # /api/* back-compat
     "health", "meta", "events_stream",  # infra, not bridge methods
+    # /v1/kicad/* -- KiCad's own HTTP client calls these directly (design doc
+    # docs/plans/2026-07-17-phase4-kicad-design.md §1); no dubIS JS caller
+    # ever invokes them via api(method, ...args), so they don't belong in
+    # the bridge-style API_MAP at all.
+    "kicad_root", "kicad_categories", "kicad_parts_by_category", "kicad_part_detail",
 }
 
 # Operations whose request body is a raw opaque JSON object (no named
