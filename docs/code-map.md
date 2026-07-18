@@ -57,15 +57,10 @@ graph LR
     "domain/inventory.py" --> "csv_io.py"
     "domain/inventory.py" --> "domain/__init__.py"
     "domain/inventory.py" --> "domain/generic_parts.py"
-    "domain/inventory.py" --> "domain/kicad_mapping.py"
     "domain/inventory.py" --> "domain/pricing.py"
     "domain/inventory.py" --> "domain/schema.py"
     "domain/inventory.py" --> "inventory_ops.py"
     "domain/inventory.py" --> "saved_searches.py"
-    "domain/kicad_mapping.py" --> "categorize.py"
-    "domain/kicad_mapping.py" --> "csv_io.py"
-    "domain/kicad_view.py" --> "domain/kicad_mapping.py"
-    "domain/kicad_view.py" --> "spec_extractor.py"
     "domain/part_registry.py" --> "csv_io.py"
     "domain/part_registry.py" --> "dubis_errors.py"
     "file_dialogs.py" --> "csv_io.py"
@@ -448,8 +443,6 @@ graph LR
     "server/routes/import_scan.py" --> "server/auth.py"
     "server/routes/inventory_mut.py" --> "server/auth.py"
     "server/routes/inventory_mut.py" --> "server/mutations.py"
-    "server/routes/kicad.py" --> "domain/kicad_view.py"
-    "server/routes/kicad.py" --> "server/models.py"
     "server/routes/meta.py" --> "cache_db.py"
     "server/routes/parts_read.py" --> "server/models.py"
     "server/routes/pnp.py" --> "pnp_part_map.py"
@@ -545,10 +538,6 @@ graph LR
     "tests/python/domain/test_inventory_fetch_descriptions.py" --> "domain/inventory.py"
     "tests/python/domain/test_inventory_fetch_descriptions.py" --> "inventory_api.py"
     "tests/python/domain/test_inventory_fetch_descriptions.py" --> "tests/python/helpers.py"
-    "tests/python/domain/test_kicad_category_resolution.py" --> "domain/__init__.py"
-    "tests/python/domain/test_kicad_mapping.py" --> "cache_db.py"
-    "tests/python/domain/test_kicad_mapping.py" --> "domain/__init__.py"
-    "tests/python/domain/test_kicad_view.py" --> "domain/__init__.py"
     "tests/python/domain/test_part_registry.py" --> "domain/__init__.py"
     "tests/python/domain/test_part_registry.py" --> "dubis_errors.py"
     "tests/python/domain/test_part_registry_integration.py" --> "cache_db.py"
@@ -571,10 +560,6 @@ graph LR
     "tests/python/server/test_import_scan_routes.py" --> "pnp_server.py"
     "tests/python/server/test_inventory_mut.py" --> "server/__init__.py"
     "tests/python/server/test_inventory_mut.py" --> "tests/python/helpers.py"
-    "tests/python/server/test_kicad_integration.py" --> "server/app.py"
-    "tests/python/server/test_kicad_integration.py" --> "tests/python/helpers.py"
-    "tests/python/server/test_kicad_routes.py" --> "server/app.py"
-    "tests/python/server/test_kicad_routes.py" --> "tests/python/helpers.py"
     "tests/python/server/test_lifecycle.py" --> "dubis_errors.py"
     "tests/python/server/test_lifecycle.py" --> "server/__main__.py"
     "tests/python/server/test_lifecycle.py" --> "server/lockfile.py"
@@ -744,12 +729,12 @@ graph LR
 ### cache_db.py
 
 - **Imports:** `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`
-- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `server/routes/meta.py`, `tests/python/conftest.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_kicad_mapping.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_saved_searches.py`
+- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `server/routes/meta.py`, `tests/python/conftest.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_saved_searches.py`
 
 ### categorize.py
 
 - **Imports:** —
-- **Imported by:** `domain/kicad_mapping.py`, `inventory_ops.py`, `spec_extractor.py`, `tests/python/test_inventory_api_categorize.py`
+- **Imported by:** `inventory_ops.py`, `spec_extractor.py`, `tests/python/test_inventory_api_categorize.py`
 
 ### client_shell.py
 
@@ -759,7 +744,7 @@ graph LR
 ### csv_io.py
 
 - **Imports:** —
-- **Imported by:** `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/kicad_mapping.py`, `domain/part_registry.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_csv_io.py`, `vendors.py`
+- **Imported by:** `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/part_registry.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_csv_io.py`, `vendors.py`
 
 ### digikey_cdp.py
 
@@ -804,7 +789,7 @@ graph LR
 ### domain/__init__.py
 
 - **Imports:** —
-- **Imported by:** `domain/inventory.py`, `inventory_ops.py`, `tests/python/domain/test_kicad_category_resolution.py`, `tests/python/domain/test_kicad_mapping.py`, `tests/python/domain/test_kicad_view.py`, `tests/python/domain/test_part_registry.py`, `tests/python/domain/test_part_registry_integration.py`
+- **Imported by:** `domain/inventory.py`, `inventory_ops.py`, `tests/python/domain/test_part_registry.py`, `tests/python/domain/test_part_registry_integration.py`
 
 ### domain/api_distributor.py
 
@@ -868,18 +853,8 @@ graph LR
 
 ### domain/inventory.py
 
-- **Imports:** `cache_db.py`, `csv_io.py`, `domain/__init__.py`, `domain/generic_parts.py`, `domain/kicad_mapping.py`, `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`, `saved_searches.py`
+- **Imports:** `cache_db.py`, `csv_io.py`, `domain/__init__.py`, `domain/generic_parts.py`, `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`, `saved_searches.py`
 - **Imported by:** `domain/api_inventory.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`
-
-### domain/kicad_mapping.py
-
-- **Imports:** `categorize.py`, `csv_io.py`
-- **Imported by:** `domain/inventory.py`, `domain/kicad_view.py`
-
-### domain/kicad_view.py
-
-- **Imports:** `domain/kicad_mapping.py`, `spec_extractor.py`
-- **Imported by:** `server/routes/kicad.py`
 
 ### domain/part_registry.py
 
@@ -1632,7 +1607,7 @@ graph LR
 ### server/app.py
 
 - **Imports:** `server/auth.py`, `server/errors.py`, `server/routes/__init__.py`
-- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_kicad_integration.py`, `tests/python/server/test_kicad_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
+- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
 
 ### server/auth.py
 
@@ -1657,7 +1632,7 @@ graph LR
 ### server/models.py
 
 - **Imports:** `domain/schema.py`
-- **Imported by:** `server/routes/kicad.py`, `server/routes/parts_read.py`, `tests/python/server/test_models.py`
+- **Imported by:** `server/routes/parts_read.py`, `tests/python/server/test_models.py`
 
 ### server/mutations.py
 
@@ -1699,11 +1674,6 @@ graph LR
 - **Imports:** `server/auth.py`, `server/mutations.py`
 - **Imported by:** —
 
-### server/routes/kicad.py
-
-- **Imports:** `domain/kicad_view.py`, `server/models.py`
-- **Imported by:** —
-
 ### server/routes/meta.py
 
 - **Imports:** `cache_db.py`
@@ -1742,7 +1712,7 @@ graph LR
 ### spec_extractor.py
 
 - **Imports:** `categorize.py`
-- **Imported by:** `domain/api_generic_parts.py`, `domain/generic_parts.py`, `domain/kicad_view.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/test_spec_extractor.py`
+- **Imported by:** `domain/api_generic_parts.py`, `domain/generic_parts.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/test_spec_extractor.py`
 
 ### tests/js/api-client.test.js
 
@@ -2078,21 +2048,6 @@ graph LR
 - **Imports:** `domain/inventory.py`, `inventory_api.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
-### tests/python/domain/test_kicad_category_resolution.py
-
-- **Imports:** `domain/__init__.py`
-- **Imported by:** —
-
-### tests/python/domain/test_kicad_mapping.py
-
-- **Imports:** `cache_db.py`, `domain/__init__.py`
-- **Imported by:** —
-
-### tests/python/domain/test_kicad_view.py
-
-- **Imports:** `domain/__init__.py`
-- **Imported by:** —
-
 ### tests/python/domain/test_part_registry.py
 
 - **Imports:** `domain/__init__.py`, `dubis_errors.py`
@@ -2111,7 +2066,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `distributor_manager.py`, `inventory_api.py`
-- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_kicad_integration.py`, `tests/python/server/test_kicad_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_dubis_mcp_tools.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_dubis_mcp_tools.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/server/conftest.py
 
@@ -2156,16 +2111,6 @@ graph LR
 ### tests/python/server/test_inventory_mut.py
 
 - **Imports:** `server/__init__.py`, `tests/python/helpers.py`
-- **Imported by:** —
-
-### tests/python/server/test_kicad_integration.py
-
-- **Imports:** `server/app.py`, `tests/python/helpers.py`
-- **Imported by:** —
-
-### tests/python/server/test_kicad_routes.py
-
-- **Imports:** `server/app.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/server/test_lifecycle.py
