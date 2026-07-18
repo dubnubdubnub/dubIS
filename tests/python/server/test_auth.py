@@ -86,6 +86,64 @@ def test_bearer_scheme_is_case_insensitive(tmp_path, monkeypatch):
     assert r.status_code == 200
 
 
+def test_token_scheme_allowed(tmp_path, monkeypatch):
+    """KiCad's HTTP library client sends `Authorization: Token <token>`
+    (DRF TokenAuthentication convention) rather than `Bearer`, despite the
+    token being resolved against the same DUBIS_TOKENS map. Widening the
+    scheme check must resolve it to the same identity as an equivalent
+    Bearer header would."""
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TOKENS", "kicad-isaac:abc123")
+    api = _api(tmp_path)
+    with TestClient(create_app(api), client=REMOTE) as c:
+        bearer_resp = c.post(
+            "/v1/parts/C100000/adjust",
+            json={"adj_type": "add", "quantity": 1, "note": "", "source": "bearer-check"},
+            headers={"Authorization": "Bearer abc123"},
+        )
+        assert bearer_resp.status_code == 200
+        token_resp = c.get("/v1/parts", headers={"Authorization": "Token abc123"})
+        assert token_resp.status_code == 200
+
+        adjust_resp = c.post(
+            "/v1/parts/C100000/adjust",
+            json={"adj_type": "add", "quantity": 1, "note": "", "source": "mcp"},
+            headers={"Authorization": "Token abc123"},
+        )
+        assert adjust_resp.status_code == 200
+        history = c.get(
+            "/v1/parts/C100000/history",
+            headers={"Authorization": "Token abc123"},
+        ).json()
+    # Token scheme resolves to the same identity as Bearer would for the
+    # same token value -- both get suffixed as "@kicad-isaac".
+    assert history[-1]["source"] == "mcp@kicad-isaac"
+
+
+def test_token_scheme_wrong_value_rejected(tmp_path, monkeypatch):
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TOKENS", "kicad-isaac:abc123")
+    api = _api(tmp_path)
+    with TestClient(create_app(api), client=REMOTE) as c:
+        r = c.get("/v1/parts", headers={"Authorization": "Token nope"})
+    assert r.status_code == 401
+
+
+def test_token_scheme_is_case_insensitive(tmp_path, monkeypatch):
+    """Scheme-name case-insensitivity (RFC 7235) must apply to the new
+    'Token' scheme exactly as it already does for 'Bearer'."""
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TOKENS", "kicad-isaac:abc123")
+    api = _api(tmp_path)
+    with TestClient(create_app(api), client=REMOTE) as c:
+        lower = c.get("/v1/parts", headers={"Authorization": "token abc123"})
+        upper = c.get("/v1/parts", headers={"Authorization": "TOKEN abc123"})
+        mixed = c.get("/v1/parts", headers={"Authorization": "Token abc123"})
+    assert lower.status_code == 200
+    assert upper.status_code == 200
+    assert mixed.status_code == 200
+
+
 def test_tailscale_header_allowed_when_trusted_and_allowlisted(tmp_path, monkeypatch):
     monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
     monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
