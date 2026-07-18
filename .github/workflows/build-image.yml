@@ -1,54 +1,40 @@
-# Build + push the dubis-server image to GHCR, then write the built sha back
-# into deploy/kustomization.yaml so Argo rolls it (Phase 1c Task 6).
+# Build + push the dubis-server image to GHCR (Phase 1c).
 #
-# Modeled on the infra repo's docs/templates/build.yml (per cluster answers in
-# docs/plans/2026-07-16-phase1c-remote-deploy-design.md §6) as closely as
-# reproducible without read access to that template -- this is a standard
-# GHCR build+push built from official actions. RECONCILE THIS FILE AGAINST
-# infra/docs/templates/build.yml AT DEPLOY TIME: the cluster's required-CI
-# merge gate pulls images from GHCR the same way that template expects, so
-# any naming/tagging convention mismatch (label selectors, tag format, etc.)
-# needs to be caught before the first real deploy, not after.
+# Build-and-push ONLY. This workflow deliberately does NOT write the built sha
+# back into deploy/kustomization.yaml. The infra deploy standard
+# (infra/docs/templates/build.yml) does a `git push` write-back to the default
+# branch, but that only works because those service repos leave their default
+# branch push-able by CI. dubIS's `main` is hardened (PR required + required
+# status checks, from the CI-hardening work), so a write-back push is rejected
+# with GH006 ("changes must be made through a pull request") and failed the run
+# on every merge. Rather than weaken main's protection or add App-token +
+# auto-merge plumbing, we build+push here and pin the deployed sha manually
+# (dubIS deploys are gated/manual anyway -- Isaac provisions them). The built
+# sha is printed to the job summary below so it's easy to grab.
 #
-# Tagging: sha-pinned only, no `:latest` (Kyverno bans it cluster-wide -- see
-# tests/python/test_deploy_manifests.py::test_no_image_uses_latest_tag) and no
-# `:main` moving tag either -- the design doc flags `:main` as *possibly* also
-# banned by policy and says "if unsure, drop it". Staying sha-only keeps this
-# workflow safely inside Kyverno's policy without needing to verify that
-# assumption against the live cluster first. A `:main` tag can be added back
-# later (with a comment) once someone confirms Kyverno allows it.
+# To re-enable automated deploys later, pick ONE:
+#   - grant a branch-protection bypass for github-actions[bot] on `main` (a
+#     security decision -- CI could then push to main), then restore a
+#     write-back step; or
+#   - run Argo CD Image Updater so Argo watches GHCR directly and no git
+#     write-back is needed at all (preferred -- keeps main fully protected).
 #
-# Runner choice: ubuntu-latest (GitHub-hosted), not the self-hosted ARC pods
-# ci.yml uses for JS/Python jobs. ARC's ephemeral pods are not known to have
-# docker-in-docker configured, and a docker image build+push is exactly the
-# workload that needs it. GH-hosted ubuntu-latest ships Docker + buildx
-# preinstalled, which is the safer default absent evidence the ARC pool
-# supports privileged docker builds. Reconcile against the infra template if
-# it specifies a particular runner label.
+# Tagging: sha-pinned only, no `:latest` (Kyverno bans it cluster-wide) and no
+# `:main` moving tag. IMPORTANT: the tag is the FULL 40-char github.sha, and
+# GHCR tags are exact strings (not prefix-matched) -- pin the full sha in
+# deploy/kustomization.yaml, never the short sha (learned the hard way on the
+# first deploy: a short-sha pin 404s at pull time).
 #
-# --- Loop-prevention (write-back commit re-triggering this same workflow) ---
-# This workflow's `paths:` filter includes `deploy/**` (so a manifest edit by
-# a human still rebuilds/redeploys), but its own write-back step edits
-# deploy/kustomization.yaml -- which would normally re-trigger itself on push,
-# forever. Two independent guards close this:
-#   1. The write-back commit message ends with "[skip ci]". GitHub Actions
-#      recognizes that marker in the *commit message of the pushed commit*
-#      and skips creating workflow runs for push/pull_request events directly
-#      caused by that commit -- this is the primary guard and is sufficient
-#      on its own for a push-triggered workflow.
-#   2. `concurrency: { group: build-image, cancel-in-progress: false }` so
-#      even if something did queue a second run, it serializes behind the
-#      first instead of racing it (belt-and-suspenders, not the primary
-#      loop-prevention mechanism).
-#   3. An explicit `git diff --quiet` guard before the commit step: if the
-#      sed/python rewrite is a no-op (e.g. re-run on a sha that's already
-#      written back), no commit is made at all, so there's nothing to push
-#      and nothing to (even theoretically) retrigger.
+# Runner: ubuntu-latest (GitHub-hosted) -- ships Docker + buildx; ARC's
+# ephemeral pods aren't known to have docker-in-docker.
 name: Build image
 
 on:
   push:
     branches: [main]
+    # Only rebuild when something that goes INTO the image changes. deploy/**
+    # is intentionally excluded -- manifest edits don't change the image, and
+    # there's no write-back loop to guard against anymore.
     paths:
       - "*.py"
       - "domain/**"
@@ -59,15 +45,12 @@ on:
       - "index.html"
       - "requirements.txt"
       - "Dockerfile"
-      - "deploy/**"
   workflow_dispatch: {}
 
 permissions:
-  contents: write # write-back commit to deploy/kustomization.yaml
+  contents: read
   packages: write # push image to ghcr.io
 
-# Serialize build-image runs; never cancel one mid-push (a cancelled push
-# could leave the write-back commit half-applied).
 concurrency:
   group: build-image
   cancel-in-progress: false
@@ -77,15 +60,10 @@ env:
 
 jobs:
   build-and-push:
-    name: Build + push GHCR image, write back sha
+    name: Build + push GHCR image
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          # GITHUB_TOKEN (granted contents:write above) is used for the
-          # write-back push at the end of this job -- the default checkout
-          # credential is sufficient, no PAT needed.
-          fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -104,49 +82,15 @@ jobs:
           push: true
           tags: ${{ env.IMAGE }}:${{ github.sha }}
 
-      - name: Write built sha into deploy/kustomization.yaml
+      - name: Report built image + pin instructions
         run: |
-          python3 - "$GITHUB_SHA" <<'EOF'
-          import re
-          import sys
-          from pathlib import Path
-
-          sha = sys.argv[1]
-          path = Path("deploy/kustomization.yaml")
-          text = path.read_text(encoding="utf-8")
-
-          # Anchored to the dubis-server image entry specifically (not a bare
-          # "replace any newTag:" regex) so this can't accidentally rewrite a
-          # different image block if one is ever added alongside it.
-          pattern = re.compile(
-              r"(name:\s*ghcr\.io/dubnubdubnub/dubis-server\s*\n\s*newTag:\s*)\S+"
-          )
-          new_text, count = pattern.subn(lambda m: m.group(1) + sha, text)
-          if count != 1:
-              raise SystemExit(
-                  f"expected exactly 1 dubis-server newTag: replacement, got {count}"
-              )
-          path.write_text(new_text, encoding="utf-8")
-          print(f"deploy/kustomization.yaml newTag -> {sha}")
-          EOF
-
-      - name: Commit + push write-back (no-op if nothing changed)
-        run: |
-          set -euo pipefail
-
-          if git diff --quiet -- deploy/kustomization.yaml; then
-            echo "deploy/kustomization.yaml already at this sha -- nothing to commit."
-            exit 0
-          fi
-
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add deploy/kustomization.yaml
-          git commit -m "$(cat <<EOF2
-          chore(deploy): bump dubis-server image to ${GITHUB_SHA} [skip ci]
-
-          Automated write-back from .github/workflows/build-image.yml after a
-          successful GHCR push of ${IMAGE}:${GITHUB_SHA}.
-          EOF2
-          )"
-          git push origin HEAD:main
+          {
+            echo "### dubis-server image built"
+            echo ""
+            echo '```'
+            echo "${IMAGE}:${GITHUB_SHA}"
+            echo '```'
+            echo ""
+            echo "Deploy: pin this **full** sha in \`deploy/kustomization.yaml\` (\`images[].newTag\`)"
+            echo "and let Argo sync (or apply manually). The short sha will NOT pull -- GHCR tags are exact."
+          } >> "$GITHUB_STEP_SUMMARY"
