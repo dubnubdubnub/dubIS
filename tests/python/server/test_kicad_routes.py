@@ -11,12 +11,16 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from server.app import create_app
 from tests.python.helpers import make_api, make_part, write_ledger
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+REAL_KICAD_MAPPING_PATH = REPO_ROOT / "data" / "kicad_mapping.json"
 
 _CATEGORY_1 = {
     "id": "1",
@@ -336,4 +340,92 @@ def test_auth_on_mode_token_scheme_is_accepted(tmp_path, monkeypatch):
             headers={"Authorization": "Token secret123"},
         )
     assert r.status_code == 200
+    api.shutdown()
+
+
+# ── Task 6 seed fix: real data/kicad_mapping.json now resolves dev-boards ───
+
+
+def test_real_seed_has_dev_board_category_matching_categorize_bucket_literally():
+    """The Task 6 review fix, checked directly against the shipped seed
+    file: `data/kicad_mapping.json` must carry a `categorize_fallback`
+    category whose `categorize_bucket` is the *literal* string
+    `categorize.py`'s CATEGORY_RULES produces for dev boards -- the same
+    literal `domain/kicad_view.py::_DEFAULT_EXCLUDED_BUCKET` matches
+    against. Without this row, no dev-board SKU can ever resolve a
+    category at all (regardless of any per-SKU override), which is exactly
+    the gap this fix closes."""
+    with open(REAL_KICAD_MAPPING_PATH, encoding="utf-8") as f:
+        real_mapping = json.load(f)
+
+    dev_board_cats = [
+        cat for cat in real_mapping["categories"]
+        if cat.get("categorize_bucket") == "Development Boards, Kits, Programmers"
+    ]
+    assert len(dev_board_cats) == 1, (
+        "expected exactly one seeded category for the "
+        "'Development Boards, Kits, Programmers' bucket"
+    )
+    cat = dev_board_cats[0]
+    assert cat["source"] == "categorize_fallback"
+    # Opt-in-per-SKU posture (design doc §2.2): the category itself confers
+    # no symbol -- only an explicit per-SKU kicad_symbol override does.
+    assert cat["default_symbol"] is None
+
+
+def test_esp32_rescue_against_real_seed_data(tmp_path):
+    """The ESP32-solder-down-module rescue (design doc §3 point 3 / binding
+    decision 3), proven against the REAL shipped `data/kicad_mapping.json`
+    seed -- not a hand-rolled test category. Before the Task 6 seed fix,
+    a dev-board SKU resolved category=None (the seed had no row for the
+    default-excluded bucket at all), so `eligible_override: true` had
+    nothing to force-include *within* and the SKU stayed invisible
+    regardless. With the seed fix, the bucket resolves to a real category
+    id, and a per-SKU `eligible_override: true` + `kicad_symbol` override
+    is enough to make an otherwise-excluded solder-down module visible."""
+    with open(REAL_KICAD_MAPPING_PATH, encoding="utf-8") as f:
+        real_mapping = json.load(f)
+
+    dev_board_cat_id = next(
+        cat["id"] for cat in real_mapping["categories"]
+        if cat.get("categorize_bucket") == "Development Boards, Kits, Programmers"
+    )
+
+    api = make_api(tmp_path)
+    write_ledger(api, [
+        # Description/MPN trip categorize.py's dev-board rule (an ESP32
+        # module, sold in dev-kit form, gets lumped in with real dev boards
+        # by the shelf taxonomy -- exactly the false-positive this override
+        # exists to correct).
+        make_part(
+            lcsc="", mpn="ESP32-WROOM-32E-N4", qty=8,
+            desc="ESP32-WROOM-32E-N4 WiFi/BT SoM development board module",
+            pkg="SMD",
+        ),
+    ])
+    mapping = dict(real_mapping)
+    mapping["part_overrides"] = {
+        "ESP32-WROOM-32E-N4": {
+            "category_id": None,  # resolves via categorize.py fallback, not an override
+            "kicad_symbol": "RF_Module:ESP32-WROOM-32",
+            "kicad_footprint": None,
+            "kicad_datasheet": None,
+            "eligible_override": True,  # force-include despite the excluded bucket
+        },
+    }
+    path = os.path.join(api.base_dir, "kicad_mapping.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(mapping, f)
+
+    with TestClient(create_app(api)) as c:
+        detail = c.get("/v1/kicad/parts/ESP32-WROOM-32E-N4.json")
+        assert detail.status_code == 200
+        body = detail.json()
+        assert body["symbolIdStr"] == "RF_Module:ESP32-WROOM-32"
+
+        members = c.get(f"/v1/kicad/parts/category/{dev_board_cat_id}.json").json()
+        assert {m["id"] for m in members} == {"ESP32-WROOM-32E-N4"}
+
+        cats = c.get("/v1/kicad/categories.json").json()
+        assert dev_board_cat_id in {cat["id"] for cat in cats}
     api.shutdown()

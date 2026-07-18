@@ -60,6 +60,16 @@
       "default_symbol": "Device:LED",
       "default_footprint_from_package": true,
       "default_reference": "D"
+    },
+    {
+      "id": "7",
+      "name": "Development Boards, Kits, Programmers",
+      "source": "categorize_fallback",
+      "jlcpcb_catalog_name": null,
+      "categorize_bucket": "Development Boards, Kits, Programmers",
+      "default_symbol": null,
+      "default_footprint_from_package": false,
+      "default_reference": null
     }
   ],
   "part_overrides": {},
