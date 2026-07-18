@@ -1,0 +1,200 @@
+{
+  "_comment": [
+    "Tier-1 standard-package family table for the dubIS->OpenPnP bridge",
+    "(Phase 3a, first increment). Keyed on '<part_type>_<size_code>' where",
+    "part_type is one of resistor/capacitor/inductor/led/diode and size_code",
+    "is a standard imperial chip size (0201/0402/0603/0805/1206).",
+    "",
+    "body_width_mm / body_height_mm are the standard IPC/EIA land-pattern",
+    "body dimensions for the chip size and are identical across families of",
+    "the same size (the physical package footprint is size-defined, not",
+    "type-defined).",
+    "",
+    "default_height_mm is a REASONABLE DEFAULT per (type, size) — NOT a",
+    "measured value for any specific part. It is used only when dubIS has no",
+    "part-specific height in its own spec data (see spec_extractor.py); real",
+    "component height varies by manufacturer/construction (e.g. MLCC",
+    "dielectric build-up, chip-inductor core height) and should be corrected",
+    "per-part once dubIS has a real height source (Tier-2 / manual override).",
+    "",
+    "kicad_footprint follows the standard KiCad library naming convention",
+    "'<Imperial>_<Metric>Metric' from the official *_SMD footprint libraries.",
+    "openpnp_package is the corresponding OpenPnP packages.xml package id",
+    "convention (<PREFIX><size>, e.g. R0402)."
+  ],
+  "resistor_0201": {
+    "openpnp_package": "R0201",
+    "kicad_footprint": "Resistor_SMD:R_0201_0603Metric",
+    "body_width_mm": 0.6,
+    "body_height_mm": 0.3,
+    "default_height_mm": 0.3
+  },
+  "resistor_0402": {
+    "openpnp_package": "R0402",
+    "kicad_footprint": "Resistor_SMD:R_0402_1005Metric",
+    "body_width_mm": 1.0,
+    "body_height_mm": 0.5,
+    "default_height_mm": 0.5
+  },
+  "resistor_0603": {
+    "openpnp_package": "R0603",
+    "kicad_footprint": "Resistor_SMD:R_0603_1608Metric",
+    "body_width_mm": 1.6,
+    "body_height_mm": 0.8,
+    "default_height_mm": 0.55
+  },
+  "resistor_0805": {
+    "openpnp_package": "R0805",
+    "kicad_footprint": "Resistor_SMD:R_0805_2012Metric",
+    "body_width_mm": 2.0,
+    "body_height_mm": 1.25,
+    "default_height_mm": 0.6
+  },
+  "resistor_1206": {
+    "openpnp_package": "R1206",
+    "kicad_footprint": "Resistor_SMD:R_1206_3216Metric",
+    "body_width_mm": 3.2,
+    "body_height_mm": 1.6,
+    "default_height_mm": 0.65
+  },
+  "capacitor_0201": {
+    "openpnp_package": "C0201",
+    "kicad_footprint": "Capacitor_SMD:C_0201_0603Metric",
+    "body_width_mm": 0.6,
+    "body_height_mm": 0.3,
+    "default_height_mm": 0.3
+  },
+  "capacitor_0402": {
+    "openpnp_package": "C0402",
+    "kicad_footprint": "Capacitor_SMD:C_0402_1005Metric",
+    "body_width_mm": 1.0,
+    "body_height_mm": 0.5,
+    "default_height_mm": 0.5
+  },
+  "capacitor_0603": {
+    "openpnp_package": "C0603",
+    "kicad_footprint": "Capacitor_SMD:C_0603_1608Metric",
+    "body_width_mm": 1.6,
+    "body_height_mm": 0.8,
+    "default_height_mm": 0.8
+  },
+  "capacitor_0805": {
+    "openpnp_package": "C0805",
+    "kicad_footprint": "Capacitor_SMD:C_0805_2012Metric",
+    "body_width_mm": 2.0,
+    "body_height_mm": 1.25,
+    "default_height_mm": 0.95
+  },
+  "capacitor_1206": {
+    "openpnp_package": "C1206",
+    "kicad_footprint": "Capacitor_SMD:C_1206_3216Metric",
+    "body_width_mm": 3.2,
+    "body_height_mm": 1.6,
+    "default_height_mm": 1.15
+  },
+  "inductor_0201": {
+    "openpnp_package": "L0201",
+    "kicad_footprint": "Inductor_SMD:L_0201_0603Metric",
+    "body_width_mm": 0.6,
+    "body_height_mm": 0.3,
+    "default_height_mm": 0.3
+  },
+  "inductor_0402": {
+    "openpnp_package": "L0402",
+    "kicad_footprint": "Inductor_SMD:L_0402_1005Metric",
+    "body_width_mm": 1.0,
+    "body_height_mm": 0.5,
+    "default_height_mm": 0.5
+  },
+  "inductor_0603": {
+    "openpnp_package": "L0603",
+    "kicad_footprint": "Inductor_SMD:L_0603_1608Metric",
+    "body_width_mm": 1.6,
+    "body_height_mm": 0.8,
+    "default_height_mm": 0.8
+  },
+  "inductor_0805": {
+    "openpnp_package": "L0805",
+    "kicad_footprint": "Inductor_SMD:L_0805_2012Metric",
+    "body_width_mm": 2.0,
+    "body_height_mm": 1.25,
+    "default_height_mm": 1.0
+  },
+  "inductor_1206": {
+    "openpnp_package": "L1206",
+    "kicad_footprint": "Inductor_SMD:L_1206_3216Metric",
+    "body_width_mm": 3.2,
+    "body_height_mm": 1.6,
+    "default_height_mm": 1.2
+  },
+  "led_0201": {
+    "openpnp_package": "LED0201",
+    "kicad_footprint": "LED_SMD:LED_0201_0603Metric",
+    "body_width_mm": 0.6,
+    "body_height_mm": 0.3,
+    "default_height_mm": 0.3
+  },
+  "led_0402": {
+    "openpnp_package": "LED0402",
+    "kicad_footprint": "LED_SMD:LED_0402_1005Metric",
+    "body_width_mm": 1.0,
+    "body_height_mm": 0.5,
+    "default_height_mm": 0.4
+  },
+  "led_0603": {
+    "openpnp_package": "LED0603",
+    "kicad_footprint": "LED_SMD:LED_0603_1608Metric",
+    "body_width_mm": 1.6,
+    "body_height_mm": 0.8,
+    "default_height_mm": 0.55
+  },
+  "led_0805": {
+    "openpnp_package": "LED0805",
+    "kicad_footprint": "LED_SMD:LED_0805_2012Metric",
+    "body_width_mm": 2.0,
+    "body_height_mm": 1.25,
+    "default_height_mm": 0.6
+  },
+  "led_1206": {
+    "openpnp_package": "LED1206",
+    "kicad_footprint": "LED_SMD:LED_1206_3216Metric",
+    "body_width_mm": 3.2,
+    "body_height_mm": 1.6,
+    "default_height_mm": 0.7
+  },
+  "diode_0201": {
+    "openpnp_package": "D0201",
+    "kicad_footprint": "Diode_SMD:D_0201_0603Metric",
+    "body_width_mm": 0.6,
+    "body_height_mm": 0.3,
+    "default_height_mm": 0.3
+  },
+  "diode_0402": {
+    "openpnp_package": "D0402",
+    "kicad_footprint": "Diode_SMD:D_0402_1005Metric",
+    "body_width_mm": 1.0,
+    "body_height_mm": 0.5,
+    "default_height_mm": 0.45
+  },
+  "diode_0603": {
+    "openpnp_package": "D0603",
+    "kicad_footprint": "Diode_SMD:D_0603_1608Metric",
+    "body_width_mm": 1.6,
+    "body_height_mm": 0.8,
+    "default_height_mm": 0.55
+  },
+  "diode_0805": {
+    "openpnp_package": "D0805",
+    "kicad_footprint": "Diode_SMD:D_0805_2012Metric",
+    "body_width_mm": 2.0,
+    "body_height_mm": 1.25,
+    "default_height_mm": 0.6
+  },
+  "diode_1206": {
+    "openpnp_package": "D1206",
+    "kicad_footprint": "Diode_SMD:D_1206_3216Metric",
+    "body_width_mm": 3.2,
+    "body_height_mm": 1.6,
+    "default_height_mm": 0.65
+  }
+}

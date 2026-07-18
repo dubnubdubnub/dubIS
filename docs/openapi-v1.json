@@ -1944,6 +1944,50 @@
         ]
       }
     },
+    "/v1/openpnp/part/{part_key}": {
+      "get": {
+        "operationId": "get_openpnp_part",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Openpnp Part",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Openpnp Part",
+        "tags": [
+          "openpnp"
+        ]
+      }
+    },
     "/v1/parts": {
       "get": {
         "operationId": "list_parts",
