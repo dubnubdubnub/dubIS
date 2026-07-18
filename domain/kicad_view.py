@@ -1,0 +1,343 @@
+"""KiCad HTTP Library read-only view -- the single gating seam for
+`/v1/kicad/*` routes (design doc `docs/plans/2026-07-17-phase4-kicad-design.md`
+§3: "gating logic lives in one place ... not duplicated across route
+handlers").
+
+Reads only `cache.db` (the `parts` table + Task 2's `kicad_categories` /
+`kicad_part_state` tables) -- never touches CSVs or the network. Callers
+(server/routes/kicad.py) are responsible for calling
+`api._load_organized()` first so the cache is fresh before these functions
+read it.
+
+**Seams left for later plan tasks** (do not remove these comments when
+extending -- they mark exactly what changes and what doesn't):
+
+- `resolve_category_id` -- TASK 5's scope, now fully implemented (MVP):
+  explicit per-SKU override (`kicad_part_state.category_id`) wins outright;
+  else the memoized `part_category_cache` columns win (LCSC->JLCPCB lookup
+  result -- not exercised by live network calls in MVP, but the read path
+  is wired); else `categorize.py`'s existing bucket function is run against
+  the SKU's own row and matched against a `source: "categorize_fallback"`
+  `kicad_categories` entry's `categorize_bucket`; else `None` (unresolved,
+  therefore invisible -- not an error). The actual chain lives in
+  `domain.kicad_mapping.resolve_category_for_part` (shared with any future
+  backfill runner); this function only adapts SQLite rows into that
+  function's plain-dict shape. This is a purely READ-TIME resolution --
+  no cache write happens here or anywhere in Task 5's changes. Deferred to
+  Full (§4.2/§6): the live `jlcpcb-catalog` network lookup that would
+  *populate* `part_category_cache` in the first place.
+- `is_eligible` -- TASK 4's scope, now fully implemented per design doc §3
+  point 3: the per-SKU `eligible_override` tri-state wins outright in
+  either direction (`True` force-includes even in the excluded bucket --
+  the ESP32/SoM case; `False` force-excludes even outside it -- the
+  mislabeled-tool case); `None` defers to the category-level default,
+  excluding iff the resolved category's `categorize_bucket` is the literal
+  `"Development Boards, Kits, Programmers"` string (matched against
+  `kicad_categories.categorize_bucket`, never re-derived from
+  `categorize.py` directly -- that literal lives in `_DEFAULT_EXCLUDED_BUCKET`
+  below and in the `kicad_mapping.json` category rows Task 2 seeds).
+
+Everything else here (symbol resolution, the visibility AND of the three
+gates, field/summary/detail shaping, string-encoding) is this task's real,
+non-stubbed implementation -- design doc §3 states it once, cross-cutting,
+and it belongs here regardless of which task fills in category/eligibility
+resolution.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+
+from domain.kicad_mapping import resolve_category_for_part
+from spec_extractor import extract_spec
+
+# Fixed visible-field set for v1 (design doc §1.4/§2.4) -- not configurable.
+_VISIBLE_FIELDS = frozenset({"Value", "MPN", "LCSC", "Datasheet"})
+
+# Default-excluded categorize.py bucket (design doc §3 point 3), matched
+# literally against `kicad_categories.categorize_bucket` -- not re-derived.
+_DEFAULT_EXCLUDED_BUCKET = "Development Boards, Kits, Programmers"
+
+
+def resolve_category_id(conn: sqlite3.Connection, part_id: str) -> str | None:
+    """The SKU's resolved KiCad category id, or None if unresolved.
+
+    Resolution order (design doc §2.3/§4.1, Task 5 MVP), read-time only --
+    no cache write happens here:
+    1. Explicit per-SKU override (`kicad_part_state.category_id`) -- wins
+       outright.
+    2. Memoized `part_category_cache` columns on the same row (wired for a
+       future backfill; MVP never populates these via a live network call).
+    3. `categorize.py`'s bucket for this SKU, matched against a
+       `categorize_fallback`-sourced `kicad_categories` entry.
+    4. `None` -- unresolved, therefore invisible (see `is_visible`).
+    """
+    state = conn.execute(
+        "SELECT category_id, cache_resolved_category_id FROM kicad_part_state"
+        " WHERE part_id = ?",
+        (part_id,),
+    ).fetchone()
+    if state is not None and state["category_id"]:
+        return state["category_id"]
+
+    part = conn.execute(
+        "SELECT description, mpn, manufacturer FROM parts WHERE part_id = ?", (part_id,),
+    ).fetchone()
+    if part is None:
+        return None
+
+    cache_entry = {}
+    if state is not None and state["cache_resolved_category_id"]:
+        cache_entry = {"resolved_category_id": state["cache_resolved_category_id"]}
+
+    categories = [
+        {"id": c["id"], "source": c["source"], "categorize_bucket": c["categorize_bucket"]}
+        for c in conn.execute(
+            "SELECT id, source, categorize_bucket FROM kicad_categories",
+        ).fetchall()
+    ]
+
+    fallback_row = {
+        "part_id": part_id,
+        "Description": part["description"] or "",
+        "Manufacture Part Number": part["mpn"] or "",
+        "Manufacturer": part["manufacturer"] or "",
+    }
+    mapping = {
+        "categories": categories,
+        "part_category_cache": {part_id: cache_entry} if cache_entry else {},
+    }
+    return resolve_category_for_part(fallback_row, mapping)
+
+
+def resolve_symbol(
+    conn: sqlite3.Connection, part_id: str, category_id: str | None,
+) -> str | None:
+    """symbolIdStr resolution order (design doc §1.4/§3 point 2):
+    per-SKU `kicad_symbol` override -> resolved category's `default_symbol`
+    -> None (unresolved -> invisible).
+    """
+    row = conn.execute(
+        "SELECT kicad_symbol FROM kicad_part_state WHERE part_id = ?", (part_id,),
+    ).fetchone()
+    override = row["kicad_symbol"] if row else None
+    if override:
+        return override
+    if category_id is None:
+        return None
+    cat = conn.execute(
+        "SELECT default_symbol FROM kicad_categories WHERE id = ?", (category_id,),
+    ).fetchone()
+    if cat is None or not cat["default_symbol"]:
+        return None
+    return cat["default_symbol"]
+
+
+def is_eligible(conn: sqlite3.Connection, part_id: str, category_id: str | None) -> bool:
+    """Eligibility gate (design doc §3 point 3).
+
+    Tri-state per-SKU `eligible_override` wins outright in either direction:
+    `False` force-excludes, `True` force-includes (even in the excluded
+    bucket -- the ESP32/SoM case). `None` defers to the category-level
+    default: exclude iff the resolved category's `categorize_bucket` is the
+    literal `"Development Boards, Kits, Programmers"` string (matched
+    against `kicad_categories.categorize_bucket`, not re-derived); every
+    other category defaults to included.
+
+    `category_id=None` (unresolved category) has nothing to match the
+    bucket against, so this function alone treats it as eligible --
+    `is_visible()` independently invalidates unresolved-category SKUs via
+    its earlier, higher-precedence check (design doc §3 point 1).
+    """
+    row = conn.execute(
+        "SELECT eligible_override FROM kicad_part_state WHERE part_id = ?", (part_id,),
+    ).fetchone()
+    override = row["eligible_override"] if row else None  # 1 / 0 / None
+    if override == 0:
+        return False
+    if override == 1:
+        return True
+
+    if category_id is None:
+        return True
+    cat = conn.execute(
+        "SELECT categorize_bucket FROM kicad_categories WHERE id = ?", (category_id,),
+    ).fetchone()
+    if cat is not None and cat["categorize_bucket"] == _DEFAULT_EXCLUDED_BUCKET:
+        return False
+    return True
+
+
+def is_visible(conn: sqlite3.Connection, part_id: str) -> tuple[bool, str | None, str | None]:
+    """The one visibility gate (design doc §3), AND of all three conditions.
+
+    Returns (visible, category_id, symbol) so callers that already need
+    category_id/symbol (list/detail builders) don't re-derive them.
+    """
+    category_id = resolve_category_id(conn, part_id)
+    if category_id is None:
+        return False, None, None
+    symbol = resolve_symbol(conn, part_id, category_id)
+    if not symbol:
+        return False, category_id, None
+    if not is_eligible(conn, part_id, category_id):
+        return False, category_id, symbol
+    return True, category_id, symbol
+
+
+def _fetch_part_row(conn: sqlite3.Connection, part_id: str) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT part_id, lcsc, mpn, digikey, pololu, mouser, manufacturer, "
+        "description, package FROM parts WHERE part_id = ?", (part_id,),
+    ).fetchone()
+
+
+def _name(part: sqlite3.Row) -> str:
+    """mpn, else lcsc/digikey/pololu/mouser in that order (design doc §2.4)."""
+    for col in ("mpn", "lcsc", "digikey", "pololu", "mouser"):
+        val = (part[col] or "").strip()
+        if val:
+            return val
+    return part["part_id"]
+
+
+def _keywords(description: str) -> str:
+    """Lowercased, punctuation-stripped, deduplicated tokens from the description."""
+    tokens = []
+    seen = set()
+    for raw in description.lower().split():
+        tok = "".join(ch for ch in raw if ch.isalnum())
+        if tok and tok not in seen:
+            seen.add(tok)
+            tokens.append(tok)
+    return " ".join(tokens)
+
+
+def _footprint(conn: sqlite3.Connection, part: sqlite3.Row, category_id: str | None) -> str:
+    row = conn.execute(
+        "SELECT kicad_footprint FROM kicad_part_state WHERE part_id = ?", (part["part_id"],),
+    ).fetchone()
+    override = row["kicad_footprint"] if row else None
+    if override:
+        return override
+    if category_id is None:
+        return ""
+    cat = conn.execute(
+        "SELECT default_footprint_from_package FROM kicad_categories WHERE id = ?",
+        (category_id,),
+    ).fetchone()
+    if cat and cat["default_footprint_from_package"]:
+        return part["package"] or ""
+    return ""
+
+
+def _footprint_filters(footprint: str) -> list[str]:
+    if not footprint:
+        return []
+    short = footprint.split(":")[-1]
+    return [f"{short}*"]
+
+
+def _datasheet(conn: sqlite3.Connection, part_id: str) -> str:
+    row = conn.execute(
+        "SELECT kicad_datasheet FROM kicad_part_state WHERE part_id = ?", (part_id,),
+    ).fetchone()
+    override = row["kicad_datasheet"] if row else None
+    return override or ""
+
+
+def _summary(part: sqlite3.Row, footprint: str) -> dict:
+    description = part["description"] or ""
+    return {
+        "id": part["part_id"],
+        "name": _name(part),
+        "description": description,
+        "keywords": _keywords(description),
+        "footprint_filters": _footprint_filters(footprint),
+    }
+
+
+def _detail(conn: sqlite3.Connection, part: sqlite3.Row, category_id: str | None, symbol: str) -> dict:
+    description = part["description"] or ""
+    footprint = _footprint(conn, part, category_id)
+    spec = extract_spec(description, part["package"] or "")
+    value_display = str(spec.get("value_display", ""))
+
+    fields = {
+        "footprint": {"value": footprint, "visible": "False"},
+        "datasheet": {"value": _datasheet(conn, part["part_id"]), "visible": "True"},
+        "Value": {"value": value_display, "visible": "True"},
+        "MPN": {"value": part["mpn"] or "", "visible": "True"},
+        "LCSC": {"value": part["lcsc"] or "", "visible": "True"},
+        "Manufacturer": {"value": part["manufacturer"] or "", "visible": "False"},
+    }
+
+    return {
+        "id": part["part_id"],
+        "name": _name(part),
+        "symbolIdStr": symbol,
+        "description": description,
+        "keywords": _keywords(description),
+        "exclude_from_bom": "False",
+        "exclude_from_board": "False",
+        "exclude_from_sim": "False",
+        "footprint_filters": _footprint_filters(footprint),
+        "fields": fields,
+    }
+
+
+def _all_part_ids(conn: sqlite3.Connection) -> list[str]:
+    """Every SKU in `parts` -- category membership can no longer be read off
+    a `kicad_part_state` row alone (Task 5): a SKU with no explicit override
+    and no cache entry can still resolve a category purely via the
+    `categorize.py` fallback, so listing/grouping must walk every part and
+    resolve its category dynamically, not just parts with a pre-existing
+    `kicad_part_state` row."""
+    return [r["part_id"] for r in conn.execute("SELECT part_id FROM parts").fetchall()]
+
+
+def list_categories(conn: sqlite3.Connection) -> list[dict]:
+    """Categories with >= 1 visible member (design doc §1.2). Omits dead branches."""
+    cats = conn.execute(
+        "SELECT id, name, jlcpcb_catalog_name, categorize_bucket FROM kicad_categories",
+    ).fetchall()
+    visible_category_ids: set[str] = set()
+    for part_id in _all_part_ids(conn):
+        visible, category_id, _symbol = is_visible(conn, part_id)
+        if visible and category_id:
+            visible_category_ids.add(category_id)
+
+    out = []
+    for cat in cats:
+        if cat["id"] not in visible_category_ids:
+            continue
+        description = cat["jlcpcb_catalog_name"] or cat["categorize_bucket"] or cat["name"]
+        out.append({"id": cat["id"], "name": cat["name"], "description": description})
+    return out
+
+
+def visible_parts_by_category(conn: sqlite3.Connection, category_id: str) -> list[dict]:
+    """Summary projection (no `fields`, no `symbolIdStr`) of visible SKUs in a category."""
+    out = []
+    for part_id in _all_part_ids(conn):
+        visible, resolved_category_id, _symbol = is_visible(conn, part_id)
+        if not visible or resolved_category_id != category_id:
+            continue
+        part = _fetch_part_row(conn, part_id)
+        if part is None:
+            continue
+        footprint = _footprint(conn, part, resolved_category_id)
+        out.append(_summary(part, footprint))
+    return out
+
+
+def resolve_part_detail(conn: sqlite3.Connection, part_id: str) -> dict | None:
+    """Full shape for a visible SKU, or None (route maps to 404) if the id
+    is unknown, unresolved, or gated-invisible."""
+    visible, category_id, symbol = is_visible(conn, part_id)
+    if not visible:
+        return None
+    part = _fetch_part_row(conn, part_id)
+    if part is None:
+        return None
+    return _detail(conn, part, category_id, symbol)
