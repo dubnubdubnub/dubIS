@@ -9,6 +9,7 @@ Configured entirely by env (12-factor; container-friendly), read once at
 | `DUBIS_TOKENS`                     | `name:token,name2:token2` — bearer tokens with a stable identity|
 | `DUBIS_TAILNET_ALLOWLIST`          | comma-separated tailnet logins trusted via the header below     |
 | `DUBIS_TRUST_TAILSCALE_HEADER`     | `1` only when a tailscale proxy fronts the server (else ignored)|
+| `DUBIS_TRUSTED_PROXY_IPS`          | comma-separated IPs/CIDRs allowed to assert the header below     |
 
 Resolution order per request, when mode is `on`:
 1. Loopback peer (`request.client.host` in `127.0.0.0/8`, `::1`) -> identity
@@ -19,8 +20,14 @@ Resolution order per request, when mode is `on`:
    the token's name.
 3. Signed session cookie (set by `POST /v1/auth/session`) -> identity from
    the cookie.
-4. `Tailscale-User-Login` header, when `DUBIS_TRUST_TAILSCALE_HEADER=1` and
-   the login is in the allowlist -> identity = login.
+4. `Tailscale-User-Login` header, when ALL of: `DUBIS_TRUST_TAILSCALE_HEADER=1`,
+   the request's peer IP (`request.client.host`) is within one of the
+   `DUBIS_TRUSTED_PROXY_IPS` networks (the tailscale operator proxy's pod
+   IP/CIDR -- anything else, e.g. another in-cluster pod hitting the
+   ClusterIP directly, could otherwise forge this header), and the login is
+   in the allowlist -> identity = login. Fail-safe: if trust is `1` but
+   `DUBIS_TRUSTED_PROXY_IPS` is empty/unset, the header is never honored (one
+   `logging.warning` is emitted at config load, not per-request).
 5. Otherwise -> 401 `{error, code:"unauthorized", detail}`.
 
 `off` mode: the middleware is never installed by `create_app` — zero
@@ -32,6 +39,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import ipaddress
+import logging
 import os
 import secrets
 from dataclasses import dataclass, field
@@ -39,6 +47,10 @@ from dataclasses import dataclass, field
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
+
+logger = logging.getLogger(__name__)
+
+IpNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
 
 COOKIE_NAME = "dubis_session"
 
@@ -66,6 +78,30 @@ def _parse_allowlist(raw: str) -> frozenset[str]:
     return frozenset(s.strip() for s in raw.split(",") if s.strip())
 
 
+def _parse_trusted_proxies(raw: str) -> tuple[IpNetwork, ...]:
+    """Parse `DUBIS_TRUSTED_PROXY_IPS` (`10.42.2.176,10.42.0.0/16`) into
+    `ip_network` objects. A bare IP (no `/`) is treated as a single-host
+    network (`/32` or `/128`) via `strict=False`."""
+    nets: list[IpNetwork] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        nets.append(ipaddress.ip_network(part, strict=False))
+    return tuple(nets)
+
+
+def _is_trusted_proxy(host: str | None, networks: tuple[IpNetwork, ...]) -> bool:
+    if not host or not networks:
+        return False
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        # Not a literal IP (e.g. a test-harness placeholder host) -> untrusted.
+        return False
+    return any(addr in net for net in networks)
+
+
 def _is_loopback(host: str | None) -> bool:
     if not host:
         return False
@@ -81,16 +117,26 @@ class AuthConfig:
     tokens_by_token: dict[str, str] = field(default_factory=dict)
     tailnet_allowlist: frozenset[str] = field(default_factory=frozenset)
     trust_tailscale_header: bool = False
+    trusted_proxy_ips: tuple[IpNetwork, ...] = field(default_factory=tuple)
     # Generated fresh per process: cookie sessions don't need to survive a
     # restart (the browser just re-bootstraps via POST /v1/auth/session).
     cookie_secret: bytes = field(default_factory=lambda: secrets.token_bytes(32))
 
     @classmethod
     def from_env(cls) -> AuthConfig:
+        trust_tailscale_header = os.environ.get("DUBIS_TRUST_TAILSCALE_HEADER") == "1"
+        trusted_proxy_ips = _parse_trusted_proxies(os.environ.get("DUBIS_TRUSTED_PROXY_IPS", ""))
+        if trust_tailscale_header and not trusted_proxy_ips:
+            logger.warning(
+                "DUBIS_TRUST_TAILSCALE_HEADER=1 but DUBIS_TRUSTED_PROXY_IPS is unset/empty -- "
+                "the Tailscale-User-Login header will NOT be honored (fail-safe) until a "
+                "trusted proxy IP/CIDR (the tailscale operator proxy's pod IP) is configured."
+            )
         return cls(
             tokens_by_token=_parse_tokens(os.environ.get("DUBIS_TOKENS", "")),
             tailnet_allowlist=_parse_allowlist(os.environ.get("DUBIS_TAILNET_ALLOWLIST", "")),
-            trust_tailscale_header=os.environ.get("DUBIS_TRUST_TAILSCALE_HEADER") == "1",
+            trust_tailscale_header=trust_tailscale_header,
+            trusted_proxy_ips=trusted_proxy_ips,
         )
 
     def sign_identity(self, identity: str) -> str:
@@ -173,7 +219,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
             if identity is not None:
                 return identity
 
-        if self.config.trust_tailscale_header:
+        if self.config.trust_tailscale_header and _is_trusted_proxy(
+            client.host if client is not None else None, self.config.trusted_proxy_ips,
+        ):
             login = request.headers.get("Tailscale-User-Login")
             if login and login in self.config.tailnet_allowlist:
                 return login
