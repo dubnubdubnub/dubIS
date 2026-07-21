@@ -4,8 +4,8 @@ scp_download, scp_upload, and openpnp_api tools."""
 import json
 import os
 from pathlib import Path
-from urllib.request import Request, urlopen
 from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 import paramiko
 from mcp.server.fastmcp import FastMCP
@@ -17,7 +17,9 @@ mcp = FastMCP("ssh")
 _clients: dict[str, paramiko.SSHClient] = {}
 _ssh_config: paramiko.SSHConfig | None = None
 
-OPENPNP_BASE_URL = os.environ["OPENPNP_BRIDGE_URL"]
+# Optional: the server must start even without the bridge configured (it is
+# registered user-scope, so it also runs in repos that never touch OpenPnP).
+OPENPNP_BASE_URL = os.environ.get("OPENPNP_BRIDGE_URL", "http://100.96.249.60:8899")
 DEFAULT_TIMEOUT = 30
 
 
@@ -73,11 +75,45 @@ def _get_client(host: str) -> paramiko.SSHClient:
 
 
 @mcp.tool()
+def ssh_hosts() -> str:
+    """List the SSH host aliases available to ssh_exec and friends.
+
+    Aliases come from ~/.ssh/config (the single source of truth for
+    user/hostname/key per machine). Call this first if you are unsure
+    which hosts exist or how to reach a machine — do NOT guess
+    user@ip combinations.
+
+    Returns:
+        JSON list of {alias, hostname, user} for every configured host.
+    """
+    config_path = Path.home() / ".ssh" / "config"
+    hosts: list[dict[str, str | None]] = []
+    if config_path.exists():
+        cfg = _load_ssh_config()
+        for alias in sorted(cfg.get_hostnames()):
+            if "*" in alias or "?" in alias:
+                continue
+            entry = cfg.lookup(alias)
+            hosts.append({
+                "alias": alias,
+                "hostname": entry.get("hostname", alias),
+                "user": entry.get("user"),
+            })
+    return json.dumps({
+        "hosts": hosts,
+        "note": "Use the alias as the `host` argument; keys/users are "
+                "resolved from ~/.ssh/config automatically.",
+    })
+
+
+@mcp.tool()
 def ssh_exec(host: str, command: str, timeout: int = DEFAULT_TIMEOUT) -> str:
     """Execute a command on a remote host via SSH.
 
     Args:
-        host: SSH host alias (e.g. 'pnp', 'ux430')
+        host: SSH host alias from ~/.ssh/config — call ssh_hosts() to list
+            them (e.g. 'blhx370', 'ux430', 'pnp', 'r2d2'). Do not guess
+            raw user@ip; aliases carry the right user + key.
         command: Shell command to execute
         timeout: Command timeout in seconds (default 30)
 
