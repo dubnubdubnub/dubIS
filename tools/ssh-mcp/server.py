@@ -4,8 +4,8 @@ scp_download, scp_upload, and openpnp_api tools."""
 import json
 import os
 from pathlib import Path
-from urllib.request import Request, urlopen
 from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 import paramiko
 from mcp.server.fastmcp import FastMCP
