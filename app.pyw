@@ -3,6 +3,8 @@
 
 import logging
 import os
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -35,6 +37,13 @@ from inventory_api import InventoryApi
 from pnp_server import start_pnp_server, stop_pnp_server
 from remote_mode import resolve_remote_base_url
 from window_close import handle_closing
+import webview_profile
+
+# Seconds to wait for the JS bridge before assuming a corrupt WebView2 profile
+# and self-healing (see webview_profile.py). A normal cold start reaches the
+# bridge in ~1s; 15s is well clear of that while still recovering a hung launch
+# quickly.
+WEBVIEW_READY_TIMEOUT = 15.0
 
 # NOTE: server.run (uvicorn + fastapi, ~300-400ms to import) is deliberately
 # NOT imported here. It's imported lazily inside main()'s _boot_server(),
@@ -271,6 +280,37 @@ def main():
 
     pnp_server = None
 
+    # ── WebView2 persistent-profile self-heal (see webview_profile.py) ───────
+    # The persistent profile (webview2_profile below, PR #296) caches WebView2's
+    # HTTP/V8/shader stores for a faster cold start, but the hard-kill close
+    # (TerminateProcess, PR #298) never lets WebView2 flush its on-disk LevelDB.
+    # Enough unclean shutdowns corrupt the profile, and a corrupt profile makes
+    # WebView2 hang during page init: the window paints the splash but the JS
+    # bridge never comes up, trapping the user there. A launch sentinel +
+    # startup watchdog make that non-fatal. `persist_profile` is decided here so
+    # the self-heal setup, on_ready's watchdog, and webview.start() all share it.
+    webview2_profile = os.path.join(APP_DIR, "data", "webview2")
+    persist_profile = os.environ.get("DUBIS_WEBVIEW_PROFILE") != "ephemeral"
+    webview_sentinel = os.path.join(APP_DIR, "data", webview_profile.SENTINEL_FILENAME)
+    # A self-heal relaunch sets DUBIS_PROFILE_HEALED=1 so a fresh profile that
+    # STILL hangs can't trigger an endless relaunch loop.
+    already_healed = os.environ.get("DUBIS_PROFILE_HEALED") == "1"
+    # Set by the frontend (api.notify_webview_ready, fired once whenPywebviewReady
+    # resolves) the moment the JS bridge is live — proof the profile loaded cleanly.
+    ready_event = threading.Event()
+
+    def _on_webview_ready():
+        webview_profile.mark_ready(webview_sentinel)
+        ready_event.set()
+
+    api._on_webview_ready = _on_webview_ready
+
+    # A leftover sentinel means the previous launch never reached a live bridge —
+    # its profile is suspect, so wipe it before opening the window. Writes a fresh
+    # sentinel that _on_webview_ready clears on success.
+    if persist_profile:
+        webview_profile.prepare_for_launch(webview2_profile, webview_sentinel)
+
     def _cleanup():
         """Best-effort teardown before os._exit. Order matters: stop the PnP
         server FIRST (no new requests; in-flight ones finish) so a mid-flight
@@ -322,6 +362,10 @@ def main():
                     lock.release()
                 except Exception as exc:
                     logger.warning("Cleanup: releasing data-dir lock failed: %s", exc)
+        # Reap our WebView2 child processes: the _hard_exit below TerminateProcesses
+        # only THIS process, so msedgewebview2 children would otherwise survive as
+        # orphans that keep the persistent profile locked for the next launch.
+        webview_profile.kill_child_webview_processes(os.getpid())
         bench.mark("cache_closed")
 
     def _do_exit():
@@ -370,11 +414,47 @@ def main():
                 api._mirror_ctl.push_event(api._load_organized(), dubis_running=True)
             except Exception as exc:
                 logger.warning("Mirror startup push failed: %s", exc)
+
+        # Startup self-heal watchdog. The window is up, but a corrupt persistent
+        # profile makes WebView2 hang loading the page so the JS bridge never
+        # signals ready — trapping the user on the splash. If ready doesn't fire
+        # within the timeout, wipe the profile and relaunch a fresh instance
+        # (DUBIS_PROFILE_HEALED guards against a relaunch loop).
+        if persist_profile and not already_healed:
+            def _ready_watchdog():
+                ready = ready_event.wait(WEBVIEW_READY_TIMEOUT)
+                if not webview_profile.should_heal_and_relaunch(
+                    ready=ready, persist_profile=persist_profile, already_healed=already_healed,
+                ):
+                    return
+                logger.warning(
+                    "JS bridge did not come up within %.0fs — WebView2 profile is "
+                    "likely corrupt. Self-healing: wiping profile and relaunching.",
+                    WEBVIEW_READY_TIMEOUT,
+                )
+                # Release the data-dir lock and stop the /v1 server + PnP FIRST
+                # (via _cleanup, which also reaps our WebView2 children so the
+                # profile is unlocked) — otherwise the fresh instance would hit
+                # DataDirLockedError. Then wipe the corrupt profile and relaunch
+                # flagged so the fresh instance can't loop.
+                _cleanup()
+                shutil.rmtree(webview2_profile, ignore_errors=True)
+                try:
+                    subprocess.Popen(
+                        [sys.executable, os.path.join(APP_DIR, "app.pyw")],
+                        cwd=APP_DIR,
+                        env=dict(os.environ, DUBIS_PROFILE_HEALED="1"),
+                        close_fds=True,
+                    )
+                except OSError as exc:
+                    logger.error("Self-heal relaunch failed: %s", exc)
+                _hard_exit(0)
+
+            threading.Thread(target=_ready_watchdog, name="webview-ready-watchdog", daemon=True).start()
         # Bench harness hook: once the grid is interactive, trigger a close so
         # scripts/bench-close.py can time the teardown. Mirrors the user clicking
         # X (destroy() raises FormClosing → on_closing, like the real path).
         if os.environ.get("DUBIS_BENCH_CLOSE"):
-            import threading
             import time as _t
 
             def _auto_close():
@@ -401,11 +481,9 @@ def main():
     # every start is fully cold. Pinning a stable folder + private_mode=False
     # lets the runtime reuse those caches, cutting cold-start meaningfully.
     # The folder is a deletable cache (like cache.db); it lives under data/ and
-    # is gitignored.
-    webview2_profile = os.path.join(APP_DIR, "data", "webview2")
-    # DUBIS_WEBVIEW_PROFILE=ephemeral restores pywebview's old fresh-temp-folder
-    # behavior — used by scripts/bench-startup.py to A/B the persistent profile.
-    persist_profile = os.environ.get("DUBIS_WEBVIEW_PROFILE") != "ephemeral"
+    # is gitignored. `webview2_profile` / `persist_profile` are defined at the top
+    # of main() (shared with the self-heal setup). DUBIS_WEBVIEW_PROFILE=ephemeral
+    # restores pywebview's fresh-temp-folder behavior (scripts/bench-startup.py).
     start_kwargs = {
         "func": on_ready,
         "debug": debug,

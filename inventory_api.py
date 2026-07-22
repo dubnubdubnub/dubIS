@@ -67,6 +67,10 @@ class InventoryApi:
         self._force_close: bool = False
         self._closing: bool = False
         self._bom_dirty: bool = False
+        # Set by app.pyw to a zero-arg callback fired when the frontend confirms
+        # the JS bridge is live (WebView2 profile loaded cleanly). None in
+        # headless/server contexts. See notify_webview_ready() and webview_profile.py.
+        self._on_webview_ready = None
         self._debug: bool = debug
         # Reentrant: lock-holding methods (adjust_part, consume_bom, _rebuild,
         # …) call _get_cache(), whose lazy init re-acquires this same lock.
@@ -530,6 +534,14 @@ class InventoryApi:
     def set_bom_dirty(self, dirty) -> None:
         """Track BOM dirty state so on_closing can check without evaluate_js."""
         self._bom_dirty = bool(dirty)
+
+    def notify_webview_ready(self) -> None:
+        """Called by the frontend (via ClientShell) once the JS bridge is live —
+        proof the WebView2 profile loaded cleanly. Fires the app.pyw-registered
+        self-heal callback (clears the launch sentinel). No-op if unset."""
+        cb = self._on_webview_ready
+        if cb is not None:
+            cb()
 
     def confirm_close(self) -> None:
         """Set force-close flag and destroy the window."""

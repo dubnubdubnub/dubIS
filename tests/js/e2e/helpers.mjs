@@ -76,6 +76,7 @@ export function addMockSetup(page, inventory, options = {}) {
         save_file_dialog: async () => null,
         load_file: async () => null,
         confirm_close: async () => null,
+        notify_webview_ready: async () => null,
         consume_bom: async () => inv,
         fetch_lcsc_product: async (code) => productMocks[`lcsc:${code}`] || null,
         fetch_digikey_product: async (pn) => productMocks[`digikey:${pn}`] || null,
