@@ -117,6 +117,33 @@ class TestFlagsRoundtripThroughApi:
         assert api._force_close is True
 
 
+class TestWebviewReadySignal:
+    """notify_webview_ready forwards to InventoryApi, which invokes the
+    app.pyw-registered self-heal callback (clears the WebView2 launch sentinel
+    proving the profile loaded cleanly). See webview_profile.py."""
+
+    def test_notify_webview_ready_delegates_to_api(self, api, monkeypatch):
+        mock = MagicMock()
+        monkeypatch.setattr(api, "notify_webview_ready", mock)
+        shell = ClientShell(api)
+
+        shell.notify_webview_ready()
+
+        mock.assert_called_once_with()
+
+    def test_api_notify_invokes_registered_callback(self, api):
+        called = []
+        api._on_webview_ready = lambda: called.append(True)
+
+        api.notify_webview_ready()
+
+        assert called == [True]
+
+    def test_api_notify_without_callback_is_safe(self, api):
+        # Headless server / tests register no callback — must be a no-op, not raise.
+        api.notify_webview_ready()
+
+
 class TestDigikeyAndPoAndTesseractDelegation:
     def test_start_digikey_login_delegates(self, api, monkeypatch):
         mock = MagicMock(return_value={"status": "started"})
