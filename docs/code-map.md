@@ -693,6 +693,7 @@ graph LR
     "tests/python/test_vendors.py" --> "vendors.py"
     "tests/python/test_vlm_extract.py" --> "vlm_extract.py"
     "tests/python/test_vlm_gpu.py" --> "vlm_extract.py"
+    "tests/python/test_window_close.py" --> "window_close.py"
     "vendors.py" --> "csv_io.py"
 ```
 
@@ -2558,6 +2559,11 @@ graph LR
 - **Imports:** `vlm_extract.py`
 - **Imported by:** —
 
+### tests/python/test_window_close.py
+
+- **Imports:** `window_close.py`
+- **Imported by:** —
+
 ### tests/vitest-global-setup.js
 
 - **Imports:** —
@@ -2577,3 +2583,8 @@ graph LR
 
 - **Imports:** —
 - **Imported by:** `ocr_layout.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_vlm_extract.py`, `tests/python/test_vlm_gpu.py`
+
+### window_close.py
+
+- **Imports:** —
+- **Imported by:** `tests/python/test_window_close.py`
