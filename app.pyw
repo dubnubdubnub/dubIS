@@ -34,6 +34,7 @@ from dubis_errors import DataDirLockedError
 from inventory_api import InventoryApi
 from pnp_server import start_pnp_server, stop_pnp_server
 from remote_mode import resolve_remote_base_url
+from window_close import handle_closing
 
 # NOTE: server.run (uvicorn + fastapi, ~300-400ms to import) is deliberately
 # NOT imported here. It's imported lazily inside main()'s _boot_server(),
@@ -323,25 +324,24 @@ def main():
                     logger.warning("Cleanup: releasing data-dir lock failed: %s", exc)
         bench.mark("cache_closed")
 
+    def _do_exit():
+        _cleanup()
+        bench.mark("pre_exit")
+        _hard_exit(0)  # kill process immediately
+
     def on_closing():
+        # NOTE: this runs synchronously on the WinForms UI thread (pywebview's
+        # `closing` event is should_lock=True). handle_closing() must therefore
+        # never call the blocking window.evaluate_js() on this thread — doing so
+        # deadlocks the message pump against evaluate_js's completion callback
+        # ("Not Responding", window won't close). See window_close.py.
         bench.mark("closing_enter")
-        if api._force_close:
-            _cleanup()
-            bench.mark("pre_exit")
-            _hard_exit(0)
-        if not api._bom_dirty:
-            _cleanup()
-            bench.mark("pre_exit")
-            _hard_exit(0)  # No unsaved changes — kill process immediately
-        # Unsaved changes — show the confirmation modal
-        try:
-            window.evaluate_js("closeModal.open()")
-        except Exception as exc:
-            logger.warning("Could not show close modal: %s", exc)
-            _cleanup()
-            bench.mark("pre_exit")
-            _hard_exit(0)
-        return False
+        return handle_closing(
+            force_close=api._force_close,
+            bom_dirty=api._bom_dirty,
+            open_modal=lambda: window.evaluate_js("closeModal.open()"),
+            do_exit=_do_exit,
+        )
 
     def on_closed():
         bench.mark("closed_enter")
