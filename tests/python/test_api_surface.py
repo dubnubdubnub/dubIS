@@ -64,6 +64,7 @@ FROZEN_SURFACE = {
     'confirm_close': '()',
     'install_tesseract': '()',
     'load_file': '(path)',
+    'notify_webview_ready': '()',
     'open_file_dialog': "(title='Select CSV file', default_dir=None)",
     'open_source_file': '(po_id)',
     'save_file_dialog': "(content, default_name='export.csv', default_dir=None, links_json=None)",

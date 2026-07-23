@@ -693,6 +693,7 @@ graph LR
     "tests/python/test_vendors.py" --> "vendors.py"
     "tests/python/test_vlm_extract.py" --> "vlm_extract.py"
     "tests/python/test_vlm_gpu.py" --> "vlm_extract.py"
+    "tests/python/test_webview_profile.py" --> "webview_profile.py"
     "tests/python/test_window_close.py" --> "window_close.py"
     "vendors.py" --> "csv_io.py"
 ```
@@ -2559,6 +2560,11 @@ graph LR
 - **Imports:** `vlm_extract.py`
 - **Imported by:** —
 
+### tests/python/test_webview_profile.py
+
+- **Imports:** `webview_profile.py`
+- **Imported by:** —
+
 ### tests/python/test_window_close.py
 
 - **Imports:** `window_close.py`
@@ -2583,6 +2589,11 @@ graph LR
 
 - **Imports:** —
 - **Imported by:** `ocr_layout.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_vlm_extract.py`, `tests/python/test_vlm_gpu.py`
+
+### webview_profile.py
+
+- **Imports:** —
+- **Imported by:** `tests/python/test_webview_profile.py`
 
 ### window_close.py
 

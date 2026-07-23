@@ -65,6 +65,9 @@ class ClientShell:
     def confirm_close(self) -> None:
         self._api.confirm_close()
 
+    def notify_webview_ready(self) -> None:
+        self._api.notify_webview_ready()
+
     # ── Client-machine actions with no HTTP equivalent ───────────────────────
 
     def start_digikey_login(self) -> dict[str, Any]:

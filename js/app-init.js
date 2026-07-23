@@ -528,6 +528,11 @@ async function initApp() {
   initKeyboardNav();
 
   await whenPywebviewReady();
+  // Tell the client shell the JS bridge is live — proof the WebView2 profile
+  // loaded cleanly. Clears app.pyw's launch sentinel so the startup self-heal
+  // watchdog stands down and the next launch keeps the profile. Fire-and-forget:
+  // must never delay startup, and it's best-effort (see webview_profile.py).
+  api("notify_webview_ready").catch(() => {});
   // Startup-timing probe. The backend returns true only when DUBIS_BENCH_OUT is
   // set, so a single bridge round-trip gates all further marks — normal launches
   // pay one no-op call and emit nothing else. See bench.py / scripts/bench-startup.py.
