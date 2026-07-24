@@ -94,10 +94,10 @@
 }
 
 /* ── Preferences Modal ────────────────────────────────── */
-.prefs-modal-wide { min-width: 420px; max-width: 520px; max-height: 80vh; display: flex; flex-direction: column; }
+.prefs-modal-wide { min-width: 420px; max-width: 520px; max-height: calc(80 * var(--vh)); display: flex; flex-direction: column; }
 .prefs-sliders {
   overflow-y: auto;
-  max-height: 50vh;
+  max-height: calc(50 * var(--vh));
   margin-bottom: var(--space-md);
   padding-right: var(--space-xs);
 }
@@ -175,7 +175,7 @@
 .vendors-modal {
   min-width: 640px;
   max-width: 760px;
-  max-height: 80vh;
+  max-height: calc(80 * var(--vh));
   display: flex;
   flex-direction: column;
 }
@@ -297,8 +297,8 @@
 .feeders-modal {
   min-width: 640px;
   max-width: 900px;
-  width: 85vw;
-  max-height: 80vh;
+  width: calc(85 * var(--vw));
+  max-height: calc(80 * var(--vh));
   display: flex;
   flex-direction: column;
 }

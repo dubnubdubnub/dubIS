@@ -8,7 +8,7 @@
 }
 
 .scan-grouping-list {
-  max-height: 56vh;
+  max-height: calc(56 * var(--vh));
   overflow-y: auto;
   margin-bottom: var(--scan-xl);
 }

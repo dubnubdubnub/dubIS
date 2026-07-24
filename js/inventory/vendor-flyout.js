@@ -4,6 +4,7 @@
 import { store, scheduleInventoryRefresh } from '../store.js';
 import { apiVendors, AppLog } from '../api.js';
 import { escHtml, showToast } from '../ui-helpers.js';
+import { innerRect, zoomedViewport } from '../ui-zoom.js';
 
 var PSEUDO_IDS = new Set(['v_self', 'v_salvage', 'v_unknown']);
 
@@ -77,7 +78,10 @@ export function openVendorPopover(anchorEl, vendorId) {
   currentPopover = popover;
 
   // Position anchored to the favicon
-  var rect = anchorEl.getBoundingClientRect();
+  // Authored-px space (innerRect / zoomedViewport) so these numbers can be
+  // written straight to style.left/top and compared with offsetWidth under the
+  // root UI zoom — see js/ui-zoom.js.
+  var rect = innerRect(anchorEl);
   popover.style.position = 'fixed';
   // Try to position below; clamp to viewport
   var top = rect.bottom + 4;
@@ -87,11 +91,12 @@ export function openVendorPopover(anchorEl, vendorId) {
   // Clamp right edge after mount (popover width unknown until in DOM)
   requestAnimationFrame(function () {
     if (!currentPopover) return;
+    var vp = zoomedViewport();
     var pw = currentPopover.offsetWidth;
-    var maxLeft = window.innerWidth - pw - 8;
+    var maxLeft = vp.w - pw - 8;
     if (left > maxLeft) currentPopover.style.left = Math.max(0, maxLeft) + 'px';
     var ph = currentPopover.offsetHeight;
-    var maxTop = window.innerHeight - ph - 8;
+    var maxTop = vp.h - ph - 8;
     if (top > maxTop) currentPopover.style.top = Math.max(0, rect.top - ph - 4) + 'px';
   });
 

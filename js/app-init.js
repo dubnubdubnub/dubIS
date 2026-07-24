@@ -5,7 +5,7 @@ import { api, AppLog, whenPywebviewReady } from './api.js';
 import { connectEvents, onEvent } from './sse.js';
 import { showToast, Modal, setEnterSubmitEnabled } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
-import { store, loadPreferences, loadInventory, scheduleInventoryRefresh, onInventoryUpdated, getShortcutPrefs } from './store.js';
+import { store, loadPreferences, savePreferences, loadInventory, scheduleInventoryRefresh, onInventoryUpdated, getShortcutPrefs } from './store.js';
 import { processBOM } from './csv-parser.js';
 import { matchBOM } from './matching.js';
 import { colorizeRefs, REF_COLOR_MAP, invPartKey } from './part-keys.js';
@@ -13,6 +13,9 @@ import { openPreferencesModal, applyPreferences, wireDigikeyButtons } from './pr
 import { wireVendorsModal, openVendorsModal } from './vendors-modal.js';
 import { wireFeedersModal, openFeedersModal } from './feeders-modal.js';
 import { initShortcuts } from './a11y/shortcuts.js';
+import { applyStoredZoom, setZoomPersister, zoomIn, zoomOut, resetZoom } from './ui-zoom.js';
+import { initZoomControl } from './ui-zoom-control.js';
+import { initPanelCollapse, handleTrigger } from './panel-collapse.js';
 import { initShortcutHelp } from './a11y/shortcut-help.js';
 import { saveBomFile } from './bom/bom-events.js';
 import { CommandPalette } from './components/command-palette.js';
@@ -43,6 +46,7 @@ import invState from './inventory/inv-state.js';
 window.store = store;
 window.EventBus = EventBus;
 window.Events = Events;
+window.AppLog = AppLog;
 window.processBOM = processBOM;
 window.matchBOM = matchBOM;
 window.colorizeRefs = colorizeRefs;
@@ -65,7 +69,7 @@ function wireSplashDismiss() {
 
 // Initialize panels (explicit, no side-effect imports)
 function mountPanels() {
-  initResizePanels();
+  const resizeHandles = initResizePanels();
   initInventoryModals();
   initInventoryPanel();
   initBomPanel();
@@ -76,6 +80,8 @@ function mountPanels() {
   initLabelSelection();
   initLabelExportModal();
   initCartHeader();
+  initZoomControl();
+  initPanelCollapse(resizeHandles);
 }
 
 // ── Close confirmation modal ────────────────────────────
@@ -548,6 +554,9 @@ function wireCommandPaletteAndShortcuts(syncUndoRedoButtons) {
     save: () => saveBomFile(),
     openPreferences: () => openPreferencesModal(),
     openPalette: () => { if (palette.isOpen()) palette.close(); else palette.open(buildPaletteContext()); },
+    zoomIn: () => zoomIn(),
+    zoomOut: () => zoomOut(),
+    zoomReset: () => resetZoom(),
     focusPanel: (n) => {
       const id = n === 1 ? 'import-body' : n === 2 ? 'inventory-body' : 'bom-body';
       const el = document.getElementById(id);
@@ -600,6 +609,12 @@ async function bootstrapData() {
   const benchOn = await api("bench_mark", "js_pywebview_ready", navDetail).catch(() => false);
   if (benchOn) EventBus.on(Events.INVENTORY_LOADED, () => api("bench_mark", "js_inventory_loaded"));
   await loadPreferences();
+  // Apply the persisted zoom before the grid renders, so the UI never visibly
+  // jumps from 100% to the stored level behind the startup skeleton. ui-zoom.js
+  // cannot import store.js itself (leaf modules import it for geometry helpers,
+  // and store.js pulls in constants.js), so app-init injects persistence.
+  setZoomPersister((z) => { store.preferences.ui_zoom = z; savePreferences(); });
+  applyStoredZoom(store.preferences.ui_zoom);
   if (benchOn) api("bench_mark", "js_prefs_loaded");
   const { hydrateFromPreferences: hydrateInvView } = await import('./inventory/inv-state.js');
   hydrateInvView(store.preferences.inventory_view);
@@ -626,6 +641,21 @@ async function bootstrapData() {
   });
 }
 
+// ── Auto-reopen collapsed panels when their content changes ──────────────
+// A collapsed panel whose content silently changes is a trap: the user cannot see
+// the PO they just imported. The trigger -> region mapping lives in
+// js/panel-collapse-logic.js; this only subscribes. Log-driven reopening is wired
+// inside panel-collapse.js via api.js's onLogEntry hook.
+function wirePanelAutoReopen() {
+  EventBus.on(Events.PO_CHANGED, () => handleTrigger('PO_CHANGED'));
+  EventBus.on(Events.BOM_LOADED, () => handleTrigger('BOM_LOADED'));
+  EventBus.on(Events.BOM_CLEARED, () => handleTrigger('BOM_CLEARED'));
+  EventBus.on(Events.CONFIRMED_CHANGED, () => handleTrigger('CONFIRMED_CHANGED'));
+  EventBus.on(Events.LINKS_CHANGED, () => handleTrigger('LINKS_CHANGED'));
+  EventBus.on(Events.LINKING_MODE, () => handleTrigger('LINKING_MODE'));
+  EventBus.on(Events.LABEL_MODE, () => handleTrigger('LABEL_MODE'));
+}
+
 async function initApp() {
   setEnterSubmitEnabled(() => getShortcutPrefs().enterSubmitsModals);
 
@@ -637,6 +667,7 @@ async function initApp() {
   wireDragDropGuard();
   wireMiscButtons();
   wireLinksUndo();
+  wirePanelAutoReopen();
 
   const syncUndoRedoButtons = wireGlobalUndoRedo();
   wireCommandPaletteAndShortcuts(syncUndoRedoButtons);

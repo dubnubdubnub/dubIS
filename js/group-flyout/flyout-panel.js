@@ -10,6 +10,7 @@ import { flyouts, activeFlyoutId, setActiveFlyoutId } from './flyout-state.js';
 import { wireEvents, setPanelFunctions } from './flyout-events.js';
 import { wireDrag, wireInventoryDrag, unwireInventoryDrag, setRerenderFlyout } from './flyout-drag.js';
 import { FLYOUT_GAP_PX } from '../layout-tokens.js';
+import { innerRect } from '../ui-zoom.js';
 
 /** @type {HTMLElement | null} */
 var _container = null;
@@ -51,7 +52,10 @@ function renderFlyoutInstance(inst, isActive) {
 function positionFlyout(inst) {
   if (!inst.el || !_container) return;
 
-  var containerRect = _container.getBoundingClientRect();
+  // innerRect, not getBoundingClientRect: rect *differences* are still post-zoom,
+  // so mixing them with offsetHeight/offsetWidth (authored px) and then writing
+  // authored px below would misplace the flyout at any zoom != 1. js/ui-zoom.js.
+  var containerRect = innerRect(_container);
 
   var flyoutH = inst.el.offsetHeight;
   var flyoutW = inst.el.offsetWidth;
@@ -60,7 +64,7 @@ function positionFlyout(inst) {
   var rowRight = containerRect.width; // default: right edge of container
 
   if (inst.sourceRowEl) {
-    var rowRect = inst.sourceRowEl.getBoundingClientRect();
+    var rowRect = innerRect(inst.sourceRowEl);
     rowTop = rowRect.top - containerRect.top;
     rowH = rowRect.height;
     rowRight = rowRect.right - containerRect.left;

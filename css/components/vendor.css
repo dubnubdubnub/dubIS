@@ -40,7 +40,7 @@
 
 .mfg-direct-actions { display: flex; justify-content: space-between; gap: var(--space-md); }
 
-.mfg-direct-modal { width: min(900px, 90vw); max-height: 80vh; overflow: auto; }
+.mfg-direct-modal { width: min(900px, calc(90 * var(--vw))); max-height: calc(80 * var(--vh)); overflow: auto; }
 .mfg-direct-popout .mfg-direct-vendor-input { font-size: 14px; }
 
 /* ── Phone-scan affordance + QR modal ──────────────────── */
@@ -55,7 +55,7 @@
 .mfg-scan-btn:hover { background: rgba(10, 132, 255, 0.1); }
 .mfg-cell-distpn { min-width: 90px; }
 
-.mfg-scan-modal { width: min(420px, 92vw); text-align: center; }
+.mfg-scan-modal { width: min(420px, calc(92 * var(--vw))); text-align: center; }
 .mfg-scan-qr {
   display: flex; justify-content: center; align-items: center;
   background: #fff; border-radius: 8px; padding: var(--space-xl); margin: var(--space-xl) auto;

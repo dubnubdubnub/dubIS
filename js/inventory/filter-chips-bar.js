@@ -21,6 +21,7 @@ import { PredicateEditor } from '../components/predicate-ui.js';
 import { buildInventoryFields } from './filter-chips-fields.js';
 import { store } from '../store.js';
 import { AppLog } from '../api.js';
+import { innerRect, zoomedViewport } from '../ui-zoom.js';
 import state from './inv-state.js';
 
 // ── Module-level state ────────────────────────────────────────────────────────
@@ -350,16 +351,20 @@ function _openPredicatePopover(anchor, initialAst, fields, inventoryState, onApp
   document.body.appendChild(popover);
   _popover = popover;
 
-  const anchorRect = anchor.getBoundingClientRect();
+  // Authored-px space (innerRect / zoomedViewport): rects read back post-zoom but
+  // style.left is interpreted pre-zoom, so mixing them misplaces the popover at
+  // any zoom != 1. See js/ui-zoom.js.
+  const anchorRect = innerRect(anchor);
   popover.style.position = 'fixed';
   popover.style.top = (anchorRect.bottom + 4) + 'px';
   popover.style.left = anchorRect.left + 'px';
   popover.style.zIndex = '10000';
 
   // Clamp to viewport right edge
-  const popRect = popover.getBoundingClientRect();
-  if (popRect.right > window.innerWidth - 8) {
-    popover.style.left = Math.max(8, window.innerWidth - popRect.width - 8) + 'px';
+  const popRect = innerRect(popover);
+  const vp = zoomedViewport();
+  if (popRect.right > vp.w - 8) {
+    popover.style.left = Math.max(8, vp.w - popRect.width - 8) + 'px';
   }
 
   // Outside-click closes (deferred to skip current event)

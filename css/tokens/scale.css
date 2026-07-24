@@ -4,6 +4,16 @@
    Consumed by: all css/*.css (opportunistically).
    ──────────────────────────────────────────────────────────────────────── */
 :root {
+  /* Zoom-compensated viewport units. Raw vh/vw resolve against the viewport and
+     are *then* scaled by the root zoom, so a plain "max-height: 80vh" becomes
+     160% of the window at 200% zoom — the modal spills off-screen and its
+     buttons become unreachable. Dividing the zoom back out makes
+     calc(80 * var(--vh)) mean 80% of the *visible* window at every zoom level.
+     Verified against Chromium. Use these anywhere a length tracks the window;
+     never author bare vh/vw units. */
+  --vh: calc(1vh / var(--ui-zoom, 1));
+  --vw: calc(1vw / var(--ui-zoom, 1));
+
   /* Spacing scale (px values actually in use) */
   --space-2xs:  2px;
   --space-xs:   4px;
