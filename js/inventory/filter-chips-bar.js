@@ -10,7 +10,7 @@
  *
  * The active predicate AST is held in inv-state.js (`activePredicate`).
  * Re-renders call state._render() which runs the normal inventory render path
- * (inv-render.js now applies filterByPredicate alongside the existing filters).
+ * (inv-tree-render.js now applies filterByPredicate alongside the existing filters).
  *
  * Exports:
  *   initFilterChipsBar(state, renderFn)  → void  (call once after inventory init)

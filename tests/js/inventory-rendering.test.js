@@ -26,7 +26,7 @@ import {
   renderFilterBarHtml,
   renderInvColHeader,
   createBomRowElement,
-} from '../../js/inventory/inventory-renderer.js';
+} from '../../js/inventory/inv-html-builders.js';
 import { store } from '../../js/store.js';
 
 beforeEach(() => {

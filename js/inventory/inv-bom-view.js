@@ -21,7 +21,7 @@ import {
   renderMemberRows,
   renderFilterBarHtml,
   renderBomTableHeader,
-} from './inventory-renderer.js';
+} from './inv-html-builders.js';
 import { toggleSelection } from '../label-selection.js';
 import state from './inv-state.js';
 import { isFlyoutDragActive } from './inv-events.js';

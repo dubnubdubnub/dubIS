@@ -1,5 +1,5 @@
 // @ts-check
-/* inventory-renderer.js -- Pure functions that return HTML strings or DOM elements.
+/* inv-html-builders.js -- Pure functions that return HTML strings or DOM elements.
    No store, no events. Extracted from inventory-panel.js and bom-comparison.js. */
 
 import { escHtml, stockValueColor, formatMoney } from '../ui-helpers.js';

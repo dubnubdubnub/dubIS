@@ -4,7 +4,7 @@ import { RovingGrid } from './roving-grid.js';
 import { makeScrollable } from './scrollable.js';
 import { activateOnKey } from './activate-on-key.js';
 
-// Inventory cell selectors (confirmed against inventory-renderer.js / inv-row-build.js).
+// Inventory cell selectors (confirmed against inv-html-builders.js / inv-row-build.js).
 // Note: .price-warn-btn only exists when qty > 0 and no unit price; .link-btn only in
 // BOM mode; .generic-group-badge and .near-miss-badge only when applicable — all are
 // optional and the grid gracefully handles rows with fewer cells.
@@ -17,7 +17,7 @@ import { activateOnKey } from './activate-on-key.js';
 // all visible columns, not just action buttons. roving-grid.js innermost() ensures that
 // when a column wrapper and a child button both match, only the child is a grid cell.
 const INV_CELLS = [
-  // Plain inventory column spans (inv-row-build.js / inventory-renderer.js renderPartRowHtml).
+  // Plain inventory column spans (inv-row-build.js / inv-html-builders.js renderPartRowHtml).
   '.part-ids', '.part-mpn', '.part-vendor', '.part-unit-price', '.part-value',
   '.part-qty', '.part-desc',
   // BOM comparison data cells rendered by createBomRowElement into #inventory-body tbody tr.
@@ -30,7 +30,7 @@ const INV_CELLS = [
   '.inv-section-header', '.inv-parent-header', '.inv-subsection-header',
 ].join(',');
 
-// BOM comparison row cell selectors (confirmed against inventory-renderer.js createBomRowElement).
+// BOM comparison row cell selectors (confirmed against inv-html-builders.js createBomRowElement).
 // The brief guessed rowKey: 'data-bom-key' — the actual attribute is 'data-part-key'.
 // The brief included '.row-delete' — that class lives in staging rows only, not main BOM rows.
 // '.unconfirm-btn' is included alongside '.confirm-btn' (the renderer emits one or the other).

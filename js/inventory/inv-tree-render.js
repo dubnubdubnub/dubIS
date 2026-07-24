@@ -1,4 +1,4 @@
-/* inventory/inv-render.js — Section/hierarchy rendering for the inventory panel.
+/* inventory/inv-tree-render.js — Section/hierarchy rendering for the inventory panel.
    renderNormalInventory, renderGlobalScope, appendFlatRows, renderVendorPiles,
    renderHierarchySection, renderSubSection, renderSection. */
 
