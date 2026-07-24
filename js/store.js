@@ -23,6 +23,12 @@ export const SHORTCUT_DEFAULTS = Object.freeze({
   vimNav: false,
 });
 
+// ── Behavior preferences defaults ──────────────────────────
+/** @type {Object} */
+export const BEHAVIOR_DEFAULTS = Object.freeze({
+  autoCopySelection: false,   // auto-copy highlighted/selected text to clipboard
+});
+
 // ── Private state slices ──────────────────────────────────
 let inventory = [];
 let bomResults = null;
@@ -35,6 +41,7 @@ let preferences = {
   thresholds: {},
   inventory_view: { group_level: 0, sort_column: null, sort_scope: null, vendor_group_scope: null },
   shortcuts: { ...SHORTCUT_DEFAULTS },
+  behavior: { ...BEHAVIOR_DEFAULTS },
   saved_views: [],
 };
 
@@ -94,6 +101,7 @@ const _linksProxy = {
   addManualLink(bk, ipk) { addManualLink(bk, ipk); },
   confirmMatch(bk, ipk) { confirmMatch(bk, ipk); },
   unconfirmMatch(bk) { unconfirmMatch(bk); },
+  restoreLinks(data) { restoreLinks(data); },
   setLinkingMode(active, invItem) { setLinkingMode(active, invItem); },
   setReverseLinkingMode(active, bomRow) { setReverseLinkingMode(active, bomRow); },
   loadFromSaved(savedLinks) { loadLinks(savedLinks); },
@@ -199,6 +207,17 @@ export function unconfirmMatch(bk) {
   EventBus.emit(Events.CONFIRMED_CHANGED);
 }
 
+/** Restore links + confirms from an undo/redo snapshot. This is a user action
+ * that changes persisted BOM state, so it marks the BOM dirty (unlike
+ * loadLinks(), which loads a freshly-saved BOM). */
+export function restoreLinks({ manualLinks: ml, confirmedMatches: cm }) {
+  manualLinks = Array.isArray(ml) ? ml : [];
+  confirmedMatches = Array.isArray(cm) ? cm : [];
+  markBomDirty();
+  EventBus.emit(Events.LINKS_CHANGED);
+  EventBus.emit(Events.CONFIRMED_CHANGED);
+}
+
 export function setLinkingMode(active, invItem) {
   linkingActive = active;
   linkingInvItem = active ? invItem : null;
@@ -269,6 +288,9 @@ export async function loadPreferences() {
     }
     if (stored.shortcuts && typeof stored.shortcuts === "object") {
       preferences.shortcuts = normalizeShortcuts(stored.shortcuts);
+    }
+    if (stored.behavior && typeof stored.behavior === "object") {
+      preferences.behavior = { autoCopySelection: !!stored.behavior.autoCopySelection };
     }
     if (Object.prototype.hasOwnProperty.call(stored, 'saved_views')) {
       if (Array.isArray(stored.saved_views)) {
@@ -458,6 +480,18 @@ export function getShortcutPrefs() {
 
 export function setShortcutPrefs(partial) {
   preferences.shortcuts = normalizeShortcuts({ ...getShortcutPrefs(), ...partial });
+  savePreferences();
+  preferencesSignal.set(preferences);
+}
+
+export function getBehaviorPrefs() {
+  const b = preferences.behavior || {};
+  return { autoCopySelection: !!b.autoCopySelection };
+}
+
+export function setBehaviorPrefs(partial) {
+  const next = { ...getBehaviorPrefs(), ...partial };
+  preferences.behavior = { autoCopySelection: !!next.autoCopySelection };
   savePreferences();
   preferencesSignal.set(preferences);
 }

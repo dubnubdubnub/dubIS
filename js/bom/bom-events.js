@@ -244,6 +244,13 @@ export function setupEvents(handlers) {
   UndoRedo.register("bom", (action, data) => {
     if (action === "snapshot") return JSON.parse(JSON.stringify(state.bomRawRows));
     state.bomRawRows = data;
+    // Undo/redo of BOM rows changes persisted state relative to the saved file,
+    // so it's an unsaved change — mark dirty or closing after an undo silently
+    // drops it (same class as the link/confirm bug).
+    state.bomDirty = true;
+    setBomDirty(true);
+    api("set_bom_dirty", true);
+    updateSaveBtnState();
     reprocessAndRender();
   });
 

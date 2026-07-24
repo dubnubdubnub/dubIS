@@ -26,6 +26,7 @@ import { init as initBomPanel } from './bom/bom-panel.js';
 import { init as initImportPanel } from './import/import-panel.js';
 import { init as initResizePanels } from './resize-panels.js';
 import { init as initPartPreview } from './part-preview.js';
+import { initTextPopover } from './text-popover.js';
 import { init as initGroupFlyout } from './group-flyout/flyout-panel.js';
 import { init as initLabelSelection } from './label-selection.js';
 import { init as initLabelExportModal } from './label-export-modal.js';
@@ -67,6 +68,7 @@ function mountPanels() {
   initBomPanel();
   initImportPanel();
   initPartPreview();
+  initTextPopover();
   initGroupFlyout();
   initLabelSelection();
   initLabelExportModal();
@@ -189,10 +191,9 @@ function wireLinksUndo() {
         confirmedMatches: JSON.parse(JSON.stringify(store.links.confirmedMatches)),
       };
     }
-    store.links.manualLinks = data.manualLinks;
-    store.links.confirmedMatches = data.confirmedMatches;
-    EventBus.emit(Events.LINKS_CHANGED);
-    EventBus.emit(Events.CONFIRMED_CHANGED);
+    // Restore via the store so the undo/redo is marked as an unsaved change
+    // (a change to persisted links is dirty, just like making it the first time).
+    store.links.restoreLinks(data);
   });
 }
 
