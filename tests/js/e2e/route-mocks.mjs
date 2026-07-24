@@ -175,6 +175,44 @@ const ROUTES = [
   // mirrors the pattern list_saved_searches/list_generic_parts already use
   // for their own stateful mocks below.
   route('list_carts', (_a, ctx) => ctx.cartsState),
+  // create_cart (Task B7): pushes a new cart into ctx.cartsState — real shape
+  // per domain/api_cart.py's carts.create: {id, name, created_at, items: []}.
+  // Does NOT set it active (mirrors carts.create/set_active being separate
+  // calls) — cart-modal.js's New button issues its own set_active_cart after.
+  route('create_cart', (a, ctx) => {
+    const cart = {
+      id: `cart-${ctx.cartsState.carts.length + 1}`,
+      name: a.name || `Cart ${ctx.cartsState.carts.length + 1}`,
+      created_at: new Date().toISOString(),
+      items: [],
+    };
+    ctx.cartsState.carts.push(cart);
+    return cart;
+  }, { mutation: true }),
+  // rename_cart (Task B7): mutates the matching cart's name in ctx.cartsState
+  // in place — real shape per server/routes/carts.py: `detail` is the
+  // (renamed) whole cart dict (domain/api_cart.py's carts.rename → get()).
+  route('rename_cart', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: rename_cart — no cart "${a.cart_id}" in mock cartsState`);
+    cart.name = a.name;
+    return cart;
+  }, { mutation: true }),
+  // delete_cart (Task B7): removes the matching cart from ctx.cartsState —
+  // real shape per server/routes/carts.py: `detail` is {"cart_id"}. Does NOT
+  // touch active_cart_id itself (mirrors the real backend: carts.delete()
+  // never adjusts the active-cart pointer) — cart-modal.js's Delete button
+  // issues its own set_active_cart to the first remaining cart afterward.
+  route('delete_cart', (a, ctx) => {
+    ctx.cartsState.carts = ctx.cartsState.carts.filter((c) => c.id !== a.cart_id);
+    return { cart_id: a.cart_id };
+  }, { mutation: true }),
+  // set_active_cart (Task B7): updates ctx.cartsState.active_cart_id — real
+  // shape per domain/api_cart.py's set_active_cart: {"active_cart_id": cart_id}.
+  route('set_active_cart', (a, ctx) => {
+    ctx.cartsState.active_cart_id = a.cart_id;
+    return { active_cart_id: a.cart_id };
+  }, { mutation: true }),
   // add_cart_item (Task B3): mutates the matching cart in ctx.cartsState so
   // the next list_carts (loadCarts()) sees the new item — real shape per
   // server/routes/carts.py's add_cart_item: `detail` is the created item dict

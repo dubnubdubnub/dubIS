@@ -35,6 +35,8 @@ let titleEl = null;
 let emptyStateEl = null;
 /** @type {HTMLElement|null} */
 let gridWrapEl = null;
+/** @type {HTMLSelectElement|null} */
+let switcherEl = null;
 
 // ── Display-field resolution ─────────────────────────────────────────────
 
@@ -102,6 +104,75 @@ async function handleClearCart() {
   } catch (e) {
     AppLog.error('cart-modal: clearCart failed: ' + e.message);
   }
+}
+
+// ── Cart management (Task B7): switch / create / rename / delete ──────────
+
+/**
+ * "<YYYY-MM-DD> · <loadedBomFileName or ''>" — trims the separator when no
+ * BOM is loaded. Reuses store.bomFileName (the same getter the BOM panel
+ * reads), not a re-derivation.
+ * @returns {string}
+ */
+function prefillName() {
+  const today = new Date().toISOString().slice(0, 10);
+  const bomName = store.bomFileName || '';
+  return bomName ? `${today} · ${bomName}` : today;
+}
+
+async function handleNewCart() {
+  try {
+    const created = await cartStore.createCart(prefillName());
+    // create_cart does NOT make the new cart active (mirrors carts.create()/
+    // set_active() being separate backend calls) — do it explicitly so the
+    // switcher reflects the cart the user just made.
+    if (created && created.id) {
+      await cartStore.setActiveCart(created.id);
+    }
+    showToast('Cart created');
+  } catch (e) {
+    AppLog.error('cart-modal: createCart failed: ' + e.message);
+  }
+}
+
+async function handleRenameCart() {
+  const cart = cartStore.getActiveCart();
+  if (!cart) return;
+  const name = window.prompt('Rename cart', cart.name || '');
+  if (name === null) return; // cancelled
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  try {
+    await cartStore.renameCart(cart.id, trimmed);
+    showToast('Cart renamed');
+  } catch (e) {
+    AppLog.error('cart-modal: renameCart failed: ' + e.message);
+  }
+}
+
+async function handleDeleteCart() {
+  const cart = cartStore.getActiveCart();
+  if (!cart) return;
+  if (!window.confirm(`Delete cart "${cart.name}"? This cannot be undone.`)) return;
+  try {
+    await cartStore.deleteCart(cart.id);
+    // deleteCart() awaits loadCarts() internally, so getCarts() here already
+    // excludes the deleted cart — fall back to the first remaining one, or
+    // leave no active cart (renderFromActiveCart shows the empty state).
+    const remaining = cartStore.getCarts();
+    if (remaining.length > 0) {
+      await cartStore.setActiveCart(remaining[0].id);
+    }
+    showToast('Cart deleted');
+  } catch (e) {
+    AppLog.error('cart-modal: deleteCart failed: ' + e.message);
+  }
+}
+
+function handleSwitchCart(ev) {
+  const id = /** @type {HTMLSelectElement} */ (ev.target).value;
+  if (!id) return;
+  cartStore.setActiveCart(id).catch((e) => AppLog.error('cart-modal: setActiveCart failed: ' + e.message));
 }
 
 // ── DataGrid ──────────────────────────────────────────────────────────────
@@ -173,14 +244,32 @@ function buildModalDom() {
 
   emptyStateEl = el('div', { class: 'cart-empty-state hidden' }, 'No active cart — add a part to the cart to create one.');
 
+  switcherEl = /** @type {HTMLSelectElement} */ (el('select', { class: 'cart-switcher', id: 'cart-switcher' }));
+  switcherEl.addEventListener('change', handleSwitchCart);
+
+  const newBtn = el('button', {
+    type: 'button', class: 'btn-sm cart-new',
+  }, 'New');
+  newBtn.addEventListener('click', handleNewCart);
+
+  const renameBtn = el('button', {
+    type: 'button', class: 'btn-sm cart-rename',
+  }, 'Rename');
+  renameBtn.addEventListener('click', handleRenameCart);
+
+  const deleteBtn = el('button', {
+    type: 'button', class: 'btn-sm btn-danger cart-delete',
+  }, 'Delete');
+  deleteBtn.addEventListener('click', handleDeleteCart);
+
   const clearBtn = el('button', {
     type: 'button', class: 'btn-sm btn-danger', id: 'cart-clear-btn',
   }, 'Clear cart');
   clearBtn.addEventListener('click', handleClearCart);
 
-  // Left room for later top-bar buttons (B7 cart management, B8 split/
-  // consolidate, B9 export) — new buttons append here, after clearBtn.
-  const topbar = el('div', { class: 'cart-topbar' }, clearBtn);
+  // Left room for later top-bar buttons (B8 split/consolidate, B9 export) —
+  // new buttons append here, after clearBtn.
+  const topbar = el('div', { class: 'cart-topbar' }, switcherEl, newBtn, renameBtn, deleteBtn, clearBtn);
 
   titleEl = el('div', { class: 'modal-title', id: 'cart-modal-title' }, 'Cart');
 
@@ -205,8 +294,21 @@ function buildModalDom() {
   });
 }
 
+/** Rebuild the #cart-switcher <option>s from cartStore.getCarts(), selecting the active cart. */
+function renderSwitcher() {
+  if (!switcherEl) return;
+  const carts = cartStore.getCarts();
+  const activeId = cartStore.getActiveCartId();
+  const options = carts.map((c) => el('option', { value: c.id, selected: c.id === activeId ? true : undefined }, c.name || c.id));
+  switcherEl.replaceChildren(...options);
+  const hasCarts = carts.length > 0;
+  document.querySelector('.cart-rename')?.toggleAttribute('disabled', !hasCarts);
+  document.querySelector('.cart-delete')?.toggleAttribute('disabled', !hasCarts);
+}
+
 function renderFromActiveCart() {
   if (!grid || !titleEl || !emptyStateEl || !gridWrapEl) return;
+  renderSwitcher();
   const cart = cartStore.getActiveCart();
   if (!cart) {
     titleEl.textContent = 'Cart';

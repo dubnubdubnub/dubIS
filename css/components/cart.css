@@ -82,14 +82,26 @@
 }
 .cart-modal-head .modal-title { margin-bottom: 0; }
 
-/* Top button bar — this task only has "Clear cart"; later tasks (B7 cart
-   management, B8 split/consolidate, B9 export) append more buttons here. */
+/* Top button bar — Clear cart (B6) + switch/new/rename/delete (B7); later
+   tasks (B8 split/consolidate, B9 export) append more buttons here. */
 .cart-topbar {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
   margin-bottom: var(--space-md);
 }
+
+.cart-switcher {
+  flex: 1;
+  min-width: 0;
+  max-width: 260px;
+  padding: var(--space-2xs) var(--space-xs);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  color: var(--text-bright);
+}
+.cart-switcher:disabled { opacity: 0.6; }
 
 .cart-empty-state {
   color: var(--text-muted);
