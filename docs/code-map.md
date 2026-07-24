@@ -14,12 +14,13 @@ graph LR
     "client_shell.py" --> "file_dialogs.py"
     "client_shell.py" --> "inventory_api.py"
     "digikey_client.py" --> "base_client.py"
-    "digikey_client.py" --> "digikey_cdp.py"
     "digikey_client.py" --> "digikey_normalizer.py"
     "digikey_client.py" --> "digikey_scrape_js.py"
     "digikey_client.py" --> "digikey_session.py"
     "digikey_client.py" --> "dubis_errors.py"
+    "digikey_normalizer.py" --> "domain/product.py"
     "digikey_session.py" --> "digikey_cdp.py"
+    "digikey_session.py" --> "digikey_client.py"
     "distributor_manager.py" --> "base_client.py"
     "distributor_manager.py" --> "digikey_client.py"
     "distributor_manager.py" --> "lcsc_client.py"
@@ -297,7 +298,6 @@ graph LR
     "js/inventory/inv-inline-edit.js" --> "js/ui-helpers.js"
     "js/inventory/inv-inline-edit.js" --> "js/undo-redo.js"
     "js/inventory/inv-mutations.js" --> "js/api.js"
-    "js/inventory/inv-mutations.js" --> "js/event-bus.js"
     "js/inventory/inv-mutations.js" --> "js/group-flyout/flyout-panel.js"
     "js/inventory/inv-mutations.js" --> "js/inventory-modals.js"
     "js/inventory/inv-mutations.js" --> "js/inventory/inv-state.js"
@@ -375,12 +375,14 @@ graph LR
     "js/store.js" --> "js/event-bus.js"
     "js/store.js" --> "js/signals.js"
     "js/store.js" --> "js/sse.js"
+    "js/store.js" --> "js/ui-helpers.js"
     "js/ui-helpers.js" --> "js/a11y/focus-trap.js"
     "js/undo-redo.js" --> "js/api.js"
     "js/vendors-modal.js" --> "js/api.js"
     "js/vendors-modal.js" --> "js/store.js"
     "js/vendors-modal.js" --> "js/ui-helpers.js"
     "lcsc_client.py" --> "base_client.py"
+    "lcsc_client.py" --> "domain/product.py"
     "mfg_direct_import.py" --> "csv_io.py"
     "mfg_direct_import.py" --> "distributor_profiles.py"
     "mfg_direct_import.py" --> "inventory_api.py"
@@ -393,6 +395,7 @@ graph LR
     "mirror_install/windows.py" --> "mirror_install/base.py"
     "mirror_push.py" --> "mirror_serialize.py"
     "mouser_client.py" --> "base_client.py"
+    "mouser_client.py" --> "domain/product.py"
     "mouser_client.py" --> "html_product_parser.py"
     "ocr_layout.py" --> "distributor_profiles.py"
     "ocr_layout.py" --> "ocr_engine.py"
@@ -406,6 +409,7 @@ graph LR
     "pnp_server.py" --> "scan_sessions.py"
     "pnp_server.py" --> "server/__init__.py"
     "pololu_client.py" --> "base_client.py"
+    "pololu_client.py" --> "domain/product.py"
     "pololu_client.py" --> "html_product_parser.py"
     "purchase_orders.py" --> "csv_io.py"
     "purchase_orders.py" --> "pdf_raster.py"
@@ -523,6 +527,7 @@ graph LR
     "tests/js/shortcut-prefs.test.js" --> "js/store.js"
     "tests/js/shortcuts.test.js" --> "js/a11y/shortcuts.js"
     "tests/js/signals.test.js" --> "js/signals.js"
+    "tests/js/store.test.js" --> "js/api.js"
     "tests/js/store.test.js" --> "js/event-bus.js"
     "tests/js/store.test.js" --> "js/store.js"
     "tests/js/ui-helpers.test.js" --> "js/ui-helpers.js"
@@ -609,6 +614,8 @@ graph LR
     "tests/python/test_clients_base.py" --> "mouser_client.py"
     "tests/python/test_clients_base.py" --> "pololu_client.py"
     "tests/python/test_clients_digikey.py" --> "digikey_client.py"
+    "tests/python/test_clients_digikey.py" --> "digikey_normalizer.py"
+    "tests/python/test_clients_digikey.py" --> "digikey_session.py"
     "tests/python/test_clients_lcsc.py" --> "lcsc_client.py"
     "tests/python/test_clients_mouser.py" --> "mouser_client.py"
     "tests/python/test_clients_pololu.py" --> "pololu_client.py"
@@ -659,7 +666,7 @@ graph LR
     "tests/python/test_mirror_install.py" --> "mirror_install/windows.py"
     "tests/python/test_mirror_push.py" --> "mirror_push.py"
     "tests/python/test_mirror_serialize.py" --> "mirror_serialize.py"
-    "tests/python/test_normalizers.py" --> "digikey_client.py"
+    "tests/python/test_normalizers.py" --> "digikey_normalizer.py"
     "tests/python/test_normalizers.py" --> "distributor_fixtures.py"
     "tests/python/test_normalizers.py" --> "mouser_client.py"
     "tests/python/test_normalizers.py" --> "pololu_client.py"
@@ -681,6 +688,7 @@ graph LR
     "tests/python/test_pnp_server.py" --> "pnp_server.py"
     "tests/python/test_pnp_server.py" --> "server/__init__.py"
     "tests/python/test_pnp_server.py" --> "tests/python/helpers.py"
+    "tests/python/test_product_factory.py" --> "domain/product.py"
     "tests/python/test_purchase_orders.py" --> "purchase_orders.py"
     "tests/python/test_real_data.py" --> "inventory_api.py"
     "tests/python/test_remote_mode.py" --> "remote_mode.py"
@@ -709,7 +717,6 @@ graph LR
 | `FLYOUT_CLOSED` | `js/group-flyout/flyout-panel.js` | `js/inventory/inv-events.js` |
 | `FLYOUT_OPENED` | `js/group-flyout/flyout-panel.js` | `js/inventory/inv-events.js` |
 | `FLYOUT_SEARCH_CHANGED` | `js/group-flyout/flyout-events.js` | `js/inventory/inv-events.js` |
-| `GENERIC_PARTS_LOADED` | `js/inventory/inv-mutations.js`, `js/store.js` | — |
 | `INVENTORY_LOADED` | `js/store.js` | `js/app-init.js`, `js/bom/bom-events.js`, `js/inventory/inv-events.js` |
 | `INVENTORY_UPDATED` | `js/store.js` | `js/app-init.js`, `js/bom/bom-events.js`, `js/inventory/inv-events.js`, `js/label-selection.js` |
 | `LABEL_BULK_SELECTION` | `js/label-selection.js` | `js/inventory/inv-events.js` |
@@ -756,17 +763,17 @@ graph LR
 ### digikey_cdp.py
 
 - **Imports:** —
-- **Imported by:** `digikey_client.py`, `digikey_session.py`, `tests/python/test_digikey_cdp.py`
+- **Imported by:** `digikey_session.py`, `tests/python/test_digikey_cdp.py`
 
 ### digikey_client.py
 
-- **Imports:** `base_client.py`, `digikey_cdp.py`, `digikey_normalizer.py`, `digikey_scrape_js.py`, `digikey_session.py`, `dubis_errors.py`
-- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_digikey_session.py`, `tests/python/test_distributor_api.py`, `tests/python/test_normalizers.py`
+- **Imports:** `base_client.py`, `digikey_normalizer.py`, `digikey_scrape_js.py`, `digikey_session.py`, `dubis_errors.py`
+- **Imported by:** `digikey_session.py`, `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_digikey_session.py`, `tests/python/test_distributor_api.py`
 
 ### digikey_normalizer.py
 
-- **Imports:** —
-- **Imported by:** `digikey_client.py`, `tests/python/test_digikey_normalizer.py`
+- **Imports:** `domain/product.py`
+- **Imported by:** `digikey_client.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_digikey_normalizer.py`, `tests/python/test_normalizers.py`
 
 ### digikey_scrape_js.py
 
@@ -775,8 +782,8 @@ graph LR
 
 ### digikey_session.py
 
-- **Imports:** `digikey_cdp.py`
-- **Imported by:** `digikey_client.py`
+- **Imports:** `digikey_cdp.py`, `digikey_client.py`
+- **Imported by:** `digikey_client.py`, `tests/python/test_clients_digikey.py`
 
 ### distributor_fixtures.py
 
@@ -873,6 +880,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** `cache_db.py`, `domain/api_pricing.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_inventory_api_pricing.py`
 
+### domain/product.py
+
+- **Imports:** —
+- **Imported by:** `digikey_normalizer.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`, `tests/python/test_product_factory.py`
+
 ### domain/schema.py
 
 - **Imports:** —
@@ -951,7 +963,7 @@ graph LR
 ### js/api.js
 
 - **Imports:** `js/api-map.js`, `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/sse.js`, `js/store.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/command-palette.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/sse.js`, `js/store.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/command-palette.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`
 
 ### js/app-init.js
 
@@ -1042,7 +1054,7 @@ graph LR
 ### js/event-bus.js
 
 - **Imports:** —
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/inventory/inv-events.js`, `js/inventory/inv-mutations.js`, `js/label-selection.js`, `js/store.js`, `tests/js/event-bus.test.js`, `tests/js/label-selection.test.js`, `tests/js/store.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/inventory/inv-events.js`, `js/label-selection.js`, `js/store.js`, `tests/js/event-bus.test.js`, `tests/js/label-selection.test.js`, `tests/js/store.test.js`
 
 ### js/group-flyout/flyout-drag.js
 
@@ -1222,10 +1234,8 @@ graph LR
 
 ### js/inventory/inv-mutations.js
 
-- **Imports:** `js/api.js`, `js/event-bus.js`, `js/group-flyout/flyout-panel.js`, `js/inventory-modals.js`, `js/inventory/inv-state.js`, `js/label-selection.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
+- **Imports:** `js/api.js`, `js/group-flyout/flyout-panel.js`, `js/inventory-modals.js`, `js/inventory/inv-state.js`, `js/label-selection.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
 - **Imported by:** `js/inventory/inv-bom-mode.js`, `js/inventory/inv-row-build.js`, `tests/js/bom-label-checkbox.test.js`
-- **Emits:** `GENERIC_PARTS_LOADED`
-- **Listens:** —
 
 ### js/inventory/inv-render.js
 
@@ -1346,9 +1356,9 @@ graph LR
 
 ### js/store.js
 
-- **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/signals.js`, `js/sse.js`
+- **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/signals.js`, `js/sse.js`, `js/ui-helpers.js`
 - **Imported by:** `js/a11y/roving-grid.js`, `js/a11y/scrollable.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/favicon-stack.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/preferences-modal.js`, `js/vendors-modal.js`, `tests/js/inventory-rendering.test.js`, `tests/js/saved-views.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
-- **Emits:** `CONFIRMED_CHANGED`, `GENERIC_PARTS_LOADED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LINKING_MODE`, `LINKS_CHANGED`, `PO_CHANGED`, `VENDORS_CHANGED`
+- **Emits:** `CONFIRMED_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LINKING_MODE`, `LINKS_CHANGED`, `PO_CHANGED`, `VENDORS_CHANGED`
 - **Listens:** —
 
 ### js/types.js
@@ -1359,7 +1369,7 @@ graph LR
 ### js/ui-helpers.js
 
 - **Imports:** `js/a11y/focus-trap.js`
-- **Imported by:** `js/a11y/shortcut-help.js`, `js/api.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/components/form-modal.js`, `js/group-flyout/flyout-renderer.js`, `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js`, `js/import/mfg-direct/scan-grouping.js`, `js/import/mfg-direct/scan-shell.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inventory-renderer.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/ui-helpers.test.js`
+- **Imported by:** `js/a11y/shortcut-help.js`, `js/api.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/components/form-modal.js`, `js/group-flyout/flyout-renderer.js`, `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js`, `js/import/mfg-direct/scan-grouping.js`, `js/import/mfg-direct/scan-shell.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-render.js`, `js/inventory/inventory-renderer.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/store.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/ui-helpers.test.js`
 
 ### js/undo-redo.js
 
@@ -1378,7 +1388,7 @@ graph LR
 
 ### lcsc_client.py
 
-- **Imports:** `base_client.py`
+- **Imports:** `base_client.py`, `domain/product.py`
 - **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_lcsc.py`, `tests/python/test_distributor_api.py`
 
 ### mfg_direct_import.py
@@ -1428,7 +1438,7 @@ graph LR
 
 ### mouser_client.py
 
-- **Imports:** `base_client.py`, `html_product_parser.py`
+- **Imports:** `base_client.py`, `domain/product.py`, `html_product_parser.py`
 - **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_api.py`, `tests/python/test_normalizers.py`
 
 ### ocr_engine.py
@@ -1463,7 +1473,7 @@ graph LR
 
 ### pololu_client.py
 
-- **Imports:** `base_client.py`, `html_product_parser.py`
+- **Imports:** `base_client.py`, `domain/product.py`, `html_product_parser.py`
 - **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_pololu.py`, `tests/python/test_distributor_api.py`, `tests/python/test_normalizers.py`
 
 ### purchase_orders.py
@@ -2000,7 +2010,7 @@ graph LR
 
 ### tests/js/store.test.js
 
-- **Imports:** `js/event-bus.js`, `js/store.js`
+- **Imports:** `js/api.js`, `js/event-bus.js`, `js/store.js`
 - **Imported by:** —
 - **Emits:** —
 - **Listens:** `CONFIRMED_CHANGED`, `LINKING_MODE`, `LINKS_CHANGED`
@@ -2267,7 +2277,7 @@ graph LR
 
 ### tests/python/test_clients_digikey.py
 
-- **Imports:** `digikey_client.py`
+- **Imports:** `digikey_client.py`, `digikey_normalizer.py`, `digikey_session.py`
 - **Imported by:** —
 
 ### tests/python/test_clients_lcsc.py
@@ -2467,7 +2477,7 @@ graph LR
 
 ### tests/python/test_normalizers.py
 
-- **Imports:** `digikey_client.py`, `distributor_fixtures.py`, `mouser_client.py`, `pololu_client.py`
+- **Imports:** `digikey_normalizer.py`, `distributor_fixtures.py`, `mouser_client.py`, `pololu_client.py`
 - **Imported by:** —
 
 ### tests/python/test_ocr_engine.py
@@ -2508,6 +2518,11 @@ graph LR
 ### tests/python/test_pnp_server.py
 
 - **Imports:** `pnp_server.py`, `server/__init__.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
+### tests/python/test_product_factory.py
+
+- **Imports:** `domain/product.py`
 - **Imported by:** —
 
 ### tests/python/test_purchase_orders.py
