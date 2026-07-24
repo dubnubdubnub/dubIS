@@ -165,8 +165,217 @@ const ROUTES = [
     (ctx.options.productMocks || {})[`${a.name}:${a.code}`] || null),
   route('get_po_source_preview', (a, ctx) => (ctx.options.poSourcePreview || {})[a.po_id] || null),
   route('list_purchase_orders', (_a, ctx) => ctx.options.purchaseOrders || []),
+  // Cart header (Task B2): initCartHeader() calls loadCarts() at startup, so
+  // every spec using installRouteMocks now issues this GET on load — default
+  // to an empty carts list / no active cart unless a spec supplies its own
+  // via options.carts. STATEFUL (Task B3): reads ctx.cartsState, a deep clone
+  // seeded from options.carts at installRouteMocks() time, so a subsequent
+  // list_carts (triggered by cart-store.js's loadCarts() after any cart
+  // mutation) reflects e.g. an add_cart_item call earlier in the same test —
+  // mirrors the pattern list_saved_searches/list_generic_parts already use
+  // for their own stateful mocks below.
+  route('list_carts', (_a, ctx) => ctx.cartsState),
+  // create_cart (Task B7): pushes a new cart into ctx.cartsState — real shape
+  // per domain/api_cart.py's carts.create: {id, name, created_at, items: []}.
+  // Does NOT set it active (mirrors carts.create/set_active being separate
+  // calls) — cart-modal.js's New button issues its own set_active_cart after.
+  route('create_cart', (a, ctx) => {
+    const cart = {
+      id: `cart-${ctx.cartsState.carts.length + 1}`,
+      name: a.name || `Cart ${ctx.cartsState.carts.length + 1}`,
+      created_at: new Date().toISOString(),
+      items: [],
+    };
+    ctx.cartsState.carts.push(cart);
+    return cart;
+  }, { mutation: true }),
+  // rename_cart (Task B7): mutates the matching cart's name in ctx.cartsState
+  // in place — real shape per server/routes/carts.py: `detail` is the
+  // (renamed) whole cart dict (domain/api_cart.py's carts.rename → get()).
+  route('rename_cart', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: rename_cart — no cart "${a.cart_id}" in mock cartsState`);
+    cart.name = a.name;
+    return cart;
+  }, { mutation: true }),
+  // delete_cart (Task B7): removes the matching cart from ctx.cartsState —
+  // real shape per server/routes/carts.py: `detail` is {"cart_id"}. Does NOT
+  // touch active_cart_id itself (mirrors the real backend: carts.delete()
+  // never adjusts the active-cart pointer) — cart-modal.js's Delete button
+  // issues its own set_active_cart to the first remaining cart afterward.
+  route('delete_cart', (a, ctx) => {
+    ctx.cartsState.carts = ctx.cartsState.carts.filter((c) => c.id !== a.cart_id);
+    return { cart_id: a.cart_id };
+  }, { mutation: true }),
+  // set_active_cart (Task B7): updates ctx.cartsState.active_cart_id — real
+  // shape per domain/api_cart.py's set_active_cart: {"active_cart_id": cart_id}.
+  route('set_active_cart', (a, ctx) => {
+    ctx.cartsState.active_cart_id = a.cart_id;
+    return { active_cart_id: a.cart_id };
+  }, { mutation: true }),
+  // add_cart_item (Task B3): mutates the matching cart in ctx.cartsState so
+  // the next list_carts (loadCarts()) sees the new item — real shape per
+  // server/routes/carts.py's add_cart_item: `detail` is the created item dict
+  // (domain/api_cart.py's carts.add_item return), not the whole cart.
+  route('add_cart_item', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: add_cart_item — no cart "${a.cart_id}" in mock cartsState (seed one via options.carts)`);
+    if (!cart.items) cart.items = [];
+    const item = {
+      ref: `item-${cart.items.length + 1}`,
+      part_id: a.part_id ?? null,
+      raw: a.raw ?? null,
+      qty: a.qty ?? 1,
+      target_distributor: a.target_distributor ?? null,
+      shortfall: a.shortfall ?? null,
+    };
+    cart.items.push(item);
+    return item;
+  }, { mutation: true }),
+  // add_bom_missing_to_cart (Task B5): mirrors add_cart_item's stateful push
+  // (one item per `missing` entry) so the next list_carts (loadCarts())
+  // reflects every part the BOM panel's "Add missing to cart" button queued
+  // — real shape per server/routes/carts.py: `detail` is the whole cart dict
+  // (domain/api_cart.py's add_bom_missing_to_cart returns get_cart's shape),
+  // not a single item like add_cart_item.
+  route('add_bom_missing_to_cart', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: add_bom_missing_to_cart — no cart "${a.cart_id}" in mock cartsState (seed one via options.carts)`);
+    if (!cart.items) cart.items = [];
+    const missing = Array.isArray(a.missing) ? a.missing : JSON.parse(a.missing);
+    missing.forEach((entry) => {
+      cart.items.push({
+        ref: `item-${cart.items.length + 1}`,
+        part_id: entry.part_id ?? null,
+        raw: entry.raw ?? null,
+        qty: entry.qty ?? 1,
+        target_distributor: entry.target_distributor ?? null,
+        shortfall: entry.shortfall ?? null,
+      });
+    });
+    return cart;
+  }, { mutation: true }),
   route('get_po_with_items', (a, ctx) =>
     (ctx.options.poWithItems || {})[a.po_id] || { po_id: a.po_id, line_items: [] }),
+  // update_cart_item (Task B6): mutates the matching item's qty/target_distributor
+  // in ctx.cartsState in place — real shape per server/routes/carts.py's
+  // update_cart_item: `detail` is the updated item dict (mirrors add_cart_item's
+  // single-item detail, not the whole cart). qty/target_distributor of `null`
+  // (unset field) leave the existing value alone, matching cart-store.js's
+  // updateItem() sending `qty ?? null` for an omitted field.
+  route('update_cart_item', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: update_cart_item — no cart "${a.cart_id}" in mock cartsState`);
+    const item = (cart.items || []).find((it) => it.ref === a.ref);
+    if (!item) throw new Error(`route-mocks.mjs: update_cart_item — no item "${a.ref}" in cart "${a.cart_id}"`);
+    if (a.qty !== null && a.qty !== undefined) item.qty = a.qty;
+    if (a.target_distributor !== null && a.target_distributor !== undefined) item.target_distributor = a.target_distributor;
+    return item;
+  }, { mutation: true }),
+  // remove_cart_item (Task B6): filters the matching ref out of ctx.cartsState —
+  // real detail shape per server/routes/carts.py: {"cart_id", "ref"}.
+  route('remove_cart_item', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: remove_cart_item — no cart "${a.cart_id}" in mock cartsState`);
+    cart.items = (cart.items || []).filter((it) => it.ref !== a.ref);
+    return { cart_id: a.cart_id, ref: a.ref };
+  }, { mutation: true }),
+  // clear_cart (Task B6): empties the matching cart's items in ctx.cartsState —
+  // real detail shape per server/routes/carts.py: the whole (now-empty) cart dict.
+  route('clear_cart', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: clear_cart — no cart "${a.cart_id}" in mock cartsState`);
+    cart.items = [];
+    return cart;
+  }, { mutation: true }),
+
+  // split_cart (Task B8): mirrors carts.split_by_distributor — creates a new
+  // cart (pushed into ctx.cartsState.carts) containing every line whose
+  // target_distributor matches `distributor`, or (when unset) whose part is
+  // sourceable from it per the same has-PN-field scan get_sourced_distributors
+  // uses. Real detail shape per domain/api_cart.py: {"source": <cart>, "new":
+  // <cart>}. If remove_from_source, the moved lines are also filtered out of
+  // the source cart in place.
+  route('split_cart', (a, ctx) => {
+    const src = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!src) throw new Error(`route-mocks.mjs: split_cart — no cart "${a.cart_id}" in mock cartsState`);
+    const sourcedFrom = (partId) => {
+      const part = ctx.inventory.find((p) => mockPartKey(p) === partId
+        || [p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser].includes(partId));
+      if (!part) return false;
+      return !!(part[a.distributor] || '').trim();
+    };
+    const moved = (src.items || []).filter((it) =>
+      it.target_distributor === a.distributor
+      || (!it.target_distributor && it.part_id && sourcedFrom(it.part_id)));
+    const newCart = {
+      id: `cart-${ctx.cartsState.carts.length + 1}`,
+      name: a.new_name || `${src.name} — ${a.distributor}`,
+      created_at: new Date().toISOString(),
+      items: moved.map((it, i) => ({
+        ref: `item-${ctx.cartsState.carts.length + 1}-${i + 1}`,
+        part_id: it.part_id ?? null,
+        raw: it.raw ?? null,
+        qty: it.qty,
+        target_distributor: a.distributor,
+      })),
+    };
+    ctx.cartsState.carts.push(newCart);
+    if (a.remove_from_source) {
+      const movedRefs = new Set(moved.map((it) => it.ref));
+      src.items = (src.items || []).filter((it) => !movedRefs.has(it.ref));
+    }
+    return { source: src, new: newCart };
+  }, { mutation: true }),
+  // consolidate_cart (Task B8): mirrors carts.consolidate — sets
+  // target_distributor=distributor on every line whose part is sourceable
+  // from it (same has-PN-field scan as get_sourced_distributors); lines that
+  // aren't sourceable are left untouched and their refs listed in
+  // `unresolved`. Real detail shape per domain/api_cart.py: {"cart": <cart>,
+  // "unresolved": [ref, ...]}.
+  route('consolidate_cart', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: consolidate_cart — no cart "${a.cart_id}" in mock cartsState`);
+    const unresolved = [];
+    (cart.items || []).forEach((it) => {
+      const part = it.part_id && ctx.inventory.find((p) =>
+        [p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser].includes(it.part_id));
+      if (part && (part[a.distributor] || '').trim()) {
+        it.target_distributor = a.distributor;
+      } else {
+        unresolved.push(it.ref);
+      }
+    });
+    return { cart, unresolved };
+  }, { mutation: true }),
+
+  // export_cart (Task B9): mirrors carts.export — CSV gets a header + one row
+  // per resolvable line (real shape: full CSV text, per-distributor filename
+  // "cart_<distributor>.csv"), paste gets a tab-separated "<pn>\t<qty>" line
+  // per row. `unresolved` lists refs whose part isn't sourceable from the
+  // requested distributor (same has-PN-field scan split_cart/consolidate_cart
+  // use above) — deliberately NOT stateful (export doesn't mutate the cart).
+  route('export_cart', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: export_cart — no cart "${a.cart_id}" in mock cartsState`);
+    const rows = [];
+    const unresolved = [];
+    (cart.items || []).forEach((it) => {
+      const part = it.part_id && ctx.inventory.find((p) =>
+        [p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser].includes(it.part_id));
+      const pn = part && (part[a.distributor] || '').trim();
+      if (pn) {
+        rows.push({ pn, qty: it.qty });
+      } else {
+        unresolved.push(it.ref);
+      }
+    });
+    if (a.format === 'paste') {
+      return { content: rows.map((r) => `${r.pn}\t${r.qty}`).join('\n'), unresolved, filename: null };
+    }
+    const content = ['pn,qty', ...rows.map((r) => `${r.pn},${r.qty}`)].join('\n');
+    return { content, unresolved, filename: `cart_${a.distributor}.csv` };
+  }),
 
   // ── import-panel.js (Task 5) ──────────────────────────────────────────────
   route('import_purchases', (a) => ({ count: (a.rows || []).length }), { mutation: true }),
@@ -392,6 +601,11 @@ export async function installRouteMocks(page, inventory, options = {}) {
     // Mutable per-session state for stateful mocks (grows via create_* calls).
     savedSearches: (options.savedSearches || []).slice(),
     genericParts: (options.genericParts || []).slice(),
+    // Deep-cloned (Task B3): add_cart_item mutates the matching cart's items
+    // in place, mirroring the `inventory` clone above's rationale — without
+    // this clone, a spec's own `options.carts` object literal (or a shared
+    // fixture) would be corrupted across tests/reused test-file scope.
+    cartsState: JSON.parse(JSON.stringify(options.carts || { carts: [], active_cart_id: null })),
     // Canary counter (Finding 2): incremented once per intercepted /v1
     // request in the catch-all handler below, so specs can assert the HTTP
     // transport was actually exercised rather than silently falling back to

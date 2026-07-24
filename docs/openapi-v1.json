@@ -1,6 +1,85 @@
 {
   "components": {
     "schemas": {
+      "AddBomMissingBody": {
+        "properties": {
+          "missing": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Missing",
+            "type": "array"
+          }
+        },
+        "required": [
+          "missing"
+        ],
+        "title": "AddBomMissingBody",
+        "type": "object"
+      },
+      "AddItemBody": {
+        "properties": {
+          "part_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Id"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qty"
+          },
+          "raw": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw"
+          },
+          "shortfall": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shortfall"
+          },
+          "target_distributor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Distributor"
+          }
+        },
+        "title": "AddItemBody",
+        "type": "object"
+      },
       "AddMemberBody": {
         "properties": {
           "part_id": {
@@ -45,6 +124,19 @@
           "quantity"
         ],
         "title": "AdjustPartBody",
+        "type": "object"
+      },
+      "ConsolidateBody": {
+        "properties": {
+          "distributor": {
+            "title": "Distributor",
+            "type": "string"
+          }
+        },
+        "required": [
+          "distributor"
+        ],
+        "title": "ConsolidateBody",
         "type": "object"
       },
       "ConsumeBody": {
@@ -100,6 +192,23 @@
           "bom_name"
         ],
         "title": "ConsumeBomBody",
+        "type": "object"
+      },
+      "CreateCartBody": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "CreateCartBody",
         "type": "object"
       },
       "CreateGenericPartBody": {
@@ -591,6 +700,19 @@
         "title": "RegisterFeederBody",
         "type": "object"
       },
+      "RenameCartBody": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "RenameCartBody",
+        "type": "object"
+      },
       "ResolveBomSpecBody": {
         "properties": {
           "package": {
@@ -627,6 +749,29 @@
         "title": "SetMouserKeyBody",
         "type": "object"
       },
+      "SplitBody": {
+        "properties": {
+          "distributor": {
+            "title": "Distributor",
+            "type": "string"
+          },
+          "new_name": {
+            "title": "New Name",
+            "type": "string"
+          },
+          "remove_from_source": {
+            "default": false,
+            "title": "Remove From Source",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "distributor",
+          "new_name"
+        ],
+        "title": "SplitBody",
+        "type": "object"
+      },
       "StartScanSessionBody": {
         "properties": {
           "template": {
@@ -661,6 +806,34 @@
           "strictness"
         ],
         "title": "UpdateGenericPartBody",
+        "type": "object"
+      },
+      "UpdateItemBody": {
+        "properties": {
+          "qty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qty"
+          },
+          "target_distributor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Distributor"
+          }
+        },
+        "title": "UpdateItemBody",
         "type": "object"
       },
       "UpdatePartFieldsBody": {
@@ -1063,6 +1236,689 @@
         "summary": "Resolve Bom Spec",
         "tags": [
           "parts"
+        ]
+      }
+    },
+    "/v1/carts": {
+      "get": {
+        "operationId": "list_carts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Carts",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Carts",
+        "tags": [
+          "carts"
+        ]
+      },
+      "post": {
+        "operationId": "create_cart",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCartBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Cart",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Cart",
+        "tags": [
+          "carts"
+        ]
+      }
+    },
+    "/v1/carts/{cart_id}": {
+      "delete": {
+        "operationId": "delete_cart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cart_id",
+            "required": true,
+            "schema": {
+              "title": "Cart Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Cart",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Cart",
+        "tags": [
+          "carts"
+        ]
+      },
+      "get": {
+        "operationId": "get_cart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cart_id",
+            "required": true,
+            "schema": {
+              "title": "Cart Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Cart",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Cart",
+        "tags": [
+          "carts"
+        ]
+      },
+      "put": {
+        "operationId": "rename_cart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cart_id",
+            "required": true,
+            "schema": {
+              "title": "Cart Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameCartBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rename Cart",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rename Cart",
+        "tags": [
+          "carts"
+        ]
+      }
+    },
+    "/v1/carts/{cart_id}/active": {
+      "post": {
+        "operationId": "set_active_cart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cart_id",
+            "required": true,
+            "schema": {
+              "title": "Cart Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Active Cart",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Active Cart",
+        "tags": [
+          "carts"
+        ]
+      }
+    },
+    "/v1/carts/{cart_id}/add-bom-missing": {
+      "post": {
+        "operationId": "add_bom_missing_to_cart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cart_id",
+            "required": true,
+            "schema": {
+              "title": "Cart Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddBomMissingBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Add Bom Missing To Cart",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Bom Missing To Cart",
+        "tags": [
+          "carts"
+        ]
+      }
+    },
+    "/v1/carts/{cart_id}/clear": {
+      "post": {
+        "operationId": "clear_cart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cart_id",
+            "required": true,
+            "schema": {
+              "title": "Cart Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Clear Cart",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear Cart",
+        "tags": [
+          "carts"
+        ]
+      }
+    },
+    "/v1/carts/{cart_id}/consolidate": {
+      "post": {
+        "operationId": "consolidate_cart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cart_id",
+            "required": true,
+            "schema": {
+              "title": "Cart Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsolidateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Consolidate Cart",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Consolidate Cart",
+        "tags": [
+          "carts"
+        ]
+      }
+    },
+    "/v1/carts/{cart_id}/export": {
+      "get": {
+        "operationId": "export_cart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cart_id",
+            "required": true,
+            "schema": {
+              "title": "Cart Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "distributor",
+            "required": true,
+            "schema": {
+              "title": "Distributor",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "csv",
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Export Cart",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Cart",
+        "tags": [
+          "carts"
+        ]
+      }
+    },
+    "/v1/carts/{cart_id}/items": {
+      "post": {
+        "operationId": "add_cart_item",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cart_id",
+            "required": true,
+            "schema": {
+              "title": "Cart Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddItemBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Add Cart Item",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Cart Item",
+        "tags": [
+          "carts"
+        ]
+      }
+    },
+    "/v1/carts/{cart_id}/items/{ref}": {
+      "delete": {
+        "operationId": "remove_cart_item",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cart_id",
+            "required": true,
+            "schema": {
+              "title": "Cart Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Remove Cart Item",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Cart Item",
+        "tags": [
+          "carts"
+        ]
+      },
+      "patch": {
+        "operationId": "update_cart_item",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cart_id",
+            "required": true,
+            "schema": {
+              "title": "Cart Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateItemBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Cart Item",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Cart Item",
+        "tags": [
+          "carts"
+        ]
+      }
+    },
+    "/v1/carts/{cart_id}/split": {
+      "post": {
+        "operationId": "split_cart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cart_id",
+            "required": true,
+            "schema": {
+              "title": "Cart Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SplitBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Split Cart",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Split Cart",
+        "tags": [
+          "carts"
         ]
       }
     },

@@ -22,6 +22,7 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
     register_handlers(app)
 
     from server.routes import (
+        carts,
         distributors,
         events,
         feeders,
@@ -40,6 +41,7 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
     app.include_router(parts_read.router)
     app.include_router(inventory_mut.router)
     app.include_router(generic_parts.router)
+    app.include_router(carts.router)
     app.include_router(vendors_pos.router)
     app.include_router(import_scan.router)
     app.include_router(distributors.router)

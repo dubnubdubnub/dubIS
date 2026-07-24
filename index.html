@@ -86,6 +86,7 @@
 <link rel="stylesheet" href="css/components/filter-chips.css">
 <link rel="stylesheet" href="css/components/import-diff.css">
 <link rel="stylesheet" href="css/components/text-popover.css">
+<link rel="stylesheet" href="css/components/cart.css">
 <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -149,6 +150,11 @@
     <button class="btn-md header-btn" id="global-redo" title="Redo" disabled>&#x21AA;</button>
   </div>
   <div class="header-right">
+    <button class="btn-md cart-btn" id="cart-btn" title="Open cart">
+      <span class="cart-icon">&#128722;</span>
+      <span class="cart-badge" id="cart-badge">0</span>
+    </button>
+    <button class="btn-md cart-add-toggle" id="cart-add-toggle" title="Cart-add mode: click parts to add to cart" aria-pressed="false">+</button>
     <span class="inv-count" id="inv-count"></span>
     <span class="inv-total-value" id="inv-total-value"></span>
   </div>

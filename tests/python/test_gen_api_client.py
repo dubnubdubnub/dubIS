@@ -108,14 +108,20 @@ def test_finish_mutation_route_set_matches_allowlist() -> None:
 
 def test_hand_built_envelope_routes_resolve_to_detail_unwrap(spec: dict) -> None:
     """Routes that hand-build an `{"ok", "detail"}` envelope WITHOUT calling
-    finish_mutation (currently: create_saved_search, delete_saved_search) are
-    NOT in FINISH_MUTATION_OPERATION_IDS, so the mutating-keyed default would
-    give them `unwrap: None` — wrong. Each such op_id must have an explicit
+    finish_mutation (create_saved_search, delete_saved_search, and every
+    mutating server/routes/carts.py route) are NOT in
+    FINISH_MUTATION_OPERATION_IDS, so the mutating-keyed default would give
+    them `unwrap: None` — wrong. Each such op_id must have an explicit
     UNWRAP_OVERRIDES entry resolving to "detail", or the generated API_MAP
     silently returns the whole envelope instead of `detail` to every caller.
     """
     _, hand_built_envelope_op_ids = _scan_routes()
-    assert hand_built_envelope_op_ids == {"create_saved_search", "delete_saved_search"}
+    assert hand_built_envelope_op_ids == {
+        "create_saved_search", "delete_saved_search",
+        "create_cart", "rename_cart", "delete_cart", "set_active_cart",
+        "add_cart_item", "update_cart_item", "remove_cart_item", "clear_cart",
+        "add_bom_missing_to_cart", "split_cart", "consolidate_cart",
+    }
 
     api_map = gen_api_client.build_api_map(spec)
     for op_id in hand_built_envelope_op_ids:

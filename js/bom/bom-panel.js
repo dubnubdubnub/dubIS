@@ -200,6 +200,7 @@ function loadBomText(text, fileName, savedLinks) {
   document.getElementById("bom-save-btn").disabled = false;
   document.getElementById("bom-consume-btn").disabled = false;
   document.getElementById("bom-clear-btn").disabled = false;
+  document.getElementById("bom-add-to-cart").disabled = false;
 }
 
 // -- Manual Linking --

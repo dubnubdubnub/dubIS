@@ -29,6 +29,35 @@ class TestSchema:
                 "INSERT INTO stock (part_id, quantity) VALUES ('nonexistent', 10)"
             )
 
+    def test_schema_version_bump_does_not_drop_carts(self, db, tmp_path):
+        """create_schema()'s stale-schema-version branch DROPs a fixed list of
+        derived tables (generic_part_members, generic_parts, saved_searches,
+        purchase_orders, vendors) to force recreation. `carts`/`cart_items`
+        must NOT be in that list — carts are durable (backed by carts.json)
+        and must survive a schema-version bump across a cache rebuild, unlike
+        the fully-derived tables above. Regression guard for a future schema
+        change silently widening the DROP list."""
+        import carts
+
+        data_dir = str(tmp_path)
+        cart = carts.create(db, data_dir, "Survives")
+        assert carts.get(db, cart["id"]) is not None
+
+        # Simulate a stale schema_version so create_schema() takes the
+        # DROP-and-recreate branch.
+        db.execute(
+            "UPDATE cache_meta SET value='0' WHERE key='schema_version'"
+        )
+        db.commit()
+        cache_db.create_schema(db)
+
+        # carts/cart_items tables (and this cart's row) must still be present.
+        tables = {r[0] for r in db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}
+        assert {"carts", "cart_items"} <= tables
+        assert carts.get(db, cart["id"]) is not None
+
 
 class TestPopulate:
     def _make_merged(self):

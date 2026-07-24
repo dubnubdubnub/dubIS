@@ -1,0 +1,213 @@
+/* cart.css — Header cart button + count badge, cart-add-mode toggle.
+   Button geometry mirrors .header-btn (css/buttons.css); this file adds only
+   what's cart-specific (icon+badge layout, the badge pill, the toggle's
+   active state). Kept in its own component file per the css/components/
+   convention (see index.html's <link> list). */
+
+.cart-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px var(--space-md);
+  font-size: var(--text-lg);
+  color: var(--text-secondary);
+}
+.cart-btn:hover { border-color: var(--color-blue); color: var(--text-primary); }
+
+.cart-icon { line-height: 1; }
+
+/* Small count pill, inline next to the icon (not absolutely-positioned over
+   it) so it never gets clipped by panel/header overflow — see sticky-buttons
+   / resize-visibility E2E guards in CLAUDE.md. */
+.cart-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--color-blue);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.cart-add-toggle {
+  min-width: 26px;
+  font-weight: var(--weight-semibold);
+}
+.cart-add-toggle:hover { border-color: var(--color-blue); color: var(--text-primary); }
+.cart-add-toggle.active {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+}
+
+/* Task B4: linking-mode drop target — mirrors css/components/linking.css's
+   tr.link-target / .inv-part-row.link-target purple dotted-box treatment so
+   the header cart icon reads as the same kind of valid drop target. */
+.cart-btn.link-target {
+  outline: 2px dashed var(--color-purple);
+  outline-offset: -2px;
+  cursor: pointer;
+  animation: link-pulse 1.5s ease-in-out infinite;
+}
+.cart-btn.link-target:hover {
+  outline-style: solid;
+  background: #a371f730;
+  animation: none;
+}
+
+/* ── Cart modal (Task B6) ────────────────────────────────────────────────
+   Sized to resemble the inventory view (a wide, scrollable DataGrid), same
+   shell pattern as .feeders-modal (css/modals.css) — dynamically built by
+   js/cart/cart-modal.js, no static markup in index.html. */
+.cart-modal {
+  min-width: 640px;
+  max-width: 900px;
+  width: 85vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.cart-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+.cart-modal-head .modal-title { margin-bottom: 0; }
+
+/* Top button bar — Clear cart (B6) + switch/new/rename/delete (B7); later
+   tasks (B8 split/consolidate, B9 export) append more buttons here. */
+.cart-topbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: var(--space-xs);
+  column-gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+/* Split/consolidate each group as a single wrap unit (select + checkbox +
+   button) so a narrow modal wraps whole operations onto their own line
+   instead of splitting a control's select from its Go button. */
+.cart-topbar-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--space-xs);
+}
+
+/* Export (Task B9): the menu is a plain toggled sibling of the "Export ▾"
+   button (not an absolutely-positioned floating panel) so it wraps with the
+   rest of the topbar's flow instead of needing its own clipping logic. Its
+   buttons are hidden (`.hidden` on the wrapper) until toggled open, at which
+   point they lay out inline like any other topbar-group control. */
+.cart-export-menu {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.cart-export-menu.hidden {
+  display: none;
+}
+
+.cart-switcher {
+  flex: 1;
+  min-width: 0;
+  max-width: 260px;
+  padding: var(--space-2xs) var(--space-xs);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  color: var(--text-bright);
+}
+.cart-switcher:disabled { opacity: 0.6; }
+
+.cart-empty-state {
+  color: var(--text-muted);
+  font-size: var(--text-md);
+  text-align: center;
+  padding: var(--space-3xl) 0;
+}
+.cart-empty-state.hidden { display: none; }
+
+.cart-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-base);
+}
+.cart-table-wrap.hidden { display: none; }
+.cart-table-wrap .data-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-surface);
+}
+.cart-table-wrap td.cell-actions { display: flex; gap: var(--space-xs); flex-wrap: nowrap; white-space: nowrap; }
+.cart-table-wrap td.empty-message { text-align: center; color: var(--text-muted); padding: var(--space-2xl); }
+
+.cart-qty-input {
+  width: 100%;
+  max-width: 90px;
+  text-align: right;
+  font-family: var(--font-mono);
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  color: var(--text-bright);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2xs) var(--space-xs);
+  box-sizing: border-box;
+}
+.cart-qty-input:focus { border-color: var(--color-blue); }
+.cart-qty-input:disabled { opacity: 0.6; }
+
+.cart-del-line {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--text-md);
+  color: var(--text-secondary);
+  padding: 0 var(--space-xs);
+  line-height: 1;
+}
+.cart-del-line:hover { color: var(--color-red); }
+
+/* Task B8: per-row target-distributor select + top-bar split/consolidate. */
+.cart-row-dist-select {
+  width: 100%;
+  max-width: 130px;
+  padding: var(--space-2xs) var(--space-xs);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  color: var(--text-bright);
+}
+
+.cart-split-dist,
+.cart-consolidate-dist {
+  padding: var(--space-2xs) var(--space-xs);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  color: var(--text-bright);
+}
+
+.cart-split-remove-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}

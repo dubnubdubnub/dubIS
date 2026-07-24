@@ -3,6 +3,50 @@
 // Regenerate: python scripts/gen-api-client.py
 
 export const API_MAP = {
+  "add_bom_missing_to_cart": {
+    "argOrder": [
+      "cart_id",
+      "missing"
+    ],
+    "bodyParams": [
+      "missing"
+    ],
+    "mutating": false,
+    "path": "/v1/carts/{cart_id}/add-bom-missing",
+    "pathParams": [
+      "cart_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "POST"
+  },
+  "add_cart_item": {
+    "argOrder": [
+      "cart_id",
+      "part_id",
+      "raw",
+      "qty",
+      "target_distributor",
+      "shortfall"
+    ],
+    "bodyParams": [
+      "part_id",
+      "qty",
+      "raw",
+      "shortfall",
+      "target_distributor"
+    ],
+    "mutating": false,
+    "path": "/v1/carts/{cart_id}/items",
+    "pathParams": [
+      "cart_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "POST"
+  },
   "add_generic_member": {
     "argOrder": [
       "generic_part_id",
@@ -56,6 +100,21 @@ export const API_MAP = {
     "unwrap": null,
     "verb": "GET"
   },
+  "clear_cart": {
+    "argOrder": [
+      "cart_id"
+    ],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/carts/{cart_id}/clear",
+    "pathParams": [
+      "cart_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "POST"
+  },
   "clear_mouser_api_key": {
     "argOrder": [],
     "bodyParams": [],
@@ -66,6 +125,24 @@ export const API_MAP = {
     "rawBody": false,
     "unwrap": null,
     "verb": "DELETE"
+  },
+  "consolidate_cart": {
+    "argOrder": [
+      "cart_id",
+      "distributor"
+    ],
+    "bodyParams": [
+      "distributor"
+    ],
+    "mutating": false,
+    "path": "/v1/carts/{cart_id}/consolidate",
+    "pathParams": [
+      "cart_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "POST"
   },
   "consume_bom": {
     "argOrder": [
@@ -84,6 +161,21 @@ export const API_MAP = {
     ],
     "mutating": true,
     "path": "/v1/bom/consume",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "POST"
+  },
+  "create_cart": {
+    "argOrder": [
+      "name"
+    ],
+    "bodyParams": [
+      "name"
+    ],
+    "mutating": false,
+    "path": "/v1/carts",
     "pathParams": [],
     "queryParams": [],
     "rawBody": false,
@@ -159,6 +251,21 @@ export const API_MAP = {
     "rawBody": false,
     "unwrap": "detail",
     "verb": "POST"
+  },
+  "delete_cart": {
+    "argOrder": [
+      "cart_id"
+    ],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/carts/{cart_id}",
+    "pathParams": [
+      "cart_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "DELETE"
   },
   "delete_last_purchase_order": {
     "argOrder": [],
@@ -262,6 +369,26 @@ export const API_MAP = {
     "rawBody": false,
     "unwrap": "detail",
     "verb": "POST"
+  },
+  "export_cart": {
+    "argOrder": [
+      "cart_id",
+      "distributor",
+      "format"
+    ],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/carts/{cart_id}/export",
+    "pathParams": [
+      "cart_id"
+    ],
+    "queryParams": [
+      "distributor",
+      "format"
+    ],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "GET"
   },
   "extract_spec": {
     "argOrder": [
@@ -394,6 +521,21 @@ export const API_MAP = {
     "path": "/v1/distributors/pololu/product/{code}",
     "pathParams": [
       "code"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "GET"
+  },
+  "get_cart": {
+    "argOrder": [
+      "cart_id"
+    ],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/carts/{cart_id}",
+    "pathParams": [
+      "cart_id"
     ],
     "queryParams": [],
     "rawBody": false,
@@ -608,6 +750,17 @@ export const API_MAP = {
     "rawBody": false,
     "unwrap": "detail",
     "verb": "POST"
+  },
+  "list_carts": {
+    "argOrder": [],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/carts",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "GET"
   },
   "list_feeders": {
     "argOrder": [],
@@ -929,6 +1082,23 @@ export const API_MAP = {
     "unwrap": null,
     "verb": "POST"
   },
+  "remove_cart_item": {
+    "argOrder": [
+      "cart_id",
+      "ref"
+    ],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/carts/{cart_id}/items/{ref}",
+    "pathParams": [
+      "cart_id",
+      "ref"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "DELETE"
+  },
   "remove_generic_member": {
     "argOrder": [
       "generic_part_id",
@@ -975,6 +1145,24 @@ export const API_MAP = {
     "rawBody": false,
     "unwrap": "detail",
     "verb": "DELETE"
+  },
+  "rename_cart": {
+    "argOrder": [
+      "cart_id",
+      "name"
+    ],
+    "bodyParams": [
+      "name"
+    ],
+    "mutating": false,
+    "path": "/v1/carts/{cart_id}",
+    "pathParams": [
+      "cart_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "PUT"
   },
   "resolve_bom_spec": {
     "argOrder": [
@@ -1023,6 +1211,21 @@ export const API_MAP = {
     "unwrap": null,
     "verb": "PUT"
   },
+  "set_active_cart": {
+    "argOrder": [
+      "cart_id"
+    ],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/carts/{cart_id}/active",
+    "pathParams": [
+      "cart_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "POST"
+  },
   "set_mouser_api_key": {
     "argOrder": [
       "key"
@@ -1054,6 +1257,28 @@ export const API_MAP = {
     "rawBody": false,
     "unwrap": "detail",
     "verb": "PUT"
+  },
+  "split_cart": {
+    "argOrder": [
+      "cart_id",
+      "distributor",
+      "new_name",
+      "remove_from_source"
+    ],
+    "bodyParams": [
+      "distributor",
+      "new_name",
+      "remove_from_source"
+    ],
+    "mutating": false,
+    "path": "/v1/carts/{cart_id}/split",
+    "pathParams": [
+      "cart_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "POST"
   },
   "start_scan_session": {
     "argOrder": [
@@ -1095,6 +1320,28 @@ export const API_MAP = {
     "rawBody": false,
     "unwrap": null,
     "verb": "POST"
+  },
+  "update_cart_item": {
+    "argOrder": [
+      "cart_id",
+      "ref",
+      "qty",
+      "target_distributor"
+    ],
+    "bodyParams": [
+      "qty",
+      "target_distributor"
+    ],
+    "mutating": false,
+    "path": "/v1/carts/{cart_id}/items/{ref}",
+    "pathParams": [
+      "cart_id",
+      "ref"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "PATCH"
   },
   "update_generic_part": {
     "argOrder": [

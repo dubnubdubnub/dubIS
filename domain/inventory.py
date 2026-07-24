@@ -125,6 +125,8 @@ def rebuild(ctx: RebuildContext) -> "tuple[list[InventoryItem], dict[str, int]]"
     _gp.load_into_db(conn, base_dir)
     import saved_searches  # noqa: PLC0415
     saved_searches.load_into_db(conn, base_dir)
+    import carts  # noqa: PLC0415
+    carts.load_into_db(conn, base_dir)
     return cache_db.query_inventory(conn), migration_summary
 
 
