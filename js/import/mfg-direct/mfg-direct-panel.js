@@ -282,11 +282,6 @@ export async function beginScanImport(mountElement, files, template = 'generic')
   routeScanResult(photos, groups, template);
 }
 
-/** @deprecated single-file shim kept for callers; routes through beginScanImport. */
-export async function openOcrImport(mountElement, file, template = 'generic') {
-  return beginScanImport(mountElement, [file], template);
-}
-
 /** Start a phone-scan session and open the QR modal — no standalone editor. */
 export async function startPhoneScan(mountElement, template = 'generic') {
   _resetForImport(mountElement, template);

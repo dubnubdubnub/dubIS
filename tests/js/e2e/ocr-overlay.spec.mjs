@@ -86,7 +86,7 @@ async function openOverlay(page) {
   await page.locator('#import-ocr-template').selectOption('lcsc');
 
   // Real file chooser: hand a PNG buffer to the image-zone input. Its onchange
-  // fires openOcrImport → ocrOverlayB64 → openOverlay.
+  // fires beginScanImport → ocrOverlayB64 → openOverlay.
   await page.locator('#import-ocr-input').setInputFiles({
     name: 'po-scan.png',
     mimeType: 'image/png',
