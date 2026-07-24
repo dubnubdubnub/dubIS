@@ -15,6 +15,10 @@ import { store } from '../store.js';
 let _carts = [];
 /** @type {string|null} */
 let _activeCartId = null;
+/** @type {Promise<string>|null} in-flight first-cart creation, memoized so
+ *  concurrent addToActiveCart()/addBomMissing() callers before any cart
+ *  exists share ONE createCart() rather than each racing to create one. */
+let _ensurePromise = null;
 
 function _publish() {
   cartsSignal.set({ carts: _carts, activeCartId: _activeCartId });
@@ -81,9 +85,16 @@ export function prefillName() {
  */
 async function _ensureActiveCartId() {
   if (_activeCartId !== null && _activeCartId !== undefined) return _activeCartId;
-  const created = await createCart(prefillName());
-  await setActiveCart(created.id);
-  return created.id;
+  if (_ensurePromise === null) {
+    _ensurePromise = (async () => {
+      const created = await createCart(prefillName());
+      await setActiveCart(created.id);
+      return created.id;
+    })().finally(() => {
+      _ensurePromise = null;
+    });
+  }
+  return _ensurePromise;
 }
 
 /**

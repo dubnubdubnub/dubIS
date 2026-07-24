@@ -98,6 +98,46 @@ describe('cart-store', () => {
     expect(cartStore.cartItemCount()).toBe(1);
   });
 
+  it('addToActiveCart memoizes concurrent first-adds into ONE create_cart call (no duplicate orphaned cart)', async () => {
+    // Fresh install: list_carts() -> no carts, no active id. Stateful mock
+    // (rather than a mockResolvedValueOnce queue) because the two concurrent
+    // addToActiveCart() calls interleave their api() calls unpredictably —
+    // only the memoization under test keeps this consistent.
+    let activeCartId = null;
+    const carts = [];
+    api.mockImplementation(async (cmd, ...args) => {
+      switch (cmd) {
+        case 'list_carts':
+          return { carts, active_cart_id: activeCartId };
+        case 'create_cart': {
+          const created = { id: 'cart_new', name: args[0], items: [] };
+          carts.push(created);
+          return created;
+        }
+        case 'set_active_cart':
+          activeCartId = args[0];
+          return { active_cart_id: activeCartId };
+        case 'add_cart_item':
+          return {};
+        default:
+          return {};
+      }
+    });
+
+    await cartStore.loadCarts();
+    expect(cartStore.getActiveCartId()).toBeNull();
+
+    await Promise.all([
+      cartStore.addToActiveCart({ partId: 'p1', qty: 1 }),
+      cartStore.addToActiveCart({ partId: 'p2', qty: 2 }),
+    ]);
+
+    const createCartCalls = api.mock.calls.filter(([cmd]) => cmd === 'create_cart');
+    expect(createCartCalls).toHaveLength(1);
+    expect(cartStore.getActiveCartId()).toBe('cart_new');
+    expect(carts).toHaveLength(1);
+  });
+
   it('addBomMissing auto-creates a cart on first use when no cartId is passed', async () => {
     api.mockResolvedValueOnce({ carts: [], active_cart_id: null });
     await cartStore.loadCarts();
