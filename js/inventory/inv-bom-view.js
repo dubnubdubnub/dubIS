@@ -7,7 +7,7 @@ import { showToast } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
 import { store, snapshotLinks } from '../store.js';
 import { bomKey, invPartKey, countStatuses } from '../part-keys.js';
-import { openAdjustModal } from '../inventory-modals.js';
+import { openAdjustModal } from './inv-modals.js';
 import { openCreate as openGenericCreate } from '../generic-parts-modal.js';
 import {
   sortBomRows,
@@ -21,7 +21,7 @@ import {
   renderMemberRows,
   renderFilterBarHtml,
   renderBomTableHeader,
-} from './inventory-renderer.js';
+} from './inv-html-builders.js';
 import { toggleSelection } from '../label-selection.js';
 import state from './inv-state.js';
 import { isFlyoutDragActive } from './inv-events.js';

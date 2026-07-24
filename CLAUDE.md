@@ -27,7 +27,7 @@ purchase_ledger.csv + adjustments.csv
         ▼
   cache.db (SQLite)         (query_inventory() → list[InventoryItem] sent to JS)
         │
-        ├── prices table    (populated by price_history.py from events/price_observations.csv)
+        ├── prices table    (populated by domain/pricing.py from events/price_observations.csv)
         └── generic_parts   (manual state durable in data/generic_parts.json; auto groups regenerated)
 ```
 

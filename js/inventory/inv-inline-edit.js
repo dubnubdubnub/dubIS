@@ -9,7 +9,7 @@
    - Enter → commit (adjust_part SET for qty, update_part_price for unit price).
    - Esc or blur-without-change → cancel, restore display text.
    - Reuses: UndoRedo.save → api → scheduleInventoryRefresh → showToast exactly
-     as inventory-modals.js does (same code paths, same undo registration keys).
+     as inv-modals.js does (same code paths, same undo registration keys).
 */
 
 import { api, AppLog } from '../api.js';

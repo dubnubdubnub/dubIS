@@ -2,6 +2,12 @@
 
 import { trap, release } from './a11y/focus-trap.js';
 
+// Unified on the attribute-safe escapeHtml (js/dom/html.js) — the old
+// textContent-based implementation here did not escape " or ', which was
+// unsafe when interpolated into HTML attribute values. Kept as a named
+// re-export so the ~29 existing importers of escHtml are unaffected.
+export { escapeHtml as escHtml } from './dom/html.js';
+
 let _enterSubmitEnabled = () => true;
 export function setEnterSubmitEnabled(fn) { _enterSubmitEnabled = fn; }
 
@@ -14,17 +20,23 @@ const STOCK_COLOR_STOPS = [
   { r: 63, g: 185, b: 80 },   // #3fb950  green
 ];
 
+/**
+ * Format a number as a money string ("$" + 2 decimals). Non-finite values
+ * (null, undefined, NaN) render as `fallback` instead.
+ * @param {number|null|undefined} n
+ * @param {{ fallback?: string }} [options]
+ * @returns {string}
+ */
+export function formatMoney(n, { fallback = '—' } = {}) {
+  if (typeof n !== 'number' || !isFinite(n)) return fallback;
+  return '$' + n.toFixed(2);
+}
+
 export function showToast(msg) {
   const t = document.getElementById("toast");
   t.textContent = msg;
   t.classList.add("show");
   setTimeout(() => t.classList.remove("show"), TOAST_DURATION_MS);
-}
-
-export function escHtml(s) {
-  const d = document.createElement("div");
-  d.textContent = s || "";
-  return d.innerHTML;
 }
 
 /**

@@ -7,7 +7,8 @@
    mfg-direct uses, wired to a local `vendor` selection. */
 
 import { AppLog, apiMfgDirect } from '../../../api.js';
-import { escHtml, showToast } from '../../../ui-helpers.js';
+import { showToast } from '../../../ui-helpers.js';
+import { html, raw } from '../../../dom/html.js';
 import { createVendorPicker, isPseudoVendor, vendorFaviconHtml } from '../vendor-picker.js';
 import { renderModal } from './ocr-overlay-renderer.js';
 import {
@@ -236,21 +237,21 @@ function mountVendorPicker(root) {
   if (!mount) return;
   const isPseudo = isPseudoVendor(vendor);
   const faviconHtml = vendorFaviconHtml(vendor);
-  mount.innerHTML = `
+  mount.replaceChildren(html`
     <span class="ocr-vendor-picker mfg-direct-vendor-row">
-      ${faviconHtml}
+      ${raw(faviconHtml)}
       <input type="text" class="mfg-direct-vendor-input" id="ocr-vendor-name-input"
-             value="${escHtml(vendor.name || '')}"
+             value="${vendor.name || ''}"
              placeholder="Vendor name">
-      ${isPseudo ? '' : `<input type="text" class="mfg-direct-vendor-input" id="ocr-vendor-url-input"
-             value="${escHtml(vendor.url || '')}"
+      ${isPseudo ? '' : html`<input type="text" class="mfg-direct-vendor-input" id="ocr-vendor-url-input"
+             value="${vendor.url || ''}"
              placeholder="Website (optional)">`}
       <span class="mfg-direct-pseudo-row">
         <button class="btn-sm filter-btn ocr-pseudo-chip" type="button" data-pseudo="v_self">⚙️</button>
         <button class="btn-sm filter-btn ocr-pseudo-chip" type="button" data-pseudo="v_salvage">♻️</button>
         <button class="btn-sm filter-btn ocr-pseudo-chip" type="button" data-pseudo="v_unknown">❓</button>
       </span>
-    </span>`;
+    </span>`);
 
   const nameInput = mount.querySelector('#ocr-vendor-name-input');
   if (nameInput) nameInput.onblur = () => vendorPicker.onVendorNameBlur(nameInput.value);

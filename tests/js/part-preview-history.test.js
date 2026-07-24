@@ -16,6 +16,10 @@ vi.mock('../../js/api.js', () => ({
 }));
 vi.mock('../../js/ui-helpers.js', () => ({
   escHtml: (s) => (s == null ? '' : String(s)),
+  formatMoney: (n, opts) => {
+    const fallback = (opts && opts.fallback) ?? '—';
+    return typeof n === 'number' && isFinite(n) ? '$' + n.toFixed(2) : fallback;
+  },
 }));
 
 // Import the mocked api so we can call mockImplementation on it.

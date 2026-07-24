@@ -6,6 +6,8 @@ import logging
 import re
 from typing import Any
 
+from domain.product import build_product
+
 logger = logging.getLogger(__name__)
 
 
@@ -244,31 +246,31 @@ def _normalize_jsonld(
     if isinstance(image, list):
         image = image[0] if image else ""
 
-    return {
-        "productCode": raw.get("sku") or part_number,
-        "title": raw.get("name", ""),
-        "manufacturer": (
+    return build_product(
+        product_code=raw.get("sku") or part_number,
+        title=raw.get("name", ""),
+        manufacturer=(
             brand.get("name", "")
             if isinstance(brand, dict)
             else str(brand)
         ),
-        "mpn": raw.get("mpn", "") or raw.get("sku", ""),
-        "package": "",
-        "description": raw.get("description", ""),
-        "stock": raw.get("_stock") or (
+        mpn=raw.get("mpn", "") or raw.get("sku", ""),
+        package="",
+        description=raw.get("description", ""),
+        stock=raw.get("_stock") or (
             1 if "InStock" in str(
                 offers.get("availability", "")
             ) else 0
         ),
-        "prices": (
+        prices=(
             [{"qty": 1, "price": price_val}] if price_val else []
         ),
-        "imageUrl": image,
-        "pdfUrl": "",
-        "digikeyUrl": raw.get("url", ""),
-        "attributes": [],
-        "provider": "digikey",
-    }
+        image_url=image,
+        pdf_url="",
+        url=raw.get("url", ""),
+        attributes=[],
+        provider="digikey",
+    )
 
 
 def _normalize_nextdata(
@@ -350,45 +352,45 @@ def _normalize_nextdata(
         if dk_url and not dk_url.startswith("http"):
             dk_url = "https://www.digikey.com" + dk_url
 
-    return {
-        "productCode": (
+    return build_product(
+        product_code=(
             overview.get("rolledUpProductNumber") or part_number
         ),
-        "title": overview.get("title") or "",
-        "manufacturer": overview.get("manufacturer") or "",
-        "mpn": overview.get("manufacturerProductNumber") or "",
-        "package": package,
-        "description": (
+        title=overview.get("title") or "",
+        manufacturer=overview.get("manufacturer") or "",
+        mpn=overview.get("manufacturerProductNumber") or "",
+        package=package,
+        description=(
             overview.get("detailedDescription")
             or overview.get("description")
             or ""
         ),
-        "stock": stock,
-        "prices": prices,
-        "imageUrl": image_url,
-        "pdfUrl": overview.get("datasheetUrl") or "",
-        "digikeyUrl": dk_url,
-        "category": category,
-        "subcategory": subcategory,
-        "attributes": attrs_out,
-        "provider": "digikey",
-    }
+        stock=stock,
+        prices=prices,
+        image_url=image_url,
+        pdf_url=overview.get("datasheetUrl") or "",
+        url=dk_url,
+        category=category,
+        subcategory=subcategory,
+        attributes=attrs_out,
+        provider="digikey",
+    )
 
 
 def _normalize_fallback(part_number: str) -> dict[str, Any]:
     """Return an empty shell for unknown formats."""
-    return {
-        "productCode": part_number,
-        "title": "",
-        "manufacturer": "",
-        "mpn": "",
-        "package": "",
-        "description": "",
-        "stock": 0,
-        "prices": [],
-        "imageUrl": "",
-        "pdfUrl": "",
-        "digikeyUrl": "",
-        "attributes": [],
-        "provider": "digikey",
-    }
+    return build_product(
+        product_code=part_number,
+        title="",
+        manufacturer="",
+        mpn="",
+        package="",
+        description="",
+        stock=0,
+        prices=[],
+        image_url="",
+        pdf_url="",
+        url="",
+        attributes=[],
+        provider="digikey",
+    )

@@ -6,6 +6,7 @@ import csv
 import logging
 import os
 import sqlite3
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -69,20 +70,35 @@ def _restore_derived_entities(conn: sqlite3.Connection, base_dir: str, events_di
 
 # ── Pipeline helpers ───────────────────────────────────────────────────────────
 
-def rebuild(
-    *,
-    base_dir: str,
-    input_csv: str,
-    adjustments_csv: str,
-    events_dir: str,
-    fieldnames: list[str],
-    adj_fieldnames: list[str],
-    conn: sqlite3.Connection,
-) -> "tuple[list[InventoryItem], dict[str, int]]":
+@dataclass(frozen=True)
+class RebuildContext:
+    """Internal bundle for the 7 args threaded through every rebuild() call site.
+
+    Constructed at the domain boundary from the same individual args the
+    outward-facing functions in this module already accept — this is purely
+    an internal collapsing of the repeated bundle, not a public API change.
+    """
+    base_dir: str
+    input_csv: str
+    adjustments_csv: str
+    events_dir: str
+    fieldnames: list[str]
+    adj_fieldnames: list[str]
+    conn: sqlite3.Connection
+
+
+def rebuild(ctx: RebuildContext) -> "tuple[list[InventoryItem], dict[str, int]]":
     """Full rebuild: replay all events into cache, return (fresh_inventory, migration_summary).
 
-    Mutates *conn* (SQLite cache).  Caller holds the lock.
+    Mutates *ctx.conn* (SQLite cache).  Caller holds the lock.
     """
+    base_dir = ctx.base_dir
+    input_csv = ctx.input_csv
+    adjustments_csv = ctx.adjustments_csv
+    events_dir = ctx.events_dir
+    fieldnames = ctx.fieldnames
+    conn = ctx.conn
+
     vendors_json = os.path.join(base_dir, "vendors.json")
     migration_summary = inventory_ops.migrate_to_vendors(input_csv, vendors_json)
 
@@ -130,7 +146,7 @@ def load_or_rebuild(
     if result:
         _restore_derived_entities(conn, base_dir, events_dir)
         return result, {}
-    return rebuild(
+    ctx = RebuildContext(
         base_dir=base_dir,
         input_csv=input_csv,
         adjustments_csv=adjustments_csv,
@@ -139,6 +155,7 @@ def load_or_rebuild(
         adj_fieldnames=adj_fieldnames,
         conn=conn,
     )
+    return rebuild(ctx)
 
 
 def rebuild_or_catchup(
@@ -161,7 +178,7 @@ def rebuild_or_catchup(
         if cache_db.catch_up(conn, input_csv, adjustments_csv, adj_fieldnames):
             _restore_derived_entities(conn, base_dir, events_dir)
             return cache_db.query_inventory(conn), {}
-    return rebuild(
+    ctx = RebuildContext(
         base_dir=base_dir,
         input_csv=input_csv,
         adjustments_csv=adjustments_csv,
@@ -170,6 +187,7 @@ def rebuild_or_catchup(
         adj_fieldnames=adj_fieldnames,
         conn=conn,
     )
+    return rebuild(ctx)
 
 
 def append_adjustment(
@@ -267,7 +285,7 @@ def adjust_part(
         "SELECT 1 FROM stock WHERE part_id = ?", (part_key,)
     ).fetchone()
     if not exists:
-        result, _ = rebuild(
+        ctx = RebuildContext(
             base_dir=base_dir,
             input_csv=input_csv,
             adjustments_csv=adjustments_csv,
@@ -276,6 +294,7 @@ def adjust_part(
             adj_fieldnames=adj_fieldnames,
             conn=conn,
         )
+        result, _ = rebuild(ctx)
         return result
 
     if adj_type == "set":
@@ -341,7 +360,7 @@ def consume_bom(
         for pn in affected_parts
     )
     if not all_cached:
-        result, _ = rebuild(
+        ctx = RebuildContext(
             base_dir=base_dir,
             input_csv=input_csv,
             adjustments_csv=adjustments_csv,
@@ -350,6 +369,7 @@ def consume_bom(
             adj_fieldnames=adj_fieldnames,
             conn=conn,
         )
+        result, _ = rebuild(ctx)
         return result
 
     for row in adj_rows:
@@ -389,7 +409,7 @@ def import_purchases(
     normalized = [{fn: row.get(fn, "") for fn in fieldnames} for row in rows]
     append_csv_rows(input_csv, list(fieldnames), normalized)
     record_import_prices(rows, events_dir, distributors, base_dir)
-    result, _ = rebuild(
+    ctx = RebuildContext(
         base_dir=base_dir,
         input_csv=input_csv,
         adjustments_csv=adjustments_csv,
@@ -398,6 +418,7 @@ def import_purchases(
         adj_fieldnames=adj_fieldnames,
         conn=conn,
     )
+    result, _ = rebuild(ctx)
     return result
 
 
@@ -466,7 +487,7 @@ def update_part_price(
             "source": "manual",
         }])
 
-    result, _ = rebuild(
+    ctx = RebuildContext(
         base_dir=base_dir,
         input_csv=input_csv,
         adjustments_csv=adjustments_csv,
@@ -475,6 +496,7 @@ def update_part_price(
         adj_fieldnames=adj_fieldnames,
         conn=conn,
     )
+    result, _ = rebuild(ctx)
     return result
 
 
@@ -524,7 +546,7 @@ def update_part_fields(
 
     atomic_write_rows(input_csv, file_fieldnames, rows, encoding="utf-8-sig")
 
-    result, _ = rebuild(
+    ctx = RebuildContext(
         base_dir=base_dir,
         input_csv=input_csv,
         adjustments_csv=adjustments_csv,
@@ -533,6 +555,7 @@ def update_part_fields(
         adj_fieldnames=adj_fieldnames,
         conn=conn,
     )
+    result, _ = rebuild(ctx)
     return result
 
 
@@ -601,7 +624,7 @@ def fetch_missing_descriptions(
     if updated:
         atomic_write_rows(input_csv, file_fieldnames, rows, encoding="utf-8-sig")
 
-    result, _ = rebuild(
+    ctx = RebuildContext(
         base_dir=base_dir,
         input_csv=input_csv,
         adjustments_csv=adjustments_csv,
@@ -610,6 +633,7 @@ def fetch_missing_descriptions(
         adj_fieldnames=adj_fieldnames,
         conn=conn,
     )
+    result, _ = rebuild(ctx)
     return {"inventory": result, "summary": {"updated": updated, "failed": failed, "skipped": skipped}}
 
 
@@ -633,7 +657,7 @@ def truncate_and_rebuild(
 
     atomic_write_rows(csv_path, file_fieldnames, rows, encoding="utf-8-sig")
 
-    result, _ = rebuild(
+    ctx = RebuildContext(
         base_dir=base_dir,
         input_csv=input_csv,
         adjustments_csv=adjustments_csv,
@@ -642,6 +666,7 @@ def truncate_and_rebuild(
         adj_fieldnames=adj_fieldnames,
         conn=conn,
     )
+    result, _ = rebuild(ctx)
     return result
 
 
@@ -691,7 +716,7 @@ def delete_part(
         if file_fieldnames:
             atomic_write_rows(adjustments_csv, file_fieldnames, rows, encoding="utf-8-sig")
 
-    result, _ = rebuild(
+    ctx = RebuildContext(
         base_dir=base_dir,
         input_csv=input_csv,
         adjustments_csv=adjustments_csv,
@@ -700,4 +725,5 @@ def delete_part(
         adj_fieldnames=adj_fieldnames,
         conn=conn,
     )
+    result, _ = rebuild(ctx)
     return result

@@ -15,7 +15,7 @@ vi.mock('../../js/undo-redo.js', () => ({
 }));
 vi.mock('../../js/store.js', () => ({ onInventoryUpdated: vi.fn() }));
 
-import { rowPrice, cheapestRow } from '../../js/inventory-modals.js';
+import { rowPrice, cheapestRow } from '../../js/inventory/pricing-utils.js';
 
 describe('rowPrice', () => {
   const tiers = [{ qty: 1, price: 1.00 }, { qty: 100, price: 0.50 }];

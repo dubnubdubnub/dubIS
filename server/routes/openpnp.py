@@ -1,7 +1,7 @@
 """GET /v1/openpnp/part/{part_key} — OpenPnP-ready part-attributes projection.
 
 First increment of the dubIS -> OpenPnP bridge (see
-`docs/plans/phase3a-openpnp-bridge-design.md`). An OpenPnP-side Jython setup
+`docs/plans/2026-07-15-platform-architecture-design.md`, Phase 3). An OpenPnP-side Jython setup
 script calls this endpoint to prefill `parts.xml`/`packages.xml` objects
 (id, height, package-id, body dims, speed) instead of the operator entering
 them by hand.

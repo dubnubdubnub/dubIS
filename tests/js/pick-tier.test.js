@@ -16,7 +16,7 @@ vi.mock('../../js/undo-redo.js', () => ({
 }));
 vi.mock('../../js/store.js', () => ({ onInventoryUpdated: vi.fn() }));
 
-import { pickTier } from '../../js/inventory-modals.js';
+import { pickTier } from '../../js/inventory/pricing-utils.js';
 
 describe('pickTier', () => {
   const tiers = [{ qty: 1, price: 0.50 }, { qty: 10, price: 0.30 }, { qty: 100, price: 0.10 }];

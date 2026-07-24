@@ -7,7 +7,7 @@
  * grouping so the two stay consistent.
  */
 
-import { escHtml } from '../../ui-helpers.js';
+import { html } from '../../dom/html.js';
 
 // Module-level editor state (one editor open at a time).
 let _photos = [];      // [{ index, filename, image_b64, pages, prefill_rows }]
@@ -74,7 +74,7 @@ function _ungroupSelected() {
 function _thumbSrc(photo) {
   const pg = (photo.pages && photo.pages[0]) || null;
   const b64 = (pg && pg.image_b64) || photo.image_b64 || '';
-  return 'data:image/png;base64,' + escHtml(b64);
+  return 'data:image/png;base64,' + b64;
 }
 
 function _close() {
@@ -99,20 +99,20 @@ function _render() {
     const thumbs = grp.map((i) => {
       const p = _photos[i];
       const sel = _selected.has(i) ? ' selected' : '';
-      return `<div class="scan-thumb${sel}" data-idx="${i}" role="button" tabindex="0"
-        title="${escHtml(p.filename || '')}">
+      return html`<div class="scan-thumb${sel}" data-idx="${i}" role="button" tabindex="0"
+        title="${p.filename || ''}">
         <img src="${_thumbSrc(p)}" alt="page ${i + 1}">
         <span class="scan-thumb-check">✓</span>
       </div>`;
-    }).join('');
+    });
     const items = grp.reduce((n, i) => n + ((_photos[i].prefill_rows || []).length), 0);
-    return `<div class="scan-po-group">
+    return html`<div class="scan-po-group">
       <div class="scan-po-label">PO ${k + 1} <span class="scan-po-meta">${grp.length} photo${grp.length === 1 ? '' : 's'} · ${items} item${items === 1 ? '' : 's'}</span></div>
       <div class="scan-po-thumbs">${thumbs}</div>
     </div>`;
-  }).join('');
+  });
 
-  overlay.innerHTML = `<div class="modal modal-wide scan-grouping-modal">
+  overlay.replaceChildren(html`<div class="modal modal-wide scan-grouping-modal">
     <div class="modal-title">Group photos into purchase orders</div>
     <div class="modal-subtitle">Each photo is its own PO. Tap photos that belong to the
       same order, then <strong>Group</strong> them. ${groups.length} order${groups.length === 1 ? '' : 's'} so far.</div>
@@ -125,7 +125,7 @@ function _render() {
       <button class="btn-md btn btn-cancel" id="scan-group-cancel" type="button">Cancel</button>
       <button class="btn-md btn" id="scan-group-import" type="button">Review &amp; import ${groups.length} PO${groups.length === 1 ? '' : 's'}</button>
     </div>
-  </div>`;
+  </div>`);
 
   // Tap a thumbnail to toggle selection.
   overlay.querySelectorAll('.scan-thumb').forEach((el) => {

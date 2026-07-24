@@ -180,6 +180,8 @@ def populate_full(
                 if not part_id:
                     continue
                 sk = sort_key_for_section(section, part.get("Description", ""))
+                (lcsc, mpn, digikey, pololu, mouser, manufacturer, description,
+                 package, rohs, date_code) = _part_row_values(part)
                 conn.execute(
                     """INSERT OR REPLACE INTO parts
                        (part_id, lcsc, mpn, digikey, pololu, mouser,
@@ -188,18 +190,18 @@ def populate_full(
                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         part_id,
-                        (part.get("LCSC Part Number") or "").strip(),
-                        (part.get("Manufacture Part Number") or "").strip(),
-                        (part.get("Digikey Part Number") or "").strip(),
-                        (part.get("Pololu Part Number") or "").strip(),
-                        (part.get("Mouser Part Number") or "").strip(),
-                        (part.get("Manufacturer") or "").strip(),
-                        (part.get("Description") or "").strip(),
-                        (part.get("Package") or "").strip(),
-                        (part.get("RoHS") or "").strip(),
+                        lcsc,
+                        mpn,
+                        digikey,
+                        pololu,
+                        mouser,
+                        manufacturer,
+                        description,
+                        package,
+                        rohs,
                         section,
                         sk,
-                        (part.get("Date Code / Lot No.") or "").strip(),
+                        date_code,
                         "",
                     ),
                 )
@@ -251,7 +253,6 @@ def populate_full(
 
     # Fall back to inferred vendor by manufacturer name
     if vendors_json_path and os.path.isfile(vendors_json_path):
-        import json
         with open(vendors_json_path, encoding="utf-8") as f:
             vendors_data = json.load(f)
         # name → id (case-insensitive)
@@ -272,13 +273,36 @@ def populate_full(
         )
 
     # Update parts rows with po_history
-    import json as _json
     for pk, po_ids in po_history_for_part.items():
         conn.execute(
             "UPDATE parts SET po_history=? WHERE part_id=?",
-            (_json.dumps(po_ids), pk),
+            (json.dumps(po_ids), pk),
         )
     conn.commit()
+
+
+def _part_row_values(row: dict) -> tuple:
+    """Return the shared stripped per-field values for a parts-table row.
+
+    Order: lcsc, mpn, digikey, pololu, mouser, manufacturer, description,
+    package, rohs, date_code. Both ``populate_full`` and ``upsert_part``
+    apply this identical ``(row.get(...) or "").strip()`` mapping to the
+    same CSV-column-named dict; the two sites differ only in where
+    ``section``/``sort_key`` and (for ``populate_full``) ``primary_vendor_id``
+    are spliced into the final INSERT tuple.
+    """
+    return (
+        (row.get("LCSC Part Number") or "").strip(),
+        (row.get("Manufacture Part Number") or "").strip(),
+        (row.get("Digikey Part Number") or "").strip(),
+        (row.get("Pololu Part Number") or "").strip(),
+        (row.get("Mouser Part Number") or "").strip(),
+        (row.get("Manufacturer") or "").strip(),
+        (row.get("Description") or "").strip(),
+        (row.get("Package") or "").strip(),
+        (row.get("RoHS") or "").strip(),
+        (row.get("Date Code / Lot No.") or "").strip(),
+    )
 
 
 def apply_stock_delta(conn: sqlite3.Connection, part_id: str, delta: int) -> None:
@@ -307,6 +331,8 @@ def upsert_part(
 ) -> None:
     """Insert or update a part and its stock from a CSV-column-named dict."""
     sk = sort_key_for_section(section, (row.get("Description") or "").strip())
+    (lcsc, mpn, digikey, pololu, mouser, manufacturer, description,
+     package, rohs, date_code) = _part_row_values(row)
     conn.execute(
         """INSERT INTO parts
            (part_id, lcsc, mpn, digikey, pololu, mouser,
@@ -320,18 +346,18 @@ def upsert_part(
             sort_key=excluded.sort_key, date_code=excluded.date_code""",
         (
             part_id,
-            (row.get("LCSC Part Number") or "").strip(),
-            (row.get("Manufacture Part Number") or "").strip(),
-            (row.get("Digikey Part Number") or "").strip(),
-            (row.get("Pololu Part Number") or "").strip(),
-            (row.get("Mouser Part Number") or "").strip(),
-            (row.get("Manufacturer") or "").strip(),
-            (row.get("Description") or "").strip(),
-            (row.get("Package") or "").strip(),
-            (row.get("RoHS") or "").strip(),
+            lcsc,
+            mpn,
+            digikey,
+            pololu,
+            mouser,
+            manufacturer,
+            description,
+            package,
+            rohs,
             section,
             sk,
-            (row.get("Date Code / Lot No.") or "").strip(),
+            date_code,
         ),
     )
     conn.execute(
@@ -586,7 +612,6 @@ def query_inventory(conn: sqlite3.Connection) -> "list[InventoryItem]":
     mouser, manufacturer, package, description, qty, unit_price, ext_price,
     primary_vendor_id, po_history.
     """
-    import json as _json
     rows = conn.execute("""
         SELECT p.section, p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser,
                p.manufacturer, p.package, p.description, p.primary_vendor_id,
@@ -611,7 +636,7 @@ def query_inventory(conn: sqlite3.Connection) -> "list[InventoryItem]":
             "unit_price": row["unit_price"],
             "ext_price": row["ext_price"],
             "primary_vendor_id": (row["primary_vendor_id"] or ""),
-            "po_history": _json.loads(row["po_history"]) if row["po_history"] else [],
+            "po_history": json.loads(row["po_history"]) if row["po_history"] else [],
         }
         for row in rows
     ]

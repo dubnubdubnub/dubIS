@@ -8,6 +8,7 @@ import { signal } from './signals.js';
 import { SECTION_ORDER } from './constants.js';
 import { api, AppLog } from './api.js';
 import { onEvent } from './sse.js';
+import { formatMoney } from './ui-helpers.js';
 
 // Debounce window for the SSE-driven inventory refresh (trailing debounce:
 // the timer resets on every event and fires once quiet). 250ms per Task 3
@@ -352,7 +353,7 @@ export function saveInventoryView(view) {
 export function updateInventoryHeader() {
   document.getElementById("inv-count").textContent = inventory.length + " parts";
   const total = inventory.reduce((sum, /** @type {import('./types.js').InventoryItem} */ item) => sum + item.qty * (item.unit_price || 0), 0);
-  document.getElementById("inv-total-value").textContent = "$" + total.toFixed(2);
+  document.getElementById("inv-total-value").textContent = formatMoney(total);
 }
 
 export async function loadInventory() {

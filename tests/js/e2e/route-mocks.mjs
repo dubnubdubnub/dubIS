@@ -153,7 +153,7 @@ const ROUTES = [
   route('merge_vendors', (a) => ({ src_id: a.src_id, dst_id: a.dst_id }), { mutation: true }),
   // Real detail shape per server/routes/inventory_mut.py's record_fetched_prices:
   // detail is {part_key, distributor}, mirroring the route's own `detail`
-  // dict — never the raw inventory array. Callers (js/inventory-modals.js,
+  // dict — never the raw inventory array. Callers (js/inventory/inv-modals.js,
   // js/part-preview.js) ignore the resolved value (`.catch(() => {})`), but
   // the mock must still shape it like the real envelope.
   route('record_fetched_prices', (a) => ({ part_key: a.part_key, distributor: a.distributor }), { mutation: true }),
@@ -298,7 +298,7 @@ const ROUTES = [
   route('consume_bom', (a) => ({ bom_name: a.bom_name, board_qty: a.board_qty }), { mutation: true }),
   route('remove_last_adjustments', (a) => ({ count: a.count }), { mutation: true }),
 
-  // ── inventory-modals.js / inv-inline-edit.js (Task 7) ──────────────────────
+  // ── inv-modals.js / inv-inline-edit.js (Task 7) ──────────────────────
   // Real detail shapes per server/routes/inventory_mut.py — small dicts, not
   // the inventory array (see the consume_bom comment above for why an
   // unchanged ctx.inventory is fine for adjust_part/update_part_price, which
@@ -306,7 +306,7 @@ const ROUTES = [
   route('adjust_part', (a) => ({ part_key: a.part_key, adj_type: a.adj_type, quantity: a.quantity }), { mutation: true }),
   route('update_part_price', (a) => ({ part_key: a.part_key, unit_price: a.unit_price, ext_price: a.ext_price }), { mutation: true }),
   // update_part_fields DOES mutate the matching row in place (mirrors
-  // addMockSetup's bridge mock) because inventory-modals.js's applyFix()
+  // addMockSetup's bridge mock) because inv-modals.js's applyFix()
   // re-fetches get_sourced_distributors right after and asserts the write
   // landed — an unchanged echo would make every distributor-PN-correction
   // spec see its own edit silently discarded. Its RETURN value is still the

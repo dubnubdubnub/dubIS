@@ -9,6 +9,7 @@ import urllib.request
 from typing import Any
 
 from base_client import BaseProductClient
+from domain.product import build_product
 from html_product_parser import (
     extract_attributes,
     extract_description,
@@ -113,27 +114,27 @@ class PololuClient(BaseProductClient):
 
         attributes = extract_attributes(page_html, excluded_names=["quantity", "price"])
 
-        product: dict[str, Any] = {
-            "productCode": sku,
-            "title": title,
-            "manufacturer": manufacturer,
-            "mpn": mpn,
-            "package": "",
-            "description": description,
-            "stock": stock,
-            "prices": prices,
-            "imageUrl": image_url,
-            "pdfUrl": "",
-            "pololuUrl": url,
-            "category": category,
-            "subcategory": subcategory,
-            "attributes": attributes,
-            "provider": "pololu",
-            "_debug": {
+        product: dict[str, Any] = build_product(
+            product_code=sku,
+            title=title,
+            manufacturer=manufacturer,
+            mpn=mpn,
+            package="",
+            description=description,
+            stock=stock,
+            prices=prices,
+            image_url=image_url,
+            pdf_url="",
+            url=url,
+            category=category,
+            subcategory=subcategory,
+            attributes=attributes,
+            provider="pololu",
+            debug={
                 "url": url,
                 "sku": sku,
                 "jsonld": jsonld,
             },
-        }
+        )
 
         return product

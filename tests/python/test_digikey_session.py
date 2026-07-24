@@ -163,7 +163,7 @@ class TestCheckSessionWiring:
         with patch.object(client, "_load_cookies", return_value=SAVED), \
                 patch.object(client, "validate_session_http", return_value=False), \
                 patch.object(client, "_set_logged_in") as set_logged, \
-                patch("digikey_client.find_default_browser_exe", return_value=None):
+                patch("digikey_session.find_default_browser_exe", return_value=None):
             result = client.check_session()
             assert result["logged_in"] is False
             assert result["message"] == "No browser found"

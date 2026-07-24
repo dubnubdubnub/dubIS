@@ -3,6 +3,10 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('../../js/ui-helpers.js', () => ({
   showToast: vi.fn(),
   escHtml: vi.fn(s => s || ''),
+  formatMoney: vi.fn((n, opts) => {
+    const fallback = (opts && opts.fallback) ?? '—';
+    return typeof n === 'number' && isFinite(n) ? '$' + n.toFixed(2) : fallback;
+  }),
 }));
 
 vi.mock('../../js/layout-tokens.js', () => ({
