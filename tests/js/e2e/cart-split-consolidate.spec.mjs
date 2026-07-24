@@ -115,4 +115,59 @@ test.describe('Cart split / consolidate', () => {
     // shows up in the unresolved warning toast.
     await expect(page.locator('.toast, .toast-message').last()).toContainText(/unresolved|could not/i);
   });
+
+  // Task B8 topbar-overflow fix: ~10 top-bar controls (switcher, New/Rename/
+  // Delete/Clear, split select+checkbox+button, consolidate select+button)
+  // must wrap onto new rows at a narrow viewport rather than overflow the
+  // modal's content box horizontally. Real rect math (mirrors
+  // resize-visibility.spec.mjs), not path-string/tautological checks.
+  test('top-bar controls do not overflow the modal at a narrow viewport', async ({ page }) => {
+    await installRouteMocks(page, MOCK_INVENTORY, { carts: JSON.parse(JSON.stringify(CARTS_SEED)) });
+    await page.setViewportSize({ width: 900, height: 800 });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+
+    await page.click('#cart-btn');
+    await expect(page.locator('.cart-modal')).toBeVisible();
+
+    const result = await page.evaluate(() => {
+      const modal = document.querySelector('.cart-modal');
+      const topbar = modal.querySelector('.cart-topbar');
+      if (!modal || !topbar) return { found: false };
+      const modalStyle = getComputedStyle(modal);
+      const modalRect = modal.getBoundingClientRect();
+      const paddingRight = parseFloat(modalStyle.paddingRight) || 0;
+      const contentRight = modalRect.right - paddingRight;
+      const TOLERANCE = 1; // sub-pixel rounding
+      const issues = [];
+      for (const child of topbar.children) {
+        const r = child.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue; // not rendered (e.g. disabled/hidden)
+        if (r.right > contentRight + TOLERANCE) {
+          const label = child.id || child.className || child.tagName.toLowerCase();
+          issues.push(`${label}: right=${Math.round(r.right)} > contentRight=${Math.round(contentRight)}`);
+        }
+      }
+      // Also check nested controls inside grouped wrappers (.cart-topbar-group).
+      topbar.querySelectorAll('.cart-topbar-group *').forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) return;
+        if (r.right > contentRight + TOLERANCE) {
+          const label = el.id || el.className || el.tagName.toLowerCase();
+          issues.push(`(nested) ${label}: right=${Math.round(r.right)} > contentRight=${Math.round(contentRight)}`);
+        }
+      });
+      return {
+        found: true,
+        contentRight: Math.round(contentRight),
+        modalWidth: Math.round(modalRect.width),
+        wrappedRows: new Set(Array.from(topbar.children).map((c) => Math.round(c.getBoundingClientRect().top))).size,
+        issues,
+      };
+    });
+
+    console.log('Cart topbar overflow check at 900px:', JSON.stringify(result, null, 2));
+    expect(result.found, 'cart-modal / cart-topbar should exist').toBe(true);
+    expect(result.issues, result.issues.join('; ')).toEqual([]);
+  });
 });

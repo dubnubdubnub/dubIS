@@ -87,8 +87,20 @@
 .cart-topbar {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  flex-wrap: wrap;
+  row-gap: var(--space-xs);
+  column-gap: var(--space-sm);
   margin-bottom: var(--space-md);
+}
+
+/* Split/consolidate each group as a single wrap unit (select + checkbox +
+   button) so a narrow modal wraps whole operations onto their own line
+   instead of splitting a control's select from its Go button. */
+.cart-topbar-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--space-xs);
 }
 
 .cart-switcher {

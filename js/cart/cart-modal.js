@@ -405,11 +405,16 @@ function buildModalDom() {
   const consolidateGoBtn = el('button', { type: 'button', class: 'btn-sm cart-consolidate-go' }, 'Consolidate');
   consolidateGoBtn.addEventListener('click', handleConsolidateGo);
 
+  // Grouped so each op's select+button(+checkbox) wraps as a single unit at
+  // narrow widths rather than splitting mid-control (Task B8 topbar-overflow
+  // fix — see css/components/cart.css .cart-topbar/.cart-topbar-group).
+  const splitGroup = el('div', { class: 'cart-topbar-group' }, splitDistEl, splitRemoveLabel, splitGoBtn);
+  const consolidateGroup = el('div', { class: 'cart-topbar-group' }, consolidateDistEl, consolidateGoBtn);
+
   // B9 (export) appends further right of these.
   const topbar = el('div', { class: 'cart-topbar' },
     switcherEl, newBtn, renameBtn, deleteBtn, clearBtn,
-    splitDistEl, splitRemoveLabel, splitGoBtn,
-    consolidateDistEl, consolidateGoBtn,
+    splitGroup, consolidateGroup,
   );
 
   titleEl = el('div', { class: 'modal-title', id: 'cart-modal-title' }, 'Cart');
