@@ -225,3 +225,29 @@ def clear(conn: sqlite3.Connection, data_dir: str, cart_id: str) -> dict[str, An
     conn.commit()
     _persist(conn, data_dir)
     return get(conn, cart_id)
+
+
+_ACTIVE_FILE = "cart_active.json"
+
+
+def _active_path(data_dir: str) -> str:
+    return os.path.join(data_dir, _ACTIVE_FILE)
+
+
+def _read_active(data_dir: str) -> dict[str, str]:
+    path = _active_path(data_dir)
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def set_active(data_dir: str, identity: str, cart_id: str) -> None:
+    m = _read_active(data_dir)
+    m[identity] = cart_id
+    os.makedirs(data_dir, exist_ok=True)
+    csv_io.atomic_write_text(_active_path(data_dir), json.dumps(m, indent=2), encoding="utf-8")
+
+
+def get_active(data_dir: str, identity: str) -> str | None:
+    return _read_active(data_dir).get(identity)

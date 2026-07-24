@@ -90,3 +90,12 @@ def test_item_ops_raise_on_missing_cart(tmp_path):
         carts.remove_item(conn, data_dir, "cart_nope", "X")
     with pytest.raises(DubISError):
         carts.clear(conn, data_dir, "cart_nope")
+
+
+def test_active_pointer_is_per_identity(tmp_path):
+    data_dir = str(tmp_path)
+    assert carts.get_active(data_dir, "local") is None
+    carts.set_active(data_dir, "local", "cart_a")
+    carts.set_active(data_dir, "mcp@ci", "cart_b")
+    assert carts.get_active(data_dir, "local") == "cart_a"
+    assert carts.get_active(data_dir, "mcp@ci") == "cart_b"
