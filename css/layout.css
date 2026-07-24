@@ -19,8 +19,13 @@ body {
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  /* The left group carries every inventory-wide action (Preferences, Feeders,
+     Rebuild, Vendors, Print Labels, Views); at narrow widths let the groups wrap
+     onto a second row rather than squeezing the buttons until labels clip. */
+  flex-wrap: wrap;
+  row-gap: var(--space-sm);
 }
-.header-left, .header-right { flex: 1; display: flex; align-items: center; gap: 12px; }
+.header-left, .header-right { flex: 1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; row-gap: var(--space-sm); }
 .header-right { justify-content: flex-end; }
 .header-center { display: flex; align-items: center; gap: 6px; }
 .inv-count { font-size: 12px; color: var(--text-muted); }
