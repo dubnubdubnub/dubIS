@@ -6,6 +6,13 @@ import { fileURLToPath } from 'url';
 import { waitForInventoryRows, loadBom, loadPurchaseOrder } from './helpers.mjs';
 import { installRouteMocks } from './route-mocks.mjs';
 
+// This is the slowest file in the functional E2E (~6.9m on the win11/WebView2 VM,
+// ~66% of the E2E). Its 25 tests each re-boot the app, and by default a single file
+// runs serially in ONE worker while the other workers idle. The tests are independent
+// (own page, fixtures read-only, no shared writes / no serial deps), so run them in
+// parallel across workers — cuts this file's wall-time roughly threefold.
+test.describe.configure({ mode: 'parallel' });
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'fixtures', 'inventory.json'), 'utf8')
