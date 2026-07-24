@@ -82,6 +82,13 @@ _NEW_OPERATIONS = {
     "ocr_overlay",                # POST /v1/import/ocr — renamed from ocr_overlay_b64
     "parse_import_source",       # POST /v1/import/parse — dispatches to parse_source_file / parse_source_file_b64
     "pnp_consume",                # POST /v1/pnp/consume — /v1 PnP consume route
+    "list_feeders",               # GET /v1/feeders — loading-station feeder entity, no bridge equivalent
+    "get_feeder",                 # GET /v1/feeders/{tag_id} — loading-station feeder entity, no bridge equivalent
+    "register_feeder",            # POST /v1/feeders/{tag_id}/register — loading-station feeder entity, no bridge equivalent
+    "load_feeder_reel",           # POST /v1/feeders/{tag_id}/load — loading-station feeder entity, no bridge equivalent
+    "unload_feeder",              # POST /v1/feeders/{tag_id}/unload — loading-station feeder entity, no bridge equivalent
+    "get_feeder_tag_sheet",       # GET /v1/feeders/tags/sheet — AprilTag PDF sheet (fallback), fetched directly by the browser
+    "get_feeder_tag_png",         # GET /v1/feeders/tags/{tag_id}.png — AprilTag PNG (primary, LabelWorks import), fetched directly by the browser
 }
 
 # The complete, frozen (method, path, operation_id) surface of the /v1 app.
@@ -107,6 +114,10 @@ FROZEN_V1_SURFACE = [
     ("GET", "/v1/distributors/mouser/key", "get_mouser_api_key_status"),
     ("GET", "/v1/distributors/{name}/product/{code}", "fetch_distributor_product"),
     ("GET", "/v1/events", "events_stream"),
+    ("GET", "/v1/feeders", "list_feeders"),
+    ("GET", "/v1/feeders/tags/sheet", "get_feeder_tag_sheet"),
+    ("GET", "/v1/feeders/tags/{tag_id}.png", "get_feeder_tag_png"),
+    ("GET", "/v1/feeders/{tag_id}", "get_feeder"),
     ("GET", "/v1/generic-parts", "list_generic_parts"),
     ("GET", "/v1/generic-parts/{generic_part_id}/saved-searches", "list_saved_searches"),
     ("GET", "/v1/health", "health"),
@@ -135,6 +146,9 @@ FROZEN_V1_SURFACE = [
     ("POST", "/v1/bom/resolve-spec", "resolve_bom_spec"),
     ("POST", "/v1/distributors/digikey/cookies/sync", "sync_digikey_cookies"),
     ("POST", "/v1/distributors/digikey/session/validate", "validate_digikey_session"),
+    ("POST", "/v1/feeders/{tag_id}/load", "load_feeder_reel"),
+    ("POST", "/v1/feeders/{tag_id}/register", "register_feeder"),
+    ("POST", "/v1/feeders/{tag_id}/unload", "unload_feeder"),
     ("POST", "/v1/generic-parts", "create_generic_part"),
     ("POST", "/v1/generic-parts/{generic_part_id}/members", "add_generic_member"),
     ("POST", "/v1/generic-parts/{generic_part_id}/members/{part_id}/exclude", "exclude_generic_member"),

@@ -51,6 +51,7 @@ graph LR
     "domain/api_scan.py" --> "pnp_server.py"
     "domain/api_vendors.py" --> "csv_io.py"
     "domain/api_vendors.py" --> "vendors.py"
+    "domain/feeders.py" --> "csv_io.py"
     "domain/generic_parts.py" --> "csv_io.py"
     "domain/generic_parts.py" --> "spec_extractor.py"
     "domain/inventory.py" --> "cache_db.py"
@@ -442,6 +443,8 @@ graph LR
     "server/mutations.py" --> "server/__init__.py"
     "server/routes/auth.py" --> "server/auth.py"
     "server/routes/events.py" --> "server/__init__.py"
+    "server/routes/feeders.py" --> "domain/__init__.py"
+    "server/routes/feeders.py" --> "server/routes/openpnp.py"
     "server/routes/generic_parts.py" --> "server/mutations.py"
     "server/routes/import_scan.py" --> "server/auth.py"
     "server/routes/inventory_mut.py" --> "server/auth.py"
@@ -526,6 +529,7 @@ graph LR
     "tests/js/shortcut-prefs.test.js" --> "js/store.js"
     "tests/js/shortcuts.test.js" --> "js/a11y/shortcuts.js"
     "tests/js/signals.test.js" --> "js/signals.js"
+    "tests/js/store.test.js" --> "js/api.js"
     "tests/js/store.test.js" --> "js/event-bus.js"
     "tests/js/store.test.js" --> "js/store.js"
     "tests/js/ui-helpers.test.js" --> "js/ui-helpers.js"
@@ -535,6 +539,7 @@ graph LR
     "tests/python/conftest.py" --> "cache_db.py"
     "tests/python/conftest.py" --> "distributor_fixtures.py"
     "tests/python/conftest.py" --> "inventory_api.py"
+    "tests/python/domain/test_feeders.py" --> "domain/__init__.py"
     "tests/python/domain/test_generic_parts.py" --> "cache_db.py"
     "tests/python/domain/test_generic_parts.py" --> "domain/generic_parts.py"
     "tests/python/domain/test_generic_parts.py" --> "domain/inventory.py"
@@ -561,6 +566,10 @@ graph LR
     "tests/python/server/test_error_contract.py" --> "tests/python/helpers.py"
     "tests/python/server/test_events.py" --> "server/__init__.py"
     "tests/python/server/test_events.py" --> "tests/python/server/conftest.py"
+    "tests/python/server/test_feeders_routes.py" --> "domain/__init__.py"
+    "tests/python/server/test_feeders_routes.py" --> "server/app.py"
+    "tests/python/server/test_feeders_routes.py" --> "server/routes/feeders.py"
+    "tests/python/server/test_feeders_routes.py" --> "tests/python/helpers.py"
     "tests/python/server/test_generic_parts_routes.py" --> "server/__init__.py"
     "tests/python/server/test_import_scan_routes.py" --> "pnp_server.py"
     "tests/python/server/test_inventory_mut.py" --> "server/__init__.py"
@@ -754,7 +763,7 @@ graph LR
 ### csv_io.py
 
 - **Imports:** —
-- **Imported by:** `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/part_registry.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_csv_io.py`, `vendors.py`
+- **Imported by:** `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `domain/feeders.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/part_registry.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_csv_io.py`, `vendors.py`
 
 ### digikey_cdp.py
 
@@ -799,7 +808,7 @@ graph LR
 ### domain/__init__.py
 
 - **Imports:** —
-- **Imported by:** `domain/inventory.py`, `inventory_ops.py`, `server/routes/openpnp.py`, `tests/python/domain/test_part_registry.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/server/test_openpnp_routes.py`
+- **Imported by:** `domain/inventory.py`, `inventory_ops.py`, `server/routes/feeders.py`, `server/routes/openpnp.py`, `tests/python/domain/test_feeders.py`, `tests/python/domain/test_part_registry.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_openpnp_routes.py`
 
 ### domain/api_distributor.py
 
@@ -855,6 +864,11 @@ graph LR
 
 - **Imports:** `csv_io.py`, `vendors.py`
 - **Imported by:** `inventory_api.py`
+
+### domain/feeders.py
+
+- **Imports:** `csv_io.py`
+- **Imported by:** —
 
 ### domain/generic_parts.py
 
@@ -954,7 +968,7 @@ graph LR
 ### js/api.js
 
 - **Imports:** `js/api-map.js`, `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/sse.js`, `js/store.js`, `js/text-popover.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/command-palette.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory-modals.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/sse.js`, `js/store.js`, `js/text-popover.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/command-palette.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`
 
 ### js/app-init.js
 
@@ -1622,7 +1636,7 @@ graph LR
 ### server/app.py
 
 - **Imports:** `server/auth.py`, `server/errors.py`, `server/routes/__init__.py`
-- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
+- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
 
 ### server/auth.py
 
@@ -1674,6 +1688,11 @@ graph LR
 - **Imports:** `server/__init__.py`
 - **Imported by:** —
 
+### server/routes/feeders.py
+
+- **Imports:** `domain/__init__.py`, `server/routes/openpnp.py`
+- **Imported by:** `tests/python/server/test_feeders_routes.py`
+
 ### server/routes/generic_parts.py
 
 - **Imports:** `server/mutations.py`
@@ -1697,7 +1716,7 @@ graph LR
 ### server/routes/openpnp.py
 
 - **Imports:** `domain/__init__.py`
-- **Imported by:** —
+- **Imported by:** `server/routes/feeders.py`
 
 ### server/routes/parts_read.py
 
@@ -2008,7 +2027,7 @@ graph LR
 
 ### tests/js/store.test.js
 
-- **Imports:** `js/event-bus.js`, `js/store.js`
+- **Imports:** `js/api.js`, `js/event-bus.js`, `js/store.js`
 - **Imported by:** —
 - **Emits:** —
 - **Listens:** `CONFIRMED_CHANGED`, `LINKING_MODE`, `LINKS_CHANGED`
@@ -2058,6 +2077,11 @@ graph LR
 - **Imports:** `cache_db.py`, `distributor_fixtures.py`, `inventory_api.py`
 - **Imported by:** —
 
+### tests/python/domain/test_feeders.py
+
+- **Imports:** `domain/__init__.py`
+- **Imported by:** —
+
 ### tests/python/domain/test_generic_parts.py
 
 - **Imports:** `cache_db.py`, `domain/generic_parts.py`, `domain/inventory.py`, `spec_extractor.py`
@@ -2086,7 +2110,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `distributor_manager.py`, `inventory_api.py`
-- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_dubis_mcp_tools.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_dubis_mcp_tools.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/server/conftest.py
 
@@ -2116,6 +2140,11 @@ graph LR
 ### tests/python/server/test_events.py
 
 - **Imports:** `server/__init__.py`, `tests/python/server/conftest.py`
+- **Imported by:** —
+
+### tests/python/server/test_feeders_routes.py
+
+- **Imports:** `domain/__init__.py`, `server/app.py`, `server/routes/feeders.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/server/test_generic_parts_routes.py

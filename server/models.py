@@ -48,3 +48,21 @@ class PurchaseHistoryResponse(BaseModel):
 
 class GroupsResponse(BaseModel):
     groups: list[str]
+
+
+class FeederLoadedModel(BaseModel):
+    part_key: str
+    qty: int
+    tape_width_mm: float | None = None
+    loaded_at: str
+
+
+class FeederModel(BaseModel):
+    tag_id: str
+    family: str
+    feeder_type: str
+    loaded: FeederLoadedModel | None = None
+
+
+class FeederListResponse(BaseModel):
+    feeders: list[FeederModel]
