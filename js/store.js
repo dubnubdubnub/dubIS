@@ -147,6 +147,15 @@ export function setBomMeta({ fileName, headers, cols } = {}) {
 
 export function setBomDirty(dirty) { bomDirty = dirty; }
 
+/** Mark the BOM as having unsaved changes and tell Python (which owns the
+ * close-confirm modal via api._bom_dirty). Called by the link/confirm mutations
+ * below — all of which are user actions (initial load uses loadLinks(), and
+ * undo/redo assigns the arrays directly, so neither routes through here). */
+function markBomDirty() {
+  bomDirty = true;
+  api('set_bom_dirty', true);
+}
+
 export function setPreferences(prefs) { preferences = { ...preferences, ...prefs }; }
 
 export function setVendors(list) {
@@ -172,17 +181,20 @@ export async function loadVendorsAndPOs() {
 
 export function addManualLink(bk, ipk) {
   manualLinks.push({ bomKey: bk, invPartKey: ipk });
+  markBomDirty();
   EventBus.emit(Events.LINKS_CHANGED);
 }
 
 export function confirmMatch(bk, ipk) {
   confirmedMatches = confirmedMatches.filter(c => c.bomKey !== bk);
   confirmedMatches.push({ bomKey: bk, invPartKey: ipk });
+  markBomDirty();
   EventBus.emit(Events.CONFIRMED_CHANGED);
 }
 
 export function unconfirmMatch(bk) {
   confirmedMatches = confirmedMatches.filter(c => c.bomKey !== bk);
+  markBomDirty();
   EventBus.emit(Events.CONFIRMED_CHANGED);
 }
 
