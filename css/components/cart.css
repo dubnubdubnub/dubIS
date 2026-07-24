@@ -154,3 +154,32 @@
   line-height: 1;
 }
 .cart-del-line:hover { color: var(--color-red); }
+
+/* Task B8: per-row target-distributor select + top-bar split/consolidate. */
+.cart-row-dist-select {
+  width: 100%;
+  max-width: 130px;
+  padding: var(--space-2xs) var(--space-xs);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  color: var(--text-bright);
+}
+
+.cart-split-dist,
+.cart-consolidate-dist {
+  padding: var(--space-2xs) var(--space-xs);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  color: var(--text-bright);
+}
+
+.cart-split-remove-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}

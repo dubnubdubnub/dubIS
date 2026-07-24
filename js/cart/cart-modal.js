@@ -37,6 +37,18 @@ let emptyStateEl = null;
 let gridWrapEl = null;
 /** @type {HTMLSelectElement|null} */
 let switcherEl = null;
+/** @type {HTMLSelectElement|null} */
+let splitDistEl = null;
+/** @type {HTMLInputElement|null} */
+let splitRemoveEl = null;
+/** @type {HTMLSelectElement|null} */
+let consolidateDistEl = null;
+
+// All distributors the app knows how to source from (fixed order/labels used
+// by the per-row select's fallback for raw items and by the top-bar
+// split/consolidate selects, which aren't scoped to one line).
+const ALL_DISTRIBUTORS = ['lcsc', 'digikey', 'mouser', 'pololu'];
+const DISTRIBUTOR_LABELS = { lcsc: 'LCSC', digikey: 'DigiKey', mouser: 'Mouser', pololu: 'Pololu' };
 
 // ── Display-field resolution ─────────────────────────────────────────────
 
@@ -81,6 +93,22 @@ function resolveDisplay(cartItem, invIndex) {
   };
 }
 
+/**
+ * A part's AVAILABLE distributors = the subset of {lcsc,digikey,mouser,pololu}
+ * whose PN field is non-empty on the resolved InventoryItem — derived
+ * client-side from the already-loaded inventory, no backend round-trip. For
+ * `raw` items (no part_id / no inventory match) there's no PN data to check,
+ * so all four are offered (simpler than a "no options" dead-end select).
+ * @param {any} cartItem
+ * @param {Map<string, any>} invIndex
+ * @returns {string[]}
+ */
+function availableDistributors(cartItem, invIndex) {
+  const inv = cartItem.part_id ? invIndex.get(cartItem.part_id) : null;
+  if (!inv) return ALL_DISTRIBUTORS.slice();
+  return ALL_DISTRIBUTORS.filter((d) => (inv[d] || '').trim());
+}
+
 // ── Row actions ────────────────────────────────────────────────────────────
 
 async function handleDeleteLine(cartItem) {
@@ -103,6 +131,66 @@ async function handleClearCart() {
     showToast('Cart cleared');
   } catch (e) {
     AppLog.error('cart-modal: clearCart failed: ' + e.message);
+  }
+}
+
+/**
+ * @param {any} cartItem
+ * @param {string} value '' means unset (null)
+ */
+async function handleRowDistributorChange(cartItem, value) {
+  const cartId = cartStore.getActiveCartId();
+  if (!cartId) return;
+  try {
+    await cartStore.updateItem(cartItem.ref, { targetDistributor: value || null }, cartId);
+  } catch (e) {
+    AppLog.error('cart-modal: updateItem (targetDistributor) failed: ' + e.message);
+  }
+}
+
+// ── Top bar: split by distributor / consolidate to distributor (Task B8) ──
+
+async function handleSplitGo() {
+  const cart = cartStore.getActiveCart();
+  if (!cart || !splitDistEl) return;
+  const distributor = splitDistEl.value;
+  if (!distributor) {
+    showToast('Choose a distributor to split by');
+    return;
+  }
+  const removeFromSource = !!(splitRemoveEl && splitRemoveEl.checked);
+  const newName = `${cart.name || 'Cart'} — ${DISTRIBUTOR_LABELS[distributor] || distributor}`;
+  try {
+    const result = await cartStore.splitCart(distributor, newName, removeFromSource, cart.id);
+    const newCart = result && result.new;
+    if (newCart && newCart.id) {
+      await cartStore.setActiveCart(newCart.id);
+    }
+    showToast(`Split ${DISTRIBUTOR_LABELS[distributor] || distributor} lines into a new cart`);
+  } catch (e) {
+    AppLog.error('cart-modal: splitCart failed: ' + e.message);
+  }
+}
+
+async function handleConsolidateGo() {
+  const cart = cartStore.getActiveCart();
+  if (!cart || !consolidateDistEl) return;
+  const distributor = consolidateDistEl.value;
+  if (!distributor) {
+    showToast('Choose a distributor to consolidate to');
+    return;
+  }
+  try {
+    const result = await cartStore.consolidateCart(distributor, cart.id);
+    const unresolved = (result && result.unresolved) || [];
+    const label = DISTRIBUTOR_LABELS[distributor] || distributor;
+    if (unresolved.length > 0) {
+      showToast(`Consolidated to ${label}; ${unresolved.length} line(s) could not be resolved and were left unchanged`);
+    } else {
+      showToast(`Consolidated to ${label}`);
+    }
+  } catch (e) {
+    AppLog.error('cart-modal: consolidateCart failed: ' + e.message);
   }
 }
 
@@ -191,9 +279,19 @@ function buildGrid(container) {
           value: String(item.qty ?? 0),
         }) },
       { key: '_dist', label: 'Target distributor', width: '150px',
-        render: (item) => item.target_distributor || '—' },
+        render: (item) => {
+          const select = /** @type {HTMLSelectElement} */ (el('select', { class: 'cart-row-dist-select' },
+            el('option', { value: '' }, '—'),
+            ...item._availableDist.map((d) => el('option', {
+              value: d, selected: item.target_distributor === d ? true : undefined,
+            }, DISTRIBUTOR_LABELS[d] || d)),
+          ));
+          if (!item.target_distributor) select.value = '';
+          return select;
+        } },
     ],
     rowKey: (item) => item.ref,
+    getRowClass: () => 'cart-row',
     rowActions: [
       { key: 'delete', label: '✕', class: 'cart-del-line', title: 'Remove this line',
         onClick: (item) => handleDeleteLine(item) },
@@ -233,6 +331,23 @@ function wireQtyInputs(container) {
   });
 }
 
+// Per-row target-distributor <select> commit — delegated the same way as
+// wireQtyInputs so it survives re-renders (rebuilt <select> elements on every
+// renderFromActiveCart() call).
+function wireDistSelects(container) {
+  container.addEventListener('change', (ev) => {
+    const select = /** @type {HTMLElement} */ (ev.target);
+    if (!(select instanceof HTMLSelectElement) || !select.classList.contains('cart-row-dist-select')) return;
+    const tr = select.closest('tr[data-row-key]');
+    if (!tr) return;
+    const ref = /** @type {HTMLElement} */ (tr).dataset.rowKey;
+    const cart = cartStore.getActiveCart();
+    const item = cart && cart.items.find((it) => it.ref === ref);
+    if (!item) return;
+    handleRowDistributorChange(item, select.value);
+  });
+}
+
 // ── Modal shell (built once, dynamically — no static index.html markup) ────
 
 function buildModalDom() {
@@ -241,6 +356,7 @@ function buildModalDom() {
   gridWrapEl = el('div', { class: 'cart-table-wrap', id: 'cart-table-wrap' });
   buildGrid(gridWrapEl);
   wireQtyInputs(gridWrapEl);
+  wireDistSelects(gridWrapEl);
 
   emptyStateEl = el('div', { class: 'cart-empty-state hidden' }, 'No active cart — add a part to the cart to create one.');
 
@@ -267,9 +383,34 @@ function buildModalDom() {
   }, 'Clear cart');
   clearBtn.addEventListener('click', handleClearCart);
 
-  // Left room for later top-bar buttons (B8 split/consolidate, B9 export) —
-  // new buttons append here, after clearBtn.
-  const topbar = el('div', { class: 'cart-topbar' }, switcherEl, newBtn, renameBtn, deleteBtn, clearBtn);
+  // Split by distributor (Task B8): pick a distributor, optionally remove
+  // the moved lines from the source cart, then splitCart().
+  splitDistEl = /** @type {HTMLSelectElement} */ (el('select', { class: 'cart-split-dist', title: 'Split by distributor' },
+    el('option', { value: '' }, 'Split by…'),
+    ...ALL_DISTRIBUTORS.map((d) => el('option', { value: d }, DISTRIBUTOR_LABELS[d])),
+  ));
+  const splitRemoveLabel = el('label', { class: 'cart-split-remove-label', title: 'Remove moved lines from this cart' });
+  splitRemoveEl = /** @type {HTMLInputElement} */ (el('input', { type: 'checkbox', class: 'cart-split-remove' }));
+  splitRemoveLabel.append(splitRemoveEl, ' Remove from this cart');
+  const splitGoBtn = el('button', { type: 'button', class: 'btn-sm cart-split-go' }, 'Split');
+  splitGoBtn.addEventListener('click', handleSplitGo);
+
+  // Consolidate to distributor (Task B8): sets target_distributor on every
+  // sourceable line via consolidateCart(); unresolved lines are left alone
+  // and surfaced in the result toast.
+  consolidateDistEl = /** @type {HTMLSelectElement} */ (el('select', { class: 'cart-consolidate-dist', title: 'Consolidate to distributor' },
+    el('option', { value: '' }, 'Consolidate to…'),
+    ...ALL_DISTRIBUTORS.map((d) => el('option', { value: d }, DISTRIBUTOR_LABELS[d])),
+  ));
+  const consolidateGoBtn = el('button', { type: 'button', class: 'btn-sm cart-consolidate-go' }, 'Consolidate');
+  consolidateGoBtn.addEventListener('click', handleConsolidateGo);
+
+  // B9 (export) appends further right of these.
+  const topbar = el('div', { class: 'cart-topbar' },
+    switcherEl, newBtn, renameBtn, deleteBtn, clearBtn,
+    splitDistEl, splitRemoveLabel, splitGoBtn,
+    consolidateDistEl, consolidateGoBtn,
+  );
 
   titleEl = el('div', { class: 'modal-title', id: 'cart-modal-title' }, 'Cart');
 
@@ -323,7 +464,11 @@ function renderFromActiveCart() {
   document.getElementById('cart-clear-btn')?.removeAttribute('disabled');
 
   const invIndex = buildInventoryIndex();
-  const rows = (cart.items || []).map((item) => ({ ...item, _display: resolveDisplay(item, invIndex) }));
+  const rows = (cart.items || []).map((item) => ({
+    ...item,
+    _display: resolveDisplay(item, invIndex),
+    _availableDist: availableDistributors(item, invIndex),
+  }));
   grid.render(rows);
 }
 

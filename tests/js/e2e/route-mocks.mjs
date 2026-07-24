@@ -289,6 +289,66 @@ const ROUTES = [
     return cart;
   }, { mutation: true }),
 
+  // split_cart (Task B8): mirrors carts.split_by_distributor — creates a new
+  // cart (pushed into ctx.cartsState.carts) containing every line whose
+  // target_distributor matches `distributor`, or (when unset) whose part is
+  // sourceable from it per the same has-PN-field scan get_sourced_distributors
+  // uses. Real detail shape per domain/api_cart.py: {"source": <cart>, "new":
+  // <cart>}. If remove_from_source, the moved lines are also filtered out of
+  // the source cart in place.
+  route('split_cart', (a, ctx) => {
+    const src = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!src) throw new Error(`route-mocks.mjs: split_cart — no cart "${a.cart_id}" in mock cartsState`);
+    const sourcedFrom = (partId) => {
+      const part = ctx.inventory.find((p) => mockPartKey(p) === partId
+        || [p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser].includes(partId));
+      if (!part) return false;
+      return !!(part[a.distributor] || '').trim();
+    };
+    const moved = (src.items || []).filter((it) =>
+      it.target_distributor === a.distributor
+      || (!it.target_distributor && it.part_id && sourcedFrom(it.part_id)));
+    const newCart = {
+      id: `cart-${ctx.cartsState.carts.length + 1}`,
+      name: a.new_name || `${src.name} — ${a.distributor}`,
+      created_at: new Date().toISOString(),
+      items: moved.map((it, i) => ({
+        ref: `item-${ctx.cartsState.carts.length + 1}-${i + 1}`,
+        part_id: it.part_id ?? null,
+        raw: it.raw ?? null,
+        qty: it.qty,
+        target_distributor: a.distributor,
+      })),
+    };
+    ctx.cartsState.carts.push(newCart);
+    if (a.remove_from_source) {
+      const movedRefs = new Set(moved.map((it) => it.ref));
+      src.items = (src.items || []).filter((it) => !movedRefs.has(it.ref));
+    }
+    return { source: src, new: newCart };
+  }, { mutation: true }),
+  // consolidate_cart (Task B8): mirrors carts.consolidate — sets
+  // target_distributor=distributor on every line whose part is sourceable
+  // from it (same has-PN-field scan as get_sourced_distributors); lines that
+  // aren't sourceable are left untouched and their refs listed in
+  // `unresolved`. Real detail shape per domain/api_cart.py: {"cart": <cart>,
+  // "unresolved": [ref, ...]}.
+  route('consolidate_cart', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: consolidate_cart — no cart "${a.cart_id}" in mock cartsState`);
+    const unresolved = [];
+    (cart.items || []).forEach((it) => {
+      const part = it.part_id && ctx.inventory.find((p) =>
+        [p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser].includes(it.part_id));
+      if (part && (part[a.distributor] || '').trim()) {
+        it.target_distributor = a.distributor;
+      } else {
+        unresolved.push(it.ref);
+      }
+    });
+    return { cart, unresolved };
+  }, { mutation: true }),
+
   // ── import-panel.js (Task 5) ──────────────────────────────────────────────
   route('import_purchases', (a) => ({ count: (a.rows || []).length }), { mutation: true }),
   route('remove_last_purchases', (a) => ({ count: a.count }), { mutation: true }),
