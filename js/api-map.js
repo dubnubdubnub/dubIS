@@ -422,6 +422,21 @@ export const API_MAP = {
     "unwrap": null,
     "verb": "GET"
   },
+  "get_feeder": {
+    "argOrder": [
+      "tag_id"
+    ],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/feeders/{tag_id}",
+    "pathParams": [
+      "tag_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "GET"
+  },
   "get_generic_group_names": {
     "argOrder": [
       "part_key"
@@ -594,6 +609,17 @@ export const API_MAP = {
     "unwrap": "detail",
     "verb": "POST"
   },
+  "list_feeders": {
+    "argOrder": [],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/feeders",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "GET"
+  },
   "list_generic_parts": {
     "argOrder": [],
     "bodyParams": [],
@@ -652,6 +678,28 @@ export const API_MAP = {
     "rawBody": false,
     "unwrap": null,
     "verb": "GET"
+  },
+  "load_feeder_reel": {
+    "argOrder": [
+      "tag_id",
+      "part_key",
+      "qty",
+      "tape_width_mm"
+    ],
+    "bodyParams": [
+      "part_key",
+      "qty",
+      "tape_width_mm"
+    ],
+    "mutating": false,
+    "path": "/v1/feeders/{tag_id}/load",
+    "pathParams": [
+      "tag_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "POST"
   },
   "load_preferences": {
     "argOrder": [],
@@ -863,6 +911,24 @@ export const API_MAP = {
     "unwrap": "detail",
     "verb": "POST"
   },
+  "register_feeder": {
+    "argOrder": [
+      "tag_id",
+      "feeder_type"
+    ],
+    "bodyParams": [
+      "feeder_type"
+    ],
+    "mutating": false,
+    "path": "/v1/feeders/{tag_id}/register",
+    "pathParams": [
+      "tag_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "POST"
+  },
   "remove_generic_member": {
     "argOrder": [
       "generic_part_id",
@@ -1010,6 +1076,21 @@ export const API_MAP = {
     "mutating": false,
     "path": "/v1/distributors/digikey/cookies/sync",
     "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "POST"
+  },
+  "unload_feeder": {
+    "argOrder": [
+      "tag_id"
+    ],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/feeders/{tag_id}/unload",
+    "pathParams": [
+      "tag_id"
+    ],
     "queryParams": [],
     "rawBody": false,
     "unwrap": null,
