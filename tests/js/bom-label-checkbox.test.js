@@ -29,7 +29,7 @@ vi.mock('../../js/store.js', () => ({
   snapshotLinks: vi.fn(),
 }));
 vi.mock('../../js/part-keys.js', () => ({ bomKey: vi.fn(), invPartKey: vi.fn() }));
-vi.mock('../../js/inventory-modals.js', () => ({ openAdjustModal: vi.fn() }));
+vi.mock('../../js/inventory/inv-modals.js', () => ({ openAdjustModal: vi.fn() }));
 vi.mock('../../js/group-flyout/flyout-panel.js', () => ({ openFlyout: vi.fn() }));
 
 import { handleBomTableClick } from '../../js/inventory/inv-mutations.js';

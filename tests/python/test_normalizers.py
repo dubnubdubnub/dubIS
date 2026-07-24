@@ -51,12 +51,12 @@ if os.path.exists(FIXTURE_PATH):
 
     import re as _re
 
-    from digikey_client import DigikeyClient
+    from digikey_normalizer import normalize_result
 
     _dk_parts = _FIXTURES.get("digikey", {}).get("parts", {})
 
     class TestDigikeyNormalizer:
-        """Test _normalize_result against every captured Digikey part."""
+        """Test normalize_result against every captured Digikey part."""
 
         @pytest.fixture(params=list(_dk_parts.keys()), ids=list(_dk_parts.keys()))
         def dk_part(self, request):
@@ -67,7 +67,7 @@ if os.path.exists(FIXTURE_PATH):
         def test_normalize_produces_valid_output(self, dk_part):
             mpn, entry = dk_part
             raw = entry["raw"]
-            result = DigikeyClient._normalize_result(raw, mpn)
+            result = normalize_result(raw, mpn)
 
             assert result["provider"] == "digikey"
             assert isinstance(result["title"], str) and result["title"]

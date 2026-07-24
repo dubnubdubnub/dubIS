@@ -181,7 +181,7 @@ class InventoryApi:
 
     def _rebuild(self) -> list[dict[str, Any]]:
         """Full rebuild: replay all events into cache, return fresh inventory."""
-        result, migration_summary = domain.inventory.rebuild(
+        ctx = domain.inventory.RebuildContext(
             base_dir=self.base_dir,
             input_csv=self.input_csv,
             adjustments_csv=self.adjustments_csv,
@@ -190,6 +190,7 @@ class InventoryApi:
             adj_fieldnames=self.ADJ_FIELDNAMES,
             conn=self._get_cache(),
         )
+        result, migration_summary = domain.inventory.rebuild(ctx)
         self._last_migration_summary = migration_summary
         return result
 

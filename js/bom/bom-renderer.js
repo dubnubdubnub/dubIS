@@ -1,7 +1,7 @@
 /* bom/bom-renderer.js — Pure functions that return HTML strings for the BOM panel.
    No side effects, no DOM mutation, no store access. */
 
-import { escHtml } from '../ui-helpers.js';
+import { escHtml, formatMoney } from '../ui-helpers.js';
 import { STATUS_ICONS, STATUS_ROW_CLASS, colorizeRefs, rawRowAggKey } from '../part-keys.js';
 import { BOM_STATUS_COL_W } from '../layout-tokens.js';
 
@@ -82,8 +82,8 @@ export function renderBomSummary(counts, fileName, multiplier) {
  */
 export function renderPriceInfo(pricePerBoard, totalPrice, multiplier) {
   const parts = [];
-  if (pricePerBoard > 0) parts.push("$" + pricePerBoard.toFixed(2) + "/board");
-  if (multiplier > 1 && totalPrice > 0) parts.push("$" + totalPrice.toFixed(2) + " total");
+  if (pricePerBoard > 0) parts.push(formatMoney(pricePerBoard) + "/board");
+  if (multiplier > 1 && totalPrice > 0) parts.push(formatMoney(totalPrice) + " total");
   return parts.join(" \u00b7 ");
 }
 

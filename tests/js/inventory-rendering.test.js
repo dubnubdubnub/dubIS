@@ -5,6 +5,10 @@ vi.mock('../../js/ui-helpers.js', () => ({
   escHtml: vi.fn(s => s || ''),
   stockValueColor: vi.fn(() => 'var(--color-green)'),
   showToast: vi.fn(),
+  formatMoney: vi.fn((n, opts) => {
+    const fallback = (opts && opts.fallback) ?? '—';
+    return typeof n === 'number' && isFinite(n) ? '$' + n.toFixed(2) : fallback;
+  }),
 }));
 
 vi.mock('../../js/store.js', () => ({
@@ -22,7 +26,7 @@ import {
   renderFilterBarHtml,
   renderInvColHeader,
   createBomRowElement,
-} from '../../js/inventory/inventory-renderer.js';
+} from '../../js/inventory/inv-html-builders.js';
 import { store } from '../../js/store.js';
 
 beforeEach(() => {

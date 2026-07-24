@@ -1,3 +1,5 @@
+> **SUPERSEDED** by docs/plans/2026-07-15-platform-architecture-design.md (2026-07-15). Retained for history.
+
 # Phase 2 Frontend Completion — Implementation Plan
 
 **Goal:** Wire the existing Phase 2a (price history) and 2b (generic parts) backend
@@ -11,7 +13,7 @@ active and the generic-parts matching pipeline being live).
 
 ## Current State
 
-**Phase 2a (Price History):** Backend complete — `price_history.py` records
+**Phase 2a (Price History):** Backend complete — `domain/pricing.py` records
 observations, `prices` cache table aggregates them, `inventory_api.py` exposes
 `record_fetched_prices()` and `get_price_summary()`. No frontend calls either method.
 Distributor tooltip fetches don't record prices. `data/events/` dir is created

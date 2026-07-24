@@ -1,16 +1,19 @@
 // @ts-check
-/* inventory-modals.js — Adjustment and price modals for inventory parts.
-   Extracted from inventory-panel.js for focused maintainability. */
+/* inv-modals.js — Adjustment and price modals for inventory parts.
+   Extracted from inventory-panel.js for focused maintainability; moved under
+   js/inventory/ (Task 12 split) with pricing helpers factored out to
+   pricing-utils.js. */
 
-import { api, AppLog } from './api.js';
-import { API_MAP } from './api-map.js';
-import { showToast, Modal, linkPriceInputs, escHtml } from './ui-helpers.js';
-import { UndoRedo } from './undo-redo.js';
-import { store, scheduleInventoryRefresh } from './store.js';
-import { invPartKey } from './part-keys.js';
-import { el } from './dom/html.js';
-import { defineFormModal } from './components/form-modal.js';
-import { pickBestDescription } from './inventory/pick-description.js';
+import { api, AppLog } from '../api.js';
+import { API_MAP } from '../api-map.js';
+import { showToast, Modal, linkPriceInputs, escHtml, formatMoney } from '../ui-helpers.js';
+import { UndoRedo } from '../undo-redo.js';
+import { store, scheduleInventoryRefresh } from '../store.js';
+import { invPartKey } from '../part-keys.js';
+import { el } from '../dom/html.js';
+import { defineFormModal } from '../components/form-modal.js';
+import { pickBestDescription } from './pick-description.js';
+import { rowPrice, cheapestRow } from './pricing-utils.js';
 
 // ── Undo/redo tracking ──
 let lastAdjustMeta = null;
@@ -23,46 +26,6 @@ const FETCH_SUPPLIERS = [
   { key: "mouser", label: "Mouser", method: "fetch_mouser_product" },
   { key: "pololu", label: "Pololu", method: "fetch_pololu_product" },
 ];
-
-/** Pick the price-break tier matching a target quantity: the tier with the
- *  largest qty that is <= targetQty. Falls back to the lowest-qty tier when
- *  targetQty is missing/<=0 or no tier qualifies. Returns a tier or null. */
-export function pickTier(prices, targetQty) {
-  if (!Array.isArray(prices) || prices.length === 0) return null;
-  const sorted = prices.slice().sort((a, b) => a.qty - b.qty);
-  let chosen = sorted[0];
-  if (typeof targetQty === "number" && targetQty > 0) {
-    for (let i = 0; i < sorted.length; i++) {
-      if (sorted[i].qty <= targetQty) chosen = sorted[i];
-    }
-  }
-  return chosen;
-}
-
-/** Resolve a distributor row's price at a target quantity.
- *  Returns the chosen tier plus unit + extended (unit × qty) price,
- *  or all-null when there are no usable price tiers. */
-export function rowPrice(prices, qty) {
-  const tier = pickTier(prices, qty);
-  if (!tier) return { tier: null, unitPrice: null, extPrice: null };
-  return { tier, unitPrice: tier.price, extPrice: tier.price * qty };
-}
-
-/** Index of the cheapest row by unitPrice (ties → lowest index).
- *  Rows whose unitPrice is not a finite number are ignored. Returns -1
- *  when no row has a usable price. */
-export function cheapestRow(rows) {
-  let best = -1;
-  let bestPrice = Infinity;
-  for (let i = 0; i < rows.length; i++) {
-    const p = rows[i] && rows[i].unitPrice;
-    if (typeof p === "number" && isFinite(p) && p < bestPrice) {
-      bestPrice = p;
-      best = i;
-    }
-  }
-  return best;
-}
 
 // ── Editable fields: JS key → display label ──
 const EDITABLE_FIELDS = [
@@ -100,7 +63,7 @@ function buildFieldInput(key, value, placeholder, extraClass) {
 }
 
 /**
- * @param {import('./types.js').InventoryItem} item
+ * @param {import('../types.js').InventoryItem} item
  */
 export function openAdjustModal(item) {
   currentPart = item;
@@ -133,8 +96,8 @@ export function openAdjustModal(item) {
   // Read-only rows
   if (item.section) html += "<tr><td>Section</td><td>" + escHtml(item.section) + "</td></tr>";
   html += "<tr><td>Qty</td><td>" + item.qty + "</td></tr>";
-  if (item.unit_price > 0) html += "<tr><td>Unit Price</td><td>$" + escHtml(item.unit_price.toFixed(2)) + "</td></tr>";
-  if (item.ext_price > 0) html += "<tr><td>Ext. Price</td><td>$" + escHtml(item.ext_price.toFixed(2)) + "</td></tr>";
+  if (item.unit_price > 0) html += "<tr><td>Unit Price</td><td>" + escHtml(formatMoney(item.unit_price)) + "</td></tr>";
+  if (item.ext_price > 0) html += "<tr><td>Ext. Price</td><td>" + escHtml(formatMoney(item.ext_price)) + "</td></tr>";
   modalDetailTable.innerHTML = html;
 
   adjType.value = "set";
@@ -223,7 +186,7 @@ async function fetchDistributorProduct(method, code) {
  * auto-fetches every row's price concurrently on open, and feeds the cheapest
  * row's unit price into `unitInput` (overridable by clicking a row).
  *
- * @param {{panelEl: HTMLElement, unitInput: HTMLInputElement, onPartUpdated?: (freshItem: import('./types.js').InventoryItem|null) => void}} els
+ * @param {{panelEl: HTMLElement, unitInput: HTMLInputElement, onPartUpdated?: (freshItem: import('../types.js').InventoryItem|null) => void}} els
  */
 function createFetchController({ panelEl, unitInput, onPartUpdated }) {
   /** @type {Array<{distributor:string,label:string,method:string,partNumber:string,
@@ -257,7 +220,7 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
       } else {
         priceCell = '<span class="fetch-drow-unit">' + escHtml(fmt(r.unitPrice)) +
           '</span><span class="fetch-drow-ext">×' + escHtml(String(r.qty)) + ' = ' +
-          escHtml("$" + Number(r.extPrice).toFixed(2)) + '</span>';
+          escHtml(formatMoney(Number(r.extPrice))) + '</span>';
       }
       const pnCell = r.editing
         ? '<input type="text" class="fetch-drow-edit-input" data-idx="' + i + '" value="' + escHtml(r.partNumber) + '">' +
@@ -506,10 +469,10 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
  * Open the price modal for the given inventory item.
  * The modal is built once (via defineFormModal) and reused.
  *
- * @param {import('./types.js').InventoryItem} item
+ * @param {import('../types.js').InventoryItem} item
  */
 export function openPriceModal(item) {
-  if (!priceFormModal) throw new Error("inventory-modals: init() not called before openPriceModal()");
+  if (!priceFormModal) throw new Error("inv-modals: init() not called before openPriceModal()");
   priceFormModal.open(item);
 }
 
