@@ -180,6 +180,8 @@ def populate_full(
                 if not part_id:
                     continue
                 sk = sort_key_for_section(section, part.get("Description", ""))
+                (lcsc, mpn, digikey, pololu, mouser, manufacturer, description,
+                 package, rohs, date_code) = _part_row_values(part)
                 conn.execute(
                     """INSERT OR REPLACE INTO parts
                        (part_id, lcsc, mpn, digikey, pololu, mouser,
@@ -188,18 +190,18 @@ def populate_full(
                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         part_id,
-                        (part.get("LCSC Part Number") or "").strip(),
-                        (part.get("Manufacture Part Number") or "").strip(),
-                        (part.get("Digikey Part Number") or "").strip(),
-                        (part.get("Pololu Part Number") or "").strip(),
-                        (part.get("Mouser Part Number") or "").strip(),
-                        (part.get("Manufacturer") or "").strip(),
-                        (part.get("Description") or "").strip(),
-                        (part.get("Package") or "").strip(),
-                        (part.get("RoHS") or "").strip(),
+                        lcsc,
+                        mpn,
+                        digikey,
+                        pololu,
+                        mouser,
+                        manufacturer,
+                        description,
+                        package,
+                        rohs,
                         section,
                         sk,
-                        (part.get("Date Code / Lot No.") or "").strip(),
+                        date_code,
                         "",
                     ),
                 )
@@ -281,6 +283,30 @@ def populate_full(
     conn.commit()
 
 
+def _part_row_values(row: dict) -> tuple:
+    """Return the shared stripped per-field values for a parts-table row.
+
+    Order: lcsc, mpn, digikey, pololu, mouser, manufacturer, description,
+    package, rohs, date_code. Both ``populate_full`` and ``upsert_part``
+    apply this identical ``(row.get(...) or "").strip()`` mapping to the
+    same CSV-column-named dict; the two sites differ only in where
+    ``section``/``sort_key`` and (for ``populate_full``) ``primary_vendor_id``
+    are spliced into the final INSERT tuple.
+    """
+    return (
+        (row.get("LCSC Part Number") or "").strip(),
+        (row.get("Manufacture Part Number") or "").strip(),
+        (row.get("Digikey Part Number") or "").strip(),
+        (row.get("Pololu Part Number") or "").strip(),
+        (row.get("Mouser Part Number") or "").strip(),
+        (row.get("Manufacturer") or "").strip(),
+        (row.get("Description") or "").strip(),
+        (row.get("Package") or "").strip(),
+        (row.get("RoHS") or "").strip(),
+        (row.get("Date Code / Lot No.") or "").strip(),
+    )
+
+
 def apply_stock_delta(conn: sqlite3.Connection, part_id: str, delta: int) -> None:
     """Adjust stock quantity by delta. Floors at zero."""
     conn.execute(
@@ -307,6 +333,8 @@ def upsert_part(
 ) -> None:
     """Insert or update a part and its stock from a CSV-column-named dict."""
     sk = sort_key_for_section(section, (row.get("Description") or "").strip())
+    (lcsc, mpn, digikey, pololu, mouser, manufacturer, description,
+     package, rohs, date_code) = _part_row_values(row)
     conn.execute(
         """INSERT INTO parts
            (part_id, lcsc, mpn, digikey, pololu, mouser,
@@ -320,18 +348,18 @@ def upsert_part(
             sort_key=excluded.sort_key, date_code=excluded.date_code""",
         (
             part_id,
-            (row.get("LCSC Part Number") or "").strip(),
-            (row.get("Manufacture Part Number") or "").strip(),
-            (row.get("Digikey Part Number") or "").strip(),
-            (row.get("Pololu Part Number") or "").strip(),
-            (row.get("Mouser Part Number") or "").strip(),
-            (row.get("Manufacturer") or "").strip(),
-            (row.get("Description") or "").strip(),
-            (row.get("Package") or "").strip(),
-            (row.get("RoHS") or "").strip(),
+            lcsc,
+            mpn,
+            digikey,
+            pololu,
+            mouser,
+            manufacturer,
+            description,
+            package,
+            rohs,
             section,
             sk,
-            (row.get("Date Code / Lot No.") or "").strip(),
+            date_code,
         ),
     )
     conn.execute(
