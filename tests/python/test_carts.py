@@ -99,3 +99,30 @@ def test_active_pointer_is_per_identity(tmp_path):
     carts.set_active(data_dir, "mcp@ci", "cart_b")
     assert carts.get_active(data_dir, "local") == "cart_a"
     assert carts.get_active(data_dir, "mcp@ci") == "cart_b"
+
+
+def _pd(mapping):
+    return lambda pid: mapping.get(pid, [])
+
+
+def test_split_by_distributor_moves_matching_lines(tmp_path):
+    conn = _mk_conn(tmp_path); data_dir = str(tmp_path)
+    c = carts.create(conn, data_dir, "src")
+    carts.add_item(conn, data_dir, c["id"], part_id="A", qty=1, target_distributor="lcsc")
+    carts.add_item(conn, data_dir, c["id"], part_id="B", qty=1, target_distributor="digikey")
+    res = carts.split_by_distributor(conn, data_dir, c["id"], "lcsc", "lcsc cart",
+                                     remove_from_source=True, part_distributors=_pd({}))
+    assert [i["part_id"] for i in res["new"]["items"]] == ["A"]
+    assert [i["part_id"] for i in res["source"]["items"]] == ["B"]
+
+
+def test_consolidate_sets_target_where_sourceable(tmp_path):
+    conn = _mk_conn(tmp_path); data_dir = str(tmp_path)
+    c = carts.create(conn, data_dir, "c")
+    carts.add_item(conn, data_dir, c["id"], part_id="A", qty=1)
+    carts.add_item(conn, data_dir, c["id"], part_id="B", qty=1)
+    res = carts.consolidate(conn, data_dir, c["id"], "lcsc",
+                            part_distributors=_pd({"A": ["lcsc", "digikey"], "B": ["mouser"]}))
+    items = {i["part_id"]: i["target_distributor"] for i in res["cart"]["items"]}
+    assert items["A"] == "lcsc" and items["B"] != "lcsc"
+    assert "B" in [u for u in res["unresolved"]] or any("B" == r for r in res["unresolved"])

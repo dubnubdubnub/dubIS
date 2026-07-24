@@ -251,3 +251,55 @@ def set_active(data_dir: str, identity: str, cart_id: str) -> None:
 
 def get_active(data_dir: str, identity: str) -> str | None:
     return _read_active(data_dir).get(identity)
+
+
+def split_by_distributor(
+    conn: sqlite3.Connection,
+    data_dir: str,
+    cart_id: str,
+    distributor: str,
+    new_name: str,
+    remove_from_source: bool,
+    part_distributors,
+) -> dict[str, Any]:
+    """Create a new cart containing every line targeting (or sourceable from)
+    ``distributor``. If ``remove_from_source``, those lines are removed from
+    the source cart."""
+    _require(conn, cart_id)
+    src = get(conn, cart_id)
+    moved = [
+        it for it in src["items"]
+        if it["target_distributor"] == distributor
+        or (it["target_distributor"] is None and it.get("part_id")
+            and distributor in part_distributors(it["part_id"]))
+    ]
+    new_cart = create(conn, data_dir, new_name)
+    for it in moved:
+        add_item(conn, data_dir, new_cart["id"], part_id=it.get("part_id"), raw=it.get("raw"),
+                 qty=it["qty"], target_distributor=distributor)
+    if remove_from_source:
+        for it in moved:
+            remove_item(conn, data_dir, cart_id, it["ref"])
+    return {"source": get(conn, cart_id), "new": get(conn, new_cart["id"])}
+
+
+def consolidate(
+    conn: sqlite3.Connection,
+    data_dir: str,
+    cart_id: str,
+    distributor: str,
+    part_distributors,
+) -> dict[str, Any]:
+    """Set target_distributor=distributor on every line sourceable from it;
+    lines that can't source from ``distributor`` are left untouched and
+    listed in ``unresolved``."""
+    _require(conn, cart_id)
+    cart = get(conn, cart_id)
+    unresolved = []
+    for it in cart["items"]:
+        pid = it.get("part_id")
+        if pid and distributor in part_distributors(pid):
+            update_item(conn, data_dir, cart_id, it["ref"], target_distributor=distributor)
+        else:
+            unresolved.append(it["ref"])
+    return {"cart": get(conn, cart_id), "unresolved": unresolved}
