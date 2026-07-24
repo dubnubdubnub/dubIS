@@ -16,6 +16,7 @@ from dubis_errors import (
     DistributorError,
     DistributorTimeout,
     DubISError,
+    NotFoundError,
     PartRegistryCollisionError,
 )
 from server.auth import LoopbackRequiredError
@@ -26,6 +27,7 @@ _MAPPING: list[tuple[type[Exception], int, str]] = [
     # order matters: subclasses before bases
     (LoopbackRequiredError, 403, "loopback_only"),
     (PartRegistryCollisionError, 409, "part_registry_collision"),
+    (NotFoundError, 404, "not_found"),
     (DistributorAuthError, 401, "distributor_auth"),
     (DistributorTimeout, 504, "distributor_timeout"),
     (DistributorError, 502, "distributor_error"),

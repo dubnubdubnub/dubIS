@@ -84,7 +84,15 @@ RAW_BODY_ARG_NAME = {
 # operation with 2+ total params (path + query[excl. include] + body) —
 # generation asserts this and fails loud on new/uncovered multi-param routes.
 ARG_ORDER: dict[str, list[str]] = {
+    "add_bom_missing_to_cart": ["cart_id", "missing"],
+    "add_cart_item": ["cart_id", "part_id", "raw", "qty", "target_distributor", "shortfall"],
     "add_generic_member": ["generic_part_id", "part_id"],
+    "consolidate_cart": ["cart_id", "distributor"],
+    "export_cart": ["cart_id", "distributor", "format"],
+    "remove_cart_item": ["cart_id", "ref"],
+    "rename_cart": ["cart_id", "name"],
+    "split_cart": ["cart_id", "distributor", "new_name", "remove_from_source"],
+    "update_cart_item": ["cart_id", "ref", "qty", "target_distributor"],
     "adjust_part": ["adj_type", "part_key", "quantity", "note", "source"],
     "consume_bom": ["matches", "board_qty", "bom_name", "note", "source"],
     "load_feeder_reel": ["tag_id", "part_key", "qty", "tape_width_mm"],
@@ -195,6 +203,24 @@ UNWRAP_OVERRIDES: dict[str, str] = {
     # Category 2 (load-bearing, see above):
     "create_saved_search": "detail",
     "delete_saved_search": "detail",
+    # server/routes/carts.py: hand-builds {"ok": True, "detail": ...} for every
+    # mutating cart route (like create/delete_saved_search above) without
+    # calling finish_mutation — none of these are in
+    # FINISH_MUTATION_OPERATION_IDS, so without this override the
+    # mutating-keyed default would give them unwrap: None. get_cart,
+    # list_carts, and export_cart are reads that return their payload raw
+    # (no envelope), so they're deliberately NOT listed here.
+    "create_cart": "detail",
+    "rename_cart": "detail",
+    "delete_cart": "detail",
+    "set_active_cart": "detail",
+    "add_cart_item": "detail",
+    "update_cart_item": "detail",
+    "remove_cart_item": "detail",
+    "clear_cart": "detail",
+    "add_bom_missing_to_cart": "detail",
+    "split_cart": "detail",
+    "consolidate_cart": "detail",
 }
 
 # Aliases: same route as `target`, different bridge method name, with an

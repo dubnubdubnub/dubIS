@@ -16,6 +16,7 @@ import domain.inventory
 import domain.pricing
 import inventory_ops
 from distributor_manager import DistributorManager
+from domain.api_cart import CartFacade
 from domain.api_distributor import DistributorFacade
 from domain.api_fileio import FileIOFacade
 from domain.api_generic_parts import GenericPartsFacade
@@ -88,6 +89,7 @@ class InventoryApi:
         self._po = PurchaseOrdersFacade(self)
         self._scan = ScanFacade(self)
         self._history = PartHistoryFacade(self)
+        self._cart = CartFacade(self)
         from domain.api_mirror import MirrorFacade
         from mirror_push import MirrorController
         self._mirror = MirrorFacade(self)
@@ -529,6 +531,61 @@ class InventoryApi:
 
     def open_source_file(self, po_id: str) -> dict[str, str]:
         return self._po.open_source_file(po_id)
+
+    # ── Carts ────────────────────────────────────────────────────────────
+
+    def list_carts(self) -> list[dict[str, Any]]:
+        return self._cart.list_carts()
+
+    def get_cart(self, cart_id: str) -> dict[str, Any]:
+        return self._cart.get_cart(cart_id)
+
+    def create_cart(self, name: str | None = None) -> dict[str, Any]:
+        return self._cart.create_cart(name)
+
+    def rename_cart(self, cart_id: str, name: str) -> dict[str, Any]:
+        return self._cart.rename_cart(cart_id, name)
+
+    def delete_cart(self, cart_id: str) -> None:
+        return self._cart.delete_cart(cart_id)
+
+    def set_active_cart(self, identity: str, cart_id: str) -> dict[str, Any]:
+        return self._cart.set_active_cart(identity, cart_id)
+
+    def get_active_cart(self, identity: str) -> str | None:
+        return self._cart.get_active_cart(identity)
+
+    def add_cart_item(self, cart_id: str, part_id: str | None = None,
+                       raw: dict | None = None, qty: int | None = None,
+                       target_distributor: str | None = None,
+                       shortfall: int | None = None) -> dict[str, Any]:
+        return self._cart.add_cart_item(
+            cart_id, part_id=part_id, raw=raw, qty=qty,
+            target_distributor=target_distributor, shortfall=shortfall,
+        )
+
+    def update_cart_item(self, cart_id: str, ref: str, qty: int | None = None,
+                          target_distributor: str | None = None) -> dict[str, Any]:
+        return self._cart.update_cart_item(cart_id, ref, qty=qty, target_distributor=target_distributor)
+
+    def remove_cart_item(self, cart_id: str, ref: str) -> dict[str, Any]:
+        return self._cart.remove_cart_item(cart_id, ref)
+
+    def clear_cart(self, cart_id: str) -> dict[str, Any]:
+        return self._cart.clear_cart(cart_id)
+
+    def add_bom_missing_to_cart(self, cart_id: str, missing: list[dict[str, Any]]) -> dict[str, Any]:
+        return self._cart.add_bom_missing_to_cart(cart_id, missing)
+
+    def split_cart(self, cart_id: str, distributor: str, new_name: str,
+                    remove_from_source: bool) -> dict[str, Any]:
+        return self._cart.split_cart(cart_id, distributor, new_name, remove_from_source)
+
+    def consolidate_cart(self, cart_id: str, distributor: str) -> dict[str, Any]:
+        return self._cart.consolidate_cart(cart_id, distributor)
+
+    def export_cart(self, cart_id: str, distributor: str, fmt: str) -> dict[str, Any]:
+        return self._cart.export_cart(cart_id, distributor, fmt)
 
     # ── Window lifecycle ─────────────────────────────────────────────────
 

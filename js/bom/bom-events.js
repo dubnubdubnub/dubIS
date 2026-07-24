@@ -8,7 +8,8 @@ import { UndoRedo } from '../undo-redo.js';
 import { store, setBomDirty, setBomResults, setBomMeta, scheduleInventoryRefresh, savePreferences } from '../store.js';
 import { bomAggKey } from '../part-keys.js';
 import { generateCSV } from '../csv-parser.js';
-import { computeRows, prepareConsumption } from './bom-logic.js';
+import { computeRows, prepareConsumption, buildMissingCartEntries } from './bom-logic.js';
+import { addBomMissing } from '../cart/cart-store.js';
 import state from './bom-state.js';
 
 /**
@@ -91,8 +92,30 @@ export function setupEvents(handlers) {
         <input type="file" id="bom-file-input" accept=".csv,.tsv,.txt">`;
       zone.classList.remove("loaded");
       resetDropZoneInput("bom-file-input", handleFile);
+      document.getElementById("bom-add-to-cart").disabled = true;
       AppLog.info("BOM cleared");
       EventBus.emit(Events.BOM_CLEARED);
+    }
+  });
+
+  // Add missing/short BOM parts to the active cart
+  state.body.addEventListener("click", async (e) => {
+    if (e.target.id === "bom-add-to-cart") {
+      if (!state.lastResults) return;
+      const rows = computeRows(state.lastResults, getMultiplier(), store.links);
+      if (!rows) return;
+      const missing = buildMissingCartEntries(rows);
+      if (missing.length === 0) {
+        showToast("No missing/short parts to add");
+        return;
+      }
+      // addBomMissing() auto-creates+activates a cart when none is active
+      // yet (js/cart/cart-store.js's _ensureActiveCartId) — first use must
+      // work, not silently no-op.
+      const result = await addBomMissing(missing);
+      const cartId = result && result.id;
+      AppLog.info("Added " + missing.length + " missing/short BOM parts to cart " + cartId);
+      showToast("Added " + missing.length + " part" + (missing.length === 1 ? "" : "s") + " to cart");
     }
   });
 

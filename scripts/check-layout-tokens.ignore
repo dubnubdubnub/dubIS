@@ -13,12 +13,12 @@
 css/panels/bom.css:6:
 css/panels/bom.css:10:
 css/panels/bom.css:18:
-css/panels/bom.css:21:
-css/panels/bom.css:31:
+css/panels/bom.css:22:
 css/panels/bom.css:32:
-css/panels/bom.css:70:
-css/panels/bom.css:116:
+css/panels/bom.css:33:
+css/panels/bom.css:71:
 css/panels/bom.css:117:
+css/panels/bom.css:118:
 
 # ── css/panels/group-flyout.css ─────────────────────────────────
 css/panels/group-flyout.css:49:
@@ -97,6 +97,18 @@ css/components/badges.css:3:
 css/components/badges.css:23:
 css/components/badges.css:24:
 css/components/badges.css:26:
+
+# ── css/components/cart.css ─────────────────────────────────────
+css/components/cart.css:11:
+css/components/cart.css:27:
+css/components/cart.css:28:
+css/components/cart.css:29:
+css/components/cart.css:39:
+css/components/cart.css:69:
+css/components/cart.css:70:
+css/components/cart.css:125:
+css/components/cart.css:162:
+css/components/cart.css:189:
 
 # ── css/components/console.css ──────────────────────────────────
 css/components/console.css:7:

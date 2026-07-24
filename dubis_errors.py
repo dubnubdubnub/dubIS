@@ -37,6 +37,12 @@ class PartRegistryCollisionError(DubISError):
     """A ledger row's part numbers map to two different registered parts."""
 
 
+class NotFoundError(DubISError):
+    """A requested entity (e.g. a cart) does not exist. Mapped to HTTP 404 by
+    server/errors.py — distinct from the base DubISError (500), since a
+    caller asking for a missing id is a client error, not a server fault."""
+
+
 class DataDirLockedError(DubISError):
     """Another dubIS server process already holds the exclusive lock on this
     data directory (`<data_dir>/.dubis_lock`) — see server/lockfile.py.

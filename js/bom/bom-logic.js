@@ -134,6 +134,39 @@ export function prepareConsumption(results) {
 }
 
 /**
+ * Build the cart-item payload for every missing/short/possible row (the "Add
+ * all missing to cart" button, B5) — mirrors buildLinkableKeys' status set
+ * but produces cart entries instead of a key Set, and isn't gated behind
+ * linkingMode since it fires from its own button, not a link-drag.
+ *
+ * Matched-but-short/possible rows (`r.inv` set) carry `part_id` + `shortfall`
+ * (needed - onHand, floored at 0, so the server's default_qty ladder logic
+ * decides how much to actually queue); truly unmatched rows (`r.inv` null,
+ * i.e. effectiveStatus === "missing") carry a `raw` stub built from the BOM
+ * line's own fields — no `part_id` exists for them yet.
+ * @param {Array} rows - computed rows from computeRows
+ * @returns {Array<{part_id?: string, shortfall?: number, raw?: {mpn: string, description: string, footprint: string}}>}
+ */
+export function buildMissingCartEntries(rows) {
+  const entries = [];
+  rows.forEach(r => {
+    const st = r.effectiveStatus;
+    const isMissingOrShort = st === "missing" || st === "possible" || st === "short" ||
+      st === "manual-short" || st === "confirmed-short" || st === "generic-short";
+    if (!isMissingOrShort) return;
+    if (r.inv) {
+      const pk = invPartKey(r.inv);
+      if (!pk) return;
+      const shortfall = Math.max(0, r.effectiveQty - r.inv.qty);
+      entries.push({ part_id: pk, shortfall });
+    } else {
+      entries.push({ raw: { mpn: r.bom.mpn || "", description: r.bom.desc || "", footprint: r.bom.footprint || "" } });
+    }
+  });
+  return entries;
+}
+
+/**
  * Compute price information from computed rows.
  * @param {Array} rows - computed rows from computeRows
  * @param {number} multiplier
