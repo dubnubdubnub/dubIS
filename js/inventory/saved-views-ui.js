@@ -1,6 +1,7 @@
 // @ts-check
 /**
- * js/inventory/saved-views-ui.js — "Views ▾" toolbar dropdown for the inventory panel.
+ * js/inventory/saved-views-ui.js — "Views ▾" dropdown in the app header, applying
+ * saved inventory views (search text, filters, sort, column layout).
  *
  * Renders a compact dropdown button that lists saved views; clicking a view
  * name applies it immediately. A "Save current view…" item opens a form-modal
@@ -8,7 +9,7 @@
  *
  * Exports:
  *   initSavedViewsUI(state, renderFn, updateDistFilterUI)
- *     → call once after inventory panel init; injects the button into the toolbar.
+ *     → call once after inventory panel init; injects the button into the header.
  */
 
 import { escapeHtml } from '../dom/html.js';
@@ -223,7 +224,7 @@ function updateBtn(btn) {
 // ── Public init ───────────────────────────────────────────────────────────────
 
 /**
- * Inject the "Views ▾" button into the inventory panel header and wire it up.
+ * Inject the "Views ▾" button into the app header's left group and wire it up.
  *
  * @param {object} state  Inventory panel state.
  * @param {() => void} renderFn  Trigger a full inventory re-render.
@@ -232,10 +233,11 @@ function updateBtn(btn) {
 export function initSavedViewsUI(state, renderFn, updateDistFilterUI) {
   _state = state;
 
-  // Insert button into panel header, before the search group
-  const header = document.querySelector('.panel-inventory .panel-header');
+  // Insert button into the app header's left group (beside Preferences/Feeders/
+  // Rebuild/Vendors/Print Labels), which is where the inventory-wide actions live.
+  const header = document.querySelector('.header .header-left');
   if (!header) {
-    AppLog.warn('saved-views-ui: panel-inventory .panel-header not found');
+    AppLog.warn('saved-views-ui: .header .header-left not found');
     return;
   }
 
@@ -255,13 +257,7 @@ export function initSavedViewsUI(state, renderFn, updateDistFilterUI) {
 
   anchor.appendChild(btn);
 
-  // Insert before the search group div
-  const searchGroup = header.querySelector('.inv-search-group');
-  if (searchGroup) {
-    header.insertBefore(anchor, searchGroup);
-  } else {
-    header.appendChild(anchor);
-  }
+  header.appendChild(anchor);
 
   // Wire button click
   btn.addEventListener('click', (e) => {
