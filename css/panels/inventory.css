@@ -103,11 +103,12 @@
   overflow: hidden;
 }
 
-/* The inventory header packs a title + action buttons (Rebuild, Vendors, Print
-   Labels) + the search/filter group. At the minimum window width (1200×700)
-   those can't all share one row, so let the search group wrap to its own line
-   instead of clipping the distributor filter pills (see the distributor-filter
-   clipping test). Wider layouts keep everything on a single row. */
+/* The inventory header packs a title + the search/filter group (the Rebuild /
+   Vendors / Print Labels / Views actions live in the app header). At the minimum
+   window width (1200×700) those can't always share one row, so let the search
+   group wrap to its own line instead of clipping the distributor filter pills
+   (see the distributor-filter clipping test). Wider layouts keep everything on
+   a single row. */
 .panel-inventory .panel-header { flex-wrap: wrap; row-gap: 6px; }
 
 /* ── Search Input ──────────────────────────────────────── */
