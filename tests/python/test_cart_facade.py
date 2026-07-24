@@ -1,5 +1,7 @@
 """Tests for InventoryApi cart facade methods (Task A7)."""
 
+import csv
+
 
 def test_cart_facade_crud(api):
     c = api.create_cart("Facade Cart")
@@ -109,3 +111,54 @@ def test_export_cart_resolves_metadata_for_alias_part_id(api):
     assert "STM32F103" in result["content"]
     assert "ST" in result["content"]
     assert "LQFP-64" in result["content"]
+
+
+def test_cart_items_carry_available_distributors(api):
+    """get_cart and list_carts attach `available_distributors` per item,
+    derived from the part's record PNs."""
+    conn = api._get_cache()
+    conn.execute(
+        "INSERT INTO parts (part_id, lcsc, mpn, description) "
+        "VALUES ('P1', 'C111', 'MPN1', 'd1')",
+    )
+    conn.commit()
+
+    c = api.create_cart("Avail")
+    api.add_cart_item(c["id"], part_id="C111", qty=1)
+
+    item = api.get_cart(c["id"])["items"][0]
+    assert item["available_distributors"] == ["lcsc"]
+
+    listed = next(x for x in api.list_carts() if x["id"] == c["id"])
+    assert listed["items"][0]["available_distributors"] == ["lcsc"]
+
+
+def test_available_distributors_includes_ledger_only_distributor(api):
+    """A distributor a part was PURCHASED from (present only in the ledger, not
+    the record PN columns) is still offered — the whole point of resolving
+    through the record∪ledger union rather than record fields alone."""
+    conn = api._get_cache()
+    # record has ONLY lcsc; digikey column is empty
+    conn.execute(
+        "INSERT INTO parts (part_id, lcsc, mpn, description) "
+        "VALUES ('P2', 'C222', 'MPN2', 'd2')",
+    )
+    conn.commit()
+    # ledger row references the LCSC PN (so it matches the part) and also
+    # carries a Digikey PN → digikey becomes sourceable via ledger.
+    with open(api.input_csv, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["LCSC Part Number", "Digikey Part Number", "Manufacture Part Number"])
+        w.writerow(["C222", "296-DK-2-ND", "MPN2"])
+
+    c = api.create_cart("Ledger")
+    api.add_cart_item(c["id"], part_id="C222", qty=1)
+
+    avail = api.get_cart(c["id"])["items"][0]["available_distributors"]
+    assert "lcsc" in avail and "digikey" in avail
+
+
+def test_raw_cart_item_has_empty_available_distributors(api):
+    c = api.create_cart("Raw")
+    api.add_cart_item(c["id"], raw={"mpn": "NOPART"}, qty=1)
+    assert api.get_cart(c["id"])["items"][0]["available_distributors"] == []
