@@ -293,6 +293,80 @@
 #vendor-delete-btn.armed { background: var(--color-red); color: #fff; }
 #adj-delete-part.armed { background: var(--color-red); color: #fff; white-space: normal; text-align: left; }
 
+/* ── Feeders Modal (loading station) ──────────────────── */
+.feeders-modal {
+  min-width: 640px;
+  max-width: 900px;
+  width: 85vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.feeders-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+}
+.feeders-modal-actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+.feeders-modal-note {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--space-lg);
+}
+.feeders-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-base);
+}
+.feeders-table-wrap .data-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-surface);
+}
+.feeders-table-wrap td.cell-actions { display: flex; gap: var(--space-xs); flex-wrap: nowrap; white-space: nowrap; }
+.feeders-table-wrap td.empty-message { text-align: center; color: var(--text-muted); padding: var(--space-2xl); }
+
+/* Part-search suggestion dropdown under #part_key in the Load form-modal */
+.feeders-part-suggest {
+  position: relative;
+  margin-top: -6px;
+  margin-bottom: var(--space-sm);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  max-height: 180px;
+  overflow-y: auto;
+}
+.feeders-part-suggest.hidden { display: none; }
+.feeders-suggest-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-xs) var(--space-md);
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  font-size: var(--text-base);
+}
+.feeders-suggest-item:hover { background: var(--bg-hover, rgba(255,255,255,0.06)); }
+.feeders-suggest-key { font-family: var(--font-mono); color: var(--text-bright); flex-shrink: 0; }
+.feeders-suggest-desc {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Scan shell ─────────────── */
 .scan-shell-tiles { display: flex; flex-wrap: wrap; gap: var(--space-md); margin-top: var(--space-md); }
 .scan-shell-tile { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-lg);
