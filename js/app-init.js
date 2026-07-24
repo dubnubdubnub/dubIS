@@ -19,6 +19,7 @@ import { CommandPalette } from './components/command-palette.js';
 import { openAdjustModal, openPriceModal } from './inventory/inv-modals.js';
 import { enterLabelMode, isLabelMode, exitLabelMode } from './label-selection.js';
 import { runFetchMissingDescriptions } from './inventory/fetch-descriptions-command.js';
+import { loadCarts } from './cart/cart-store.js';
 
 // Explicit panel imports (no side effects until init() is called)
 import { init as initInventoryModals } from './inventory/inv-modals.js';
@@ -106,6 +107,12 @@ function wireLiveUpdates() {
     AppLog.info("PnP: consumed " + detail.qty + "x " + detail.part_key + " (new_qty=" + detail.new_qty + ")");
     showToast("PnP: -" + detail.qty + " " + detail.part_key);
     scheduleInventoryRefresh().catch(e => AppLog.warn("SSE inventory.consumed refresh failed: " + e));
+  });
+
+  // SSE: carts.updated (any cart mutation, from this client or another).
+  // Cart payloads are small, so a direct reload (no debounce) is fine.
+  onEvent('carts.updated', () => {
+    loadCarts().catch(e => AppLog.warn("SSE carts.updated refresh failed: " + e));
   });
 
   // SSE connection: the /v1 server is up before the page is ever served
