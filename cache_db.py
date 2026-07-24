@@ -129,6 +129,21 @@ def create_schema(conn: sqlite3.Connection) -> None:
             frozen_members   TEXT,
             created_at       TEXT
         );
+        CREATE TABLE IF NOT EXISTS carts (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            created_at  TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS cart_items (
+            cart_id             TEXT NOT NULL,
+            ref                 TEXT NOT NULL,
+            part_id             TEXT,
+            raw                 TEXT,
+            qty                 INTEGER NOT NULL DEFAULT 1,
+            target_distributor  TEXT,
+            position            INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (cart_id, ref)
+        );
         CREATE TABLE IF NOT EXISTS vendors (
             id            TEXT PRIMARY KEY,
             name          TEXT NOT NULL,
