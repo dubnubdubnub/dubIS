@@ -3,7 +3,6 @@
    inferPartType, autoCreateGroupAndOpenFlyout, handleBomTableClick. */
 
 import { AppLog, api } from '../api.js';
-import { EventBus, Events } from '../event-bus.js';
 import { showToast } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
 import { store, snapshotLinks } from '../store.js';
@@ -134,7 +133,6 @@ export async function autoCreateGroupAndOpenFlyout(btn, row) {
   // Step 4: refresh store.genericParts
   var gps = await api("list_generic_parts");
   store.genericParts = Array.isArray(gps) ? gps : [];
-  EventBus.emit(Events.GENERIC_PARTS_LOADED, store.genericParts);
 
   // Step 5: open flyout for the newly created group
   openFlyout(result.generic_part_id, row);

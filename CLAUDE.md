@@ -88,7 +88,6 @@ Events are centralized in `js/event-bus.js`. Store setters that emit are marked;
 | `LINKING_MODE` | store.js (`setLinkingMode`, `setReverseLinkingMode`) | bom-events.js, inv-events.js |
 | `LINKS_CHANGED` | store.js (`addManualLink`), app-init.js | bom-events.js |
 | `SAVE_AND_CLOSE` | app-init.js | bom-events.js |
-| `GENERIC_PARTS_LOADED` | store.js (`loadInventory`), generic-parts-modal.js | (none currently) |
 | `FLYOUT_OPENED` | group-flyout/flyout-panel.js | inventory/inv-events.js |
 | `FLYOUT_CLOSED` | group-flyout/flyout-panel.js | inventory/inv-events.js |
 | `FLYOUT_ACTIVE_CHANGED` | group-flyout/flyout-panel.js | inventory/inv-events.js |
@@ -99,7 +98,7 @@ Events are centralized in `js/event-bus.js`. Store setters that emit are marked;
 | `LABEL_SELECTION_CHANGED` | label-selection.js | label-selection.js |
 | `LABEL_BULK_SELECTION` | label-selection.js | inventory/inv-events.js |
 
-**Non-emitting setters:** `setInventory()`, `setBomResults()`, `setBomMeta()`, `setBomDirty()`, `setPreferences()`, `loadLinks()`, `clearLinks()` — callers handle emission or don't need it.
+**Non-emitting setters:** `setInventory()`, `setBomResults()`, `setBomMeta()`, `setBomFootprintNearMisses()`, `setBomDirty()`, `setPreferences()`, `saveInventoryView()`, `loadLinks()`, `clearLinks()` — callers handle emission or don't need it. (`setThreshold()`/`setShortcutPrefs()` propagate via `preferencesSignal`, not EventBus — see the Signals rule below.)
 
 **Signals vs EventBus:** preferences propagate via `preferencesSignal` in store.js (see `js/signals.js`), not EventBus. Rule: new cross-panel *state* uses signals; EventBus remains for discrete UI *events*.
 
