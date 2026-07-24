@@ -20,6 +20,18 @@ const STOCK_COLOR_STOPS = [
   { r: 63, g: 185, b: 80 },   // #3fb950  green
 ];
 
+/**
+ * Format a number as a money string ("$" + 2 decimals). Non-finite values
+ * (null, undefined, NaN) render as `fallback` instead.
+ * @param {number|null|undefined} n
+ * @param {{ fallback?: string }} [options]
+ * @returns {string}
+ */
+export function formatMoney(n, { fallback = '—' } = {}) {
+  if (typeof n !== 'number' || !isFinite(n)) return fallback;
+  return '$' + n.toFixed(2);
+}
+
 export function showToast(msg) {
   const t = document.getElementById("toast");
   t.textContent = msg;

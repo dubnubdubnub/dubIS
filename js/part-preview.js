@@ -2,7 +2,7 @@
    Shows product details fetched from APIs on hover over [data-lcsc], [data-digikey], [data-pololu], or [data-mouser] elements. */
 
 import { api, AppLog } from './api.js';
-import { escHtml } from './ui-helpers.js';
+import { escHtml, formatMoney } from './ui-helpers.js';
 
 var HOVER_DELAY_MS = 300;
 var HIDE_DELAY_MS = 150;
@@ -366,8 +366,8 @@ function renderPriceTable(prices) {
     var unit = Number(p.price) || 0;
     var ext = qty * unit;
     html += '<tr><td>' + escHtml(String(p.qty)) + '+</td><td>$' +
-      escHtml(unit.toFixed(4)) + '</td><td>$' +
-      escHtml(ext.toFixed(2)) + '</td></tr>';
+      escHtml(unit.toFixed(4)) + '</td><td>' +
+      escHtml(formatMoney(ext)) + '</td></tr>';
   });
   html += '</tbody></table>';
   return html;

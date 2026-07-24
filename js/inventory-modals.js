@@ -4,7 +4,7 @@
 
 import { api, AppLog } from './api.js';
 import { API_MAP } from './api-map.js';
-import { showToast, Modal, linkPriceInputs, escHtml } from './ui-helpers.js';
+import { showToast, Modal, linkPriceInputs, escHtml, formatMoney } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
 import { store, scheduleInventoryRefresh } from './store.js';
 import { invPartKey } from './part-keys.js';
@@ -133,8 +133,8 @@ export function openAdjustModal(item) {
   // Read-only rows
   if (item.section) html += "<tr><td>Section</td><td>" + escHtml(item.section) + "</td></tr>";
   html += "<tr><td>Qty</td><td>" + item.qty + "</td></tr>";
-  if (item.unit_price > 0) html += "<tr><td>Unit Price</td><td>$" + escHtml(item.unit_price.toFixed(2)) + "</td></tr>";
-  if (item.ext_price > 0) html += "<tr><td>Ext. Price</td><td>$" + escHtml(item.ext_price.toFixed(2)) + "</td></tr>";
+  if (item.unit_price > 0) html += "<tr><td>Unit Price</td><td>" + escHtml(formatMoney(item.unit_price)) + "</td></tr>";
+  if (item.ext_price > 0) html += "<tr><td>Ext. Price</td><td>" + escHtml(formatMoney(item.ext_price)) + "</td></tr>";
   modalDetailTable.innerHTML = html;
 
   adjType.value = "set";
@@ -257,7 +257,7 @@ function createFetchController({ panelEl, unitInput, onPartUpdated }) {
       } else {
         priceCell = '<span class="fetch-drow-unit">' + escHtml(fmt(r.unitPrice)) +
           '</span><span class="fetch-drow-ext">×' + escHtml(String(r.qty)) + ' = ' +
-          escHtml("$" + Number(r.extPrice).toFixed(2)) + '</span>';
+          escHtml(formatMoney(Number(r.extPrice))) + '</span>';
       }
       const pnCell = r.editing
         ? '<input type="text" class="fetch-drow-edit-input" data-idx="' + i + '" value="' + escHtml(r.partNumber) + '">' +
