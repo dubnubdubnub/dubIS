@@ -1,5 +1,7 @@
-/* inventory/inv-row-build.js — Per-row HTML builder.
-   createPartRow: creates a single inventory part row element. */
+/* inventory/inv-row-build.js — Per-row HTML builder + delegated row handlers.
+   createPartRow: creates a single inventory part row element.
+   setupRowDelegation: one-time delegated listeners on the inventory body that
+   replace the old per-row addEventListener closures. */
 
 import { store, getThreshold } from '../store.js';
 import { invPartKey } from '../part-keys.js';
@@ -12,6 +14,13 @@ import { createReverseLink } from './inv-mutations.js';
 import { toggleSelection } from '../label-selection.js';
 import { activateInlineEdit } from './inv-inline-edit.js';
 import * as cartAddMode from '../cart/cart-add.js';
+import { on } from '../dom/delegate.js';
+
+// Row element → inventory item. Lets the delegated handlers below recover the
+// exact item object a row was rendered from (identity matters: e.g. the
+// linking-source check compares `store.links.linkingInvItem === item`).
+// WeakMap so discarded rows (full re-render wipes innerHTML) don't leak.
+var rowItems = new WeakMap();
 
 export function createPartRow(item, sectionKey, sectionChip) {
   var row = document.createElement("div");
@@ -41,87 +50,87 @@ export function createPartRow(item, sectionKey, sectionChip) {
   row.innerHTML = html;
 
   if (isSource) row.classList.add("linking-source");
-
-  // Cart-add mode (checked first, unconditionally): a click anywhere on the
-  // row that isn't a button (those call e.stopPropagation() below and never
-  // reach this listener) adds the part to the active cart instead of falling
-  // through to the normal reverse-link-target behavior.
-  row.addEventListener("click", function () {
-    if (cartAddMode.handleRowClick(item)) return;
-    if (store.links.linkingMode && store.links.linkingBomRow) createReverseLink(item);
-  });
   if (store.links.linkingMode && store.links.linkingBomRow) {
     row.classList.add("link-target");
   }
 
-  // Keep MPN text selectable even while a flyout is open (when the row
-  // becomes draggable, dragstart from inside the MPN would otherwise
-  // suppress text selection).
-  var mpnEl = row.querySelector(".part-mpn");
-  if (mpnEl) {
-    mpnEl.addEventListener("dragstart", function (e) { e.preventDefault(); });
-  }
-
-  // A row in label mode has two checkboxes (left + right edge) sharing one key.
-  // A single toggle does not re-render, so mirror the new state onto its pair.
-  var checkboxes = row.querySelectorAll(".label-select-checkbox");
-  checkboxes.forEach(function (cb) {
-    cb.addEventListener("change", function (e) {
-      e.stopPropagation();
-      toggleSelection(cb.dataset.key);
-      checkboxes.forEach(function (other) {
-        if (other !== cb) other.checked = cb.checked;
-      });
-    });
-  });
-
-  var adjBtn = row.querySelector(".adj-btn");
-  if (adjBtn) {
-    adjBtn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      openAdjustModal(item);
-    });
-  }
-  var warnBtn = row.querySelector(".price-warn-btn");
-  if (warnBtn) {
-    warnBtn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      openPriceModal(item);
-    });
-  }
-  var distWarnBtn = row.querySelector(".no-dist-warn");
-  if (distWarnBtn) {
-    distWarnBtn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      openAdjustModal(item);
-    });
-  }
-  var linkBtnEl = row.querySelector(".link-btn");
-  if (linkBtnEl) {
-    linkBtnEl.addEventListener("click", function (e) {
-      e.stopPropagation();
-      store.links.setLinkingMode(true, item);
-    });
-  }
-  var gpBadge = row.querySelector(".generic-group-badge");
-  if (gpBadge) {
-    gpBadge.addEventListener("click", function (e) {
-      e.stopPropagation();
-      openFlyout(gpBadge.dataset.genericId, gpBadge);
-    });
-  }
-
-  var nmBadge = row.querySelector(".near-miss-badge");
-  if (nmBadge) {
-    nmBadge.addEventListener("click", function (e) {
-      e.stopPropagation();
-      store.links.setLinkingMode(true, item);
-    });
-  }
+  rowItems.set(row, item);
 
   // Inline editing: double-click on qty / unit-price cells.
   // Guard logic is inside activateInlineEdit (link mode, flyout drag).
   activateInlineEdit(row, item);
 
   return row;
+}
+
+// ── Delegated row handlers ──
+//
+// A single set of listeners on the inventory body replaces the ~7 per-row
+// addEventListener closures the old createPartRow attached. All part rows —
+// normal tree, vendor piles, groups view, BOM "other inventory" — live inside
+// the inventory body, so one root covers every render path.
+
+var _delegationWired = false;
+
+/**
+ * Wire the delegated row listeners once. Called from inventory-panel init()
+ * after state.body exists. Idempotent.
+ */
+export function setupRowDelegation(root) {
+  if (_delegationWired) return;
+  _delegationWired = true;
+
+  // Single delegated click listener. The branches mirror the old per-element
+  // listeners: each button/badge called e.stopPropagation() so the row-level
+  // click handler never fired for them — replicated here by handling the most
+  // specific target first and returning. stopPropagation() is kept so the
+  // event does not reach document-level listeners (popover close, fan-stack),
+  // exactly as before.
+  on(root, "click", ".inv-part-row", function (e, rowEl) {
+    var item = rowItems.get(rowEl);
+    if (!item) return; // row not built by createPartRow (shouldn't happen)
+    var target = /** @type {Element} */ (e.target);
+
+    var control = target.closest(
+      ".adj-btn, .price-warn-btn, .no-dist-warn, .link-btn, .generic-group-badge, .near-miss-badge"
+    );
+    if (control && rowEl.contains(control)) {
+      e.stopPropagation();
+      if (control.classList.contains("adj-btn") || control.classList.contains("no-dist-warn")) {
+        openAdjustModal(item);
+      } else if (control.classList.contains("price-warn-btn")) {
+        openPriceModal(item);
+      } else if (control.classList.contains("generic-group-badge")) {
+        openFlyout(control.dataset.genericId, control);
+      } else {
+        // .link-btn and .near-miss-badge both arm forward-linking mode.
+        store.links.setLinkingMode(true, item);
+      }
+      return;
+    }
+
+    // Cart-add mode (checked first, unconditionally): a click anywhere on the
+    // row that isn't one of the controls above adds the part to the active
+    // cart instead of falling through to the reverse-link-target behavior.
+    if (cartAddMode.handleRowClick(item)) return;
+    if (store.links.linkingMode && store.links.linkingBomRow) createReverseLink(item);
+  });
+
+  // A row in label mode has two checkboxes (left + right edge) sharing one key.
+  // A single toggle does not re-render, so mirror the new state onto its pair.
+  on(root, "change", ".inv-part-row .label-select-checkbox", function (e, cb) {
+    e.stopPropagation();
+    toggleSelection(cb.dataset.key);
+    var rowEl = cb.closest(".inv-part-row");
+    rowEl.querySelectorAll(".label-select-checkbox").forEach(function (other) {
+      if (other !== cb) other.checked = cb.checked;
+    });
+  });
+
+  // Keep MPN text selectable even while a flyout is open (when rows become
+  // draggable, dragstart from inside the MPN would otherwise suppress text
+  // selection).
+  on(root, "dragstart", ".inv-part-row .part-mpn", function (e) {
+    e.preventDefault();
+  });
 }
