@@ -44,3 +44,33 @@ def test_load_into_db_restores_from_json(tmp_path):
     conn2 = _mk_conn(tmp_path)
     carts.load_into_db(conn2, data_dir)
     assert carts.get(conn2, c["id"])["name"] == "Persist"
+
+
+def test_item_add_update_remove_clear(tmp_path):
+    conn = _mk_conn(tmp_path)
+    data_dir = str(tmp_path)
+    c = carts.create(conn, data_dir, "C")
+
+    carts.add_item(conn, data_dir, c["id"], part_id="C15742", qty=5, target_distributor="lcsc")
+    cart = carts.get(conn, c["id"])
+    assert len(cart["items"]) == 1
+    it = cart["items"][0]
+    assert it["ref"] == "C15742" and it["qty"] == 5 and it["target_distributor"] == "lcsc"
+
+    # re-add same ref => qty is SET, not added
+    carts.add_item(conn, data_dir, c["id"], part_id="C15742", qty=8)
+    assert carts.get(conn, c["id"])["items"][0]["qty"] == 8
+
+    # raw item gets a hashed ref
+    carts.add_item(conn, data_dir, c["id"], raw={"mpn": "X", "description": "d"}, qty=2)
+    refs = {i["ref"] for i in carts.get(conn, c["id"])["items"]}
+    assert any(r.startswith("raw:") for r in refs)
+
+    carts.update_item(conn, data_dir, c["id"], "C15742", qty=3)
+    assert next(i for i in carts.get(conn, c["id"])["items"] if i["ref"] == "C15742")["qty"] == 3
+
+    carts.remove_item(conn, data_dir, c["id"], "C15742")
+    assert all(i["ref"] != "C15742" for i in carts.get(conn, c["id"])["items"])
+
+    carts.clear(conn, data_dir, c["id"])
+    assert carts.get(conn, c["id"])["items"] == []

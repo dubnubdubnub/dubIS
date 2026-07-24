@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Any
 
 import csv_io
+from dubis_errors import DubISError
 
 logger = logging.getLogger(__name__)
 
@@ -138,3 +139,89 @@ def load_into_db(conn: sqlite3.Connection, data_dir: str) -> None:
             )
     conn.commit()
     logger.info("Loaded %d carts from %s", len(records), path)
+
+
+def _require(conn: sqlite3.Connection, cart_id: str) -> None:
+    if conn.execute("SELECT 1 FROM carts WHERE id=?", (cart_id,)).fetchone() is None:
+        raise DubISError(f"cart {cart_id} not found")
+
+
+def _next_position(conn: sqlite3.Connection, cart_id: str) -> int:
+    row = conn.execute(
+        "SELECT COALESCE(MAX(position), -1) AS m FROM cart_items WHERE cart_id=?", (cart_id,)
+    ).fetchone()
+    return int(row["m"]) + 1
+
+
+def add_item(
+    conn: sqlite3.Connection,
+    data_dir: str,
+    cart_id: str,
+    *,
+    part_id: str | None = None,
+    raw: dict | None = None,
+    qty: int = 1,
+    target_distributor: str | None = None,
+) -> dict[str, Any]:
+    """Add an item to the cart. Re-adding an existing ref SETS qty (not additive)
+    and updates target_distributor."""
+    _require(conn, cart_id)
+    ref = item_ref(part_id, raw)
+    existing = conn.execute(
+        "SELECT ref FROM cart_items WHERE cart_id=? AND ref=?", (cart_id, ref)
+    ).fetchone()
+    if existing:
+        conn.execute(
+            "UPDATE cart_items SET qty=?, target_distributor=? WHERE cart_id=? AND ref=?",
+            (int(qty), target_distributor, cart_id, ref),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO cart_items (cart_id, ref, part_id, raw, qty, target_distributor, position) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (
+                cart_id, ref, part_id, json.dumps(raw) if raw else None, int(qty),
+                target_distributor, _next_position(conn, cart_id),
+            ),
+        )
+    conn.commit()
+    _persist(conn, data_dir)
+    return get(conn, cart_id)
+
+
+def update_item(
+    conn: sqlite3.Connection,
+    data_dir: str,
+    cart_id: str,
+    ref: str,
+    *,
+    qty: int | None = None,
+    target_distributor: str | None = None,
+) -> dict[str, Any]:
+    _require(conn, cart_id)
+    if qty is not None:
+        conn.execute("UPDATE cart_items SET qty=? WHERE cart_id=? AND ref=?", (int(qty), cart_id, ref))
+    if target_distributor is not None:
+        conn.execute(
+            "UPDATE cart_items SET target_distributor=? WHERE cart_id=? AND ref=?",
+            (target_distributor, cart_id, ref),
+        )
+    conn.commit()
+    _persist(conn, data_dir)
+    return get(conn, cart_id)
+
+
+def remove_item(conn: sqlite3.Connection, data_dir: str, cart_id: str, ref: str) -> dict[str, Any]:
+    _require(conn, cart_id)
+    conn.execute("DELETE FROM cart_items WHERE cart_id=? AND ref=?", (cart_id, ref))
+    conn.commit()
+    _persist(conn, data_dir)
+    return get(conn, cart_id)
+
+
+def clear(conn: sqlite3.Connection, data_dir: str, cart_id: str) -> dict[str, Any]:
+    _require(conn, cart_id)
+    conn.execute("DELETE FROM cart_items WHERE cart_id=?", (cart_id,))
+    conn.commit()
+    _persist(conn, data_dir)
+    return get(conn, cart_id)
