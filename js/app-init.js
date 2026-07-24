@@ -45,11 +45,10 @@ window.colorizeRefs = colorizeRefs;
 window.REF_COLOR_MAP = REF_COLOR_MAP;
 
 // ── Init on pywebview ready ────────────────────────────
-async function initApp() {
-  setEnterSubmitEnabled(() => getShortcutPrefs().enterSubmitsModals);
 
-  // Dismiss the startup splash once the grid has data (or after a safety timeout,
-  // so a failed load never traps the user behind the overlay).
+// Dismiss the startup splash once the grid has data (or after a safety timeout,
+// so a failed load never traps the user behind the overlay).
+function wireSplashDismiss() {
   const dismissSplash = () => {
     const el = document.getElementById("startup-splash");
     if (!el) return;
@@ -58,8 +57,10 @@ async function initApp() {
   };
   EventBus.on(Events.INVENTORY_LOADED, dismissSplash);
   setTimeout(dismissSplash, 8000);
+}
 
-  // Initialize panels (explicit, no side-effect imports)
+// Initialize panels (explicit, no side-effect imports)
+function mountPanels() {
   initResizePanels();
   initInventoryModals();
   initInventoryPanel();
@@ -69,8 +70,10 @@ async function initApp() {
   initGroupFlyout();
   initLabelSelection();
   initLabelExportModal();
+}
 
-  // ── Close confirmation modal ────────────────────────────
+// ── Close confirmation modal ────────────────────────────
+function wireCloseModal() {
   const closeModal = Modal("close-modal", { cancelId: "close-cancel", confirmId: "close-save" });
 
   document.getElementById("close-discard").addEventListener("click", () => {
@@ -85,30 +88,34 @@ async function initApp() {
 
   // Expose to Python's evaluate_js("closeModal.open()")
   window.closeModal = closeModal;
+}
 
-  // ── Phone-scan PO handler (called by the scan server) ──
+// ── Phone-scan PO handler + SSE live-update wiring ──────
+function wireLiveUpdates() {
   // Registers window._scanReceived to land OCR'd line items in the mfg-direct
   // staging editor.
   registerScanHandler();
 
-  // ── SSE: inventory.consumed (PnP-consume push). The push carries only the
+  // SSE: inventory.consumed (PnP-consume push). The push carries only the
   // adjustment detail (no full inventory snapshot), so the refresh goes
-  // through the normal debounced re-fetch. ──
+  // through the normal debounced re-fetch.
   onEvent('inventory.consumed', (detail) => {
     AppLog.info("PnP: consumed " + detail.qty + "x " + detail.part_key + " (new_qty=" + detail.new_qty + ")");
     showToast("PnP: -" + detail.qty + " " + detail.part_key);
     scheduleInventoryRefresh().catch(e => AppLog.warn("SSE inventory.consumed refresh failed: " + e));
   });
 
-  // ── SSE connection: the /v1 server is up before the page is ever served
+  // SSE connection: the /v1 server is up before the page is ever served
   // (by construction — see app.pyw's splash-first boot), so this is
   // unconditional in the running app. Under Playwright's serve-static.mjs
   // (no /v1 backend) connectEvents() will simply fail to open; specs that
   // need inventory rendered use installRouteMocks + a direct post-mutation
-  // refetch instead of relying on a live SSE stream. ──
+  // refetch instead of relying on a live SSE stream.
   connectEvents();
+}
 
-  // ── Cross-panel designator hover highlighting ──────────
+// ── Cross-panel designator hover highlighting ──────────
+function wireRefHighlighting() {
   var highlightedRef = null;
   document.addEventListener("mouseover", function (e) {
     var target = e.target.closest("[data-ref], [data-refs]");
@@ -138,11 +145,16 @@ async function initApp() {
       });
     }
   });
+}
 
-  // ── Prevent accidental file navigation ─────────────────
+// ── Prevent accidental file navigation ─────────────────
+function wireDragDropGuard() {
   document.addEventListener("dragover", e => e.preventDefault());
   document.addEventListener("drop", e => e.preventDefault());
+}
 
+// ── Misc toolbar buttons (console clear, prefs, vendors, rebuild) ──
+function wireMiscButtons() {
   const clearBtn = document.getElementById("console-clear");
   if (clearBtn) clearBtn.addEventListener("click", () => AppLog.clear());
 
@@ -166,8 +178,10 @@ async function initApp() {
     showToast("Inventory rebuilt");
     AppLog.info("Inventory rebuilt: " + fresh.length + " parts");
   });
+}
 
-  // Register links undo handler (used by bom-panel + inventory-panel)
+// Register links undo handler (used by bom-panel + inventory-panel)
+function wireLinksUndo() {
   UndoRedo.register("links", (action, data) => {
     if (action === "snapshot") {
       return {
@@ -180,13 +194,17 @@ async function initApp() {
     EventBus.emit(Events.LINKS_CHANGED);
     EventBus.emit(Events.CONFIRMED_CHANGED);
   });
+}
 
-  // Global undo/redo buttons + keyboard
+// Global undo/redo buttons + keyboard. Returns syncUndoRedoButtons so later
+// phases (command palette, shortcuts) can call it — same function identity
+// as the original closure-captured one.
+function wireGlobalUndoRedo() {
   const globalUndo = document.getElementById("global-undo");
   const globalRedo = document.getElementById("global-redo");
 
   const isMac = navigator.platform.toUpperCase().includes("MAC");
-  const mod = isMac ? "\u2318" : "Ctrl+";
+  const mod = isMac ? "⌘" : "Ctrl+";
   if (globalUndo) globalUndo.title = "Undo (" + mod + "Z)";
   if (globalRedo) globalRedo.title = "Redo (" + mod + "Shift+Z)";
 
@@ -201,9 +219,14 @@ async function initApp() {
   EventBus.on(Events.INVENTORY_UPDATED, syncUndoRedoButtons);
   EventBus.on(Events.BOM_LOADED, syncUndoRedoButtons);
 
-  const help = initShortcutHelp();
+  return syncUndoRedoButtons;
+}
 
-  // ── Command Palette ──────────────────────────────────────────────────────────
+// ── Command Palette + global shortcuts + keyboard nav ──────────────────────
+// Takes syncUndoRedoButtons (from wireGlobalUndoRedo) as an explicit param
+// instead of relying on closure capture.
+function wireCommandPaletteAndShortcuts(syncUndoRedoButtons) {
+  const help = initShortcutHelp();
 
   /**
    * Derive the context for the palette from the currently focused inventory row.
@@ -526,7 +549,10 @@ async function initApp() {
   });
 
   initKeyboardNav();
+}
 
+// ── Bridge handshake + inventory/preferences bootstrap ──────────────────────
+async function bootstrapData() {
   await whenPywebviewReady();
   // Tell the client shell the JS bridge is live — proof the WebView2 profile
   // loaded cleanly. Clears app.pyw's launch sentinel so the startup self-heal
@@ -576,6 +602,24 @@ async function initApp() {
       });
     } else if (r && r.message) AppLog.info("DK: " + r.message);
   });
+}
+
+async function initApp() {
+  setEnterSubmitEnabled(() => getShortcutPrefs().enterSubmitsModals);
+
+  wireSplashDismiss();
+  mountPanels();
+  wireCloseModal();
+  wireLiveUpdates();
+  wireRefHighlighting();
+  wireDragDropGuard();
+  wireMiscButtons();
+  wireLinksUndo();
+
+  const syncUndoRedoButtons = wireGlobalUndoRedo();
+  wireCommandPaletteAndShortcuts(syncUndoRedoButtons);
+
+  await bootstrapData();
 }
 
 if (document.readyState === "complete") {
