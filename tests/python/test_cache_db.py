@@ -707,7 +707,7 @@ class TestSchemaV4:
 
 
 class TestIntegration:
-    """Verify cache output matches legacy load_organized() output."""
+    """Verify SQLite cache output matches the in-memory merge->adjust->categorize pipeline."""
 
     def _build_purchase_ledger(self, path, fieldnames, rows):
         with open(path, "w", newline="", encoding="utf-8") as f:
@@ -716,14 +716,17 @@ class TestIntegration:
             writer.writerows(rows)
 
     def test_cache_matches_legacy_rebuild(self, db, tmp_path):
-        """Full pipeline via cache must produce same output as legacy pipeline."""
+        """Full pipeline via SQLite cache must produce the same qty/section/price
+        per part as the in-memory merge->adjust->categorize helper pipeline
+        (the same pipeline cache_db.populate_full is fed from, sans the dead
+        write_organized/load_organized CSV round-trip)."""
         from inventory_api import InventoryApi
+        from domain.pricing import parse_price, parse_qty
         import inventory_ops
 
         fieldnames = InventoryApi.FIELDNAMES
         purchase_path = str(tmp_path / "purchase_ledger.csv")
         adj_path = str(tmp_path / "adjustments.csv")
-        output_path = str(tmp_path / "inventory.csv")
 
         merged = TestPopulate._make_merged(self)
         self._build_purchase_ledger(purchase_path, fieldnames,
@@ -740,22 +743,30 @@ class TestIntegration:
                 "bom_file": "", "board_qty": "", "note": "", "source": "",
             })
 
-        # Legacy pipeline
-        legacy = inventory_ops.rebuild(
-            purchase_path, adj_path, output_path,
-            fieldnames, InventoryApi.FLAT_SECTION_ORDER,
-        )
-
-        # Cache pipeline
+        # In-memory reference pipeline: merge -> adjust -> categorize
         file_fn, merged_dict = inventory_ops.read_and_merge(purchase_path, fieldnames)
         inventory_ops.apply_adjustments(merged_dict, adj_path, file_fn)
         categorized = inventory_ops.categorize_and_sort(list(merged_dict.values()))
+
+        # Flatten the categorized reference to the same shape as query_inventory()
+        reference = []
+        for section, items in categorized.items():
+            for item in items:
+                reference.append({
+                    "lcsc": (item.get("LCSC Part Number") or "").strip(),
+                    "mpn": (item.get("Manufacture Part Number") or "").strip(),
+                    "section": section,
+                    "qty": parse_qty(item.get("Quantity")),
+                    "unit_price": parse_price(item.get("Unit Price($)")),
+                })
+
+        # Cache pipeline
         cache_db.populate_full(db, merged_dict, categorized)
         cached = cache_db.query_inventory(db)
 
         # Compare: same parts, same quantities, same sections
-        assert len(cached) == len(legacy)
-        legacy_by_key = {(r["lcsc"] or r["mpn"]): r for r in legacy}
+        assert len(cached) == len(reference)
+        legacy_by_key = {(r["lcsc"] or r["mpn"]): r for r in reference}
         cached_by_key = {(r["lcsc"] or r["mpn"]): r for r in cached}
         assert set(legacy_by_key.keys()) == set(cached_by_key.keys())
         for key in legacy_by_key:
