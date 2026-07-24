@@ -49,6 +49,15 @@ describe('isInteractive', () => {
   });
 });
 
+describe('isLeafTextElement + isInteractive combined (mouseover-guard rationale)', () => {
+  it('isLeafTextElement alone does NOT exclude a button with text — isInteractive is the guard that must', () => {
+    document.body.innerHTML = '<button id="b">Adjust</button>';
+    var btn = document.getElementById('b');
+    expect(mod.isLeafTextElement(btn)).toBe(true);
+    expect(mod.isInteractive(btn)).toBe(true);
+  });
+});
+
 describe('copyText', () => {
   it('uses navigator.clipboard when available', async () => {
     const writeText = vi.fn(async () => {});

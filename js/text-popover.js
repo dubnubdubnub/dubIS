@@ -10,6 +10,9 @@ import { getBehaviorPrefs } from './store.js';
 var SHOW_DELAY_MS = 350;
 var INTERACTIVE_SELECTOR = 'button, a, input, select, textarea, [contenteditable], [contenteditable="true"], [role="button"]';
 var ANCESTOR_SCAN_LIMIT = 4; // how far up to look for interactivity
+// Elements owning the richer part-preview hover tooltip (js/part-preview.js) —
+// the generic text popover must not compete with it.
+var PART_PREVIEW_SELECTOR = '[data-lcsc], [data-digikey], [data-pololu], [data-mouser]';
 
 var popover = null;
 var showTimer = null;
@@ -138,6 +141,8 @@ export function initTextPopover() {
     var el = e.target;
     if (popover.contains(el)) return;
     if (!isLeafTextElement(el)) return;
+    if (isInteractive(el)) return;
+    if (el.closest && el.closest(PART_PREVIEW_SELECTOR)) return;
     if (el === currentTarget) return;
     clearTimeout(showTimer);
     currentTarget = el;

@@ -257,6 +257,8 @@ export function activateInlineEdit(row, item) {
     qtyCell.title = 'Double-click to edit qty';
     qtyCell.addEventListener('dblclick', function (e) {
       if (isEditBlocked()) return;
+      // Load-bearing: stops the document-level dblclick handler in
+      // js/text-popover.js (select-whole-text) from also firing on this cell.
       e.stopPropagation();
       e.preventDefault();
 
@@ -278,6 +280,8 @@ export function activateInlineEdit(row, item) {
     priceCell.title = 'Double-click to edit unit price';
     priceCell.addEventListener('dblclick', function (e) {
       if (isEditBlocked()) return;
+      // Load-bearing: stops the document-level dblclick handler in
+      // js/text-popover.js (select-whole-text) from also firing on this cell.
       e.stopPropagation();
       e.preventDefault();
 
