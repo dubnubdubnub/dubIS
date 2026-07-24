@@ -130,3 +130,15 @@ export function batch(fn) {
     queue.forEach(s => { if (!s.disposed) s.run(); });
   }
 }
+
+// ── App-level signal instances ───────────────────────────────
+//
+// Cross-panel *state* (as opposed to discrete UI *events*, which stay on
+// EventBus) propagates via signal instances. `cartsSignal` mirrors carts +
+// the active cart id; `js/cart/cart-store.js` owns writes to it, panels
+// read it via `.get()`/`effect()`.
+
+/** @typedef {{ carts: Array<Object>, activeCartId: string|null }} CartsState */
+
+/** @type {{ get(): CartsState, set(v: CartsState): void, peek(): CartsState }} */
+export const cartsSignal = signal(/** @type {CartsState} */ ({ carts: [], activeCartId: null }));

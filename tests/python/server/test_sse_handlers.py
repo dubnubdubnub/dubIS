@@ -22,8 +22,8 @@ _ROOT = Path(__file__).resolve().parents[3]
 _PUBLISH_RE = re.compile(r"""\bpublish\(\s*["']([a-z][\w.]+)["']""")
 _ONEVENT_RE = re.compile(r"""\bonEvent\(\s*["']([a-z][\w.]+)["']""")
 
-# Types that legitimately exist on only one side (justify each). Empty today.
-PUBLISH_ONLY_ALLOWED: set[str] = set()   # published, intentionally no handler
+# Types that legitimately exist on only one side (justify each).
+PUBLISH_ONLY_ALLOWED: set[str] = set()
 HANDLER_ONLY_ALLOWED: set[str] = set()   # handled, published elsewhere (e.g. non-py source)
 
 
