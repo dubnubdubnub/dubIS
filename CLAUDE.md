@@ -88,7 +88,6 @@ Events are centralized in `js/event-bus.js`. Store setters that emit are marked;
 | `LINKING_MODE` | store.js (`setLinkingMode`, `setReverseLinkingMode`) | bom-events.js, inv-events.js |
 | `LINKS_CHANGED` | store.js (`addManualLink`), app-init.js | bom-events.js |
 | `SAVE_AND_CLOSE` | app-init.js | bom-events.js |
-| `GENERIC_PARTS_LOADED` | store.js (`loadInventory`), generic-parts-modal.js | (none currently) |
 | `FLYOUT_OPENED` | group-flyout/flyout-panel.js | inventory/inv-events.js |
 | `FLYOUT_CLOSED` | group-flyout/flyout-panel.js | inventory/inv-events.js |
 | `FLYOUT_ACTIVE_CHANGED` | group-flyout/flyout-panel.js | inventory/inv-events.js |

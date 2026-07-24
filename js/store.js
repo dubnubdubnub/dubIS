@@ -345,7 +345,6 @@ export async function loadInventory() {
   try {
     const gps = await api("list_generic_parts");
     genericParts = Array.isArray(gps) ? gps : [];
-    EventBus.emit(Events.GENERIC_PARTS_LOADED, genericParts);
     if (genericParts.length > 0) {
       AppLog.info("Loaded " + genericParts.length + " generic parts");
     }
