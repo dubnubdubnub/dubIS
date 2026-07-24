@@ -15,15 +15,15 @@ CI auto-detects which suites to run based on changed files in PRs:
 | Docs only (`*.md`, data CSVs, config files) | Lint only |
 | Unrecognized files | All (safe fallback) |
 
-Lint (eslint + tsc + ruff) always runs. Cross-compute PnP E2E only runs with an explicit tag. Push to main always runs all suites.
+Lint (eslint + tsc + ruff) always runs. Push to main always runs all suites.
 
 Superseded PR runs are automatically cancelled (concurrency groups).
 
 ### Required checks & single-box legs
 
-Branch protection requires three contexts: **JS Lint & Test (ubuntu)** (aggregates js + js-e2e + js-live), **Python Lint & Test (ubuntu)**, and **PnP E2E (required)** (aggregates pnp-e2e). Skipped suites satisfy the gates, so e.g. a docs-only PR is still mergeable.
+Branch protection requires three contexts, all of which are aggregate gate jobs running on GitHub-hosted ubuntu: **JS Lint & Test (ubuntu)** (aggregates js + js-e2e + js-live + js-hosted), **Python Lint & Test (ubuntu)** (aggregates python + python-hosted), and **PnP E2E (required)** (aggregates pnp-e2e). Skipped suites satisfy the gates, so e.g. a docs-only PR is still mergeable.
 
-Single-physical-machine legs are **advisory** (`continue-on-error`): the macos (m4-air) legs of js/js-e2e/pnp-e2e, js-windows (win11 VM), and vlm-gpu. Their failures annotate the run red but never block merges — a laptop outage must not stall the queue.
+Single-physical-machine legs are **advisory** (`continue-on-error`): the macos (m4-air) legs of js/js-e2e/python/pnp-e2e, js-windows (win11 VM), and vlm-gpu. Their failures annotate the run red but never block merges — a laptop outage must not stall the queue.
 
 **Fork PRs**: all self-hosted jobs are skipped for security, and `JS Lint & Test (ubuntu)` deliberately **fails** so the PR can't show green without tests. A maintainer must push the branch into the repo to run CI.
 
@@ -42,8 +42,29 @@ Add a `[ci: <suite>]` tag to your commit message to override auto-detection:
 | `[ci: js]` | Full JS: lint + types + vitest core + Playwright E2E | ~55s |
 | `[ci: python]` | Full Python: ruff + fixture check + pytest | ~17s |
 | `[ci: pnp-e2e]` | PnP same-machine E2E (both runners) | ~28s |
-| `[ci: pnp-cross]` | PnP cross-compute E2E (depends on pnp-e2e) | ~56s |
 | `[ci: quality]` | Visual/a11y: contrast, style-audit, accessibility E2E (warns, never blocks) | ~49s |
+
+### `[ci: hosted]` — GitHub-hosted fallback (emergency escape hatch)
+
+`[ci: hosted]` is a **modifier**, not a suite: it can appear alone or alongside a
+suite tag (e.g. `[ci: python] [ci: hosted]`). Use it when the self-hosted runners
+(the home k3s cluster) are down and the merge queue is frozen because the required
+checks can never start. With the tag present on the PR's head commit:
+
+- All self-hosted jobs are **skipped** (js, js-e2e, js-live, js-windows, python,
+  vlm-gpu, pnp-e2e, quality — nothing queues on a dead runner).
+- The blocking lint/unit legs rerun on GitHub-hosted `ubuntu-latest` instead:
+  `js-hosted` (eslint + tsc + vitest core) and `python-hosted` (ruff + staleness
+  guards + pytest, with tesseract installed via apt so the OCR tests still run).
+- The required gate contexts (`JS Lint & Test (ubuntu)`, `Python Lint & Test
+  (ubuntu)`, `PnP E2E (required)`) aggregate the hosted jobs and go green/red on
+  their results.
+
+The trade-off is deliberate: hosted mode has **no E2E coverage** (Playwright
+functional/live, win11, PnP). It exists so lint + unit verified work can still
+merge during an infra outage — don't use it routinely. Untagged runs are
+completely unaffected (no double-running, no added latency). It only applies to
+PR runs: pushes to main and fork PRs always ignore it.
 
 ## Live distributor test tier
 
@@ -93,15 +114,17 @@ gh workflow run ci.yml --ref <branch> -f suite=lint            # lint only, no t
 gh workflow run ci.yml --ref <branch> -f suite=js
 gh workflow run ci.yml --ref <branch> -f suite=python
 gh workflow run ci.yml --ref <branch> -f suite=pnp-e2e
-gh workflow run ci.yml --ref <branch> -f suite=pnp-cross
 gh workflow run ci.yml --ref <branch> -f suite=quality
 ```
 
 ## PnP E2E Tests
 
 Same-machine (CI default): `python tests/pnp-e2e/run_test.py`
-Cross-compute: `python tests/pnp-e2e/run_test.py --remote-openpnp ux430`
+Cross-compute (local only): `python tests/pnp-e2e/run_test.py --remote-openpnp ux430`
 
 The `--remote-openpnp` flag starts dubIS locally and launches OpenPnP on a remote
 host via SSH. Uses `~/.ssh/config` for connection settings. Cross-compute tests
-verify the real network path (dubIS ↔ OpenPnP over Tailscale).
+verify the real network path (dubIS ↔ OpenPnP over Tailscale). The cross-compute
+CI jobs (`if: false` since 2026-06-13, regressed during the OpenPnP→handheld
+migration) were deleted in 2026-07 — recover them from git history if the
+cross-compute path is ever fixed and worth re-gating.

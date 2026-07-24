@@ -52,7 +52,7 @@ concurrency:
 jobs:
   refresh:
     name: Refresh public fixtures
-    # Mirrors ci.yml's "Python Lint & Test" job: same internet-connected
+    # Mirrors ci.yml's "Python Checks" job: same internet-connected
     # ARC runner and the same pre-provisioned venv (~/dubis-venv). The old
     # static `pnp-testbox` runners were retired in the ARC migration — this
     # label MUST track whatever ci.yml's python job runs on, or the schedule
