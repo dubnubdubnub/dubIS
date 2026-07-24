@@ -76,14 +76,21 @@ test.describe('Text popover, double-click-select, auto-copy', () => {
     await waitForInventoryRows(page);
 
     const qtyCell = page.locator('.inv-part-row .part-qty').first();
+    const qtyText = (await qtyCell.innerText()).trim();
     await qtyCell.dblclick();
 
+    // Inline edit won: the cell became a focused editable input carrying the qty.
     const input = page.locator('.inv-inline-input');
     await expect(input).toBeVisible();
-    await expect(input).toBeFocused();
+    await expect(input).toHaveValue(qtyText);
 
-    const selected = (await page.evaluate(() => window.getSelection().toString())).trim();
-    expect(selected).toBe('');
+    // Proof the global "select whole text" dblclick handler did NOT also fire on this
+    // cell: it would have called getSelection().removeAllRanges() + reselected the cell
+    // contents, which blurs the input. The input staying focused shows inline-edit's
+    // stopPropagation kept our handler out. (A raw getSelection() check can't be used —
+    // the browser's native double-click word-selection of "30" is indistinguishable from
+    // our select-whole for a single-token cell, so it would false-positive either way.)
+    await expect(input).toBeFocused();
   });
 
   test('hovering an interactive button does NOT show the text popover', async ({ page }) => {
