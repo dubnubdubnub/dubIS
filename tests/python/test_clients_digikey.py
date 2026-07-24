@@ -5,6 +5,8 @@ import json
 import pytest
 
 from digikey_client import DigikeyClient
+from digikey_normalizer import normalize_result
+from digikey_session import check_cookies_logged_in, save_cookies_to_file
 
 
 class TestDigikeyClient:
@@ -57,11 +59,11 @@ class TestDigikeyClient:
 
     def test_check_cookies_logged_in(self):
         cookies = [{"name": "dkuhint"}, {"name": "other"}]
-        assert DigikeyClient._check_cookies_logged_in(cookies) is True
+        assert check_cookies_logged_in(cookies) is True
 
     def test_check_cookies_not_logged_in(self):
         cookies = [{"name": "other"}]
-        assert DigikeyClient._check_cookies_logged_in(cookies) is False
+        assert check_cookies_logged_in(cookies) is False
 
     def test_normalize_jsonld_product(self):
         raw = {
@@ -79,7 +81,7 @@ class TestDigikeyClient:
             },
             "_stock": 5000,
         }
-        result = DigikeyClient._normalize_result(raw, "RES-123")
+        result = normalize_result(raw, "RES-123")
         assert result["productCode"] == "RES-123"
         assert result["title"] == "Test Resistor"
         assert result["manufacturer"] == "Yageo"
@@ -145,7 +147,7 @@ class TestDigikeyClient:
                 },
             },
         }
-        result = DigikeyClient._normalize_result(raw, "DK-456")
+        result = normalize_result(raw, "DK-456")
         assert result["productCode"] == "DK-456"
         assert result["title"] == "Cap 100nF"
         assert result["manufacturer"] == "TDK"
@@ -172,7 +174,7 @@ class TestDigikeyClient:
     def test_normalize_nextdata_empty_envelope(self):
         """Nextdata with empty envelope should return empty shell."""
         raw = {"_source": "nextdata", "_props": {}}
-        result = DigikeyClient._normalize_result(raw, "X-1")
+        result = normalize_result(raw, "X-1")
         assert result["productCode"] == "X-1"
         assert result["stock"] == 0
         assert result["prices"] == []
@@ -181,7 +183,7 @@ class TestDigikeyClient:
     def test_normalize_unknown_format(self):
         """Unknown format returns empty shell with part number."""
         raw = {"random_key": "random_value"}
-        result = DigikeyClient._normalize_result(raw, "UNKNOWN-1")
+        result = normalize_result(raw, "UNKNOWN-1")
         assert result["productCode"] == "UNKNOWN-1"
         assert result["title"] == ""
         assert result["stock"] == 0
@@ -197,7 +199,7 @@ class TestDigikeyClient:
             "brand": {},
             "image": [],
         }
-        result = DigikeyClient._normalize_result(raw, "X")
+        result = normalize_result(raw, "X")
         assert result["prices"] == [{"qty": 1, "price": 1.50}]
         assert result["imageUrl"] == ""
 
@@ -218,7 +220,7 @@ class TestDigikeyClient:
                 },
             },
         }
-        result = DigikeyClient._normalize_result(raw, "IMG-1")
+        result = normalize_result(raw, "IMG-1")
         assert result["imageUrl"] == "https://img.example.com/photo.jpg"
 
     def test_normalize_nextdata_absolute_breadcrumb_url(self):
@@ -238,7 +240,7 @@ class TestDigikeyClient:
                 },
             },
         }
-        result = DigikeyClient._normalize_result(raw, "ABC-123")
+        result = normalize_result(raw, "ABC-123")
         assert result["digikeyUrl"] == "https://www.digikey.com/en/products/detail/ABC-123"
 
 
@@ -249,7 +251,7 @@ class TestDigikeyCookiePersistence:
         cookies_file = str(tmp_path / "dk_cookies.json")
         client = DigikeyClient(cookies_file=cookies_file)
         cookies = [{"name": "dkuhint", "value": "test"}, {"name": "other", "value": "x"}]
-        client._save_cookies(cookies)
+        save_cookies_to_file(cookies, cookies_file)
         loaded = client._load_cookies()
         assert loaded is not None
         assert len(loaded) == 2
@@ -265,7 +267,7 @@ class TestDigikeyCookiePersistence:
         cookies_file = str(tmp_path / "dk_cookies.json")
         client = DigikeyClient(cookies_file=cookies_file)
         cookies = [{"name": "other_cookie", "value": "test"}]
-        client._save_cookies(cookies)
+        save_cookies_to_file(cookies, cookies_file)
         assert client._load_cookies() is None
 
     def test_load_cookies_corrupt_json(self, tmp_path):
@@ -278,7 +280,7 @@ class TestDigikeyCookiePersistence:
     def test_no_cookies_file_configured(self):
         """Client without cookies_file skips persistence."""
         client = DigikeyClient()
-        client._save_cookies([{"name": "dkuhint"}])  # should not error
+        save_cookies_to_file([{"name": "dkuhint"}], None)  # should not error
         assert client._load_cookies() is None
 
     def test_set_logged_in_persists(self, tmp_path):
@@ -297,7 +299,7 @@ class TestDigikeyCookiePersistence:
         cookies_file = str(tmp_path / "dk_cookies.json")
         client = DigikeyClient(cookies_file=cookies_file)
         # Save cookies
-        client._save_cookies([{"name": "dkuhint"}])
+        save_cookies_to_file([{"name": "dkuhint"}], cookies_file)
         assert (tmp_path / "dk_cookies.json").exists()
         # Logout
         client.logout()

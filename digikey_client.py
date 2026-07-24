@@ -12,13 +12,11 @@ from urllib.parse import quote
 
 import digikey_session
 from base_client import BaseProductClient
-from digikey_cdp import cdp_get_cookies
 from digikey_normalizer import normalize_result
 from digikey_scrape_js import SCRAPE_JS
 from digikey_session import (
     _await_cf_clearance,
     check_cookies_logged_in,
-    find_default_browser_exe,
     inject_cookies_to_window,
     load_cookies_from_file,
     poll_cdp_for_cookies,
@@ -90,19 +88,6 @@ class DigikeyClient(BaseProductClient):
                 logger.warning("Pending cookie injection failed: %s", exc)
             self._pending_cookies = None
 
-    # ── Backward-compatible shims (delegate to extracted modules) ────────
-
-    @staticmethod
-    def _find_default_browser_exe() -> str | None:
-        return find_default_browser_exe()
-
-    @staticmethod
-    def _check_cookies_logged_in(cookies: list[dict]) -> bool:
-        return check_cookies_logged_in(cookies)
-
-    _normalize_result = staticmethod(normalize_result)
-    _cdp_get_cookies = staticmethod(cdp_get_cookies)
-
     def _set_logged_in(self, cookies: list[dict]) -> None:
         """Store cookies as the active Digikey session and persist to disk."""
         self._pending_cookies = cookies
@@ -141,10 +126,6 @@ class DigikeyClient(BaseProductClient):
             except OSError as exc:
                 logger.warning("Failed to remove cookies file: %s", exc)
 
-    def _save_cookies(self, cookies: list[dict]) -> None:
-        """Persist Digikey cookies to disk."""
-        save_cookies_to_file(cookies, self._cookies_file)
-
     def _load_cookies(self) -> list[dict] | None:
         """Load persisted Digikey cookies from disk."""
         return load_cookies_from_file(self._cookies_file)
@@ -157,10 +138,6 @@ class DigikeyClient(BaseProductClient):
             on_logged_in=self._set_logged_in,
             sync_result=self._sync_result,
         )
-
-    def _inject_cookies_to_window(self, cookies: list[dict]) -> int:
-        """Inject cookie dicts into the WebView2 session via CookieManager."""
-        return inject_cookies_to_window(self._window, cookies)
 
     # ── Public API ────────────────────────────────────────────────────────
 
