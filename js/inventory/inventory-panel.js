@@ -1,3 +1,4 @@
+// @ts-check
 /* inventory-panel.js — Thin wiring for the inventory panel.
    init(), top-level render(), distributor-filter UI, EventBus wiring.
    Delegates to inv-tree-render.js, inv-bom-mode.js, inv-row-build.js, inv-mutations.js. */

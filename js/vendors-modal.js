@@ -1,3 +1,4 @@
+// @ts-check
 /* vendors-modal.js — Master-detail vendor manager.
 
    Left: searchable list of all vendors. Right: detail pane to edit name/URL,
@@ -44,7 +45,8 @@ function iconHtml(v) {
 
 function renderList() {
   const listEl = document.getElementById("vendor-list");
-  const term = document.getElementById("vendor-search").value.trim().toLowerCase();
+  const searchEl = /** @type {HTMLInputElement} */ (document.getElementById("vendor-search"));
+  const term = searchEl.value.trim().toLowerCase();
   const matches = _vendors.filter(v => {
     if (!term) return true;
     return v.name.toLowerCase().includes(term)
@@ -119,15 +121,16 @@ function renderDetail(v, isNew) {
 
   if (isPseudo) return;
 
-  const nameEl = detail.querySelector("#vendor-name");
+  const nameEl = /** @type {HTMLInputElement} */ (detail.querySelector("#vendor-name"));
+  const urlEl = /** @type {HTMLInputElement} */ (detail.querySelector("#vendor-url"));
 
   detail.querySelector("#vendor-save-btn").addEventListener("click", () => {
-    save(isNew ? "" : v.id, nameEl.value, detail.querySelector("#vendor-url").value);
+    save(isNew ? "" : v.id, nameEl.value, urlEl.value);
   });
 
   if (!isNew) {
-    const mergeSel = detail.querySelector("#vendor-merge-target");
-    const mergeBtn = detail.querySelector("#vendor-merge-btn");
+    const mergeSel = /** @type {HTMLSelectElement} */ (detail.querySelector("#vendor-merge-target"));
+    const mergeBtn = /** @type {HTMLButtonElement} */ (detail.querySelector("#vendor-merge-btn"));
     mergeSel.addEventListener("change", () => { mergeBtn.disabled = !mergeSel.value; });
     mergeBtn.addEventListener("click", () => {
       if (mergeSel.value) merge(v.id, mergeSel.value);
@@ -218,7 +221,7 @@ export function wireVendorsModal() {
 
   const list = document.getElementById("vendor-list");
   if (list) list.addEventListener("click", (e) => {
-    const row = e.target.closest(".vendor-row");
+    const row = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest(".vendor-row"));
     if (row) selectVendor(row.dataset.id);
   });
 }
