@@ -24,6 +24,7 @@ import { el } from '../dom/html.js';
 import { DataGrid } from '../components/data-grid.js';
 import { cartsSignal, effect } from '../signals.js';
 import * as cartStore from './cart-store.js';
+import { downloadCsv, copyPaste } from './cart-export.js';
 
 /** @type {{el:HTMLTableElement, render(data:any[]):void, refresh():void, getData():any[], destroy():void}|null} */
 let grid = null;
@@ -43,6 +44,8 @@ let splitDistEl = null;
 let splitRemoveEl = null;
 /** @type {HTMLSelectElement|null} */
 let consolidateDistEl = null;
+/** @type {HTMLElement|null} */
+let exportMenuEl = null;
 
 // All distributors the app knows how to source from (fixed order/labels used
 // by the per-row select's fallback for raw items and by the top-bar
@@ -191,6 +194,36 @@ async function handleConsolidateGo() {
     }
   } catch (e) {
     AppLog.error('cart-modal: consolidateCart failed: ' + e.message);
+  }
+}
+
+// ── Export (Task B9): download LCSC/DigiKey CSV, copy paste-format list ───
+
+function handleExportToggle() {
+  if (!exportMenuEl) return;
+  exportMenuEl.classList.toggle('hidden');
+}
+
+function closeExportMenu() {
+  if (exportMenuEl) exportMenuEl.classList.add('hidden');
+}
+
+/**
+ * @param {'csv'|'paste'} fmt
+ * @param {string} distributor
+ */
+async function handleExportAction(fmt, distributor) {
+  const cartId = cartStore.getActiveCartId();
+  if (!cartId) return;
+  closeExportMenu();
+  try {
+    if (fmt === 'csv') {
+      await downloadCsv(cartId, distributor);
+    } else {
+      await copyPaste(cartId, distributor);
+    }
+  } catch (e) {
+    AppLog.error(`cart-modal: export (${fmt}/${distributor}) failed: ` + e.message);
   }
 }
 
@@ -411,10 +444,31 @@ function buildModalDom() {
   const splitGroup = el('div', { class: 'cart-topbar-group' }, splitDistEl, splitRemoveLabel, splitGoBtn);
   const consolidateGroup = el('div', { class: 'cart-topbar-group' }, consolidateDistEl, consolidateGoBtn);
 
-  // B9 (export) appends further right of these.
+  // Export (Task B9): a toggle button + a hidden-by-default menu of 4 actions
+  // (2 distributors × CSV-download/copy-paste). Kept as a plain toggled
+  // sibling (not an absolutely-positioned floating menu) so it participates
+  // in the topbar's own wrap layout rather than needing separate
+  // viewport-clipping handling.
+  const exportBtn = el('button', { type: 'button', class: 'btn-sm cart-export' }, 'Export ▾');
+  exportBtn.addEventListener('click', handleExportToggle);
+
+  const lcscCsvBtn = el('button', { type: 'button', class: 'btn-sm cart-export-lcsc-csv' }, 'LCSC CSV');
+  lcscCsvBtn.addEventListener('click', () => handleExportAction('csv', 'lcsc'));
+  const digikeyCsvBtn = el('button', { type: 'button', class: 'btn-sm cart-export-digikey-csv' }, 'DigiKey CSV');
+  digikeyCsvBtn.addEventListener('click', () => handleExportAction('csv', 'digikey'));
+  const lcscPasteBtn = el('button', { type: 'button', class: 'btn-sm cart-export-lcsc-paste' }, 'Copy LCSC paste');
+  lcscPasteBtn.addEventListener('click', () => handleExportAction('paste', 'lcsc'));
+  const digikeyPasteBtn = el('button', { type: 'button', class: 'btn-sm cart-export-digikey-paste' }, 'Copy DigiKey paste');
+  digikeyPasteBtn.addEventListener('click', () => handleExportAction('paste', 'digikey'));
+
+  exportMenuEl = el('div', { class: 'cart-export-menu hidden' },
+    lcscCsvBtn, digikeyCsvBtn, lcscPasteBtn, digikeyPasteBtn,
+  );
+  const exportGroup = el('div', { class: 'cart-topbar-group' }, exportBtn, exportMenuEl);
+
   const topbar = el('div', { class: 'cart-topbar' },
     switcherEl, newBtn, renameBtn, deleteBtn, clearBtn,
-    splitGroup, consolidateGroup,
+    splitGroup, consolidateGroup, exportGroup,
   );
 
   titleEl = el('div', { class: 'modal-title', id: 'cart-modal-title' }, 'Cart');

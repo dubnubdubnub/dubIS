@@ -349,6 +349,34 @@ const ROUTES = [
     return { cart, unresolved };
   }, { mutation: true }),
 
+  // export_cart (Task B9): mirrors carts.export — CSV gets a header + one row
+  // per resolvable line (real shape: full CSV text, per-distributor filename
+  // "cart_<distributor>.csv"), paste gets a tab-separated "<pn>\t<qty>" line
+  // per row. `unresolved` lists refs whose part isn't sourceable from the
+  // requested distributor (same has-PN-field scan split_cart/consolidate_cart
+  // use above) — deliberately NOT stateful (export doesn't mutate the cart).
+  route('export_cart', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: export_cart — no cart "${a.cart_id}" in mock cartsState`);
+    const rows = [];
+    const unresolved = [];
+    (cart.items || []).forEach((it) => {
+      const part = it.part_id && ctx.inventory.find((p) =>
+        [p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser].includes(it.part_id));
+      const pn = part && (part[a.distributor] || '').trim();
+      if (pn) {
+        rows.push({ pn, qty: it.qty });
+      } else {
+        unresolved.push(it.ref);
+      }
+    });
+    if (a.format === 'paste') {
+      return { content: rows.map((r) => `${r.pn}\t${r.qty}`).join('\n'), unresolved, filename: null };
+    }
+    const content = ['pn,qty', ...rows.map((r) => `${r.pn},${r.qty}`)].join('\n');
+    return { content, unresolved, filename: `cart_${a.distributor}.csv` };
+  }),
+
   // ── import-panel.js (Task 5) ──────────────────────────────────────────────
   route('import_purchases', (a) => ({ count: (a.rows || []).length }), { mutation: true }),
   route('remove_last_purchases', (a) => ({ count: a.count }), { mutation: true }),

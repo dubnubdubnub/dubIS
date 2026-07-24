@@ -103,6 +103,22 @@
   gap: var(--space-xs);
 }
 
+/* Export (Task B9): the menu is a plain toggled sibling of the "Export ▾"
+   button (not an absolutely-positioned floating panel) so it wraps with the
+   rest of the topbar's flow instead of needing its own clipping logic. Its
+   buttons are hidden (`.hidden` on the wrapper) until toggled open, at which
+   point they lay out inline like any other topbar-group control. */
+.cart-export-menu {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.cart-export-menu.hidden {
+  display: none;
+}
+
 .cart-switcher {
   flex: 1;
   min-width: 0;
