@@ -582,6 +582,7 @@ graph LR
     "tests/python/server/test_main_flags.py" --> "tests/python/helpers.py"
     "tests/python/server/test_models.py" --> "domain/schema.py"
     "tests/python/server/test_models.py" --> "server/models.py"
+    "tests/python/server/test_mutation_publishes.py" --> "server/app.py"
     "tests/python/server/test_openpnp_routes.py" --> "domain/__init__.py"
     "tests/python/server/test_openpnp_routes.py" --> "server/app.py"
     "tests/python/server/test_openpnp_routes.py" --> "tests/python/helpers.py"
@@ -1633,7 +1634,7 @@ graph LR
 ### server/app.py
 
 - **Imports:** `server/auth.py`, `server/errors.py`, `server/routes/__init__.py`
-- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
+- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_mutation_publishes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
 
 ### server/auth.py
 
@@ -2174,6 +2175,11 @@ graph LR
 - **Imports:** `domain/schema.py`, `server/models.py`
 - **Imported by:** —
 
+### tests/python/server/test_mutation_publishes.py
+
+- **Imports:** `server/app.py`
+- **Imported by:** —
+
 ### tests/python/server/test_openpnp_routes.py
 
 - **Imports:** `domain/__init__.py`, `server/app.py`, `tests/python/helpers.py`
@@ -2190,6 +2196,11 @@ graph LR
 - **Imported by:** —
 
 ### tests/python/server/test_preferences_routes.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### tests/python/server/test_sse_handlers.py
 
 - **Imports:** —
 - **Imported by:** —
