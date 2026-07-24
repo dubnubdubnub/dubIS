@@ -60,6 +60,36 @@ test.describe('Cart split / consolidate', () => {
       (window.__apiCalls?.update_cart_item || []).length)).toBeGreaterThan(0);
   });
 
+  test('per-row select offers server available_distributors incl. ledger-only ones', async ({ page }) => {
+    // C496552's inventory record is lcsc-only, but the server (which unions
+    // record ∪ purchase-ledger PNs) reports it as also sourceable from digikey.
+    // The dropdown must offer digikey too — i.e. prefer the server-provided
+    // available_distributors over the client's inventory-record derivation.
+    const seed = {
+      carts: [{
+        id: 'cart-1',
+        name: 'My Cart',
+        items: [
+          { ref: 'item-1', part_id: 'C496552', raw: null, qty: 5, target_distributor: null,
+            available_distributors: ['lcsc', 'digikey'] },
+        ],
+      }],
+      active_cart_id: 'cart-1',
+    };
+    await installRouteMocks(page, MOCK_INVENTORY, { carts: seed });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+
+    await page.click('#cart-btn');
+    await expect(page.locator('.cart-modal')).toBeVisible();
+
+    const opts = await page.locator('.cart-modal .cart-row-dist-select').first()
+      .locator('option').allTextContents();
+    const lower = opts.map((t) => t.toLowerCase());
+    expect(lower).toEqual(expect.arrayContaining(['lcsc', 'digikey']));
+    expect(opts.length).toBe(3); // blank + lcsc + digikey
+  });
+
   test('split by distributor creates a new cart with only that distributor\'s lines', async ({ page }) => {
     await installRouteMocks(page, MOCK_INVENTORY, { carts: JSON.parse(JSON.stringify(CARTS_SEED)) });
     await page.goto('/index.html');

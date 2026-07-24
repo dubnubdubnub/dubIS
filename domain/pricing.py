@@ -327,3 +327,68 @@ def get_sourced_distributors(
         if pn:
             out.append({"distributor": dist, "part_number": pn})
     return out
+
+
+def get_sourced_distributors_batch(
+    conn: sqlite3.Connection, purchase_csv: str, part_keys: list[str]
+) -> dict[str, list[dict[str, str]]]:
+    """Batched ``get_sourced_distributors`` — reads the purchase ledger ONCE.
+
+    Equivalent to calling ``get_sourced_distributors`` per key, but the ledger
+    CSV is scanned a single time for the whole batch (the per-call version
+    re-reads it every time). Use this when resolving many parts at once (e.g.
+    enriching all cart items on a ``list_carts``), where the per-call version's
+    N full-CSV reads would be wasteful. Result is keyed by the ORIGINAL key
+    passed in (not the resolved canonical id).
+    """
+    # ── read ledger once: (row_pns, {dist: pn}) per row, file order preserved ──
+    ledger_rows: list[tuple[set[str], dict[str, str]]] = []
+    if os.path.exists(purchase_csv):
+        with open(purchase_csv, newline="", encoding="utf-8-sig") as f:
+            for r in csv.DictReader(f):
+                row_pns = {(r.get(c) or "").strip() for c in _LEDGER_PN_COLS.values()}
+                row_pns.add((r.get("Manufacture Part Number") or "").strip())
+                row_pns.discard("")
+                dists = {
+                    dist: (r.get(col) or "").strip()
+                    for dist, col in _LEDGER_PN_COLS.items()
+                    if (r.get(col) or "").strip()
+                }
+                if row_pns and dists:
+                    ledger_rows.append((row_pns, dists))
+
+    out: dict[str, list[dict[str, str]]] = {}
+    for key in dict.fromkeys(part_keys):  # dedupe, preserve first-seen order
+        resolved = resolve_part_key(conn, key) or key
+        record: dict[str, str] = {}
+        known_pns: set[str] = {resolved}
+        try:
+            row = conn.execute(
+                "SELECT lcsc, digikey, mouser, pololu, mpn FROM parts WHERE part_id = ?",
+                (resolved,),
+            ).fetchone()
+        except sqlite3.Error:
+            logger.warning("get_sourced_distributors_batch: parts query failed for %r", key)
+            row = None
+        if row is not None:
+            for dist in _DISTRIBUTOR_ORDER:
+                val = (row[dist] or "").strip()
+                if val:
+                    record[dist] = val
+                    known_pns.add(val)
+            mpn = (row["mpn"] or "").strip()
+            if mpn:
+                known_pns.add(mpn)
+
+        ledger: dict[str, str] = {}
+        for row_pns, dists in ledger_rows:  # file order → later row = more recent
+            if row_pns & known_pns:
+                ledger.update(dists)
+
+        entries: list[dict[str, str]] = []
+        for dist in _DISTRIBUTOR_ORDER:
+            pn = record.get(dist) or ledger.get(dist)
+            if pn:
+                entries.append({"distributor": dist, "part_number": pn})
+        out[key] = entries
+    return out

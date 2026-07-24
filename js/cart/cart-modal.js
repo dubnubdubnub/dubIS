@@ -97,22 +97,25 @@ function resolveDisplay(cartItem, invIndex) {
 }
 
 /**
- * A part's AVAILABLE distributors = the subset of {lcsc,digikey,mouser,pololu}
- * whose PN field is non-empty on the resolved InventoryItem — derived
- * client-side from the already-loaded inventory, no backend round-trip. For
- * `raw` items (no part_id / no inventory match) there's no PN data to check,
- * so all four are offered (simpler than a "no options" dead-end select).
+ * A part's AVAILABLE distributors are the ones it can actually be sourced
+ * from. The backend attaches `available_distributors` to each cart item
+ * (see domain/api_cart.py `_enrich_available`) = the union of the part's
+ * record PNs AND its purchase-ledger PNs — matching what split/consolidate/
+ * export resolve — so ledger-only distributors are offered too. We prefer
+ * that server list when present.
  *
- * Intentionally scoped to InventoryItem record PN fields only (client-side,
- * no backend round-trip) — NOT the ledger PNs the backend's
- * get_sourced_distributors()/resolve_part_key() also consult. This may
- * under-offer distributors the backend could still resolve a part from; left
- * as-is (not a bug to fix here — see task-final-fixes-report.md).
+ * Fallbacks when the server field is absent (e.g. an older payload or a test
+ * mock that doesn't provide it): for a `raw` item (no part_id) offer all four
+ * (a "no options" dead-end select is worse); otherwise derive from the
+ * resolved InventoryItem's non-empty record PN fields.
  * @param {any} cartItem
  * @param {Map<string, any>} invIndex
  * @returns {string[]}
  */
 function availableDistributors(cartItem, invIndex) {
+  if (cartItem.part_id && Array.isArray(cartItem.available_distributors)) {
+    return cartItem.available_distributors.slice();
+  }
   const inv = cartItem.part_id ? invIndex.get(cartItem.part_id) : null;
   if (!inv) return ALL_DISTRIBUTORS.slice();
   return ALL_DISTRIBUTORS.filter((d) => (inv[d] || '').trim());
@@ -215,6 +218,33 @@ function closeExportMenu() {
 }
 
 /**
+ * Close the export menu when the user clicks anywhere outside it and its
+ * toggle button. No-op while the menu is already hidden, so it never
+ * interferes with the rest of the modal. The click that OPENS the menu
+ * targets `.cart-export` (the toggle), which is excluded here, so opening
+ * doesn't immediately re-close.
+ * @param {MouseEvent} e
+ */
+function onDocClickCloseExport(e) {
+  if (!exportMenuEl || exportMenuEl.classList.contains('hidden')) return;
+  const t = /** @type {Node} */ (e.target);
+  if (exportMenuEl.contains(t) || (t instanceof Element && t.closest('.cart-export'))) return;
+  closeExportMenu();
+}
+
+/**
+ * Close the export menu on Escape (without also closing the modal on the
+ * same keystroke — we stop propagation only when the menu was actually open).
+ * @param {KeyboardEvent} e
+ */
+function onKeydownCloseExport(e) {
+  if (e.key !== 'Escape') return;
+  if (!exportMenuEl || exportMenuEl.classList.contains('hidden')) return;
+  e.stopPropagation();
+  closeExportMenu();
+}
+
+/**
  * @param {'csv'|'paste'} fmt
  * @param {string} distributor
  */
@@ -307,9 +337,16 @@ function buildGrid(container) {
         }) },
       { key: '_dist', label: 'Target distributor', width: '150px',
         render: (item) => {
+          // Always include the currently-set target as an option even if it's
+          // no longer in the sourceable set, so a previously-chosen distributor
+          // stays visibly selected rather than silently snapping to '—'.
+          const opts = item._availableDist.slice();
+          if (item.target_distributor && !opts.includes(item.target_distributor)) {
+            opts.push(item.target_distributor);
+          }
           const select = /** @type {HTMLSelectElement} */ (el('select', { class: 'cart-row-dist-select' },
             el('option', { value: '' }, '—'),
-            ...item._availableDist.map((d) => el('option', {
+            ...opts.map((d) => el('option', {
               value: d, selected: item.target_distributor === d ? true : undefined,
             }, DISTRIBUTOR_LABELS[d] || d)),
           ));
@@ -459,6 +496,14 @@ function buildModalDom() {
     lcscCsvBtn, digikeyCsvBtn, lcscPasteBtn, digikeyPasteBtn,
   );
   const exportGroup = el('div', { class: 'cart-topbar-group' }, exportBtn, exportMenuEl);
+
+  // Dismiss the export menu on an outside click or Escape. Registered once
+  // (buildModalDom is guarded to run a single time); both handlers no-op while
+  // the menu is hidden, so they don't touch the rest of the modal. Escape uses
+  // capture + stopPropagation so it closes the menu before the modal's own
+  // Escape-to-close handler sees the keystroke.
+  document.addEventListener('click', onDocClickCloseExport);
+  document.addEventListener('keydown', onKeydownCloseExport, true);
 
   const topbar = el('div', { class: 'cart-topbar' },
     switcherEl, newBtn, renameBtn, deleteBtn, clearBtn,
