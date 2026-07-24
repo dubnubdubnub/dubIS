@@ -254,7 +254,7 @@ function renderTooltip(data, provider) {
     var catText = data.category + (data.subcategory ? " > " + data.subcategory : "");
     infoRows.push(infoRow("Category", catText));
   }
-  parts.push(html`<table class="part-preview-info">${infoRows}</table>`);
+  parts.push(html`<table class="part-preview-info"><tbody>${infoRows}</tbody></table>`);
 
   // Key attributes
   if (data.attributes && data.attributes.length > 0) {
