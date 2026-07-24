@@ -3,7 +3,7 @@
 
 import { api, AppLog } from './api.js';
 import { showToast, escHtml, Modal } from './ui-helpers.js';
-import { store, getThreshold, savePreferences, preferencesSignal, getShortcutPrefs, setShortcutPrefs } from './store.js';
+import { store, getThreshold, savePreferences, preferencesSignal, getShortcutPrefs, setShortcutPrefs, getBehaviorPrefs, setBehaviorPrefs } from './store.js';
 
 var PREFS_MAX_THRESHOLD = 200;
 var PREFS_MIN_THRESHOLD = 5;
@@ -75,12 +75,14 @@ function syncKeyboardPrefs() {
   document.getElementById('pref-redo').value = p.redo;
   document.getElementById('pref-enter-submit').checked = p.enterSubmitsModals;
   document.getElementById('pref-vim-nav').checked = p.vimNav;
+  document.getElementById('pref-auto-copy').checked = getBehaviorPrefs().autoCopySelection;
 }
 
 function wireKeyboardPrefs() {
   document.getElementById('pref-redo').addEventListener('change', (e) => setShortcutPrefs({ redo: e.target.value }));
   document.getElementById('pref-enter-submit').addEventListener('change', (e) => setShortcutPrefs({ enterSubmitsModals: e.target.checked }));
   document.getElementById('pref-vim-nav').addEventListener('change', (e) => setShortcutPrefs({ vimNav: e.target.checked }));
+  document.getElementById('pref-auto-copy').addEventListener('change', (e) => setBehaviorPrefs({ autoCopySelection: e.target.checked }));
 }
 
 // ── Open / Close / Apply ──
