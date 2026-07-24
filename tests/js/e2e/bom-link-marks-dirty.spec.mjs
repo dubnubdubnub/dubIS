@@ -50,8 +50,11 @@ test.describe('Manual BOM link marks the BOM dirty', () => {
     await expect(linkTarget).toBeVisible();
     await linkTarget.locator('td.status').click();
 
-    // The manual link must have told Python the BOM is now dirty.
-    const calls = await page.evaluate(() => window.__apiCalls?.set_bom_dirty || []);
-    expect(calls.some(args => args[0] === true)).toBe(true);
+    // The link must have been created AND marked the BOM dirty — store.bomDirty
+    // is exposed for E2E and is what drives (via api._bom_dirty) the close prompt.
+    await expect.poll(() => page.evaluate(() => window.store?.links?.manualLinks?.length || 0))
+      .toBeGreaterThan(0);
+    const dirty = await page.evaluate(() => window.store?.bomDirty);
+    expect(dirty).toBe(true);
   });
 });
