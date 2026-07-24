@@ -11,6 +11,7 @@ import { matchBOM } from './matching.js';
 import { colorizeRefs, REF_COLOR_MAP, invPartKey } from './part-keys.js';
 import { openPreferencesModal, applyPreferences, wireDigikeyButtons } from './preferences-modal.js';
 import { wireVendorsModal, openVendorsModal } from './vendors-modal.js';
+import { wireFeedersModal, openFeedersModal } from './feeders-modal.js';
 import { initShortcuts } from './a11y/shortcuts.js';
 import { initShortcutHelp } from './a11y/shortcut-help.js';
 import { saveBomFile } from './bom/bom-events.js';
@@ -171,6 +172,9 @@ function wireMiscButtons() {
   // Vendors manager modal
   wireVendorsModal();
 
+  // Feeders loading-station modal
+  wireFeedersModal();
+
   const rebuildBtn = document.getElementById("rebuild-inv");
   if (rebuildBtn) rebuildBtn.addEventListener("click", async () => {
     AppLog.info("Rebuilding inventory...");
@@ -298,6 +302,14 @@ function wireCommandPaletteAndShortcuts(syncUndoRedoButtons) {
       group: 'Global',
       keywords: ['suppliers', 'vendors', 'distributor'],
       run: () => openVendorsModal(),
+    });
+
+    cmds.push({
+      id: 'manage-feeders',
+      label: 'Manage Feeders',
+      group: 'Global',
+      keywords: ['feeders', 'loading station', 'pnp', 'reel', 'apriltag', 'openpnp'],
+      run: () => openFeedersModal(),
     });
 
     cmds.push({

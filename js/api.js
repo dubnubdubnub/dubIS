@@ -152,3 +152,12 @@ export const apiMfgDirect = {
 };
 
 export const apiWarnings = { get: () => api('get_warnings') };
+
+export const apiFeeders = {
+  list:     async () => (await api('list_feeders'))?.feeders || [],
+  get:      (tagId) => api('get_feeder', tagId),
+  register: (tagId, feederType) => api('register_feeder', tagId, feederType),
+  load:     (tagId, partKey, qty, tapeWidthMm) =>
+    api('load_feeder_reel', tagId, partKey, qty, tapeWidthMm),
+  unload:   (tagId) => api('unload_feeder', tagId),
+};
