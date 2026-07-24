@@ -347,11 +347,29 @@ jobs:
         shell: powershell
     steps:
       - uses: actions/checkout@v4
+      # The win11 runners are ephemeral (fresh golden disk each boot) with no warm
+      # cache, so npm downloads + the Playwright browser download dominated the ~15m
+      # setup. Cache both via the GitHub cache service (works across ephemeral
+      # self-hosted runners). Keyed on package-lock so a lock change busts them.
+      # Caches the download stores only (not node_modules) to avoid native-binary
+      # staleness; npm install then relinks from the warm cache without the network.
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\npm-cache
+          key: win11-npm-${{ hashFiles('package-lock.json') }}
+          restore-keys: win11-npm-
       - run: npm install
       - run: npx eslint js/
       - run: npx tsc --noEmit
       - name: Unit tests
         run: npx vitest run --project core
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\ms-playwright
+          key: win11-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: win11-playwright-
       - name: Install Playwright browsers
         run: npx playwright install chromium
       - name: Functional E2E
