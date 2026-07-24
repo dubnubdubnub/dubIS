@@ -15,7 +15,7 @@ import { wireFeedersModal, openFeedersModal } from './feeders-modal.js';
 import { initShortcuts } from './a11y/shortcuts.js';
 import { applyStoredZoom, setZoomPersister, zoomIn, zoomOut, resetZoom } from './ui-zoom.js';
 import { initZoomControl } from './ui-zoom-control.js';
-import { initPanelCollapse, handleTrigger } from './panel-collapse.js';
+import { initPanelCollapse, applyStoredCollapse, handleTrigger } from './panel-collapse.js';
 import { initShortcutHelp } from './a11y/shortcut-help.js';
 import { saveBomFile } from './bom/bom-events.js';
 import { CommandPalette } from './components/command-palette.js';
@@ -615,6 +615,9 @@ async function bootstrapData() {
   // and store.js pulls in constants.js), so app-init injects persistence.
   setZoomPersister((z) => { store.preferences.ui_zoom = z; savePreferences(); });
   applyStoredZoom(store.preferences.ui_zoom);
+  // Panels mount before preferences load, so the persisted collapse state has to
+  // be applied here rather than at mount time.
+  applyStoredCollapse(store.preferences.panels_collapsed);
   if (benchOn) api("bench_mark", "js_prefs_loaded");
   const { hydrateFromPreferences: hydrateInvView } = await import('./inventory/inv-state.js');
   hydrateInvView(store.preferences.inventory_view);

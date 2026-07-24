@@ -94,7 +94,12 @@
 }
 
 /* ── Preferences Modal ────────────────────────────────── */
-.prefs-modal-wide { min-width: 420px; max-width: 520px; max-height: calc(80 * var(--vh)); display: flex; flex-direction: column; }
+/* overflow-y:auto, not visible: max-height clamps the box but does not make it
+   scroll, so without this the content below the cap (Digikey/Mouser/Mirror/
+   Keyboard sections and the actions row) simply spills off-screen and Save
+   becomes unreachable. Bites whenever the content exceeds 80% of the window —
+   a short window, or a high zoom level, which shrinks the authored viewport. */
+.prefs-modal-wide { min-width: 420px; max-width: 520px; max-height: calc(80 * var(--vh)); display: flex; flex-direction: column; overflow-y: auto; }
 .prefs-sliders {
   overflow-y: auto;
   max-height: calc(50 * var(--vh));

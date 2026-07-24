@@ -37,13 +37,13 @@ export const REGION_IDS = REGIONS.map(r => r.id);
  */
 export const REOPEN_TRIGGERS = {
   PO_CHANGED: ['import'],
-  IMPORT_COMPLETED: ['import'],
   IMPORT_MAPPER_OPENED: ['import'],
   LABEL_MODE: ['import'],
   CART_ADD_MODE: ['import'],
   BOM_LOADED: ['bom'],
   BOM_CLEARED: ['bom'],
-  BOM_DIRTY: ['bom'],
+  // A BOM becomes dirty through exactly these two events; setBomDirty() itself is
+  // a documented non-emitting setter and must stay that way.
   CONFIRMED_CHANGED: ['bom'],
   LINKS_CHANGED: ['bom'],
   LINKING_MODE: ['bom'],
