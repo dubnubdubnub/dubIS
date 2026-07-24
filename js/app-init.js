@@ -175,10 +175,9 @@ async function initApp() {
         confirmedMatches: JSON.parse(JSON.stringify(store.links.confirmedMatches)),
       };
     }
-    store.links.manualLinks = data.manualLinks;
-    store.links.confirmedMatches = data.confirmedMatches;
-    EventBus.emit(Events.LINKS_CHANGED);
-    EventBus.emit(Events.CONFIRMED_CHANGED);
+    // Restore via the store so the undo/redo is marked as an unsaved change
+    // (a change to persisted links is dirty, just like making it the first time).
+    store.links.restoreLinks(data);
   });
 
   // Global undo/redo buttons + keyboard
