@@ -144,6 +144,11 @@
   <div class="header-left">
     <button class="btn-md prefs-btn" id="prefs-btn">Preferences</button>
     <button class="btn-md feeders-btn" id="feeders-btn" title="Loading station: register feeders and load/unload reels">Feeders</button>
+    <button class="btn-md rebuild-btn" id="rebuild-inv" title="Rebuild Inventory">Rebuild Inventory</button>
+    <button class="btn-md vendors-btn" id="vendors-btn" title="View and manage vendors">Vendors</button>
+    <button class="btn-md label-mode-btn" id="label-mode-btn" title="Select parts and export Epson labels">Print Labels</button>
+    <!-- The "Views ▾" dropdown is injected here at runtime by
+         js/inventory/saved-views-ui.js (initSavedViewsUI). -->
   </div>
   <div class="header-center">
     <button class="btn-md header-btn" id="global-undo" title="Undo" disabled>&#x21A9;</button>
@@ -184,9 +189,6 @@
   <div class="panel panel-inventory" id="panel-inventory">
     <div class="panel-header">
       Inventory
-      <button class="btn-md rebuild-btn" id="rebuild-inv" title="Rebuild Inventory">Rebuild Inventory</button>
-      <button class="btn-md vendors-btn" id="vendors-btn" title="View and manage vendors">Vendors</button>
-      <button class="btn-md label-mode-btn" id="label-mode-btn" title="Select parts and export Epson labels">Print Labels</button>
       <div class="inv-search-group">
         <input type="text" class="search-input" id="inv-search" placeholder="Search parts...">
         <button class="clear-filters-btn" id="clear-dist-filter" disabled title="Clear Filters"><span class="clear-label">Clear Filters</span><span class="clear-icon">&#x2715;</span></button>

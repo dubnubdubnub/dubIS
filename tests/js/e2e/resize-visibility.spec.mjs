@@ -129,28 +129,28 @@ test.describe('Inventory panel header controls on resize', () => {
     expect(searchInput.visible, searchInput.reason).toBe(true);
   });
 
-  test('rebuild button and search fit within panel header at narrow width', async ({ page }) => {
+  test('rebuild button and search fit within their headers at narrow width', async ({ page }) => {
     await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1024, height: 700 });
     await page.goto('/index.html');
     await waitForInventoryRows(page);
 
-    // Check they don't overflow the panel header
+    // The search group lives in the inventory panel header; the Rebuild /
+    // Vendors / Print Labels / Views actions live in the app header.
     const overflow = await page.evaluate(() => {
-      const header = document.querySelector('.panel-inventory .panel-header');
-      if (!header) return { overflowing: false, reason: 'no header' };
-      const rebuild = header.querySelector('.rebuild-btn');
-      const search = header.querySelector('.search-input');
-      const headerRect = header.getBoundingClientRect();
       const results = [];
-      if (rebuild) {
-        const r = rebuild.getBoundingClientRect();
-        if (r.right > headerRect.right + 1) results.push(`rebuild overflows by ${Math.round(r.right - headerRect.right)}px`);
-      }
-      if (search) {
-        const r = search.getBoundingClientRect();
-        if (r.right > headerRect.right + 1) results.push(`search overflows by ${Math.round(r.right - headerRect.right)}px`);
-      }
+      const check = (containerSel, itemSel, label) => {
+        const container = document.querySelector(containerSel);
+        if (!container) { results.push(`${label}: container ${containerSel} missing`); return; }
+        const item = document.querySelector(itemSel);
+        if (!item) { results.push(`${label}: ${itemSel} missing`); return; }
+        const c = container.getBoundingClientRect();
+        const r = item.getBoundingClientRect();
+        if (r.right > c.right + 1) results.push(`${label} overflows by ${Math.round(r.right - c.right)}px`);
+      };
+      check('.panel-inventory .panel-header', '.panel-inventory .search-input', 'search');
+      check('.header', '#rebuild-inv', 'rebuild');
+      check('.header', '#saved-views-btn', 'views');
       return { overflowing: results.length > 0, reason: results.join('; ') || 'all controls fit within header' };
     });
 
