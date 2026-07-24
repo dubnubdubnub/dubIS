@@ -707,7 +707,7 @@ class TestSchemaV4:
 
 
 class TestIntegration:
-    """Verify cache output matches legacy load_organized() output."""
+    """Verify SQLite cache output matches the in-memory merge->adjust->categorize pipeline."""
 
     def _build_purchase_ledger(self, path, fieldnames, rows):
         with open(path, "w", newline="", encoding="utf-8") as f:
