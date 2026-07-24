@@ -595,11 +595,18 @@ def verify_parts(
 ) -> list[dict[str, Any]]:
     """Spot-check: replay events for specific parts and compare to cache.
 
+    Targeted: only ledger/adjustment rows for *part_ids* are replayed —
+    per-key merging is independent, so the expected quantities are identical
+    to a full-ledger replay, without O(entire purchase history) work on the
+    mutation hot path. Pass every cached part id to get a full-ledger
+    self-check.
+
     Returns list of mismatches: [{"part_id", "cache_qty", "expected_qty"}].
     If fix=True, corrects cache for any mismatched parts.
     """
-    _, merged = read_and_merge(purchase_path, fieldnames)
-    apply_adjustments(merged, adjustments_path, fieldnames)
+    targets = set(part_ids)
+    _, merged = read_and_merge(purchase_path, fieldnames, only_parts=targets)
+    apply_adjustments(merged, adjustments_path, fieldnames, only_parts=targets)
 
     mismatches = []
     for pid in part_ids:

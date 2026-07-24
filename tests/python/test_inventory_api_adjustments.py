@@ -190,6 +190,34 @@ class TestAdjustPart:
         part = next(r for r in result if r["lcsc"] == "C100000")
         assert part["qty"] == 15
 
+    def test_adjust_hot_path_does_not_replay_full_ledger(self, api, monkeypatch):
+        """On the existing-part branch, adjust_part's verify must merge only
+        the adjusted key's rows — not the entire purchase ledger."""
+        import cache_db
+
+        _write_ledger(api, [
+            _make_part(lcsc="C100000", qty=10),
+            _make_part(lcsc="C200000", qty=20, desc="Capacitor 100nF 25V"),
+        ])
+        api.adjust_part("add", "C100000", 0)  # prime cache (existing-part branch next)
+
+        merges = []
+        real_merge = cache_db.read_and_merge
+
+        def spy(purchase_csv, fieldnames, registry=None, only_parts=None):
+            result = real_merge(purchase_csv, fieldnames,
+                                registry=registry, only_parts=only_parts)
+            merges.append((only_parts, set(result[1])))
+            return result
+
+        monkeypatch.setattr(cache_db, "read_and_merge", spy)
+        api.adjust_part("add", "C100000", 5)
+
+        assert merges, "verify_parts never merged the ledger"
+        for only_parts, merged_keys in merges:
+            assert only_parts == {"C100000"}
+            assert merged_keys == {"C100000"}
+
 
 class TestTruncateCsv:
     def test_remove_last_purchases(self, api):

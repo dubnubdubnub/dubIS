@@ -582,6 +582,67 @@ class TestVerify:
         qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
         assert qty == 200
 
+    def test_verify_is_targeted_not_full_ledger(self, db, tmp_path, monkeypatch):
+        """verify_parts must filter the ledger/adjustments replay to the
+        requested part keys instead of replaying the whole purchase history
+        on every call (the mutation hot path)."""
+        purchase_path, adj_path, fieldnames = self._populate_and_write_csvs(db, tmp_path)
+        seen = {}
+        real_merge = cache_db.read_and_merge
+        real_apply = cache_db.apply_adjustments
+
+        def spy_merge(purchase_csv, flds, registry=None, only_parts=None):
+            seen["merge_only_parts"] = only_parts
+            return real_merge(purchase_csv, flds, registry=registry, only_parts=only_parts)
+
+        def spy_apply(merged, adjustments_csv, flds, only_parts=None):
+            seen["apply_only_parts"] = only_parts
+            seen["merged_keys"] = set(merged)
+            return real_apply(merged, adjustments_csv, flds, only_parts=only_parts)
+
+        monkeypatch.setattr(cache_db, "read_and_merge", spy_merge)
+        monkeypatch.setattr(cache_db, "apply_adjustments", spy_apply)
+        mismatches = cache_db.verify_parts(
+            db, ["C1525"], purchase_path, adj_path, fieldnames,
+        )
+        assert mismatches == []
+        assert seen["merge_only_parts"] == {"C1525"}
+        assert seen["apply_only_parts"] == {"C1525"}
+        # Only the targeted part was replayed — no full-ledger merge
+        assert seen["merged_keys"] == {"C1525"}
+
+    def test_targeted_verify_fixes_corrupted_row_amid_other_parts(self, db, tmp_path):
+        """The targeted replay must produce the same expected quantity as the
+        old full replay: corrupt one part in a multi-part cache, verify only
+        that part, and confirm it is healed while the others are untouched."""
+        purchase_path, adj_path, fieldnames = self._populate_and_write_csvs(db, tmp_path)
+        # Adjustments for both the target part and an unrelated one.
+        with open(adj_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=ADJ_FIELDS)
+            writer.writeheader()
+            writer.writerow({"timestamp": "2026-01-01T00:00:00", "type": "add",
+                             "lcsc_part": "C1525", "quantity": "50",
+                             "bom_file": "", "board_qty": "", "note": "", "source": ""})
+            writer.writerow({"timestamp": "2026-01-01T00:01:00", "type": "remove",
+                             "lcsc_part": "C2875244", "quantity": "-5",
+                             "bom_file": "", "board_qty": "", "note": "", "source": ""})
+        db.execute("UPDATE stock SET quantity = 999 WHERE part_id = 'C1525'")
+        other_before = db.execute(
+            "SELECT quantity FROM stock WHERE part_id='C2875244'").fetchone()[0]
+        db.commit()
+
+        mismatches = cache_db.verify_parts(
+            db, ["C1525"], purchase_path, adj_path, fieldnames, fix=True,
+        )
+        assert len(mismatches) == 1
+        assert mismatches[0]["expected_qty"] == 250  # 200 ledger + 50 adjustment
+        qty = db.execute("SELECT quantity FROM stock WHERE part_id='C1525'").fetchone()[0]
+        assert qty == 250
+        # Untargeted part untouched by the targeted verify
+        other_after = db.execute(
+            "SELECT quantity FROM stock WHERE part_id='C2875244'").fetchone()[0]
+        assert other_after == other_before
+
 
 class TestSchemaV3:
     def test_fresh_schema_has_generic_parts_tables(self, db):
