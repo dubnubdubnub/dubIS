@@ -104,4 +104,37 @@ test.describe('Cart export', () => {
     expect(download.suggestedFilename()).toMatch(/digikey\.csv$/);
     await expect(page.locator('.toast, .toast-message').last()).toContainText(/unresolved|could not/i);
   });
+
+  test('export menu closes on an outside click', async ({ page }) => {
+    await installRouteMocks(page, MOCK_INVENTORY, { carts: JSON.parse(JSON.stringify(CARTS_SEED)) });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+
+    await page.click('#cart-btn');
+    await expect(page.locator('.cart-modal')).toBeVisible();
+
+    const menu = page.locator('.cart-export-menu');
+    await page.click('.cart-topbar .cart-export');
+    await expect(menu).toBeVisible();
+
+    // Click elsewhere inside the modal (the title) — the menu should dismiss.
+    await page.click('#cart-modal-title');
+    await expect(menu).toBeHidden();
+  });
+
+  test('export menu closes on Escape without closing the modal', async ({ page }) => {
+    await installRouteMocks(page, MOCK_INVENTORY, { carts: JSON.parse(JSON.stringify(CARTS_SEED)) });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+
+    await page.click('#cart-btn');
+    const menu = page.locator('.cart-export-menu');
+    await page.click('.cart-topbar .cart-export');
+    await expect(menu).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    // The modal itself stays open (Escape closed only the menu).
+    await expect(page.locator('.cart-modal')).toBeVisible();
+  });
 });

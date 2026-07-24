@@ -601,3 +601,63 @@ class TestGetSourcedDistributors:
         conn.execute("INSERT INTO parts (part_id, digikey) VALUES ('DK1', 'DK1')")
         out = get_sourced_distributors(conn, str(tmp_path / "nope.csv"), "DK1")
         assert out == [{"distributor": "digikey", "part_number": "DK1"}]
+
+
+from domain.pricing import get_sourced_distributors_batch
+
+
+class TestGetSourcedDistributorsBatch:
+    def test_matches_per_call_for_each_key(self, tmp_path):
+        # Same inputs the per-call test uses → the batch result per key must be
+        # identical to calling get_sourced_distributors once per key.
+        conn = _parts_conn()
+        conn.execute("INSERT INTO parts (part_id, lcsc) VALUES ('C555', 'C555')")
+        conn.execute("INSERT INTO parts (part_id, mpn) VALUES ('XYZ', 'XYZ')")
+        ledger = tmp_path / "purchase_ledger.csv"
+        _write_ledger(ledger, [
+            {"LCSC Part Number": "C555", "Quantity": "10"},
+            {"Digikey Part Number": "DK-555", "LCSC Part Number": "C555", "Quantity": "5"},
+            {"Digikey Part Number": "DK-OLD", "Manufacture Part Number": "XYZ"},
+            {"Digikey Part Number": "DK-NEW", "Manufacture Part Number": "XYZ"},
+        ])
+        keys = ["C555", "XYZ", "MISSING"]
+        batch = get_sourced_distributors_batch(conn, str(ledger), keys)
+        for k in keys:
+            assert batch[k] == get_sourced_distributors(conn, str(ledger), k)
+        # spot-check the union/recency behavior survived batching
+        assert batch["C555"] == [
+            {"distributor": "lcsc", "part_number": "C555"},
+            {"distributor": "digikey", "part_number": "DK-555"},
+        ]
+        assert {"distributor": "digikey", "part_number": "DK-NEW"} in batch["XYZ"]
+        assert batch["MISSING"] == []
+
+    def test_reads_ledger_once_regardless_of_key_count(self, tmp_path, monkeypatch):
+        conn = _parts_conn()
+        conn.execute("INSERT INTO parts (part_id, lcsc) VALUES ('C1', 'C1')")
+        conn.execute("INSERT INTO parts (part_id, lcsc) VALUES ('C2', 'C2')")
+        conn.execute("INSERT INTO parts (part_id, lcsc) VALUES ('C3', 'C3')")
+        ledger = tmp_path / "purchase_ledger.csv"
+        _write_ledger(ledger, [{"LCSC Part Number": "C1"}])
+
+        opens = {"n": 0}
+        real_open = open
+
+        def counting_open(path, *a, **k):
+            if str(path) == str(ledger):
+                opens["n"] += 1
+            return real_open(path, *a, **k)
+
+        monkeypatch.setattr("builtins.open", counting_open)
+        get_sourced_distributors_batch(conn, str(ledger), ["C1", "C2", "C3"])
+        assert opens["n"] == 1  # single ledger read for the whole batch
+
+    def test_empty_keys_returns_empty_dict(self, tmp_path):
+        conn = _parts_conn()
+        assert get_sourced_distributors_batch(conn, str(tmp_path / "nope.csv"), []) == {}
+
+    def test_missing_ledger_file_uses_record_only(self, tmp_path):
+        conn = _parts_conn()
+        conn.execute("INSERT INTO parts (part_id, digikey) VALUES ('DK1', 'DK1')")
+        out = get_sourced_distributors_batch(conn, str(tmp_path / "nope.csv"), ["DK1"])
+        assert out == {"DK1": [{"distributor": "digikey", "part_number": "DK1"}]}
