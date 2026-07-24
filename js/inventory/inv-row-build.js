@@ -1,3 +1,4 @@
+// @ts-check
 /* inventory/inv-row-build.js — Per-row HTML builder + delegated row handlers.
    createPartRow: creates a single inventory part row element.
    setupRowDelegation: one-time delegated listeners on the inventory body that
@@ -91,9 +92,9 @@ export function setupRowDelegation(root) {
     if (!item) return; // row not built by createPartRow (shouldn't happen)
     var target = /** @type {Element} */ (e.target);
 
-    var control = target.closest(
+    var control = /** @type {HTMLElement|null} */ (target.closest(
       ".adj-btn, .price-warn-btn, .no-dist-warn, .link-btn, .generic-group-badge, .near-miss-badge"
-    );
+    ));
     if (control && rowEl.contains(control)) {
       e.stopPropagation();
       if (control.classList.contains("adj-btn") || control.classList.contains("no-dist-warn")) {
@@ -118,11 +119,13 @@ export function setupRowDelegation(root) {
 
   // A row in label mode has two checkboxes (left + right edge) sharing one key.
   // A single toggle does not re-render, so mirror the new state onto its pair.
-  on(root, "change", ".inv-part-row .label-select-checkbox", function (e, cb) {
+  on(root, "change", ".inv-part-row .label-select-checkbox", function (e, matched) {
     e.stopPropagation();
+    var cb = /** @type {HTMLInputElement} */ (matched);
     toggleSelection(cb.dataset.key);
     var rowEl = cb.closest(".inv-part-row");
-    rowEl.querySelectorAll(".label-select-checkbox").forEach(function (other) {
+    var pair = /** @type {NodeListOf<HTMLInputElement>} */ (rowEl.querySelectorAll(".label-select-checkbox"));
+    pair.forEach(function (other) {
       if (other !== cb) other.checked = cb.checked;
     });
   });

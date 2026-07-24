@@ -1,3 +1,4 @@
+// @ts-check
 /* inventory/inv-events.js — Event listener setup for the inventory panel.
    Extracted from init() to keep inventory-panel.js focused on rendering. */
 
@@ -387,7 +388,7 @@ function renderVendorSubpills() {
   }).join('');
   panel.querySelectorAll('.vendor-subpill').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      var vid = btn.dataset.vendorId;
+      var vid = /** @type {HTMLElement} */ (btn).dataset.vendorId;
       if (state.selectedVendorIds.has(vid)) state.selectedVendorIds.delete(vid);
       else state.selectedVendorIds.add(vid);
       btn.classList.toggle('selected');
@@ -412,9 +413,9 @@ function toggleVendorSubpills() {
 }
 
 function setInventoryRowsDraggable(on) {
-  var rows = document.querySelectorAll(
+  var rows = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll(
     "#inventory-body .inv-part-row, #inventory-body tr[data-part-key]"
-  );
+  ));
   for (var i = 0; i < rows.length; i++) rows[i].draggable = on;
 }
 
