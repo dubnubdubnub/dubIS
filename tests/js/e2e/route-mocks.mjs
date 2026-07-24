@@ -219,6 +219,37 @@ const ROUTES = [
   }, { mutation: true }),
   route('get_po_with_items', (a, ctx) =>
     (ctx.options.poWithItems || {})[a.po_id] || { po_id: a.po_id, line_items: [] }),
+  // update_cart_item (Task B6): mutates the matching item's qty/target_distributor
+  // in ctx.cartsState in place — real shape per server/routes/carts.py's
+  // update_cart_item: `detail` is the updated item dict (mirrors add_cart_item's
+  // single-item detail, not the whole cart). qty/target_distributor of `null`
+  // (unset field) leave the existing value alone, matching cart-store.js's
+  // updateItem() sending `qty ?? null` for an omitted field.
+  route('update_cart_item', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: update_cart_item — no cart "${a.cart_id}" in mock cartsState`);
+    const item = (cart.items || []).find((it) => it.ref === a.ref);
+    if (!item) throw new Error(`route-mocks.mjs: update_cart_item — no item "${a.ref}" in cart "${a.cart_id}"`);
+    if (a.qty !== null && a.qty !== undefined) item.qty = a.qty;
+    if (a.target_distributor !== null && a.target_distributor !== undefined) item.target_distributor = a.target_distributor;
+    return item;
+  }, { mutation: true }),
+  // remove_cart_item (Task B6): filters the matching ref out of ctx.cartsState —
+  // real detail shape per server/routes/carts.py: {"cart_id", "ref"}.
+  route('remove_cart_item', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: remove_cart_item — no cart "${a.cart_id}" in mock cartsState`);
+    cart.items = (cart.items || []).filter((it) => it.ref !== a.ref);
+    return { cart_id: a.cart_id, ref: a.ref };
+  }, { mutation: true }),
+  // clear_cart (Task B6): empties the matching cart's items in ctx.cartsState —
+  // real detail shape per server/routes/carts.py: the whole (now-empty) cart dict.
+  route('clear_cart', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: clear_cart — no cart "${a.cart_id}" in mock cartsState`);
+    cart.items = [];
+    return cart;
+  }, { mutation: true }),
 
   // ── import-panel.js (Task 5) ──────────────────────────────────────────────
   route('import_purchases', (a) => ({ count: (a.rows || []).length }), { mutation: true }),

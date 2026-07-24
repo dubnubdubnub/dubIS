@@ -4,9 +4,9 @@
    any cart mutation, from this client or another (via carts.updated SSE ->
    loadCarts(), wired in app-init.js).
 
-   Clicking #cart-btn opens the cart modal — a stub here (openCartModal is a
-   no-op placeholder) until a later task (B6) builds the real modal and
-   replaces this export's implementation.
+   Clicking #cart-btn opens the cart modal (js/cart/cart-modal.js, Task B6) —
+   re-exported here so callers that import openCartModal from this module
+   don't need to change.
 
    Task B4: while BOM linking mode is armed with an inventory item (see
    inv-events.js's LINKING_MODE listener, which toggles #cart-btn's
@@ -20,15 +20,9 @@ import { AppLog } from '../api.js';
 import { store } from '../store.js';
 import { invPartKey } from '../part-keys.js';
 import * as cartAddMode from './cart-add.js';
+import { openCartModal } from './cart-modal.js';
 
-/**
- * Open the cart modal. No-op placeholder until B6 implements the real modal —
- * kept importable/exported so B6 can swap the implementation without callers
- * (this module's click handler) needing to change.
- */
-export function openCartModal() {
-  // Intentionally a no-op stub — see module docblock.
-}
+export { openCartModal };
 
 /** Wire the header cart button + badge. Call once at startup. */
 export function initCartHeader() {
