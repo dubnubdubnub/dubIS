@@ -100,6 +100,7 @@ const _linksProxy = {
   addManualLink(bk, ipk) { addManualLink(bk, ipk); },
   confirmMatch(bk, ipk) { confirmMatch(bk, ipk); },
   unconfirmMatch(bk) { unconfirmMatch(bk); },
+  restoreLinks(data) { restoreLinks(data); },
   setLinkingMode(active, invItem) { setLinkingMode(active, invItem); },
   setReverseLinkingMode(active, bomRow) { setReverseLinkingMode(active, bomRow); },
   loadFromSaved(savedLinks) { loadLinks(savedLinks); },
@@ -202,6 +203,17 @@ export function confirmMatch(bk, ipk) {
 export function unconfirmMatch(bk) {
   confirmedMatches = confirmedMatches.filter(c => c.bomKey !== bk);
   markBomDirty();
+  EventBus.emit(Events.CONFIRMED_CHANGED);
+}
+
+/** Restore links + confirms from an undo/redo snapshot. This is a user action
+ * that changes persisted BOM state, so it marks the BOM dirty (unlike
+ * loadLinks(), which loads a freshly-saved BOM). */
+export function restoreLinks({ manualLinks: ml, confirmedMatches: cm }) {
+  manualLinks = Array.isArray(ml) ? ml : [];
+  confirmedMatches = Array.isArray(cm) ? cm : [];
+  markBomDirty();
+  EventBus.emit(Events.LINKS_CHANGED);
   EventBus.emit(Events.CONFIRMED_CHANGED);
 }
 
