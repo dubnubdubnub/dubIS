@@ -326,12 +326,20 @@ jobs:
           name: playwright-report-live
           path: test-results/
 
-  # ── JS on Windows (win11 VM): lint/type/unit + functional E2E ────────
+  # ── JS on Windows (win11 VM): lint/type/unit + Windows-smoke E2E ─────
   #   dubIS ships on Windows (pywebview/WebView2), so this leg exercises the
   #   frontend on a real Windows runner — catching Windows-only path/render
   #   issues the ubuntu+macos legs miss. Runs on the single self-hosted win11
   #   VM (blhx370/KVM). Deliberately NOT part of the js-required gate: it's a
   #   single VM, so an outage must not block merges. Gated on run_js.
+  #
+  #   E2E runs the `windows` Playwright project — a ~15-spec Windows-smoke
+  #   subset (render/layout, OS keyboard/focus, path/file handling), NOT the
+  #   full functional suite (which the ubuntu+macos legs already prove
+  #   identical). The full functional suite still runs nightly on win11 via
+  #   .github/workflows/win11-nightly.yml. Grow the subset in
+  #   playwright.config.mjs rather than reverting to --project functional here.
+  #   See docs/superpowers/specs/2026-07-24-win11-ci-speedup-design.md.
   js-windows:
     name: JS Windows E2E (win11)
     needs: [parse-tags, guard]
@@ -339,27 +347,40 @@ jobs:
       always() && !failure() &&
       needs.parse-tags.outputs.run_js == 'true'
     runs-on: [self-hosted, win11]
-    # Route-mocked E2E (HTTP interception) runs ~15m of test time on the win11
-    # VM plus ~15m setup — 30 was cancelling seconds before natural completion.
-    timeout-minutes: 45
+    # Subset E2E (~15 specs) + cached deps runs well under this; the headroom
+    # covers a cold node_modules/browser cache miss on the slow CoW golden disk.
+    timeout-minutes: 30
     defaults:
       run:
         shell: powershell
     steps:
       - uses: actions/checkout@v4
       # The win11 runners are ephemeral (fresh golden disk each boot) with no warm
-      # cache, so npm downloads + the Playwright browser download dominated the ~15m
-      # setup. Cache both via the GitHub cache service (works across ephemeral
-      # self-hosted runners). Keyed on package-lock so a lock change busts them.
-      # Caches the download stores only (not node_modules) to avoid native-binary
-      # staleness; npm install then relinks from the warm cache without the network.
+      # cache, so npm downloads + the Playwright browser download dominated setup.
+      # Cache via the GitHub cache service (works across ephemeral self-hosted
+      # runners), keyed on package-lock so a lock change busts them.
+      #
+      # We cache node_modules DIRECTLY (not just the npm download store): the
+      # win11-<...> key prefix + the fixed golden-image Node version make the
+      # native-binary-staleness risk moot, and it eliminates npm's slow
+      # thousands-of-small-files relink onto the CoW disk (the 0.5–3m variance).
+      # No restore-keys on node_modules: only an exact lock match may count as a
+      # hit, so a stale tree from a different lock is never reused.
       - name: Cache npm downloads
         uses: actions/cache@v4
         with:
           path: ~\AppData\Local\npm-cache
           key: win11-npm-${{ hashFiles('package-lock.json') }}
           restore-keys: win11-npm-
-      - run: npm install
+      - name: Cache node_modules
+        id: node_modules_cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: win11-nodemodules-${{ hashFiles('package-lock.json') }}
+      - name: Install deps
+        if: steps.node_modules_cache.outputs.cache-hit != 'true'
+        run: npm ci
       - run: npx eslint js/
       - run: npx tsc --noEmit
       - name: Unit tests
@@ -372,12 +393,12 @@ jobs:
           restore-keys: win11-playwright-
       - name: Install Playwright browsers
         run: npx playwright install chromium
-      - name: Functional E2E
-        run: npx playwright test --project functional
+      - name: Windows-smoke E2E
+        run: npx playwright test --project windows
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report-win11-functional
+          name: playwright-report-win11-windows
           path: test-results/
 
   # ── Required-check gate ──────────────────────────────────────────────
