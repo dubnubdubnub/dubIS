@@ -194,6 +194,29 @@ const ROUTES = [
     cart.items.push(item);
     return item;
   }, { mutation: true }),
+  // add_bom_missing_to_cart (Task B5): mirrors add_cart_item's stateful push
+  // (one item per `missing` entry) so the next list_carts (loadCarts())
+  // reflects every part the BOM panel's "Add missing to cart" button queued
+  // — real shape per server/routes/carts.py: `detail` is the whole cart dict
+  // (domain/api_cart.py's add_bom_missing_to_cart returns get_cart's shape),
+  // not a single item like add_cart_item.
+  route('add_bom_missing_to_cart', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: add_bom_missing_to_cart — no cart "${a.cart_id}" in mock cartsState (seed one via options.carts)`);
+    if (!cart.items) cart.items = [];
+    const missing = Array.isArray(a.missing) ? a.missing : JSON.parse(a.missing);
+    missing.forEach((entry) => {
+      cart.items.push({
+        ref: `item-${cart.items.length + 1}`,
+        part_id: entry.part_id ?? null,
+        raw: entry.raw ?? null,
+        qty: entry.qty ?? 1,
+        target_distributor: entry.target_distributor ?? null,
+        shortfall: entry.shortfall ?? null,
+      });
+    });
+    return cart;
+  }, { mutation: true }),
   route('get_po_with_items', (a, ctx) =>
     (ctx.options.poWithItems || {})[a.po_id] || { po_id: a.po_id, line_items: [] }),
 

@@ -24,6 +24,7 @@ export function renderDropZone() {
         <button class="btn-md save-bom-btn" id="bom-save-btn" disabled>Save BOM</button>
         <button class="btn-md consume-btn" id="bom-consume-btn" disabled>Consume from inventory</button>
         <button class="btn-md clear-bom-btn" id="bom-clear-btn" disabled>Clear BOM</button>
+        <button class="btn-md" id="bom-add-to-cart" title="Add all missing/short BOM parts to the active cart" disabled>Add missing to cart</button>
         <span class="bom-price-info" id="bom-price-info"></span>
       </div>
       <div class="bom-staging-toolbar" id="bom-staging-toolbar">

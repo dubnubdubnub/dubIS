@@ -18,6 +18,7 @@
   padding: 6px 12px;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   border-bottom: 1px solid var(--bg-raised);
 }
