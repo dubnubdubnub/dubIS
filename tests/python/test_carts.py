@@ -116,6 +116,18 @@ def test_split_by_distributor_moves_matching_lines(tmp_path):
     assert [i["part_id"] for i in res["source"]["items"]] == ["B"]
 
 
+def test_split_moves_target_unset_sourceable_lines(tmp_path):
+    conn = _mk_conn(tmp_path); data_dir = str(tmp_path)
+    c = carts.create(conn, data_dir, "src")
+    carts.add_item(conn, data_dir, c["id"], part_id="A", qty=1)
+    carts.add_item(conn, data_dir, c["id"], part_id="B", qty=1)
+    res = carts.split_by_distributor(conn, data_dir, c["id"], "lcsc", "lcsc cart",
+                                     remove_from_source=True,
+                                     part_distributors=_pd({"A": ["lcsc", "digikey"], "B": ["mouser"]}))
+    assert [i["part_id"] for i in res["new"]["items"]] == ["A"]
+    assert [i["part_id"] for i in res["source"]["items"]] == ["B"]
+
+
 def test_consolidate_sets_target_where_sourceable(tmp_path):
     conn = _mk_conn(tmp_path); data_dir = str(tmp_path)
     c = carts.create(conn, data_dir, "c")
