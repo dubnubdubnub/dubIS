@@ -51,5 +51,5 @@ def default_qty(shortfall: int | None, ladder: list[tuple[int, float]]) -> int:
         step = min(candidates)
         return step if step <= 2 * base else _round_up_10(base)
     # no shortfall: lowest break, unless its extended price > $30 -> 5
-    low_q, low_price = ladder[0]
+    low_q, low_price = min(ladder)
     return 5 if low_q * low_price > 30 else low_q
