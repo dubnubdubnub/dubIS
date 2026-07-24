@@ -1,3 +1,5 @@
+> **SUPERSEDED** by docs/plans/2026-07-15-platform-architecture-design.md (2026-07-15). Retained for history.
+
 # Phase 3: Feeder Tracking + OpenPnP Integration — Implementation Plan
 
 **Goal:** Track which parts are loaded in which feeders, monitor feeder levels
