@@ -33,6 +33,11 @@ jobs:
         shell: powershell
     steps:
       - uses: actions/checkout@v4
+      # Prepend System32 so actions/cache uses Win11's bsdtar, not Git's GNU tar
+      # (which needs gzip/zstd on PATH — absent here, so saves fail 127). See the
+      # matching step + full rationale in ci.yml's js-windows leg.
+      - name: Use native bsdtar for actions/cache
+        run: Add-Content -Path $env:GITHUB_PATH -Value 'C:\Windows\System32'
       # Same cache strategy as ci.yml's js-windows leg — see the comments there.
       - name: Cache npm downloads
         uses: actions/cache@v4
