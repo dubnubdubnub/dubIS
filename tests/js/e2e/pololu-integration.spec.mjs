@@ -72,12 +72,13 @@ test.describe('Pololu integration', () => {
 
   test('Pololu part uses correct brand color', async ({ page }) => {
     const pololuSpan = page.locator('.part-id-pololu[data-pololu="1992"]');
-    // Wait for the row to actually be visible before reading computed style —
-    // a one-shot evaluate() can otherwise race the render (no retry/polling).
-    await expect(pololuSpan).toBeVisible();
-    const color = await pololuSpan.evaluate(el => getComputedStyle(el).color);
+    // toHaveCSS polls AND re-resolves the locator on every attempt. A one-shot
+    // evaluate() (even behind a toBeVisible() wait) races the post-load
+    // vendors/PO re-render: the row can be detached between locator resolution
+    // and evaluation, making getComputedStyle() return "" (flaked on CI ubuntu
+    // and on main run 30114828274).
     // #1e2f94 = rgb(30, 47, 148)
-    expect(color).toBe('rgb(30, 47, 148)');
+    await expect(pololuSpan).toHaveCSS('color', 'rgb(30, 47, 148)');
   });
 
   test('Pololu-only part does not show NO DIST. PN warning', async ({ page }) => {
