@@ -28,6 +28,38 @@ export default defineConfig({
       testIgnore: ['accessibility.spec.mjs', 'resize-visibility.spec.mjs', 'live/**'],
     },
     {
+      // Windows-only smoke subset, run on the single ephemeral win11 VM
+      // (js-windows CI leg). The full functional suite is proven identical on
+      // the ubuntu + macos legs, so win11 only re-runs the specs whose behavior
+      // can genuinely diverge on Windows: WebView2/Chromium font metrics and
+      // sticky/overflow layout, OS-level keyboard & focus, and path/file
+      // handling. The full functional suite still runs nightly on win11 via
+      // .github/workflows/win11-nightly.yml. Grow this list rather than
+      // reverting to --project functional here. See
+      // docs/superpowers/specs/2026-07-24-win11-ci-speedup-design.md.
+      name: 'windows',
+      testMatch: [
+        // Layout / render
+        'inv-alignment-visual.spec.mjs',
+        'sticky-clip-visual.spec.mjs',
+        'sticky-buttons.spec.mjs',
+        'po-icon-stack-visual.spec.mjs',
+        'inv-col-alignment.spec.mjs',
+        'inv-col-header.spec.mjs',
+        'row-alignment.spec.mjs',
+        // OS interaction (keyboard / focus)
+        'keyboard-nav.spec.mjs',
+        'shortcuts.spec.mjs',
+        'search-keyboard.spec.mjs',
+        'scroll-keyboard.spec.mjs',
+        'modal-focus-trap.spec.mjs',
+        // File / path handling
+        'import-diff.spec.mjs',
+        'po-import.spec.mjs',
+        'label-export.spec.mjs',
+      ],
+    },
+    {
       name: 'quality',
       testMatch: ['accessibility.spec.mjs', 'resize-visibility.spec.mjs'],
     },
