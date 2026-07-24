@@ -27,7 +27,18 @@ logger = logging.getLogger(__name__)
 
 
 def connect(db_path: str) -> sqlite3.Connection:
-    """Open or create the cache database."""
+    """Open or create the cache database.
+
+    The returned connection is shared across threads (pywebview UI thread,
+    FastAPI threadpool, PnP daemon), which is only safe when the sqlite3
+    build runs in serialized mode. Refuse to hand out an unsafe connection.
+    """
+    if sqlite3.threadsafety != 3:
+        raise RuntimeError(
+            "sqlite3 build is not serialized (threadsafety="
+            f"{sqlite3.threadsafety}, need 3): sharing one connection across "
+            "threads with check_same_thread=False would be unsafe"
+        )
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
