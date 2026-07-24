@@ -363,6 +363,16 @@ jobs:
         shell: powershell
     steps:
       - uses: actions/checkout@v4
+      # actions/cache hardcodes Git-for-Windows' GNU tar (C:\Program Files\Git\
+      # usr\bin\tar.exe) and archives with `-z`, which shells out to `gzip`. That
+      # gzip.exe ships right next to tar.exe but that dir is NOT on the runner's
+      # PATH, so the child died with status 127 ("Broken pipe") and EVERY cache
+      # save silently failed — no cache ever persisted. Put Git's usr\bin on PATH
+      # so tar finds its own gzip. Without this the caches below are no-ops.
+      # (bsdtar can't be forced here — actions/cache prefers GNU tar by exact path
+      # whenever it exists.) Must run before the first actions/cache step.
+      - name: Put Git's gzip on PATH for actions/cache
+        run: Add-Content -Path $env:GITHUB_PATH -Value 'C:\Program Files\Git\usr\bin'
       # The win11 runners are ephemeral (fresh golden disk each boot) with no warm
       # cache, so npm downloads + the Playwright browser download dominated setup.
       # Cache via the GitHub cache service (works across ephemeral self-hosted
