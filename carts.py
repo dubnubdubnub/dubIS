@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any
 
 import csv_io
-from dubis_errors import DubISError
+from dubis_errors import NotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +143,7 @@ def load_into_db(conn: sqlite3.Connection, data_dir: str) -> None:
 
 def _require(conn: sqlite3.Connection, cart_id: str) -> None:
     if conn.execute("SELECT 1 FROM carts WHERE id=?", (cart_id,)).fetchone() is None:
-        raise DubISError(f"cart {cart_id} not found")
+        raise NotFoundError(f"cart {cart_id} not found")
 
 
 def _next_position(conn: sqlite3.Connection, cart_id: str) -> int:
