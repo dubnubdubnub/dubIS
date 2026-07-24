@@ -68,6 +68,8 @@ SKIP_OPERATION_IDS = {
     "legacy_consume", "legacy_health", "legacy_parts",  # /api/* back-compat
     "health", "meta", "events_stream",  # infra, not bridge methods
     "get_openpnp_part",  # OpenPnP-side Jython script calls this, not dubIS's own JS
+    "get_feeder_tag_sheet",  # binary PDF fetched directly by the browser, not via api()
+    "get_feeder_tag_png",  # binary PNG fetched directly by the browser, not via api()
 }
 
 # Operations whose request body is a raw opaque JSON object (no named
@@ -85,6 +87,8 @@ ARG_ORDER: dict[str, list[str]] = {
     "add_generic_member": ["generic_part_id", "part_id"],
     "adjust_part": ["adj_type", "part_key", "quantity", "note", "source"],
     "consume_bom": ["matches", "board_qty", "bom_name", "note", "source"],
+    "load_feeder_reel": ["tag_id", "part_key", "qty", "tape_width_mm"],
+    "register_feeder": ["tag_id", "feeder_type"],
     "create_generic_part": ["name", "part_type", "spec", "strictness"],
     "create_purchase_order_with_items": [
         "vendor_id", "source_file_b64", "source_file_name",
