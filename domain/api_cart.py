@@ -14,7 +14,7 @@ from typing import Any
 import cart_export
 import cart_qty
 import carts
-from domain.pricing import resolve_part_key
+from domain.pricing import get_sourced_distributors_batch, resolve_part_key
 
 
 class CartFacade:
@@ -36,6 +36,34 @@ class CartFacade:
             if s["distributor"] == distributor:
                 return s["part_number"]
         return None
+
+    def _enrich_available(self, carts_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Attach ``available_distributors`` (list[str]) to every cart item.
+
+        Sourceability matches split/consolidate/export: the union of a part's
+        record PNs and its purchase-ledger PNs (via get_sourced_distributors),
+        so the per-line dropdown offers ledger-only distributors the client's
+        inventory-record view alone would miss. Raw items (no part_id) get [].
+        Uses the batched helper so the ledger CSV is read once per call, not
+        once per item.
+        """
+        part_ids = [
+            it["part_id"]
+            for cart in carts_list
+            for it in cart["items"]
+            if it.get("part_id")
+        ]
+        batch = (
+            get_sourced_distributors_batch(self._api._get_cache(), self._api.input_csv, part_ids)
+            if part_ids else {}
+        )
+        for cart in carts_list:
+            for it in cart["items"]:
+                pid = it.get("part_id")
+                it["available_distributors"] = (
+                    [e["distributor"] for e in batch.get(pid, [])] if pid else []
+                )
+        return carts_list
 
     def _part_meta(self, part_id: str | None) -> dict[str, Any]:
         if not part_id:
@@ -63,13 +91,14 @@ class CartFacade:
 
     def list_carts(self) -> list[dict[str, Any]]:
         with self._api._lock:
-            return carts.list_carts(self._api._get_cache())
+            return self._enrich_available(carts.list_carts(self._api._get_cache()))
 
     def get_cart(self, cart_id: str) -> dict[str, Any]:
         with self._api._lock:
             cart = carts.get(self._api._get_cache(), cart_id)
             if cart is None:
                 raise KeyError(cart_id)
+            self._enrich_available([cart])
             return cart
 
     def create_cart(self, name: str | None) -> dict[str, Any]:
