@@ -87,3 +87,25 @@ def test_export_cart_paste_format(api):
     result = api.export_cart(c["id"], "lcsc", "paste")
     assert "content" in result
     assert "unresolved" in result
+
+
+def test_export_cart_resolves_metadata_for_alias_part_id(api):
+    """A cart line added under a distributor-specific alias key (e.g. the LCSC
+    PN) rather than the registry's canonical part_id must still export with
+    non-blank MPN/Manufacturer/Package/Description — _part_meta needs the same
+    alias-aware resolution get_sourced_distributors() uses (Fix 3)."""
+    conn = api._get_cache()
+    conn.execute(
+        "INSERT INTO parts (part_id, lcsc, mpn, manufacturer, package, description) "
+        "VALUES ('CANON1', 'C99999', 'STM32F103', 'ST', 'LQFP-64', 'MCU') ",
+    )
+    conn.commit()
+
+    c = api.create_cart("Alias Cart")
+    # add under the alias (lcsc PN), not the canonical part_id
+    api.add_cart_item(c["id"], part_id="C99999", qty=2)
+    result = api.export_cart(c["id"], "lcsc", "csv")
+    assert result["unresolved"] == []
+    assert "STM32F103" in result["content"]
+    assert "ST" in result["content"]
+    assert "LQFP-64" in result["content"]

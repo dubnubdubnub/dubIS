@@ -33,6 +33,24 @@ test.describe('Cart-add mode', () => {
     await expect(page.locator('#cart-badge')).toHaveText('1');
   });
 
+  test('first-use add-to-cart on a fresh install (no carts yet) auto-creates a cart', async ({ page }) => {
+    // No options.carts passed — route-mocks.mjs defaults ctx.cartsState to
+    // {carts: [], active_cart_id: null}, the real first-run state (Fix 1
+    // regression test: this used to silently no-op).
+    await installRouteMocks(page, MOCK_INVENTORY);
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+
+    await expect(page.locator('#cart-badge')).toHaveText('0');
+
+    await page.click('#cart-add-toggle');
+    await expect(page.locator('#cart-add-toggle')).toHaveClass(/active/);
+
+    await page.locator('.inv-part-row').first().click();
+
+    await expect(page.locator('#cart-badge')).toHaveText('1');
+  });
+
   test('toggle off reverts the visual mode and stops adding on row click', async ({ page }) => {
     await installRouteMocks(page, MOCK_INVENTORY, {
       carts: {

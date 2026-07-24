@@ -5,12 +5,19 @@ vi.mock('../../js/api.js', () => ({
   api: vi.fn(),
   AppLog: { warn() {}, error() {} },
 }));
+// cart-store.js imports store.js (for prefillName()'s store.bomFileName
+// read) — store.js imports js/constants.js, which has a top-level `await
+// fetch` that crashes vitest collection (see CLAUDE.md's "Don't import
+// js/constants.js in test setup" trap); mock it the same way tests/js/store.test.js does.
+vi.mock('../../js/constants.js', () => ({ SECTION_ORDER: [], FIELDNAMES: [] }));
+vi.mock('../../js/ui-helpers.js', () => ({ formatMoney: vi.fn() }));
 import { api } from '../../js/api.js';
 import * as cartStore from '../../js/cart/cart-store.js';
 import { cartsSignal } from '../../js/signals.js';
+import { store } from '../../js/store.js';
 
 describe('cart-store', () => {
-  beforeEach(() => { api.mockReset(); });
+  beforeEach(() => { api.mockReset(); store.bomFileName = ''; });
 
   it('loadCarts stores carts and active id', async () => {
     api.mockResolvedValueOnce({ carts: [{ id: 'cart_1', name: 'A', items: [{ ref: 'x', qty: 2 }] }], active_cart_id: 'cart_1' });
@@ -62,9 +69,62 @@ describe('cart-store', () => {
     expect(cartStore.getActiveCartId()).toBe('cart_9');
   });
 
-  it('throws when addToActiveCart is called with no active cart', async () => {
+  it('addToActiveCart auto-creates and activates a cart on first use (no active cart yet)', async () => {
+    // Fresh install: list_carts() -> no carts, no active id.
     api.mockResolvedValueOnce({ carts: [], active_cart_id: null });
     await cartStore.loadCarts();
-    await expect(cartStore.addToActiveCart({ partId: 'p', qty: 1 })).rejects.toThrow();
+    expect(cartStore.getActiveCartId()).toBeNull();
+
+    // create_cart(prefillName()) -> new cart (create_cart does NOT itself
+    // activate — cart-store must call set_active_cart explicitly).
+    api.mockResolvedValueOnce({ id: 'cart_new', name: expect.any(String), items: [] });
+    // createCart()'s internal loadCarts() refetch.
+    api.mockResolvedValueOnce({ carts: [{ id: 'cart_new', name: 'N', items: [] }], active_cart_id: null });
+    // set_active_cart(cart_new) call.
+    api.mockResolvedValueOnce({ active_cart_id: 'cart_new' });
+    // setActiveCart()'s internal loadCarts() refetch.
+    api.mockResolvedValueOnce({ carts: [{ id: 'cart_new', name: 'N', items: [] }], active_cart_id: 'cart_new' });
+    // add_cart_item call.
+    api.mockResolvedValueOnce({});
+    // addToActiveCart()'s final loadCarts() refetch.
+    api.mockResolvedValueOnce({ carts: [{ id: 'cart_new', name: 'N', items: [{ ref: 'p', qty: 1 }] }], active_cart_id: 'cart_new' });
+
+    await cartStore.addToActiveCart({ partId: 'p', qty: 1 });
+
+    expect(api).toHaveBeenCalledWith('create_cart', expect.any(String));
+    expect(api).toHaveBeenCalledWith('set_active_cart', 'cart_new');
+    expect(api).toHaveBeenCalledWith('add_cart_item', 'cart_new', 'p', null, 1, null, null);
+    expect(cartStore.getActiveCartId()).toBe('cart_new');
+    expect(cartStore.cartItemCount()).toBe(1);
+  });
+
+  it('addBomMissing auto-creates a cart on first use when no cartId is passed', async () => {
+    api.mockResolvedValueOnce({ carts: [], active_cart_id: null });
+    await cartStore.loadCarts();
+
+    api.mockResolvedValueOnce({ id: 'cart_bom', name: 'B', items: [] });
+    api.mockResolvedValueOnce({ carts: [{ id: 'cart_bom', name: 'B', items: [] }], active_cart_id: null });
+    api.mockResolvedValueOnce({ active_cart_id: 'cart_bom' });
+    api.mockResolvedValueOnce({ carts: [{ id: 'cart_bom', name: 'B', items: [] }], active_cart_id: 'cart_bom' });
+    api.mockResolvedValueOnce({ id: 'cart_bom', name: 'B', items: [{ ref: 'x', qty: 3 }] });
+    api.mockResolvedValueOnce({ carts: [{ id: 'cart_bom', name: 'B', items: [{ ref: 'x', qty: 3 }] }], active_cart_id: 'cart_bom' });
+
+    const missing = [{ part_id: 'x', qty: 3 }];
+    await cartStore.addBomMissing(missing);
+
+    expect(api).toHaveBeenCalledWith('create_cart', expect.any(String));
+    expect(api).toHaveBeenCalledWith('add_bom_missing_to_cart', 'cart_bom', missing);
+  });
+
+  it('prefillName combines today\'s date with the loaded BOM filename', () => {
+    store.bomFileName = 'widgets.csv';
+    const today = new Date().toISOString().slice(0, 10);
+    expect(cartStore.prefillName()).toBe(`${today} · widgets.csv`);
+  });
+
+  it('prefillName is just the date when no BOM is loaded', () => {
+    store.bomFileName = '';
+    const today = new Date().toISOString().slice(0, 10);
+    expect(cartStore.prefillName()).toBe(today);
   });
 });

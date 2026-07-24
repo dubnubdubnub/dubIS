@@ -9,6 +9,7 @@
 
 import { api } from '../api.js';
 import { cartsSignal } from '../signals.js';
+import { store } from '../store.js';
 
 /** @type {Array<Object>} */
 let _carts = [];
@@ -59,11 +60,40 @@ function _requireActiveCartId() {
 }
 
 /**
- * Add an item to the active cart, then reload carts.
+ * "<YYYY-MM-DD> · <loadedBomFileName or ''>" — trims the separator when no
+ * BOM is loaded. The single shared implementation (cart-modal.js's "New"
+ * button and the auto-create-on-first-add paths below all call this, rather
+ * than each re-deriving their own name) — reads store.bomFileName, the same
+ * getter the BOM panel itself reads/writes.
+ * @returns {string}
+ */
+export function prefillName() {
+  const today = new Date().toISOString().slice(0, 10);
+  const bomName = store.bomFileName || '';
+  return bomName ? `${today} · ${bomName}` : today;
+}
+
+/**
+ * Ensure there is an active cart, auto-creating (and activating) one named
+ * via prefillName() if none exists yet — first-use add-to-cart must not
+ * silently no-op just because no cart has been created/selected yet.
+ * @returns {Promise<string>} the active cart id (existing or newly created)
+ */
+async function _ensureActiveCartId() {
+  if (_activeCartId !== null && _activeCartId !== undefined) return _activeCartId;
+  const created = await createCart(prefillName());
+  await setActiveCart(created.id);
+  return created.id;
+}
+
+/**
+ * Add an item to the active cart, then reload carts. Auto-creates+activates
+ * a cart first if none is active yet (see _ensureActiveCartId) — first-use
+ * add-to-cart must work, not silently no-op.
  * @param {{partId?: string, raw?: Object|null, qty?: number, shortfall?: number, targetDistributor?: string}} opts
  */
 export async function addToActiveCart({ partId, raw, qty, shortfall, targetDistributor } = {}) {
-  const cartId = _requireActiveCartId();
+  const cartId = await _ensureActiveCartId();
   await api('add_cart_item', cartId, partId ?? null, raw ?? null, qty ?? null, targetDistributor ?? null, shortfall ?? null);
   await loadCarts();
 }
@@ -159,10 +189,13 @@ export async function exportCart(cartId, distributor, fmt = 'csv') {
 
 /**
  * @param {Array<Object>} missing
- * @param {string} [cartId] defaults to the active cart
+ * @param {string} [cartId] defaults to the active cart, auto-creating+
+ *   activating one via prefillName() if none is active yet (see
+ *   _ensureActiveCartId) — first-use "add missing to cart" must work, not
+ *   silently no-op.
  */
 export async function addBomMissing(missing, cartId) {
-  const id = cartId ?? _requireActiveCartId();
+  const id = cartId ?? await _ensureActiveCartId();
   const result = await api('add_bom_missing_to_cart', id, missing);
   await loadCarts();
   return result;

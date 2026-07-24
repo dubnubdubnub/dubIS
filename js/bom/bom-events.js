@@ -9,7 +9,7 @@ import { store, setBomDirty, setBomResults, setBomMeta, scheduleInventoryRefresh
 import { bomAggKey } from '../part-keys.js';
 import { generateCSV } from '../csv-parser.js';
 import { computeRows, prepareConsumption, buildMissingCartEntries } from './bom-logic.js';
-import { addBomMissing, getActiveCartId } from '../cart/cart-store.js';
+import { addBomMissing } from '../cart/cart-store.js';
 import state from './bom-state.js';
 
 /**
@@ -109,12 +109,11 @@ export function setupEvents(handlers) {
         showToast("No missing/short parts to add");
         return;
       }
-      const cartId = getActiveCartId();
-      if (!cartId) {
-        showToast("No active cart — create or select one first");
-        return;
-      }
-      await addBomMissing(missing, cartId);
+      // addBomMissing() auto-creates+activates a cart when none is active
+      // yet (js/cart/cart-store.js's _ensureActiveCartId) — first use must
+      // work, not silently no-op.
+      const result = await addBomMissing(missing);
+      const cartId = result && result.id;
       AppLog.info("Added " + missing.length + " missing/short BOM parts to cart " + cartId);
       showToast("Added " + missing.length + " part" + (missing.length === 1 ? "" : "s") + " to cart");
     }

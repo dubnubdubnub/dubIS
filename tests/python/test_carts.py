@@ -93,12 +93,43 @@ def test_item_ops_raise_on_missing_cart(tmp_path):
 
 
 def test_active_pointer_is_per_identity(tmp_path):
+    conn = _mk_conn(tmp_path)
     data_dir = str(tmp_path)
+    a = carts.create(conn, data_dir, "A")
+    b = carts.create(conn, data_dir, "B")
     assert carts.get_active(data_dir, "local") is None
-    carts.set_active(data_dir, "local", "cart_a")
-    carts.set_active(data_dir, "mcp@ci", "cart_b")
-    assert carts.get_active(data_dir, "local") == "cart_a"
-    assert carts.get_active(data_dir, "mcp@ci") == "cart_b"
+    carts.set_active(conn, data_dir, "local", a["id"])
+    carts.set_active(conn, data_dir, "mcp@ci", b["id"])
+    assert carts.get_active(data_dir, "local") == a["id"]
+    assert carts.get_active(data_dir, "mcp@ci") == b["id"]
+
+
+def test_rename_delete_set_active_raise_on_missing_cart(tmp_path):
+    conn = _mk_conn(tmp_path)
+    data_dir = str(tmp_path)
+    with pytest.raises(DubISError):
+        carts.rename(conn, data_dir, "cart_nope", "New Name")
+    with pytest.raises(DubISError):
+        carts.delete(conn, data_dir, "cart_nope")
+    with pytest.raises(DubISError):
+        carts.set_active(conn, data_dir, "local", "cart_nope")
+
+
+def test_delete_prunes_active_pointer_entries(tmp_path):
+    conn = _mk_conn(tmp_path)
+    data_dir = str(tmp_path)
+    a = carts.create(conn, data_dir, "A")
+    b = carts.create(conn, data_dir, "B")
+    carts.set_active(conn, data_dir, "local", a["id"])
+    carts.set_active(conn, data_dir, "mcp@ci", a["id"])
+    carts.set_active(conn, data_dir, "other", b["id"])
+
+    carts.delete(conn, data_dir, a["id"])
+
+    # Every pointer to the deleted cart is pruned; unrelated pointers survive.
+    assert carts.get_active(data_dir, "local") is None
+    assert carts.get_active(data_dir, "mcp@ci") is None
+    assert carts.get_active(data_dir, "other") == b["id"]
 
 
 def _pd(mapping):

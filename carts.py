@@ -102,6 +102,7 @@ def get(conn: sqlite3.Connection, cart_id: str) -> dict[str, Any] | None:
 
 
 def rename(conn: sqlite3.Connection, data_dir: str, cart_id: str, name: str) -> dict[str, Any]:
+    _require(conn, cart_id)
     conn.execute("UPDATE carts SET name=? WHERE id=?", (name, cart_id))
     conn.commit()
     _persist(conn, data_dir)
@@ -109,10 +110,12 @@ def rename(conn: sqlite3.Connection, data_dir: str, cart_id: str, name: str) -> 
 
 
 def delete(conn: sqlite3.Connection, data_dir: str, cart_id: str) -> None:
+    _require(conn, cart_id)
     conn.execute("DELETE FROM cart_items WHERE cart_id=?", (cart_id,))
     conn.execute("DELETE FROM carts WHERE id=?", (cart_id,))
     conn.commit()
     _persist(conn, data_dir)
+    _prune_active(data_dir, cart_id)
 
 
 def load_into_db(conn: sqlite3.Connection, data_dir: str) -> None:
@@ -242,7 +245,8 @@ def _read_active(data_dir: str) -> dict[str, str]:
         return json.load(f)
 
 
-def set_active(data_dir: str, identity: str, cart_id: str) -> None:
+def set_active(conn: sqlite3.Connection, data_dir: str, identity: str, cart_id: str) -> None:
+    _require(conn, cart_id)
     m = _read_active(data_dir)
     m[identity] = cart_id
     os.makedirs(data_dir, exist_ok=True)
@@ -251,6 +255,16 @@ def set_active(data_dir: str, identity: str, cart_id: str) -> None:
 
 def get_active(data_dir: str, identity: str) -> str | None:
     return _read_active(data_dir).get(identity)
+
+
+def _prune_active(data_dir: str, cart_id: str) -> None:
+    """Remove any identity->cart_id pointer entries that reference a deleted
+    cart, so no dangling active-cart pointer survives the cart's deletion."""
+    m = _read_active(data_dir)
+    pruned = {identity: cid for identity, cid in m.items() if cid != cart_id}
+    if pruned != m:
+        os.makedirs(data_dir, exist_ok=True)
+        csv_io.atomic_write_text(_active_path(data_dir), json.dumps(pruned, indent=2), encoding="utf-8")
 
 
 def split_by_distributor(

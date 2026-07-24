@@ -102,6 +102,12 @@ function resolveDisplay(cartItem, invIndex) {
  * client-side from the already-loaded inventory, no backend round-trip. For
  * `raw` items (no part_id / no inventory match) there's no PN data to check,
  * so all four are offered (simpler than a "no options" dead-end select).
+ *
+ * Intentionally scoped to InventoryItem record PN fields only (client-side,
+ * no backend round-trip) — NOT the ledger PNs the backend's
+ * get_sourced_distributors()/resolve_part_key() also consult. This may
+ * under-offer distributors the backend could still resolve a part from; left
+ * as-is (not a bug to fix here — see task-final-fixes-report.md).
  * @param {any} cartItem
  * @param {Map<string, any>} invIndex
  * @returns {string[]}
@@ -229,21 +235,9 @@ async function handleExportAction(fmt, distributor) {
 
 // ── Cart management (Task B7): switch / create / rename / delete ──────────
 
-/**
- * "<YYYY-MM-DD> · <loadedBomFileName or ''>" — trims the separator when no
- * BOM is loaded. Reuses store.bomFileName (the same getter the BOM panel
- * reads), not a re-derivation.
- * @returns {string}
- */
-function prefillName() {
-  const today = new Date().toISOString().slice(0, 10);
-  const bomName = store.bomFileName || '';
-  return bomName ? `${today} · ${bomName}` : today;
-}
-
 async function handleNewCart() {
   try {
-    const created = await cartStore.createCart(prefillName());
+    const created = await cartStore.createCart(cartStore.prefillName());
     // create_cart does NOT make the new cart active (mirrors carts.create()/
     // set_active() being separate backend calls) — do it explicitly so the
     // switcher reflects the cart the user just made.

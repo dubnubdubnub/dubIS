@@ -14,6 +14,7 @@ from typing import Any
 import cart_export
 import cart_qty
 import carts
+from domain.pricing import resolve_part_key
 
 
 class CartFacade:
@@ -39,9 +40,15 @@ class CartFacade:
     def _part_meta(self, part_id: str | None) -> dict[str, Any]:
         if not part_id:
             return {}
-        row = self._api._get_cache().execute(
+        conn = self._api._get_cache()
+        # part_id may be a distributor-specific alias (e.g. an invPartKey that
+        # differs from the registry's canonical part_id) — resolve it the same
+        # alias-aware way get_sourced_distributors() does before the direct
+        # `parts` lookup, so aliased parts don't export with blank metadata.
+        resolved = resolve_part_key(conn, part_id) or part_id
+        row = conn.execute(
             "SELECT mpn, manufacturer, package, description FROM parts WHERE part_id=?",
-            (part_id,),
+            (resolved,),
         ).fetchone()
         if row is None:
             return {}
@@ -82,7 +89,7 @@ class CartFacade:
 
     def set_active_cart(self, identity: str, cart_id: str) -> dict[str, Any]:
         with self._api._lock:
-            carts.set_active(self._api.base_dir, identity, cart_id)
+            carts.set_active(self._api._get_cache(), self._api.base_dir, identity, cart_id)
             return {"active_cart_id": cart_id}
 
     def get_active_cart(self, identity: str) -> str | None:
