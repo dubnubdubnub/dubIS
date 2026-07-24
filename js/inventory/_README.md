@@ -33,7 +33,7 @@ Does NOT own BOM match data (produced by `js/bom/`) or generic-parts definitions
 
 ## Imports from
 
-- `../event-bus.js`, `../store.js`, `../api.js`, `../ui-helpers.js`, `../part-keys.js`, `../inventory-modals.js`, `../undo-redo.js`
+- `../event-bus.js`, `../store.js`, `../api.js`, `../ui-helpers.js`, `../part-keys.js`, `./inv-modals.js`, `../undo-redo.js`
 - `../group-flyout/flyout-panel.js` — openFlyout (also via dynamic import)
 - `../import/mfg-direct/mfg-direct-panel.js` — editPO (dynamic import)
 

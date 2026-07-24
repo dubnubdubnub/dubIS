@@ -7,7 +7,7 @@ import { showToast } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
 import { store, snapshotLinks } from '../store.js';
 import { bomKey, invPartKey } from '../part-keys.js';
-import { openAdjustModal } from '../inventory-modals.js';
+import { openAdjustModal } from './inv-modals.js';
 import { openFlyout } from '../group-flyout/flyout-panel.js';
 import { toggleSelection } from '../label-selection.js';
 import state from './inv-state.js';

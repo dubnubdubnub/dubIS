@@ -7,7 +7,7 @@ import { showToast } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
 import { store, snapshotLinks } from '../store.js';
 import { bomKey, invPartKey, countStatuses } from '../part-keys.js';
-import { openAdjustModal } from '../inventory-modals.js';
+import { openAdjustModal } from './inv-modals.js';
 import { openCreate as openGenericCreate } from '../generic-parts-modal.js';
 import {
   sortBomRows,

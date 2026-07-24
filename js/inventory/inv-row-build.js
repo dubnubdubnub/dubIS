@@ -3,7 +3,7 @@
 
 import { store, getThreshold } from '../store.js';
 import { invPartKey } from '../part-keys.js';
-import { openAdjustModal, openPriceModal } from '../inventory-modals.js';
+import { openAdjustModal, openPriceModal } from './inv-modals.js';
 import { openFlyout } from '../group-flyout/flyout-panel.js';
 import { renderPartRowHtml } from './inventory-renderer.js';
 import { isFlyoutDragActive } from './inv-events.js';

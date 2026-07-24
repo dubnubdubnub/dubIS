@@ -15,12 +15,12 @@ import { initShortcuts } from './a11y/shortcuts.js';
 import { initShortcutHelp } from './a11y/shortcut-help.js';
 import { saveBomFile } from './bom/bom-events.js';
 import { CommandPalette } from './components/command-palette.js';
-import { openAdjustModal, openPriceModal } from './inventory-modals.js';
+import { openAdjustModal, openPriceModal } from './inventory/inv-modals.js';
 import { enterLabelMode, isLabelMode, exitLabelMode } from './label-selection.js';
 import { runFetchMissingDescriptions } from './inventory/fetch-descriptions-command.js';
 
 // Explicit panel imports (no side effects until init() is called)
-import { init as initInventoryModals } from './inventory-modals.js';
+import { init as initInventoryModals } from './inventory/inv-modals.js';
 import { init as initInventoryPanel } from './inventory/inventory-panel.js';
 import { init as initBomPanel } from './bom/bom-panel.js';
 import { init as initImportPanel } from './import/import-panel.js';
