@@ -1,0 +1,47 @@
+/* cart.css — Header cart button + count badge, cart-add-mode toggle.
+   Button geometry mirrors .header-btn (css/buttons.css); this file adds only
+   what's cart-specific (icon+badge layout, the badge pill, the toggle's
+   active state). Kept in its own component file per the css/components/
+   convention (see index.html's <link> list). */
+
+.cart-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px var(--space-md);
+  font-size: var(--text-lg);
+  color: var(--text-secondary);
+}
+.cart-btn:hover { border-color: var(--color-blue); color: var(--text-primary); }
+
+.cart-icon { line-height: 1; }
+
+/* Small count pill, inline next to the icon (not absolutely-positioned over
+   it) so it never gets clipped by panel/header overflow — see sticky-buttons
+   / resize-visibility E2E guards in CLAUDE.md. */
+.cart-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--color-blue);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.cart-add-toggle {
+  min-width: 26px;
+  font-weight: var(--weight-semibold);
+}
+.cart-add-toggle:hover { border-color: var(--color-blue); color: var(--text-primary); }
+.cart-add-toggle.active {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+}

@@ -20,6 +20,7 @@ import { openAdjustModal, openPriceModal } from './inventory/inv-modals.js';
 import { enterLabelMode, isLabelMode, exitLabelMode } from './label-selection.js';
 import { runFetchMissingDescriptions } from './inventory/fetch-descriptions-command.js';
 import { loadCarts } from './cart/cart-store.js';
+import { initCartHeader } from './cart/cart-header.js';
 
 // Explicit panel imports (no side effects until init() is called)
 import { init as initInventoryModals } from './inventory/inv-modals.js';
@@ -74,6 +75,7 @@ function mountPanels() {
   initGroupFlyout();
   initLabelSelection();
   initLabelExportModal();
+  initCartHeader();
 }
 
 // ── Close confirmation modal ────────────────────────────

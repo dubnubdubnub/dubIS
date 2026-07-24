@@ -165,6 +165,11 @@ const ROUTES = [
     (ctx.options.productMocks || {})[`${a.name}:${a.code}`] || null),
   route('get_po_source_preview', (a, ctx) => (ctx.options.poSourcePreview || {})[a.po_id] || null),
   route('list_purchase_orders', (_a, ctx) => ctx.options.purchaseOrders || []),
+  // Cart header (Task B2): initCartHeader() calls loadCarts() at startup, so
+  // every spec using installRouteMocks now issues this GET on load — default
+  // to an empty carts list / no active cart unless a spec supplies its own
+  // via options.carts.
+  route('list_carts', (_a, ctx) => ctx.options.carts || { carts: [], active_cart_id: null }),
   route('get_po_with_items', (a, ctx) =>
     (ctx.options.poWithItems || {})[a.po_id] || { po_id: a.po_id, line_items: [] }),
 
