@@ -36,9 +36,15 @@ def get_part_key(row: dict[str, str], registry=None) -> str:
 
 def read_and_merge(purchase_csv: str,
                    fieldnames: list[str],
-                   registry=None) -> tuple[list[str], dict[str, dict[str, str]]]:
+                   registry=None,
+                   only_parts: set[str] | None = None) -> tuple[list[str], dict[str, dict[str, str]]]:
     """Read purchase_ledger.csv, fix encoding, merge duplicates.
     Returns (fieldnames, merged_dict).
+
+    ``only_parts`` restricts the merge to rows whose part key is in the set —
+    per-key merging is independent, so the filtered result is identical to
+    the corresponding subset of a full merge. Used by targeted verify_parts
+    to avoid replaying the whole ledger on the mutation hot path.
     """
     if not os.path.exists(purchase_csv):
         return list(fieldnames), {}
@@ -65,6 +71,8 @@ def read_and_merge(purchase_csv: str,
         else:
             pn = get_part_key(r)
         if not pn:
+            continue
+        if only_parts is not None and pn not in only_parts:
             continue
         qty = parse_qty(r.get("Quantity"))
         ext = parse_price(r.get("Ext.Price($)"))
@@ -136,8 +144,14 @@ def compute_adjusted_qty(current: int, adj_type: str, qty: int) -> int | None:
 
 def apply_adjustments(merged: dict[str, dict[str, str]],
                       adjustments_csv: str,
-                      fieldnames: list[str]) -> None:
-    """Apply adjustments.csv entries to merged dict."""
+                      fieldnames: list[str],
+                      only_parts: set[str] | None = None) -> None:
+    """Apply adjustments.csv entries to merged dict.
+
+    ``only_parts`` skips adjustment rows for other part keys — each row only
+    affects its own key, so the filtered result matches the corresponding
+    subset of a full replay. See read_and_merge.
+    """
     if not os.path.exists(adjustments_csv):
         return
     with open(adjustments_csv, newline="", encoding="utf-8-sig") as f:
@@ -146,6 +160,8 @@ def apply_adjustments(merged: dict[str, dict[str, str]],
             adj_type = (row.get("type") or "").strip()
             pn = (row.get("lcsc_part") or "").strip()
             if not pn or not adj_type:
+                continue
+            if only_parts is not None and pn not in only_parts:
                 continue
             try:
                 qty = int(float(row.get("quantity", "0")))
