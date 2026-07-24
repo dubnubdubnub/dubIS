@@ -251,89 +251,6 @@
         "title": "ExtractSpecFromValueBody",
         "type": "object"
       },
-      "FeederListResponse": {
-        "properties": {
-          "feeders": {
-            "items": {
-              "$ref": "#/components/schemas/FeederModel"
-            },
-            "title": "Feeders",
-            "type": "array"
-          }
-        },
-        "required": [
-          "feeders"
-        ],
-        "title": "FeederListResponse",
-        "type": "object"
-      },
-      "FeederLoadedModel": {
-        "properties": {
-          "loaded_at": {
-            "title": "Loaded At",
-            "type": "string"
-          },
-          "part_key": {
-            "title": "Part Key",
-            "type": "string"
-          },
-          "qty": {
-            "title": "Qty",
-            "type": "integer"
-          },
-          "tape_width_mm": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tape Width Mm"
-          }
-        },
-        "required": [
-          "part_key",
-          "qty",
-          "loaded_at"
-        ],
-        "title": "FeederLoadedModel",
-        "type": "object"
-      },
-      "FeederModel": {
-        "properties": {
-          "family": {
-            "title": "Family",
-            "type": "string"
-          },
-          "feeder_type": {
-            "title": "Feeder Type",
-            "type": "string"
-          },
-          "loaded": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FeederLoadedModel"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "tag_id": {
-            "title": "Tag Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "tag_id",
-          "family",
-          "feeder_type"
-        ],
-        "title": "FeederModel",
-        "type": "object"
-      },
       "FetchFaviconBody": {
         "properties": {
           "url": {
@@ -1397,7 +1314,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FeederListResponse"
+                  "additionalProperties": true,
+                  "title": "Response List Feeders",
+                  "type": "object"
                 }
               }
             },
@@ -1576,7 +1495,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FeederModel"
+                  "additionalProperties": true,
+                  "title": "Response Get Feeder",
+                  "type": "object"
                 }
               }
             },
@@ -1628,7 +1549,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FeederModel"
+                  "additionalProperties": true,
+                  "title": "Response Load Feeder Reel",
+                  "type": "object"
                 }
               }
             },
@@ -1680,7 +1603,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FeederModel"
+                  "additionalProperties": true,
+                  "title": "Response Register Feeder",
+                  "type": "object"
                 }
               }
             },
@@ -1722,7 +1647,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FeederModel"
+                  "additionalProperties": true,
+                  "title": "Response Unload Feeder",
+                  "type": "object"
                 }
               }
             },

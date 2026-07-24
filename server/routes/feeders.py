@@ -68,7 +68,6 @@ from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel
 
 from domain import feeders, part_registry
-from server.models import FeederListResponse, FeederModel
 from server.routes.openpnp import _SECTION_TO_PART_TYPE, _find_item, _load_families, _size_code
 
 router = APIRouter(prefix="/v1/feeders", tags=["feeders"])
@@ -306,7 +305,7 @@ def _derive_tape_width_mm(item: dict) -> float | None:
     return 8.0
 
 
-@router.get("", response_model=FeederListResponse, operation_id="list_feeders")
+@router.get("", operation_id="list_feeders")
 def list_feeders(request: Request) -> dict:
     api = request.app.state.api
     store = feeders.load(api.base_dir)
@@ -317,7 +316,7 @@ def list_feeders(request: Request) -> dict:
     return {"feeders": items}
 
 
-@router.get("/{tag_id}", response_model=FeederModel, operation_id="get_feeder")
+@router.get("/{tag_id}", operation_id="get_feeder")
 def get_feeder(request: Request, tag_id: str) -> dict:
     api = request.app.state.api
     store = feeders.load(api.base_dir)
@@ -327,7 +326,7 @@ def get_feeder(request: Request, tag_id: str) -> dict:
     return _to_response(tag_id, record)
 
 
-@router.post("/{tag_id}/register", response_model=FeederModel, operation_id="register_feeder")
+@router.post("/{tag_id}/register", operation_id="register_feeder")
 def register_feeder(request: Request, tag_id: str, body: RegisterFeederBody) -> dict:
     api = request.app.state.api
     store = feeders.load(api.base_dir)
@@ -336,7 +335,7 @@ def register_feeder(request: Request, tag_id: str, body: RegisterFeederBody) -> 
     return _to_response(tag_id, record)
 
 
-@router.post("/{tag_id}/load", response_model=FeederModel, operation_id="load_feeder_reel")
+@router.post("/{tag_id}/load", operation_id="load_feeder_reel")
 def load_feeder_reel(request: Request, tag_id: str, body: LoadFeederBody) -> dict:
     if body.qty < 0:
         raise ValueError("qty must be >= 0")
@@ -362,7 +361,7 @@ def load_feeder_reel(request: Request, tag_id: str, body: LoadFeederBody) -> dic
     return _to_response(tag_id, record)
 
 
-@router.post("/{tag_id}/unload", response_model=FeederModel, operation_id="unload_feeder")
+@router.post("/{tag_id}/unload", operation_id="unload_feeder")
 def unload_feeder(request: Request, tag_id: str) -> dict:
     api = request.app.state.api
     store = feeders.load(api.base_dir)
