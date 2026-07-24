@@ -9,9 +9,10 @@
 import { EventBus, Events } from './event-bus.js';
 import { store } from './store.js';
 import { invPartKey } from './part-keys.js';
-import { showToast, escHtml } from './ui-helpers.js';
+import { showToast } from './ui-helpers.js';
 import { api, AppLog } from './api.js';
 import { openPoImageLightbox } from './po-image-lightbox.js';
+import { html, el } from './dom/html.js';
 
 // Source extensions the backend can return as an inline image (images render
 // directly; PDFs are rasterized first-page). Spreadsheet/CSV sources have no
@@ -226,19 +227,19 @@ function fmtPoLabel(po) {
 
 async function renderPoList(listEl) {
   if (poListLoaded) return;
-  listEl.innerHTML = "";
+  listEl.replaceChildren();
   /** @type {any[]} */
   let pos;
   try {
     pos = await api("list_purchase_orders");
   } catch (err) {
     AppLog.error("renderPoList: failed to load purchase orders: " + (err && err.message || err));
-    listEl.innerHTML = '<div class="label-po-empty">Failed to load purchase orders</div>';
+    listEl.replaceChildren(html`<div class="label-po-empty">Failed to load purchase orders</div>`);
     return;
   }
   poListLoaded = true;
   if (!Array.isArray(pos) || pos.length === 0) {
-    listEl.innerHTML = '<div class="label-po-empty">No purchase orders</div>';
+    listEl.replaceChildren(html`<div class="label-po-empty">No purchase orders</div>`);
     return;
   }
   // Show most recent POs at the top. Dates are ISO (YYYY-MM-DD) so they sort
@@ -260,10 +261,7 @@ async function renderPoList(listEl) {
 
     const head = document.createElement("div");
     head.className = "label-po-head";
-    head.innerHTML =
-      '<button class="label-po-expand" type="button" title="Show line items">▸</button>' +
-      '<button class="label-po-select" type="button">Select PO</button>' +
-      '<span class="label-po-label">' + escHtml(fmtPoLabel(po)) + '</span>';
+    head.replaceChildren(html`<button class="label-po-expand" type="button" title="Show line items">▸</button><button class="label-po-select" type="button">Select PO</button><span class="label-po-label">${fmtPoLabel(po)}</span>`);
     row.appendChild(head);
 
     const detail = document.createElement("div");
@@ -278,14 +276,14 @@ async function renderPoList(listEl) {
       expandBtn.textContent = willShow ? "▾" : "▸";
       if (willShow && !loadedItems) {
         loadedItems = true;
-        detail.innerHTML = '<div class="label-po-loading">Loading…</div>';
+        detail.replaceChildren(html`<div class="label-po-loading">Loading…</div>`);
         /** @type {any} */
         let data;
         try {
           data = await api("get_po_with_items", poId);
         } catch (err) {
           AppLog.error("renderPoList: failed to load items for PO " + poId + ": " + (err && err.message || err));
-          detail.innerHTML = '<div class="label-po-empty">Failed to load items</div>';
+          detail.replaceChildren(html`<div class="label-po-empty">Failed to load items</div>`);
           return;
         }
         const items = (data && data.line_items) || [];
@@ -293,20 +291,14 @@ async function renderPoList(listEl) {
         // edge. The thumbnail loads independently so a slow/absent image never
         // blocks the items from rendering.
         const itemsHtml = items.length === 0
-          ? '<div class="label-po-empty">No line items</div>'
-          : '<table class="label-po-items"><thead><tr>' +
-            '<th>MPN</th><th>Mfr</th><th>Pkg</th><th class="num">Qty</th>' +
-            '</tr></thead><tbody>' + items.map(li =>
-              '<tr><td>' + escHtml(li.mpn || "") + '</td>' +
-              '<td>' + escHtml(li.manufacturer || "") + '</td>' +
-              '<td>' + escHtml(li.package || "") + '</td>' +
-              '<td class="num">' + escHtml(String(li.quantity ?? "")) + '</td></tr>'
-            ).join("") + '</tbody></table>';
-        detail.innerHTML =
-          '<div class="label-po-detail-body">' +
-          '<div class="label-po-detail-items">' + itemsHtml + '</div>' +
-          '<div class="label-po-thumb"></div>' +
-          '</div>';
+          ? html`<div class="label-po-empty">No line items</div>`
+          : html`<table class="label-po-items"><thead><tr><th>MPN</th><th>Mfr</th><th>Pkg</th><th class="num">Qty</th></tr></thead><tbody>${items.map(li => el('tr', null,
+              el('td', null, li.mpn || ""),
+              el('td', null, li.manufacturer || ""),
+              el('td', null, li.package || ""),
+              el('td', { class: "num" }, String(li.quantity ?? "")),
+            ))}</tbody></table>`;
+        detail.replaceChildren(html`<div class="label-po-detail-body"><div class="label-po-detail-items">${itemsHtml}</div><div class="label-po-thumb"></div></div>`);
         if (poHasRenderableSource(po)) {
           const thumbEl = detail.querySelector(".label-po-thumb");
           if (thumbEl) loadPoThumbnail(thumbEl, poId);

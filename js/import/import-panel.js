@@ -1,7 +1,8 @@
 /* import/import-panel.js — Thin wiring: DOM events, API calls, undo/redo */
 
 import { api, AppLog, apiMfgDirect } from '../api.js';
-import { showToast, escHtml, setupDropZone, resetDropZoneInput } from '../ui-helpers.js';
+import { showToast, setupDropZone, resetDropZoneInput } from '../ui-helpers.js';
+import { html } from '../dom/html.js';
 import { UndoRedo } from '../undo-redo.js';
 import { store, scheduleInventoryRefresh, savePreferences } from '../store.js';
 import { parseCSV, generateCSV } from '../csv-parser.js';
@@ -31,8 +32,8 @@ async function handleImportUndo(data) {
   lastImportMeta = null;
 
   const zone = document.getElementById("import-drop-zone");
-  zone.innerHTML = `<p>${escHtml(importFileName)}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
-    <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`;
+  zone.replaceChildren(html`<p>${importFileName}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
+    <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`);
   zone.classList.add("loaded");
   resetDropZoneInput("import-file-input", handleImportFile);
   renderMapper();
@@ -258,8 +259,8 @@ async function createNewPO(templateKey = "generic") {
   headers.forEach((h, i) => { columnMapping[i] = h; });
 
   const zone = document.getElementById("import-drop-zone");
-  zone.innerHTML = `<p>${escHtml(fileName)}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
-    <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`;
+  zone.replaceChildren(html`<p>${fileName}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
+    <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`);
   zone.classList.add("loaded");
   resetDropZoneInput("import-file-input", handleImportFile);
 
@@ -292,8 +293,8 @@ async function loadImportText(text, fileName) {
   }
 
   const zone = document.getElementById("import-drop-zone");
-  zone.innerHTML = `<p>${escHtml(fileName)}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
-    <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`;
+  zone.replaceChildren(html`<p>${fileName}</p><div class="hint">${parsedRows.length} rows \u2014 drop or click to replace</div>
+    <input type="file" id="import-file-input" accept=".csv,.tsv,.txt" style="display:none">`);
   zone.classList.add("loaded");
   resetDropZoneInput("import-file-input", handleImportFile);
 
@@ -338,8 +339,8 @@ function renderMapper() {
   const ocrZone = document.getElementById("import-ocr-zone");
   if (ocrZone) ocrZone.classList.add("hidden");
 
-  const html = renderMapperHtml(parsedHeaders, parsedRows, columnMapping, TARGET_FIELDS, importFileName);
-  mapper.innerHTML = html;
+  const mapperHtml = renderMapperHtml(parsedHeaders, parsedRows, columnMapping, TARGET_FIELDS, importFileName);
+  mapper.innerHTML = mapperHtml;
 
   // Attach select change listeners
   mapper.querySelectorAll(".col-map-select").forEach(sel => {

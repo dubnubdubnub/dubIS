@@ -10,6 +10,7 @@ import { api, AppLog } from './api.js';
 import { showToast, Modal } from './ui-helpers.js';
 import { setPreviewHandler } from './label-selection.js';
 import { LABEL_EXPORT_CFG } from './constants.js';
+import { html, raw } from './dom/html.js';
 import {
   buildLabels,
   estimateWidthMm,
@@ -71,26 +72,26 @@ function recompute(result) {
 // ── Per-row mm + badge display ───────────────────────────────────────────────
 function badgeFor(warnings) {
   if (warnings.includes('over-budget')) {
-    return '<span class="label-badge label-badge-red">over budget</span>';
+    return html`<span class="label-badge label-badge-red">over budget</span>`;
   }
   if (warnings.includes('over-preferred')) {
-    return '<span class="label-badge label-badge-amber">over preferred</span>';
+    return html`<span class="label-badge label-badge-amber">over preferred</span>`;
   }
-  return '';
+  return html``;
 }
 
 function updateRowDisplay(row, result) {
   const mmEl = row.querySelector('.label-mm');
   const badgeEl = row.querySelector('.label-badge-cell');
   if (mmEl) mmEl.textContent = result.estMm.toFixed(1) + ' mm';
-  if (badgeEl) badgeEl.innerHTML = badgeFor(result.warnings);
+  if (badgeEl) badgeEl.replaceChildren(badgeFor(result.warnings));
 }
 
 // ── Render ───────────────────────────────────────────────────────────────────
 function render() {
   const preview = document.getElementById('label-export-preview');
   if (!preview) return;
-  preview.innerHTML = '';
+  preview.replaceChildren();
 
   const is6mm = currentTape === '6mm';
 
@@ -117,13 +118,9 @@ function render() {
     table.className = 'label-export-table';
 
     const colHeaders = is6mm
-      ? '<th>Label</th>'
-      : '<th>Line 1</th><th>Line 2</th><th>Line 3</th>';
-    // All strings here are static literals (no user data), so innerHTML is safe.
-    table.innerHTML =
-      '<thead><tr>' + colHeaders +
-      '<th class="label-mm-head">Length</th><th class="label-badge-head"></th>' +
-      '</tr></thead>';
+      ? html`<th>Label</th>`
+      : html`<th>Line 1</th><th>Line 2</th><th>Line 3</th>`;
+    table.replaceChildren(html`<thead><tr>${colHeaders}<th class="label-mm-head">Length</th><th class="label-badge-head"></th></tr></thead>`);
 
     const tbody = document.createElement('tbody');
     for (const result of group) {
@@ -180,7 +177,7 @@ function render() {
   }
 
   if (currentResults.length === 0) {
-    preview.innerHTML = '<div class="label-export-empty">No labels to preview.</div>';
+    preview.replaceChildren(html`<div class="label-export-empty">No labels to preview.</div>`);
   }
 }
 
@@ -278,7 +275,7 @@ export function init() {
   modal = Modal('label-export-modal', { cancelId: 'label-export-cancel', confirmId: 'label-export-do' });
 
   const helpEl = document.getElementById('label-export-help');
-  if (helpEl) helpEl.innerHTML = HELP_HTML;
+  if (helpEl) helpEl.replaceChildren(html`${raw(HELP_HTML)}`);
 
   const toggle = document.getElementById('label-export-tape-toggle');
   if (toggle) {
