@@ -74,6 +74,39 @@ class TestReadAndMerge:
         )
         assert merged == {}
 
+    def test_only_parts_filters_rows(self, tmp_path):
+        """only_parts restricts the merge to the given keys — the basis for
+        targeted verify_parts, which must not replay the whole ledger."""
+        p = str(tmp_path / "ledger.csv")
+        self._write_ledger(p, [
+            {"LCSC Part Number": "C1", "Manufacture Part Number": "",
+             "Manufacturer": "Acme", "Quantity": "10",
+             "Unit Price($)": "1.00", "Ext.Price($)": "10.00"},
+            {"LCSC Part Number": "C1", "Manufacture Part Number": "",
+             "Manufacturer": "Acme", "Quantity": "5",
+             "Unit Price($)": "0.90", "Ext.Price($)": "4.50"},
+            {"LCSC Part Number": "C2", "Manufacture Part Number": "",
+             "Manufacturer": "Acme", "Quantity": "7",
+             "Unit Price($)": "2.00", "Ext.Price($)": "14.00"},
+        ])
+        _, merged = inventory_ops.read_and_merge(p, [], only_parts={"C1"})
+        assert set(merged) == {"C1"}
+        # Same merged quantity as an unfiltered merge would produce for C1
+        assert int(merged["C1"]["Quantity"]) == 15
+
+    def test_only_parts_none_keeps_everything(self, tmp_path):
+        p = str(tmp_path / "ledger.csv")
+        self._write_ledger(p, [
+            {"LCSC Part Number": "C1", "Manufacture Part Number": "",
+             "Manufacturer": "Acme", "Quantity": "10",
+             "Unit Price($)": "1.00", "Ext.Price($)": "10.00"},
+            {"LCSC Part Number": "C2", "Manufacture Part Number": "",
+             "Manufacturer": "Acme", "Quantity": "7",
+             "Unit Price($)": "2.00", "Ext.Price($)": "14.00"},
+        ])
+        _, merged = inventory_ops.read_and_merge(p, [], only_parts=None)
+        assert set(merged) == {"C1", "C2"}
+
 
 class TestApplyAdjustments:
     def test_remove_reduces_qty(self, tmp_path):
@@ -92,6 +125,42 @@ class TestApplyAdjustments:
         merged = {"C1": {"LCSC Part Number": "C1", "Quantity": "100"}}
         inventory_ops.apply_adjustments(merged, str(tmp_path / "nope.csv"), [])
         assert merged["C1"]["Quantity"] == "100"
+
+    def _write_adj(self, tmp_path, rows):
+        adj = str(tmp_path / "adj.csv")
+        fields = ["timestamp", "type", "lcsc_part", "quantity",
+                  "bom_file", "board_qty", "note", "source"]
+        with open(adj, "w", newline="") as f:
+            w = _csv.DictWriter(f, fieldnames=fields)
+            w.writeheader()
+            for r in rows:
+                row = dict.fromkeys(fields, "")
+                row.update(r)
+                w.writerow(row)
+        return adj
+
+    def test_only_parts_filters_adjustment_rows(self, tmp_path):
+        merged = {"C1": {"LCSC Part Number": "C1", "Quantity": "100"}}
+        adj = self._write_adj(tmp_path, [
+            {"type": "remove", "lcsc_part": "C1", "quantity": "-20"},
+            # A "set" for a part outside the filter must NOT create an entry
+            {"type": "set", "lcsc_part": "C9", "quantity": "50"},
+        ])
+        inventory_ops.apply_adjustments(
+            merged, adj, ["LCSC Part Number", "Quantity"], only_parts={"C1"})
+        assert merged["C1"]["Quantity"] == "80"
+        assert "C9" not in merged
+
+    def test_only_parts_none_applies_everything(self, tmp_path):
+        merged = {"C1": {"LCSC Part Number": "C1", "Quantity": "100"}}
+        adj = self._write_adj(tmp_path, [
+            {"type": "remove", "lcsc_part": "C1", "quantity": "-20"},
+            {"type": "set", "lcsc_part": "C9", "quantity": "50"},
+        ])
+        inventory_ops.apply_adjustments(
+            merged, adj, ["LCSC Part Number", "Quantity"], only_parts=None)
+        assert merged["C1"]["Quantity"] == "80"
+        assert merged["C9"]["Quantity"] == "50"
 
 
 def test_migrate_to_vendors_seeds_inferred(tmp_path):
