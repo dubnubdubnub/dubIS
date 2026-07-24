@@ -4,6 +4,7 @@
 import { api, AppLog } from './api.js';
 import { formatMoney } from './ui-helpers.js';
 import { html, el } from './dom/html.js';
+import { innerRect, zoomedViewport } from './ui-zoom.js';
 
 var HOVER_DELAY_MS = 300;
 var HIDE_DELAY_MS = 150;
@@ -195,7 +196,12 @@ async function fetchProduct(code, provider) {
 // ── Position tooltip ──
 
 function positionTooltip(triggerEl) {
-  var rect = triggerEl.getBoundingClientRect();
+  // innerRect + zoomedViewport, not getBoundingClientRect + window.innerWidth:
+  // under the root UI zoom, rects read back post-zoom while offsetHeight and the
+  // px we write below are pre-zoom. Mixing the two mispositions the tooltip at
+  // any zoom != 1 while looking perfect at 100%. See js/ui-zoom.js.
+  var rect = innerRect(triggerEl);
+  var vp = zoomedViewport();
   var tw = 360;
   var th = tooltip.offsetHeight || 200;
 
@@ -204,13 +210,13 @@ function positionTooltip(triggerEl) {
   var left = rect.left;
 
   // Clamp horizontally
-  if (left + tw > window.innerWidth - 8) {
-    left = window.innerWidth - tw - 8;
+  if (left + tw > vp.w - 8) {
+    left = vp.w - tw - 8;
   }
   if (left < 8) left = 8;
 
   // If not enough space below, show above
-  if (top + th > window.innerHeight - 8) {
+  if (top + th > vp.h - 8) {
     top = rect.top - th - 6;
   }
   // Clamp vertically

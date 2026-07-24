@@ -1,0 +1,94 @@
+/* ── Collapsible panels ───────────────────────────────────────────────────────
+   A collapsed side panel goes to zero width; its toggle pill lives on the resize
+   handle between panels, so the reopen affordance survives the collapse.
+   Consumed by: index.html, js/panel-collapse.js
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.panel.panel-collapsed {
+  /* min-width must be zeroed explicitly: .panel-import and .panel-bom carry a px
+     min-width that would otherwise defeat width: 0. */
+  width: 0 !important;
+  min-width: 0 !important;
+  flex: 0 0 0 !important;
+  overflow: hidden;
+  border: none;
+}
+/* Hide the contents rather than relying on overflow alone, so nothing inside a
+   zero-width panel can still catch a click or a Tab stop. */
+.panel.panel-collapsed > * { visibility: hidden; }
+
+/* Toggle pill, pinned to the top of the 5px resize handle and sitting on the
+   panel-header band — the "T" junction between two panels. */
+.panel-toggle {
+  position: absolute;
+  top: var(--space-sm);
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--panel-toggle-w);
+  height: var(--panel-toggle-h);
+  padding: 0;
+  z-index: 12;                 /* above .panel-header (11) and the handle (10) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--dur-base), color var(--dur-base);
+}
+/* Inflated hit box: the pill is visually narrow but must stay easy to hit, since
+   it is the only way back once the panel behind it is gone. */
+.panel-toggle::before {
+  content: "";
+  position: absolute;
+  top: calc(-1 * var(--space-sm));
+  bottom: calc(-1 * var(--space-sm));
+  left: calc(-1 * var(--panel-toggle-hit));
+  right: calc(-1 * var(--panel-toggle-hit));
+}
+.panel-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
+.panel-toggle:focus-visible { outline: 2px solid var(--color-blue); outline-offset: 1px; }
+
+/* Chevron points the way a click moves the panel. */
+.panel-toggle > span::before { content: "\2039"; font-size: var(--text-md); line-height: 1; }
+.panel-toggle-right > span::before { content: "\203A"; }
+.panel-toggle.is-collapsed > span::before { content: "\203A"; }
+.panel-toggle-right.is-collapsed > span::before { content: "\2039"; }
+
+/* Unseen-activity dot: routine info logging flags the pill instead of forcing
+   the panel open. */
+.panel-toggle.has-activity::after {
+  content: "";
+  position: absolute;
+  top: calc(-1 * var(--space-2xs));
+  right: calc(-1 * var(--space-2xs));
+  width: var(--space-sm);
+  height: var(--space-sm);
+  border-radius: 50%;
+  background: var(--color-blue);
+}
+
+/* ── Console section collapse (inside the left panel) ─────────────────────── */
+#console-log.console-collapsed {
+  height: auto !important;
+  min-height: 0;
+}
+#console-log.console-collapsed .console-entries { display: none; }
+
+.console-toggle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--text-lg);
+  padding: 0 var(--space-xs);
+  line-height: 1;
+}
+.console-toggle:hover { color: var(--text-primary); }
+.console-toggle:focus-visible { outline: 2px solid var(--color-blue); outline-offset: 1px; }
+.console-toggle[aria-expanded="false"] { transform: rotate(-90deg); }
+
+/* The log header's trailing button group (collapse + clear). */
+.console-header-actions { display: inline-flex; align-items: center; gap: var(--space-xs); }

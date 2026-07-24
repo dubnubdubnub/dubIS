@@ -1,12 +1,21 @@
 /* ── Reset & Body ─────────────────────────────────────── */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Global UI zoom. `zoom` (unlike `transform: scale`) reflows layout, so this is
+   real browser-style zoom: nothing clips, no scrollbar appears — the panels just
+   get more or fewer CSS pixels to lay out in, which is what makes zooming out
+   reveal more of a truncated column. Driven by js/ui-zoom.js. */
+html { height: 100%; zoom: var(--ui-zoom, 1); }
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background: var(--bg-base);
   color: var(--text-primary);
   overflow: hidden;
-  height: 100vh;
+  /* Percentage, never a viewport unit: viewport units are scaled by the root
+     zoom, so a 100vh body overflows the window at zoom > 1 and leaves a dead
+     strip at zoom < 1. */
+  height: 100%;
   display: flex;
   flex-direction: column;
 }

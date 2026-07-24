@@ -87,6 +87,8 @@
 <link rel="stylesheet" href="css/components/import-diff.css">
 <link rel="stylesheet" href="css/components/text-popover.css">
 <link rel="stylesheet" href="css/components/cart.css">
+<link rel="stylesheet" href="css/components/ui-zoom.css">
+<link rel="stylesheet" href="css/components/panel-collapse.css">
 <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -153,6 +155,17 @@
   <div class="header-center">
     <button class="btn-md header-btn" id="global-undo" title="Undo" disabled>&#x21A9;</button>
     <button class="btn-md header-btn" id="global-redo" title="Redo" disabled>&#x21AA;</button>
+    <!-- Global UI zoom, mirroring Ctrl+- / Ctrl+= / Ctrl+0. The slider's value is
+         an index into ZOOM_STEPS (js/ui-zoom-logic.js), not a percentage, so
+         dragging can only land on a level the keyboard can also reach; the max is
+         re-asserted from the ladder at init. -->
+    <div class="zoom-control" role="group" aria-label="Interface zoom">
+      <button class="btn-md zoom-btn" id="zoom-out" title="Zoom out (Ctrl+-)" aria-label="Zoom out">&#128269;&minus;</button>
+      <input type="range" id="zoom-slider" class="zoom-slider" min="0" max="10" step="1" value="5"
+             aria-label="Interface zoom level">
+      <button class="btn-md zoom-btn" id="zoom-in" title="Zoom in (Ctrl+=)" aria-label="Zoom in">&#128269;+</button>
+      <button class="zoom-percent" id="zoom-percent" title="Reset zoom to 100% (Ctrl+0)" aria-live="polite">100%</button>
+    </div>
   </div>
   <div class="header-right">
     <button class="btn-md cart-btn" id="cart-btn" title="Open cart">
@@ -179,7 +192,10 @@
     <div id="console-log">
       <div class="console-header">
         <span>Log</span>
-        <button id="console-clear" title="Clear">&times;</button>
+        <span class="console-header-actions">
+          <button id="console-toggle" class="console-toggle" title="Hide Log" aria-label="Hide Log" aria-expanded="true" aria-controls="console-log">&#x25BE;</button>
+          <button id="console-clear" title="Clear">&times;</button>
+        </span>
       </div>
       <div class="console-entries" id="console-entries"></div>
     </div>

@@ -9,6 +9,8 @@ const ROWS = (redo) => [
   ['Ctrl+Z', 'Undo'],
   [redo === 'ctrl-y' ? 'Ctrl+Y' : redo === 'ctrl-shift-z' ? 'Ctrl+Shift+Z' : 'Ctrl+Y or Ctrl+Shift+Z', 'Redo'],
   ['Ctrl+,', 'Preferences'],
+  ['Ctrl+- / Ctrl+=', 'Zoom interface out / in'],
+  ['Ctrl+0', 'Reset zoom to 100%'],
   ['Ctrl+1 / 2 / 3', 'Focus Import / Inventory / BOM panel'],
   ['Arrows', 'Move between row buttons / scroll a focused region'],
   ['Enter', 'Confirm the open dialog'],

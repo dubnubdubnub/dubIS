@@ -197,8 +197,8 @@ td.btn-group .label-select-checkbox {
 
 /* Full-size blow-up lightbox (reuses .modal-overlay backdrop). */
 .po-image-modal-img {
-  max-width: 90vw;
-  max-height: 90vh;
+  max-width: calc(90 * var(--vw));
+  max-height: calc(90 * var(--vh));
   object-fit: contain;
   border-radius: 6px;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
@@ -214,7 +214,7 @@ td.btn-group .label-select-checkbox {
 }
 
 .label-export-preview {
-  max-height: 50vh;
+  max-height: calc(50 * var(--vh));
   overflow-y: auto;
   border: 1px solid var(--border-default);
   border-radius: 6px;

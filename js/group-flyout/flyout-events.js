@@ -5,6 +5,7 @@ import { EventBus, Events } from '../event-bus.js';
 import { generateDefaultSearchName } from './flyout-logic.js';
 import { flyouts, activeFlyoutId } from './flyout-state.js';
 import { api, AppLog } from '../api.js';
+import { toInnerPx } from '../ui-zoom.js';
 
 // Imported lazily to avoid circular dependency (flyout-panel imports us too).
 // We call these by name at runtime after module graph is fully resolved.
@@ -375,7 +376,9 @@ function handleMousedown(e) {
 function handleMousemove(e) {
   if (!_dragInst || !_dragInst.el) return;
 
-  var dy = e.clientY - _dragStartY;
+  // clientY is post-zoom but style.top is authored px, so convert the delta —
+  // otherwise a drag moves the flyout by the wrong distance at zoom != 1.
+  var dy = toInnerPx(e.clientY - _dragStartY);
   var newTop = _dragStartTop + dy;
 
   // Clamp within container
