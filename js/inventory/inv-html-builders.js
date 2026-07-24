@@ -1,8 +1,8 @@
 // @ts-check
-/* inventory-renderer.js -- Pure functions that return HTML strings or DOM elements.
+/* inv-html-builders.js -- Pure functions that return HTML strings or DOM elements.
    No store, no events. Extracted from inventory-panel.js and bom-comparison.js. */
 
-import { escHtml, stockValueColor } from '../ui-helpers.js';
+import { escHtml, stockValueColor, formatMoney } from '../ui-helpers.js';
 import { invPartKey, colorizeRefs, countStatuses } from '../part-keys.js';
 import { renderFanStack } from './favicon-stack.js';
 import { isLabelMode, isSelected } from '../label-selection.js';
@@ -110,11 +110,11 @@ export function renderPartRowHtml(item, options) {
       groupBtnStr = '<button class="generic-group-badge" data-generic-id="' + escHtml(gp.generic_part_id) + '" title="' + escHtml(gp.name) + '">\u25C6 ' + escHtml(gp.name) + '</button>';
     }
   }
-  var valueStr = stockValue > 0 ? "$" + stockValue.toFixed(2) : "\u2014";
+  var valueStr = stockValue > 0 ? formatMoney(stockValue) : "\u2014";
 
   var unitPrice = Number(item.unit_price) || 0;
   var unitPriceStr;
-  if (unitPrice >= 0.01) unitPriceStr = '$' + unitPrice.toFixed(2);
+  if (unitPrice >= 0.01) unitPriceStr = formatMoney(unitPrice);
   else if (unitPrice > 0) unitPriceStr = '$' + unitPrice.toFixed(4);
   else unitPriceStr = '\u2014';
 

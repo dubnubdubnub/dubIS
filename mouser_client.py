@@ -21,6 +21,7 @@ import urllib.request
 from typing import Any
 
 from base_client import BaseProductClient
+from domain.product import build_product
 from html_product_parser import (
     extract_attributes,
     extract_description,
@@ -233,31 +234,31 @@ class MouserClient(BaseProductClient):
 
         title = (part.get("Description") or part.get("ManufacturerPartNumber")
                  or part_number)
-        return {
-            "productCode": part.get("MouserPartNumber") or part_number,
-            "title": title,
-            "manufacturer": part.get("Manufacturer") or "",
-            "mpn": part.get("ManufacturerPartNumber") or "",
-            "package": "",
-            "description": part.get("Description") or "",
-            "stock": stock,
-            "prices": prices,
-            "imageUrl": part.get("ImagePath") or "",
-            "pdfUrl": part.get("DataSheetUrl") or "",
-            "mouserUrl": (
+        return build_product(
+            product_code=part.get("MouserPartNumber") or part_number,
+            title=title,
+            manufacturer=part.get("Manufacturer") or "",
+            mpn=part.get("ManufacturerPartNumber") or "",
+            package="",
+            description=part.get("Description") or "",
+            stock=stock,
+            prices=prices,
+            image_url=part.get("ImagePath") or "",
+            pdf_url=part.get("DataSheetUrl") or "",
+            url=(
                 part.get("ProductDetailUrl")
                 or f"https://www.mouser.com/ProductDetail/{part_number}"
             ),
-            "category": part.get("Category") or "",
-            "subcategory": "",
-            "attributes": attributes,
-            "provider": "mouser",
-            "_debug": {
+            category=part.get("Category") or "",
+            subcategory="",
+            attributes=attributes,
+            provider="mouser",
+            debug={
                 "source": "api",
                 "part_number": part_number,
                 "raw": part,
             },
-        }
+        )
 
     @staticmethod
     def _log_parse_diagnostics(page_html: str, part_number: str, url: str) -> None:
@@ -353,27 +354,27 @@ class MouserClient(BaseProductClient):
             page_html, excluded_names=["quantity", "price", "unit price"]
         )
 
-        product: dict[str, Any] = {
-            "productCode": part_number,
-            "title": title,
-            "manufacturer": manufacturer,
-            "mpn": mpn,
-            "package": "",
-            "description": description,
-            "stock": stock,
-            "prices": prices,
-            "imageUrl": image_url,
-            "pdfUrl": pdf_url,
-            "mouserUrl": url,
-            "category": category,
-            "subcategory": subcategory,
-            "attributes": attributes,
-            "provider": "mouser",
-            "_debug": {
+        product: dict[str, Any] = build_product(
+            product_code=part_number,
+            title=title,
+            manufacturer=manufacturer,
+            mpn=mpn,
+            package="",
+            description=description,
+            stock=stock,
+            prices=prices,
+            image_url=image_url,
+            pdf_url=pdf_url,
+            url=url,
+            category=category,
+            subcategory=subcategory,
+            attributes=attributes,
+            provider="mouser",
+            debug={
                 "url": url,
                 "part_number": part_number,
                 "jsonld": jsonld,
             },
-        }
+        )
 
         return product

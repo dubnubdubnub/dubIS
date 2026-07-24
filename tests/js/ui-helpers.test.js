@@ -4,7 +4,13 @@ import { describe, it, expect, vi } from 'vitest';
 // the pure-function tests keep running without pulling in DOM/constants dependencies.
 vi.mock('../../js/a11y/focus-trap.js', () => ({ trap: vi.fn(), release: vi.fn() }));
 
-import { stockValueColor, vendorIconSrc } from '../../js/ui-helpers.js';
+import { stockValueColor, vendorIconSrc, escHtml } from '../../js/ui-helpers.js';
+
+describe('escHtml', () => {
+  it('escapes quotes for attribute safety (unified on the attribute-safe escapeHtml)', () => {
+    expect(escHtml(`"x" 'y' <z>&`)).toBe('&quot;x&quot; &#39;y&#39; &lt;z&gt;&amp;');
+  });
+});
 
 describe('vendorIconSrc', () => {
   it('returns empty string for empty/missing path', () => {

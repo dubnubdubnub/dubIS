@@ -19,7 +19,7 @@ const CSS_FILES = [
 const css = CSS_FILES.map(f => readFileSync(join(ROOT, f), 'utf-8')).join('\n');
 // Read all inventory panel files (split across wiring + renderer + bom view)
 const invPanelJs = readFileSync(join(ROOT, 'js/inventory/inventory-panel.js'), 'utf-8')
-  + readFileSync(join(ROOT, 'js/inventory/inventory-renderer.js'), 'utf-8')
+  + readFileSync(join(ROOT, 'js/inventory/inv-html-builders.js'), 'utf-8')
   + readFileSync(join(ROOT, 'js/inventory/inv-bom-view.js'), 'utf-8');
 
 /**

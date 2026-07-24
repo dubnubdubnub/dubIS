@@ -85,6 +85,7 @@
 <link rel="stylesheet" href="css/components/saved-views.css">
 <link rel="stylesheet" href="css/components/filter-chips.css">
 <link rel="stylesheet" href="css/components/import-diff.css">
+<link rel="stylesheet" href="css/components/text-popover.css">
 <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -141,6 +142,7 @@
 <div class="header">
   <div class="header-left">
     <button class="btn-md prefs-btn" id="prefs-btn">Preferences</button>
+    <button class="btn-md feeders-btn" id="feeders-btn" title="Loading station: register feeders and load/unload reels">Feeders</button>
   </div>
   <div class="header-center">
     <button class="btn-md header-btn" id="global-undo" title="Undo" disabled>&#x21A9;</button>
@@ -322,6 +324,7 @@
       </label>
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pref-enter-submit"> Enter submits modals</label>
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pref-vim-nav"> Vim-style hjkl navigation</label>
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pref-auto-copy"> Automatically copy selected text</label>
     </div>
     <div class="modal-actions">
       <button class="btn-lg btn btn-cancel" id="prefs-cancel">Cancel</button>

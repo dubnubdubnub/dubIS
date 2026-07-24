@@ -10,6 +10,7 @@ import urllib.request
 from typing import Any
 
 from base_client import BaseProductClient
+from domain.product import build_product
 
 logger = logging.getLogger(__name__)
 
@@ -80,23 +81,23 @@ class LcscClient(BaseProductClient):
         images = result_data.get("productImages") or []
         image_url = images[0] if images else result_data.get("productImageUrl", "")
 
-        product = {
-            "productCode": result_data.get("productCode", product_code),
-            "title": result_data.get("title", "") or result_data.get("productIntroEn", ""),
-            "manufacturer": result_data.get("brandNameEn", ""),
-            "mpn": result_data.get("productModel", ""),
-            "package": result_data.get("encapStandard", ""),
-            "description": result_data.get("productIntroEn", ""),
-            "stock": result_data.get("stockNumber", 0),
-            "prices": prices,
-            "imageUrl": image_url,
-            "pdfUrl": result_data.get("pdfUrl", ""),
-            "lcscUrl": f"https://www.lcsc.com/product-detail/{product_code}.html",
-            "category": cat_name,
-            "subcategory": subcat_name,
-            "attributes": attributes,
-            "provider": "lcsc",
-            "_debug": result_data,
-        }
+        product = build_product(
+            product_code=result_data.get("productCode", product_code),
+            title=result_data.get("title", "") or result_data.get("productIntroEn", ""),
+            manufacturer=result_data.get("brandNameEn", ""),
+            mpn=result_data.get("productModel", ""),
+            package=result_data.get("encapStandard", ""),
+            description=result_data.get("productIntroEn", ""),
+            stock=result_data.get("stockNumber", 0),
+            prices=prices,
+            image_url=image_url,
+            pdf_url=result_data.get("pdfUrl", ""),
+            url=f"https://www.lcsc.com/product-detail/{product_code}.html",
+            category=cat_name,
+            subcategory=subcat_name,
+            attributes=attributes,
+            provider="lcsc",
+            debug=result_data,
+        )
 
         return product

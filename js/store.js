@@ -8,6 +8,7 @@ import { signal } from './signals.js';
 import { SECTION_ORDER } from './constants.js';
 import { api, AppLog } from './api.js';
 import { onEvent } from './sse.js';
+import { formatMoney } from './ui-helpers.js';
 
 // Debounce window for the SSE-driven inventory refresh (trailing debounce:
 // the timer resets on every event and fires once quiet). 250ms per Task 3
@@ -22,6 +23,12 @@ export const SHORTCUT_DEFAULTS = Object.freeze({
   vimNav: false,
 });
 
+// ── Behavior preferences defaults ──────────────────────────
+/** @type {Object} */
+export const BEHAVIOR_DEFAULTS = Object.freeze({
+  autoCopySelection: false,   // auto-copy highlighted/selected text to clipboard
+});
+
 // ── Private state slices ──────────────────────────────────
 let inventory = [];
 let bomResults = null;
@@ -34,6 +41,7 @@ let preferences = {
   thresholds: {},
   inventory_view: { group_level: 0, sort_column: null, sort_scope: null, vendor_group_scope: null },
   shortcuts: { ...SHORTCUT_DEFAULTS },
+  behavior: { ...BEHAVIOR_DEFAULTS },
   saved_views: [],
 };
 
@@ -93,6 +101,7 @@ const _linksProxy = {
   addManualLink(bk, ipk) { addManualLink(bk, ipk); },
   confirmMatch(bk, ipk) { confirmMatch(bk, ipk); },
   unconfirmMatch(bk) { unconfirmMatch(bk); },
+  restoreLinks(data) { restoreLinks(data); },
   setLinkingMode(active, invItem) { setLinkingMode(active, invItem); },
   setReverseLinkingMode(active, bomRow) { setReverseLinkingMode(active, bomRow); },
   loadFromSaved(savedLinks) { loadLinks(savedLinks); },
@@ -147,6 +156,15 @@ export function setBomMeta({ fileName, headers, cols } = {}) {
 
 export function setBomDirty(dirty) { bomDirty = dirty; }
 
+/** Mark the BOM as having unsaved changes and tell Python (which owns the
+ * close-confirm modal via api._bom_dirty). Called by the link/confirm mutations
+ * below — all of which are user actions (initial load uses loadLinks(), and
+ * undo/redo assigns the arrays directly, so neither routes through here). */
+function markBomDirty() {
+  bomDirty = true;
+  api('set_bom_dirty', true);
+}
+
 export function setPreferences(prefs) { preferences = { ...preferences, ...prefs }; }
 
 export function setVendors(list) {
@@ -172,17 +190,31 @@ export async function loadVendorsAndPOs() {
 
 export function addManualLink(bk, ipk) {
   manualLinks.push({ bomKey: bk, invPartKey: ipk });
+  markBomDirty();
   EventBus.emit(Events.LINKS_CHANGED);
 }
 
 export function confirmMatch(bk, ipk) {
   confirmedMatches = confirmedMatches.filter(c => c.bomKey !== bk);
   confirmedMatches.push({ bomKey: bk, invPartKey: ipk });
+  markBomDirty();
   EventBus.emit(Events.CONFIRMED_CHANGED);
 }
 
 export function unconfirmMatch(bk) {
   confirmedMatches = confirmedMatches.filter(c => c.bomKey !== bk);
+  markBomDirty();
+  EventBus.emit(Events.CONFIRMED_CHANGED);
+}
+
+/** Restore links + confirms from an undo/redo snapshot. This is a user action
+ * that changes persisted BOM state, so it marks the BOM dirty (unlike
+ * loadLinks(), which loads a freshly-saved BOM). */
+export function restoreLinks({ manualLinks: ml, confirmedMatches: cm }) {
+  manualLinks = Array.isArray(ml) ? ml : [];
+  confirmedMatches = Array.isArray(cm) ? cm : [];
+  markBomDirty();
+  EventBus.emit(Events.LINKS_CHANGED);
   EventBus.emit(Events.CONFIRMED_CHANGED);
 }
 
@@ -257,6 +289,9 @@ export async function loadPreferences() {
     if (stored.shortcuts && typeof stored.shortcuts === "object") {
       preferences.shortcuts = normalizeShortcuts(stored.shortcuts);
     }
+    if (stored.behavior && typeof stored.behavior === "object") {
+      preferences.behavior = { autoCopySelection: !!stored.behavior.autoCopySelection };
+    }
     if (Object.prototype.hasOwnProperty.call(stored, 'saved_views')) {
       if (Array.isArray(stored.saved_views)) {
         // Filter out malformed entries (must have string id and name)
@@ -318,7 +353,7 @@ export function saveInventoryView(view) {
 export function updateInventoryHeader() {
   document.getElementById("inv-count").textContent = inventory.length + " parts";
   const total = inventory.reduce((sum, /** @type {import('./types.js').InventoryItem} */ item) => sum + item.qty * (item.unit_price || 0), 0);
-  document.getElementById("inv-total-value").textContent = "$" + total.toFixed(2);
+  document.getElementById("inv-total-value").textContent = formatMoney(total);
 }
 
 export async function loadInventory() {
@@ -332,7 +367,6 @@ export async function loadInventory() {
   try {
     const gps = await api("list_generic_parts");
     genericParts = Array.isArray(gps) ? gps : [];
-    EventBus.emit(Events.GENERIC_PARTS_LOADED, genericParts);
     if (genericParts.length > 0) {
       AppLog.info("Loaded " + genericParts.length + " generic parts");
     }
@@ -446,6 +480,18 @@ export function getShortcutPrefs() {
 
 export function setShortcutPrefs(partial) {
   preferences.shortcuts = normalizeShortcuts({ ...getShortcutPrefs(), ...partial });
+  savePreferences();
+  preferencesSignal.set(preferences);
+}
+
+export function getBehaviorPrefs() {
+  const b = preferences.behavior || {};
+  return { autoCopySelection: !!b.autoCopySelection };
+}
+
+export function setBehaviorPrefs(partial) {
+  const next = { ...getBehaviorPrefs(), ...partial };
+  preferences.behavior = { autoCopySelection: !!next.autoCopySelection };
   savePreferences();
   preferencesSignal.set(preferences);
 }

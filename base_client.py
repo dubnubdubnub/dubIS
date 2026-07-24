@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from abc import ABC, abstractmethod
 from typing import Any
@@ -24,6 +25,22 @@ class BaseProductClient(ABC):
     """
 
     provider: str
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Enforce the `provider` contract at class-definition time.
+
+        The base docstring says every subclass "must define provider", but a
+        bare annotation doesn't enforce it — a client omitting it used to only
+        AttributeError later, at first use. Concrete (non-abstract) subclasses
+        must now declare a non-empty `provider`. Abstract intermediates (those
+        that still leave `_fetch_raw` unimplemented) are exempt.
+        """
+        super().__init_subclass__(**kwargs)
+        if not inspect.isabstract(cls) and not getattr(cls, "provider", ""):
+            raise TypeError(
+                f"{cls.__name__} must define a non-empty class attribute `provider` "
+                "(distributor name, e.g. 'lcsc')"
+            )
 
     def __init__(self) -> None:
         self._cache: dict[str, dict[str, Any] | None] = {}

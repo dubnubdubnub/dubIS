@@ -409,6 +409,35 @@
         "title": "InventoryItemModel",
         "type": "object"
       },
+      "LoadFeederBody": {
+        "properties": {
+          "part_key": {
+            "title": "Part Key",
+            "type": "string"
+          },
+          "qty": {
+            "title": "Qty",
+            "type": "integer"
+          },
+          "tape_width_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tape Width Mm"
+          }
+        },
+        "required": [
+          "part_key",
+          "qty"
+        ],
+        "title": "LoadFeederBody",
+        "type": "object"
+      },
       "MatchPartBody": {
         "properties": {
           "manufacturer": {
@@ -547,6 +576,19 @@
           "price_tiers"
         ],
         "title": "RecordFetchedPricesBody",
+        "type": "object"
+      },
+      "RegisterFeederBody": {
+        "properties": {
+          "feeder_type": {
+            "title": "Feeder Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "feeder_type"
+        ],
+        "title": "RegisterFeederBody",
         "type": "object"
       },
       "ResolveBomSpecBody": {
@@ -1268,6 +1310,372 @@
         "summary": "Events Stream",
         "tags": [
           "events"
+        ]
+      }
+    },
+    "/v1/feeders": {
+      "get": {
+        "operationId": "list_feeders",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Feeders",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Feeders",
+        "tags": [
+          "feeders"
+        ]
+      }
+    },
+    "/v1/feeders/tags/sheet": {
+      "get": {
+        "operationId": "get_feeder_tag_sheet",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Start",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "default": 24,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Count",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag_mm",
+            "required": false,
+            "schema": {
+              "default": 8.0,
+              "exclusiveMinimum": 0,
+              "title": "Tag Mm",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": "letter",
+              "title": "Page",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Feeder Tag Sheet",
+        "tags": [
+          "feeders"
+        ]
+      }
+    },
+    "/v1/feeders/tags/{tag_id}.png": {
+      "get": {
+        "operationId": "get_feeder_tag_png",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag_id",
+            "required": true,
+            "schema": {
+              "title": "Tag Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag_mm",
+            "required": false,
+            "schema": {
+              "default": 7.0,
+              "exclusiveMinimum": 0,
+              "title": "Tag Mm",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dpi",
+            "required": false,
+            "schema": {
+              "default": 180,
+              "exclusiveMinimum": 0,
+              "title": "Dpi",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "label",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Label",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Feeder Tag Png",
+        "tags": [
+          "feeders"
+        ]
+      }
+    },
+    "/v1/feeders/{tag_id}": {
+      "get": {
+        "operationId": "get_feeder",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag_id",
+            "required": true,
+            "schema": {
+              "title": "Tag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Feeder",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Feeder",
+        "tags": [
+          "feeders"
+        ]
+      }
+    },
+    "/v1/feeders/{tag_id}/load": {
+      "post": {
+        "operationId": "load_feeder_reel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag_id",
+            "required": true,
+            "schema": {
+              "title": "Tag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadFeederBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Load Feeder Reel",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Load Feeder Reel",
+        "tags": [
+          "feeders"
+        ]
+      }
+    },
+    "/v1/feeders/{tag_id}/register": {
+      "post": {
+        "operationId": "register_feeder",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag_id",
+            "required": true,
+            "schema": {
+              "title": "Tag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterFeederBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Register Feeder",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Feeder",
+        "tags": [
+          "feeders"
+        ]
+      }
+    },
+    "/v1/feeders/{tag_id}/unload": {
+      "post": {
+        "operationId": "unload_feeder",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag_id",
+            "required": true,
+            "schema": {
+              "title": "Tag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Unload Feeder",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unload Feeder",
+        "tags": [
+          "feeders"
         ]
       }
     },

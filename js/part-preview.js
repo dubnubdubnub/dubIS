@@ -2,7 +2,8 @@
    Shows product details fetched from APIs on hover over [data-lcsc], [data-digikey], [data-pololu], or [data-mouser] elements. */
 
 import { api, AppLog } from './api.js';
-import { escHtml } from './ui-helpers.js';
+import { formatMoney } from './ui-helpers.js';
+import { html, el } from './dom/html.js';
 
 var HOVER_DELAY_MS = 300;
 var HIDE_DELAY_MS = 150;
@@ -125,7 +126,7 @@ async function showTooltip(code, provider, triggerEl) {
   positionTooltip(triggerEl);
 
   // Show loading state
-  tooltip.innerHTML = '<div class="part-preview-card"><div class="part-preview-loading">Loading ' + escHtml(code) + '...</div></div>';
+  tooltip.replaceChildren(html`<div class="part-preview-card"><div class="part-preview-loading">Loading ${code}...</div></div>`);
 
   var data = await fetchProduct(code, provider);
 
@@ -145,7 +146,7 @@ async function showTooltip(code, provider, triggerEl) {
         ? "Mouser API: no match for " + code
         : "Save a Mouser API key in Preferences for tooltips";
     }
-    tooltip.innerHTML = '<div class="part-preview-card"><div class="part-preview-error">' + escHtml(errMsg) + '</div></div>';
+    tooltip.replaceChildren(html`<div class="part-preview-card"><div class="part-preview-error">${errMsg}</div></div>`);
     return;
   }
 
@@ -223,52 +224,51 @@ function positionTooltip(triggerEl) {
 
 function renderTooltip(data, provider) {
   var providerClass = "provider-" + provider;
-  var html = '<div class="part-preview-card ' + providerClass + '">';
+  var parts = [];
 
   // Product image
   if (data.imageUrl) {
-    html += '<div class="part-preview-img"><img src="' + escHtml(data.imageUrl) + '" alt="Product"></div>';
+    parts.push(html`<div class="part-preview-img"><img src="${data.imageUrl}" alt="Product"></div>`);
   }
 
   // Title (product name like "Raspberry Pi RP2040")
   if (data.title) {
-    html += '<div class="part-preview-title">' + escHtml(data.title) + '</div>';
+    parts.push(html`<div class="part-preview-title">${data.title}</div>`);
   }
 
   // Description (spec summary)
   if (data.description && data.description !== data.title) {
-    html += '<div class="part-preview-desc">' + escHtml(data.description) + '</div>';
+    parts.push(html`<div class="part-preview-desc">${data.description}</div>`);
   }
 
   // Info table
-  html += '<table class="part-preview-info">';
-  if (data.manufacturer) html += infoRow("Manufacturer", data.manufacturer);
-  if (data.mpn) html += infoRow("Mfr. Part #", data.mpn);
+  var infoRows = [];
+  if (data.manufacturer) infoRows.push(infoRow("Manufacturer", data.manufacturer));
+  if (data.mpn) infoRows.push(infoRow("Mfr. Part #", data.mpn));
 
   var partLabel = provider === "lcsc" ? "LCSC Part #" : provider === "digikey" ? "Digikey Part #" : provider === "pololu" ? "Pololu SKU" : "Mouser Part #";
-  html += infoRow(partLabel, data.productCode);
+  infoRows.push(infoRow(partLabel, data.productCode));
 
-  if (data.package) html += infoRow("Package", data.package);
+  if (data.package) infoRows.push(infoRow("Package", data.package));
   if (data.category) {
     var catText = data.category + (data.subcategory ? " > " + data.subcategory : "");
-    html += infoRow("Category", catText);
+    infoRows.push(infoRow("Category", catText));
   }
-  html += '</table>';
+  parts.push(html`<table class="part-preview-info"><tbody>${infoRows}</tbody></table>`);
 
   // Key attributes
   if (data.attributes && data.attributes.length > 0) {
-    html += '<div class="part-preview-attrs">';
-    data.attributes.forEach(function (a) {
-      html += '<span class="part-preview-attr">' + escHtml(a.name) + ': <strong>' + escHtml(a.value) + '</strong></span>';
+    var attrEls = data.attributes.map(function (a) {
+      return html`<span class="part-preview-attr">${a.name}: <strong>${a.value}</strong></span>`;
     });
-    html += '</div>';
+    parts.push(html`<div class="part-preview-attrs">${attrEls}</div>`);
   }
 
   // Stock badge
   var stockNum = typeof data.stock === "number" ? data.stock : 0;
   var stockClass = stockNum > 0 ? "in-stock" : "no-stock";
   var stockLabel = stockNum > 0 ? stockNum.toLocaleString() + " in stock" : "Out of stock";
-  html += '<div class="part-preview-stock ' + stockClass + '">' + escHtml(stockLabel) + '</div>';
+  parts.push(html`<div class="part-preview-stock ${stockClass}">${stockLabel}</div>`);
 
   // Packaging tabs (only for sources with multiple packaging variants — Digikey).
   // Each tab swaps the visible price table without re-fetching.
@@ -276,43 +276,33 @@ function renderTooltip(data, provider) {
   var activeIdx = 0;
   if (hasPackagings) {
     activeIdx = pickActivePackagingIdx(data.packagings, data.productCode);
-    html += '<div class="part-preview-pack-tabs" role="tablist">';
-    data.packagings.forEach(function (pkg, idx) {
+    var tabEls = data.packagings.map(function (pkg, idx) {
       var cls = "part-preview-pack-tab" + (idx === activeIdx ? " active" : "");
-      html += '<button type="button" class="' + cls + '" data-pack-idx="' + idx + '">' +
-        escHtml(pkg.name || "Packaging " + (idx + 1)) + '</button>';
+      return el("button", { type: "button", class: cls, "data-pack-idx": String(idx) }, pkg.name || ("Packaging " + (idx + 1)));
     });
-    html += '</div>';
-    html += '<div class="part-preview-prices-wrap">' +
-      renderPriceTable(data.packagings[activeIdx].prices || []) + '</div>';
+    parts.push(html`<div class="part-preview-pack-tabs" role="tablist">${tabEls}</div>`);
+    parts.push(html`<div class="part-preview-prices-wrap">${renderPriceTable(data.packagings[activeIdx].prices || [])}</div>`);
   } else if (data.prices && data.prices.length > 0) {
-    html += renderPriceTable(data.prices);
+    parts.push(renderPriceTable(data.prices));
   }
 
   // Action links: datasheet + provider page
-  html += '<div class="part-preview-actions">';
+  var actionLinks = [];
   if (data.pdfUrl) {
-    html += '<a class="part-preview-link" href="' + escHtml(data.pdfUrl) + '" target="_blank">Datasheet (PDF)</a>';
+    actionLinks.push(html`<a class="part-preview-link" href="${data.pdfUrl}" target="_blank">Datasheet (PDF)</a>`);
   }
   var pageUrl = data.lcscUrl || data.digikeyUrl || data.pololuUrl || data.mouserUrl || "";
   var pageName = provider === "lcsc" ? "LCSC" : provider === "digikey" ? "Digikey" : provider === "pololu" ? "Pololu" : "Mouser";
   if (pageUrl) {
-    html += '<a class="part-preview-link" href="' + escHtml(pageUrl) + '" target="_blank">View on ' + pageName + ' &rarr;</a>';
+    actionLinks.push(html`<a class="part-preview-link" href="${pageUrl}" target="_blank">View on ${pageName} &rarr;</a>`);
   }
-  html += '</div>';
+  parts.push(html`<div class="part-preview-actions">${actionLinks}</div>`);
 
   if (data._debug) {
-    html += '<div class="part-preview-debug">';
-    html += '<div class="part-preview-debug-bar">';
-    html += '<button class="part-preview-debug-toggle">Raw data &darr;</button>';
-    html += '<button class="part-preview-copy-btn">Copy JSON</button>';
-    html += '</div>';
-    html += '<pre class="part-preview-debug-json hidden">' + escHtml(JSON.stringify(data._debug, null, 2)) + '</pre>';
-    html += '</div>';
+    parts.push(html`<div class="part-preview-debug"><div class="part-preview-debug-bar"><button class="part-preview-debug-toggle">Raw data &darr;</button><button class="part-preview-copy-btn">Copy JSON</button></div><pre class="part-preview-debug-json hidden">${JSON.stringify(data._debug, null, 2)}</pre></div>`);
   }
 
-  html += '</div>';
-  tooltip.innerHTML = html;
+  tooltip.replaceChildren(el("div", { class: "part-preview-card " + providerClass }, ...parts));
 
   var toggleBtn = tooltip.querySelector(".part-preview-debug-toggle");
   if (toggleBtn) {
@@ -320,7 +310,7 @@ function renderTooltip(data, provider) {
       var pre = tooltip.querySelector(".part-preview-debug-json");
       if (pre) {
         var collapsed = pre.classList.toggle("hidden");
-        toggleBtn.innerHTML = collapsed ? "Raw data &darr;" : "Raw data &uarr;";
+        toggleBtn.replaceChildren(collapsed ? html`Raw data &darr;` : html`Raw data &uarr;`);
       }
     });
   }
@@ -348,7 +338,7 @@ function renderTooltip(data, provider) {
         tabs.forEach(function (t) { t.classList.remove("active"); });
         tab.classList.add("active");
         if (pricesWrap) {
-          pricesWrap.innerHTML = renderPriceTable(data.packagings[idx].prices || []);
+          pricesWrap.replaceChildren(renderPriceTable(data.packagings[idx].prices || []));
         }
       });
     });
@@ -357,20 +347,15 @@ function renderTooltip(data, provider) {
 
 function renderPriceTable(prices) {
   if (!prices || prices.length === 0) {
-    return '<div class="part-preview-no-prices">No pricing available</div>';
+    return html`<div class="part-preview-no-prices">No pricing available</div>`;
   }
-  var html = '<table class="part-preview-prices">';
-  html += '<thead><tr><th>Qty</th><th>Unit Price</th><th>Ext. Price</th></tr></thead><tbody>';
-  prices.forEach(function (p) {
+  var rows = prices.map(function (p) {
     var qty = Number(p.qty) || 0;
     var unit = Number(p.price) || 0;
     var ext = qty * unit;
-    html += '<tr><td>' + escHtml(String(p.qty)) + '+</td><td>$' +
-      escHtml(unit.toFixed(4)) + '</td><td>$' +
-      escHtml(ext.toFixed(2)) + '</td></tr>';
+    return html`<tr><td>${String(p.qty)}+</td><td>$${unit.toFixed(4)}</td><td>${formatMoney(ext)}</td></tr>`;
   });
-  html += '</tbody></table>';
-  return html;
+  return html`<table class="part-preview-prices"><thead><tr><th>Qty</th><th>Unit Price</th><th>Ext. Price</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function pickActivePackagingIdx(packagings, productCode) {
@@ -392,49 +377,44 @@ function pickActivePackagingIdx(packagings, productCode) {
 function appendPriceHistory(summary) {
   var card = tooltip.querySelector(".part-preview-card");
   if (!card) return;
-  var html = '<div class="part-preview-history"><div class="part-preview-history-title">Price History</div>';
-  html += '<table class="part-preview-prices"><thead><tr><th>Source</th><th>Latest</th><th>Avg</th><th>#</th></tr></thead><tbody>';
+  var rows = [];
   for (var dist in summary) {
     var s = summary[dist];
-    html += '<tr><td>' + escHtml(dist) + '</td>' +
-      '<td>$' + Number(s.latest_unit_price || 0).toFixed(4) + '</td>' +
-      '<td>$' + Number(s.avg_unit_price || 0).toFixed(4) + '</td>' +
-      '<td>' + (s.price_count || 0) + '</td></tr>';
+    rows.push(html`<tr><td>${dist}</td><td>$${Number(s.latest_unit_price || 0).toFixed(4)}</td><td>$${Number(s.avg_unit_price || 0).toFixed(4)}</td><td>${s.price_count || 0}</td></tr>`);
   }
-  html += '</tbody></table></div>';
+  var node = html`<div class="part-preview-history"><div class="part-preview-history-title">Price History</div><table class="part-preview-prices"><thead><tr><th>Source</th><th>Latest</th><th>Avg</th><th>#</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   // Insert before debug section if present, otherwise append
   var debug = card.querySelector(".part-preview-debug");
-  if (debug) debug.insertAdjacentHTML("beforebegin", html);
-  else card.insertAdjacentHTML("beforeend", html);
+  if (debug) debug.before(node);
+  else card.appendChild(node);
 }
 
 function appendPartHistory(entries) {
   var card = tooltip.querySelector(".part-preview-card");
   if (!card) return;
-  var html = '<div class="part-preview-history part-preview-adj-history"><div class="part-preview-history-title">History</div>';
+  var body;
   if (!entries || entries.length === 0) {
-    html += '<div class="part-preview-no-history">No adjustments recorded</div>';
+    body = html`<div class="part-preview-no-history">No adjustments recorded</div>`;
   } else {
     var recent = entries.slice(-8); // show the 8 most recent entries
-    html += '<table class="part-preview-prices"><tbody>';
-    recent.forEach(function (e) {
+    var rows = recent.map(function (e) {
       var date = (e.timestamp || "").slice(0, 10);
       var src = e.source || "—";
       var delta = typeof e.qty_delta === "number" ? e.qty_delta : parseInt(e.qty_delta, 10) || 0;
       var sign = delta > 0 ? "+" : "";
       var kindLabel = e.kind === "set" ? "set" : (e.kind || "");
       var deltaText = kindLabel === "set" ? "→" + delta : sign + delta;
-      html += '<tr><td>' + escHtml(date) + '</td><td>' + escHtml(src) + '</td><td>' + escHtml(deltaText) + '</td></tr>';
+      return html`<tr><td>${date}</td><td>${src}</td><td>${deltaText}</td></tr>`;
     });
-    html += '</tbody></table>';
+    body = html`<table class="part-preview-prices"><tbody>${rows}</tbody></table>`;
   }
-  html += '</div>';
+  var node = html`<div class="part-preview-history part-preview-adj-history"><div class="part-preview-history-title">History</div>${body}</div>`;
   // Insert before debug section if present, otherwise append
   var debug = card.querySelector(".part-preview-debug");
-  if (debug) debug.insertAdjacentHTML("beforebegin", html);
-  else card.insertAdjacentHTML("beforeend", html);
+  if (debug) debug.before(node);
+  else card.appendChild(node);
 }
 
 function infoRow(label, value) {
-  return '<tr><td class="label">' + escHtml(label) + '</td><td>' + escHtml(value) + '</td></tr>';
+  return html`<tr><td class="label">${label}</td><td>${value}</td></tr>`;
 }

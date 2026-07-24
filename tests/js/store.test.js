@@ -4,6 +4,10 @@ vi.mock('../../js/ui-helpers.js', () => ({
   showToast: vi.fn(),
   escHtml: vi.fn(s => s || ''),
   Modal: vi.fn(),
+  formatMoney: vi.fn((n, opts) => {
+    const fallback = (opts && opts.fallback) ?? '—';
+    return typeof n === 'number' && isFinite(n) ? '$' + n.toFixed(2) : fallback;
+  }),
 }));
 
 vi.mock('../../js/constants.js', () => ({
@@ -27,6 +31,7 @@ import {
   setLinkingMode, clearLinks,
 } from '../../js/store.js';
 import { EventBus, Events } from '../../js/event-bus.js';
+import { api } from '../../js/api.js';
 
 describe('store.links', () => {
   beforeEach(() => {
@@ -62,6 +67,39 @@ describe('store.links', () => {
       store.links.confirmMatch('BK1', 'IPK1');
       store.links.unconfirmMatch('BK1');
       expect(store.links.confirmedMatches).toEqual([]);
+    });
+  });
+
+  describe('marks BOM dirty (drives the close-confirm prompt)', () => {
+    // A manual link / confirm / unconfirm is an unsaved BOM change. Python owns
+    // the close-confirm modal via api._bom_dirty, so these must call
+    // set_bom_dirty(true) — otherwise closing after only a link exits silently
+    // with no "Save & Close" prompt (the reported bug).
+    beforeEach(() => { api.mockClear(); });
+
+    it('addManualLink tells Python the BOM is dirty', () => {
+      store.links.addManualLink('C123', 'INV456');
+      expect(api).toHaveBeenCalledWith('set_bom_dirty', true);
+    });
+
+    it('confirmMatch tells Python the BOM is dirty', () => {
+      store.links.confirmMatch('BK1', 'IPK1');
+      expect(api).toHaveBeenCalledWith('set_bom_dirty', true);
+    });
+
+    it('unconfirmMatch tells Python the BOM is dirty', () => {
+      store.links.confirmMatch('BK1', 'IPK1');
+      api.mockClear();
+      store.links.unconfirmMatch('BK1');
+      expect(api).toHaveBeenCalledWith('set_bom_dirty', true);
+    });
+
+    it('loading saved links does NOT mark dirty (freshly-loaded BOM is clean)', () => {
+      store.links.loadFromSaved({
+        manualLinks: [{ bomKey: 'C1', invPartKey: 'I1' }],
+        confirmedMatches: [{ bomKey: 'BK', invPartKey: 'IPK' }],
+      });
+      expect(api).not.toHaveBeenCalledWith('set_bom_dirty', true);
     });
   });
 

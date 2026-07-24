@@ -3,19 +3,18 @@
 import { api, AppLog, apiPurchaseOrders, apiMfgDirect } from '../../api.js';
 import { showToast } from '../../ui-helpers.js';
 import { scheduleInventoryRefresh, store, loadVendorsAndPOs } from '../../store.js';
-import { renderEditor, renderScanModal } from './mfg-direct-renderer.js';
-import { emptyLineItem, validateLineItems,
-  mapScanLineItems, scanSourceFile } from './mfg-direct-logic.js';
+import { renderEditor } from './mfg-direct-renderer.js';
+import { emptyLineItem, validateLineItems } from './mfg-direct-logic.js';
 import { isOcrFile } from '../import-logic.js';
 import { createVendorPicker } from './vendor-picker.js';
-import { renderQrToCanvas } from '../../vendor/qrcode.js';
 import { openOverlay, openOverlayLoading, resolveOverlay, failOverlay } from './ocr-overlay/ocr-overlay-panel.js';
 import { UndoRedo } from '../../undo-redo.js';
 import { invPartKey } from '../../part-keys.js';
 import { recordImportGeneration, popImportGeneration } from '../../inventory/inv-state.js';
 import { openGroupingEditor } from './scan-grouping.js';
 import { openScanShell, markShellTile, closeScanShell } from './scan-shell.js';
-import { onEvent } from '../../sse.js';
+import { createScanSessionController } from './mfg-direct-scan-session.js';
+import { createImportQueue } from './mfg-direct-import-queue.js';
 
 const state = {
   active: false,
@@ -28,6 +27,25 @@ const state = {
 };
 
 let mountEl = null;
+function getMountEl() { return mountEl; }
+
+// Phone-scan QR modal + push-received handling, and the sequential grouped-PO
+// import queue, live in sibling modules — both operate on `state`/`mountEl`
+// through this ctx rather than closing over panel internals directly.
+const scanSession = createScanSessionController({
+  state,
+  getMountEl,
+  resetForImport: _resetForImport,
+  routeScanResult,
+  rerender,
+});
+const importQueue = createImportQueue({
+  state,
+  getMountEl,
+  resetForImport: _resetForImport,
+  importPO: () => importPO(),
+  cancelFlow: () => cancelFlow(),
+});
 
 /** Key matching inv-row-build's data-part-id, derived from a PO line item. */
 function lineItemPartKey(li) {
@@ -135,7 +153,7 @@ export function routeScanResult(photos, groups, template, sourceHint) {
   state.scanTemplate = template || state.scanTemplate;
   if (photos.length > 1) {
     openGroupingEditor(photos, groups, template || 'generic',
-      (groupPayloads) => startImportQueue(groupPayloads));
+      (groupPayloads) => importQueue.startImportQueue(groupPayloads));
     AppLog.info(`Scan: grouping editor for ${photos.length} photo(s)`);
     return;
   }
@@ -264,11 +282,6 @@ export async function beginScanImport(mountElement, files, template = 'generic')
   routeScanResult(photos, groups, template);
 }
 
-/** @deprecated single-file shim kept for callers; routes through beginScanImport. */
-export async function openOcrImport(mountElement, file, template = 'generic') {
-  return beginScanImport(mountElement, [file], template);
-}
-
 /** Start a phone-scan session and open the QR modal — no standalone editor. */
 export async function startPhoneScan(mountElement, template = 'generic') {
   _resetForImport(mountElement, template);
@@ -278,7 +291,7 @@ export async function startPhoneScan(mountElement, template = 'generic') {
     showToast('Could not start scan session');
     return;
   }
-  openScanModal(session);
+  scanSession.openScanModal(session);
 }
 
 function rerender() {
@@ -365,7 +378,7 @@ function bindEvents(root) {
   if (scanTemplate) scanTemplate.onchange = () => { state.scanTemplate = scanTemplate.value; };
 
   const scanBtn = root.querySelector('#mfg-scan-btn');
-  if (scanBtn) scanBtn.onclick = startScanSession;
+  if (scanBtn) scanBtn.onclick = scanSession.startScanSession;
 
   const nameInput = root.querySelector('#mfg-vendor-name-input');
   if (nameInput) nameInput.onblur = () => vendorPicker.onVendorNameBlur(nameInput.value);
@@ -434,217 +447,25 @@ async function handleSourceFile(file) {
   reader.readAsDataURL(file);
 }
 
-// ── Phone-scan session ────────────────────────────────────────────────
-async function startScanSession() {
-  const template = state.scanTemplate || 'generic';
-  const session = await apiMfgDirect.startScanSession(template);
-  if (!session || !session.urls || !session.urls.length) {
-    AppLog.warn('start_scan_session returned no URLs');
-    showToast('Could not start scan session');
-    return;
-  }
-  openScanModal(session);
-}
-
-function openScanModal(session) {
-  let overlay = document.getElementById('mfg-scan-overlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'mfg-scan-overlay';
-    overlay.className = 'modal-overlay';
-    document.body.appendChild(overlay);
-  }
-  overlay.innerHTML = renderScanModal(session);
-  overlay.classList.remove('hidden');
-  bindScanModal(overlay, session);
-}
-
-function closeScanModal() {
-  const overlay = document.getElementById('mfg-scan-overlay');
-  if (overlay) overlay.remove();
-}
-
-function bindScanModal(root, session) {
-  const canvas = root.querySelector('#mfg-scan-qr-canvas');
-  const urls = session.urls || [];
-  if (canvas && urls.length) {
-    try {
-      renderQrToCanvas(canvas, urls[0], { size: 240 });
-    } catch (exc) {
-      AppLog.error('QR render failed: ' + exc);
-    }
-  }
-  // Clicking a URL re-renders the QR for that interface (lets the user pick the
-  // reachable one) and copies it to the clipboard.
-  root.querySelectorAll('.mfg-scan-url-btn').forEach(btn => {
-    btn.onclick = () => {
-      const url = btn.dataset.url;
-      if (canvas && url) {
-        try { renderQrToCanvas(canvas, url, { size: 240 }); }
-        catch (exc) { AppLog.error('QR render failed: ' + exc); }
-      }
-      if (url && navigator.clipboard) {
-        navigator.clipboard.writeText(url).then(
-          () => showToast('Copied URL'),
-          () => { /* clipboard denied — non-fatal */ });
-      }
-    };
-  });
-
-  const closeBtn = root.querySelector('#mfg-scan-close');
-  if (closeBtn) closeBtn.onclick = closeScanModal;
-
-  const fallbackBtn = root.querySelector('#mfg-scan-fallback');
-  if (fallbackBtn) {
-    fallbackBtn.onclick = () => {
-      closeScanModal();
-      // Return the user to a file picker. Prefer the import panel's image/PDF
-      // zone input (the new two-zone entry); fall back to the legacy editor's
-      // source input if the standalone editor is what's currently mounted.
-      const input = document.querySelector('#import-ocr-input')
-        || (mountEl && mountEl.querySelector('#mfg-source-input'))
-        || document.querySelector('#mfg-source-input');
-      if (input) input.click();
-    };
-  }
-}
-
-/** Extract raw base64 bytes from the source the phone sent. */
-function scanSourceB64(payload) { const s = scanSourceFile(payload); return s ? s.bytes : ''; }
-
 /**
- * Backend → frontend push: called via evaluate_js when the phone uploads a PO
- * photo. Routes multi/single-photo payloads through routeScanResult; falls back
- * to the legacy flat-staging path for old payloads without `pages`.
- * @param {{line_items: Array, image_b64: string, filename: string, template: string, photos?: Array, pages?: Array}} payload
- */
-async function scanReceived(payload) {
-  if (!payload) {
-    AppLog.warn('_scanReceived called with empty payload');
-    return;
-  }
-  // The push can arrive while the flow isn't active (e.g. modal closed, or a
-  // race) — start it so the items have somewhere to land.
-  if (!state.active) {
-    _resetForImport(mountEl, payload.template || 'generic');
-  }
-  closeScanModal();
-
-  if (payload.photos && payload.photos.length) {
-    const photos = payload.photos.map((p, i) => ({
-      index: i, filename: p.filename || `scan-${i + 1}.jpg`,
-      image_b64: p.image_b64 || '', pages: p.pages || [],
-      prefill_rows: p.prefill_rows || [],
-    }));
-    routeScanResult(photos, payload.groups, payload.template || 'generic');
-    return;
-  }
-  if (payload.pages && payload.pages.length) {
-    routeScanResult(
-      [{ index: 0, filename: (payload.filename || 'scan.jpg'),
-         image_b64: scanSourceB64(payload), pages: payload.pages,
-         prefill_rows: payload.prefill_rows || payload.line_items || [] }],
-      [[0]], payload.template || 'generic', scanSourceFile(payload));
-    return;
-  }
-
-  // Legacy flat-item fallback (no `pages`): land items into the staging editor.
-  state.scanTemplate = payload.template || state.scanTemplate;
-  state.lineItems = mapScanLineItems(payload.line_items, payload.template);
-  const src = scanSourceFile(payload);
-  if (src) state.sourceFile = src;
-  rerender();
-
-  // Run the existing match-and-confirm loop.
-  await Promise.all(state.lineItems.map(async (li) => {
-    if (li.mpn) li.match = await apiMfgDirect.matchPart(li.mpn, li.manufacturer);
-  }));
-  rerender();
-
-  AppLog.info(`Scan: received ${state.lineItems.length} line items (${payload.template || 'generic'})`);
-  showToast(`Scan: ${state.lineItems.length} rows received — review and import`);
-}
-
-/**
- * Backend → frontend push: the phone's photo has landed but OCR is still
- * running. Gives the user instant acknowledgement on the desktop instead of a
- * silent wait while OCR works. The OCR'd rows arrive shortly after via
- * window._scanReceived.
- * @param {{filename?: string, template?: string, count?: number}} payload
- */
-function scanReceiving(payload) {
-  const count = (payload && payload.count) || 1;
-  const noun = count > 1 ? `${count} photos` : 'Photo';
-  const verb = count > 1 ? 'them' : 'it';
-  // If the QR modal is still open, swap its hint to a "reading" message so the
-  // feedback lands where the user is already looking.
-  const hint = document.querySelector('#mfg-scan-overlay .mfg-scan-hint');
-  if (hint) hint.textContent = `📸 ${noun} received — reading ${verb} now…`;
-  showToast(`📸 ${noun} received — reading…`);
-  const tmpl = (payload && payload.template) || '';
-  AppLog.info(`Scan: ${count} photo(s) received, OCR in progress` + (tmpl ? ` (${tmpl})` : ''));
-}
-
-/**
- * Register the phone-scan push handlers (called once from app-init).
- * Keeps the `window._scanReceived`/`_scanReceiving` globals assigned (E2E
- * depends on calling them directly via evaluate_js) AND subscribes the same
- * functions to the equivalent SSE events (`scan.received`/`scan.receiving`)
- * published by pnp_server.py — see js/sse.js and Task 3 of
- * docs/plans/2026-07-16-phase1b-frontend-port-plan.md.
+ * Register the phone-scan push handlers (called once from app-init). See
+ * mfg-direct-scan-session.js for the QR modal lifecycle and the
+ * `scan.received`/`scan.receiving` handlers this delegates to.
  */
 export function registerScanHandler() {
-  window._scanReceived = scanReceived;
-  window._scanReceiving = scanReceiving;
-  onEvent('scan.receiving', scanReceiving);
-  onEvent('scan.received', scanReceived);
+  scanSession.registerScanHandler();
 }
 
 function cancelFlow() {
   state.active = false;
   state.popout = false;
-  closeScanModal();
+  scanSession.closeScanModal();
   const overlay = document.getElementById('mfg-direct-overlay');
   if (overlay) overlay.remove();
   // Re-init the regular import panel
   if (mountEl && mountEl.id === 'import-body') {
     import('../import-panel.js').then(m => m.init());
   }
-}
-
-// ── Sequential multi-PO import queue ──────────────────────────────────────
-// When a grouped scan yields several POs, review + import them one at a time:
-// open the overlay for PO 1 → import → open PO 2 → … The overlay is a singleton,
-// so the queue keeps them strictly sequential (never concurrent).
-let _importQueue = null;  // { payloads: [groupPayload], idx } | null
-
-function startImportQueue(groupPayloads) {
-  if (!groupPayloads || !groupPayloads.length) return;
-  _importQueue = { payloads: groupPayloads, idx: 0 };
-  _openNextInQueue();
-}
-
-function _openNextInQueue() {
-  if (!_importQueue || _importQueue.idx >= _importQueue.payloads.length) {
-    _importQueue = null;
-    cancelFlow();
-    return;
-  }
-  const gp = _importQueue.payloads[_importQueue.idx];
-  _resetForImport(mountEl, gp.template);
-  state.scanTemplate = gp.template || state.scanTemplate;
-  openOverlay(gp, {
-    onConfirm: (rows, vendor) => {
-      state.lineItems = rows;
-      state.vendor = vendor;
-      const src = scanSourceFile(gp);
-      if (src) state.sourceFile = src;
-      importPO();
-    },
-    sourceB64: gp.image_b64,
-    sourceName: gp.filename,
-  });
-  if (gp.poLabel) showToast(`Reviewing ${gp.poLabel}`);
 }
 
 async function importPO() {
@@ -713,10 +534,9 @@ async function importPO() {
 
     showToast(`Imported ${items.length} rows from ${state.vendor.name || 'vendor'}`);
     AppLog.info(`Direct PO: ${items.length} rows from ${state.vendor.name}`);
-    if (_importQueue) {
+    if (importQueue.isActive()) {
       // Advance to the next PO in the grouped batch (or finish + re-init).
-      _importQueue.idx += 1;
-      _openNextInQueue();
+      importQueue.advance();
     } else {
       cancelFlow();
     }

@@ -19,11 +19,11 @@ import {
   renderMemberRows,
   renderFilterBarHtml,
   renderBomTableHeader,
-} from './inventory-renderer.js';
+} from './inv-html-builders.js';
 import { isFlyoutDragActive } from './inv-events.js';
 import state from './inv-state.js';
 import { handleBomTableClick } from './inv-mutations.js';
-import { renderSection, renderHierarchySection } from './inv-render.js';
+import { renderSection, renderHierarchySection } from './inv-tree-render.js';
 
 // ── Section hierarchy (read once from store) ──
 
