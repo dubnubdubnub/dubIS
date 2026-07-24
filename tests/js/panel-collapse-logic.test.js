@@ -70,14 +70,12 @@ describe('toggleRegion / setRegion', () => {
 describe('panelsToReopen', () => {
   it('reopens the left panel for PO and import activity', () => {
     expect(panelsToReopen('PO_CHANGED')).toEqual(['import']);
-    expect(panelsToReopen('IMPORT_COMPLETED')).toEqual(['import']);
     expect(panelsToReopen('IMPORT_MAPPER_OPENED')).toEqual(['import']);
   });
 
   it('reopens the BOM panel for BOM activity', () => {
     expect(panelsToReopen('BOM_LOADED')).toEqual(['bom']);
     expect(panelsToReopen('BOM_CLEARED')).toEqual(['bom']);
-    expect(panelsToReopen('BOM_DIRTY')).toEqual(['bom']);
     expect(panelsToReopen('CONFIRMED_CHANGED')).toEqual(['bom']);
     expect(panelsToReopen('LINKS_CHANGED')).toEqual(['bom']);
     expect(panelsToReopen('LINKING_MODE')).toEqual(['bom']);

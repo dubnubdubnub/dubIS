@@ -10,6 +10,7 @@ import { TARGET_FIELDS, PO_TEMPLATES, classifyRow, countWarnings, transformImpor
 import { renderDropZone, renderMapper as renderMapperHtml, renderOcrEngineNotice } from './import-renderer.js';
 import { computeImportDiff } from './import-diff.js';
 import { openImportDiffModal } from './import-diff-modal.js';
+import { handleTrigger } from '../panel-collapse.js';
 
 const body = document.getElementById("import-body");
 
@@ -331,6 +332,9 @@ function updateImportButton() {
 function renderMapper() {
   const mapper = document.getElementById("import-mapper");
   mapper.classList.remove("hidden");
+  // The mapper lives inside the left panel; if that panel is collapsed the user
+  // would be staring at nothing while an import waits on their input.
+  handleTrigger('IMPORT_MAPPER_OPENED');
 
   // Once a CSV/manual staging session is active, the image/PDF zone is no longer
   // relevant — collapse it so the staging table and Import button stay reachable

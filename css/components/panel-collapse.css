@@ -17,6 +17,12 @@
    zero-width panel can still catch a click or a Tab stop. */
 .panel.panel-collapsed > * { visibility: hidden; }
 
+/* The handle sets its own z-index, which makes it a stacking context — so the pill
+   inside it cannot outrank .panel-header on its own, and the header would swallow
+   its clicks. Raise the hosting handle instead. Scoped with :has() so handles
+   without a pill keep their original layer. */
+.resize-handle-h:has(.panel-toggle) { z-index: var(--z-panel-toggle); }
+
 /* Toggle pill, pinned to the top of the 5px resize handle and sitting on the
    panel-header band — the "T" junction between two panels. */
 .panel-toggle {
@@ -27,7 +33,7 @@
   width: var(--panel-toggle-w);
   height: var(--panel-toggle-h);
   padding: 0;
-  z-index: 12;                 /* above .panel-header (11) and the handle (10) */
+  z-index: var(--z-panel-toggle);
   display: flex;
   align-items: center;
   justify-content: center;

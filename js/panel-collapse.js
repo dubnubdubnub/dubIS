@@ -166,9 +166,20 @@ function mountPills(handles) {
   }
 }
 
+/**
+ * Apply the persisted collapse state. Separate from initPanelCollapse because
+ * panels mount before preferences load — reading the store at mount time would
+ * always see defaults. Called from app-init's bootstrap, right after the
+ * preferences fetch resolves.
+ * @param {unknown} stored the raw `preferences.panels_collapsed`
+ */
+export function applyStoredCollapse(stored) {
+  state = normalizeCollapsed(stored);
+  render();
+}
+
 /** @param {{ hHandles: HTMLElement[] }} handles */
 export function initPanelCollapse(handles) {
-  state = normalizeCollapsed(store.preferences.panels_collapsed);
   mountPills(handles);
   render();
 

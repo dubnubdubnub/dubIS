@@ -51,6 +51,11 @@
   --z-col-header:      6;     /* .inv-col-header */
   --z-resize-handle:  10;     /* .resize-handle-h/-v */
   --z-panel-header:   11;     /* .panel-header */
+  --z-panel-toggle:   12;     /* .resize-handle-h hosting a .panel-toggle pill —
+                                 must outrank --z-panel-header: the handle's own
+                                 z-index makes it a stacking context, so a pill
+                                 inside it cannot escape past the header on its
+                                 own and would be unclickable. */
   --z-overlay:       100;     /* .modal-overlay, .flyout-container */
   --z-flyout:        500;     /* .part-preview */
   --z-toast:         999;     /* .toast */

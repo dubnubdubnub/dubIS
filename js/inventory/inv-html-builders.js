@@ -426,7 +426,10 @@ export function renderInvColHeader(viewState) {
   // wider .part-actions and the header's narrow ↺ button.
   var descCellHtml = viewState.hideDescs
     ? '<span class="inv-col-desc-pad" aria-hidden="true"></span>'
-    : '<button class="inv-col-cell inv-col-desc" data-col="description">Description ' + sortIndicator('description') + '</button>';
+    // title: this column is the flexible one, so it is what gets squeezed in a
+    // narrow panel; the CSS clips it rather than letting it overlap the reset
+    // button, and the tooltip keeps the clipped label readable.
+    : '<button class="inv-col-cell inv-col-desc" data-col="description" title="Description">Description ' + sortIndicator('description') + '</button>';
 
   return '<div class="inv-col-header">' +
     '<button class="inv-col-cell inv-col-group" data-col="group" title="Cycle grouping: full → sections → flat">' +
