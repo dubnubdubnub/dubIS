@@ -57,6 +57,20 @@
 .panel-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
 .panel-toggle:focus-visible { outline: 2px solid var(--color-blue); outline-offset: 1px; }
 
+/* Collapsed, the handle sits flush against the window edge — so a pill centred on
+   that 5px handle hangs half off-screen (its centre is still clickable, which is
+   why only a pixel check catches this). Anchor it inward instead, so the whole
+   control stays visible: it is the only way to get the panel back. */
+.panel-toggle-left.is-collapsed {
+  left: 0;
+  transform: none;
+}
+.panel-toggle-right.is-collapsed {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
 /* Chevron points the way a click moves the panel. */
 .panel-toggle > span::before { content: "\2039"; font-size: var(--text-md); line-height: 1; }
 .panel-toggle-right > span::before { content: "\203A"; }

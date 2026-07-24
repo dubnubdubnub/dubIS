@@ -8,6 +8,17 @@
   gap: var(--space-xs);
 }
 
+/* Below the app's documented minimum window width (1200×700) the header is
+   already wrapping, and this control's ~220px would add another row — pushing the
+   panels down far enough to shove the Import button off a 600px-tall viewport
+   (caught by resize-visibility.spec.mjs). Hide it there; Ctrl+-/=/0 still work and
+   are listed in the ? help modal and the command palette.
+   Note this measures the *authored* viewport, so zooming out on a small window can
+   also hide it — which is the same trade-off, arrived at the same way. */
+@media (max-width: 1199px) {
+  .zoom-control { display: none; }
+}
+
 .zoom-btn {
   padding: var(--space-2xs) var(--space-sm);
   font-size: var(--text-sm);
