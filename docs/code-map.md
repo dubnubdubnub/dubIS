@@ -378,6 +378,7 @@ graph LR
     "js/inventory/inv-mutations.js" --> "js/ui-helpers.js"
     "js/inventory/inv-mutations.js" --> "js/undo-redo.js"
     "js/inventory/inv-row-build.js" --> "js/cart/cart-add.js"
+    "js/inventory/inv-row-build.js" --> "js/dom/delegate.js"
     "js/inventory/inv-row-build.js" --> "js/group-flyout/flyout-panel.js"
     "js/inventory/inv-row-build.js" --> "js/inventory/inv-events.js"
     "js/inventory/inv-row-build.js" --> "js/inventory/inv-html-builders.js"
@@ -402,6 +403,7 @@ graph LR
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-events.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-html-builders.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-import-markers.js"
+    "js/inventory/inventory-panel.js" --> "js/inventory/inv-row-build.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-state.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-tree-render.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inventory-logic.js"
@@ -1203,7 +1205,7 @@ graph LR
 ### js/dom/delegate.js
 
 - **Imports:** —
-- **Imported by:** `js/components/command-palette.js`, `js/components/data-grid.js`, `js/components/form-modal.js`, `js/feeders-modal.js`, `js/inventory/saved-views-ui.js`, `tests/js/delegate.test.js`
+- **Imported by:** `js/components/command-palette.js`, `js/components/data-grid.js`, `js/components/form-modal.js`, `js/feeders-modal.js`, `js/inventory/inv-row-build.js`, `js/inventory/saved-views-ui.js`, `tests/js/delegate.test.js`
 
 ### js/dom/html.js
 
@@ -1438,8 +1440,8 @@ graph LR
 
 ### js/inventory/inv-row-build.js
 
-- **Imports:** `js/cart/cart-add.js`, `js/group-flyout/flyout-panel.js`, `js/inventory/inv-events.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-modals.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-state.js`, `js/label-selection.js`, `js/part-keys.js`, `js/store.js`
-- **Imported by:** `js/inventory/inv-groups-view.js`, `js/inventory/inv-tree-render.js`
+- **Imports:** `js/cart/cart-add.js`, `js/dom/delegate.js`, `js/group-flyout/flyout-panel.js`, `js/inventory/inv-events.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-modals.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-state.js`, `js/label-selection.js`, `js/part-keys.js`, `js/store.js`
+- **Imported by:** `js/inventory/inv-groups-view.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`
 
 ### js/inventory/inv-sort-group.js
 
@@ -1463,7 +1465,7 @@ graph LR
 
 ### js/inventory/inventory-panel.js
 
-- **Imports:** `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-events.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-import-markers.js`, `js/inventory/inv-state.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-logic.js`, `js/inventory/saved-views-ui.js`, `js/store.js`
+- **Imports:** `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-events.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-import-markers.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-state.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-logic.js`, `js/inventory/saved-views-ui.js`, `js/store.js`
 - **Imported by:** `js/app-init.js`
 
 ### js/inventory/pick-description.js
