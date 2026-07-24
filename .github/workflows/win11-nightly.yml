@@ -33,6 +33,11 @@ jobs:
         shell: powershell
     steps:
       - uses: actions/checkout@v4
+      # Put Git's usr\bin on PATH so actions/cache's GNU tar can find its own
+      # gzip.exe (else saves fail with status 127). See the matching step + full
+      # rationale in ci.yml's js-windows leg.
+      - name: Put Git's gzip on PATH for actions/cache
+        run: Add-Content -Path $env:GITHUB_PATH -Value 'C:\Program Files\Git\usr\bin'
       # Same cache strategy as ci.yml's js-windows leg — see the comments there.
       - name: Cache npm downloads
         uses: actions/cache@v4
