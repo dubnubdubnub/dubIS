@@ -26,6 +26,7 @@ import { init as initBomPanel } from './bom/bom-panel.js';
 import { init as initImportPanel } from './import/import-panel.js';
 import { init as initResizePanels } from './resize-panels.js';
 import { init as initPartPreview } from './part-preview.js';
+import { initTextPopover } from './text-popover.js';
 import { init as initGroupFlyout } from './group-flyout/flyout-panel.js';
 import { init as initLabelSelection } from './label-selection.js';
 import { init as initLabelExportModal } from './label-export-modal.js';
@@ -66,6 +67,7 @@ async function initApp() {
   initBomPanel();
   initImportPanel();
   initPartPreview();
+  initTextPopover();
   initGroupFlyout();
   initLabelSelection();
   initLabelExportModal();

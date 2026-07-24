@@ -22,6 +22,12 @@ export const SHORTCUT_DEFAULTS = Object.freeze({
   vimNav: false,
 });
 
+// ── Behavior preferences defaults ──────────────────────────
+/** @type {Object} */
+export const BEHAVIOR_DEFAULTS = Object.freeze({
+  autoCopySelection: false,   // auto-copy highlighted/selected text to clipboard
+});
+
 // ── Private state slices ──────────────────────────────────
 let inventory = [];
 let bomResults = null;
@@ -34,6 +40,7 @@ let preferences = {
   thresholds: {},
   inventory_view: { group_level: 0, sort_column: null, sort_scope: null, vendor_group_scope: null },
   shortcuts: { ...SHORTCUT_DEFAULTS },
+  behavior: { ...BEHAVIOR_DEFAULTS },
   saved_views: [],
 };
 
@@ -269,6 +276,9 @@ export async function loadPreferences() {
     if (stored.shortcuts && typeof stored.shortcuts === "object") {
       preferences.shortcuts = normalizeShortcuts(stored.shortcuts);
     }
+    if (stored.behavior && typeof stored.behavior === "object") {
+      preferences.behavior = { autoCopySelection: !!stored.behavior.autoCopySelection };
+    }
     if (Object.prototype.hasOwnProperty.call(stored, 'saved_views')) {
       if (Array.isArray(stored.saved_views)) {
         // Filter out malformed entries (must have string id and name)
@@ -458,6 +468,18 @@ export function getShortcutPrefs() {
 
 export function setShortcutPrefs(partial) {
   preferences.shortcuts = normalizeShortcuts({ ...getShortcutPrefs(), ...partial });
+  savePreferences();
+  preferencesSignal.set(preferences);
+}
+
+export function getBehaviorPrefs() {
+  const b = preferences.behavior || {};
+  return { autoCopySelection: !!b.autoCopySelection };
+}
+
+export function setBehaviorPrefs(partial) {
+  const next = { ...getBehaviorPrefs(), ...partial };
+  preferences.behavior = { autoCopySelection: !!next.autoCopySelection };
   savePreferences();
   preferencesSignal.set(preferences);
 }
