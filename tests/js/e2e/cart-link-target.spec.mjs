@@ -42,6 +42,27 @@ test.describe('Linking mode marks the cart as a drop target', () => {
     await expect(page.locator('#cart-btn')).not.toHaveClass(/link-target/);
   });
 
+  test('clearing the BOM while a link is armed removes the stale cart drop-target styling', async ({ page }) => {
+    await installRouteMocks(page, MOCK_INVENTORY, {
+      carts: {
+        carts: [{ id: 'cart-1', name: 'Cart 1', items: [] }],
+        active_cart_id: 'cart-1',
+      },
+    });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+    await loadBomViaFileInput(page, BOM_CSV);
+
+    // Arm linking mode from an inventory row's Link button.
+    await page.locator('.inv-part-row .link-btn').first().click();
+    await expect(page.locator('#cart-btn')).toHaveClass(/link-target/);
+
+    // Clear the BOM via the real "Clear BOM" control while the link is still armed.
+    await page.click('#bom-clear-btn');
+
+    await expect(page.locator('#cart-btn')).not.toHaveClass(/link-target/);
+  });
+
   test('clicking #cart-btn while NOT in linking mode does not add anything', async ({ page }) => {
     await installRouteMocks(page, MOCK_INVENTORY, {
       carts: {

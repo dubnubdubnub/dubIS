@@ -180,6 +180,21 @@ export function setupEvents(handlers) {
     render();
   });
 
+  // Task B4: while linking mode is armed with an inventory item, the header
+  // cart icon also becomes a valid drop target (purple dotted box, mirrors
+  // the row .link-target style) — clicking it (wired in cart-header.js)
+  // adds the armed part to the active cart instead of opening the modal.
+  // Shared by the LINKING_MODE listener and BOM_CLEARED handler below so the
+  // cart-btn visual state can never drift from store.links (e.g. clearing the
+  // BOM while a link is armed must also drop the stale drop-target styling —
+  // clearLinks() intentionally does not emit LINKING_MODE, see CLAUDE.md).
+  function updateCartLinkTarget(armed) {
+    var cartBtn = document.getElementById("cart-btn");
+    if (cartBtn) {
+      cartBtn.classList.toggle("link-target", !!armed);
+    }
+  }
+
   EventBus.on(Events.BOM_CLEARED, function () {
     state.bomData = null;
     state.activeFilter = "all";
@@ -188,19 +203,13 @@ export function setupEvents(handlers) {
     state.expandedAlts = new Set();
     state.expandedMembers = new Set();
     store.links.clearAll();
+    updateCartLinkTarget(false);
     render();
   });
 
   EventBus.on(Events.LINKING_MODE, function () {
     render();
-    // Task B4: while linking mode is armed with an inventory item, the header
-    // cart icon also becomes a valid drop target (purple dotted box, mirrors
-    // the row .link-target style) — clicking it (wired in cart-header.js)
-    // adds the armed part to the active cart instead of opening the modal.
-    var cartBtn = document.getElementById("cart-btn");
-    if (cartBtn) {
-      cartBtn.classList.toggle("link-target", !!(store.links.linkingMode && store.links.linkingInvItem));
-    }
+    updateCartLinkTarget(store.links.linkingMode && store.links.linkingInvItem);
   });
 
   // Entering/exiting label-select mode swaps each row's right-edge action
