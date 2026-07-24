@@ -12,7 +12,6 @@
  * LINKING_MODE:         (none)                   — listeners re-read store.links.linkingMode etc.
  * LINKS_CHANGED:        (none)                   — listeners re-read store.links
  * SAVE_AND_CLOSE:       (none)
- * GENERIC_PARTS_LOADED: GenericPart[]            — full generic parts array
  * VENDORS_CHANGED:      Vendor[]                 — full vendors array
  * PO_CHANGED:           PurchaseOrder[]          — full purchase orders array
  * LABEL_MODE:           boolean                  — true when label-select mode is active
@@ -29,7 +28,6 @@ export const Events = Object.freeze({
   LINKING_MODE:      "linking-mode",
   LINKS_CHANGED:     "links-changed",
   SAVE_AND_CLOSE:    "save-and-close",
-  GENERIC_PARTS_LOADED: "generic-parts-loaded",
   FLYOUT_OPENED:          "flyout-opened",
   FLYOUT_CLOSED:          "flyout-closed",
   FLYOUT_ACTIVE_CHANGED:  "flyout-active-changed",
