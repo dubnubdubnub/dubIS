@@ -251,7 +251,6 @@ def populate_full(
 
     # Fall back to inferred vendor by manufacturer name
     if vendors_json_path and os.path.isfile(vendors_json_path):
-        import json
         with open(vendors_json_path, encoding="utf-8") as f:
             vendors_data = json.load(f)
         # name → id (case-insensitive)
@@ -272,11 +271,10 @@ def populate_full(
         )
 
     # Update parts rows with po_history
-    import json as _json
     for pk, po_ids in po_history_for_part.items():
         conn.execute(
             "UPDATE parts SET po_history=? WHERE part_id=?",
-            (_json.dumps(po_ids), pk),
+            (json.dumps(po_ids), pk),
         )
     conn.commit()
 
@@ -586,7 +584,6 @@ def query_inventory(conn: sqlite3.Connection) -> "list[InventoryItem]":
     mouser, manufacturer, package, description, qty, unit_price, ext_price,
     primary_vendor_id, po_history.
     """
-    import json as _json
     rows = conn.execute("""
         SELECT p.section, p.lcsc, p.mpn, p.digikey, p.pololu, p.mouser,
                p.manufacturer, p.package, p.description, p.primary_vendor_id,
@@ -611,7 +608,7 @@ def query_inventory(conn: sqlite3.Connection) -> "list[InventoryItem]":
             "unit_price": row["unit_price"],
             "ext_price": row["ext_price"],
             "primary_vendor_id": (row["primary_vendor_id"] or ""),
-            "po_history": _json.loads(row["po_history"]) if row["po_history"] else [],
+            "po_history": json.loads(row["po_history"]) if row["po_history"] else [],
         }
         for row in rows
     ]
