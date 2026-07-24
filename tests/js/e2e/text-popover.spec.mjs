@@ -69,4 +69,34 @@ test.describe('Text popover, double-click-select, auto-copy', () => {
     const clip = await page.evaluate(() => navigator.clipboard.readText());
     expect(clip.trim()).toBe(cellText);
   });
+
+  test('double-clicking a qty/price cell edits inline and does NOT select-whole', async ({ page }) => {
+    await installRouteMocks(page, MOCK_INVENTORY);
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+
+    const qtyCell = page.locator('.inv-part-row .part-qty').first();
+    await qtyCell.dblclick();
+
+    const input = page.locator('.inv-inline-input');
+    await expect(input).toBeVisible();
+    await expect(input).toBeFocused();
+
+    const selected = (await page.evaluate(() => window.getSelection().toString())).trim();
+    expect(selected).toBe('');
+  });
+
+  test('hovering an interactive button does NOT show the text popover', async ({ page }) => {
+    await installRouteMocks(page, MOCK_INVENTORY);
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+
+    const adjBtn = page.locator('.inv-part-row .adj-btn').first();
+    await expect(adjBtn).toBeVisible();
+    await adjBtn.hover();
+    await page.waitForTimeout(600); // > 350ms show delay, so a false-positive would have shown by now
+
+    const popover = page.locator('.text-popover:not(.hidden)');
+    await expect(popover).toBeHidden();
+  });
 });
