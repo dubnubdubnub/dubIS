@@ -52,6 +52,37 @@ test.describe('Cart modal', () => {
     await expect(page.locator('.cart-modal')).toContainText(/no items|empty/i);
   });
 
+  test('typing a non-integer qty reverts instead of truncating and committing', async ({ page }) => {
+    await installRouteMocks(page, MOCK_INVENTORY, { carts: CARTS_SEED });
+    await page.goto('/index.html');
+    await waitForInventoryRows(page);
+
+    await page.click('#cart-btn');
+    await expect(page.locator('.cart-modal')).toBeVisible();
+
+    const updateCalls = [];
+    page.on('request', (req) => {
+      if (req.url().includes('update_cart_item') || req.url().includes('/cart_items/')) {
+        updateCalls.push(req.url());
+      }
+    });
+
+    const qtyCell = page.locator('.cart-modal .cart-qty-input').first();
+    await expect(qtyCell).toHaveValue('5');
+
+    // 12.5 must NOT truncate to 12 (parseInt truncation bug) — it should be
+    // rejected outright and the input reverted to the prior stored qty (5).
+    await qtyCell.fill('12.5');
+    await qtyCell.blur();
+    await expect(qtyCell).toHaveValue('5');
+    expect(updateCalls.length).toBe(0);
+
+    // A valid whole-number edit still commits normally.
+    await qtyCell.fill('7');
+    await qtyCell.blur();
+    await expect(qtyCell).toHaveValue('7');
+  });
+
   test('clear cart empties every line via the top-bar button', async ({ page }) => {
     await installRouteMocks(page, MOCK_INVENTORY, {
       carts: {

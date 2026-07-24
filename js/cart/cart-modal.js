@@ -147,10 +147,12 @@ function wireQtyInputs(container) {
     const cart = cartStore.getActiveCart();
     const item = cart && cart.items.find((it) => it.ref === ref);
     if (!item) return;
-    const qty = parseInt(input.value, 10);
-    if (!Number.isInteger(qty) || qty < 0) {
+    const raw = input.value.trim();
+    const qty = Number(raw);
+    if (raw === '' || !Number.isInteger(qty) || qty < 0) {
       AppLog.warn('cart-modal: rejected non-integer/negative qty input: ' + input.value);
       input.value = String(item.qty ?? 0);
+      showToast('Quantity must be a whole number ≥ 0');
       return;
     }
     input.disabled = true;
