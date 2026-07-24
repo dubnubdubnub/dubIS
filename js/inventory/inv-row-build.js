@@ -11,6 +11,7 @@ import state, { generationOpacityFor } from './inv-state.js';
 import { createReverseLink } from './inv-mutations.js';
 import { toggleSelection } from '../label-selection.js';
 import { activateInlineEdit } from './inv-inline-edit.js';
+import * as cartAddMode from '../cart/cart-add.js';
 
 export function createPartRow(item, sectionKey, sectionChip) {
   var row = document.createElement("div");
@@ -41,9 +42,16 @@ export function createPartRow(item, sectionKey, sectionChip) {
 
   if (isSource) row.classList.add("linking-source");
 
+  // Cart-add mode (checked first, unconditionally): a click anywhere on the
+  // row that isn't a button (those call e.stopPropagation() below and never
+  // reach this listener) adds the part to the active cart instead of falling
+  // through to the normal reverse-link-target behavior.
+  row.addEventListener("click", function () {
+    if (cartAddMode.handleRowClick(item)) return;
+    if (store.links.linkingMode && store.links.linkingBomRow) createReverseLink(item);
+  });
   if (store.links.linkingMode && store.links.linkingBomRow) {
     row.classList.add("link-target");
-    row.addEventListener("click", function () { createReverseLink(item); });
   }
 
   // Keep MPN text selectable even while a flyout is open (when the row

@@ -11,6 +11,7 @@
 import { loadCarts, cartItemCount } from './cart-store.js';
 import { cartsSignal, effect } from '../signals.js';
 import { AppLog } from '../api.js';
+import * as cartAddMode from './cart-add.js';
 
 /**
  * Open the cart modal. No-op placeholder until B6 implements the real modal —
@@ -25,6 +26,7 @@ export function openCartModal() {
 export function initCartHeader() {
   const badge = document.getElementById('cart-badge');
   const btn = document.getElementById('cart-btn');
+  const addToggle = document.getElementById('cart-add-toggle');
 
   effect(() => {
     cartsSignal.get();
@@ -32,6 +34,7 @@ export function initCartHeader() {
   });
 
   if (btn) btn.addEventListener('click', () => openCartModal());
+  if (addToggle) addToggle.addEventListener('click', () => cartAddMode.toggle());
 
   loadCarts().catch((e) => AppLog.warn('initCartHeader: loadCarts failed: ' + e.message));
 }

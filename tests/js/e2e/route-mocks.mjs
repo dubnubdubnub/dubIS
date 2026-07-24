@@ -168,8 +168,32 @@ const ROUTES = [
   // Cart header (Task B2): initCartHeader() calls loadCarts() at startup, so
   // every spec using installRouteMocks now issues this GET on load — default
   // to an empty carts list / no active cart unless a spec supplies its own
-  // via options.carts.
-  route('list_carts', (_a, ctx) => ctx.options.carts || { carts: [], active_cart_id: null }),
+  // via options.carts. STATEFUL (Task B3): reads ctx.cartsState, a deep clone
+  // seeded from options.carts at installRouteMocks() time, so a subsequent
+  // list_carts (triggered by cart-store.js's loadCarts() after any cart
+  // mutation) reflects e.g. an add_cart_item call earlier in the same test —
+  // mirrors the pattern list_saved_searches/list_generic_parts already use
+  // for their own stateful mocks below.
+  route('list_carts', (_a, ctx) => ctx.cartsState),
+  // add_cart_item (Task B3): mutates the matching cart in ctx.cartsState so
+  // the next list_carts (loadCarts()) sees the new item — real shape per
+  // server/routes/carts.py's add_cart_item: `detail` is the created item dict
+  // (domain/api_cart.py's carts.add_item return), not the whole cart.
+  route('add_cart_item', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: add_cart_item — no cart "${a.cart_id}" in mock cartsState (seed one via options.carts)`);
+    if (!cart.items) cart.items = [];
+    const item = {
+      ref: `item-${cart.items.length + 1}`,
+      part_id: a.part_id ?? null,
+      raw: a.raw ?? null,
+      qty: a.qty ?? 1,
+      target_distributor: a.target_distributor ?? null,
+      shortfall: a.shortfall ?? null,
+    };
+    cart.items.push(item);
+    return item;
+  }, { mutation: true }),
   route('get_po_with_items', (a, ctx) =>
     (ctx.options.poWithItems || {})[a.po_id] || { po_id: a.po_id, line_items: [] }),
 
@@ -397,6 +421,11 @@ export async function installRouteMocks(page, inventory, options = {}) {
     // Mutable per-session state for stateful mocks (grows via create_* calls).
     savedSearches: (options.savedSearches || []).slice(),
     genericParts: (options.genericParts || []).slice(),
+    // Deep-cloned (Task B3): add_cart_item mutates the matching cart's items
+    // in place, mirroring the `inventory` clone above's rationale — without
+    // this clone, a spec's own `options.carts` object literal (or a shared
+    // fixture) would be corrupted across tests/reused test-file scope.
+    cartsState: JSON.parse(JSON.stringify(options.carts || { carts: [], active_cart_id: null })),
     // Canary counter (Finding 2): incremented once per intercepted /v1
     // request in the catch-all handler below, so specs can assert the HTTP
     // transport was actually exercised rather than silently falling back to
