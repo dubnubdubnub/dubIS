@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import threading
+import time
 from typing import Any
 
 from digikey_cdp import cdp_get_cookies
@@ -142,6 +143,30 @@ def poll_cdp_for_cookies(
         "logged_in": False,
         "cookies_injected": 0,
     })
+
+
+def _await_cf_clearance(window: Any, timeout: float = 25.0) -> str | None:
+    """Poll ``document.title`` until the Cloudflare "Just a moment"
+    interstitial clears, or *timeout* seconds elapse.
+
+    Shared by the account-page session probe and the product-fetch path,
+    which both navigate the hidden webview and must wait out the same
+    Cloudflare bot-challenge interstitial before reading the resulting page.
+
+    Returns the last-seen (non-interstitial) title once cleared. Returns
+    ``None`` if the challenge is still showing when *timeout* expires.
+    """
+    deadline = time.time() + timeout
+    title = ""
+    while time.time() < deadline:
+        try:
+            title = window.evaluate_js("document.title") or ""
+        except RuntimeError:
+            title = ""
+        if title and "Just a moment" not in title:
+            return title
+        time.sleep(0.5)
+    return None
 
 
 def inject_cookies_to_window(window: Any, cookies: list[dict]) -> int:

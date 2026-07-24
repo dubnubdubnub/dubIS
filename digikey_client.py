@@ -16,6 +16,7 @@ from digikey_cdp import cdp_get_cookies
 from digikey_normalizer import normalize_result
 from digikey_scrape_js import SCRAPE_JS
 from digikey_session import (
+    _await_cf_clearance,
     check_cookies_logged_in,
     find_default_browser_exe,
     inject_cookies_to_window,
@@ -441,16 +442,7 @@ class DigikeyClient(BaseProductClient):
                 logger.warning("DK probe: page load timed out")
                 return False
 
-            cf_deadline = time.time() + 25.0
-            while time.time() < cf_deadline:
-                try:
-                    title = self._window.evaluate_js("document.title") or ""
-                except RuntimeError:
-                    title = ""
-                if title and "Just a moment" not in title:
-                    break
-                time.sleep(0.5)
-            else:
+            if _await_cf_clearance(self._window) is None:
                 logger.warning("DK probe: Cloudflare challenge did not clear")
                 return False
 
@@ -535,30 +527,16 @@ class DigikeyClient(BaseProductClient):
             # "Just a moment..." challenge page, before CF's JS redirects to
             # the real product page. Poll the title and wait for the challenge
             # to clear (or the URL to leave /products/result).
-            cf_deadline = time.time() + 25.0
-            cf_seen = False
-            while time.time() < cf_deadline:
-                try:
-                    title = self._window.evaluate_js("document.title") or ""
-                except RuntimeError:
-                    title = ""
-                if title and "Just a moment" not in title:
-                    if cf_seen:
-                        logger.debug(
-                            "DK fetch: CF challenge cleared after %.1fs (title=%r)",
-                            25.0 - (cf_deadline - time.time()), title,
-                        )
-                    break
-                cf_seen = True
-                time.sleep(0.5)
-            else:
+            title = _await_cf_clearance(self._window)
+            if title is None:
                 logger.warning(
                     "DK fetch: Cloudflare bot challenge did not resolve in 25s for %s "
-                    "(title=%r) — invalidating session",
-                    part_number, title,
+                    "— invalidating session",
+                    part_number,
                 )
                 self._invalidate_session(delete_cookies_file=False)
                 return None
+            logger.debug("DK fetch: CF challenge cleared (title=%r)", title)
 
             try:
                 # Get the final URL to check for redirects (e.g. login page)
