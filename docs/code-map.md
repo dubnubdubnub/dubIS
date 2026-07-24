@@ -444,6 +444,7 @@ graph LR
     "server/routes/auth.py" --> "server/auth.py"
     "server/routes/events.py" --> "server/__init__.py"
     "server/routes/feeders.py" --> "domain/__init__.py"
+    "server/routes/feeders.py" --> "server/models.py"
     "server/routes/feeders.py" --> "server/routes/openpnp.py"
     "server/routes/generic_parts.py" --> "server/mutations.py"
     "server/routes/import_scan.py" --> "server/auth.py"
@@ -1663,7 +1664,7 @@ graph LR
 ### server/models.py
 
 - **Imports:** `domain/schema.py`
-- **Imported by:** `server/routes/parts_read.py`, `tests/python/server/test_models.py`
+- **Imported by:** `server/routes/feeders.py`, `server/routes/parts_read.py`, `tests/python/server/test_models.py`
 
 ### server/mutations.py
 
@@ -1692,7 +1693,7 @@ graph LR
 
 ### server/routes/feeders.py
 
-- **Imports:** `domain/__init__.py`, `server/routes/openpnp.py`
+- **Imports:** `domain/__init__.py`, `server/models.py`, `server/routes/openpnp.py`
 - **Imported by:** `tests/python/server/test_feeders_routes.py`
 
 ### server/routes/generic_parts.py
