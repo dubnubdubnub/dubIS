@@ -45,3 +45,18 @@
   border-color: #7c3aed;
   color: #fff;
 }
+
+/* Task B4: linking-mode drop target — mirrors css/components/linking.css's
+   tr.link-target / .inv-part-row.link-target purple dotted-box treatment so
+   the header cart icon reads as the same kind of valid drop target. */
+.cart-btn.link-target {
+  outline: 2px dashed var(--color-purple);
+  outline-offset: -2px;
+  cursor: pointer;
+  animation: link-pulse 1.5s ease-in-out infinite;
+}
+.cart-btn.link-target:hover {
+  outline-style: solid;
+  background: #a371f730;
+  animation: none;
+}

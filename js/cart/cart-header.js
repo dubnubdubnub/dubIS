@@ -6,11 +6,19 @@
 
    Clicking #cart-btn opens the cart modal — a stub here (openCartModal is a
    no-op placeholder) until a later task (B6) builds the real modal and
-   replaces this export's implementation. */
+   replaces this export's implementation.
 
-import { loadCarts, cartItemCount } from './cart-store.js';
+   Task B4: while BOM linking mode is armed with an inventory item (see
+   inv-events.js's LINKING_MODE listener, which toggles #cart-btn's
+   .link-target class), clicking #cart-btn instead adds the armed part to the
+   active cart and exits linking mode — it does NOT open the modal in that
+   case. */
+
+import { loadCarts, cartItemCount, addToActiveCart } from './cart-store.js';
 import { cartsSignal, effect } from '../signals.js';
 import { AppLog } from '../api.js';
+import { store } from '../store.js';
+import { invPartKey } from '../part-keys.js';
 import * as cartAddMode from './cart-add.js';
 
 /**
@@ -33,7 +41,18 @@ export function initCartHeader() {
     if (badge) badge.textContent = String(cartItemCount());
   });
 
-  if (btn) btn.addEventListener('click', () => openCartModal());
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const armedItem = store.links.linkingMode ? store.links.linkingInvItem : null;
+      if (armedItem) {
+        addToActiveCart({ partId: invPartKey(armedItem) }).catch((e) =>
+          AppLog.error('cart-header: addToActiveCart (link-target) failed: ' + e.message));
+        store.links.setLinkingMode(false);
+        return;
+      }
+      openCartModal();
+    });
+  }
   if (addToggle) addToggle.addEventListener('click', () => cartAddMode.toggle());
 
   loadCarts().catch((e) => AppLog.warn('initCartHeader: loadCarts failed: ' + e.message));

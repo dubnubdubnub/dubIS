@@ -191,7 +191,17 @@ export function setupEvents(handlers) {
     render();
   });
 
-  EventBus.on(Events.LINKING_MODE, function () { render(); });
+  EventBus.on(Events.LINKING_MODE, function () {
+    render();
+    // Task B4: while linking mode is armed with an inventory item, the header
+    // cart icon also becomes a valid drop target (purple dotted box, mirrors
+    // the row .link-target style) — clicking it (wired in cart-header.js)
+    // adds the armed part to the active cart instead of opening the modal.
+    var cartBtn = document.getElementById("cart-btn");
+    if (cartBtn) {
+      cartBtn.classList.toggle("link-target", !!(store.links.linkingMode && store.links.linkingInvItem));
+    }
+  });
 
   // Entering/exiting label-select mode swaps each row's right-edge action
   // buttons for a selection checkbox (and back) — re-render to apply.
