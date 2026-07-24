@@ -61,16 +61,27 @@ DELEGATES_OK = {
 _PUBLISH_MARKERS = ("finish_mutation", "events.publish", "publish(")
 
 
+def _walk_api_routes(routes):
+    """Recurse into FastAPI's lazy `_IncludedRouter` wrappers down to APIRoutes.
+
+    Newer FastAPI (>=0.13x) doesn't flatten `include_router()` into plain
+    APIRoutes on `app.routes` — each shows up as an opaque `_IncludedRouter`
+    with the real routes under `.original_router.routes`. Without this walk the
+    guard finds zero routes and passes vacuously (mirrors test_v1_surface).
+    """
+    out = []
+    for r in routes:
+        original = getattr(r, "original_router", None)
+        if original is not None:
+            out.extend(_walk_api_routes(original.routes))
+        elif isinstance(r, APIRoute):
+            out.append(r)
+    return out
+
+
 def _mutating_routes():
     app = create_app(types.SimpleNamespace())
-    out = []
-    for r in app.routes:
-        if not isinstance(r, APIRoute):
-            continue
-        if not (r.methods & _MUTATING_VERBS):
-            continue
-        out.append(r)
-    return out
+    return [r for r in _walk_api_routes(app.routes) if r.methods & _MUTATING_VERBS]
 
 
 def test_every_mutating_route_publishes_or_is_exempt():
