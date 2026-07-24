@@ -30,7 +30,7 @@ _JS_ROOT = _REPO_ROOT / "js"
 def test_api_callers_finds_adjust_part() -> None:
     """find_api_callers must return call sites for adjust_part (string-keyed convention).
 
-    The real JS uses api("adjust_part", ...) in js/inventory/inv-modals.js.
+    The real JS uses api("adjust_part", ...) in js/inventory/adjust-modal.js.
     The old dot-notation patterns would return [] for this — that was the bug.
     """
     results = matchers.find_api_callers("adjust_part", _JS_ROOT, _REPO_ROOT)
@@ -41,8 +41,8 @@ def test_api_callers_finds_adjust_part() -> None:
 
     # Verify the known real file appears in results
     files = {r["file"] for r in results}
-    assert any("inv-modals.js" in f for f in files), (
-        f"Expected a hit in js/inventory/inv-modals.js but got files: {files}"
+    assert any("adjust-modal.js" in f for f in files), (
+        f"Expected a hit in js/inventory/adjust-modal.js but got files: {files}"
     )
 
     # Prove the string-keyed pattern is doing the work (not a legacy dot-call)

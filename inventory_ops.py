@@ -1,9 +1,8 @@
-"""Inventory operations: merge, adjust, categorize, sort, rebuild."""
+"""Inventory operations: merge, adjust, categorize, sort."""
 
 from __future__ import annotations
 
 import csv
-import io
 import logging
 import os
 from datetime import datetime
@@ -200,37 +199,6 @@ def categorize_and_sort(parts: list[dict[str, str]],
         elif "Inductor" in section:
             items.sort(key=lambda r: parse_inductance(r.get("Description", "")))
     return categorized
-
-
-def write_organized(categorized: dict[str, list[dict[str, str]]],
-                    output_csv: str, fieldnames: list[str],
-                    flat_section_order: list[str]) -> None:
-    """Write inventory.csv."""
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(["Section"] + list(fieldnames))
-    for section in flat_section_order:
-        items = categorized.get(section)
-        if not items:
-            continue
-        writer.writerow([])
-        writer.writerow([f"=== {section} ==="] + [""] * len(fieldnames))
-        for item in items:
-            writer.writerow([section] + [item.get(fn, "") for fn in fieldnames])
-    csv_io.atomic_write_text(output_csv, buf.getvalue(), encoding="utf-8-sig", newline="")
-
-
-def rebuild(purchase_csv: str, adjustments_csv: str, output_csv: str,
-            fieldnames: list[str], flat_section_order: list[str]) -> list[dict[str, Any]]:
-    """Full rebuild pipeline: merge -> adjust -> categorize -> sort -> write.
-    Returns fresh inventory list.
-    """
-    file_fieldnames, merged = read_and_merge(purchase_csv, fieldnames)
-    apply_adjustments(merged, adjustments_csv, file_fieldnames)
-    parts = list(merged.values())
-    categorized = categorize_and_sort(parts)
-    write_organized(categorized, output_csv, file_fieldnames, flat_section_order)
-    return load_organized(output_csv)
 
 
 # Map JS field names to CSV column names
