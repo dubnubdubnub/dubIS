@@ -1,8 +1,11 @@
 import json
 import sqlite3
 
+import pytest
+
 import cache_db
 import carts
+from dubis_errors import DubISError
 
 
 def _mk_conn(tmp_path):
@@ -74,3 +77,16 @@ def test_item_add_update_remove_clear(tmp_path):
 
     carts.clear(conn, data_dir, c["id"])
     assert carts.get(conn, c["id"])["items"] == []
+
+
+def test_item_ops_raise_on_missing_cart(tmp_path):
+    conn = _mk_conn(tmp_path)
+    data_dir = str(tmp_path)
+    with pytest.raises(DubISError):
+        carts.add_item(conn, data_dir, "cart_nope", part_id="X", qty=1)
+    with pytest.raises(DubISError):
+        carts.update_item(conn, data_dir, "cart_nope", "X", qty=2)
+    with pytest.raises(DubISError):
+        carts.remove_item(conn, data_dir, "cart_nope", "X")
+    with pytest.raises(DubISError):
+        carts.clear(conn, data_dir, "cart_nope")
