@@ -50,6 +50,12 @@ EXEMPT = {
     "clear_mouser_api_key": "distributor credentials",
     # Downloads an image to disk; doesn't change inventory rows.
     "fetch_favicon": "fetches a favicon file, no inventory change",
+    # Feeder-loading-station state (tag↔feeder↔reel bindings); doesn't change
+    # inventory quantities, so it needn't publish the inventory SSE. A future
+    # feeders UI will use a dedicated refresh, not the inventory pipeline.
+    "register_feeder": "feeder identity state, not inventory data",
+    "load_feeder_reel": "feeder↔reel binding, not an inventory quantity change",
+    "unload_feeder": "feeder↔reel binding, not an inventory quantity change",
 }
 
 # Routes that publish transitively via a shared helper the source-scan can't see.
