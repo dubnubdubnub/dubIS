@@ -6,6 +6,7 @@
 
 import { AppLog } from './api.js';
 import { getBehaviorPrefs } from './store.js';
+import { innerRect, zoomedViewport } from './ui-zoom.js';
 
 var SHOW_DELAY_MS = 350;
 var INTERACTIVE_SELECTOR = 'button, a, input, select, textarea, [contenteditable], [contenteditable="true"], [role="button"]';
@@ -99,14 +100,17 @@ function showPopover(el) {
 }
 
 function positionPopover(el) {
-  var rect = el.getBoundingClientRect();
+  // Authored-px space throughout (innerRect + zoomedViewport) so the maths match
+  // offsetWidth and the px written below — see js/ui-zoom.js on the two spaces.
+  var rect = innerRect(el);
+  var vp = zoomedViewport();
   var pw = popover.offsetWidth || 320;
   var ph = popover.offsetHeight || 80;
   var top = rect.bottom + 6;
   var left = rect.left;
-  if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+  if (left + pw > vp.w - 8) left = vp.w - pw - 8;
   if (left < 8) left = 8;
-  if (top + ph > window.innerHeight - 8) top = rect.top - ph - 6;
+  if (top + ph > vp.h - 8) top = rect.top - ph - 6;
   if (top < 8) top = 8;
   popover.style.left = left + 'px';
   popover.style.top = top + 'px';

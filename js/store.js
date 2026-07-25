@@ -292,6 +292,16 @@ export async function loadPreferences() {
     if (stored.behavior && typeof stored.behavior === "object") {
       preferences.behavior = { autoCopySelection: !!stored.behavior.autoCopySelection };
     }
+    // Raw pass-through: both are validated by their own owning module —
+    // ui_zoom by normalizePersistedZoom (js/ui-zoom-logic.js) and
+    // panels_collapsed by normalizeCollapsed (js/panel-collapse-logic.js) —
+    // which repair malformed values rather than rejecting them here.
+    if (Object.prototype.hasOwnProperty.call(stored, 'ui_zoom')) {
+      preferences.ui_zoom = stored.ui_zoom;
+    }
+    if (Object.prototype.hasOwnProperty.call(stored, 'panels_collapsed')) {
+      preferences.panels_collapsed = stored.panels_collapsed;
+    }
     if (Object.prototype.hasOwnProperty.call(stored, 'saved_views')) {
       if (Array.isArray(stored.saved_views)) {
         // Filter out malformed entries (must have string id and name)

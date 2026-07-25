@@ -40,6 +40,13 @@ export default defineConfig({
       name: 'windows',
       testMatch: [
         // Layout / render
+        // Zoom + panel-collapse: WebView2 font metrics and stacking/overflow behaviour
+        // are exactly what these assert, and glyph advances measure differently there
+        // (see the sticky-button column widening in css/tokens.css).
+        'zoom-sweep.spec.mjs',
+        'zoom-sticky-buttons.spec.mjs',
+        'zoom-visual.spec.mjs',
+        'panel-collapse.spec.mjs',
         'inv-alignment-visual.spec.mjs',
         'sticky-clip-visual.spec.mjs',
         'sticky-buttons.spec.mjs',

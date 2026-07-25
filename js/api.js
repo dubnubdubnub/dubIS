@@ -5,6 +5,24 @@ import { API_MAP } from './api-map.js';
 
 const LOG_MAX_ENTRIES = 200;
 
+/* Log observers. js/panel-collapse.js registers here so a warning can reopen a
+   collapsed log viewer without api.js importing the panel layer — that layer
+   imports AppLog, so importing it back would be a cycle. */
+const _logObservers = [];
+
+/**
+ * Subscribe to log entries. Called with the level ("info" | "warn" | "error").
+ * @param {(level: string) => void} fn
+ */
+export function onLogEntry(fn) { _logObservers.push(fn); }
+
+function notifyLogObservers(level) {
+  for (const fn of _logObservers) {
+    // An observer must never be able to swallow the log line that triggered it.
+    try { fn(level); } catch (e) { console.error("log observer failed", e); }
+  }
+}
+
 export const AppLog = {
   _entries: [],
   _max: LOG_MAX_ENTRIES,
@@ -12,6 +30,9 @@ export const AppLog = {
     const entry = { level, msg, time: new Date() };
     this._entries.push(entry);
     if (this._entries.length > this._max) this._entries.shift();
+    // Notify before the DOM early-return below: a warning must reopen a
+    // collapsed console even when #console-entries is not currently rendered.
+    notifyLogObservers(level);
     const el = document.getElementById("console-entries");
     if (!el) return;
     const div = document.createElement("div");
