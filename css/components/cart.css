@@ -68,8 +68,8 @@
 .cart-modal {
   min-width: 640px;
   max-width: 900px;
-  width: 85vw;
-  max-height: 80vh;
+  width: calc(85 * var(--vw));
+  max-height: calc(80 * var(--vh));
   display: flex;
   flex-direction: column;
 }
