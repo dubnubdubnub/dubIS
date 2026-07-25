@@ -1,3 +1,4 @@
+// @ts-check
 /* inventory-panel.js — Thin wiring for the inventory panel.
    init(), top-level render(), distributor-filter UI, EventBus wiring.
    Delegates to inv-tree-render.js, inv-bom-mode.js, inv-row-build.js, inv-mutations.js. */
@@ -7,6 +8,7 @@ import { countByDistributor } from './inventory-logic.js';
 import { renderInvColHeader } from './inv-html-builders.js';
 import state from './inv-state.js';
 import { setupEvents } from './inv-events.js';
+import { setupRowDelegation } from './inv-row-build.js';
 import { renderNormalInventory } from './inv-tree-render.js';
 import { renderBomComparison, renderRemainingInventory } from './inv-bom-mode.js';
 import { refreshImportMarkers } from './inv-import-markers.js';
@@ -25,6 +27,10 @@ export function init() {
   state._render = render;
 
   setupEvents({ render: render, updateDistFilterUI: updateDistFilterUI });
+
+  // Delegated per-row handlers (adjust/price/link buttons, badges, checkboxes,
+  // row clicks) — one listener set on the body instead of closures per row.
+  setupRowDelegation(state.body);
 
   // ── Saved Views toolbar button ──
   initSavedViewsUI(state, render, updateDistFilterUI);

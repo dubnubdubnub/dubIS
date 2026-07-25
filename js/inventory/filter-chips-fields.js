@@ -65,7 +65,7 @@ export function buildInventoryFields(inventory) {
  * Handles the computed "value" field (qty × unit_price) and the virtual
  * "distributor" field (derived via inferDistributor).
  *
- * @param {Record<string, any>} item
+ * @param {import('../types.js').InventoryItem} item
  * @param {string} key
  * @returns {any}
  */
@@ -76,7 +76,7 @@ export function extractInventoryField(item, key) {
     return qty * up;
   }
   if (key === 'distributor') {
-    return inferDistributor(/** @type {any} */ (item));
+    return inferDistributor(item);
   }
   return item[key];
 }
@@ -85,7 +85,7 @@ export function extractInventoryField(item, key) {
  * Build a "flattened" item suitable for matchesPredicate by expanding computed
  * virtual fields into a plain object that matchesPredicate can look up by key.
  *
- * @param {Record<string, any>} item
+ * @param {import('../types.js').InventoryItem} item
  * @returns {Record<string, any>}
  */
 function flattenForPredicate(item) {
@@ -99,9 +99,9 @@ function flattenForPredicate(item) {
  * Filter an array of inventory items by a predicate AST.
  * Null / undefined ast → returns parts unchanged (no filter active).
  *
- * @param {Array<Record<string, any>>} parts
+ * @param {Array<import('../types.js').InventoryItem>} parts
  * @param {any} ast  — GroupAst | null | undefined
- * @returns {Array<Record<string, any>>}
+ * @returns {Array<import('../types.js').InventoryItem>}
  */
 export function filterByPredicate(parts, ast) {
   if (!ast || !('rules' in ast) || !ast.rules || ast.rules.length === 0) return parts;

@@ -197,17 +197,25 @@ class InventoryApi:
         return result
 
     def _load_organized(self) -> list[dict[str, Any]]:
-        """Load current inventory from cache."""
-        result, _ = domain.inventory.load_or_rebuild(
-            base_dir=self.base_dir,
-            input_csv=self.input_csv,
-            adjustments_csv=self.adjustments_csv,
-            events_dir=self.events_dir,
-            fieldnames=self.FIELDNAMES,
-            adj_fieldnames=self.ADJ_FIELDNAMES,
-            conn=self._get_cache(),
-        )
-        return result
+        """Load current inventory from cache.
+
+        Takes self._lock: load_or_rebuild runs a full rebuild (heavy SQLite
+        writes on the shared connection) when the cache is empty/stale, so an
+        unlocked read could interleave its writes with a mutation holding the
+        lock. The lock also makes the "cache populated?" check-then-rebuild
+        decision atomic. RLock, so lock-holding callers are fine.
+        """
+        with self._lock:
+            result, _ = domain.inventory.load_or_rebuild(
+                base_dir=self.base_dir,
+                input_csv=self.input_csv,
+                adjustments_csv=self.adjustments_csv,
+                events_dir=self.events_dir,
+                fieldnames=self.FIELDNAMES,
+                adj_fieldnames=self.ADJ_FIELDNAMES,
+                conn=self._get_cache(),
+            )
+            return result
 
     def _record_import_prices(self, rows: list[dict[str, str]]) -> None:
         """Extract and record price observations from imported purchase rows."""

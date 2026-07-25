@@ -378,6 +378,7 @@ graph LR
     "js/inventory/inv-mutations.js" --> "js/ui-helpers.js"
     "js/inventory/inv-mutations.js" --> "js/undo-redo.js"
     "js/inventory/inv-row-build.js" --> "js/cart/cart-add.js"
+    "js/inventory/inv-row-build.js" --> "js/dom/delegate.js"
     "js/inventory/inv-row-build.js" --> "js/group-flyout/flyout-panel.js"
     "js/inventory/inv-row-build.js" --> "js/inventory/inv-events.js"
     "js/inventory/inv-row-build.js" --> "js/inventory/inv-html-builders.js"
@@ -402,6 +403,7 @@ graph LR
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-events.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-html-builders.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-import-markers.js"
+    "js/inventory/inventory-panel.js" --> "js/inventory/inv-row-build.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-state.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-tree-render.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inventory-logic.js"
@@ -722,6 +724,10 @@ graph LR
     "tests/python/test_clients_lcsc.py" --> "lcsc_client.py"
     "tests/python/test_clients_mouser.py" --> "mouser_client.py"
     "tests/python/test_clients_pololu.py" --> "pololu_client.py"
+    "tests/python/test_concurrency_locks.py" --> "cache_db.py"
+    "tests/python/test_concurrency_locks.py" --> "domain/inventory.py"
+    "tests/python/test_concurrency_locks.py" --> "domain/pricing.py"
+    "tests/python/test_concurrency_locks.py" --> "tests/python/helpers.py"
     "tests/python/test_csv_io.py" --> "csv_io.py"
     "tests/python/test_digikey_cdp.py" --> "digikey_cdp.py"
     "tests/python/test_digikey_normalizer.py" --> "digikey_normalizer.py"
@@ -852,7 +858,7 @@ graph LR
 ### cache_db.py
 
 - **Imports:** `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`
-- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `server/routes/meta.py`, `tests/python/conftest.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_carts.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_saved_searches.py`
+- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `server/routes/meta.py`, `tests/python/conftest.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_carts.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_saved_searches.py`
 
 ### cart_export.py
 
@@ -1002,7 +1008,7 @@ graph LR
 ### domain/inventory.py
 
 - **Imports:** `cache_db.py`, `carts.py`, `csv_io.py`, `domain/__init__.py`, `domain/generic_parts.py`, `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`, `saved_searches.py`
-- **Imported by:** `domain/api_inventory.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`
+- **Imported by:** `domain/api_inventory.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/test_concurrency_locks.py`
 
 ### domain/part_registry.py
 
@@ -1012,7 +1018,7 @@ graph LR
 ### domain/pricing.py
 
 - **Imports:** —
-- **Imported by:** `cache_db.py`, `domain/api_cart.py`, `domain/api_pricing.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_api_pricing.py`
+- **Imported by:** `cache_db.py`, `domain/api_cart.py`, `domain/api_pricing.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_inventory_api_pricing.py`
 
 ### domain/product.py
 
@@ -1203,7 +1209,7 @@ graph LR
 ### js/dom/delegate.js
 
 - **Imports:** —
-- **Imported by:** `js/components/command-palette.js`, `js/components/data-grid.js`, `js/components/form-modal.js`, `js/feeders-modal.js`, `js/inventory/saved-views-ui.js`, `tests/js/delegate.test.js`
+- **Imported by:** `js/components/command-palette.js`, `js/components/data-grid.js`, `js/components/form-modal.js`, `js/feeders-modal.js`, `js/inventory/inv-row-build.js`, `js/inventory/saved-views-ui.js`, `tests/js/delegate.test.js`
 
 ### js/dom/html.js
 
@@ -1438,8 +1444,8 @@ graph LR
 
 ### js/inventory/inv-row-build.js
 
-- **Imports:** `js/cart/cart-add.js`, `js/group-flyout/flyout-panel.js`, `js/inventory/inv-events.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-modals.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-state.js`, `js/label-selection.js`, `js/part-keys.js`, `js/store.js`
-- **Imported by:** `js/inventory/inv-groups-view.js`, `js/inventory/inv-tree-render.js`
+- **Imports:** `js/cart/cart-add.js`, `js/dom/delegate.js`, `js/group-flyout/flyout-panel.js`, `js/inventory/inv-events.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-modals.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-state.js`, `js/label-selection.js`, `js/part-keys.js`, `js/store.js`
+- **Imported by:** `js/inventory/inv-groups-view.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`
 
 ### js/inventory/inv-sort-group.js
 
@@ -1463,7 +1469,7 @@ graph LR
 
 ### js/inventory/inventory-panel.js
 
-- **Imports:** `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-events.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-import-markers.js`, `js/inventory/inv-state.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-logic.js`, `js/inventory/saved-views-ui.js`, `js/store.js`
+- **Imports:** `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-events.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-import-markers.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-state.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-logic.js`, `js/inventory/saved-views-ui.js`, `js/store.js`
 - **Imported by:** `js/app-init.js`
 
 ### js/inventory/pick-description.js
@@ -2322,7 +2328,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `distributor_manager.py`, `inventory_api.py`
-- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_dubis_mcp_tools.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_dubis_mcp_tools.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/server/conftest.py
 
@@ -2572,6 +2578,11 @@ graph LR
 ### tests/python/test_clients_pololu.py
 
 - **Imports:** `pololu_client.py`
+- **Imported by:** —
+
+### tests/python/test_concurrency_locks.py
+
+- **Imports:** `cache_db.py`, `domain/inventory.py`, `domain/pricing.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/test_csv_io.py

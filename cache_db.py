@@ -27,7 +27,18 @@ logger = logging.getLogger(__name__)
 
 
 def connect(db_path: str) -> sqlite3.Connection:
-    """Open or create the cache database."""
+    """Open or create the cache database.
+
+    The returned connection is shared across threads (pywebview UI thread,
+    FastAPI threadpool, PnP daemon), which is only safe when the sqlite3
+    build runs in serialized mode. Refuse to hand out an unsafe connection.
+    """
+    if sqlite3.threadsafety != 3:
+        raise RuntimeError(
+            "sqlite3 build is not serialized (threadsafety="
+            f"{sqlite3.threadsafety}, need 3): sharing one connection across "
+            "threads with check_same_thread=False would be unsafe"
+        )
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
@@ -584,11 +595,18 @@ def verify_parts(
 ) -> list[dict[str, Any]]:
     """Spot-check: replay events for specific parts and compare to cache.
 
+    Targeted: only ledger/adjustment rows for *part_ids* are replayed —
+    per-key merging is independent, so the expected quantities are identical
+    to a full-ledger replay, without O(entire purchase history) work on the
+    mutation hot path. Pass every cached part id to get a full-ledger
+    self-check.
+
     Returns list of mismatches: [{"part_id", "cache_qty", "expected_qty"}].
     If fix=True, corrects cache for any mismatched parts.
     """
-    _, merged = read_and_merge(purchase_path, fieldnames)
-    apply_adjustments(merged, adjustments_path, fieldnames)
+    targets = set(part_ids)
+    _, merged = read_and_merge(purchase_path, fieldnames, only_parts=targets)
+    apply_adjustments(merged, adjustments_path, fieldnames, only_parts=targets)
 
     mismatches = []
     for pid in part_ids:

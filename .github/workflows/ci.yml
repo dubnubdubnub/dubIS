@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       suite:
-        description: "Which suite to run (all, lint, js, python, pnp-e2e, pnp-cross, quality)"
+        description: "Which suite to run (all, lint, js, python, pnp-e2e, quality)"
         required: false
         default: "all"
         type: choice
@@ -18,7 +18,6 @@ on:
           - js
           - python
           - pnp-e2e
-          - pnp-cross
           - quality
           - visual-baselines
 
@@ -37,9 +36,9 @@ jobs:
       run_js:      ${{ steps.resolve.outputs.run_js }}
       run_python:  ${{ steps.resolve.outputs.run_python }}
       run_pnp:     ${{ steps.resolve.outputs.run_pnp }}
-      run_cross:   ${{ steps.resolve.outputs.run_cross }}
       run_quality: ${{ steps.resolve.outputs.run_quality }}
       is_fork:     ${{ steps.resolve.outputs.is_fork }}
+      hosted:      ${{ steps.resolve.outputs.hosted }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,11 +50,10 @@ jobs:
             echo "run_js=true"      >> "$GITHUB_OUTPUT"
             echo "run_python=true"  >> "$GITHUB_OUTPUT"
             echo "run_pnp=true"     >> "$GITHUB_OUTPUT"
-            echo "run_cross=true"   >> "$GITHUB_OUTPUT"
             echo "run_quality=true" >> "$GITHUB_OUTPUT"
           }
           set_none() {
-            for f in run_lint run_js run_python run_pnp run_cross run_quality; do
+            for f in run_lint run_js run_python run_pnp run_quality; do
               echo "$f=false" >> "$GITHUB_OUTPUT"
             done
           }
@@ -68,6 +66,7 @@ jobs:
           #   ubuntu and only reads metadata (never the PR's code), so this is safe.
           #   To run full CI on a trusted fork PR: push the branch into this repo.
           echo "is_fork=false" >> "$GITHUB_OUTPUT"
+          echo "hosted=false"  >> "$GITHUB_OUTPUT"
           if [[ "${{ github.event_name }}" == "pull_request" \
                 && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
             echo "::notice::Fork PR detected — self-hosted CI skipped. A maintainer must review and push the branch into the repo to run full CI."
@@ -84,7 +83,7 @@ jobs:
             exit 0
           fi
 
-          KNOWN="all lint js python pnp-e2e pnp-cross quality"
+          KNOWN="all lint js python pnp-e2e quality"
 
           # --- 2. Read commit message tag ---
           TAG=""
@@ -92,7 +91,16 @@ jobs:
             TAG="${{ github.event.inputs.suite }}"
           else
             MSG=$(git log -1 --pretty=%B "${{ github.event.pull_request.head.sha }}")
-            TAG=$(echo "$MSG" | grep -oP '\[ci:\s*\K[a-z-]+(?=\])' | head -1)
+            # [ci: hosted] is an orthogonal MODIFIER, not a suite: it reroutes the
+            # blocking lint/unit legs to GitHub-hosted ubuntu-latest (emergency
+            # fallback when the self-hosted runners are down). Parsed separately
+            # and excluded from the suite-tag candidates so it can combine with a
+            # suite tag, e.g. "[ci: python] [ci: hosted]".
+            if echo "$MSG" | grep -qP '\[ci:\s*hosted\]'; then
+              echo "Hosted fallback requested via [ci: hosted]"
+              echo "hosted=true" >> "$GITHUB_OUTPUT"
+            fi
+            TAG=$(echo "$MSG" | grep -oP '\[ci:\s*\K[a-z-]+(?=\])' | grep -vx 'hosted' | head -1)
           fi
 
           # Ignore unknown tag values (avoids false matches from prose)
@@ -117,9 +125,6 @@ jobs:
                 echo "run_python=true" >> "$GITHUB_OUTPUT" ;;
               pnp-e2e)
                 echo "run_pnp=true" >> "$GITHUB_OUTPUT" ;;
-              pnp-cross)
-                echo "run_pnp=true"   >> "$GITHUB_OUTPUT"
-                echo "run_cross=true" >> "$GITHUB_OUTPUT" ;;
               quality)
                 echo "run_lint=true"    >> "$GITHUB_OUTPUT"
                 echo "run_quality=true" >> "$GITHUB_OUTPUT" ;;
@@ -187,9 +192,8 @@ jobs:
           $PY      && echo "run_python=true"   >> "$GITHUB_OUTPUT"
           $PNP     && echo "run_pnp=true"      >> "$GITHUB_OUTPUT"
           $QUALITY && echo "run_quality=true"   >> "$GITHUB_OUTPUT"
-          # Cross-compute only runs with explicit [ci: pnp-cross] or [ci: all]
 
-          echo "Resolved: lint=true js=$JS python=$PY pnp=$PNP quality=$QUALITY cross=false"
+          echo "Resolved: lint=true js=$JS python=$PY pnp=$PNP quality=$QUALITY"
 
   guard:
     name: Branch guard
@@ -223,6 +227,7 @@ jobs:
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
+      needs.parse-tags.outputs.hosted != 'true' &&
       (needs.parse-tags.outputs.run_lint == 'true' || needs.parse-tags.outputs.run_js == 'true')
     strategy:
       matrix:
@@ -263,6 +268,7 @@ jobs:
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
+      needs.parse-tags.outputs.hosted != 'true' &&
       needs.parse-tags.outputs.run_js == 'true'
     strategy:
       fail-fast: false
@@ -303,6 +309,7 @@ jobs:
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
+      needs.parse-tags.outputs.hosted != 'true' &&
       needs.parse-tags.outputs.run_js == 'true'
     runs-on: arc-dubis
     steps:
@@ -345,6 +352,7 @@ jobs:
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
+      needs.parse-tags.outputs.hosted != 'true' &&
       needs.parse-tags.outputs.run_js == 'true'
     runs-on: [self-hosted, win11]
     # Subset E2E (~15 specs) + cached deps runs well under this; the headroom
@@ -355,6 +363,16 @@ jobs:
         shell: powershell
     steps:
       - uses: actions/checkout@v4
+      # actions/cache hardcodes Git-for-Windows' GNU tar (C:\Program Files\Git\
+      # usr\bin\tar.exe) and archives with `-z`, which shells out to `gzip`. That
+      # gzip.exe ships right next to tar.exe but that dir is NOT on the runner's
+      # PATH, so the child died with status 127 ("Broken pipe") and EVERY cache
+      # save silently failed — no cache ever persisted. Put Git's usr\bin on PATH
+      # so tar finds its own gzip. Without this the caches below are no-ops.
+      # (bsdtar can't be forced here — actions/cache prefers GNU tar by exact path
+      # whenever it exists.) Must run before the first actions/cache step.
+      - name: Put Git's gzip on PATH for actions/cache
+        run: Add-Content -Path $env:GITHUB_PATH -Value 'C:\Program Files\Git\usr\bin'
       # The win11 runners are ephemeral (fresh golden disk each boot) with no warm
       # cache, so npm downloads + the Playwright browser download dominated setup.
       # Cache via the GitHub cache service (works across ephemeral self-hosted
@@ -401,14 +419,41 @@ jobs:
           name: playwright-report-win11-windows
           path: test-results/
 
+  # ── JS: hosted fallback (only with an explicit [ci: hosted] tag) ─────
+  #   Emergency escape hatch for when the self-hosted runners (home k3s
+  #   cluster) are down: reruns the blocking JS lint/type/unit leg on
+  #   GitHub-hosted ubuntu-latest so the js-required gate can still go green
+  #   and the merge queue doesn't freeze. All self-hosted jobs (including
+  #   E2E) are skipped in hosted mode — this trades E2E coverage for
+  #   availability, which is why it's an explicit per-commit opt-in and not
+  #   the default. Normal (untagged) runs are completely unaffected.
+  js-hosted:
+    name: JS Lint & Type (hosted fallback)
+    needs: [parse-tags, guard]
+    if: >-
+      always() && !failure() &&
+      needs.parse-tags.outputs.hosted == 'true' &&
+      (needs.parse-tags.outputs.run_lint == 'true' || needs.parse-tags.outputs.run_js == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install
+      - run: npx eslint js/
+      - run: npx tsc --noEmit
+      - name: Unit tests
+        if: needs.parse-tags.outputs.run_js == 'true'
+        run: npx vitest run --project core
+
   # ── Required-check gate ──────────────────────────────────────────────
   #   Keeps the "JS Lint & Test (ubuntu)" context that branch protection
   #   requires, now aggregating the split JS jobs so a failure in lint/type,
   #   any functional shard, or live E2E blocks merge. Always runs (so non-JS
   #   PRs still report this context) and treats skipped jobs as a pass.
+  #   In [ci: hosted] mode the self-hosted jobs are all skipped and js-hosted
+  #   carries the verdict instead.
   js-required:
     name: JS Lint & Test (ubuntu)
-    needs: [parse-tags, guard, js, js-e2e, js-live]
+    needs: [parse-tags, guard, js, js-e2e, js-live, js-hosted]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -427,12 +472,14 @@ jobs:
           echo "js (lint/type/unit) = ${{ needs.js.result }}"
           echo "js-e2e (functional) = ${{ needs.js-e2e.result }}"
           echo "js-live             = ${{ needs.js-live.result }}"
+          echo "js-hosted           = ${{ needs.js-hosted.result }}"
           for r in \
             "${{ needs.parse-tags.result }}" \
             "${{ needs.guard.result }}" \
             "${{ needs.js.result }}" \
             "${{ needs.js-e2e.result }}" \
-            "${{ needs.js-live.result }}"; do
+            "${{ needs.js-live.result }}" \
+            "${{ needs.js-hosted.result }}"; do
             if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
               echo "::error::A required JS job did not pass (result: $r)"
               exit 1
@@ -441,11 +488,15 @@ jobs:
           echo "All required JS jobs passed or were skipped."
 
   # ── Python: lint + unit tests ─────────────────────────────────────────
+  #   Renamed from "Python Lint & Test (<os>)": that exact string is the
+  #   protected branch context, now carried by the python-required gate below
+  #   (same pattern as js-required) so the [ci: hosted] fallback can feed it.
   python:
-    name: Python Lint & Test (${{ matrix.name }})
+    name: Python Checks (${{ matrix.name }})
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
+      needs.parse-tags.outputs.hosted != 'true' &&
       (needs.parse-tags.outputs.run_lint == 'true' || needs.parse-tags.outputs.run_python == 'true')
     strategy:
       matrix:
@@ -453,10 +504,15 @@ jobs:
           - name: ubuntu
             runner: arc-dubis
             checkout-clean: true
+            advisory: false
+          # Advisory: single physical machine (see js job note). Must not be
+          # able to fail (or hang) the python-required aggregate below.
           - name: macos
             runner: [self-hosted, m4-air]
             checkout-clean: false
+            advisory: true
     runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.advisory }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -486,6 +542,85 @@ jobs:
         if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/pytest tests/python/ -v
 
+  # ── Python: hosted fallback (only with an explicit [ci: hosted] tag) ──
+  #   Same escape hatch as js-hosted: runs the blocking ruff/guards/pytest leg
+  #   on GitHub-hosted ubuntu-latest when the self-hosted runners are down.
+  #   Unlike the self-hosted runners there is no pre-provisioned ~/dubis-venv
+  #   or tesseract binary here, so it installs both (the OCR tests in
+  #   tests/python/ need the tesseract binary — without it they'd silently
+  #   skip and weaken this leg).
+  python-hosted:
+    name: Python Checks (hosted fallback)
+    needs: [parse-tags, guard]
+    if: >-
+      always() && !failure() &&
+      needs.parse-tags.outputs.hosted == 'true' &&
+      (needs.parse-tags.outputs.run_lint == 'true' || needs.parse-tags.outputs.run_python == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install tesseract (OCR tests run in the blocking pytest leg)
+        if: needs.parse-tags.outputs.run_python == 'true'
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - name: Verify generated test fixtures are up to date
+        if: needs.parse-tags.outputs.run_python == 'true' || needs.parse-tags.outputs.run_js == 'true'
+        run: python scripts/generate-test-fixtures.py --check
+      - name: Verify code map is up to date
+        if: needs.parse-tags.outputs.run_python == 'true'
+        run: python scripts/gen-code-map.py --check
+      - name: Verify inventory-record types are up to date
+        if: needs.parse-tags.outputs.run_python == 'true'
+        run: python scripts/gen-inventory-types.py --check
+      - name: Verify module manifests are accurate
+        if: needs.parse-tags.outputs.run_python == 'true'
+        run: python scripts/check-manifests.py
+      - name: Guard against new hard-coded px layout values
+        if: needs.parse-tags.outputs.run_python == 'true'
+        run: python scripts/check-layout-tokens.py --check
+      - name: Unit tests
+        if: needs.parse-tags.outputs.run_python == 'true'
+        run: pytest tests/python/ -v
+
+  # ── Required-check gate for Python ────────────────────────────────────
+  #   Same pattern as js-required: carries the exact "Python Lint & Test
+  #   (ubuntu)" context that branch protection requires, aggregating the
+  #   self-hosted python job (whose macos leg is advisory and cannot fail
+  #   the aggregate) and the [ci: hosted] fallback. Always reports (skipped
+  #   python jobs = pass, so lint-only PRs stay mergeable).
+  python-required:
+    name: Python Lint & Test (ubuntu)
+    needs: [parse-tags, guard, python, python-hosted]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail fork PRs (self-hosted CI never ran)
+        if: needs.parse-tags.outputs.is_fork == 'true'
+        run: |
+          echo "::error::Fork PR — self-hosted CI was skipped, so required checks cannot pass. A maintainer must push this branch into the repo to run CI."
+          exit 1
+      - name: Aggregate Python job results
+        run: |
+          echo "parse-tags    = ${{ needs.parse-tags.result }}"
+          echo "guard         = ${{ needs.guard.result }}"
+          echo "python        = ${{ needs.python.result }}"
+          echo "python-hosted = ${{ needs.python-hosted.result }}"
+          for r in \
+            "${{ needs.parse-tags.result }}" \
+            "${{ needs.guard.result }}" \
+            "${{ needs.python.result }}" \
+            "${{ needs.python-hosted.result }}"; do
+            if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
+              echo "::error::A required Python job did not pass (result: $r)"
+              exit 1
+            fi
+          done
+          echo "All required Python jobs passed or were skipped."
+
   # ── VLM image-recognition smoke test (GPU node only) ─────────────────
   #   Exercises the local Ollama VLM on the single self-hosted GPU runner
   #   (y740 / RTX 2060). available() auto-selects the best installed qwen2.5vl
@@ -498,6 +633,7 @@ jobs:
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
+      needs.parse-tags.outputs.hosted != 'true' &&
       needs.parse-tags.outputs.run_python == 'true'
     runs-on: [self-hosted, gpu]
     timeout-minutes: 15
@@ -520,6 +656,7 @@ jobs:
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
+      needs.parse-tags.outputs.hosted != 'true' &&
       needs.parse-tags.outputs.run_pnp == 'true'
     strategy:
       matrix:
@@ -570,47 +707,13 @@ jobs:
           done
           echo "All required PnP jobs passed or were skipped."
 
-  pnp-e2e-cross-ux430-to-mac:
-    name: PnP E2E Cross-Compute (ux430 -> m4-air)
-    needs: [parse-tags, guard, pnp-e2e]
-    # TEMP-DISABLED 2026-06-13: regressed (remote OpenPnP exits 1) amid the
-    # OpenPnP→handheld migration + ux430 joining k3s. Re-enable by restoring the
-    # run_cross gate once the cross-compute path is fixed.
-    if: false
-    runs-on: [self-hosted, pnp-testbox, gui]
-    timeout-minutes: 5
-    env:
-      OPENPNP_BIN: /usr/local/bin/openpnp.sh
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Python dependencies
-        run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
-      - name: Run cross-compute PnP E2E
-        run: ~/dubis-venv/bin/python tests/pnp-e2e/run_test.py --remote-openpnp m4-air
-
-  pnp-e2e-cross-mac-to-ux430:
-    name: PnP E2E Cross-Compute (m4-air -> ux430)
-    needs: [parse-tags, guard, pnp-e2e]
-    # TEMP-DISABLED 2026-06-13: see pnp-e2e-cross-ux430-to-mac above. Re-enable
-    # by restoring the run_cross gate once the cross-compute path is fixed.
-    if: false
-    runs-on: [self-hosted, m4-air, gui]
-    timeout-minutes: 5
-    env:
-      OPENPNP_BIN: /usr/local/bin/openpnp.sh
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Python dependencies
-        run: ~/dubis-venv/bin/pip install -r requirements-dev.txt
-      - name: Run cross-compute PnP E2E
-        run: ~/dubis-venv/bin/python tests/pnp-e2e/run_test.py --remote-openpnp ux430
-
   # ── Tier 3: Quality (non-blocking) ──────────────────────────────────
   quality:
     name: Quality Tests (${{ matrix.name }})
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
+      needs.parse-tags.outputs.hosted != 'true' &&
       needs.parse-tags.outputs.run_quality == 'true'
     strategy:
       matrix:

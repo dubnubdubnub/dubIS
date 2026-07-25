@@ -1,3 +1,4 @@
+// @ts-check
 /* inventory/inv-tree-render.js — Section/hierarchy rendering for the inventory panel.
    renderNormalInventory, renderGlobalScope, appendFlatRows, renderVendorPiles,
    renderHierarchySection, renderSubSection, renderSection. */
@@ -15,6 +16,12 @@ import state from './inv-state.js';
 import { sortPartsBy, groupByVendor } from './inv-sort-group.js';
 import { createPartRow } from './inv-row-build.js';
 import { renderGroupedView } from './inv-groups-view.js';
+
+/**
+ * An inventory item tagged with its section name for the flattened
+ * (global-scope / group-level-2) rendering paths.
+ * @typedef {import('../types.js').InventoryItem & { __sectionName?: string }} SectionTaggedItem
+ */
 
 // ── Section hierarchy (read once from store) ──
 var SECTION_HIERARCHY = store.SECTION_HIERARCHY;
@@ -58,6 +65,7 @@ function sectionDisplayName(fullKey) {
 }
 
 export function renderGlobalScope(sections, query) {
+  /** @type {SectionTaggedItem[]} */
   var allParts = [];
   for (var i = 0; i < FLAT_SECTIONS.length; i++) {
     var name = FLAT_SECTIONS[i];
@@ -65,7 +73,7 @@ export function renderGlobalScope(sections, query) {
     var filtered = filterByPredicate(filterByDistributor(filterByQuery(bucket, query), state.activeDistributors), state.activePredicate);
     var displayName = sectionDisplayName(name);
     for (var j = 0; j < filtered.length; j++) {
-      var tagged = Object.assign({}, filtered[j]);
+      var tagged = /** @type {SectionTaggedItem} */ (Object.assign({}, filtered[j]));
       tagged.__sectionName = displayName;
       allParts.push(tagged);
     }
@@ -173,7 +181,7 @@ export function renderSubSection(container, displayName, fullKey, parts) {
     (hasGroups ? '<button class="groups-btn' + (groupsActive ? ' active' : '') + '">◆ Groups</button>' : '');
 
   header.addEventListener("click", function (e) {
-    if (e.target.closest(".groups-btn")) return;
+    if (/** @type {Element} */ (e.target).closest(".groups-btn")) return;
     if (state.collapsedSections.has(fullKey)) state.collapsedSections.delete(fullKey);
     else state.collapsedSections.add(fullKey);
     state._render();
@@ -218,7 +226,7 @@ export function renderSection(name, parts) {
     (hasGroups ? '<button class="groups-btn' + (groupsActive ? ' active' : '') + '">◆ Groups</button>' : '');
 
   header.addEventListener("click", function (e) {
-    if (e.target.closest(".groups-btn")) return;
+    if (/** @type {Element} */ (e.target).closest(".groups-btn")) return;
     if (state.collapsedSections.has(name)) state.collapsedSections.delete(name);
     else state.collapsedSections.add(name);
     state._render();
