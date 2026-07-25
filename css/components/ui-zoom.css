@@ -1,0 +1,51 @@
+/* ── Global UI zoom control (header) ──────────────────────────────────────────
+   [🔍−] ──●── [🔍+]  100%   — mirrors Ctrl+- / Ctrl+= / Ctrl+0.
+   Consumed by: index.html (.header-center), js/ui-zoom-control.js
+   ─────────────────────────────────────────────────────────────────────────── */
+.zoom-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* Below the app's documented minimum window width (1200×700) the header is
+   already wrapping, and this control's ~220px would add another row — pushing the
+   panels down far enough to shove the Import button off a 600px-tall viewport
+   (caught by resize-visibility.spec.mjs). Hide it there; Ctrl+-/=/0 still work and
+   are listed in the ? help modal and the command palette.
+   Note this measures the *authored* viewport, so zooming out on a small window can
+   also hide it — which is the same trade-off, arrived at the same way. */
+@media (max-width: 1199px) {
+  .zoom-control { display: none; }
+}
+
+.zoom-btn {
+  padding: var(--space-2xs) var(--space-sm);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  white-space: nowrap;   /* the glyph + sign must never wrap apart */
+}
+.zoom-btn[disabled] { opacity: 0.4; cursor: default; }
+
+.zoom-slider {
+  width: var(--zoom-slider-w);
+  cursor: pointer;
+  accent-color: var(--color-blue);
+}
+
+.zoom-percent {
+  min-width: var(--zoom-percent-w);
+  padding: var(--space-2xs) var(--space-xs);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  /* Tabular figures: without them the readout re-flows its neighbours every
+     time the digit count changes (100% → 67% → 125%). */
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  cursor: pointer;
+}
+.zoom-percent:hover { color: var(--text-primary); }
+.zoom-percent:focus-visible { outline: 2px solid var(--color-blue); outline-offset: 1px; }

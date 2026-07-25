@@ -29,6 +29,13 @@ export function initShortcuts(cmd) {
     if (mod(e) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); cmd.save(); return; }
     if (mod(e) && e.key === ',') { e.preventDefault(); cmd.openPreferences(); return; }
     if (mod(e) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); cmd.openPalette(); return; }
+    // Zoom. Browser zoom works with a text field focused, so these live above the
+    // typingTarget() bail-out too. preventDefault stops WebView2's own zoom from
+    // also firing and double-applying. Must stay ahead of the Ctrl+1/2/3 check so
+    // Ctrl+0 reads as "reset zoom", not "focus panel 0".
+    if (mod(e) && (e.key === '-' || e.key === '_')) { e.preventDefault(); cmd.zoomOut(); return; }
+    if (mod(e) && (e.key === '=' || e.key === '+')) { e.preventDefault(); cmd.zoomIn(); return; }
+    if (mod(e) && e.key === '0') { e.preventDefault(); cmd.zoomReset(); return; }
     if (mod(e) && (e.key === '1' || e.key === '2' || e.key === '3')) {
       e.preventDefault(); cmd.focusPanel(Number(e.key)); return;
     }

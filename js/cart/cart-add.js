@@ -11,6 +11,7 @@
 import { addToActiveCart } from './cart-store.js';
 import { AppLog } from '../api.js';
 import { invPartKey } from '../part-keys.js';
+import { handleTrigger } from '../panel-collapse.js';
 
 let active = false;
 
@@ -22,6 +23,8 @@ export function isActive() {
 /** Flip cart-add mode and reflect it on <body> + the toggle button. */
 export function toggle() {
   active = !active;
+  // Turning the mode on surfaces the left panel, which carries the cart context.
+  if (active) handleTrigger('CART_ADD_MODE');
   document.body.classList.toggle('cart-add-active', active);
   const btn = document.getElementById('cart-add-toggle');
   if (btn) {

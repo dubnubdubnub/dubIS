@@ -1,14 +1,23 @@
-/* Drag-to-resize panels — self-contained, no dependencies */
+/* Drag-to-resize panels.
+
+   All geometry here is in *authored* px — the space of the `style.width` values
+   this module writes and of the minimums below. That means every rect read goes
+   through innerRect() and every pointer delta through toInnerPx(): under the
+   root UI zoom, rects and clientX come back post-zoom, so feeding them straight
+   into style.width would resize panels by the wrong amount (and silently move
+   the effective minimum) at any zoom != 1. See js/ui-zoom.js. */
 'use strict';
 
-const PANEL_MIN_WIDTHS = [240, 300, 380];  // [import, inventory, bom]
-const CONSOLE_MIN_HEIGHT = 100;
+import { innerRect, toInnerPx } from './ui-zoom.js';
+
+const PANEL_MIN_WIDTHS = [240, 300, 380];  // [import, inventory, bom] — authored px
+const CONSOLE_MIN_HEIGHT = 100;            // authored px
 
 let panels;
 let consoleLog;
 
 function snapshotWidths() {
-  return panels.map(p => p.getBoundingClientRect().width);
+  return panels.map(p => innerRect(p).width);
 }
 
 function lockWidths(widths) {
@@ -47,7 +56,7 @@ function initHDrag(handle, leftIdx) {
     document.body.classList.add('resizing');
 
     function onMove(ev) {
-      const dx = ev.clientX - startX;
+      const dx = toInnerPx(ev.clientX - startX);
       let newLeft = startLeft + dx;
       let newRight = startRight - dx;
 
@@ -109,19 +118,19 @@ export function init() {
     vHandle.setPointerCapture(e.pointerId);
 
     const startY = e.clientY;
-    const startH = consoleLog.getBoundingClientRect().height;
-    const panelH = panels[0].getBoundingClientRect().height;
-    const headerH = panels[0].querySelector('.panel-header').getBoundingClientRect().height;
+    const startH = innerRect(consoleLog).height;
+    const panelH = innerRect(panels[0]).height;
+    const headerH = innerRect(panels[0].querySelector('.panel-header')).height;
     const importBody = document.getElementById('import-body');
     const dropZone = importBody ? importBody.querySelector('.drop-zone') : null;
-    const reservedH = headerH + (dropZone ? dropZone.getBoundingClientRect().height + 48 : 120);
+    const reservedH = headerH + (dropZone ? innerRect(dropZone).height + 48 : 120);
     const maxH = panelH - reservedH;
 
     vHandle.classList.add('active');
     document.body.classList.add('resizing-v');
 
     function onMove(ev) {
-      const dy = startY - ev.clientY;
+      const dy = toInnerPx(startY - ev.clientY);
       let newH = startH + dy;
       if (newH < CONSOLE_MIN_HEIGHT) newH = CONSOLE_MIN_HEIGHT;
       if (newH > maxH) newH = maxH;
@@ -138,4 +147,8 @@ export function init() {
     vHandle.addEventListener('pointermove', onMove);
     vHandle.addEventListener('pointerup', onUp);
   });
+
+  // Handed to js/panel-collapse.js, which mounts its toggle pills onto these —
+  // returning them beats re-querying by DOM position.
+  return { hHandles: [hHandle1, hHandle2], vHandle };
 }
