@@ -167,14 +167,32 @@ function markBomDirty() {
 
 export function setPreferences(prefs) { preferences = { ...preferences, ...prefs }; }
 
+/* Did a re-fetch actually bring back different data?
+   Both lists arrive straight from /v1 as parsed JSON built from the same
+   server-side row order and key order, so a string compare is a sound change
+   test here — and far cheaper than a structural walk over every PO. */
+function sameData(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+
+/* VENDORS_CHANGED / PO_CHANGED are CHANGE events, not refresh notifications:
+   they must not fire when a re-fetch returns byte-identical data.
+   loadVendorsAndPOs() runs after EVERY inventory mutation (onInventoryUpdated),
+   including ones that cannot touch vendors or POs at all — e.g. the
+   record_fetched_prices write a *hover* tooltip performs, which publishes
+   `inventory.updated` over SSE. Emitting unconditionally turned that passive
+   hover into a PO_CHANGED, which panel-collapse.js reads as "the user changed
+   POs" and answers by force-reopening the collapsed Purchase Import panel. */
 export function setVendors(list) {
-  vendors = list || [];
-  EventBus.emit(Events.VENDORS_CHANGED, vendors);
+  const next = list || [];
+  const changed = !sameData(vendors, next);
+  vendors = next;
+  if (changed) EventBus.emit(Events.VENDORS_CHANGED, vendors);
 }
 
 export function setPurchaseOrders(list) {
-  purchaseOrders = list || [];
-  EventBus.emit(Events.PO_CHANGED, purchaseOrders);
+  const next = list || [];
+  const changed = !sameData(purchaseOrders, next);
+  purchaseOrders = next;
+  if (changed) EventBus.emit(Events.PO_CHANGED, purchaseOrders);
 }
 
 export async function loadVendorsAndPOs() {
