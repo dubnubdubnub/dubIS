@@ -100,6 +100,8 @@ Events are centralized in `js/event-bus.js`. Store setters that emit are marked;
 
 **Non-emitting setters:** `setInventory()`, `setBomResults()`, `setBomMeta()`, `setBomFootprintNearMisses()`, `setBomDirty()`, `setPreferences()`, `saveInventoryView()`, `loadLinks()`, `clearLinks()` — callers handle emission or don't need it. (`setThreshold()`/`setShortcutPrefs()` propagate via `preferencesSignal`, not EventBus — see the Signals rule below.)
 
+**Change-only emitters:** `setVendors()`/`setPurchaseOrders()` emit `VENDORS_CHANGED`/`PO_CHANGED` **only when the data actually differs**. `onInventoryUpdated()` re-fetches both after *every* inventory mutation — including ones that cannot touch them, e.g. the `record_fetched_prices` write a hover tooltip performs — so an unconditional emit turns a passive hover into a "the user changed a PO" signal, and `js/panel-collapse.js` answers that by force-reopening the collapsed Purchase Import panel. Guarded by `tests/js/panel-reopen-noop-refresh.test.js` (which also forces every new `REOPEN_TRIGGERS` entry to be classified refresh-fed vs one-shot) and `tests/js/e2e/panel-collapse-passive.spec.mjs`. Any future refresh-fed `*_CHANGED` event needs the same treatment.
+
 **Signals vs EventBus:** preferences propagate via `preferencesSignal` in store.js (see `js/signals.js`), not EventBus. Rule: new cross-panel *state* uses signals; EventBus remains for discrete UI *events*.
 
 ## Key Policies
