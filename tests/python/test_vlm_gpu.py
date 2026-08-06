@@ -3,9 +3,10 @@
 Marked ``gpu`` and deselected by default (see pyproject ``addopts``). Runs only
 on a node with a GPU and a reachable VLM server holding a Qwen2.5-VL model —
 i.e. the self-hosted ``gpu`` runner (y740 / RTX 2060), which reaches the
-in-cluster **llama.cpp** server (``llamacpp.win-runners.svc.cluster.local:8080``,
-replaced Ollama 2026-08-05). No mocks: end-to-end proof that the node's
-GPU/server/model stack works and that ``available()`` selects a usable model.
+in-cluster **llama.cpp** server
+(``llamacpp.win-runners.svc.cluster.local:8080``). No mocks: end-to-end proof
+that the node's GPU/server/model stack works and that ``available()`` selects a
+usable model.
 """
 import pytest
 
@@ -24,6 +25,6 @@ def test_vlm_backend_live_on_gpu_node():
     )
     # After a successful probe, the selected model is a served Qwen2.5-VL id.
     # Matched by marker, not prefix: llama.cpp reports its --alias
-    # ("qwen2.5-vl-3b") while Ollama reports a tag ("qwen2.5vl:3b").
+    # ("qwen2.5-vl-3b") while other /v1 servers report a tag ("qwen2.5vl:3b").
     selected = vlm_extract.model_name()
     assert vlm_extract._is_qwen_vl(selected), selected

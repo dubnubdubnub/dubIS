@@ -10,16 +10,15 @@ grid/flat pipeline — so GPU-less nodes (and CI) are unaffected.
 
 Backend contract: the **OpenAI-compatible** surface — ``GET /v1/models`` to see
 what is loaded, ``POST /v1/chat/completions`` with an ``image_url`` data URI for
-inference. That is deliberately the lowest common denominator: llama.cpp,
-**Ollama**, vLLM and LM Studio all serve it, so the same code runs against the
-cluster's llama.cpp server (the CI ``gpu`` runner) and against a developer's
-local Ollama with nothing but a URL change.
+inference. That is deliberately the lowest common denominator: any server
+speaking ``/v1`` works (llama.cpp, vLLM, LM Studio, …), so the same code runs
+against the cluster's llama.cpp server (the CI ``gpu`` runner) and against a
+developer's own local server with nothing but a URL change.
 
 Configuration (per-node, via environment):
     DUBIS_VLM_URL      base URL (default http://127.0.0.1:8080, llama-server's).
-                       DUBIS_OLLAMA_URL is still honoured as a fallback for
-                       nodes configured before the 2026-08-05 llama.cpp swap —
-                       point it at :11434 and a local Ollama still works.
+                       Point it at whatever host/port your ``/v1`` server listens
+                       on, including another node's GPU.
     DUBIS_VLM_MODEL    model id to request, overriding the auto-pick. llama.cpp
                        serves exactly one model, named by its --alias.
     DUBIS_VLM_DISABLE  set to any non-empty value to force the backend off.
@@ -43,8 +42,8 @@ import urllib.request
 
 logger = logging.getLogger(__name__)
 
-# llama-server's default port. (Ollama's 11434 is reachable by setting
-# DUBIS_VLM_URL / the legacy DUBIS_OLLAMA_URL explicitly.)
+# llama-server's default port. (Any other /v1 server is reachable by setting
+# DUBIS_VLM_URL explicitly.)
 _DEFAULT_URL = "http://127.0.0.1:8080"
 # Model ids to try, best first. The 7B reads faint/folded LCSC C-numbers reliably
 # but needs ~9 GB VRAM at Q4 with its vision projector; the 3B fits smaller GPUs
@@ -53,7 +52,7 @@ _DEFAULT_URL = "http://127.0.0.1:8080"
 # actually reports, so a low-VRAM node just serves the 3B with no config.
 # DUBIS_VLM_MODEL overrides this list entirely.
 # Both spellings are listed because the id is backend-chosen: llama.cpp reports
-# its --alias (`qwen2.5-vl-3b`), Ollama reports its tag (`qwen2.5vl:3b`).
+# its --alias (`qwen2.5-vl-3b`), while tag-style servers report `qwen2.5vl:3b`.
 _PREFERRED_MODELS = ["qwen2.5-vl-7b", "qwen2.5vl:7b", "qwen2.5-vl-3b", "qwen2.5vl:3b"]
 # Substrings that mark a served id as a Qwen2.5-VL variant, whatever the backend
 # called it (a llama.cpp deploy with no --alias reports the .gguf *path*).
@@ -100,12 +99,7 @@ def _prompt_for(template: str) -> str:
 
 
 def _base_url() -> str:
-    # DUBIS_OLLAMA_URL is the pre-2026-08-05 name, kept so an already-configured
-    # node (or a laptop pointed at a local Ollama) keeps working untouched.
-    url = (os.environ.get("DUBIS_VLM_URL")
-           or os.environ.get("DUBIS_OLLAMA_URL")
-           or _DEFAULT_URL)
-    return url.rstrip("/")
+    return (os.environ.get("DUBIS_VLM_URL") or _DEFAULT_URL).rstrip("/")
 
 
 def _preferred_ids() -> list[str]:
@@ -212,8 +206,8 @@ def _extract(image_bytes: bytes, template: str, page_w: int = 0, page_h: int = 0
                 {"type": "image_url", "image_url": {"url": data_uri}},
             ],
         }],
-        # json_object is a grammar constraint in llama.cpp (and native in Ollama's
-        # /v1 shim), so _parse_response can json.loads the content unconditionally.
+        # json_object is a grammar constraint in llama.cpp (and honoured by other
+        # /v1 servers), so _parse_response can json.loads the content unconditionally.
         "response_format": {"type": "json_object"},
         "temperature": 0,
         "max_tokens": _MAX_TOKENS,

@@ -6,8 +6,9 @@ model server, no model: exactly the situation on CI and GPU-less nodes, where th
 backend must self-gate to None and let the caller fall back.
 
 Model ids appear in two spellings on purpose. The cluster's llama.cpp server
-reports its ``--alias`` (``qwen2.5-vl-3b``); Ollama reports its tag
-(``qwen2.5vl:3b``). Both are supported backends, so both are exercised.
+reports its ``--alias`` (``qwen2.5-vl-3b``); other ``/v1`` servers report a
+tag-style id (``qwen2.5vl:3b``). Either spelling must be matched, so both are
+exercised.
 """
 import base64
 import json
@@ -67,7 +68,6 @@ def _clean_env(monkeypatch):
     monkeypatch.delenv("DUBIS_VLM_DISABLE", raising=False)
     monkeypatch.delenv("DUBIS_VLM_MODEL", raising=False)
     monkeypatch.delenv("DUBIS_VLM_URL", raising=False)
-    monkeypatch.delenv("DUBIS_OLLAMA_URL", raising=False)
     # Reset the selected-model cache so tests don't leak it between runs.
     monkeypatch.setattr(vlm_extract, "_selected_model", None)
 
@@ -81,8 +81,8 @@ BOTH_MODELS = _models("qwen2.5-vl-3b", "qwen2.5-vl-7b")
 ONLY_3B = _models("qwen2.5-vl-3b")
 # What the cluster actually serves: llama-server's --alias.
 CLUSTER = _models("qwen2.5-vl-3b")
-# What a developer laptop running Ollama serves.
-OLLAMA_BOTH = _models("qwen2.5vl:3b", "qwen2.5vl:7b")
+# What a server that names its models by tag (rather than --alias) serves.
+TAG_STYLE_BOTH = _models("qwen2.5vl:3b", "qwen2.5vl:7b")
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"fake-png-body"
 
@@ -98,15 +98,9 @@ def test_vlm_url_env_wins(monkeypatch):
     assert vlm_extract._base_url() == "http://llamacpp.win-runners.svc.cluster.local:8080"
 
 
-def test_legacy_ollama_url_env_still_honoured(monkeypatch):
-    # Pre-2026-08-05 nodes (and laptops pointed at a local Ollama) keep working.
-    monkeypatch.setenv("DUBIS_OLLAMA_URL", "http://127.0.0.1:11434")
-    assert vlm_extract._base_url() == "http://127.0.0.1:11434"
-
-
-def test_vlm_url_takes_precedence_over_legacy(monkeypatch):
-    monkeypatch.setenv("DUBIS_OLLAMA_URL", "http://127.0.0.1:11434")
-    monkeypatch.setenv("DUBIS_VLM_URL", "http://127.0.0.1:8080")
+def test_blank_vlm_url_falls_back_to_default(monkeypatch):
+    # An empty value must not produce a bare "" base URL.
+    monkeypatch.setenv("DUBIS_VLM_URL", "")
     assert vlm_extract._base_url() == "http://127.0.0.1:8080"
 
 
@@ -123,7 +117,8 @@ def test_available_matches_model_by_base_name(monkeypatch):
     assert vlm_extract.available() is True
 
 
-def test_available_matches_ollama_style_tag(monkeypatch):
+def test_available_matches_tag_style_id(monkeypatch):
+    # A server that names models by tag rather than --alias still matches.
     _mock_urlopen(monkeypatch, models=_models("qwen2.5vl:latest"))
     assert vlm_extract.available() is True
 
@@ -133,8 +128,8 @@ def test_prefers_7b_when_both_served(monkeypatch):
     assert vlm_extract._select_model() == "qwen2.5-vl-7b"
 
 
-def test_prefers_7b_when_both_served_by_ollama(monkeypatch):
-    _mock_urlopen(monkeypatch, models=OLLAMA_BOTH)
+def test_prefers_7b_when_both_served_with_tag_style_ids(monkeypatch):
+    _mock_urlopen(monkeypatch, models=TAG_STYLE_BOTH)
     assert vlm_extract._select_model() == "qwen2.5vl:7b"
 
 
