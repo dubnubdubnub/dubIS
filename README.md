@@ -21,7 +21,7 @@ python app.pyw
 ```
 
 That boots the `/v1` server on a loopback port and opens the app window.
-Optional extras (Tesseract OCR, local VLM via Ollama for photographed packing
+Optional extras (Tesseract OCR, local VLM via llama.cpp/Ollama for photographed packing
 lists): see [docs/install.md](docs/install.md).
 
 ## Development

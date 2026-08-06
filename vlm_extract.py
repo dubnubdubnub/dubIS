@@ -2,21 +2,31 @@
 
 A strong VLM reads photographed packing lists holistically — including faint
 print, folds, and perspective that defeat classical OCR + table detection. We run
-one entirely locally via Ollama (e.g. ``qwen2.5vl:7b``) so nothing leaves the
-machine (the documents carry PII). This is the PREFERRED extractor when a capable
-Ollama is reachable; otherwise ``extract_line_items`` returns ``None`` and the
-caller falls back to the Tesseract grid/flat pipeline — so GPU-less nodes (and CI)
-are unaffected.
+one entirely locally (llama.cpp's ``llama-server``, or anything else speaking the
+same API) so nothing leaves the machine — the documents carry PII. This is the
+PREFERRED extractor when a capable server is reachable; otherwise
+``extract_line_items`` returns ``None`` and the caller falls back to the Tesseract
+grid/flat pipeline — so GPU-less nodes (and CI) are unaffected.
+
+Backend contract: the **OpenAI-compatible** surface — ``GET /v1/models`` to see
+what is loaded, ``POST /v1/chat/completions`` with an ``image_url`` data URI for
+inference. That is deliberately the lowest common denominator: llama.cpp,
+**Ollama**, vLLM and LM Studio all serve it, so the same code runs against the
+cluster's llama.cpp server (the CI ``gpu`` runner) and against a developer's
+local Ollama with nothing but a URL change.
 
 Configuration (per-node, via environment):
-    DUBIS_OLLAMA_URL   base URL (default http://127.0.0.1:11434)
-    DUBIS_VLM_MODEL    model tag (default qwen2.5vl:7b) — set a smaller tag on
-                       weak GPUs, or...
+    DUBIS_VLM_URL      base URL (default http://127.0.0.1:8080, llama-server's).
+                       DUBIS_OLLAMA_URL is still honoured as a fallback for
+                       nodes configured before the 2026-08-05 llama.cpp swap —
+                       point it at :11434 and a local Ollama still works.
+    DUBIS_VLM_MODEL    model id to request, overriding the auto-pick. llama.cpp
+                       serves exactly one model, named by its --alias.
     DUBIS_VLM_DISABLE  set to any non-empty value to force the backend off.
 
 Public API:
     available() -> bool
-        Fast check: Ollama reachable AND the configured model is pulled.
+        Fast check: server reachable AND serving a usable vision model.
     extract_line_items(image_bytes, template="generic") -> list[dict] | None
         Line-item dicts share the distributor_profiles shape (mpn, manufacturer,
         package, description, quantity, unit_price, distributor, distributor_pn).
@@ -33,19 +43,29 @@ import urllib.request
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_URL = "http://127.0.0.1:11434"
-# Models to try, best first. The 7B reads faint/folded LCSC C-numbers reliably
-# but needs ~6 GB VRAM; the 3B fits smaller GPUs (e.g. a 6 GB RTX 2060) — it still
-# gets MPNs + quantities but may miss faint C-numbers. We auto-pick the best one
-# actually pulled, so a low-VRAM node just `ollama pull`s the 3B with no config.
+# llama-server's default port. (Ollama's 11434 is reachable by setting
+# DUBIS_VLM_URL / the legacy DUBIS_OLLAMA_URL explicitly.)
+_DEFAULT_URL = "http://127.0.0.1:8080"
+# Model ids to try, best first. The 7B reads faint/folded LCSC C-numbers reliably
+# but needs ~9 GB VRAM at Q4 with its vision projector; the 3B fits smaller GPUs
+# (e.g. the cluster's 6 GB RTX 2060, which serves exactly this) — it still gets
+# MPNs + quantities but may miss faint C-numbers. We pick the best one the server
+# actually reports, so a low-VRAM node just serves the 3B with no config.
 # DUBIS_VLM_MODEL overrides this list entirely.
-_PREFERRED_MODELS = ["qwen2.5vl:7b", "qwen2.5vl:3b"]
-_QWEN_BASE = "qwen2.5vl"
+# Both spellings are listed because the id is backend-chosen: llama.cpp reports
+# its --alias (`qwen2.5-vl-3b`), Ollama reports its tag (`qwen2.5vl:3b`).
+_PREFERRED_MODELS = ["qwen2.5-vl-7b", "qwen2.5vl:7b", "qwen2.5-vl-3b", "qwen2.5vl:3b"]
+# Substrings that mark a served id as a Qwen2.5-VL variant, whatever the backend
+# called it (a llama.cpp deploy with no --alias reports the .gguf *path*).
+_QWEN_MARKERS = ("qwen2.5-vl", "qwen2.5vl", "qwen2_5_vl")
 _selected_model = None  # cache of the model chosen on the last successful probe
-# Short timeout for the reachability probe so a node without Ollama falls back
-# almost instantly; generous timeout for the actual (GPU) inference call.
+# Short timeout for the reachability probe so a node without a VLM server falls
+# back almost instantly; generous timeout for the actual (GPU) inference call.
 _PROBE_TIMEOUT = 1.5
 _INFER_TIMEOUT = 600
+# Bound the reply. Left unset, llama.cpp will happily generate to the end of the
+# context window on a degenerate loop and burn the CI leg's 15-minute budget.
+_MAX_TOKENS = 4096
 
 _PROMPT = (
     "This image is a distributor packing list / shipping manifest. Extract EVERY "
@@ -80,11 +100,16 @@ def _prompt_for(template: str) -> str:
 
 
 def _base_url() -> str:
-    return (os.environ.get("DUBIS_OLLAMA_URL") or _DEFAULT_URL).rstrip("/")
+    # DUBIS_OLLAMA_URL is the pre-2026-08-05 name, kept so an already-configured
+    # node (or a laptop pointed at a local Ollama) keeps working untouched.
+    url = (os.environ.get("DUBIS_VLM_URL")
+           or os.environ.get("DUBIS_OLLAMA_URL")
+           or _DEFAULT_URL)
+    return url.rstrip("/")
 
 
-def _preferred_tags() -> list[str]:
-    """Models to try, best first. An explicit DUBIS_VLM_MODEL overrides the list."""
+def _preferred_ids() -> list[str]:
+    """Model ids to try, best first. An explicit DUBIS_VLM_MODEL overrides the list."""
     env = (os.environ.get("DUBIS_VLM_MODEL") or "").strip()
     return [env] if env else list(_PREFERRED_MODELS)
 
@@ -99,40 +124,45 @@ def _get_json(url: str, timeout: float):
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _installed_models():
-    """Set of model tags Ollama has pulled, or None if Ollama is unreachable."""
+def _served_models():
+    """Model ids the server reports at /v1/models, or None if it's unreachable."""
     try:
-        tags = _get_json(f"{_base_url()}/api/tags", _PROBE_TIMEOUT)
+        body = _get_json(f"{_base_url()}/v1/models", _PROBE_TIMEOUT)
     except (urllib.error.URLError, OSError, ValueError) as exc:
         logger.debug("VLM backend unavailable (probe failed): %s", exc)
         return None
-    return {m.get("name", "") for m in (tags.get("models") or [])}
+    return {str(m.get("id") or "") for m in (body.get("data") or [])}
+
+
+def _is_qwen_vl(model_id: str) -> bool:
+    lowered = model_id.lower()
+    return any(marker in lowered for marker in _QWEN_MARKERS)
 
 
 def _select_model():
-    """Best installed model: the first preferred tag that's pulled (7B over 3B),
-    then any pulled qwen2.5vl variant. None if none are pulled / Ollama is down."""
-    installed = _installed_models()
-    if not installed:
+    """Best served model: the first preferred id (7B over 3B), then any served
+    Qwen2.5-VL variant. None if none are served / the server is down."""
+    served = _served_models()
+    if not served:
         return None
-    for tag in _preferred_tags():
-        if tag in installed:
-            return tag
-        if ":" not in tag:  # env override given as a bare base name
-            match = next((n for n in installed if n.split(":", 1)[0] == tag), None)
-            if match:
-                return match
-    # Fallback: any pulled qwen2.5vl tag (e.g. :latest, :32b) when nothing above hit.
-    return next((n for n in installed if n.split(":", 1)[0] == _QWEN_BASE), None)
+    for wanted in _preferred_ids():
+        if wanted in served:
+            return wanted
+        # An id given without its tag/quant suffix still matches, and so does a
+        # bare alias against a served .gguf path.
+        match = next((s for s in sorted(served) if wanted.lower() in s.lower()), None)
+        if match:
+            return match
+    return next((s for s in sorted(served) if _is_qwen_vl(s)), None)
 
 
 def model_name() -> str:
     """The VLM model last selected (for logging); a best guess before any run."""
-    return _selected_model or _preferred_tags()[0]
+    return _selected_model or _preferred_ids()[0]
 
 
 def available() -> bool:
-    """True if enabled and a usable VLM model is pulled in a reachable Ollama."""
+    """True if enabled and a usable VLM model is served by a reachable server."""
     if _disabled():
         return False
     return _select_model() is not None
@@ -145,9 +175,21 @@ def extract_line_items(image_bytes: bytes, template: str = "generic",
         return None
     try:
         return _extract(image_bytes, template, page_w, page_h)
-    except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
+    except (urllib.error.URLError, OSError, ValueError, KeyError, IndexError) as exc:
         logger.warning("VLM extraction failed, falling back: %s", exc)
         return None
+
+
+def _image_mime(image_bytes: bytes) -> str:
+    """Sniff the container so the data URI is honest. pdf_raster hands us PNG for
+    every page (PDFs and photos alike), but callers are not required to."""
+    if image_bytes[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if image_bytes[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if image_bytes[:4] == b"RIFF" and image_bytes[8:12] == b"WEBP":
+        return "image/webp"
+    return "application/octet-stream"
 
 
 def _extract(image_bytes: bytes, template: str, page_w: int = 0, page_h: int = 0):
@@ -159,22 +201,33 @@ def _extract(image_bytes: bytes, template: str, page_w: int = 0, page_h: int = 0
     if not model:
         return None
     _selected_model = model
+    data_uri = (f"data:{_image_mime(image_bytes)};base64,"
+                + base64.b64encode(image_bytes).decode("ascii"))
     payload = {
         "model": model,
-        "prompt": _prompt_for(template),
-        "images": [base64.b64encode(image_bytes).decode("ascii")],
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": _prompt_for(template)},
+                {"type": "image_url", "image_url": {"url": data_uri}},
+            ],
+        }],
+        # json_object is a grammar constraint in llama.cpp (and native in Ollama's
+        # /v1 shim), so _parse_response can json.loads the content unconditionally.
+        "response_format": {"type": "json_object"},
+        "temperature": 0,
+        "max_tokens": _MAX_TOKENS,
         "stream": False,
-        "format": "json",
-        "options": {"temperature": 0},
     }
     req = urllib.request.Request(
-        f"{_base_url()}/api/generate",
+        f"{_base_url()}/v1/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
     )
     with urllib.request.urlopen(req, timeout=_INFER_TIMEOUT) as resp:
         body = json.loads(resp.read().decode("utf-8"))
-    rows = _parse_response(body.get("response", ""), template, page_w, page_h)
+    content = (body["choices"][0].get("message") or {}).get("content") or ""
+    rows = _parse_response(content, template, page_w, page_h)
     return rows or None
 
 

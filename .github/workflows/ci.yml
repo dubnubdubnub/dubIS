@@ -622,12 +622,14 @@ jobs:
           echo "All required Python jobs passed or were skipped."
 
   # ── VLM image-recognition smoke test (GPU node only) ─────────────────
-  #   Exercises the local Ollama VLM on the single self-hosted GPU runner
-  #   (y740 / RTX 2060). available() auto-selects the best installed qwen2.5vl
-  #   model (:3b is what's pulled on the 6 GB card). Like js-windows this is a
-  #   single-box leg: gated on run_python and deliberately NOT part of any
-  #   required gate, so a GPU-node outage can't block merges. The `gpu`-marked
-  #   test is deselected from the regular python tier (no Ollama there).
+  #   Exercises the in-cluster llama.cpp VLM server on the single self-hosted
+  #   GPU runner (y740 / RTX 2060). It replaced Ollama on 2026-08-05; the API is
+  #   OpenAI-compatible, so available() probes /v1/models and auto-selects the
+  #   best served Qwen2.5-VL model (the 3B is what fits the 6 GB card). Like
+  #   js-windows this is a single-box leg: gated on run_python and deliberately
+  #   NOT part of any required gate, so a GPU-node outage can't block merges.
+  #   The `gpu`-marked test is deselected from the regular python tier (no model
+  #   server there). Infra manifest: infra/win-runners/gpu/llamacpp.yaml.
   vlm-gpu:
     name: VLM Image-Recognition (GPU)
     needs: [parse-tags, guard]
@@ -638,16 +640,17 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 15
     env:
-      # The runner reaches the GPU node's Ollama via the cluster Service;
-      # available() then auto-selects the installed model (:3b on the RTX 2060).
-      DUBIS_OLLAMA_URL: http://ollama.win-runners.svc.cluster.local:11434
+      # The runner reaches the GPU node's llama.cpp server via the cluster
+      # Service; available() then auto-selects the served model (the 3B on the
+      # RTX 2060). vlm_extract still honours the legacy DUBIS_OLLAMA_URL name.
+      DUBIS_VLM_URL: http://llamacpp.win-runners.svc.cluster.local:8080
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: pip install -q -r requirements-dev.txt
-      - name: VLM live smoke test (real Ollama on the RTX 2060)
+      - name: VLM live smoke test (real llama.cpp server on the RTX 2060)
         run: pytest tests/python/test_vlm_gpu.py -m gpu -v
 
   # ── Tier 2: Functional (PnP E2E tests) ──────────────────────────────
