@@ -79,9 +79,10 @@ def extract_pages(file_bytes: bytes, ext: str, template: str = "generic") -> dic
     raster = pdf_raster.rasterize(file_bytes, ext)
     pages = [extract_page(png) for (png, _w, _h) in raster]
 
-    # Preferred backend: a local vision-language model (via Ollama) reads the page
-    # holistically — robust to faint print, folds, and perspective that defeat
-    # classical OCR. Self-gating: returns None when no capable Ollama is reachable
+    # Preferred backend: a local vision-language model (llama.cpp or any other
+    # OpenAI-compatible server) reads the page holistically — robust to faint print,
+    # folds, and perspective that defeat classical OCR. Self-gating: returns None
+    # when no capable model server is reachable
     # (GPU-less nodes, CI), so we fall through to the Tesseract pipeline below with
     # no behaviour change. Runs entirely locally — no PII leaves the machine.
     page_w = raster[0][1] if raster else 0
