@@ -17,4 +17,8 @@ fastapi>=0.110
 uvicorn[standard]>=0.29
 pydantic>=2.6
 httpx>=0.27
-mcp>=1.26.0
+# Pinned below 2.0: mcp 2.0.0 renamed FastMCP -> MCPServer and dropped
+# mcp.server.fastmcp, which every tools/*-mcp/server.py imports. The
+# unpinned floor let CI pull 2.0.0 and fail collection on an unrelated PR.
+# Migrating the servers to the 2.0 API is separate work.
+mcp>=1.26.0,<2
