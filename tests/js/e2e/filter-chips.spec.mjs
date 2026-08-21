@@ -23,9 +23,6 @@ const MOCK_INVENTORY = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'fixtures', 'inventory.json'), 'utf8')
 );
 
-// Scratchpad PNG for visual check
-const SCREENSHOT_PATH = 'C:/Users/isaac/AppData/Local/Temp/claude/D--gehub-dubIS/915009e0-4141-437d-821d-d43e35d13964/scratchpad/shot-filterchips.png';
-
 // Helper: compute total row count without any filters
 const TOTAL_ROWS = MOCK_INVENTORY.length;
 
@@ -442,7 +439,7 @@ test.describe('Filter chips bar', () => {
     expect(restoredRows).toBe(filteredRows);
   });
 
-  test('screenshot: inventory with active filter chips', async ({ page }) => {
+  test('screenshot: inventory with active filter chips', async ({ page }, testInfo) => {
     await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
@@ -473,8 +470,11 @@ test.describe('Filter chips bar', () => {
     await page.locator('.fc-popover-apply').click();
     await page.waitForTimeout(200);
 
-    // Screenshot for visual inspection
-    await page.screenshot({ path: SCREENSHOT_PATH });
+    // Screenshot for visual inspection. testInfo.outputPath puts it under the
+    // run's own test-results/ dir (gitignored, and cleaned between runs) — a
+    // hardcoded absolute path here used to write a literal `C:/Users/...` tree
+    // into the repo on every non-Windows run.
+    await page.screenshot({ path: testInfo.outputPath('shot-filterchips.png') });
   });
 
 });

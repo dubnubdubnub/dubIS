@@ -25,6 +25,7 @@ regression there is quiet. These tests are where it stops being quiet:
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -292,6 +293,41 @@ def test_single_machine_legs_stay_advisory(ci_jobs: dict) -> None:
                 f"job '{name}' has a macos leg that is not advisory — the m4-air is a "
                 f"single physical machine and its outage must not block merges"
             )
+
+
+# ── nothing may write outside the run's own output dir ───────────────
+
+# A dev machine's own filesystem, in two flavours. Neither can ever be correct
+# in a committed spec, and a Windows drive-letter path on a Linux/macOS runner is
+# worse than merely wrong: Playwright resolves it against the cwd, so it
+# materialises a literal `C:/Users/...` directory tree inside the repo.
+#
+# Deliberately does NOT flag every rooted string — `path: '/fake/bom.csv'` and
+# `'/dev/null'` are mock values handed to route mocks, not filesystem writes.
+_DEV_PATH_RE = re.compile(r"""['"](?:[A-Za-z]:[\\/]|/(?:Users|home|tmp|var/folders)/)""")
+
+
+def test_no_e2e_spec_hardcodes_a_dev_machine_path() -> None:
+    """Two specs shipped with a hardcoded `C:/Users/isaac/AppData/...` screenshot
+    destination left over from a dev session. On every non-Windows run that wrote
+    a `C:/Users/...` directory tree into the working copy — it was one of the 17
+    inherited paths the scrub found on the m4-air, i.e. this repo was producing
+    the mess the scrub then cleaned up.
+
+    Screenshots belong in `testInfo.outputPath(...)`, under the run's own
+    gitignored `test-results/`. Checked across the whole file, not just the write
+    call, because the original offender put the literal in a module const and
+    only referenced it at the `page.screenshot(...)` line."""
+    e2e = REPO_ROOT / "tests" / "js" / "e2e"
+    offenders = []
+    for spec in sorted(e2e.rglob("*.mjs")):
+        for lineno, line in enumerate(spec.read_text(encoding="utf-8").splitlines(), 1):
+            if _DEV_PATH_RE.search(line):
+                offenders.append(f"{spec.relative_to(REPO_ROOT)}:{lineno}: {line.strip()}")
+    assert not offenders, (
+        "E2E specs must not name a developer's own filesystem — use "
+        "testInfo.outputPath() for writes:\n" + "\n".join(offenders)
+    )
 
 
 def test_the_hygiene_scripts_exist_and_are_the_ones_referenced(ci_jobs: dict) -> None:
