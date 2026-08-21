@@ -65,6 +65,7 @@ graph LR
     "domain/attributes.py" --> "domain/pricing.py"
     "domain/feeders.py" --> "csv_io.py"
     "domain/generic_parts.py" --> "csv_io.py"
+    "domain/generic_parts.py" --> "dubis_errors.py"
     "domain/generic_parts.py" --> "spec_extractor.py"
     "domain/inventory.py" --> "cache_db.py"
     "domain/inventory.py" --> "carts.py"
@@ -673,6 +674,9 @@ graph LR
     "tests/python/domain/test_generic_parts.py" --> "domain/generic_parts.py"
     "tests/python/domain/test_generic_parts.py" --> "domain/inventory.py"
     "tests/python/domain/test_generic_parts.py" --> "spec_extractor.py"
+    "tests/python/domain/test_generic_parts_reviews.py" --> "cache_db.py"
+    "tests/python/domain/test_generic_parts_reviews.py" --> "domain/generic_parts.py"
+    "tests/python/domain/test_generic_parts_reviews.py" --> "dubis_errors.py"
     "tests/python/domain/test_inventory_fetch_descriptions.py" --> "domain/inventory.py"
     "tests/python/domain/test_inventory_fetch_descriptions.py" --> "inventory_api.py"
     "tests/python/domain/test_inventory_fetch_descriptions.py" --> "tests/python/helpers.py"
@@ -910,7 +914,7 @@ graph LR
 ### cache_db.py
 
 - **Imports:** `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`
-- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `server/routes/meta.py`, `tests/python/conftest.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_carts.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_saved_searches.py`
+- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `server/routes/meta.py`, `tests/python/conftest.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_carts.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_saved_searches.py`
 
 ### cart_export.py
 
@@ -1069,8 +1073,8 @@ graph LR
 
 ### domain/generic_parts.py
 
-- **Imports:** `csv_io.py`, `spec_extractor.py`
-- **Imported by:** `domain/api_generic_parts.py`, `domain/inventory.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`
+- **Imports:** `csv_io.py`, `dubis_errors.py`, `spec_extractor.py`
+- **Imported by:** `domain/api_generic_parts.py`, `domain/inventory.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_generic_parts_reviews.py`
 
 ### domain/inventory.py
 
@@ -1110,7 +1114,7 @@ graph LR
 ### dubis_errors.py
 
 - **Imports:** —
-- **Imported by:** `base_client.py`, `carts.py`, `digikey_client.py`, `domain/part_registry.py`, `server/__main__.py`, `server/errors.py`, `server/lockfile.py`, `tests/python/domain/test_part_registry.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/test_base_client.py`, `tests/python/test_carts.py`, `tests/python/test_dubis_errors.py`
+- **Imported by:** `base_client.py`, `carts.py`, `digikey_client.py`, `domain/generic_parts.py`, `domain/part_registry.py`, `server/__main__.py`, `server/errors.py`, `server/lockfile.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/test_base_client.py`, `tests/python/test_carts.py`, `tests/python/test_dubis_errors.py`
 
 ### file_dialogs.py
 
@@ -2442,6 +2446,11 @@ graph LR
 ### tests/python/domain/test_generic_parts.py
 
 - **Imports:** `cache_db.py`, `domain/generic_parts.py`, `domain/inventory.py`, `spec_extractor.py`
+- **Imported by:** —
+
+### tests/python/domain/test_generic_parts_reviews.py
+
+- **Imports:** `cache_db.py`, `domain/generic_parts.py`, `dubis_errors.py`
 - **Imported by:** —
 
 ### tests/python/domain/test_inventory_fetch_descriptions.py

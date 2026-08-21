@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any
 
 import spec_extractor
+from dubis_errors import AlternateRejectedError, NotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,179 @@ PART_EVENTS_FILE = "part_events.csv"
 PART_EVENTS_FIELDS = ["timestamp", "event_type", "part_id", "generic_part_id", "data_json"]
 
 _JSON_FILE = "generic_parts.json"
+
+# Durable-file format version.  v1 = groups/members/preferred only (every
+# deployment before interchangeability reviews existed).  v2 adds "reviews".
+# Both load; v2 is always written.
+_JSON_VERSION = 2
+_SUPPORTED_JSON_VERSIONS = (1, 2)
+
+
+# ── Interchangeability reviews ───────────────────────────────────────────────
+#
+# Membership answers "these parts are grouped"; a review answers "WHY is this
+# one interchangeable, and did anyone sign off".  The two are stored
+# separately (table `generic_member_reviews`, no FKs) because a review has to
+# outlive the member link: auto groups are regenerated on every rebuild,
+# membership is dragged in and out of the flyout, and `delete_part` clears
+# member rows — none of which may erase a recorded rejection.
+
+APPROVAL_UNREVIEWED = "unreviewed"
+APPROVAL_PROPOSED = "proposed"
+APPROVAL_APPROVED = "approved"
+APPROVAL_REJECTED = "rejected"
+
+#: Every approval state, in review order.
+#:
+#: - ``unreviewed``: nobody has asserted anything.  The DEFAULT for every
+#:   membership that predates this feature and for every auto-matched member.
+#:   Means "unknown", never "fine to use".
+#: - ``proposed``: someone asserted a rationale; awaiting a second pair of eyes.
+#: - ``approved``: reviewed and accepted as a drop-in for this group.
+#: - ``rejected``: reviewed and refused, with the reason.  Kept forever so the
+#:   same bad substitution cannot be re-proposed from scratch.
+APPROVAL_STATES = (
+    APPROVAL_UNREVIEWED,
+    APPROVAL_PROPOSED,
+    APPROVAL_APPROVED,
+    APPROVAL_REJECTED,
+)
+
+#: What KIND of difference a spec delta records.  Not every deciding fact is a
+#: parametric one: ``design_constraint`` covers claims about OUR design rather
+#: than about the part (e.g. "our firmware drives PMBus MFR command codes
+#: 0xD2/0xD4/0xD5, which the candidate's plain register map does not
+#: implement"), which is why `reference`/`candidate` are optional free text and
+#: not required numbers.
+DELTA_KINDS = (
+    "parametric",       # a number/range differs (min_vcca: 0.9 V vs 1.65 V)
+    "pinout",           # same package, different pin assignment
+    "package",          # footprint/package differs
+    "protocol",         # register map / command set / bus behaviour differs
+    "design_constraint",  # a constraint asserted by us about our own design
+    "other",
+)
+
+
+def default_review() -> dict[str, Any]:
+    """The review record a membership has when nobody has reviewed it.
+
+    THE migration default, in exactly one place: absent metadata reads as
+    ``unreviewed`` with an empty rationale — never ``approved``.  Every read
+    path (fetch_members, list_generic_parts_with_member_specs,
+    get_member_review) funnels through here, so a pre-existing store whose
+    members carry none of these fields can only ever come back as unreviewed.
+    """
+    return {
+        "approval": APPROVAL_UNREVIEWED,
+        "rationale": "",
+        "spec_deltas": [],
+        "asserted_by": "",
+        "asserted_at": "",
+        "history": [],
+    }
+
+
+def _normalize_delta(raw: Any) -> dict[str, Any]:
+    """Coerce one spec-delta entry into the stored shape.
+
+    A delta names a field and (optionally) the two values being compared.
+    `field` is required; everything else has a default so a caller can record
+    a non-parametric constraint without inventing fake numbers.
+    """
+    if not isinstance(raw, dict):
+        raise ValueError(f"spec delta must be an object, got {type(raw).__name__}")
+    field = str(raw.get("field", "")).strip()
+    if not field:
+        raise ValueError("spec delta requires a non-empty 'field'")
+    kind = str(raw.get("kind") or "parametric").strip()
+    if kind not in DELTA_KINDS:
+        raise ValueError(
+            f"unknown spec-delta kind {kind!r} (expected one of {', '.join(DELTA_KINDS)})"
+        )
+    return {
+        "field": field,
+        "kind": kind,
+        "reference": str(raw.get("reference") or ""),
+        "candidate": str(raw.get("candidate") or ""),
+        "blocking": bool(raw.get("blocking", False)),
+        "note": str(raw.get("note") or ""),
+        "evidence": str(raw.get("evidence") or ""),
+    }
+
+
+def _normalize_spec_deltas(raw: Any) -> list[dict[str, Any]]:
+    """Coerce a spec-delta list (or JSON string, or None) into stored shape."""
+    if raw in (None, "", []):
+        return []
+    if isinstance(raw, str):
+        raw = json.loads(raw)
+    if not isinstance(raw, list):
+        raise ValueError("spec_deltas must be a list of objects")
+    return [_normalize_delta(d) for d in raw]
+
+
+def _review_row_to_dict(row: Any) -> dict[str, Any]:
+    """Map a generic_member_reviews row onto the review dict, filling gaps
+    from `default_review()` so a partially-written row can never read as
+    approved."""
+    review = default_review()
+    review.update({
+        "approval": row["approval"] or APPROVAL_UNREVIEWED,
+        "rationale": row["rationale"] or "",
+        "spec_deltas": json.loads(row["spec_deltas_json"] or "[]"),
+        "asserted_by": row["asserted_by"] or "",
+        "asserted_at": row["asserted_at"] or "",
+        "history": json.loads(row["history_json"] or "[]"),
+    })
+    if review["approval"] not in APPROVAL_STATES:
+        logger.warning(
+            "generic_member_reviews holds unknown approval %r for %s/%s — "
+            "reading it as %s",
+            review["approval"], row["generic_part_id"], row["part_id"],
+            APPROVAL_UNREVIEWED,
+        )
+        review["approval"] = APPROVAL_UNREVIEWED
+    return review
+
+
+def get_member_review(conn: Any, generic_part_id: str, part_id: str) -> dict[str, Any]:
+    """The review for one (group, part) pair — `default_review()` if none."""
+    row = conn.execute(
+        "SELECT * FROM generic_member_reviews WHERE generic_part_id=? AND part_id=?",
+        (generic_part_id, part_id),
+    ).fetchone()
+    return default_review() if row is None else _review_row_to_dict(row)
+
+
+def reviews_for_group(conn: Any, generic_part_id: str) -> dict[str, dict[str, Any]]:
+    """part_id -> review, for every reviewed pair in one group."""
+    rows = conn.execute(
+        "SELECT * FROM generic_member_reviews WHERE generic_part_id=? ORDER BY part_id",
+        (generic_part_id,),
+    ).fetchall()
+    return {r["part_id"]: _review_row_to_dict(r) for r in rows}
+
+
+def _reviews_by_group(conn: Any) -> dict[str, dict[str, dict[str, Any]]]:
+    """generic_part_id -> {part_id -> review} for every reviewed pair."""
+    out: dict[str, dict[str, dict[str, Any]]] = {}
+    for r in conn.execute("SELECT * FROM generic_member_reviews").fetchall():
+        out.setdefault(r["generic_part_id"], {})[r["part_id"]] = _review_row_to_dict(r)
+    return out
+
+
+def last_rejection(review: dict[str, Any]) -> dict[str, Any] | None:
+    """The most recent rejection in a review record, current or historical.
+
+    Used to surface a prior verdict when the same alternate is proposed again.
+    """
+    if review.get("approval") == APPROVAL_REJECTED:
+        return {k: v for k, v in review.items() if k != "history"}
+    for entry in reversed(review.get("history") or []):
+        if entry.get("approval") == APPROVAL_REJECTED:
+            return entry
+    return None
 
 
 def _json_path(data_dir: str) -> str:
@@ -26,9 +200,10 @@ def _json_path(data_dir: str) -> str:
 def _persist(conn: Any, data_dir: str) -> None:
     """Write all manual generic-part state from SQLite to the durable JSON file.
 
-    Manual groups, manual/excluded memberships, and preferred flags are
-    user-created state; SQLite is a deletable cache, so this file is their
-    source of truth (same pattern as saved_searches.json).
+    Manual groups, manual/excluded memberships, preferred flags, and
+    interchangeability reviews are user-created state; SQLite is a deletable
+    cache, so this file is their source of truth (same pattern as
+    saved_searches.json).
     """
     import csv_io  # noqa: PLC0415
 
@@ -59,6 +234,13 @@ def _persist(conn: Any, data_dir: str) -> None:
             "WHERE preferred=1 ORDER BY generic_part_id, part_id"
         ).fetchall()
     ]
+    reviews = [
+        {"generic_part_id": r["generic_part_id"], "part_id": r["part_id"],
+         **_review_row_to_dict(r)}
+        for r in conn.execute(
+            "SELECT * FROM generic_member_reviews ORDER BY generic_part_id, part_id"
+        ).fetchall()
+    ]
 
     # Retain JSON-only records for members whose part is not currently in
     # `parts` (warn-skipped at load time -- see load_into_db).  Without this,
@@ -86,11 +268,24 @@ def _persist(conn: Any, data_dir: str) -> None:
             if p["part_id"] not in known_parts and key not in db_preferred_keys:
                 preferred.append(p)
 
+        # Reviews are never deleted, only updated (clearing one writes an
+        # `unreviewed` record), so a key present in the file but missing from
+        # the DB means the DB lost it — a dropped cache table before
+        # `load_into_db` ran, a group regenerated, a part deleted.  Retain it:
+        # silently dropping a recorded rejection is the one failure mode this
+        # whole feature exists to prevent.
+        db_review_keys = {(r["generic_part_id"], r["part_id"]) for r in reviews}
+        for r in existing.get("reviews", []):
+            if (r.get("generic_part_id"), r.get("part_id")) not in db_review_keys:
+                reviews.append(r)
+        reviews.sort(key=lambda r: (r.get("generic_part_id") or "", r.get("part_id") or ""))
+
     os.makedirs(data_dir, exist_ok=True)
     csv_io.atomic_write_text(
         _json_path(data_dir),
-        json.dumps({"version": 1, "groups": groups, "members": members,
-                    "preferred": preferred}, indent=2, ensure_ascii=False),
+        json.dumps({"version": _JSON_VERSION, "groups": groups, "members": members,
+                    "preferred": preferred, "reviews": reviews},
+                   indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
 
@@ -101,6 +296,13 @@ def load_into_db(conn: Any, data_dir: str) -> None:
     Called during rebuild AFTER auto_generate_passive_groups.  Idempotent.
     If the JSON file is missing but SQLite already holds manual state
     (pre-overlay users), bootstraps the file from the DB instead.
+
+    MIGRATION: a v1 file (every store written before interchangeability
+    reviews existed) has no "reviews" key at all.  It loads unchanged and
+    every one of its members reads as `default_review()` — i.e.
+    ``unreviewed``.  Absent metadata is "nobody has looked at this", never
+    "somebody approved it"; the alternative would silently bless unreviewed
+    substitutions.
     """
     path = _json_path(data_dir)
     if not os.path.exists(path):
@@ -114,7 +316,7 @@ def load_into_db(conn: Any, data_dir: str) -> None:
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
-    if data.get("version") != 1:
+    if data.get("version") not in _SUPPORTED_JSON_VERSIONS:
         raise ValueError(f"Unsupported generic_parts.json version: {data.get('version')!r}")
 
     known_parts = {r["part_id"] for r in conn.execute("SELECT part_id FROM parts").fetchall()}
@@ -148,6 +350,33 @@ def load_into_db(conn: Any, data_dir: str) -> None:
             "UPDATE generic_part_members SET preferred=1 "
             "WHERE generic_part_id=? AND part_id=?",
             (p["generic_part_id"], p["part_id"]),
+        )
+
+    # Reviews carry no foreign keys, so they restore whether or not the member
+    # link or the part row still exists (a rejection for a part that was never
+    # purchased is exactly the record we want to keep).  A v1 file has no
+    # "reviews" key -> nothing restored -> everything reads as unreviewed.
+    for r in data.get("reviews", []):
+        review = default_review()
+        review.update({k: v for k, v in r.items()
+                       if k in review and v is not None})
+        if review["approval"] not in APPROVAL_STATES:
+            logger.warning(
+                "generic_parts.json review %s/%s has unknown approval %r — "
+                "loading it as %s",
+                r.get("generic_part_id"), r.get("part_id"), review["approval"],
+                APPROVAL_UNREVIEWED,
+            )
+            review["approval"] = APPROVAL_UNREVIEWED
+        conn.execute(
+            """INSERT OR REPLACE INTO generic_member_reviews
+               (generic_part_id, part_id, approval, rationale, spec_deltas_json,
+                asserted_by, asserted_at, history_json)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (r["generic_part_id"], r["part_id"], review["approval"],
+             review["rationale"], json.dumps(review["spec_deltas"]),
+             review["asserted_by"], review["asserted_at"],
+             json.dumps(review["history"])),
         )
     conn.commit()
     logger.info("Loaded %d manual generic groups from %s", len(data.get("groups", [])), path)
@@ -355,6 +584,168 @@ def set_preferred(conn: Any, events_dir: str, data_dir: str, generic_part_id: st
                    generic_part_id=generic_part_id)
 
 
+def _apply_verdict_to_membership(conn: Any, generic_part_id: str, part_id: str,
+                                  approval: str) -> None:
+    """Make the membership row agree with the review verdict.
+
+    This is where "rejected" meets "excluded" — two different concepts wired
+    together deliberately:
+
+    - ``excluded`` (a value of the member row's `source` column) is a
+      MECHANISM: a tombstone telling `_auto_match` never to pull this part
+      into this group again.  It carries no engineering claim; dragging a junk
+      auto-match out of a group is a cheap gesture.
+    - ``rejected`` (a review approval state) is a VERDICT with a reason,
+      recorded so nobody re-proposes the same trap.
+
+    Rejecting therefore also writes the exclusion tombstone (the verdict is
+    enforced through the existing mechanism), and approving lifts it.  The
+    converse does NOT hold: excluding a part leaves its review `unreviewed`.
+    So rejected ⇒ excluded, excluded ⇏ rejected.
+
+    A part that is not in the inventory at all (no `parts` row) gets no
+    membership row — there is nothing for the auto-matcher to add, and the
+    review stands on its own as "we considered this and said no".
+    """
+    row = conn.execute(
+        "SELECT source FROM generic_part_members WHERE generic_part_id=? AND part_id=?",
+        (generic_part_id, part_id),
+    ).fetchone()
+    part_exists = conn.execute(
+        "SELECT 1 FROM parts WHERE part_id=?", (part_id,)
+    ).fetchone() is not None
+
+    if approval == APPROVAL_REJECTED:
+        if row is not None:
+            conn.execute(
+                "UPDATE generic_part_members SET source='excluded', preferred=0 "
+                "WHERE generic_part_id=? AND part_id=?",
+                (generic_part_id, part_id),
+            )
+        elif part_exists:
+            conn.execute(
+                "INSERT INTO generic_part_members "
+                "(generic_part_id, part_id, source, preferred) VALUES (?,?,'excluded',0)",
+                (generic_part_id, part_id),
+            )
+    elif approval in (APPROVAL_PROPOSED, APPROVAL_APPROVED):
+        if row is None:
+            if part_exists:
+                conn.execute(
+                    "INSERT INTO generic_part_members "
+                    "(generic_part_id, part_id, source, preferred) VALUES (?,?,'manual',0)",
+                    (generic_part_id, part_id),
+                )
+        elif row["source"] == "excluded":
+            conn.execute(
+                "UPDATE generic_part_members SET source='manual' "
+                "WHERE generic_part_id=? AND part_id=?",
+                (generic_part_id, part_id),
+            )
+    # APPROVAL_UNREVIEWED: clearing a review says nothing about membership.
+
+
+def review_member(
+    conn: Any,
+    events_dir: str,
+    data_dir: str,
+    generic_part_id: str,
+    part_id: str,
+    approval: str,
+    *,
+    rationale: str = "",
+    spec_deltas: Any = None,
+    asserted_by: str = "",
+    acknowledge_rejection: bool = False,
+) -> dict[str, Any]:
+    """Record why a part is (or is not) a valid alternate within a group.
+
+    `approval` is one of `APPROVAL_STATES`.  Any state other than
+    ``unreviewed`` requires a non-empty `rationale` — a bare link with an
+    approval stamp and no evidence is the exact thing this record exists to
+    replace.
+
+    Repeated identical writes are a no-op: the same approval + rationale +
+    spec deltas + asserter leaves `asserted_at` and the history untouched.
+
+    Overwriting a ``rejected`` verdict raises `AlternateRejectedError` (HTTP
+    409) unless `acknowledge_rejection=True`, and the prior rejection is
+    preserved in `history` either way, so a re-proposal can never quietly
+    erase the reason the alternate was refused.
+
+    Returns the stored review record.
+    """
+    if approval not in APPROVAL_STATES:
+        raise ValueError(
+            f"unknown approval state {approval!r} (expected one of {', '.join(APPROVAL_STATES)})"
+        )
+    # A review is scoped to a group; writing one for an id that doesn't exist
+    # is a client error (404), not a 500 from the member-row FK below.
+    if conn.execute(
+        "SELECT 1 FROM generic_parts WHERE generic_part_id=?", (generic_part_id,)
+    ).fetchone() is None:
+        raise NotFoundError(f"Generic part {generic_part_id!r} does not exist")
+    rationale = (rationale or "").strip()
+    asserted_by = (asserted_by or "").strip()
+    deltas = _normalize_spec_deltas(spec_deltas)
+    if approval != APPROVAL_UNREVIEWED and not rationale:
+        raise ValueError(f"a {approval!r} review requires a non-empty rationale")
+
+    current = get_member_review(conn, generic_part_id, part_id)
+    if (current["approval"] == approval
+            and current["rationale"] == rationale
+            and current["spec_deltas"] == deltas
+            and current["asserted_by"] == asserted_by):
+        return current
+
+    if (current["approval"] == APPROVAL_REJECTED
+            and approval != APPROVAL_REJECTED
+            and not acknowledge_rejection):
+        prior = last_rejection(current) or current
+        raise AlternateRejectedError(
+            f"{part_id} was already rejected as an alternate for {generic_part_id}"
+            f" by {prior.get('asserted_by') or 'unknown'}"
+            f" on {prior.get('asserted_at') or 'unknown date'}: "
+            f"{prior.get('rationale') or 'no reason recorded'}"
+            " — pass acknowledge_rejection to override it.",
+            generic_part_id=generic_part_id,
+            part_id=part_id,
+            review=current,
+        )
+
+    history = list(current["history"])
+    if (current["approval"] != APPROVAL_UNREVIEWED
+            or current["rationale"] or current["spec_deltas"]):
+        history.append({k: v for k, v in current.items() if k != "history"})
+
+    record = {
+        "approval": approval,
+        "rationale": rationale,
+        "spec_deltas": deltas,
+        "asserted_by": asserted_by,
+        "asserted_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "history": history,
+    }
+    conn.execute(
+        """INSERT OR REPLACE INTO generic_member_reviews
+           (generic_part_id, part_id, approval, rationale, spec_deltas_json,
+            asserted_by, asserted_at, history_json)
+           VALUES (?,?,?,?,?,?,?,?)""",
+        (generic_part_id, part_id, approval, rationale, json.dumps(deltas),
+         asserted_by, record["asserted_at"], json.dumps(history)),
+    )
+    _apply_verdict_to_membership(conn, generic_part_id, part_id, approval)
+    conn.commit()
+    _persist(conn, data_dir)
+    os.makedirs(events_dir, exist_ok=True)
+    _record_event(events_dir, "review_member", part_id=part_id,
+                   generic_part_id=generic_part_id,
+                   data={"approval": approval, "prior_approval": current["approval"],
+                          "rationale": rationale, "spec_deltas": deltas,
+                          "asserted_by": asserted_by})
+    return record
+
+
 PASSIVE_SECTIONS = {"Passives - Capacitors", "Passives - Resistors", "Passives - Inductors"}
 
 
@@ -466,11 +857,16 @@ def list_generic_parts_with_member_specs(conn: Any) -> list[dict[str, Any]]:
         generic_part_id, name, part_type, spec, strictness, source, members
 
     Each member dict has keys:
-        part_id, source, preferred, quantity, description, package, spec
+        part_id, source, preferred, quantity, description, package, spec, review
+
+    `review` is the interchangeability review (`default_review()` — i.e.
+    ``unreviewed`` — for any member nobody has reviewed).
     """
     gps = conn.execute("SELECT * FROM generic_parts").fetchall()
+    reviews_by_group = _reviews_by_group(conn)
     result = []
     for gp in gps:
+        group_reviews = reviews_by_group.get(gp["generic_part_id"], {})
         members_rows = conn.execute(
             """SELECT gm.part_id, gm.source, gm.preferred, s.quantity,
                       p.description, p.package
@@ -494,6 +890,7 @@ def list_generic_parts_with_member_specs(conn: Any) -> list[dict[str, Any]]:
                 "description": m["description"],
                 "package": m["package"],
                 "spec": member_spec,
+                "review": group_reviews.get(m["part_id"]) or default_review(),
             })
         result.append({
             "generic_part_id": gp["generic_part_id"],
@@ -511,7 +908,12 @@ def fetch_members(
     conn: Any,
     generic_part_id: str,
 ) -> list[dict[str, Any]]:
-    """Fetch members for a generic part with stock quantities."""
+    """Fetch members for a generic part with stock quantities and reviews.
+
+    Each member gains a `review` key — `default_review()` (``unreviewed``) for
+    members nobody has reviewed, which is every member of a store written
+    before reviews existed.
+    """
     members = conn.execute(
         """SELECT gm.part_id, gm.source, gm.preferred, s.quantity
            FROM generic_part_members gm
@@ -519,7 +921,33 @@ def fetch_members(
            WHERE gm.generic_part_id = ?""",
         (generic_part_id,),
     ).fetchall()
-    return [dict(m) for m in members]
+    reviews = reviews_for_group(conn, generic_part_id)
+    out = []
+    for m in members:
+        row = dict(m)
+        row["review"] = reviews.get(row["part_id"]) or default_review()
+        out.append(row)
+    return out
+
+
+def list_member_reviews(conn: Any, generic_part_id: str) -> list[dict[str, Any]]:
+    """Every recorded review for a group, member or not.
+
+    Includes reviews for parts that are NOT members — a rejected candidate
+    that was never stocked still has a verdict worth reading before someone
+    proposes it again.
+    """
+    member_ids = {
+        r["part_id"] for r in conn.execute(
+            "SELECT part_id FROM generic_part_members WHERE generic_part_id=?",
+            (generic_part_id,),
+        ).fetchall()
+    }
+    return [
+        {"generic_part_id": generic_part_id, "part_id": part_id,
+         "is_member": part_id in member_ids, **review}
+        for part_id, review in reviews_for_group(conn, generic_part_id).items()
+    ]
 
 
 def resolve_bom_spec(
@@ -531,6 +959,11 @@ def resolve_bom_spec(
     """Find a generic part matching a BOM spec, return its best real part.
 
     Returns: {"generic_part_id", "generic_name", "best_part_id", "members"} or None.
+
+    Members whose review approval is ``rejected`` are never offered — a
+    recorded "this substitution breaks the board" must not be resolvable as a
+    BOM match.  Nothing else about the ordering changes, so a store with no
+    reviews resolves byte-identically to before.
     """
     generics = conn.execute("SELECT * FROM generic_parts").fetchall()
     for gp in generics:
@@ -550,14 +983,25 @@ def resolve_bom_spec(
                    ORDER BY gm.preferred DESC, s.quantity DESC""",
                 (gp["generic_part_id"],),
             ).fetchall()
+            reviews = reviews_for_group(conn, gp["generic_part_id"])
+            members = [
+                m for m in members
+                if (reviews.get(m["part_id"]) or default_review())["approval"]
+                != APPROVAL_REJECTED
+            ]
             if not members:
                 continue
             return {
                 "generic_part_id": gp["generic_part_id"],
                 "generic_name": gp["name"],
                 "best_part_id": members[0]["part_id"],
-                "members": [{"part_id": m["part_id"], "preferred": m["preferred"],
-                             "quantity": m["quantity"]} for m in members],
+                "members": [
+                    {"part_id": m["part_id"], "preferred": m["preferred"],
+                     "quantity": m["quantity"],
+                     "approval": (reviews.get(m["part_id"])
+                                  or default_review())["approval"]}
+                    for m in members
+                ],
             }
     return None
 
@@ -666,6 +1110,33 @@ def set_preferred_api(
     os.makedirs(events_dir, exist_ok=True)
     set_preferred(conn, events_dir, data_dir, generic_part_id, part_id)
     return fetch_members(conn, generic_part_id)
+
+
+def review_member_api(
+    conn: Any,
+    events_dir: str,
+    data_dir: str,
+    generic_part_id: str,
+    part_id: str,
+    approval: str,
+    rationale: str = "",
+    spec_deltas: Any = None,
+    asserted_by: str = "",
+    acknowledge_rejection: bool = False,
+) -> dict[str, Any]:
+    """Record a membership review and return it alongside updated members."""
+    os.makedirs(events_dir, exist_ok=True)
+    review = review_member(
+        conn, events_dir, data_dir, generic_part_id, part_id, approval,
+        rationale=rationale, spec_deltas=spec_deltas, asserted_by=asserted_by,
+        acknowledge_rejection=acknowledge_rejection,
+    )
+    return {
+        "generic_part_id": generic_part_id,
+        "part_id": part_id,
+        "review": review,
+        "members": fetch_members(conn, generic_part_id),
+    }
 
 
 def extract_spec_for_part(conn: Any, part_key: str) -> dict[str, Any]:

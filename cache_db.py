@@ -21,7 +21,7 @@ from inventory_ops import apply_adjustments, compute_adjusted_qty, get_part_key,
 if TYPE_CHECKING:
     from domain.schema import InventoryItem
 
-SCHEMA_VERSION = "7"
+SCHEMA_VERSION = "8"
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +57,7 @@ def create_schema(conn: sqlite3.Connection) -> None:
     old_version = row[0] if row else None
     if old_version and old_version != SCHEMA_VERSION:
         conn.executescript("""
+            DROP TABLE IF EXISTS generic_member_reviews;
             DROP TABLE IF EXISTS generic_part_members;
             DROP TABLE IF EXISTS generic_parts;
             DROP TABLE IF EXISTS saved_searches;
@@ -146,6 +147,28 @@ def create_schema(conn: sqlite3.Connection) -> None:
             part_id          TEXT NOT NULL REFERENCES parts(part_id),
             source           TEXT NOT NULL DEFAULT 'auto',
             preferred        INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (generic_part_id, part_id)
+        );
+        -- Interchangeability reviews: why a part is (or is NOT) a valid
+        -- alternate within a generic group, and who decided.
+        --
+        -- Deliberately has NO foreign keys.  A review is an assertion about a
+        -- (group, part) pair that must outlive both the member link and the
+        -- part row: auto groups are dropped and regenerated on every rebuild,
+        -- membership is dragged in and out, and `delete_part` clears member
+        -- rows — none of which may erase a recorded rejection (that is the
+        -- whole point of recording it).  Restored from data/generic_parts.json
+        -- by domain/generic_parts.load_into_db, like every other durable
+        -- generic-part state (docs/entity-store.md).
+        CREATE TABLE IF NOT EXISTS generic_member_reviews (
+            generic_part_id  TEXT NOT NULL,
+            part_id          TEXT NOT NULL,
+            approval         TEXT NOT NULL DEFAULT 'unreviewed',
+            rationale        TEXT NOT NULL DEFAULT '',
+            spec_deltas_json TEXT NOT NULL DEFAULT '[]',
+            asserted_by      TEXT NOT NULL DEFAULT '',
+            asserted_at      TEXT NOT NULL DEFAULT '',
+            history_json     TEXT NOT NULL DEFAULT '[]',
             PRIMARY KEY (generic_part_id, part_id)
         );
         CREATE TABLE IF NOT EXISTS saved_searches (

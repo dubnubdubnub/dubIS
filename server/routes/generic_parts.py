@@ -41,6 +41,24 @@ class AddMemberBody(BaseModel):
     part_id: str
 
 
+class ReviewMemberBody(BaseModel):
+    """An interchangeability verdict on one (group, part) pair.
+
+    `approval` is one of domain.generic_parts.APPROVAL_STATES. Anything other
+    than "unreviewed" requires a non-empty `rationale`. `spec_deltas` records
+    what differs and by how much — including non-parametric constraints
+    (kind "design_constraint"), e.g. a firmware coupling that no datasheet
+    comparison would surface. `asserted_by` defaults to the caller identity.
+    `acknowledge_rejection` is required to overwrite a prior rejection.
+    """
+
+    approval: str
+    rationale: str = ""
+    spec_deltas: list[dict] = []
+    asserted_by: str = ""
+    acknowledge_rejection: bool = False
+
+
 class CreateSavedSearchBody(BaseModel):
     name: str
     tag_state: dict | list
@@ -106,6 +124,42 @@ def set_preferred_member(request: Request, generic_part_id: str, part_id: str) -
     api = request.app.state.api
     members = api.set_preferred_member(generic_part_id, part_id)
     return finish_mutation(reason="generic-parts", detail=members)
+
+
+@router.get(
+    "/generic-parts/{generic_part_id}/reviews", operation_id="list_generic_member_reviews",
+)
+def list_generic_member_reviews(request: Request, generic_part_id: str) -> list:
+    """Every recorded interchangeability review for a group.
+
+    Includes reviews for parts that are not (or no longer) members — a
+    rejection outlives the membership link on purpose, so that the same bad
+    alternate can't be re-proposed as if nobody had ever looked at it.
+    """
+    api = request.app.state.api
+    return api.list_generic_member_reviews(generic_part_id)
+
+
+@router.post(
+    "/generic-parts/{generic_part_id}/members/{part_id}/review",
+    operation_id="review_generic_member",
+)
+def review_generic_member(request: Request, generic_part_id: str, part_id: str,
+                          body: ReviewMemberBody) -> dict:
+    """Propose / approve / reject a part as an alternate within a group.
+
+    Publishes `inventory.updated`: a verdict can change membership (rejecting
+    excludes, approving lifts an exclusion) and changes what the flyout shows.
+    Overwriting a prior rejection without `acknowledge_rejection` returns 409
+    `alternate_rejected` with the prior verdict in `detail`.
+    """
+    api = request.app.state.api
+    asserted_by = body.asserted_by or (getattr(request.state, "identity", None) or "local")
+    result = api.review_generic_member(
+        generic_part_id, part_id, body.approval, body.rationale,
+        body.spec_deltas, asserted_by, body.acknowledge_rejection,
+    )
+    return finish_mutation(reason="generic-parts", detail=result)
 
 
 # ── Saved searches (no publish — UI-scoped, not inventory-derived) ─────────

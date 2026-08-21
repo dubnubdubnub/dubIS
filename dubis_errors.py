@@ -43,6 +43,25 @@ class NotFoundError(DubISError):
     caller asking for a missing id is a client error, not a server fault."""
 
 
+class AlternateRejectedError(DubISError):
+    """A generic-part membership review would overwrite a recorded rejection.
+
+    Raised by `domain.generic_parts.review_member` when a part previously
+    rejected as an alternate for a group is proposed/approved again without
+    `acknowledge_rejection=True`. Mapped to HTTP 409 by server/errors.py: the
+    prior verdict is a conflict the caller must see, not a server fault — the
+    point of storing a rejection is that the same bad idea cannot be
+    re-proposed silently. Carries the prior review record so callers can show
+    the original reason."""
+
+    def __init__(self, message: str, *, generic_part_id: str = "",
+                 part_id: str = "", review: dict | None = None):
+        super().__init__(message)
+        self.generic_part_id = generic_part_id
+        self.part_id = part_id
+        self.review = review or {}
+
+
 class DataDirLockedError(DubISError):
     """Another dubIS server process already holds the exclusive lock on this
     data directory (`<data_dir>/.dubis_lock`) — see server/lockfile.py.
