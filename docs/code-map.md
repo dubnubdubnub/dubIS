@@ -79,6 +79,8 @@ graph LR
     "domain/inventory.py" --> "saved_searches.py"
     "domain/part_registry.py" --> "csv_io.py"
     "domain/part_registry.py" --> "dubis_errors.py"
+    "domain/predicates.py" --> "domain/attribute_parse.py"
+    "domain/predicates.py" --> "domain/packages.py"
     "domain/pricing.py" --> "csv_io.py"
     "domain/pricing.py" --> "domain/packaging.py"
     "domain/product.py" --> "domain/packaging.py"
@@ -686,6 +688,9 @@ graph LR
     "tests/python/domain/test_part_registry_integration.py" --> "cache_db.py"
     "tests/python/domain/test_part_registry_integration.py" --> "domain/__init__.py"
     "tests/python/domain/test_part_registry_integration.py" --> "inventory_ops.py"
+    "tests/python/domain/test_predicates.py" --> "domain/attribute_parse.py"
+    "tests/python/domain/test_predicates.py" --> "domain/generic_parts.py"
+    "tests/python/domain/test_predicates.py" --> "domain/predicates.py"
     "tests/python/domain/test_pricing.py" --> "cache_db.py"
     "tests/python/domain/test_pricing.py" --> "domain/pricing.py"
     "tests/python/helpers.py" --> "distributor_manager.py"
@@ -1059,7 +1064,7 @@ graph LR
 ### domain/attribute_parse.py
 
 - **Imports:** —
-- **Imported by:** `domain/attributes.py`, `tests/python/domain/test_attribute_parse.py`, `tests/python/domain/test_attributes.py`
+- **Imported by:** `domain/attributes.py`, `domain/predicates.py`, `tests/python/domain/test_attribute_parse.py`, `tests/python/domain/test_attributes.py`, `tests/python/domain/test_predicates.py`
 
 ### domain/attributes.py
 
@@ -1074,7 +1079,7 @@ graph LR
 ### domain/generic_parts.py
 
 - **Imports:** `csv_io.py`, `dubis_errors.py`, `spec_extractor.py`
-- **Imported by:** `domain/api_generic_parts.py`, `domain/inventory.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_generic_parts_reviews.py`
+- **Imported by:** `domain/api_generic_parts.py`, `domain/inventory.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_predicates.py`
 
 ### domain/inventory.py
 
@@ -1084,7 +1089,7 @@ graph LR
 ### domain/packages.py
 
 - **Imports:** —
-- **Imported by:** `tests/python/domain/test_packages.py`
+- **Imported by:** `domain/predicates.py`, `tests/python/domain/test_packages.py`
 
 ### domain/packaging.py
 
@@ -1095,6 +1100,11 @@ graph LR
 
 - **Imports:** `csv_io.py`, `dubis_errors.py`
 - **Imported by:** —
+
+### domain/predicates.py
+
+- **Imports:** `domain/attribute_parse.py`, `domain/packages.py`
+- **Imported by:** `tests/python/domain/test_predicates.py`
 
 ### domain/pricing.py
 
@@ -2471,6 +2481,11 @@ graph LR
 ### tests/python/domain/test_part_registry_integration.py
 
 - **Imports:** `cache_db.py`, `domain/__init__.py`, `inventory_ops.py`
+- **Imported by:** —
+
+### tests/python/domain/test_predicates.py
+
+- **Imports:** `domain/attribute_parse.py`, `domain/generic_parts.py`, `domain/predicates.py`
 - **Imported by:** —
 
 ### tests/python/domain/test_pricing.py

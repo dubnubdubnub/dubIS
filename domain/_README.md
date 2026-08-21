@@ -44,6 +44,7 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `generic_parts.py`: `default_review`, `last_rejection` — the unreviewed default and prior-rejection lookup
 - `generic_parts.py`: `APPROVAL_STATES`, `DELTA_KINDS` — approval-state and spec-delta vocabularies
 - `packages.py`: `normalize_package`, `packages_equivalent`, `package_info` — controlled package (land-pattern) vocabulary: vendor/KiCad string -> canonical token
+- `predicates.py`: `Predicate`, `evaluate`, `evaluate_all`, `Report`, `Verdict` — evaluate substitution requirements against stored attributes; emits generic_parts spec_deltas
 
 ## Internal layout
 
@@ -54,3 +55,4 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `inventory.py` — inventory pipeline: rebuild, catch-up, adjust, import, consume
 - `generic_parts.py` — generic parts CRUD, auto-matching, BOM resolution, membership interchangeability reviews
 - `packages.py` — package vocabulary: alias table + generated families, pure/stdlib, no I/O (about the *body*, not the reel/tray carrier)
+- `predicates.py` — requirement evaluation: numeric/enum/package predicates over the attribute store; unknown never reads as pass
