@@ -1,25 +1,33 @@
 /**
- * Unit tests for the pure decision logic in
- * scripts/check-playwright-browsers.mjs.
+ * Unit tests for the pure decision logic behind
+ * scripts/check-playwright-browsers.mjs (scripts/playwright-health-lib.mjs).
  *
- * That script is CI-only shell glue, and a typo in it costs a full CI round
- * trip to discover — on the one leg it exists to protect, which is advisory and
- * therefore easy to ignore. The path parsing and the size threshold are the two
- * parts that can be wrong without failing loudly, so they get tested here where
- * a mistake is caught by `npx vitest run --project core`.
+ * That script is CI-only glue, and a mistake in it costs a full CI round trip
+ * to discover - on legs that are advisory, and therefore easy to ignore. Two
+ * mistakes already happened and are pinned here:
  *
- * The launch probe and the repair are deliberately NOT unit-tested: they are
- * the parts whose whole value is touching a real browser install.
+ *  1. An executable-size floor condemned every healthy macOS runner, because
+ *     the file Playwright calls the executable is a ~52 KB stub launcher on
+ *     macOS by design. The heuristic now looks at the download directory and,
+ *     crucially, is diagnostic only - see the tests below.
+ *  2. Putting these helpers in the CLI file made a vitest import of it throw
+ *     `SyntaxError: Invalid or unexpected token` on the win11 leg only. They
+ *     live in a pure, dependency-free module now.
+ *
+ * The launch probe and the repair are deliberately NOT unit-tested: touching a
+ * real browser install is their entire value.
  */
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import {
-  MIN_EXECUTABLE_BYTES,
+  MIN_PLAUSIBLE_FILES,
+  MIN_PLAUSIBLE_BYTES,
   REVISION_DIR_RE,
   browserDirFor,
-  classifyExecutable,
   revisionDirsToRemove,
-} from '../../scripts/check-playwright-browsers.mjs';
+  describeDownload,
+  formatBytes,
+} from '../../scripts/playwright-health-lib.mjs';
 
 describe('REVISION_DIR_RE', () => {
   it('matches both downloads Playwright needs for headed and headless runs', () => {
@@ -36,7 +44,7 @@ describe('REVISION_DIR_RE', () => {
 
 describe('browserDirFor', () => {
   it('finds the registry root inside a real macOS executable path', () => {
-    // Verbatim from this repo's Playwright 1.58 on darwin-arm64.
+    // Verbatim from the m4-air runner (Playwright 1.58, darwin-arm64).
     const info = browserDirFor(
       '/Users/me/Library/Caches/ms-playwright/chromium-1208/chrome-mac-arm64/'
       + 'Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing',
@@ -69,7 +77,7 @@ describe('browserDirFor', () => {
   });
 
   it('returns null when the browser is not a Playwright-managed download', () => {
-    // e.g. a `channel: 'chrome'` system install — nothing for us to repair.
+    // e.g. a `channel: 'chrome'` system install - nothing for us to repair.
     expect(browserDirFor('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')).toBeNull();
     expect(browserDirFor('')).toBeNull();
     expect(browserDirFor(null)).toBeNull();
@@ -79,28 +87,40 @@ describe('browserDirFor', () => {
   });
 });
 
-describe('classifyExecutable', () => {
-  it('calls a missing file missing', () => {
-    expect(classifyExecutable({ exists: false })).toBe('missing');
-    expect(classifyExecutable(undefined)).toBe('missing');
+describe('describeDownload', () => {
+  it('reports the observed truncated download as truncated', () => {
+    // The state that motivated the script: a revision directory left in place
+    // by an interrupted download, which `playwright install` then treats as
+    // complete forever.
+    expect(describeDownload({ exists: true, files: 39, bytes: 428 * 1024 })).toBe('truncated');
   });
 
-  it('calls the observed 52 KB truncated download a stub', () => {
-    // The size actually found on a machine where `playwright install` refused
-    // to repair itself, and the reason this script exists.
-    expect(classifyExecutable({ exists: true, size: 52064 })).toBe('stub');
+  it('reports a real download as complete-looking', () => {
+    // Measured on a healthy darwin-arm64 cache.
+    expect(describeDownload({ exists: true, files: 335, bytes: 331 * 1024 * 1024 })).toBe('complete-looking');
   });
 
-  it('treats a real browser binary as plausible', () => {
-    expect(classifyExecutable({ exists: true, size: 170 * 1024 * 1024 })).toBe('plausible');
+  it('does NOT judge a healthy macOS install by its 52 KB stub launcher', () => {
+    // The regression this replaces: on macOS the named executable is
+    // `...app/Contents/MacOS/Google Chrome for Testing`, a ~52 KB launcher, with
+    // the real code in Contents/Frameworks. Judging the DIRECTORY keeps that
+    // install correctly classified.
+    const healthyMacInstall = { exists: true, files: 335, bytes: 331 * 1024 * 1024 };
+    expect(describeDownload(healthyMacInstall)).not.toBe('truncated');
   });
 
-  it('puts the threshold well clear of both cases', () => {
-    expect(classifyExecutable({ exists: true, size: MIN_EXECUTABLE_BYTES - 1 })).toBe('stub');
-    expect(classifyExecutable({ exists: true, size: MIN_EXECUTABLE_BYTES })).toBe('plausible');
-    // Far above any truncated download, far below any real one.
-    expect(MIN_EXECUTABLE_BYTES).toBeGreaterThan(52064 * 4);
-    expect(MIN_EXECUTABLE_BYTES).toBeLessThan(10 * 1024 * 1024);
+  it('reports an absent download as missing', () => {
+    expect(describeDownload({ exists: false })).toBe('missing');
+    expect(describeDownload(undefined)).toBe('missing');
+  });
+
+  it('keeps both floors far from either observed case', () => {
+    // Comfortably above the truncated download...
+    expect(MIN_PLAUSIBLE_FILES).toBeGreaterThan(39);
+    expect(MIN_PLAUSIBLE_BYTES).toBeGreaterThan(428 * 1024);
+    // ...and comfortably below a real one, so neither bound is a near miss.
+    expect(MIN_PLAUSIBLE_FILES).toBeLessThan(335);
+    expect(MIN_PLAUSIBLE_BYTES).toBeLessThan(331 * 1024 * 1024);
   });
 });
 
@@ -117,5 +137,18 @@ describe('revisionDirsToRemove', () => {
     const dirs = revisionDirsToRemove({ registryRoot: '/cache/ms-playwright', revision: '1208' });
     expect(dirs.every((d) => d.includes('1208'))).toBe(true);
     expect(dirs).toHaveLength(2);
+  });
+});
+
+describe('formatBytes', () => {
+  it('renders the sizes that appear in the failure diagnostic', () => {
+    expect(formatBytes(428 * 1024)).toBe('428 KB');
+    expect(formatBytes(331 * 1024 * 1024)).toBe('331 MB');
+    expect(formatBytes(0)).toBe('0 B');
+  });
+
+  it('never throws on a value it could not measure', () => {
+    expect(formatBytes(undefined)).toBe('unknown');
+    expect(formatBytes(NaN)).toBe('unknown');
   });
 });
