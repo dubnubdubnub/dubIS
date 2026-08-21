@@ -35,6 +35,7 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `generic_parts.py`: `resolve_bom_spec` — BOM resolution to best real part
 - `generic_parts.py`: `auto_generate_passive_groups` — scan passives and create auto groups
 - `generic_parts.py`: `extract_spec_for_part` — extract component spec from cache
+- `packages.py`: `normalize_package`, `packages_equivalent`, `package_info` — controlled package (land-pattern) vocabulary: vendor/KiCad string -> canonical token
 
 ## Internal layout
 
@@ -44,3 +45,4 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `attribute_parse.py` — attribute value parsing + canonical attribute-name table
 - `inventory.py` — inventory pipeline: rebuild, catch-up, adjust, import, consume
 - `generic_parts.py` — generic parts CRUD, auto-matching, BOM resolution
+- `packages.py` — package vocabulary: alias table + generated families, pure/stdlib, no I/O (about the *body*, not the reel/tray carrier)
