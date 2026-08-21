@@ -116,6 +116,23 @@ def create_schema(conn: sqlite3.Connection) -> None:
             source             TEXT,
             PRIMARY KEY (part_id, distributor)
         );
+        CREATE TABLE IF NOT EXISTS part_attributes (
+            part_id         TEXT NOT NULL REFERENCES parts(part_id),
+            canonical_name  TEXT NOT NULL,
+            distributor     TEXT NOT NULL,
+            name            TEXT NOT NULL DEFAULT '',
+            raw_value       TEXT NOT NULL DEFAULT '',
+            kind            TEXT NOT NULL DEFAULT 'unparsed',
+            value_min       REAL,
+            value_max       REAL,
+            unit            TEXT DEFAULT '',
+            qualifier       TEXT DEFAULT '',
+            observed_at     TEXT DEFAULT '',
+            source          TEXT DEFAULT '',
+            PRIMARY KEY (part_id, canonical_name, distributor)
+        );
+        CREATE INDEX IF NOT EXISTS idx_part_attributes_canonical
+            ON part_attributes (canonical_name);
         CREATE TABLE IF NOT EXISTS generic_parts (
             generic_part_id  TEXT PRIMARY KEY,
             name             TEXT NOT NULL,

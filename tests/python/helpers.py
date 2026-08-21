@@ -60,3 +60,94 @@ def make_part(lcsc="", mpn="", qty=10, desc="Resistor 10kΩ", pkg="0402",
         "Unit Price($)": unit_price,
         "Ext.Price($)": ext_price,
     }
+
+
+def lcsc_fixture_products():
+    """Replay every captured LCSC response through the REAL ``LcscClient``.
+
+    Returns ``{product_code: normalized_product}``. The captured
+    ``raw_response`` payloads are fed back through a patched
+    ``urllib.request.urlopen``, so ``lcsc_client.py``'s own parsing runs —
+    including its ``paramVOList`` -> ``attributes`` extraction. Tests that
+    re-implement that extraction inline (see the replay anti-pattern in
+    ``tests/python/test_normalizers.py``) pass even when the client changes;
+    this drives the real code path instead.
+    """
+    import json
+    import urllib.request
+
+    from lcsc_client import LcscClient
+
+    path = (Path(__file__).resolve().parents[1] / "fixtures" / "generated"
+            / "distributor-scrapes.json")
+    fixtures = json.loads(path.read_text(encoding="utf-8"))
+    parts = fixtures.get("lcsc", {}).get("parts", {})
+    assert parts, f"no captured LCSC parts in {path}"
+
+    products = {}
+    original = urllib.request.urlopen
+    try:
+        for code, entry in parts.items():
+            payload = entry.get("raw_response")
+            if payload is None:
+                continue
+            body = json.dumps(payload).encode("utf-8")
+
+            class _Response:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *exc):
+                    return False
+
+                def read(self, _body=body):
+                    return _body
+
+            urllib.request.urlopen = lambda *a, **k: _Response()
+            product = LcscClient().fetch_product(code)
+            if product:
+                products[code] = product
+    finally:
+        urllib.request.urlopen = original
+    assert products, "no LCSC fixture replayed into a product"
+    return products
+
+
+def lcsc_fixture_param_values():
+    """Every captured LCSC ``paramVOList`` (name, value) pair, one part per code.
+
+    Walks the whole fixture for dicts carrying a ``productCode`` (the shape the
+    capture script stores under both ``raw`` and ``raw_response.result``) and
+    keeps the first occurrence per code, so each of the captured parts
+    contributes its parametrics exactly once.
+    """
+    import json
+
+    path = (Path(__file__).resolve().parents[1] / "fixtures" / "generated"
+            / "distributor-scrapes.json")
+    fixtures = json.loads(path.read_text(encoding="utf-8"))
+
+    by_code: dict[str, list] = {}
+
+    def walk(node):
+        if isinstance(node, dict):
+            code = node.get("productCode")
+            if isinstance(code, str) and code and code not in by_code:
+                params = node.get("paramVOList")
+                if isinstance(params, list):
+                    by_code[code] = params
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(fixtures)
+    pairs = []
+    for code, params in by_code.items():
+        for param in params:
+            if isinstance(param, dict):
+                pairs.append((code, param.get("paramNameEn", ""),
+                              param.get("paramValueEn", "")))
+    assert pairs, "no LCSC paramVOList entries found in the fixture corpus"
+    return pairs
