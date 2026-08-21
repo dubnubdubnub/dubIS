@@ -121,9 +121,37 @@
 /**
  * @typedef {Object} GenericPartMember
  * @property {string} part_id - Inventory part key
- * @property {string} source - "auto"|"manual"
+ * @property {string} source - "auto"|"manual"|"excluded"
  * @property {number} preferred - 0 or 1
  * @property {number} quantity - Current stock quantity
+ * @property {MembershipReview} [review] - Interchangeability review
+ */
+
+/**
+ * One recorded difference between the group's reference part and a member.
+ * `kind` "design_constraint" records a claim about OUR design (e.g. firmware
+ * driving vendor-specific commands), not a property of the part, so
+ * reference/candidate may be empty.
+ * @typedef {Object} SpecDelta
+ * @property {string} field - What differs (e.g. "min_vcca", "pin 1")
+ * @property {string} kind - "parametric"|"pinout"|"package"|"protocol"|"design_constraint"|"other"
+ * @property {string} reference - Value on the group's reference part
+ * @property {string} candidate - Value on this member
+ * @property {boolean} blocking - Does this delta alone block the substitution
+ * @property {string} note - Free text
+ * @property {string} evidence - Where the fact came from (datasheet, firmware file)
+ */
+
+/**
+ * Why a member is (or is not) interchangeable, and who decided.
+ * Absent metadata reads as "unreviewed" — never "approved".
+ * @typedef {Object} MembershipReview
+ * @property {string} approval - "unreviewed"|"proposed"|"approved"|"rejected"
+ * @property {string} rationale - Free-text deciding evidence
+ * @property {SpecDelta[]} spec_deltas - Structured differences
+ * @property {string} asserted_by - Who/what asserted it
+ * @property {string} asserted_at - ISO-ish timestamp
+ * @property {Object[]} history - Prior review records, oldest first
  */
 
 /**

@@ -21,7 +21,7 @@ class TestSchema:
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
         assert row is not None
-        assert row[0] == "7"
+        assert row[0] == "8"
 
     def test_foreign_key_enforced(self, db):
         with pytest.raises(sqlite3.IntegrityError):
@@ -656,7 +656,7 @@ class TestSchemaV3:
         row = db.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
-        assert row[0] == "7"
+        assert row[0] == "8"
 
     def test_generic_parts_columns(self, db):
         db.execute(
@@ -718,7 +718,7 @@ class TestSchemaV3:
         version = conn.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()[0]
-        assert version == "7"
+        assert version == "8"
         conn.close()
 
 
@@ -733,7 +733,7 @@ class TestSchemaMigration:
         row = db.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()
-        assert row[0] == "7"
+        assert row[0] == "8"
 
     def test_prices_table_columns(self, db):
         db.execute("INSERT INTO parts (part_id) VALUES ('C1525')")
@@ -772,7 +772,7 @@ class TestSchemaMigration:
         version = conn.execute(
             "SELECT value FROM cache_meta WHERE key='schema_version'"
         ).fetchone()[0]
-        assert version == "7"
+        assert version == "8"
         conn.close()
 
 
@@ -900,7 +900,7 @@ def test_schema_v6_bumps_version(tmp_path):
     row = conn.execute(
         "SELECT value FROM cache_meta WHERE key='schema_version'"
     ).fetchone()
-    assert row["value"] == "7"
+    assert row["value"] == "8"
     conn.close()
 
 
@@ -948,11 +948,11 @@ def test_v5_to_v6_migration_adds_primary_vendor_id(tmp_path):
     ).fetchone()
     assert row["primary_vendor_id"] == ""
 
-    # Version is now 7
+    # Version is now the current SCHEMA_VERSION
     v = conn.execute(
         "SELECT value FROM cache_meta WHERE key='schema_version'"
     ).fetchone()
-    assert v["value"] == "7"
+    assert v["value"] == "8"
     conn.close()
 
 

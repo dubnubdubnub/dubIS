@@ -116,6 +116,10 @@ ARG_ORDER: dict[str, list[str]] = {
     "record_fetched_prices": ["part_key", "distributor", "price_tiers"],
     "remove_generic_member": ["generic_part_id", "part_id"],
     "resolve_bom_spec": ["part_type", "value", "package"],
+    "review_generic_member": [
+        "generic_part_id", "part_id", "approval", "rationale", "spec_deltas",
+        "asserted_by", "acknowledge_rejection",
+    ],
     "set_preferred_member": ["generic_part_id", "part_id"],
     "update_generic_part": ["generic_part_id", "name", "spec", "strictness"],
     "update_part_fields": ["part_key", "fields"],
@@ -144,6 +148,7 @@ FINISH_MUTATION_OPERATION_IDS: set[str] = {
     # generic_parts.py
     "create_generic_part", "update_generic_part", "add_generic_member",
     "remove_generic_member", "exclude_generic_member", "set_preferred_member",
+    "review_generic_member",
     # inventory_mut.py
     "adjust_part", "update_part_fields", "update_part_price", "delete_part",
     "fetch_missing_descriptions", "record_fetched_prices", "import_purchases",
@@ -198,6 +203,7 @@ UNWRAP_OVERRIDES: dict[str, str] = {
     "remove_generic_member": "detail",
     "exclude_generic_member": "detail",
     "set_preferred_member": "detail",
+    "review_generic_member": "detail",
     "record_fetched_prices": "detail",
     "fetch_missing_descriptions": "detail",
     # Category 2 (load-bearing, see above):
