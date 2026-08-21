@@ -33,12 +33,14 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
         openpnp,
         parts_read,
         pnp,
+        predicates,
         preferences,
         vendors_pos,
     )
     app.include_router(meta.router)
     app.include_router(events.router)
     app.include_router(parts_read.router)
+    app.include_router(predicates.router)
     app.include_router(inventory_mut.router)
     app.include_router(generic_parts.router)
     app.include_router(carts.router)

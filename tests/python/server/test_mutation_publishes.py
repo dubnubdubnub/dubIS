@@ -33,6 +33,7 @@ EXEMPT = {
     # Read-only lookups that happen to use POST (body carries the query).
     "resolve_bom_spec": "read-only spec lookup",
     "extract_spec_from_value": "read-only spec parse",
+    "evaluate_part_predicates": "read-only requirement evaluation; recording a verdict is a separate review call, deliberately so evaluating a candidate cannot quietly change an approval",
     "match_part": "read-only import match lookup",
     "detect_columns": "read-only column detection",
     "ocr_overlay": "read-only OCR of an uploaded image",

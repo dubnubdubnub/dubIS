@@ -46,6 +46,7 @@ graph LR
     "domain/api_mirror.py" --> "csv_io.py"
     "domain/api_mirror.py" --> "inventory_mirror.py"
     "domain/api_mirror.py" --> "mirror_install/__init__.py"
+    "domain/api_predicates.py" --> "domain/predicates.py"
     "domain/api_preferences.py" --> "csv_io.py"
     "domain/api_pricing.py" --> "domain/pricing.py"
     "domain/api_pricing.py" --> "inventory_ops.py"
@@ -98,6 +99,7 @@ graph LR
     "inventory_api.py" --> "domain/api_history.py"
     "inventory_api.py" --> "domain/api_inventory.py"
     "inventory_api.py" --> "domain/api_mirror.py"
+    "inventory_api.py" --> "domain/api_predicates.py"
     "inventory_api.py" --> "domain/api_preferences.py"
     "inventory_api.py" --> "domain/api_pricing.py"
     "inventory_api.py" --> "domain/api_purchase_orders.py"
@@ -1036,6 +1038,11 @@ graph LR
 - **Imports:** `csv_io.py`, `inventory_mirror.py`, `mirror_install/__init__.py`
 - **Imported by:** `inventory_api.py`
 
+### domain/api_predicates.py
+
+- **Imports:** `domain/predicates.py`
+- **Imported by:** `inventory_api.py`
+
 ### domain/api_preferences.py
 
 - **Imports:** `csv_io.py`
@@ -1104,7 +1111,7 @@ graph LR
 ### domain/predicates.py
 
 - **Imports:** `domain/attribute_parse.py`, `domain/packages.py`
-- **Imported by:** `tests/python/domain/test_predicates.py`
+- **Imported by:** `domain/api_predicates.py`, `tests/python/domain/test_predicates.py`
 
 ### domain/pricing.py
 
@@ -1138,7 +1145,7 @@ graph LR
 
 ### inventory_api.py
 
-- **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_attributes.py`, `domain/api_cart.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`, `mirror_push.py`
+- **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_attributes.py`, `domain/api_cart.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/api_mirror.py`, `domain/api_predicates.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`, `mirror_push.py`
 - **Imported by:** `client_shell.py`, `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `server/__main__.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/server/test_main_flags.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`
 
 ### inventory_mirror.py
@@ -2052,6 +2059,11 @@ graph LR
 - **Imports:** `pnp_part_map.py`, `server/__init__.py`, `server/auth.py`
 - **Imported by:** —
 
+### server/routes/predicates.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### server/routes/preferences.py
 
 - **Imports:** —
@@ -2596,6 +2608,11 @@ graph LR
 ### tests/python/server/test_pnp_routes.py
 
 - **Imports:** `server/__init__.py`
+- **Imported by:** —
+
+### tests/python/server/test_predicates_routes.py
+
+- **Imports:** —
 - **Imported by:** —
 
 ### tests/python/server/test_preferences_routes.py

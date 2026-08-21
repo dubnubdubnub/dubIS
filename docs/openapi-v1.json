@@ -337,6 +337,45 @@
         "title": "DetectColumnsBody",
         "type": "object"
       },
+      "EvaluateBody": {
+        "additionalProperties": false,
+        "properties": {
+          "package": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package"
+          },
+          "predicates": {
+            "items": {
+              "$ref": "#/components/schemas/PredicateBody"
+            },
+            "title": "Predicates",
+            "type": "array"
+          },
+          "prefer": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prefer"
+          }
+        },
+        "title": "EvaluateBody",
+        "type": "object"
+      },
       "ExtractSpecFromValueBody": {
         "properties": {
           "package_str": {
@@ -630,6 +669,79 @@
           }
         },
         "title": "ParseImportBody",
+        "type": "object"
+      },
+      "PredicateBody": {
+        "additionalProperties": false,
+        "description": "One checkable requirement. See domain/predicates.py for the semantics.\n\n`extra=\"forbid\"` is load-bearing, not tidiness. Pydantic's default is to\ndrop unknown keys, so a typo'd field name (`atribute`) would be discarded\nhere and the surviving predicate would be evaluated as if the caller had\nnever asked for it -- returning a cheerful `pass` for a requirement that\nwas silently thrown away. Rejecting the request is the only safe answer.",
+        "properties": {
+          "attribute": {
+            "default": "",
+            "title": "Attribute",
+            "type": "string"
+          },
+          "blocking": {
+            "default": true,
+            "title": "Blocking",
+            "type": "boolean"
+          },
+          "bound": {
+            "default": "value",
+            "title": "Bound",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "op": {
+            "title": "Op",
+            "type": "string"
+          },
+          "package": {
+            "default": "",
+            "title": "Package",
+            "type": "string"
+          },
+          "qualifier": {
+            "default": "",
+            "title": "Qualifier",
+            "type": "string"
+          },
+          "unit": {
+            "default": "",
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "title": "PredicateBody",
         "type": "object"
       },
       "PurchaseHistoryResponse": {
@@ -3630,6 +3742,51 @@
         ]
       }
     },
+    "/v1/parts/{part_key}/attributes": {
+      "get": {
+        "description": "Stored distributor parametrics for a part, across all distributors.\n\nPersisted by the fetch path (domain/attributes.py) but until now readable\nonly from Python -- the frontend and tools/dubis-mcp reach the backend over\n/v1 alone, so a predicate or alternate-approval caller had no way to see\nthem.",
+        "operationId": "get_part_attributes",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response Get Part Attributes",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Part Attributes",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
     "/v1/parts/{part_key}/distributors": {
       "get": {
         "operationId": "get_sourced_distributors",
@@ -3669,6 +3826,60 @@
           }
         },
         "summary": "Get Sourced Distributors",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
+    "/v1/parts/{part_key}/evaluate": {
+      "post": {
+        "operationId": "evaluate_part_predicates",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Evaluate Part Predicates",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluate Part Predicates",
         "tags": [
           "parts"
         ]
