@@ -350,6 +350,18 @@
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pref-vim-nav"> Vim-style hjkl navigation</label>
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pref-auto-copy"> Automatically copy selected text</label>
     </div>
+    <div class="modal-divider"></div>
+    <div class="modal-subtitle" style="margin-bottom:4px"><strong>Sourcing</strong></div>
+    <div class="modal-form" style="flex-direction:column;align-items:flex-start;gap:8px">
+      <label style="display:flex;gap:8px;align-items:center">Reel ceiling
+        <span class="prefs-value-wrap">$<input type="number" id="pref-reel-ceiling" class="prefs-input" min="1" step="1"></span>
+      </label>
+      <span style="font-size:11px;color:var(--text-muted);max-width:420px">
+        Above this spend a whole reel stops being a convenience worth paying for.
+        The cart&rsquo;s <strong>Reel</strong> preset prefers the cheapest reel within it &mdash; a
+        dearer reel is still offered, marked as over the ceiling, never hidden.
+      </span>
+    </div>
     <div class="modal-actions">
       <button class="btn-lg btn btn-cancel" id="prefs-cancel">Cancel</button>
       <button class="btn-lg btn btn-apply" id="prefs-save">Save</button>

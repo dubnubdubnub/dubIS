@@ -67,7 +67,7 @@
    js/cart/cart-modal.js, no static markup in index.html. */
 .cart-modal {
   min-width: 640px;
-  max-width: 900px;
+  max-width: var(--cart-modal-max-w);
   width: calc(85 * var(--vw));
   max-height: calc(80 * var(--vh));
   display: flex;
@@ -211,3 +211,167 @@
   color: var(--text-secondary);
   white-space: nowrap;
 }
+
+/* ── Purchase plan ───────────────────────────────────────────────────────────
+   The plan turns the cart from a list of quantities into a decision surface:
+   what each line needs, which preset picked a candidate, and what it costs.
+   Appended at the end of this file on purpose — scripts/check-layout-tokens.
+   ignore is keyed by "file:lineno:", so inserting rules higher up would shift
+   every entry below the insertion and silently re-point them at other lines. */
+
+/* The grid gained five columns, so it scrolls sideways inside the (wider)
+   modal rather than compressing the part description to nothing. Vertical
+   scrolling stays on .cart-table-wrap. */
+.cart-table-wrap { overflow-x: auto; }
+
+/* Board count: the multiplier on every per-board quantity in the cart. */
+.cart-boards {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  white-space: nowrap;
+}
+.cart-boards-label { font-size: var(--text-sm); color: var(--text-secondary); }
+.cart-boards-input {
+  width: var(--cart-boards-input-w);
+  padding: var(--space-2xs) var(--space-xs);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  color: var(--text-bright);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.cart-boards-input:focus { border-color: var(--color-blue); outline: none; }
+/* Rejected input, not silently corrected: a board count multiplies every
+   quantity in the cart, so quietly substituting a number changes the order. */
+.cart-boards-input.invalid { border-color: var(--color-red); }
+
+/* Segmented preset control — used both cart-wide (topbar) and per row. */
+.cart-seg {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-base);
+}
+.cart-seg button {
+  padding: var(--cart-plan-seg-pad-y) var(--cart-plan-seg-pad-x);
+  border: 0;
+  border-right: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cart-seg button:last-child { border-right: 0; }
+.cart-seg button:hover { background: var(--bg-hover); color: var(--text-primary); }
+.cart-seg button[aria-pressed="true"] {
+  background: var(--color-blue-accent-bg);
+  color: var(--text-bright);
+}
+/* A row following the cart-wide default is shown unset rather than
+   pre-highlighted: the distinction between "this row is pinned to Min" and
+   "this row follows the cart, which happens to be Min" is the whole point of
+   storing a per-row preset. */
+.cart-seg.is-inherited button[aria-pressed="true"] {
+  background: transparent;
+  color: var(--text-primary);
+  box-shadow: inset 0 -2px 0 var(--color-blue-border);
+}
+
+/* Plan columns. tabular-nums so quantities and money line up down the column,
+   which is what makes a total scannable at all. */
+.cart-plan-need,
+.cart-plan-unit,
+.cart-plan-spend {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.cart-plan-need { width: var(--cart-plan-need-w); }
+.cart-plan-unit { width: var(--cart-plan-unit-w); }
+.cart-plan-spend { width: var(--cart-plan-spend-w); color: var(--text-bright); }
+.cart-plan-preset { width: var(--cart-plan-preset-w); }
+.cart-plan-buy { width: var(--cart-plan-buy-w); white-space: nowrap; }
+
+/* A line already answered by stock is not a purchase and must not read as a
+   $0 one — it is dimmed, and its spend cell stays empty. */
+.cart-row-covered .cart-plan-buy,
+.cart-row-covered .cart-plan-unit,
+.cart-row-covered .cart-plan-spend { color: var(--text-muted); }
+
+/* A line nothing could price is called out rather than left blank, because a
+   blank row reads as free. */
+.cart-row-unpriced .cart-plan-spend { color: var(--color-yellow); }
+
+.cart-plan-note {
+  display: block;
+  max-width: var(--cart-plan-note-max-w);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.cart-plan-note.is-warning { color: var(--color-yellow); }
+
+/* Cart-level totals strip, below the grid. */
+.cart-plan-totals {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-default);
+}
+.cart-plan-total-spend {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-lg);
+  color: var(--text-bright);
+}
+.cart-plan-total-label { font-size: var(--text-sm); color: var(--text-secondary); }
+.cart-plan-caveat { font-size: var(--text-sm); color: var(--color-yellow); }
+.cart-plan-stale { font-size: var(--text-sm); color: var(--color-orange); }
+.cart-plan-totals.is-loading { opacity: 0.6; }
+
+/* "Plan says" cell: a button while the recommendation and the stored quantity
+   disagree, plain text once they match. Accepting is an explicit act, so the
+   two states have to look different at a glance. */
+.cart-plan-accept {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-color: var(--color-blue-border);
+  color: var(--color-blue);
+}
+.cart-plan-accept:hover {
+  background: var(--color-blue-accent-bg);
+  color: var(--text-bright);
+}
+.cart-plan-agrees {
+  font-size: var(--text-sm);
+  color: var(--color-green);
+  white-space: nowrap;
+}
+
+/* Packaging picker, shown only on a custom row — a hand-typed quantity has to
+   say which ladder prices it. */
+.cart-row-pkg-select {
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2xs) var(--space-xs);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  color: var(--text-bright);
+  font-size: var(--text-sm);
+}
+.cart-row-pkg-select:focus { border-color: var(--color-blue); outline: none; }

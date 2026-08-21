@@ -24,6 +24,12 @@ import { el } from '../dom/html.js';
 import { DataGrid } from '../components/data-grid.js';
 import { cartsSignal, effect } from '../signals.js';
 import * as cartStore from './cart-store.js';
+import * as planStore from './cart-plan-store.js';
+import {
+  PRESETS, PRESET_LABELS, PRESET_TITLES,
+  money, unitPrice, qty as fmtQty, derivation, note, candidateLabel,
+  runnerUpDelta, summary, linesByRef, parseBoardCount,
+} from './cart-plan-logic.js';
 import { downloadCsv, copyPaste } from './cart-export.js';
 
 /** @type {{el:HTMLTableElement, render(data:any[]):void, refresh():void, getData():any[], destroy():void}|null} */
@@ -46,6 +52,17 @@ let splitRemoveEl = null;
 let consolidateDistEl = null;
 /** @type {HTMLElement|null} */
 let exportMenuEl = null;
+/** @type {HTMLInputElement|null} */
+let boardsInputEl = null;
+/** @type {HTMLElement|null} */
+let presetSegEl = null;
+/** @type {HTMLElement|null} */
+let totalsEl = null;
+/** Last value published by cartPlanSignal — read by renderTotals(), which runs
+ *  from the cartsSignal effect too and so cannot read the signal itself
+ *  without subscribing that effect to plan changes as well. */
+let cartPlanState = /** @type {{plan: any|null, loading: boolean, error: string}} */
+  ({ plan: null, loading: false, error: '' });
 
 // All distributors the app knows how to source from (fixed order/labels used
 // by the per-row select's fallback for raw items and by the top-bar
@@ -157,6 +174,147 @@ async function handleRowDistributorChange(cartItem, value) {
     await cartStore.updateItem(cartItem.ref, { targetDistributor: value || null }, cartId);
   } catch (e) {
     AppLog.error('cart-modal: updateItem (targetDistributor) failed: ' + e.message);
+  }
+}
+
+// ── Purchase plan: board count, presets, per-row selection ────────────────
+
+/**
+ * Build a segmented control: buttons carrying `data-preset`, no listeners.
+ *
+ * Listener-free so both call sites can delegate — the row control is rebuilt
+ * for every row on every render, and attaching four listeners per row would
+ * mean hundreds of them on a real BOM. Matches how the row distributor
+ * `<select>` is wired (see wireDistSelects).
+ *
+ * `inherited` marks a row with no preset of its own, following the cart
+ * default. It renders as an underline rather than a filled segment because
+ * "pinned to Min" and "following a cart that happens to be Min" are different
+ * states, and conflating them makes pinning invisible.
+ *
+ * @param {string} active
+ * @param {{inherited?: boolean, presets?: string[]}} [opts]
+ * @returns {HTMLElement}
+ */
+function buildSegmented(active, opts = {}) {
+  const presets = opts.presets || PRESETS;
+  const seg = el('div', {
+    class: 'cart-seg' + (opts.inherited ? ' is-inherited' : ''),
+    role: 'group',
+  });
+  for (const preset of presets) {
+    seg.appendChild(el('button', {
+      type: 'button',
+      'data-preset': preset,
+      'aria-pressed': preset === active ? 'true' : 'false',
+      title: PRESET_TITLES[preset] || preset,
+    }, PRESET_LABELS[preset] || preset));
+  }
+  return seg;
+}
+
+async function handleBoardsChange() {
+  const cart = cartStore.getActiveCart();
+  if (!cart || !boardsInputEl) return;
+  const parsed = parseBoardCount(boardsInputEl.value);
+  if (parsed === null) {
+    // Refused, not corrected: this number multiplies every per-board quantity
+    // in the cart, so substituting one silently changes what gets ordered.
+    boardsInputEl.classList.add('invalid');
+    showToast('Board count must be a whole number of 1 or more');
+    return;
+  }
+  boardsInputEl.classList.remove('invalid');
+  if (parsed === cart.board_count) return;
+  try {
+    await cartStore.setBoardCount(parsed, cart.id);
+  } catch (e) {
+    AppLog.error('cart-modal: setBoardCount failed: ' + e.message);
+  }
+}
+
+function handleBoardsStep(delta) {
+  if (!boardsInputEl) return;
+  const current = parseBoardCount(boardsInputEl.value) ?? 1;
+  boardsInputEl.value = String(Math.max(1, current + delta));
+  handleBoardsChange();
+}
+
+async function handleCartPresetChange(preset) {
+  try {
+    await planStore.setPreset(preset);
+  } catch (e) {
+    AppLog.error('cart-modal: setPreset failed: ' + e.message);
+  }
+}
+
+/**
+ * Pin (or unpin) one row's preset.
+ *
+ * Clicking the row's already-active preset clears it back to following the
+ * cart default — the same control both pins and releases, so there is no
+ * separate "unpin" affordance to discover.
+ * @param {any} cartItem
+ * @param {string} preset
+ */
+/**
+ * Write one row's recommended quantity and packaging onto the cart line.
+ *
+ * The preset is left alone: the row asked for "the cheapest reel", the plan
+ * answered, and accepting the answer does not turn the rule into a pinned
+ * number. Raise the board count later and the row re-derives, which is the
+ * whole point of storing a rule rather than a quantity.
+ * @param {any} cartItem
+ * @param {any} selected
+ */
+async function handleAcceptRow(cartItem, selected) {
+  const cartId = cartStore.getActiveCartId();
+  if (!cartId || !selected) return;
+  try {
+    await cartStore.updateItem(cartItem.ref, {
+      qty: selected.qty,
+      targetPackaging: selected.packaging || '',
+      targetDistributor: selected.distributor || null,
+    }, cartId);
+  } catch (e) {
+    AppLog.error('cart-modal: accept recommendation failed: ' + e.message);
+  }
+}
+
+/**
+ * Apply every row's recommendation at once.
+ *
+ * Sequential rather than parallel: each update reloads the carts list, and
+ * racing a hundred of those against each other means the last response to
+ * land decides what the UI believes.
+ */
+async function handleAcceptAll() {
+  const cart = cartStore.getActiveCart();
+  const plan = planStore.getPlan();
+  if (!cart || !plan) return;
+  const byRef = linesByRef(plan);
+  const pending = (cart.items || [])
+    .map((item) => ({ item, sel: (byRef.get(item.ref) || {}).selected }))
+    .filter(({ item, sel }) => sel && (Number(item.qty) !== Number(sel.qty)
+      || (item.target_packaging || '') !== (sel.packaging || '')));
+  if (!pending.length) {
+    showToast('Every line already matches the plan');
+    return;
+  }
+  for (const { item, sel } of pending) {
+    await handleAcceptRow(item, sel);
+  }
+  showToast(`Applied the plan to ${pending.length} line${pending.length === 1 ? '' : 's'}`);
+}
+
+async function handleRowPresetChange(cartItem, preset) {
+  const cartId = cartStore.getActiveCartId();
+  if (!cartId) return;
+  const next = cartItem.preset === preset ? '' : preset;
+  try {
+    await cartStore.updateItem(cartItem.ref, { preset: next }, cartId);
+  } catch (e) {
+    AppLog.error('cart-modal: updateItem (preset) failed: ' + e.message);
   }
 }
 
@@ -329,12 +487,95 @@ function buildGrid(container) {
       { key: '_pkg', label: 'Package', width: '110px', render: (item) => item._display.pkg },
       { key: '_onhand', label: 'On-hand', width: '90px', align: 'right', mono: true,
         render: (item) => item._display.onHand },
-      { key: 'qty', label: 'Qty to purchase', width: '130px', align: 'right', mono: true,
+      // Required quantity, with its derivation on the title. This is why
+      // board_count is stored rather than folded into the number: without it
+      // a row shows 5,000 and nobody can reconstruct where it came from.
+      { key: '_need', label: 'Need', headerClass: 'cart-plan-need',
+        cellClass: 'cart-plan-need',
+        render: (item) => {
+          const line = item._line;
+          if (!line) return '—';
+          const cell = el('span', {}, fmtQty(line.required_qty));
+          const why = derivation(line);
+          if (why) cell.setAttribute('title', why);
+          return cell;
+        } },
+      // Per-row preset. Rendered by render() (not DataGrid's click-to-edit
+      // text cell) because it is a set of buttons, and delegated below so it
+      // survives the re-render every mutation triggers.
+      { key: '_preset', label: 'Rule', headerClass: 'cart-plan-preset',
+        cellClass: 'cart-plan-preset',
+        render: (item) => buildSegmented(
+          (item._line && item._line.preset) || planStore.getPreset(),
+          { inherited: !item.preset },
+        ) },
+      // The quantity that will actually be ordered. Stays the stored, editable
+      // number and the authoritative one — cart_export.py reads it, so a
+      // column showing the *recommendation* here would put the screen and the
+      // exported order out of step.
+      { key: 'qty', label: 'Qty', width: '110px', align: 'right', mono: true,
         cellClass: 'cart-qty-cell',
         render: (item) => el('input', {
           type: 'number', min: '0', step: '1', class: 'cart-qty-input',
           value: String(item.qty ?? 0),
+          title: 'Quantity to order. Typing one pins this row to Custom.',
         }) },
+      // What the plan recommends. A button while it disagrees with the stored
+      // quantity — accepting a recommendation is an explicit act, so a
+      // re-plan after a price refresh can never quietly change an order.
+      { key: '_buy', label: 'Plan says', headerClass: 'cart-plan-buy',
+        cellClass: 'cart-plan-buy',
+        render: (item) => {
+          const line = item._line;
+          // A custom row is priced against ONE packaging, so it gets a picker
+          // rather than a recommendation — the plan has nothing to recommend
+          // once the quantity is the user's own.
+          if (item.preset === 'custom') return buildPackagingSelect(item, line);
+          if (!line || !line.selected) return el('span', { class: 'cart-plan-note' }, '—');
+          const label = candidateLabel(line.selected);
+          const alt = runnerUpDelta(line);
+          const agrees = Number(item.qty) === Number(line.selected.qty)
+            && (item.target_packaging || '') === (line.selected.packaging || '');
+          if (agrees) {
+            const cell = el('span', { class: 'cart-plan-agrees' }, '✓ ' + label);
+            if (alt) cell.setAttribute('title', alt.label);
+            return cell;
+          }
+          const btn = el('button', {
+            type: 'button', class: 'btn-sm cart-plan-accept',
+            title: alt ? `Apply this quantity. ${alt.label}` : 'Apply this quantity',
+          }, label);
+          return btn;
+        } },
+      { key: '_unit', label: 'Unit', headerClass: 'cart-plan-unit',
+        cellClass: 'cart-plan-unit',
+        render: (item) => {
+          const sel = item._line && item._line.selected;
+          if (!sel) return '—';
+          const cell = el('span', {}, unitPrice(sel.unit_price));
+          cell.setAttribute('title', sel.on_break
+            ? `price break at ${fmtQty(sel.break_qty)}`
+            : `priced at the ${fmtQty(sel.break_qty)} break`);
+          return cell;
+        } },
+      { key: '_spend', label: 'Spend', headerClass: 'cart-plan-spend',
+        cellClass: 'cart-plan-spend',
+        render: (item) => {
+          const line = item._line;
+          if (!line || !line.selected) return '';
+          const fee = Number(line.selected.fee) || 0;
+          const cell = el('span', {}, money(line.selected.spend));
+          if (fee) cell.setAttribute('title', `includes a ${money(fee)} handling fee`);
+          return cell;
+        } },
+      { key: '_note', label: '', render: (item) => {
+        const text = note(item._line);
+        if (!text) return '';
+        const warn = !!(item._line && item._line.required_qty > 0 && !item._line.selected);
+        return el('span', {
+          class: 'cart-plan-note' + (warn ? ' is-warning' : ''), title: text,
+        }, text);
+      } },
       { key: '_dist', label: 'Target distributor', width: '150px',
         render: (item) => {
           // Always include the currently-set target as an option even if it's
@@ -355,7 +596,13 @@ function buildGrid(container) {
         } },
     ],
     rowKey: (item) => item.ref,
-    getRowClass: () => 'cart-row',
+    getRowClass: (item) => {
+      const line = item._line;
+      if (!line) return 'cart-row';
+      if (line.required_qty === 0) return 'cart-row cart-row-covered';
+      if (!line.selected) return 'cart-row cart-row-unpriced';
+      return 'cart-row';
+    },
     rowActions: [
       { key: 'delete', label: '✕', class: 'cart-del-line', title: 'Remove this line',
         onClick: (item) => handleDeleteLine(item) },
@@ -388,8 +635,20 @@ function wireQtyInputs(container) {
       showToast('Quantity must be a whole number ≥ 0');
       return;
     }
+    // Typing a quantity IS choosing a custom one, so the row pins itself
+    // rather than keeping a rule it no longer follows — otherwise every future
+    // re-plan shows a recommendation the row silently disagrees with.
+    //
+    // The packaging comes along because a custom quantity needs one to be
+    // priced (several packagings quote the same quantity at different money),
+    // and the one already on screen is what the user was looking at when they
+    // typed. Where nothing is selected the packaging is left unset and the
+    // row asks for one.
+    const selected = item._line && item._line.selected;
+    const patch = { qty, preset: 'custom' };
+    if (selected && selected.packaging) patch.targetPackaging = selected.packaging;
     input.disabled = true;
-    cartStore.updateItem(item.ref, { qty }, cart.id)
+    cartStore.updateItem(item.ref, patch, cart.id)
       .catch((e) => AppLog.error('cart-modal: updateItem (qty) failed: ' + e.message))
       .finally(() => { input.disabled = false; });
   });
@@ -412,6 +671,108 @@ function wireDistSelects(container) {
   });
 }
 
+/**
+ * Packaging picker for a custom row: the distinct packagings this part's own
+ * candidates were drawn from, so the list only ever offers ladders that exist.
+ * @param {any} item
+ * @param {any} line
+ * @returns {HTMLElement}
+ */
+function buildPackagingSelect(item, line) {
+  const seen = [];
+  for (const candidate of (line && line.candidates) || []) {
+    const name = candidate.packaging || '';
+    if (name && !seen.includes(name)) seen.push(name);
+  }
+  const current = item.target_packaging || '';
+  // Keep a packaging that is no longer on offer visibly selected rather than
+  // snapping to "—" (same reasoning as the target-distributor select).
+  if (current && !seen.includes(current)) seen.push(current);
+  if (!seen.length) return el('span', { class: 'cart-plan-note is-warning' }, 'no priced packaging');
+  const select = /** @type {HTMLSelectElement} */ (el('select', {
+    class: 'cart-row-pkg-select', title: 'Packaging this custom quantity is priced against',
+  },
+  el('option', { value: '' }, '—'),
+  ...seen.map((name) => el('option', {
+    value: name, selected: name === current ? true : undefined,
+  }, name)),
+  ));
+  if (!current) select.value = '';
+  return select;
+}
+
+/**
+ * Per-row packaging changes, delegated like the distributor select.
+ * @param {HTMLElement} container
+ */
+function wirePackagingSelects(container) {
+  container.addEventListener('change', (ev) => {
+    const select = ev.target;
+    if (!(select instanceof HTMLSelectElement)
+      || !select.classList.contains('cart-row-pkg-select')) return;
+    const tr = select.closest('tr[data-row-key]');
+    if (!tr) return;
+    const ref = /** @type {HTMLElement} */ (tr).dataset.rowKey;
+    const cartId = cartStore.getActiveCartId();
+    if (!cartId) return;
+    cartStore.updateItem(ref, { targetPackaging: select.value }, cartId)
+      .catch((e) => AppLog.error('cart-modal: updateItem (packaging) failed: ' + e.message));
+  });
+}
+
+/**
+ * The preset a click landed on, or null if it missed a segment.
+ * @param {Event} ev
+ * @returns {string|null}
+ */
+function presetFromEvent(ev) {
+  const target = ev.target;
+  if (!(target instanceof HTMLElement)) return null;
+  const btn = target.closest('button[data-preset]');
+  return btn instanceof HTMLElement ? (btn.dataset.preset || null) : null;
+}
+
+/**
+ * Per-row "apply this quantity" clicks, delegated like the preset segments.
+ * @param {HTMLElement} container
+ */
+function wireAcceptButtons(container) {
+  container.addEventListener('click', (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLElement)) return;
+    const btn = target.closest('button.cart-plan-accept');
+    if (!btn) return;
+    const tr = btn.closest('tr[data-row-key]');
+    if (!tr) return;
+    const ref = /** @type {HTMLElement} */ (tr).dataset.rowKey;
+    const cart = cartStore.getActiveCart();
+    const item = cart && cart.items.find((it) => it.ref === ref);
+    const line = linesByRef(planStore.getPlan()).get(ref);
+    if (!item || !line) return;
+    handleAcceptRow(item, line.selected);
+  });
+}
+
+/**
+ * Per-row preset clicks, delegated on the grid container so they survive the
+ * re-render every cart mutation triggers.
+ * @param {HTMLElement} container
+ */
+function wirePresetSegments(container) {
+  container.addEventListener('click', (ev) => {
+    const preset = presetFromEvent(ev);
+    if (!preset) return;
+    const target = /** @type {HTMLElement} */ (ev.target);
+    const tr = target.closest('tr[data-row-key]');
+    if (!tr) return;
+    const ref = /** @type {HTMLElement} */ (tr).dataset.rowKey;
+    const cart = cartStore.getActiveCart();
+    const item = cart && cart.items.find((it) => it.ref === ref);
+    if (!item) return;
+    handleRowPresetChange(item, preset);
+  });
+}
+
 // ── Modal shell (built once, dynamically — no static index.html markup) ────
 
 function buildModalDom() {
@@ -421,6 +782,9 @@ function buildModalDom() {
   buildGrid(gridWrapEl);
   wireQtyInputs(gridWrapEl);
   wireDistSelects(gridWrapEl);
+  wirePresetSegments(gridWrapEl);
+  wireAcceptButtons(gridWrapEl);
+  wirePackagingSelects(gridWrapEl);
 
   emptyStateEl = el('div', { class: 'cart-empty-state hidden' }, 'No active cart — add a part to the cart to create one.');
 
@@ -505,8 +869,49 @@ function buildModalDom() {
   document.addEventListener('click', onDocClickCloseExport);
   document.addEventListener('keydown', onKeydownCloseExport, true);
 
+  // Board count: the multiplier behind every per-board quantity. Committed on
+  // 'change' (blur or Enter) rather than 'input' — every keystroke of "25"
+  // passes through 2, and refetching a plan for 2 boards on the way to 25 is
+  // both wasted and briefly wrong on screen.
+  boardsInputEl = /** @type {HTMLInputElement} */ (el('input', {
+    type: 'number', min: '1', step: '1', class: 'cart-boards-input',
+    id: 'cart-boards-input', value: '1',
+    'aria-label': 'Number of boards this cart builds',
+  }));
+  boardsInputEl.addEventListener('change', handleBoardsChange);
+  const boardsDown = el('button', { type: 'button', class: 'btn-sm', 'aria-label': 'Fewer boards' }, '−');
+  boardsDown.addEventListener('click', () => handleBoardsStep(-1));
+  const boardsUp = el('button', { type: 'button', class: 'btn-sm', 'aria-label': 'More boards' }, '+');
+  boardsUp.addEventListener('click', () => handleBoardsStep(1));
+  const boardsGroup = el('div', { class: 'cart-topbar-group cart-boards' },
+    el('span', { class: 'cart-boards-label' }, 'Boards'),
+    boardsDown, boardsInputEl, boardsUp,
+  );
+
+  // Cart-wide default rule. Custom is deliberately absent here: it means "a
+  // quantity you typed", which is a per-row fact and meaningless as a default.
+  presetSegEl = buildSegmented(planStore.getPreset(), {
+    presets: PRESETS.filter((preset) => preset !== 'custom'),
+  });
+  presetSegEl.addEventListener('click', (ev) => {
+    const preset = presetFromEvent(ev);
+    if (preset) handleCartPresetChange(preset);
+  });
+  const applyAllBtn = el('button', {
+    type: 'button', class: 'btn-sm cart-plan-apply-all',
+    title: 'Set every line\u2019s quantity to what the plan recommends',
+  }, 'Apply plan');
+  applyAllBtn.addEventListener('click', handleAcceptAll);
+
+  const presetGroup = el('div', { class: 'cart-topbar-group' },
+    el('span', { class: 'cart-boards-label' }, 'Rule'), presetSegEl, applyAllBtn,
+  );
+
+  totalsEl = el('div', { class: 'cart-plan-totals' });
+
   const topbar = el('div', { class: 'cart-topbar' },
     switcherEl, newBtn, renameBtn, deleteBtn, clearBtn,
+    boardsGroup, presetGroup,
     splitGroup, consolidateGroup, exportGroup,
   );
 
@@ -518,7 +923,8 @@ function buildModalDom() {
 
   const head = el('div', { class: 'cart-modal-head' }, titleEl, closeBtn);
 
-  const modalInner = el('div', { class: 'modal cart-modal' }, head, topbar, emptyStateEl, gridWrapEl);
+  const modalInner = el('div', { class: 'modal cart-modal' },
+    head, topbar, emptyStateEl, gridWrapEl, totalsEl);
   const overlay = el('div', { class: 'modal-overlay hidden', id: 'cart-modal' }, modalInner);
   document.body.appendChild(overlay);
 
@@ -527,8 +933,22 @@ function buildModalDom() {
   // cartsSignal is the sole re-render path for cart state (see js/signals.js
   // docblock) — re-renders the grid/title/empty-state on every cart mutation
   // from any client, matching the header badge's own effect() subscription.
+  //
+  // A cart mutation also invalidates the plan: adding a line, changing a
+  // board count or pinning a preset all change what should be bought. The
+  // refetch is scheduled (debounced) rather than immediate so a burst of
+  // mutations costs one request.
   effect(() => {
     cartsSignal.get();
+    renderFromActiveCart();
+    planStore.schedulePlanRefresh();
+  });
+
+  // The plan arriving re-renders the grid but must NOT trigger another
+  // refetch — reading cartsSignal here would make the two effects feed each
+  // other forever.
+  effect(() => {
+    cartPlanState = planStore.cartPlanSignal.get();
     renderFromActiveCart();
   });
 }
@@ -561,13 +981,67 @@ function renderFromActiveCart() {
   gridWrapEl.classList.remove('hidden');
   document.getElementById('cart-clear-btn')?.removeAttribute('disabled');
 
+  if (boardsInputEl && document.activeElement !== boardsInputEl) {
+    // Never overwrite what the user is mid-way through typing.
+    boardsInputEl.value = String(cart.board_count ?? 1);
+  }
+
+  syncPresetSeg();
+
   const invIndex = buildInventoryIndex();
+  const byRef = linesByRef(planStore.getPlan());
   const rows = (cart.items || []).map((item) => ({
     ...item,
     _display: resolveDisplay(item, invIndex),
     _availableDist: availableDistributors(item, invIndex),
+    _line: byRef.get(item.ref) || null,
   }));
   grid.render(rows);
+  renderTotals();
+}
+
+/**
+ * Reflect the cart-wide preset back onto the topbar control.
+ *
+ * The topbar segment is built once (it is not inside the grid, so nothing
+ * rebuilds it), which means its pressed state has to be pushed rather than
+ * re-rendered.
+ */
+function syncPresetSeg() {
+  if (!presetSegEl) return;
+  const active = planStore.getPreset();
+  for (const btn of presetSegEl.querySelectorAll('button[data-preset]')) {
+    btn.setAttribute('aria-pressed', btn.getAttribute('data-preset') === active ? 'true' : 'false');
+  }
+}
+
+/**
+ * Cart-level totals strip.
+ *
+ * `covered by stock` and `unpriced` are shown beside the total, not folded
+ * into it: a total that silently omits rows nobody could price reads as
+ * complete when it is not.
+ */
+function renderTotals() {
+  if (!totalsEl) return;
+  const { plan, loading, error } = cartPlanState;
+  totalsEl.replaceChildren();
+  totalsEl.classList.toggle('is-loading', !!loading);
+  if (!plan) {
+    if (loading) totalsEl.appendChild(el('span', { class: 'cart-plan-total-label' }, 'Pricing…'));
+    return;
+  }
+  const s = summary(plan);
+  totalsEl.append(
+    el('span', { class: 'cart-plan-total-label' }, 'Plan total'),
+    el('span', { class: 'cart-plan-total-spend' }, s.spend),
+    el('span', { class: 'cart-plan-total-label' },
+      `${s.lines} line${s.lines === 1 ? '' : 's'} · ${plan.board_count} board${plan.board_count === 1 ? '' : 's'}`),
+  );
+  if (s.caveat) totalsEl.appendChild(el('span', { class: 'cart-plan-caveat' }, s.caveat));
+  // A failed refresh keeps the previous numbers on screen and labels them
+  // stale — a total that is out of date and says so beats no total at all.
+  if (error) totalsEl.appendChild(el('span', { class: 'cart-plan-stale' }, error));
 }
 
 // ── Public API ───────────────────────────────────────────────────────────
@@ -579,4 +1053,7 @@ export function openCartModal() {
   buildModalDom();
   renderFromActiveCart();
   cartModal.open();
+  // Fetch immediately rather than waiting on the debounce — the modal opening
+  // is the one moment the user is definitely looking at the numbers.
+  planStore.loadPlan().catch((e) => AppLog.error('cart-modal: loadPlan failed: ' + e.message));
 }
