@@ -692,11 +692,14 @@ class TestDurablePersistence:
         assert os.path.exists(os.path.join(data_dir, "generic_parts.json"))
 
     def test_load_into_db_rejects_unsupported_version(self, db, tmp_path):
-        """Finding 4: version field must be validated -- throw, don't swallow."""
+        """Finding 4: version field must be validated -- throw, don't swallow.
+
+        v1 (pre-reviews) and v2 (with reviews) both load; 3 is from the future.
+        """
         data_dir = str(tmp_path / "data")
         os.makedirs(data_dir)
         with open(os.path.join(data_dir, "generic_parts.json"), "w", encoding="utf-8") as f:
-            json.dump({"version": 2, "groups": [], "members": [], "preferred": []}, f)
+            json.dump({"version": 3, "groups": [], "members": [], "preferred": []}, f)
         with pytest.raises(ValueError, match="version"):
             load_into_db(db, data_dir)
 
