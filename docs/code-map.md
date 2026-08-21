@@ -673,6 +673,7 @@ graph LR
     "tests/python/domain/test_inventory_fetch_descriptions.py" --> "domain/inventory.py"
     "tests/python/domain/test_inventory_fetch_descriptions.py" --> "inventory_api.py"
     "tests/python/domain/test_inventory_fetch_descriptions.py" --> "tests/python/helpers.py"
+    "tests/python/domain/test_packages.py" --> "domain/packages.py"
     "tests/python/domain/test_part_registry.py" --> "domain/__init__.py"
     "tests/python/domain/test_part_registry.py" --> "dubis_errors.py"
     "tests/python/domain/test_part_registry_integration.py" --> "cache_db.py"
@@ -1071,6 +1072,11 @@ graph LR
 
 - **Imports:** `cache_db.py`, `carts.py`, `csv_io.py`, `domain/__init__.py`, `domain/attributes.py`, `domain/generic_parts.py`, `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`, `saved_searches.py`
 - **Imported by:** `domain/api_inventory.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/test_concurrency_locks.py`
+
+### domain/packages.py
+
+- **Imports:** —
+- **Imported by:** `tests/python/domain/test_packages.py`
 
 ### domain/packaging.py
 
@@ -2437,6 +2443,11 @@ graph LR
 ### tests/python/domain/test_inventory_fetch_descriptions.py
 
 - **Imports:** `domain/inventory.py`, `inventory_api.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
+### tests/python/domain/test_packages.py
+
+- **Imports:** `domain/packages.py`
 - **Imported by:** —
 
 ### tests/python/domain/test_part_registry.py
