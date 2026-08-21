@@ -773,6 +773,21 @@ export const API_MAP = {
     "unwrap": null,
     "verb": "GET"
   },
+  "list_generic_member_reviews": {
+    "argOrder": [
+      "generic_part_id"
+    ],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/generic-parts/{generic_part_id}/reviews",
+    "pathParams": [
+      "generic_part_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "GET"
+  },
   "list_generic_parts": {
     "argOrder": [],
     "bodyParams": [],
@@ -1187,6 +1202,34 @@ export const API_MAP = {
     "queryParams": [],
     "rawBody": false,
     "unwrap": "match",
+    "verb": "POST"
+  },
+  "review_generic_member": {
+    "argOrder": [
+      "generic_part_id",
+      "part_id",
+      "approval",
+      "rationale",
+      "spec_deltas",
+      "asserted_by",
+      "acknowledge_rejection"
+    ],
+    "bodyParams": [
+      "acknowledge_rejection",
+      "approval",
+      "asserted_by",
+      "rationale",
+      "spec_deltas"
+    ],
+    "mutating": true,
+    "path": "/v1/generic-parts/{generic_part_id}/members/{part_id}/review",
+    "pathParams": [
+      "generic_part_id",
+      "part_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
     "verb": "POST"
   },
   "rollback_source": {

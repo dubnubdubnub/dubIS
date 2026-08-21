@@ -12,7 +12,7 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `inventory_ops.py` — imports `derive_missing_price`, `parse_price`, `parse_qty`
 - `inventory_api.py` — imports `record_fetched_prices`, `get_price_summary`, `populate_prices_cache`, `resolve_part_key`, `record_observations`
 - `domain.inventory` — imports `load_into_db` from `attributes` (rebuild restores the derived table)
-- `inventory_api.py` — imports `create_generic_part_api`, `update_generic_part_api`, `add_member_api`, `remove_member_api`, `set_preferred_api`, `exclude_member`, `list_generic_parts_with_member_specs`, `fetch_members`, `resolve_bom_spec`, `extract_spec_for_part`
+- `inventory_api.py` — imports `create_generic_part_api`, `update_generic_part_api`, `add_member_api`, `remove_member_api`, `set_preferred_api`, `exclude_member`, `list_generic_parts_with_member_specs`, `fetch_members`, `resolve_bom_spec`, `extract_spec_for_part`, `review_member_api`, `list_member_reviews`
 - `domain.inventory` — imports `auto_generate_passive_groups` from `generic_parts`
 
 ## Public exports
@@ -39,6 +39,10 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `generic_parts.py`: `resolve_bom_spec` — BOM resolution to best real part
 - `generic_parts.py`: `auto_generate_passive_groups` — scan passives and create auto groups
 - `generic_parts.py`: `extract_spec_for_part` — extract component spec from cache
+- `generic_parts.py`: `review_member`, `review_member_api` — record why a member is (or is not) a valid alternate, with an approval state
+- `generic_parts.py`: `get_member_review`, `reviews_for_group`, `list_member_reviews` — read membership reviews
+- `generic_parts.py`: `default_review`, `last_rejection` — the unreviewed default and prior-rejection lookup
+- `generic_parts.py`: `APPROVAL_STATES`, `DELTA_KINDS` — approval-state and spec-delta vocabularies
 - `packages.py`: `normalize_package`, `packages_equivalent`, `package_info` — controlled package (land-pattern) vocabulary: vendor/KiCad string -> canonical token
 
 ## Internal layout
@@ -48,5 +52,5 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `attributes.py` — part attribute store: durable CSV, derived cache table, fetch recording
 - `attribute_parse.py` — attribute value parsing + canonical attribute-name table
 - `inventory.py` — inventory pipeline: rebuild, catch-up, adjust, import, consume
-- `generic_parts.py` — generic parts CRUD, auto-matching, BOM resolution
+- `generic_parts.py` — generic parts CRUD, auto-matching, BOM resolution, membership interchangeability reviews
 - `packages.py` — package vocabulary: alias table + generated families, pure/stdlib, no I/O (about the *body*, not the reel/tray carrier)
