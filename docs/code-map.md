@@ -2909,6 +2909,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** —
 
+### tests/python/test_generate_test_fixtures.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### tests/python/test_html_product_parser.py
 
 - **Imports:** `html_product_parser.py`
