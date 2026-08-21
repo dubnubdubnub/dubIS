@@ -152,6 +152,13 @@ def scan_eventbus_refs(file_path: Path) -> tuple[list[str], list[str]]:
 # Directories whose contents are NOT part of our code map.
 EXCLUDE_DIRS = {
     "node_modules",
+    # A local virtualenv sitting in the repo root is the obvious thing to do
+    # when following the README's `pip install -r requirements.txt`, and it
+    # drops ~15k lines of site-packages into the map if not excluded — the
+    # same reason node_modules is here.
+    ".venv",
+    "venv",
+    ".tox",
     "__pycache__",
     ".git",
     ".claude",
