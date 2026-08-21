@@ -40,6 +40,20 @@ class GenericPartsFacade:
             self._api._get_cache(), self._api.events_dir, self._api.base_dir, generic_part_id, part_id,
         )
 
+    def review_generic_member(self, generic_part_id: str, part_id: str, approval: str,
+                               rationale: str = "", spec_deltas: list | None = None,
+                               asserted_by: str = "",
+                               acknowledge_rejection: bool = False) -> dict[str, Any]:
+        return domain.generic_parts.review_member_api(
+            self._api._get_cache(), self._api.events_dir, self._api.base_dir,
+            generic_part_id, part_id, approval, rationale, spec_deltas,
+            asserted_by, acknowledge_rejection,
+        )
+
+    def list_generic_member_reviews(self, generic_part_id: str) -> list[dict[str, Any]]:
+        return domain.generic_parts.list_member_reviews(
+            self._api._get_cache(), generic_part_id)
+
     def get_generic_group_names(self, part_key: str) -> list[str]:
         return domain.generic_parts.get_group_names_for_part(self._api._get_cache(), part_key)
 
