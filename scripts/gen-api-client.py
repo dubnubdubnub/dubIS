@@ -85,6 +85,10 @@ RAW_BODY_ARG_NAME = {
 # generation asserts this and fails loud on new/uncovered multi-param routes.
 ARG_ORDER: dict[str, list[str]] = {
     "add_bom_missing_to_cart": ["cart_id", "missing"],
+    # part_key first (it is the path param), then the requirements, then the
+    # two optional overrides -- alphabetical would put `package` before
+    # `predicates`, which reads backwards at every call site.
+    "evaluate_part_predicates": ["part_key", "predicates", "package", "prefer"],
     "add_cart_item": ["cart_id", "part_id", "raw", "qty", "target_distributor", "shortfall"],
     "add_generic_member": ["generic_part_id", "part_id"],
     "consolidate_cart": ["cart_id", "distributor"],

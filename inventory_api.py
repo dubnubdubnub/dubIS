@@ -23,6 +23,7 @@ from domain.api_fileio import FileIOFacade
 from domain.api_generic_parts import GenericPartsFacade
 from domain.api_history import PartHistoryFacade
 from domain.api_inventory import InventoryCRUDFacade
+from domain.api_predicates import PredicatesFacade
 from domain.api_preferences import PreferencesFacade
 from domain.api_pricing import PricingFacade
 from domain.api_purchase_orders import PurchaseOrdersFacade
@@ -82,6 +83,7 @@ class InventoryApi:
         self._distributors = DistributorManager(self.base_dir, self._get_cache)
         self._files = FileIOFacade(self)
         self._attrs = AttributesFacade(self)
+        self._predicates = PredicatesFacade(self)
         self._dist = DistributorFacade(self)
         self._pricing = PricingFacade(self)
         self._generic = GenericPartsFacade(self)
@@ -334,6 +336,17 @@ class InventoryApi:
     def get_part_attributes(self, part_key: str) -> list[dict[str, Any]]:
         """Stored parametric attributes for a part, across all distributors."""
         return self._attrs.get_part_attributes(part_key)
+
+    def evaluate_part_predicates(
+        self,
+        part_key: str,
+        predicates: list[dict[str, Any]] | None,
+        package: str | None = None,
+        prefer: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Judge a candidate against substitution requirements. See domain/predicates.py."""
+        return self._predicates.evaluate_part_predicates(
+            part_key, predicates, package, prefer)
 
     def get_sourced_distributors(self, part_key: str) -> list[dict[str, str]]:
         return self._pricing.get_sourced_distributors(part_key)
