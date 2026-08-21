@@ -14,7 +14,9 @@ from typing import Any
 import cart_export
 import cart_qty
 import carts
+from domain import cart_plan
 from domain.pricing import get_sourced_distributors_batch, resolve_part_key
+from domain.purchase_candidates import PRESET_MIN, offers_from_ladders
 
 
 class CartFacade:
@@ -110,6 +112,66 @@ class CartFacade:
         with self._api._lock:
             return carts.rename(self._api._get_cache(), self._api.base_dir, cart_id, name)
 
+    def set_cart_board_count(self, cart_id: str, board_count: int) -> dict[str, Any]:
+        with self._api._lock:
+            return carts.set_board_count(
+                self._api._get_cache(), self._api.base_dir, cart_id, board_count)
+
+    # ── purchase plan ────────────────────────────────────────────────────
+
+    def _on_hand(self, part_id: str) -> int | None:
+        """Units of `part_id` on the shelf, or None if the part is unknown.
+
+        None and 0 are kept apart: an unknown part has had nothing counted,
+        while a known one at 0 has been counted and is empty. Both reduce the
+        requirement by nothing, but only the first is missing information.
+        """
+        conn = self._api._get_cache()
+        resolved = resolve_part_key(conn, part_id) or part_id
+        row = conn.execute(
+            "SELECT quantity FROM stock WHERE part_id=?", (resolved,)
+        ).fetchone()
+        return None if row is None else int(row["quantity"] or 0)
+
+    def _offers(self, part_id: str, distributor: str | None) -> list:
+        """Every purchasable offer for a part, across one or all distributors.
+
+        Stock is left unset: `price_observations.csv` records prices, not
+        availability, and a ladder is not evidence that anything is on a shelf.
+        Every candidate therefore reports `stock_known: false` rather than
+        implying an availability nobody observed.
+        """
+        conn = self._api._get_cache()
+        resolved = resolve_part_key(conn, part_id) or part_id
+        wanted = [distributor] if distributor else self._part_distributors(part_id)
+        offers = []
+        for dist in wanted:
+            if not dist:
+                continue
+            groups = cart_qty.tier_ladders(self._api.events_dir, resolved, dist)
+            offers.extend(offers_from_ladders(groups, dist))
+        return offers
+
+    def plan_cart(self, cart_id: str, preset: str = PRESET_MIN,
+                  reel_ceiling: float | None = None) -> dict[str, Any]:
+        """What to buy for one cart, per line, with every option that lost.
+
+        Read-only: it recommends, it does not write. The quantities a user
+        accepts are committed by the ordinary item update, so re-planning after
+        a price refresh can never silently rewrite a decision they already made.
+        """
+        with self._api._lock:
+            cart = carts.get(self._api._get_cache(), cart_id)
+            if cart is None:
+                raise KeyError(cart_id)
+            return cart_plan.plan_cart(
+                cart,
+                offers_for=self._offers,
+                on_hand_for=self._on_hand,
+                default_preset=preset,
+                reel_ceiling=reel_ceiling,
+            )
+
     def delete_cart(self, cart_id: str) -> None:
         with self._api._lock:
             carts.delete(self._api._get_cache(), self._api.base_dir, cart_id)
@@ -130,7 +192,10 @@ class CartFacade:
     def add_cart_item(self, cart_id: str, part_id: str | None = None,
                        raw: dict | None = None, qty: int | None = None,
                        target_distributor: str | None = None,
-                       shortfall: int | None = None) -> dict[str, Any]:
+                       shortfall: int | None = None,
+                       target_packaging: str | None = None,
+                       preset: str | None = None,
+                       per_board_qty: int | None = None) -> dict[str, Any]:
         with self._api._lock:
             conn = self._api._get_cache()
             if qty is None:
@@ -146,14 +211,21 @@ class CartFacade:
             return carts.add_item(
                 conn, self._api.base_dir, cart_id, part_id=part_id, raw=raw,
                 qty=qty, target_distributor=target_distributor,
+                target_packaging=target_packaging, preset=preset,
+                per_board_qty=per_board_qty,
             )
 
     def update_cart_item(self, cart_id: str, ref: str, qty: int | None = None,
-                          target_distributor: str | None = None) -> dict[str, Any]:
+                          target_distributor: str | None = None,
+                          target_packaging: str | None = None,
+                          preset: str | None = None,
+                          per_board_qty: int | None = None) -> dict[str, Any]:
         with self._api._lock:
             return carts.update_item(
                 self._api._get_cache(), self._api.base_dir, cart_id, ref,
                 qty=qty, target_distributor=target_distributor,
+                target_packaging=target_packaging, preset=preset,
+                per_board_qty=per_board_qty,
             )
 
     def remove_cart_item(self, cart_id: str, ref: str) -> dict[str, Any]:
@@ -174,6 +246,7 @@ class CartFacade:
                 qty=entry.get("qty"),
                 target_distributor=entry.get("target_distributor"),
                 shortfall=entry.get("shortfall"),
+                per_board_qty=entry.get("per_board_qty"),
             )
         if not result:
             result = self.get_cart(cart_id)

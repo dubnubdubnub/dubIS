@@ -64,15 +64,31 @@ def create_schema(conn: sqlite3.Connection) -> None:
             DROP TABLE IF EXISTS purchase_orders;
             DROP TABLE IF EXISTS vendors;
         """)
-    # Idempotent column migrations: add columns to parts if they exist but lack them
-    parts_exists = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='parts'"
-    ).fetchone()
-    if parts_exists:
-        for col_ddl in (
+    # Idempotent column migrations for tables the stale-version path above does
+    # NOT drop. `carts` is one of them, so a bumped SCHEMA_VERSION would not
+    # recreate it and CREATE TABLE IF NOT EXISTS would not add a column to the
+    # table already there -- an ALTER is the only thing that reaches an
+    # existing cache.
+    for table, columns in (
+        ("parts", (
             "ALTER TABLE parts ADD COLUMN primary_vendor_id TEXT DEFAULT ''",
             "ALTER TABLE parts ADD COLUMN po_history TEXT DEFAULT ''",
-        ):
+        )),
+        ("carts", (
+            "ALTER TABLE carts ADD COLUMN board_count INTEGER NOT NULL DEFAULT 1",
+        )),
+        ("cart_items", (
+            "ALTER TABLE cart_items ADD COLUMN target_packaging TEXT",
+            "ALTER TABLE cart_items ADD COLUMN preset TEXT",
+            "ALTER TABLE cart_items ADD COLUMN per_board_qty INTEGER",
+        )),
+    ):
+        exists = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
+        ).fetchone()
+        if not exists:
+            continue
+        for col_ddl in columns:
             try:
                 conn.execute(col_ddl)
             except sqlite3.OperationalError as e:
@@ -181,9 +197,10 @@ def create_schema(conn: sqlite3.Connection) -> None:
             created_at       TEXT
         );
         CREATE TABLE IF NOT EXISTS carts (
-            id          TEXT PRIMARY KEY,
-            name        TEXT NOT NULL,
-            created_at  TEXT NOT NULL
+            id           TEXT PRIMARY KEY,
+            name         TEXT NOT NULL,
+            created_at   TEXT NOT NULL,
+            board_count  INTEGER NOT NULL DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS cart_items (
             cart_id             TEXT NOT NULL,
@@ -192,6 +209,9 @@ def create_schema(conn: sqlite3.Connection) -> None:
             raw                 TEXT,
             qty                 INTEGER NOT NULL DEFAULT 1,
             target_distributor  TEXT,
+            target_packaging    TEXT,
+            preset              TEXT,
+            per_board_qty       INTEGER,
             position            INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (cart_id, ref)
         );

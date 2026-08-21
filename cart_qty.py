@@ -44,6 +44,38 @@ def _row_is_reel(row: dict[str, Any], name: str) -> bool | None:
     return is_reel(name) if name else None
 
 
+def _row_reel_qty(row: dict[str, Any]) -> int | None:
+    """The packet/reel quantity this packaging is sold in, or None if unknown.
+
+    Never 0: a reel of zero parts is not a thing, so a stored 0 is treated as
+    "not published" rather than as a real multiple that would reject every
+    quantity.
+    """
+    raw = (row.get("reel_qty") or "").strip()
+    if not raw:
+        return None
+    try:
+        qty = int(float(raw))
+    except ValueError:
+        return None
+    return qty if qty > 0 else None
+
+
+def _row_reel_fee(row: dict[str, Any]) -> float | None:
+    """The custom-reeling surcharge, or None if the distributor publishes none.
+
+    0.0 is kept as a real value distinct from None -- a distributor that reels
+    for free has said something, and it is not "unknown".
+    """
+    raw = (row.get("reel_fee") or "").strip()
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
 def _row_carrier(row: dict[str, Any], name: str) -> str | None:
     carrier = (row.get("carrier") or "").strip().lower()
     if carrier:
@@ -62,8 +94,12 @@ def tier_ladders(
     which is why a file of legacy rows (all in the one unknown group) yields
     byte-identical ladders to the pre-packaging implementation.
 
-    Each value is ``{"name", "carrier", "is_reel", "latest_ts", "ladder"}``,
-    where the descriptive fields come from that group's most recent row.
+    Each value is ``{"name", "carrier", "is_reel", "reel_qty", "reel_fee",
+    "latest_ts", "ladder"}``, where every descriptive field comes from that
+    group's most recent row. ``reel_qty``/``reel_fee`` are None when the
+    distributor publishes neither -- which is not the same as a reel of 0 parts
+    or a free reeling service; see ``domain.purchase_candidates``, which turns
+    these groups into purchasable offers.
     """
     path = os.path.join(events_dir, "price_observations.csv")
     if not os.path.exists(path):
@@ -91,6 +127,8 @@ def tier_ladders(
                     "name": name,
                     "carrier": _row_carrier(row, name),
                     "is_reel": _row_is_reel(row, name),
+                    "reel_qty": _row_reel_qty(row),
+                    "reel_fee": _row_reel_fee(row),
                     "latest_ts": ts,
                     "_breaks": {},
                 }
@@ -102,6 +140,8 @@ def tier_ladders(
                 group["name"] = name
                 group["carrier"] = _row_carrier(row, name)
                 group["is_reel"] = _row_is_reel(row, name)
+                group["reel_qty"] = _row_reel_qty(row)
+                group["reel_fee"] = _row_reel_fee(row)
 
     for group in groups.values():
         breaks = group.pop("_breaks")

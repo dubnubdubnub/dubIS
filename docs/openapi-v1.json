@@ -31,6 +31,28 @@
             ],
             "title": "Part Id"
           },
+          "per_board_qty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Board Qty"
+          },
+          "preset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preset"
+          },
           "qty": {
             "anyOf": [
               {
@@ -75,6 +97,17 @@
               }
             ],
             "title": "Target Distributor"
+          },
+          "target_packaging": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Packaging"
           }
         },
         "title": "AddItemBody",
@@ -124,6 +157,22 @@
           "quantity"
         ],
         "title": "AdjustPartBody",
+        "type": "object"
+      },
+      "BoardCountBody": {
+        "additionalProperties": false,
+        "description": "How many boards this cart builds. Positive: a cart for zero boards\nwould zero every quantity derived from it.",
+        "properties": {
+          "board_count": {
+            "minimum": 1.0,
+            "title": "Board Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "board_count"
+        ],
+        "title": "BoardCountBody",
         "type": "object"
       },
       "ConsolidateBody": {
@@ -996,7 +1045,30 @@
         "type": "object"
       },
       "UpdateItemBody": {
+        "additionalProperties": false,
         "properties": {
+          "per_board_qty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Board Qty"
+          },
+          "preset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preset"
+          },
           "qty": {
             "anyOf": [
               {
@@ -1018,6 +1090,17 @@
               }
             ],
             "title": "Target Distributor"
+          },
+          "target_packaging": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Packaging"
           }
         },
         "title": "UpdateItemBody",
@@ -1726,6 +1809,60 @@
         ]
       }
     },
+    "/v1/carts/{cart_id}/board-count": {
+      "put": {
+        "operationId": "set_cart_board_count",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cart_id",
+            "required": true,
+            "schema": {
+              "title": "Cart Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoardCountBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Cart Board Count",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Cart Board Count",
+        "tags": [
+          "carts"
+        ]
+      }
+    },
     "/v1/carts/{cart_id}/clear": {
       "post": {
         "operationId": "clear_cart",
@@ -2050,6 +2187,78 @@
           }
         },
         "summary": "Update Cart Item",
+        "tags": [
+          "carts"
+        ]
+      }
+    },
+    "/v1/carts/{cart_id}/plan": {
+      "get": {
+        "description": "Recommend what to buy for every line, with the options that lost.\n\nRead-only, and deliberately not a mutation: it does not write the\nquantities it suggests. Committing a recommendation is the ordinary item\nupdate, so re-planning after a price refresh cannot silently rewrite a\ndecision the user already made -- which is also why this route publishes no\n`carts.updated` event.",
+        "operationId": "plan_cart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cart_id",
+            "required": true,
+            "schema": {
+              "title": "Cart Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "preset",
+            "required": false,
+            "schema": {
+              "default": "min",
+              "title": "Preset",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reel_ceiling",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reel Ceiling"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Plan Cart",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plan Cart",
         "tags": [
           "carts"
         ]
