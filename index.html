@@ -351,6 +351,22 @@
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pref-auto-copy"> Automatically copy selected text</label>
     </div>
     <div class="modal-divider"></div>
+    <div class="modal-subtitle" style="margin-bottom:4px"><strong>Server</strong></div>
+    <div class="modal-form" style="flex-direction:column;align-items:flex-start;gap:8px">
+      <label style="display:flex;gap:8px;align-items:center;width:100%">Remote server
+        <input type="text" id="pref-server-url" spellcheck="false" placeholder="local (blank)"
+               style="flex:1;min-width:0;font-family:monospace;font-size:12px;padding:4px 8px">
+      </label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-lg btn btn-apply" id="pref-restart" style="padding:4px 14px;font-size:12px">Restart to apply</button>
+        <span id="pref-server-status" style="font-size:11px;color:var(--text-muted)"></span>
+      </div>
+      <span style="font-size:11px;color:var(--text-muted);max-width:420px">
+        Blank runs dubIS&rsquo;s own server locally. A URL points this window at an
+        already-deployed one instead &mdash; decided once at launch, so it needs a restart.
+      </span>
+    </div>
+    <div class="modal-divider"></div>
     <div class="modal-subtitle" style="margin-bottom:4px"><strong>Sourcing</strong></div>
     <div class="modal-form" style="flex-direction:column;align-items:flex-start;gap:8px">
       <label style="display:flex;gap:8px;align-items:center">Reel ceiling

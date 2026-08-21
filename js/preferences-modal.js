@@ -3,7 +3,7 @@
 
 import { api, AppLog } from './api.js';
 import { showToast, escHtml, Modal } from './ui-helpers.js';
-import { store, getThreshold, savePreferences, preferencesSignal, getShortcutPrefs, setShortcutPrefs, getBehaviorPrefs, setBehaviorPrefs } from './store.js';
+import { store, getThreshold, savePreferences, preferencesSignal, getShortcutPrefs, setShortcutPrefs, getBehaviorPrefs, setBehaviorPrefs, getServerUrl, setServerUrl } from './store.js';
 
 var PREFS_MAX_THRESHOLD = 200;
 var PREFS_MIN_THRESHOLD = 5;
@@ -77,6 +77,66 @@ function syncKeyboardPrefs() {
   document.getElementById('pref-vim-nav').checked = p.vimNav;
   document.getElementById('pref-auto-copy').checked = getBehaviorPrefs().autoCopySelection;
   document.getElementById('pref-reel-ceiling').value = String(getBehaviorPrefs().reelCeiling);
+  syncServerPrefs();
+}
+
+// ── Server prefs ──
+
+/** The URL this window is actually talking to right now. */
+function liveBaseUrl() {
+  // The webview navigates to the remote origin itself in remote mode, so the
+  // page's own origin IS the live server — more truthful than echoing the
+  // preference, which may have been edited since launch.
+  return window.location.origin;
+}
+
+function syncServerPrefs() {
+  const input = /** @type {HTMLInputElement} */ (document.getElementById('pref-server-url'));
+  const status = document.getElementById('pref-server-status');
+  if (!input || !status) return;
+  const saved = getServerUrl();
+  if (document.activeElement !== input) input.value = saved;
+  // Compare against where the page is actually served from, so a saved change
+  // that has not been applied yet says so instead of looking already-live.
+  const live = liveBaseUrl();
+  const pending = saved ? saved !== live : !/^https?:\/\/(127\.0\.0\.1|localhost)/i.test(live);
+  status.textContent = pending
+    ? `pending restart \u2014 now using ${live}`
+    : `active \u2014 ${live}`;
+  status.style.color = pending ? 'var(--color-yellow)' : 'var(--text-muted)';
+}
+
+function wireServerPrefs() {
+  const input = /** @type {HTMLInputElement} */ (document.getElementById('pref-server-url'));
+  input.addEventListener('change', (e) => {
+    // setServerUrl returns what it actually stored — a value it rejected (no
+    // http(s) scheme) comes back as "", and echoing that beats leaving a
+    // rejected string sitting in the field looking saved.
+    const stored = setServerUrl(/** @type {HTMLInputElement} */ (e.target).value);
+    if (input.value.trim() && !stored) {
+      showToast('Server URL must start with http:// or https://');
+    }
+    input.value = stored;
+    syncServerPrefs();
+  });
+
+  document.getElementById('pref-restart').addEventListener('click', async () => {
+    const target = getServerUrl() || 'the local server';
+    if (!window.confirm(`Restart dubIS now to connect to ${target}?`)) return;
+    const shell = window.pywebview && window.pywebview.api;
+    if (!shell || typeof shell.restart_app !== 'function') {
+      // In a browser tab there is no desktop process to relaunch. Say so
+      // rather than appearing to do nothing.
+      showToast('Restart is only available in the desktop app — reopen it to apply');
+      return;
+    }
+    try {
+      await shell.restart_app();
+    } catch (e) {
+      AppLog.error('preferences: restart_app failed: ' + e.message);
+      showToast('Could not restart — close and reopen dubIS to apply');
+    }
+  });
 }
 
 function wireKeyboardPrefs() {
@@ -89,6 +149,7 @@ function wireKeyboardPrefs() {
   // twice on the way to the number the user meant. setBehaviorPrefs rejects a
   // non-positive value back to the default, so the field is re-read from the
   // store rather than trusting what was typed.
+  wireServerPrefs();
   document.getElementById('pref-reel-ceiling').addEventListener('change', (e) => {
     setBehaviorPrefs({ reelCeiling: Number(e.target.value) });
     e.target.value = String(getBehaviorPrefs().reelCeiling);
