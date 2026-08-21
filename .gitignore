@@ -26,6 +26,11 @@ data/*.db-wal
 data/events/*.csv
 data/scans/
 data/webview2/
+# Runtime files the server writes on startup and removes on clean shutdown
+# (see CLAUDE.md's Data row). Untracked but not ignored until now, so anyone
+# who ran the app got a dirty tree and would eventually commit one.
+data/.v1_port
+data/.dubis_lock
 data-backup-*/
 data_backup
 test-results/

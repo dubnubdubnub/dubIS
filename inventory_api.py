@@ -70,6 +70,12 @@ class InventoryApi:
         self._force_close: bool = False
         self._closing: bool = False
         self._bom_dirty: bool = False
+        # Set by request_restart(); read by app.pyw's _do_exit AFTER _cleanup()
+        # has released the data-dir lock, so the replacement process never races
+        # this one for it. Same shape as _force_close: the bridge call and the
+        # exit path are different call stacks, so the intent has to be parked
+        # somewhere both can see.
+        self._restart_pending: bool = False
         # Set by app.pyw to a zero-arg callback fired when the frontend confirms
         # the JS bridge is live (WebView2 profile loaded cleanly). None in
         # headless/server contexts. See notify_webview_ready() and webview_profile.py.
@@ -674,6 +680,23 @@ class InventoryApi:
         cb = self._on_webview_ready
         if cb is not None:
             cb()
+
+    def request_restart(self) -> None:
+        """Relaunch the app: flag the intent, then close as if the user had.
+
+        Deliberately reuses the ordinary close path rather than spawning the
+        replacement here. `_cleanup()` stops the PnP server, commits and closes
+        SQLite, and releases the data-dir lock last; starting a second instance
+        before all of that would have it contend for the lock and the WebView2
+        profile with a process still holding both.
+
+        Force-closes: the user asked for a restart, so a BOM-dirty prompt would
+        be answering a question they did not ask. Their preference edit is
+        already persisted (save_preferences writes on change), which is the
+        thing the restart exists to pick up.
+        """
+        self._restart_pending = True
+        self.confirm_close()
 
     def confirm_close(self) -> None:
         """Set force-close flag and destroy the window."""

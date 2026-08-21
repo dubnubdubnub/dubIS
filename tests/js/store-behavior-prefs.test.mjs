@@ -78,4 +78,50 @@ describe('behavior preferences slice', () => {
     store.setBehaviorPrefs({ somethingElse: true });
     expect(store.getBehaviorPrefs()).not.toHaveProperty('somethingElse');
   });
+
+  // ── server_url ──
+  // savePreferences() posts the WHOLE in-memory object while the loader copies
+  // known keys only, so a key the loader forgets is erased from
+  // preferences.json by the next save of any unrelated preference. remote_mode
+  // .resolve_remote_base_url reads server_url from that file.
+
+  it('defaults to local mode', () => {
+    expect(store.getServerUrl()).toBe('');
+  });
+
+  it('round-trips a URL', () => {
+    store.setServerUrl('https://dubis-server.example.ts.net');
+    expect(store.getServerUrl()).toBe('https://dubis-server.example.ts.net');
+  });
+
+  it('survives a save of an unrelated preference', async () => {
+    store.setServerUrl('https://dubis-server.example.ts.net');
+    store.setBehaviorPrefs({ reelCeiling: 150 });
+    expect(store.getServerUrl()).toBe('https://dubis-server.example.ts.net');
+  });
+
+  it('survives being loaded back from stored preferences', async () => {
+    const { api } = await import('../../js/api.js');
+    api.mockResolvedValueOnce({ server_url: 'https://from-disk.example.ts.net' });
+    await store.loadPreferences();
+    expect(store.getServerUrl()).toBe('https://from-disk.example.ts.net');
+  });
+
+  it('strips a trailing slash so comparisons against an origin match', () => {
+    store.setServerUrl('https://dubis-server.example.ts.net/');
+    expect(store.getServerUrl()).toBe('https://dubis-server.example.ts.net');
+  });
+
+  it('rejects a URL with no scheme rather than storing it', () => {
+    // The webview would resolve it relative to the app's own origin and quietly
+    // talk to the LOCAL server — a wrong answer that looks like a working one.
+    expect(store.setServerUrl('dubis-server.example.ts.net')).toBe('');
+    expect(store.getServerUrl()).toBe('');
+  });
+
+  it('clears back to local mode on empty input', () => {
+    store.setServerUrl('https://dubis-server.example.ts.net');
+    expect(store.setServerUrl('   ')).toBe('');
+    expect(store.getServerUrl()).toBe('');
+  });
 });
