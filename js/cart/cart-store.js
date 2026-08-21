@@ -139,12 +139,38 @@ export async function deleteCart(cartId) {
 
 /**
  * @param {string} ref
- * @param {{qty?: number, targetDistributor?: string}} [opts]
+ * @param {{qty?: number, targetDistributor?: string|null, targetPackaging?: string|null,
+ *          preset?: string|null, perBoardQty?: number|null}} [opts]
  * @param {string} [cartId] defaults to the active cart
  */
-export async function updateItem(ref, { qty, targetDistributor } = {}, cartId) {
+export async function updateItem(
+  ref,
+  { qty, targetDistributor, targetPackaging, preset, perBoardQty } = {},
+  cartId,
+) {
   const id = cartId ?? _requireActiveCartId();
-  await api('update_cart_item', id, ref, qty ?? null, targetDistributor ?? null);
+  // Every field is null-means-leave-alone server-side, so a caller changing
+  // one does not have to restate the others. The empty string is NOT null: it
+  // is how a preset or packaging is cleared back to following the cart
+  // default, which is why `preset` is passed through with ?? rather than ||.
+  await api('update_cart_item', id, ref,
+    qty ?? null, targetDistributor ?? null,
+    targetPackaging ?? null, preset ?? null, perBoardQty ?? null);
+  await loadCarts();
+}
+
+/**
+ * Set how many boards the cart builds.
+ *
+ * Stored on the cart rather than multiplied into each line's quantity, so a
+ * line stays explainable as "25 boards x 8 placements, less what is on hand"
+ * instead of an unaccountable absolute number.
+ * @param {number} boardCount
+ * @param {string} [cartId] defaults to the active cart
+ */
+export async function setBoardCount(boardCount, cartId) {
+  const id = cartId ?? _requireActiveCartId();
+  await api('set_cart_board_count', id, boardCount);
   await loadCarts();
 }
 

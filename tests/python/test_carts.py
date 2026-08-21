@@ -169,3 +169,84 @@ def test_consolidate_sets_target_where_sourceable(tmp_path):
     items = {i["part_id"]: i["target_distributor"] for i in res["cart"]["items"]}
     assert items["A"] == "lcsc" and items["B"] != "lcsc"
     assert "B" in [u for u in res["unresolved"]] or any("B" == r for r in res["unresolved"])
+
+
+# ── board_count ──────────────────────────────────────────────────────────────
+
+
+def test_a_new_cart_builds_one_board_by_default(tmp_path):
+    """Not zero: a cart for zero boards would zero every derived quantity."""
+    conn = _mk_conn(tmp_path)
+    assert carts.create(conn, str(tmp_path), "Cart")["board_count"] == 1
+
+
+def test_board_count_survives_the_json_round_trip(tmp_path):
+    """carts.json is the source of truth; the count has to be in it, or a
+    5,000-piece line becomes unexplainable the moment the cache is deleted."""
+    conn = _mk_conn(tmp_path)
+    data_dir = str(tmp_path)
+    cart = carts.create(conn, data_dir, "Glasgow revD0")
+    carts.set_board_count(conn, data_dir, cart["id"], 25)
+
+    with open(f"{data_dir}/carts.json", encoding="utf-8") as f:
+        assert json.load(f)[0]["board_count"] == 25
+
+    fresh = _mk_conn(tmp_path)
+    carts.load_into_db(fresh, data_dir)
+    assert carts.get(fresh, cart["id"])["board_count"] == 25
+
+
+def test_set_board_count_returns_the_updated_cart(tmp_path):
+    conn = _mk_conn(tmp_path)
+    updated = carts.set_board_count(
+        conn, str(tmp_path), carts.create(conn, str(tmp_path), "Cart")["id"], 10)
+    assert updated["board_count"] == 10
+
+
+def test_a_missing_board_count_in_json_loads_as_one(tmp_path):
+    """Carts written before the column existed must still load."""
+    data_dir = str(tmp_path)
+    with open(f"{data_dir}/carts.json", "w", encoding="utf-8") as f:
+        json.dump([{"id": "cart_legacy", "name": "Old", "created_at": "2026-01-01T00:00:00",
+                    "items": []}], f)
+    conn = _mk_conn(tmp_path)
+    carts.load_into_db(conn, data_dir)
+    assert carts.get(conn, "cart_legacy")["board_count"] == 1
+
+
+@pytest.mark.parametrize("bad", [0, -5, None, "many", ""])
+def test_a_nonsensical_stored_board_count_loads_as_one_rather_than_failing(tmp_path, bad):
+    """Forgiving on read: a cart that fails to load is worse than a cart that
+    quietly builds one board. Input validation lives at the API boundary."""
+    assert carts.clean_board_count(bad) == 1
+
+
+def test_a_fractional_board_count_truncates_rather_than_rounding(tmp_path):
+    assert carts.clean_board_count(25.9) == 25
+
+
+def test_set_board_count_rejects_an_unknown_cart(tmp_path):
+    conn = _mk_conn(tmp_path)
+    with pytest.raises(DubISError):
+        carts.set_board_count(conn, str(tmp_path), "cart_nope", 5)
+
+
+def test_board_count_reaches_an_existing_cache_by_migration(tmp_path):
+    """`carts` is not in create_schema's stale-version drop list, so neither a
+    version bump nor CREATE TABLE IF NOT EXISTS would add the column to a cache
+    that already exists. Only the ALTER does."""
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE cache_meta (key TEXT PRIMARY KEY, value TEXT);
+        CREATE TABLE carts (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL);
+        INSERT INTO cache_meta VALUES ('schema_version','7');
+        INSERT INTO carts VALUES ('cart_old','Glasgow revD0','2026-08-01T00:00:00');
+    """)
+    conn.commit()
+
+    cache_db.create_schema(conn)
+    assert carts.get(conn, "cart_old")["board_count"] == 1
+
+    cache_db.create_schema(conn)  # idempotent: a duplicate-column ALTER is not an error
+    assert carts.get(conn, "cart_old")["board_count"] == 1

@@ -94,6 +94,24 @@ FIELDNAMES = ["timestamp", "part_id", "distributor", "unit_price", "currency",
               "source", "moq", "note", *PACKAGING_FIELDNAMES]
 
 
+def _clean_is_reel(value: Any) -> bool | None:
+    """Normalize a reel flag, accepting the CSV's own wire format.
+
+    `"0"` has to mean False. It is what this function *writes*, it is what
+    `cart_qty._row_is_reel` reads back as False, and a non-empty string is
+    truthy in Python -- so taking the raw value would flip every cut-tape row
+    to a reel the moment an observation read from the file was written back.
+    Silent and inverted is the worst pair of properties a bug can have here: a
+    reel ladder's lowest break IS the reel quantity, so a mislabelled row can
+    answer a 200-piece shortfall with a 5,000-piece reel.
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, str):
+        return value.strip().lower() not in ("0", "false", "no", "")
+    return bool(value)
+
+
 def _fmt_reel_qty(value: Any) -> str:
     qty = clean_reel_qty(value)
     return "" if qty is None else str(qty)
@@ -115,7 +133,7 @@ def _packaging_columns(obs: dict[str, Any]) -> dict[str, str]:
     """
     name = str(obs.get("packaging") or "").strip()
     carrier = obs.get("carrier")
-    reel = obs.get("is_reel")
+    reel = _clean_is_reel(obs.get("is_reel"))
     if name:
         if carrier is None:
             carrier = carrier_of(name)
@@ -124,7 +142,7 @@ def _packaging_columns(obs: dict[str, Any]) -> dict[str, str]:
     return {
         "packaging": name,
         "carrier": str(carrier).strip() if carrier else "",
-        "is_reel": "" if reel is None or reel == "" else ("1" if reel else "0"),
+        "is_reel": "" if reel is None else ("1" if reel else "0"),
         "reel_qty": _fmt_reel_qty(obs.get("reel_qty")),
         "reel_fee": _fmt_reel_fee(obs.get("reel_fee")),
     }

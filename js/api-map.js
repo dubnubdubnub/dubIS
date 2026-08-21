@@ -28,14 +28,20 @@ export const API_MAP = {
       "raw",
       "qty",
       "target_distributor",
-      "shortfall"
+      "shortfall",
+      "target_packaging",
+      "preset",
+      "per_board_qty"
     ],
     "bodyParams": [
       "part_id",
+      "per_board_qty",
+      "preset",
       "qty",
       "raw",
       "shortfall",
-      "target_distributor"
+      "target_distributor",
+      "target_packaging"
     ],
     "mutating": false,
     "path": "/v1/carts/{cart_id}/items",
@@ -1068,6 +1074,26 @@ export const API_MAP = {
     "unwrap": null,
     "verb": "POST"
   },
+  "plan_cart": {
+    "argOrder": [
+      "cart_id",
+      "preset",
+      "reel_ceiling"
+    ],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/carts/{cart_id}/plan",
+    "pathParams": [
+      "cart_id"
+    ],
+    "queryParams": [
+      "preset",
+      "reel_ceiling"
+    ],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "GET"
+  },
   "pnp_consume": {
     "argOrder": [
       "part_id",
@@ -1312,6 +1338,24 @@ export const API_MAP = {
     "unwrap": "detail",
     "verb": "POST"
   },
+  "set_cart_board_count": {
+    "argOrder": [
+      "cart_id",
+      "board_count"
+    ],
+    "bodyParams": [
+      "board_count"
+    ],
+    "mutating": false,
+    "path": "/v1/carts/{cart_id}/board-count",
+    "pathParams": [
+      "cart_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "PUT"
+  },
   "set_mouser_api_key": {
     "argOrder": [
       "key"
@@ -1412,11 +1456,17 @@ export const API_MAP = {
       "cart_id",
       "ref",
       "qty",
-      "target_distributor"
+      "target_distributor",
+      "target_packaging",
+      "preset",
+      "per_board_qty"
     ],
     "bodyParams": [
+      "per_board_qty",
+      "preset",
       "qty",
-      "target_distributor"
+      "target_distributor",
+      "target_packaging"
     ],
     "mutating": false,
     "path": "/v1/carts/{cart_id}/items/{ref}",

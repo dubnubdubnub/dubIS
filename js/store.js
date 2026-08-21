@@ -27,6 +27,11 @@ export const SHORTCUT_DEFAULTS = Object.freeze({
 /** @type {Object} */
 export const BEHAVIOR_DEFAULTS = Object.freeze({
   autoCopySelection: false,   // auto-copy highlighted/selected text to clipboard
+  // Spend above which a whole reel stops being a convenience worth paying for.
+  // A DEFAULT RULE, not a constant and not a budget: it decides which reel the
+  // cart's reel preset prefers and never hides one that exists, so a $90 reel
+  // still appears (flagged) when nothing cheaper is carried on a reel.
+  reelCeiling: 80,
 });
 
 // ── Private state slices ──────────────────────────────────
@@ -308,7 +313,7 @@ export async function loadPreferences() {
       preferences.shortcuts = normalizeShortcuts(stored.shortcuts);
     }
     if (stored.behavior && typeof stored.behavior === "object") {
-      preferences.behavior = { autoCopySelection: !!stored.behavior.autoCopySelection };
+      preferences.behavior = normalizeBehavior(stored.behavior);
     }
     // Raw pass-through: both are validated by their own owning module —
     // ui_zoom by normalizePersistedZoom (js/ui-zoom-logic.js) and
@@ -512,14 +517,35 @@ export function setShortcutPrefs(partial) {
   preferencesSignal.set(preferences);
 }
 
+/**
+ * Coerce a stored behavior-preferences object to the known keys.
+ *
+ * This whitelist is applied on BOTH read and write on purpose — an unknown key
+ * is dropped rather than persisted, so preferences.json cannot accumulate
+ * fields nothing reads. The corollary is the trap: a new preference that is
+ * not added HERE looks like it saved and comes back as the default, in both
+ * directions and without an error.
+ * @param {any} raw
+ * @returns {{autoCopySelection: boolean, reelCeiling: number}}
+ */
+function normalizeBehavior(raw) {
+  const b = raw || {};
+  const ceiling = Number(b.reelCeiling);
+  return {
+    autoCopySelection: !!b.autoCopySelection,
+    // 0 and negatives are not a ceiling of zero — they would reject every reel
+    // there is — so they fall back to the shipped default.
+    reelCeiling: Number.isFinite(ceiling) && ceiling > 0
+      ? ceiling : BEHAVIOR_DEFAULTS.reelCeiling,
+  };
+}
+
 export function getBehaviorPrefs() {
-  const b = preferences.behavior || {};
-  return { autoCopySelection: !!b.autoCopySelection };
+  return normalizeBehavior(preferences.behavior || {});
 }
 
 export function setBehaviorPrefs(partial) {
-  const next = { ...getBehaviorPrefs(), ...partial };
-  preferences.behavior = { autoCopySelection: !!next.autoCopySelection };
+  preferences.behavior = normalizeBehavior({ ...getBehaviorPrefs(), ...partial });
   savePreferences();
   preferencesSignal.set(preferences);
 }
