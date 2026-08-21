@@ -11,7 +11,7 @@
 import { test, expect } from '@playwright/test';
 import { waitForInventoryRows } from './helpers.mjs';
 import { installRouteMocks } from './route-mocks.mjs';
-import { capture, rectOf } from './visual/capture.mjs';
+import { capture, rectOf, settledRect, fontsReady } from './visual/capture.mjs';
 import { detectClipping } from './visual/measure.mjs';
 
 // Three vendors with distinct emoji icons. The .fan-icon box (border +
@@ -62,9 +62,13 @@ test('most-recent PO is on top; older POs cascade down-right and stay visible', 
   await waitForInventoryRows(page);
   // The cascade depends on POs/vendors, which load after INVENTORY_LOADED.
   await page.waitForSelector('.inv-part-row .favicon-fan-stack .fan-icon', { timeout: 10_000 });
+  // Emoji glyphs in the icons reflow the row when a late font arrives.
+  await fontsReady(page);
 
   const stack = page.locator('.inv-part-row .favicon-fan-stack').first();
   const icons = stack.locator('.fan-icon');
+  // Quiesce the layout before anything measures it.
+  await settledRect(stack);
   await expect(icons, 'one icon per PO, capped at 3 most recent').toHaveCount(3);
 
   // Front icon (most recent, index 0) is fully visible — not clipped/occluded.
@@ -74,8 +78,20 @@ test('most-recent PO is on top; older POs cascade down-right and stay visible', 
   expect(clip.clipped, `front icon clipped: ${clip.reason}`).toBe(false);
 
   // Cascade geometry: each older icon is offset ~5px right and ~3px down.
-  const rects = [];
-  for (let i = 0; i < 3; i++) rects.push(await rectOf(icons.nth(i)));
+  //
+  // All three rects come from ONE evaluate, so they are measured in a single
+  // layout pass. Read one at a time (three round-trips), a reflow between two
+  // of them lands entirely in one delta and reports "icon N offset wrong" for a
+  // cascade that is in fact pixel-perfect — the failure #409 saw on the m4-air,
+  // reproducible on an idle machine at --workers=8.
+  const rects = await stack.evaluate((el) => Array.from(
+    el.querySelectorAll('.fan-icon'),
+    (icon) => {
+      const r = icon.getBoundingClientRect();
+      return { x: r.left, y: r.top, width: r.width, height: r.height };
+    },
+  ));
+  expect(rects.length, 'expected three measured icons').toBe(3);
   for (let i = 1; i < 3; i++) {
     expect(Math.abs((rects[i].x - rects[i - 1].x) - STACK_OFFSET_X),
       `icon ${i} horizontal offset wrong`).toBeLessThanOrEqual(1.5);
@@ -108,10 +124,16 @@ test('the older icon is actually painted in the bottom-right sliver', async ({ p
   await page.goto('/index.html');
   await waitForInventoryRows(page);
   await page.waitForSelector('.inv-part-row .favicon-fan-stack .fan-icon', { timeout: 10_000 });
+  await fontsReady(page);
 
   const stack = page.locator('.inv-part-row .favicon-fan-stack').first();
-  const r = await rectOf(stack);
-  const frame = await capture(page, stack, { pad: 6 });
+  // ONE measurement, reused as the screenshot clip. capture() takes a rect as
+  // readily as a locator, and handing it the locator made it call
+  // boundingBox() again — a second measurement the pixel coordinates below
+  // then disagreed with if anything moved in between, so the sliver scan read
+  // row background and the icon looked unpainted.
+  const r = await settledRect(stack);
+  const frame = await capture(page, r, { pad: 6 });
 
   // Reference: a point well to the right of the stack = bare row background.
   const [refX, refY] = frame.toImg(r.x + r.width + 4, r.y + r.height / 2);

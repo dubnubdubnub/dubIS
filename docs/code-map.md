@@ -2165,6 +2165,11 @@ graph LR
 - **Imports:** `js/bom-row-data.js`
 - **Imported by:** —
 
+### tests/js/ci-playwright-check.test.js
+
+- **Imports:** —
+- **Imported by:** —
+
 ### tests/js/command-palette.test.js
 
 - **Imports:** `js/a11y/focus-trap.js`, `js/api.js`, `js/components/command-palette.js`
@@ -2789,6 +2794,11 @@ graph LR
 ### tests/python/test_ci_watcher_worker.py
 
 - **Imports:** `scripts/ci_watcher/worker.py`
+- **Imported by:** —
+
+### tests/python/test_ci_workspace_hygiene.py
+
+- **Imports:** —
 - **Imported by:** —
 
 ### tests/python/test_client_shell.py
