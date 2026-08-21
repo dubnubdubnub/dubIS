@@ -760,6 +760,7 @@ graph LR
     "tests/python/test_api_surface.py" --> "client_shell.py"
     "tests/python/test_api_surface.py" --> "inventory_api.py"
     "tests/python/test_app_mirror_hooks.py" --> "tests/python/helpers.py"
+    "tests/python/test_app_restart.py" --> "app_restart.py"
     "tests/python/test_base_client.py" --> "base_client.py"
     "tests/python/test_base_client.py" --> "dubis_errors.py"
     "tests/python/test_cache_db.py" --> "cache_db.py"
@@ -884,6 +885,7 @@ graph LR
     "tests/python/test_purchase_orders.py" --> "purchase_orders.py"
     "tests/python/test_real_data.py" --> "inventory_api.py"
     "tests/python/test_remote_mode.py" --> "remote_mode.py"
+    "tests/python/test_request_restart.py" --> "inventory_api.py"
     "tests/python/test_saved_searches.py" --> "cache_db.py"
     "tests/python/test_saved_searches.py" --> "saved_searches.py"
     "tests/python/test_scan_session.py" --> "pnp_server.py"
@@ -921,6 +923,11 @@ graph LR
 | `VENDORS_CHANGED` | `js/store.js` | `js/inventory/inv-events.js`, `tests/js/panel-reopen-noop-refresh.test.js` |
 
 ## Per-file index
+
+### app_restart.py
+
+- **Imports:** —
+- **Imported by:** `tests/python/test_app_restart.py`
 
 ### base_client.py
 
@@ -1170,7 +1177,7 @@ graph LR
 ### inventory_api.py
 
 - **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_attributes.py`, `domain/api_cart.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/api_mirror.py`, `domain/api_predicates.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`, `mirror_push.py`
-- **Imported by:** `client_shell.py`, `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `server/__main__.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/server/test_main_flags.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`
+- **Imported by:** `client_shell.py`, `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `server/__main__.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/server/test_main_flags.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`, `tests/python/test_request_restart.py`
 
 ### inventory_mirror.py
 
@@ -2704,6 +2711,11 @@ graph LR
 - **Imports:** `tests/python/helpers.py`
 - **Imported by:** —
 
+### tests/python/test_app_restart.py
+
+- **Imports:** `app_restart.py`
+- **Imported by:** —
+
 ### tests/python/test_base_client.py
 
 - **Imports:** `base_client.py`, `dubis_errors.py`
@@ -3087,6 +3099,11 @@ graph LR
 ### tests/python/test_remote_mode.py
 
 - **Imports:** `remote_mode.py`
+- **Imported by:** —
+
+### tests/python/test_request_restart.py
+
+- **Imports:** `inventory_api.py`
 - **Imported by:** —
 
 ### tests/python/test_saved_searches.py

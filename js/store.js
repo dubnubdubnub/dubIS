@@ -48,6 +48,8 @@ let preferences = {
   shortcuts: { ...SHORTCUT_DEFAULTS },
   behavior: { ...BEHAVIOR_DEFAULTS },
   saved_views: [],
+  // "" = local mode (spawn our own server). See remote_mode.py.
+  server_url: "",
 };
 
 // ── Signals ───────────────────────────────────────────────
@@ -315,6 +317,13 @@ export async function loadPreferences() {
     if (stored.behavior && typeof stored.behavior === "object") {
       preferences.behavior = normalizeBehavior(stored.behavior);
     }
+    // Carried through explicitly. savePreferences() posts the WHOLE in-memory
+    // object, and this loader copies known keys only — so a key that is read
+    // here is silently erased from preferences.json by the next save of any
+    // unrelated preference. remote_mode.resolve_remote_base_url reads
+    // server_url from that file, so dropping it would have quietly un-set the
+    // remote server the moment the user touched a slider.
+    preferences.server_url = normalizeServerUrl(stored.server_url);
     // Raw pass-through: both are validated by their own owning module —
     // ui_zoom by normalizePersistedZoom (js/ui-zoom-logic.js) and
     // panels_collapsed by normalizeCollapsed (js/panel-collapse-logic.js) —
@@ -515,6 +524,44 @@ export function setShortcutPrefs(partial) {
   preferences.shortcuts = normalizeShortcuts({ ...getShortcutPrefs(), ...partial });
   savePreferences();
   preferencesSignal.set(preferences);
+}
+
+/**
+ * Coerce a stored server URL to a string, or "" for local mode.
+ *
+ * Only shape is validated here, not reachability: an unreachable URL is a
+ * runtime condition the splash screen already surfaces by polling
+ * /v1/health, and refusing to persist one would make a URL untypable while
+ * the server happens to be down.
+ * @param {any} raw
+ * @returns {string}
+ */
+function normalizeServerUrl(raw) {
+  const text = String(raw ?? "").trim();
+  if (!text) return "";
+  // Anything without an http(s) scheme would be resolved relative to the app's
+  // own origin by the webview, silently pointing at the local server instead of
+  // the remote one — a wrong answer that looks like a working one.
+  if (!/^https?:\/\//i.test(text)) return "";
+  return text.replace(/\/+$/, "");
+}
+
+/** @returns {string} the configured remote server URL, or "" for local mode. */
+export function getServerUrl() {
+  return normalizeServerUrl(preferences.server_url);
+}
+
+/**
+ * Persist the remote server URL. Takes effect on the NEXT launch —
+ * `app.pyw` resolves it once at startup to decide whether to spawn a local
+ * server, which is not a decision that can be revisited on a live process.
+ * @param {string} url "" for local mode
+ */
+export function setServerUrl(url) {
+  preferences.server_url = normalizeServerUrl(url);
+  savePreferences();
+  preferencesSignal.set(preferences);
+  return preferences.server_url;
 }
 
 /**

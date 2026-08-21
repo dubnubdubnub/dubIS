@@ -68,6 +68,15 @@ class ClientShell:
     def notify_webview_ready(self) -> None:
         self._api.notify_webview_ready()
 
+    def restart_app(self) -> None:
+        """Relaunch the app so a changed server URL takes effect.
+
+        On the bridge rather than /v1 because it is a client-machine action with
+        no HTTP shape: a remote server cannot restart the desktop process that
+        is talking to it, and would not know which one to restart.
+        """
+        self._api.request_restart()
+
     # ── Client-machine actions with no HTTP equivalent ───────────────────────
 
     def start_digikey_login(self) -> dict[str, Any]:

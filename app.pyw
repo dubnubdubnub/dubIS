@@ -37,6 +37,7 @@ from inventory_api import InventoryApi
 from pnp_server import start_pnp_server, stop_pnp_server
 from remote_mode import resolve_remote_base_url
 from window_close import handle_closing
+import app_restart
 import webview_profile
 
 # Seconds to wait for the JS bridge before assuming a corrupt WebView2 profile
@@ -437,8 +438,34 @@ class Launcher:
         webview_profile.kill_child_webview_processes(os.getpid())
         bench.mark("cache_closed")
 
+    def _spawn_replacement(self):
+        """Start a fresh instance. Called from _do_exit AFTER _cleanup().
+
+        Ordering is the whole point: _cleanup() releases the data-dir lock last
+        precisely so a second instance cannot start writing while this one
+        closes, and it also reaps our WebView2 children so the persistent
+        profile is unlocked. Spawning any earlier hands the replacement a lock
+        and a profile we still hold.
+
+        Failure here is logged and swallowed: we are mid-exit and the user asked
+        to restart, so the worst outcome is the app closing without coming back
+        — recoverable by launching it again — whereas raising would leave the
+        process wedged in teardown.
+        """
+        try:
+            import subprocess
+            cmd = app_restart.relaunch_argv(sys.executable, sys.argv)
+            env = app_restart.relaunch_env(os.environ)
+            subprocess.Popen(cmd, env=env, cwd=os.getcwd(), **app_restart.spawn_kwargs())
+            logger.info("Restart: spawned replacement: %s", " ".join(cmd))
+        except Exception as exc:  # noqa: BLE001 - see docstring
+            logger.error("Restart: failed to spawn replacement: %s", exc)
+
     def _do_exit(self):
+        restarting = bool(self.api and getattr(self.api, "_restart_pending", False))
         self._cleanup()
+        if restarting:
+            self._spawn_replacement()
         bench.mark("pre_exit")
         _hard_exit(0)  # kill process immediately
 
