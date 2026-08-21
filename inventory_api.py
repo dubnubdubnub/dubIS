@@ -308,8 +308,14 @@ class InventoryApi:
     # ── Price history API ───────────────────────────────────────────────────
 
     def record_fetched_prices(self, part_key: str, distributor: str,
-                               price_tiers: list[dict[str, Any]]) -> None:
-        return self._pricing.record_fetched_prices(part_key, distributor, price_tiers)
+                               price_tiers: list[dict[str, Any]],
+                               packagings: list[dict[str, Any]] | None = None,
+                               reel_qty: int | None = None,
+                               reel_fee: float | None = None) -> None:
+        return self._pricing.record_fetched_prices(
+            part_key, distributor, price_tiers,
+            packagings=packagings, reel_qty=reel_qty, reel_fee=reel_fee,
+        )
 
     def get_price_summary(self, part_key: str) -> dict[str, dict[str, Any]]:
         return self._pricing.get_price_summary(part_key)

@@ -19,8 +19,12 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 
 - `pricing.py`: `parse_qty`, `parse_price`, `ensure_parsed`, `derive_missing_price` — scalar parsing helpers
 - `pricing.py`: `record_observations`, `read_observations` — append/read price observation CSV
+- `pricing.py`: `FIELDNAMES`, `PACKAGING_FIELDNAMES`, `migrate_observations` — observation CSV schema + header migration
 - `pricing.py`: `populate_prices_cache`, `resolve_part_key` — SQLite prices-table helpers
 - `pricing.py`: `record_fetched_prices`, `get_price_summary` — distributor price fetch + summary
+- `packaging.py`: `carrier_of`, `is_reel` — normalize distributor packaging prose to a carrier + reel-ness
+- `packaging.py`: `clean_reel_qty`, `clean_reel_fee` — coerce scraped reel quantity/surcharge (0 → unknown)
+- `product.py`: `build_product`, `annotate_packagings` — the normalized-product factory every client emits
 - `attributes.py`: `record_fetched_attributes`, `get_attributes` — distributor parametric fetch + lookup
 - `attributes.py`: `record_attributes`, `read_rows`, `build_rows` — durable part_attributes CSV
 - `attributes.py`: `load_into_db` — rebuild the derived part_attributes cache table

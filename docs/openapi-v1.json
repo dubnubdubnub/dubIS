@@ -671,6 +671,21 @@
             "title": "Distributor",
             "type": "string"
           },
+          "packagings": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Packagings"
+          },
           "price_tiers": {
             "items": {
               "additionalProperties": true,
@@ -678,6 +693,28 @@
             },
             "title": "Price Tiers",
             "type": "array"
+          },
+          "reel_fee": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reel Fee"
+          },
+          "reel_qty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reel Qty"
           }
         },
         "required": [
