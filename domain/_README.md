@@ -11,6 +11,7 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `file_dialogs.py` — imports `ensure_parsed` for JSON parsing
 - `inventory_ops.py` — imports `derive_missing_price`, `parse_price`, `parse_qty`
 - `inventory_api.py` — imports `record_fetched_prices`, `get_price_summary`, `populate_prices_cache`, `resolve_part_key`, `record_observations`
+- `domain.inventory` — imports `load_into_db` from `attributes` (rebuild restores the derived table)
 - `inventory_api.py` — imports `create_generic_part_api`, `update_generic_part_api`, `add_member_api`, `remove_member_api`, `set_preferred_api`, `exclude_member`, `list_generic_parts_with_member_specs`, `fetch_members`, `resolve_bom_spec`, `extract_spec_for_part`
 - `domain.inventory` — imports `auto_generate_passive_groups` from `generic_parts`
 
@@ -24,6 +25,11 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `packaging.py`: `carrier_of`, `is_reel` — normalize distributor packaging prose to a carrier + reel-ness
 - `packaging.py`: `clean_reel_qty`, `clean_reel_fee` — coerce scraped reel quantity/surcharge (0 → unknown)
 - `product.py`: `build_product`, `annotate_packagings` — the normalized-product factory every client emits
+- `attributes.py`: `record_fetched_attributes`, `get_attributes` — distributor parametric fetch + lookup
+- `attributes.py`: `record_attributes`, `read_rows`, `build_rows` — durable part_attributes CSV
+- `attributes.py`: `load_into_db` — rebuild the derived part_attributes cache table
+- `attribute_parse.py`: `parse_value`, `ParsedValue` — value -> magnitude/range/unit, or unparsed
+- `attribute_parse.py`: `canonical_name`, `normalize_name` — cross-distributor attribute names (alias table: CANONICAL_NAME_ALIASES)
 - `generic_parts.py`: `create_generic_part`, `create_generic_part_api` — create generic group with auto-matching
 - `generic_parts.py`: `update_generic_part_api` — update spec and re-run auto-matching
 - `generic_parts.py`: `add_member`, `add_member_api`, `remove_member`, `remove_member_api` — member management
@@ -38,5 +44,7 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 
 - `__init__.py` — package marker (empty)
 - `pricing.py` — all pricing logic: parse helpers, observation log, SQLite cache helpers
+- `attributes.py` — part attribute store: durable CSV, derived cache table, fetch recording
+- `attribute_parse.py` — attribute value parsing + canonical attribute-name table
 - `inventory.py` — inventory pipeline: rebuild, catch-up, adjust, import, consume
 - `generic_parts.py` — generic parts CRUD, auto-matching, BOM resolution

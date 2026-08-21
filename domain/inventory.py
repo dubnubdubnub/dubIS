@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from domain.schema import InventoryItem
 
 import cache_db
+import domain.attributes
 import domain.generic_parts
 import domain.pricing
 import inventory_ops
@@ -55,7 +56,13 @@ def _restore_derived_entities(conn: sqlite3.Connection, base_dir: str, events_di
     empty while parts is not) and restore from durable stores.
     NOTE: vendors/purchase_orders are also dropped on version bump and only
     repopulated by populate_full — pre-existing gap, out of scope here.
+
+    part_attributes survives a version bump (it is not in create_schema's drop
+    list), but it is *created* empty on caches that predate it, so restore it
+    whenever the table is empty and the durable CSV is not.
     """
+    if not conn.execute("SELECT 1 FROM part_attributes LIMIT 1").fetchone():
+        domain.attributes.load_into_db(conn, base_dir)
     if conn.execute("SELECT 1 FROM generic_parts LIMIT 1").fetchone():
         return
     if not conn.execute("SELECT 1 FROM parts LIMIT 1").fetchone():
@@ -127,6 +134,7 @@ def rebuild(ctx: RebuildContext) -> "tuple[list[InventoryItem], dict[str, int]]"
     saved_searches.load_into_db(conn, base_dir)
     import carts  # noqa: PLC0415
     carts.load_into_db(conn, base_dir)
+    domain.attributes.load_into_db(conn, base_dir)
     return cache_db.query_inventory(conn), migration_summary
 
 
