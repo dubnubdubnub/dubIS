@@ -114,6 +114,17 @@ class PololuClient(BaseProductClient):
 
         attributes = extract_attributes(page_html, excluded_names=["quantity", "price"])
 
+        # Packaging: Pololu publishes none. Verified against every captured
+        # page in tests/fixtures/generated/distributor-scrapes.json — the
+        # JSON-LD Product carries only name/description/sku/brand/offers, and
+        # the only "bulk"/"pack" strings on a page live in prose and in links
+        # to *other* SKUs ("A4988 Carrier (Bulk, No Header Pins)", "sold in
+        # packs of 5"). Deriving a carrier from that would invent a fact — and
+        # Pololu really does sell wire "on a Reel", which would classify as a
+        # tape reel and promise a feeder-loadable part that does not exist. So
+        # the absence is stated explicitly rather than guessed at.
+        packagings: list[dict[str, Any]] = []
+
         product: dict[str, Any] = build_product(
             product_code=sku,
             title=title,
@@ -130,6 +141,9 @@ class PololuClient(BaseProductClient):
             subcategory=subcategory,
             attributes=attributes,
             provider="pololu",
+            packagings=packagings,
+            reel_qty=None,
+            reel_fee=None,
             debug={
                 "url": url,
                 "sku": sku,
