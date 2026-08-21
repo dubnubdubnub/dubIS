@@ -1,13 +1,17 @@
 # Argo CD Application for dubis-server. Applied by Isaac out-of-band per
 # docs/deploy-runbook.md (not itself managed by this kustomization).
 #
-# CreateNamespace=false: namespace.yaml is already one of this
-# kustomization's resources (see deploy/kustomization.yaml), so Argo syncing
-# `deploy/` creates/owns the Namespace object directly — a redundant
-# `CreateNamespace=true` syncOption would just double-manage the same
-# object. If namespace.yaml is ever removed from the kustomize resources
-# list, flip this to true (and drop the ghcr-pull label management back to
-# Argo/manual).
+# project: dubis, not default. The `default` AppProject on this cluster is
+# deliberately locked down — it permits neither this repo nor the `dubis`
+# namespace — and every service here gets its own project (identity, immich,
+# music, ops, ...). See deploy/argocd-appproject.yaml.
+#
+# CreateNamespace=false: the Namespace is created out-of-band by
+# docs/deploy-runbook.md step 1 and is NOT in this kustomization, because
+# every AppProject here sets `clusterResourceWhitelist: []` — no Argo app on
+# this cluster manages cluster-scoped resources. Runbook step 1 therefore
+# also owns the `ghcr-pull=enabled` Kyverno trigger label; do not expect Argo
+# to reconcile it.
 #
 # prune: false initially per cluster answers — flip to true only after
 # confirming the first sync applied cleanly and nothing unexpected gets
@@ -20,7 +24,7 @@ metadata:
   name: dubis-server
   namespace: argocd
 spec:
-  project: default
+  project: dubis
   source:
     repoURL: https://github.com/dubnubdubnub/dubIS.git
     targetRevision: main

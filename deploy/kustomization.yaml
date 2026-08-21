@@ -1,14 +1,17 @@
 # dubis-server k3s deployment base. Namespace is a resource here (not set
 # via kustomize's `namespace:` transformer) so its `ghcr-pull=enabled` label
-# is authored explicitly in namespace.yaml rather than being synthesized —
-# see argocd-application.yaml for the matching CreateNamespace=false choice.
+# is authored explicitly in namespace.yaml rather than being synthesized.
+# namespace.yaml is deliberately NOT one of the resources below: every
+# AppProject on this cluster runs with `clusterResourceWhitelist: []`, so no
+# Argo app manages cluster-scoped objects. The Namespace is applied
+# out-of-band per docs/deploy-runbook.md step 1, which also owns the
+# `ghcr-pull=enabled` Kyverno label.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 namespace: dubis
 
 resources:
-  - namespace.yaml
   - secret-bootstrap.yaml
   - pvc.yaml
   - deployment.yaml
