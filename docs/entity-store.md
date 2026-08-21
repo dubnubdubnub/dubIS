@@ -27,6 +27,7 @@ Existing entities and their durable stores:
 | Purchase orders | `data/purchase_orders.csv` | `populate_full` |
 | Saved searches | `data/saved_searches.json` | `saved_searches.load_into_db` |
 | Generic parts (manual state) | `data/generic_parts.json` | `domain/generic_parts.load_into_db` |
+| Membership interchangeability reviews | `data/generic_parts.json` (`reviews`) | `domain/generic_parts.load_into_db` |
 | Part identity registry | `data/part_registry.json` | loaded each rebuild (`domain/part_registry.py`) |
 | Price observations | `events/price_observations.csv` | `populate_prices_cache` |
 | Part attributes (distributor parametrics) | `data/part_attributes.csv` | `domain/attributes.load_into_db` |
@@ -88,6 +89,13 @@ per-packaging ladders. Making the cache itself packaging-aware needs a
 
 **Audit trails (never replayed):** `events/part_events.csv` records generic-part
 mutations for forensics only. Do not build restore logic on it.
+
+**Versioned durable files:** `data/generic_parts.json` carries a `version`
+field. v1 (pre-review) files load unchanged and their members read as
+`unreviewed` — absent metadata must always mean "unknown", never "approved".
+Loaders accept every version they can still interpret and rewrite the newest
+one on the next mutation; they must never silently reinterpret an older file's
+absent fields as a permissive default.
 
 New entities (BOMs, boards, feeders, part maps) MUST follow this pattern —
 copy `saved_searches.py`, not a SQLite-only design.
