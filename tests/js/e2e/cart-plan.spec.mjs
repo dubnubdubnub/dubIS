@@ -89,10 +89,10 @@ test.describe('Cart purchase plan', () => {
     await openCart(page, { carts: CARTS_SEED, cartPlan: planWith() });
 
     // 25 boards x 8 placements = 200, less 112 on hand = 88 to buy.
-    await expect(page.locator('.cart-modal .cart-plan-need')).toContainText('88');
-    await expect(page.locator('.cart-modal .cart-plan-buy')).toContainText('100 · Cut Tape');
+    await expect(page.locator('.cart-modal tbody .cart-plan-need')).toContainText('88');
+    await expect(page.locator('.cart-modal tbody .cart-plan-buy')).toContainText('100 · Cut Tape');
     // Sub-cent unit prices must not render as $0.00.
-    await expect(page.locator('.cart-modal .cart-plan-unit')).toContainText('$0.00410');
+    await expect(page.locator('.cart-modal tbody .cart-plan-unit')).toContainText('$0.00410');
     await expect(page.locator('.cart-modal .cart-plan-totals')).toContainText('$0.41');
   });
 
@@ -100,7 +100,7 @@ test.describe('Cart purchase plan', () => {
     // The whole reason board_count is stored rather than folded into the
     // quantity: the row can say where its number came from.
     await openCart(page, { carts: CARTS_SEED, cartPlan: planWith() });
-    await expect(page.locator('.cart-modal .cart-plan-need span'))
+    await expect(page.locator('.cart-modal tbody .cart-plan-need span'))
       .toHaveAttribute('title', '25 boards × 8 placements = 200, less 112 on hand');
   });
 
@@ -249,7 +249,7 @@ test.describe('Cart purchase plan', () => {
       }),
     });
     await expect(page.locator('.cart-modal tbody tr').first()).toHaveClass(/cart-row-unpriced/);
-    await expect(page.locator('.cart-modal .cart-plan-note'))
+    await expect(page.locator('.cart-modal tbody .cart-plan-rownote'))
       .toContainText('sold in multiples of 5,000 — nearest is 5,000');
     await expect(page.locator('.cart-modal .cart-plan-totals')).toContainText('1 unpriced');
   });
@@ -262,8 +262,8 @@ test.describe('Cart purchase plan', () => {
         line: { over_ceiling: true, reason: 'cheapest reel available; exceeds the ceiling' },
       }),
     });
-    await expect(page.locator('.cart-modal .cart-plan-note')).toContainText('over your reel ceiling');
-    await expect(page.locator('.cart-modal .cart-plan-buy')).toContainText('5,000 · Tape & Reel');
+    await expect(page.locator('.cart-modal tbody .cart-plan-rownote')).toContainText('over your reel ceiling');
+    await expect(page.locator('.cart-modal tbody .cart-plan-buy')).toContainText('5,000 · Tape & Reel');
   });
 
   test('Apply plan writes every disagreeing line', async ({ page }) => {

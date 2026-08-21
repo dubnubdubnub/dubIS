@@ -568,7 +568,10 @@ function buildGrid(container) {
           if (fee) cell.setAttribute('title', `includes a ${money(fee)} handling fee`);
           return cell;
         } },
-      { key: '_note', label: '', render: (item) => {
+      // Its own cell class: `.cart-plan-note` is also the placeholder styling
+      // in the Plan-says column, so the row's explanation needs a hook that
+      // means only "this row's note".
+      { key: '_note', label: '', cellClass: 'cart-plan-rownote', render: (item) => {
         const text = note(item._line);
         if (!text) return '';
         const warn = !!(item._line && item._line.required_qty > 0 && !item._line.selected);
