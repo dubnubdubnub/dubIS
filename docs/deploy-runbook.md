@@ -34,9 +34,15 @@ touch it as part of this runbook (step 9).
 
 ## 1. Namespace
 
-`deploy/namespace.yaml` (part of the kustomization Argo syncs in step 3)
-creates the `dubis` namespace labeled `ghcr-pull=enabled`. Nothing to do by
-hand — but after the first sync, confirm the label triggered Kyverno's
+`deploy/namespace.yaml` creates the `dubis` namespace labeled
+`ghcr-pull=enabled`. Apply it by hand — it is deliberately **not** in the
+kustomization, because every AppProject on this cluster runs with
+`clusterResourceWhitelist: []` and no Argo app manages cluster-scoped
+objects. That makes this step the owner of the label, not Argo:
+```bash
+kubectl apply -f deploy/namespace.yaml
+```
+Then confirm the label triggered Kyverno's
 pull-secret clone into the namespace (this is what lets the `dubis-server`
 Pod actually pull the private `ghcr.io/dubnubdubnub/*` image):
 ```bash
@@ -80,15 +86,30 @@ the Deployment needs a rollout restart to pick up new env values
 (`kubectl rollout restart deployment/dubis-server -n dubis`), since
 `envFrom` env vars aren't live-reloaded.
 
-## 3. Apply the Argo Application
+## 3. Apply the Argo AppProject, then the Application
+
+The `default` AppProject on this cluster is locked down and permits neither
+this repo nor the `dubis` namespace — an Application on `default` sits at
+`sync=Unknown` with an `InvalidSpecError`. Every service here gets its own
+project, so apply ours first:
 
 ```bash
+kubectl apply -f deploy/argocd-appproject.yaml
 kubectl apply -f deploy/argocd-application.yaml
 ```
 
+If the namespace was ever reconciled by `kubectl apply -k deploy` before
+handing it to Argo, delete the leftover bootstrap Job first — its Argo hook
+annotations are inert to kubectl, so kubectl leaves a normal immutable Job
+that the PostSync hook then collides with:
+
+```bash
+kubectl -n dubis delete job dubis-secret-bootstrap --ignore-not-found
+```
+
 This points Argo at this repo's `deploy/` path on `main` and lets it manage
-`namespace.yaml`, `pvc.yaml`, `deployment.yaml`, `service.yaml`,
-`ingress.yaml`. Per `deploy/argocd-application.yaml`: `prune: false` and
+`pvc.yaml`, `deployment.yaml`, `service.yaml`, `ingress.yaml` (plus the
+`secret-bootstrap.yaml` PostSync hook). Per `deploy/argocd-application.yaml`: `prune: false` and
 `selfHeal: false` initially (conservatism during first rollout) — watch the
 first sync in Argo UI/CLI, confirm nothing unexpected got created or is
 pending deletion, then flip both to `true` in that file and commit, once

@@ -1,0 +1,34 @@
+# AppProject for dubis-server. Applied out-of-band alongside
+# argocd-application.yaml per docs/deploy-runbook.md — AppProjects on this
+# cluster are hand-applied (every existing one carries only
+# kubectl.kubernetes.io/last-applied-configuration, no Argo tracking labels),
+# so this file is the declarative record rather than something Argo syncs.
+#
+# Why a dedicated project at all: the `default` project here is locked down and
+# permits neither this repo nor the `dubis` namespace, so an Application on
+# `default` sits at sync=Unknown with an InvalidSpecError. Every service on the
+# cluster gets its own project (identity, immich, music, ops, web-services, ...)
+# and this follows that shape exactly.
+#
+# clusterResourceWhitelist is empty to match every other project on the
+# cluster: no Argo app manages cluster-scoped objects. That is why
+# namespace.yaml is not in deploy/kustomization.yaml — runbook step 1 creates
+# the Namespace and owns its `ghcr-pull=enabled` Kyverno label.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: dubis
+  namespace: argocd
+spec:
+  description: >-
+    Personal electronics-parts inventory (dubis-server). Confined to ns dubis,
+    no cluster-scoped resources.
+  sourceRepos:
+    - https://github.com/dubnubdubnub/dubIS.git
+  destinations:
+    - namespace: dubis
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
