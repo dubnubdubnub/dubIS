@@ -246,7 +246,8 @@ def populate_prices_cache(conn: Any, events_dir: str) -> None:
             continue
         key = (pid, dist)
         if key not in agg:
-            agg[key] = {"prices": [], "last_observed": "", "source": "", "moq": None}
+            agg[key] = {"prices": [], "last_observed": "", "source": "",
+                        "moq": None, "moq_packagings": set()}
         agg[key]["prices"].append(price)
         agg[key]["last_observed"] = obs.get("timestamp", "")
         agg[key]["source"] = obs.get("source", "")
@@ -256,18 +257,37 @@ def populate_prices_cache(conn: Any, events_dir: str) -> None:
                 agg[key]["moq"] = int(moq)
             except (ValueError, TypeError):
                 pass
+            else:
+                # Which packagings the surviving `moq` could have come from.
+                # Only moq-BEARING rows count: import/manual observations carry
+                # no moq and never influence the value, so letting them widen
+                # this set would null out a column they don't contribute to.
+                agg[key]["moq_packagings"].add(
+                    (obs.get("packaging") or "").strip().casefold())
 
     for (pid, dist), data in agg.items():
         prices = data["prices"]
         latest = prices[-1]
         avg = sum(prices) / len(prices)
+        # `moq` is one scalar per (part_id, distributor), filled last-row-wins.
+        # That was already only loosely meaningful, but with per-packaging
+        # ladders recorded it becomes actively misleading: the surviving value
+        # is the top break of whichever packaging happened to be written last,
+        # so a part you can buy one of as cut tape would report a 3,000-part
+        # reel quantity. Two packagings' break quantities have no common
+        # scalar answer -- 1 and 3000 have no useful midpoint and a caller
+        # cannot tell which it got -- so the honest answer is NULL, which the
+        # column is already nullable for and which every consumer already
+        # handles (an import-only part has always stored NULL here).
+        # `cart_qty.tier_ladders` is the packaging-aware replacement.
+        moq = data["moq"] if len(data["moq_packagings"]) <= 1 else None
         conn.execute(
             """INSERT OR REPLACE INTO prices
                (part_id, distributor, latest_unit_price, avg_unit_price,
                 price_count, last_observed, moq, source)
                VALUES (?,?,?,?,?,?,?,?)""",
             (pid, dist, latest, avg, len(prices),
-             data["last_observed"], data["moq"], data["source"]),
+             data["last_observed"], moq, data["source"]),
         )
     conn.commit()
 

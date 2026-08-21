@@ -61,6 +61,31 @@ expects. Two mechanisms keep that working:
 missing packaging to a real carrier — `domain/packaging.py`'s `carrier_of`
 returns `None` for exactly this reason.
 
+### The derived `prices` table cannot hold a packaging
+
+`cache.db`'s `prices` table is keyed `(part_id, distributor)` — there is no
+packaging column — so its aggregates now span every packaging a part was
+observed in. This is **not** a cosmetic concern: `get_price_summary` feeds
+`GET /v1/parts/{key}/prices`, which `tools/dubis-mcp/server.py`'s
+`price_summary` tool returns verbatim to an agent asking what a part costs.
+
+- `avg_unit_price` / `price_count` now average across packagings. Coarser, but
+  still interpretable as an average.
+- **`moq` is degraded, not merely coarse.** It is one scalar filled
+  last-row-wins, so with per-packaging ladders it would report the top break of
+  whichever packaging was written last — a 3,000-part reel quantity for a part
+  you can buy one of as cut tape. Two packagings' break quantities have no
+  common scalar answer (1 and 3000 have no useful midpoint, and a caller
+  cannot tell which it got), so `populate_prices_cache` writes **NULL** when
+  the moq-bearing observations span more than one packaging. NULL was already
+  reachable (an import-only part has always stored it), so every consumer
+  already handles it. One packaging — including an all-unknown legacy file —
+  keeps the pre-existing value untouched.
+
+Read `cart_qty.tier_ladders(events_dir, part_id, distributor)` for the real
+per-packaging ladders. Making the cache itself packaging-aware needs a
+`cache_db.SCHEMA_VERSION` bump and a primary-key change.
+
 **Audit trails (never replayed):** `events/part_events.csv` records generic-part
 mutations for forensics only. Do not build restore logic on it.
 

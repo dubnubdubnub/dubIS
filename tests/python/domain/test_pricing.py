@@ -949,3 +949,95 @@ class TestRecordFetchedPricesPackaging:
         rows = domain.pricing.read_observations(events_dir)
         assert [r["packaging"] for r in rows] == ["", "", "", "Tray"]
         assert rows[-1]["carrier"] == "tray"
+
+
+# ── prices-cache `moq` across packagings ───────────────────────────────────
+#
+# `moq` is one scalar per (part_id, distributor), filled last-row-wins. It
+# reaches an agent verbatim through tools/dubis-mcp/server.py's `price_summary`
+# tool, so a wrong number there is not cosmetic. With per-packaging ladders
+# recorded, no single value is correct — so it is NULL when the moq-bearing
+# observations span more than one packaging, and unchanged otherwise.
+
+
+class TestPricesCacheMoqAcrossPackagings:
+    def _moq(self, db, pid="C1525", dist="digikey"):
+        row = db.execute(
+            "SELECT moq FROM prices WHERE part_id = ? AND distributor = ?",
+            (pid, dist),
+        ).fetchone()
+        return row["moq"] if row else "NO ROW"
+
+    def test_single_packaging_keeps_last_row_wins(self, db, events_dir):
+        """One packaging -> the pre-change value, untouched."""
+        _seed_parts(db)
+        domain.pricing.record_fetched_prices(
+            db, events_dir, "C1525", "digikey", [],
+            packagings=[{"name": "Cut Tape (CT)",
+                         "prices": [{"qty": 1, "price": 0.10},
+                                    {"qty": 10, "price": 0.09}]}],
+        )
+        assert self._moq(db) == 10
+
+    def test_legacy_file_keeps_last_row_wins(self, db, events_dir):
+        """All-unknown packaging is still ONE packaging — byte-identical result."""
+        _seed_parts(db)
+        _write_legacy(events_dir)
+        domain.pricing.populate_prices_cache(db, events_dir)
+        assert self._moq(db, "C1525", "lcsc") == 10   # last moq-bearing lcsc row
+
+    def test_two_packagings_null_the_moq(self, db, events_dir):
+        """1 and 3000 have no useful midpoint, and last-row-wins would report
+        the reel quantity for a part you can buy one of."""
+        _seed_parts(db)
+        domain.pricing.record_fetched_prices(
+            db, events_dir, "C1525", "digikey", [],
+            packagings=[
+                {"name": "Cut Tape (CT)", "prices": [{"qty": 1, "price": 0.10}]},
+                {"name": "Tape & Reel (TR)", "prices": [{"qty": 3000, "price": 0.04}]},
+            ],
+        )
+        assert self._moq(db) is None
+
+    def test_unknown_plus_named_packaging_nulls_the_moq(self, db, events_dir):
+        """The upgrade path: legacy moq rows could have been any packaging, so
+        a later named ladder does not make them comparable."""
+        _seed_parts(db)
+        _write_legacy(events_dir)
+        domain.pricing.record_fetched_prices(
+            db, events_dir, "C1525", "lcsc", [],
+            packagings=[{"name": "Reel", "prices": [{"qty": 3000, "price": 0.004}]}],
+        )
+        assert self._moq(db, "C1525", "lcsc") is None
+
+    def test_moqless_rows_do_not_null_the_moq(self, db, events_dir):
+        """import/manual observations carry no moq, so they never influence the
+        value and must not widen the packaging set that nulls it."""
+        _seed_parts(db)
+        domain.pricing.record_observations(events_dir, [
+            # No moq, no packaging — an import row.
+            {"part_id": "C1525", "distributor": "digikey", "unit_price": 0.2,
+             "source": "import"},
+        ])
+        domain.pricing.record_fetched_prices(
+            db, events_dir, "C1525", "digikey", [],
+            packagings=[{"name": "Cut Tape (CT)",
+                         "prices": [{"qty": 10, "price": 0.09}]}],
+        )
+        assert self._moq(db) == 10
+
+    def test_null_moq_surfaces_through_get_price_summary(self, db, events_dir):
+        """The MCP `price_summary` tool passes this dict straight to a caller."""
+        _seed_parts(db)
+        domain.pricing.record_fetched_prices(
+            db, events_dir, "C1525", "digikey", [],
+            packagings=[
+                {"name": "Cut Tape (CT)", "prices": [{"qty": 1, "price": 0.10}]},
+                {"name": "Tape & Reel (TR)", "prices": [{"qty": 3000, "price": 0.04}]},
+            ],
+        )
+        summary = domain.pricing.get_price_summary(db, events_dir, "C1525")
+        assert "moq" in summary["digikey"]          # key present, not dropped
+        assert summary["digikey"]["moq"] is None    # ...and honestly empty
+        # The other aggregates still answer "what does this cost".
+        assert summary["digikey"]["price_count"] == 2
