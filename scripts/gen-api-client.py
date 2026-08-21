@@ -89,14 +89,18 @@ ARG_ORDER: dict[str, list[str]] = {
     # two optional overrides -- alphabetical would put `package` before
     # `predicates`, which reads backwards at every call site.
     "evaluate_part_predicates": ["part_key", "predicates", "package", "prefer"],
-    "add_cart_item": ["cart_id", "part_id", "raw", "qty", "target_distributor", "shortfall"],
+    "add_cart_item": ["cart_id", "part_id", "raw", "qty", "target_distributor", "shortfall",
+                      "target_packaging", "preset", "per_board_qty"],
     "add_generic_member": ["generic_part_id", "part_id"],
     "consolidate_cart": ["cart_id", "distributor"],
     "export_cart": ["cart_id", "distributor", "format"],
     "remove_cart_item": ["cart_id", "ref"],
     "rename_cart": ["cart_id", "name"],
+    "set_cart_board_count": ["cart_id", "board_count"],
+    "plan_cart": ["cart_id", "preset", "reel_ceiling"],
     "split_cart": ["cart_id", "distributor", "new_name", "remove_from_source"],
-    "update_cart_item": ["cart_id", "ref", "qty", "target_distributor"],
+    "update_cart_item": ["cart_id", "ref", "qty", "target_distributor", "target_packaging",
+                         "preset", "per_board_qty"],
     "adjust_part": ["adj_type", "part_key", "quantity", "note", "source"],
     "consume_bom": ["matches", "board_qty", "bom_name", "note", "source"],
     "load_feeder_reel": ["tag_id", "part_key", "qty", "tape_width_mm"],
@@ -225,6 +229,7 @@ UNWRAP_OVERRIDES: dict[str, str] = {
     # (no envelope), so they're deliberately NOT listed here.
     "create_cart": "detail",
     "rename_cart": "detail",
+    "set_cart_board_count": "detail",
     "delete_cart": "detail",
     "set_active_cart": "detail",
     "add_cart_item": "detail",

@@ -601,6 +601,13 @@ class InventoryApi:
     def rename_cart(self, cart_id: str, name: str) -> dict[str, Any]:
         return self._cart.rename_cart(cart_id, name)
 
+    def set_cart_board_count(self, cart_id: str, board_count: int) -> dict[str, Any]:
+        return self._cart.set_cart_board_count(cart_id, board_count)
+
+    def plan_cart(self, cart_id: str, preset: str = "min",
+                   reel_ceiling: float | None = None) -> dict[str, Any]:
+        return self._cart.plan_cart(cart_id, preset=preset, reel_ceiling=reel_ceiling)
+
     def delete_cart(self, cart_id: str) -> None:
         return self._cart.delete_cart(cart_id)
 
@@ -613,15 +620,27 @@ class InventoryApi:
     def add_cart_item(self, cart_id: str, part_id: str | None = None,
                        raw: dict | None = None, qty: int | None = None,
                        target_distributor: str | None = None,
-                       shortfall: int | None = None) -> dict[str, Any]:
+                       shortfall: int | None = None,
+                       target_packaging: str | None = None,
+                       preset: str | None = None,
+                       per_board_qty: int | None = None) -> dict[str, Any]:
         return self._cart.add_cart_item(
             cart_id, part_id=part_id, raw=raw, qty=qty,
             target_distributor=target_distributor, shortfall=shortfall,
+            target_packaging=target_packaging, preset=preset,
+            per_board_qty=per_board_qty,
         )
 
     def update_cart_item(self, cart_id: str, ref: str, qty: int | None = None,
-                          target_distributor: str | None = None) -> dict[str, Any]:
-        return self._cart.update_cart_item(cart_id, ref, qty=qty, target_distributor=target_distributor)
+                          target_distributor: str | None = None,
+                          target_packaging: str | None = None,
+                          preset: str | None = None,
+                          per_board_qty: int | None = None) -> dict[str, Any]:
+        return self._cart.update_cart_item(
+            cart_id, ref, qty=qty, target_distributor=target_distributor,
+            target_packaging=target_packaging, preset=preset,
+            per_board_qty=per_board_qty,
+        )
 
     def remove_cart_item(self, cart_id: str, ref: str) -> dict[str, Any]:
         return self._cart.remove_cart_item(cart_id, ref)

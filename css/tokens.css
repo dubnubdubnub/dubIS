@@ -128,4 +128,22 @@
   --saved-view-delete-btn-size:    18px;  /* delete button width and height */
   --saved-view-save-item-gap:       6px;  /* gap between icon and label in the save-current row */
   --saved-view-empty-pad-y:         6px;  /* vertical padding in the empty-state message */
+
+  /* ── Cart purchase plan (css/components/cart.css) ───────────────────────────
+     The cart modal is a decision surface, not a receipt: it shows the required
+     quantity, its derivation, the preset that picked a candidate, and the
+     spend. That is five more columns than the pre-plan modal carried, so the
+     shell is wider and the grid scrolls sideways inside it rather than
+     squeezing the part description to nothing.
+     Consumed by: css/components/cart.css */
+  --cart-modal-max-w:        1180px;  /* fits the app's documented 1200px minimum window */
+  --cart-plan-need-w:           92px;  /* Need (required qty) */
+  --cart-plan-preset-w:        188px;  /* per-row preset segmented control */
+  --cart-plan-buy-w:           170px;  /* selected quantity + packaging */
+  --cart-plan-unit-w:           88px;  /* unit price at the applicable break */
+  --cart-plan-spend-w:          92px;  /* extended spend for the line */
+  --cart-plan-seg-pad-x:         6px;  /* horizontal padding inside a segment */
+  --cart-plan-seg-pad-y:         2px;  /* vertical padding inside a segment */
+  --cart-boards-input-w:        62px;  /* board-count number input */
+  --cart-plan-note-max-w:      260px;  /* note text before it ellipsises */
 }

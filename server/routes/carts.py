@@ -9,8 +9,8 @@ publish (read-only).
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel, ConfigDict, Field
 
 from server import events
 
@@ -28,17 +28,35 @@ class RenameCartBody(BaseModel):
     name: str
 
 
+class BoardCountBody(BaseModel):
+    """How many boards this cart builds. Positive: a cart for zero boards
+    would zero every quantity derived from it."""
+
+    model_config = ConfigDict(extra="forbid")
+    board_count: int = Field(ge=1)
+
+
 class AddItemBody(BaseModel):
     part_id: str | None = None
     raw: dict | None = None
     qty: int | None = None
     target_distributor: str | None = None
     shortfall: int | None = None
+    target_packaging: str | None = None
+    preset: str | None = None
+    per_board_qty: int | None = None
 
 
 class UpdateItemBody(BaseModel):
+    # `extra="forbid"`: every field here is None-means-leave-alone, so a
+    # misspelled field name would otherwise be dropped in silence and the route
+    # would answer 200 for an edit that never happened.
+    model_config = ConfigDict(extra="forbid")
     qty: int | None = None
     target_distributor: str | None = None
+    target_packaging: str | None = None
+    preset: str | None = None
+    per_board_qty: int | None = None
 
 
 class AddBomMissingBody(BaseModel):
@@ -98,6 +116,36 @@ def rename_cart(request: Request, cart_id: str, body: RenameCartBody) -> dict:
     return {"ok": True, "detail": result}
 
 
+@router.put("/carts/{cart_id}/board-count", operation_id="set_cart_board_count")
+def set_cart_board_count(request: Request, cart_id: str, body: BoardCountBody) -> dict:
+    api = request.app.state.api
+    result = api.set_cart_board_count(cart_id, body.board_count)
+    _publish(cart_id)
+    return {"ok": True, "detail": result}
+
+
+@router.get("/carts/{cart_id}/plan", operation_id="plan_cart")
+def plan_cart(
+    request: Request,
+    cart_id: str,
+    preset: str = Query("min"),
+    reel_ceiling: float | None = Query(None, ge=0),
+) -> dict:
+    """Recommend what to buy for every line, with the options that lost.
+
+    Read-only, and deliberately not a mutation: it does not write the
+    quantities it suggests. Committing a recommendation is the ordinary item
+    update, so re-planning after a price refresh cannot silently rewrite a
+    decision the user already made -- which is also why this route publishes no
+    `carts.updated` event.
+    """
+    api = request.app.state.api
+    try:
+        return api.plan_cart(cart_id, preset=preset, reel_ceiling=reel_ceiling)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
 @router.delete("/carts/{cart_id}", operation_id="delete_cart")
 def delete_cart(request: Request, cart_id: str) -> dict:
     api = request.app.state.api
@@ -127,6 +175,8 @@ def add_cart_item(request: Request, cart_id: str, body: AddItemBody) -> dict:
     result = api.add_cart_item(
         cart_id, part_id=body.part_id, raw=body.raw, qty=body.qty,
         target_distributor=body.target_distributor, shortfall=body.shortfall,
+        target_packaging=body.target_packaging, preset=body.preset,
+        per_board_qty=body.per_board_qty,
     )
     _publish(cart_id)
     return {"ok": True, "detail": result}
@@ -137,6 +187,8 @@ def update_cart_item(request: Request, cart_id: str, ref: str, body: UpdateItemB
     api = request.app.state.api
     result = api.update_cart_item(
         cart_id, ref, qty=body.qty, target_distributor=body.target_distributor,
+        target_packaging=body.target_packaging, preset=body.preset,
+        per_board_qty=body.per_board_qty,
     )
     _publish(cart_id)
     return {"ok": True, "detail": result}

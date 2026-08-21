@@ -34,7 +34,9 @@ graph LR
     "domain/api_cart.py" --> "cart_export.py"
     "domain/api_cart.py" --> "cart_qty.py"
     "domain/api_cart.py" --> "carts.py"
+    "domain/api_cart.py" --> "domain/__init__.py"
     "domain/api_cart.py" --> "domain/pricing.py"
+    "domain/api_cart.py" --> "domain/purchase_candidates.py"
     "domain/api_fileio.py" --> "file_dialogs.py"
     "domain/api_generic_parts.py" --> "domain/generic_parts.py"
     "domain/api_generic_parts.py" --> "saved_searches.py"
@@ -64,6 +66,7 @@ graph LR
     "domain/attributes.py" --> "csv_io.py"
     "domain/attributes.py" --> "domain/attribute_parse.py"
     "domain/attributes.py" --> "domain/pricing.py"
+    "domain/cart_plan.py" --> "domain/purchase_candidates.py"
     "domain/feeders.py" --> "csv_io.py"
     "domain/generic_parts.py" --> "csv_io.py"
     "domain/generic_parts.py" --> "dubis_errors.py"
@@ -85,6 +88,7 @@ graph LR
     "domain/pricing.py" --> "csv_io.py"
     "domain/pricing.py" --> "domain/packaging.py"
     "domain/product.py" --> "domain/packaging.py"
+    "domain/purchase_candidates.py" --> "domain/predicates.py"
     "file_dialogs.py" --> "csv_io.py"
     "file_dialogs.py" --> "domain/pricing.py"
     "inventory_api.py" --> "bench.py"
@@ -209,6 +213,8 @@ graph LR
     "js/cart/cart-header.js" --> "js/store.js"
     "js/cart/cart-modal.js" --> "js/api.js"
     "js/cart/cart-modal.js" --> "js/cart/cart-export.js"
+    "js/cart/cart-modal.js" --> "js/cart/cart-plan-logic.js"
+    "js/cart/cart-modal.js" --> "js/cart/cart-plan-store.js"
     "js/cart/cart-modal.js" --> "js/cart/cart-store.js"
     "js/cart/cart-modal.js" --> "js/components/data-grid.js"
     "js/cart/cart-modal.js" --> "js/dom/html.js"
@@ -216,6 +222,10 @@ graph LR
     "js/cart/cart-modal.js" --> "js/signals.js"
     "js/cart/cart-modal.js" --> "js/store.js"
     "js/cart/cart-modal.js" --> "js/ui-helpers.js"
+    "js/cart/cart-plan-store.js" --> "js/api.js"
+    "js/cart/cart-plan-store.js" --> "js/cart/cart-store.js"
+    "js/cart/cart-plan-store.js" --> "js/signals.js"
+    "js/cart/cart-plan-store.js" --> "js/store.js"
     "js/cart/cart-store.js" --> "js/api.js"
     "js/cart/cart-store.js" --> "js/signals.js"
     "js/cart/cart-store.js" --> "js/store.js"
@@ -673,6 +683,8 @@ graph LR
     "tests/python/domain/test_attribute_parse.py" --> "domain/attribute_parse.py"
     "tests/python/domain/test_attributes.py" --> "domain/attribute_parse.py"
     "tests/python/domain/test_attributes.py" --> "domain/attributes.py"
+    "tests/python/domain/test_cart_plan.py" --> "domain/cart_plan.py"
+    "tests/python/domain/test_cart_plan.py" --> "domain/purchase_candidates.py"
     "tests/python/domain/test_feeders.py" --> "domain/__init__.py"
     "tests/python/domain/test_generic_parts.py" --> "cache_db.py"
     "tests/python/domain/test_generic_parts.py" --> "domain/generic_parts.py"
@@ -695,6 +707,7 @@ graph LR
     "tests/python/domain/test_predicates.py" --> "domain/predicates.py"
     "tests/python/domain/test_pricing.py" --> "cache_db.py"
     "tests/python/domain/test_pricing.py" --> "domain/pricing.py"
+    "tests/python/domain/test_purchase_candidates.py" --> "domain/purchase_candidates.py"
     "tests/python/helpers.py" --> "distributor_manager.py"
     "tests/python/helpers.py" --> "inventory_api.py"
     "tests/python/helpers.py" --> "lcsc_client.py"
@@ -704,6 +717,7 @@ graph LR
     "tests/python/server/test_auth.py" --> "server/app.py"
     "tests/python/server/test_auth.py" --> "server/auth.py"
     "tests/python/server/test_auth.py" --> "tests/python/helpers.py"
+    "tests/python/server/test_carts_routes.py" --> "domain/pricing.py"
     "tests/python/server/test_carts_routes.py" --> "server/__init__.py"
     "tests/python/server/test_error_contract.py" --> "server/app.py"
     "tests/python/server/test_error_contract.py" --> "tests/python/helpers.py"
@@ -996,7 +1010,7 @@ graph LR
 ### domain/__init__.py
 
 - **Imports:** —
-- **Imported by:** `domain/inventory.py`, `inventory_ops.py`, `server/routes/feeders.py`, `server/routes/openpnp.py`, `tests/python/domain/test_feeders.py`, `tests/python/domain/test_part_registry.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_openpnp_routes.py`
+- **Imported by:** `domain/api_cart.py`, `domain/inventory.py`, `inventory_ops.py`, `server/routes/feeders.py`, `server/routes/openpnp.py`, `tests/python/domain/test_feeders.py`, `tests/python/domain/test_part_registry.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_openpnp_routes.py`
 
 ### domain/api_attributes.py
 
@@ -1005,7 +1019,7 @@ graph LR
 
 ### domain/api_cart.py
 
-- **Imports:** `cart_export.py`, `cart_qty.py`, `carts.py`, `domain/pricing.py`
+- **Imports:** `cart_export.py`, `cart_qty.py`, `carts.py`, `domain/__init__.py`, `domain/pricing.py`, `domain/purchase_candidates.py`
 - **Imported by:** `inventory_api.py`
 
 ### domain/api_distributor.py
@@ -1078,6 +1092,11 @@ graph LR
 - **Imports:** `csv_io.py`, `domain/attribute_parse.py`, `domain/pricing.py`
 - **Imported by:** `domain/api_attributes.py`, `domain/inventory.py`, `tests/python/domain/test_attributes.py`
 
+### domain/cart_plan.py
+
+- **Imports:** `domain/purchase_candidates.py`
+- **Imported by:** `tests/python/domain/test_cart_plan.py`
+
 ### domain/feeders.py
 
 - **Imports:** `csv_io.py`
@@ -1111,17 +1130,22 @@ graph LR
 ### domain/predicates.py
 
 - **Imports:** `domain/attribute_parse.py`, `domain/packages.py`
-- **Imported by:** `domain/api_predicates.py`, `tests/python/domain/test_predicates.py`
+- **Imported by:** `domain/api_predicates.py`, `domain/purchase_candidates.py`, `tests/python/domain/test_predicates.py`
 
 ### domain/pricing.py
 
 - **Imports:** `csv_io.py`, `domain/packaging.py`
-- **Imported by:** `cache_db.py`, `domain/api_cart.py`, `domain/api_pricing.py`, `domain/attributes.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_cart_qty.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_inventory_api_pricing.py`
+- **Imported by:** `cache_db.py`, `domain/api_cart.py`, `domain/api_pricing.py`, `domain/attributes.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/server/test_carts_routes.py`, `tests/python/test_cache_db.py`, `tests/python/test_cart_qty.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_inventory_api_pricing.py`
 
 ### domain/product.py
 
 - **Imports:** `domain/packaging.py`
 - **Imported by:** `digikey_normalizer.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`, `tests/python/test_packaging.py`, `tests/python/test_packaging_clients.py`, `tests/python/test_product_factory.py`
+
+### domain/purchase_candidates.py
+
+- **Imports:** `domain/predicates.py`
+- **Imported by:** `domain/api_cart.py`, `domain/cart_plan.py`, `tests/python/domain/test_cart_plan.py`, `tests/python/domain/test_purchase_candidates.py`
 
 ### domain/schema.py
 
@@ -1201,7 +1225,7 @@ graph LR
 ### js/api.js
 
 - **Imports:** `js/api-map.js`, `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-add.js`, `js/cart/cart-export.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-store.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-scan-session.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/sse.js`, `js/store.js`, `js/text-popover.js`, `js/ui-zoom-control.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/command-palette.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-add.js`, `js/cart/cart-export.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-scan-session.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/sse.js`, `js/store.js`, `js/text-popover.js`, `js/ui-zoom-control.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/command-palette.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`
 
 ### js/app-init.js
 
@@ -1261,13 +1285,23 @@ graph LR
 
 ### js/cart/cart-modal.js
 
-- **Imports:** `js/api.js`, `js/cart/cart-export.js`, `js/cart/cart-store.js`, `js/components/data-grid.js`, `js/dom/html.js`, `js/part-keys.js`, `js/signals.js`, `js/store.js`, `js/ui-helpers.js`
+- **Imports:** `js/api.js`, `js/cart/cart-export.js`, `js/cart/cart-plan-logic.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/components/data-grid.js`, `js/dom/html.js`, `js/part-keys.js`, `js/signals.js`, `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/cart/cart-header.js`
+
+### js/cart/cart-plan-logic.js
+
+- **Imports:** —
+- **Imported by:** `js/cart/cart-modal.js`
+
+### js/cart/cart-plan-store.js
+
+- **Imports:** `js/api.js`, `js/cart/cart-store.js`, `js/signals.js`, `js/store.js`
+- **Imported by:** `js/cart/cart-modal.js`
 
 ### js/cart/cart-store.js
 
 - **Imports:** `js/api.js`, `js/signals.js`, `js/store.js`
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/cart/cart-add.js`, `js/cart/cart-export.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/cart/cart-add.js`, `js/cart/cart-export.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`
 
 ### js/components/command-palette.js
 
@@ -1665,7 +1699,7 @@ graph LR
 ### js/signals.js
 
 - **Imports:** —
-- **Imported by:** `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-store.js`, `js/inventory/inv-events.js`, `js/store.js`, `js/ui-zoom-control.js`, `js/ui-zoom.js`, `tests/js/signals.test.js`
+- **Imported by:** `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/inventory/inv-events.js`, `js/store.js`, `js/ui-zoom-control.js`, `js/ui-zoom.js`, `tests/js/signals.test.js`
 
 ### js/sse.js
 
@@ -1675,7 +1709,7 @@ graph LR
 ### js/store.js
 
 - **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/signals.js`, `js/sse.js`, `js/ui-helpers.js`
-- **Imported by:** `js/a11y/roving-grid.js`, `js/a11y/scrollable.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-store.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/preferences-modal.js`, `js/text-popover.js`, `js/vendors-modal.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/inventory-rendering.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/saved-views.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
+- **Imported by:** `js/a11y/roving-grid.js`, `js/a11y/scrollable.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/preferences-modal.js`, `js/text-popover.js`, `js/vendors-modal.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/inventory-rendering.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/saved-views.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
 - **Emits:** `CONFIRMED_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LINKING_MODE`, `LINKS_CHANGED`, `PO_CHANGED`, `VENDORS_CHANGED`
 - **Listens:** —
 
@@ -2460,6 +2494,11 @@ graph LR
 - **Imports:** `domain/attribute_parse.py`, `domain/attributes.py`
 - **Imported by:** —
 
+### tests/python/domain/test_cart_plan.py
+
+- **Imports:** `domain/cart_plan.py`, `domain/purchase_candidates.py`
+- **Imported by:** —
+
 ### tests/python/domain/test_feeders.py
 
 - **Imports:** `domain/__init__.py`
@@ -2505,6 +2544,11 @@ graph LR
 - **Imports:** `cache_db.py`, `domain/pricing.py`
 - **Imported by:** —
 
+### tests/python/domain/test_purchase_candidates.py
+
+- **Imports:** `domain/purchase_candidates.py`
+- **Imported by:** —
+
 ### tests/python/helpers.py
 
 - **Imports:** `distributor_manager.py`, `inventory_api.py`, `lcsc_client.py`
@@ -2527,7 +2571,7 @@ graph LR
 
 ### tests/python/server/test_carts_routes.py
 
-- **Imports:** `server/__init__.py`
+- **Imports:** `domain/pricing.py`, `server/__init__.py`
 - **Imported by:** —
 
 ### tests/python/server/test_distributors_routes.py
@@ -2861,6 +2905,11 @@ graph LR
 - **Imported by:** —
 
 ### tests/python/test_gen_code_map.py
+
+- **Imports:** —
+- **Imported by:** —
+
+### tests/python/test_generate_test_fixtures.py
 
 - **Imports:** —
 - **Imported by:** —

@@ -87,6 +87,8 @@ def generate_xls_conversions() -> dict[str, dict]:
     # nothing ever called it via api()/the bridge — see mfg_direct_import.py
     # and file_dialogs.py for the real callers).
     results: dict[str, dict] = {}
+    failures: list[str] = []
+    found: list[str] = []
 
     for d in [DATA_DIR, E2E_FIXTURES, FIXTURES_DIR]:
         if not os.path.isdir(d):
@@ -95,12 +97,32 @@ def generate_xls_conversions() -> dict[str, dict]:
             if not name.endswith(".xls") or name in results:
                 continue
             path = os.path.join(d, name)
+            found.append(name)
             try:
                 conversion = csv_io.convert_xls_to_csv(path)
                 if conversion:
                     results[name] = conversion
-            except Exception:
-                continue
+            except Exception as exc:  # noqa: BLE001 - reported below, not swallowed
+                failures.append(f"{name}: {type(exc).__name__}: {exc}")
+
+    # An .xls that exists but cannot be converted is NOT the same as no .xls
+    # at all, and the difference is destructive: writing {} here overwrites a
+    # committed fixture with an empty object, and the JS tests that read it
+    # then fail for a reason unrelated to whatever the developer changed.
+    #
+    # The usual cause is running this script under an interpreter without the
+    # project's dependencies (a bare `python3` rather than the venv), which is
+    # an environment problem to report, not a fixture to rewrite.
+    if failures and not results:
+        raise RuntimeError(
+            "xls conversion failed for every .xls file found — refusing to write an "
+            "empty fixture over the committed one. Run this under the project's "
+            "interpreter (e.g. .venv/bin/python).\n  " + "\n  ".join(failures)
+        )
+    if failures:
+        print(f"  WARNING: {len(failures)} of {len(found)} XLS file(s) failed to convert:")
+        for failure in failures:
+            print(f"    {failure}")
 
     return results
 

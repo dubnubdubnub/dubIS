@@ -38,8 +38,18 @@ test('preferences modal traps focus and restores it on Escape', async ({ page })
   await expect(page.locator('#prefs-modal')).toBeVisible();
 
   // Focus is inside the modal.
-  const insideAtOpen = await page.evaluate(() => !!document.getElementById('prefs-modal')?.contains(document.activeElement));
-  expect(insideAtOpen).toBe(true);
+  //
+  // Polled, not read once: Modal.open() (js/ui-helpers.js) removes `hidden` and
+  // then defers trap(el) to the NEXT animation frame, while toBeVisible()
+  // becomes true the instant `hidden` goes. A single evaluate() therefore races
+  // the rAF and passes only because the round trip usually outlasts one frame —
+  // it lost that race on the self-hosted macOS runner as soon as the modal grew
+  // another section. The assertion is unchanged (focus must land inside the
+  // modal); it just no longer depends on frame timing.
+  await expect.poll(
+    () => page.evaluate(() => !!document.getElementById('prefs-modal')?.contains(document.activeElement)),
+    { message: 'focus never landed inside the preferences modal after open' },
+  ).toBe(true);
 
   // Tab several times — focus never leaves the modal.
   for (let i = 0; i < 12; i++) {

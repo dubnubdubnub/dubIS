@@ -729,6 +729,37 @@ class TestPackagingSchema:
         assert row["is_reel"] == "0"      # not derived — the caller knew better
         assert row["reel_fee"] == "3.0"
 
+    def test_the_stored_wire_format_survives_a_round_trip(self, events_dir):
+        """`"0"` is what this writer emits and what cart_qty reads back as
+        False, so handing a row's own value back must not invert it. A
+        non-empty string is truthy in Python, which is exactly how every
+        cut-tape row would silently become a reel -- and a reel ladder's lowest
+        break IS the reel quantity, so the mislabelled row answers a 200-piece
+        shortfall with a 5,000-piece reel."""
+        for wire, expected in (("0", "0"), ("1", "1"), ("false", "0"),
+                               ("False", "0"), ("true", "1")):
+            domain.pricing.record_observations(events_dir, [
+                {"part_id": f"C{wire}", "distributor": "lcsc", "unit_price": 0.01,
+                 "moq": 1, "packaging": "Tape & Reel", "is_reel": wire},
+            ])
+        rows = {r["part_id"]: r["is_reel"]
+                for r in domain.pricing.read_observations(events_dir)}
+        assert rows == {"C0": "0", "C1": "1", "Cfalse": "0",
+                        "CFalse": "0", "Ctrue": "1"}
+
+    def test_an_empty_flag_defers_to_the_name_rather_than_recording_a_guess(self, events_dir):
+        """"" means the caller said nothing, same as None -- so the packaging
+        name decides, and only a nameless packaging stays unknown."""
+        domain.pricing.record_observations(events_dir, [
+            {"part_id": "C_named", "distributor": "lcsc", "unit_price": 0.01,
+             "moq": 1, "packaging": "Cut Tape (CT)", "is_reel": ""},
+            {"part_id": "C_nameless", "distributor": "lcsc", "unit_price": 0.01,
+             "moq": 1, "is_reel": ""},
+        ])
+        rows = {r["part_id"]: r["is_reel"]
+                for r in domain.pricing.read_observations(events_dir)}
+        assert rows == {"C_named": "0", "C_nameless": ""}
+
     def test_unknown_is_distinguishable_from_bulk(self, events_dir):
         """A missing packaging must never become a real carrier."""
         domain.pricing.record_observations(events_dir, [

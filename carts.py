@@ -21,6 +21,47 @@ logger = logging.getLogger(__name__)
 
 _JSON_FILE = "carts.json"
 
+# Every cart column, in the order _cart_dict reads them. Kept in one place
+# because four call sites select them and a partial list silently produces a
+# cart dict missing a field the frontend then renders as undefined.
+_CART_COLUMNS = "SELECT id, name, created_at, board_count"
+
+DEFAULT_BOARD_COUNT = 1
+"""How many boards a cart builds when nobody has said. One, not zero -- a cart
+for zero boards would zero every quantity derived from it."""
+
+
+def _clean_optional_qty(value: Any) -> int | None:
+    """A positive int, or None for "not recorded".
+
+    0 collapses to None on purpose: a line that places zero parts per board is
+    indistinguishable from one whose placement count was never captured, and
+    treating it as a real 0 would multiply every board count down to nothing.
+    """
+    if value is None:
+        return None
+    try:
+        qty = int(value)
+    except (TypeError, ValueError):
+        return None
+    return qty if qty > 0 else None
+
+
+def clean_board_count(value: Any) -> int:
+    """Coerce a board count to a positive int, falling back to the default.
+
+    Deliberately forgiving rather than raising: this runs on every cart read
+    from `carts.json`, including files written before the column existed (where
+    the value is absent) and hand-edited ones. A cart that fails to load is a
+    worse outcome than a cart that quietly builds one board, and the API layer
+    rejects bad input before it ever reaches here.
+    """
+    try:
+        count = int(value)
+    except (TypeError, ValueError):
+        return DEFAULT_BOARD_COUNT
+    return count if count > 0 else DEFAULT_BOARD_COUNT
+
 
 def _json_path(data_dir: str) -> str:
     return os.path.join(data_dir, _JSON_FILE)
@@ -36,8 +77,8 @@ def item_ref(part_id: str | None, raw: dict | None) -> str:
 
 def _item_rows(conn: sqlite3.Connection, cart_id: str) -> list[dict[str, Any]]:
     rows = conn.execute(
-        "SELECT ref, part_id, raw, qty, target_distributor FROM cart_items "
-        "WHERE cart_id=? ORDER BY position, ref",
+        "SELECT ref, part_id, raw, qty, target_distributor, target_packaging, "
+        "preset, per_board_qty FROM cart_items WHERE cart_id=? ORDER BY position, ref",
         (cart_id,),
     ).fetchall()
     return [
@@ -47,6 +88,9 @@ def _item_rows(conn: sqlite3.Connection, cart_id: str) -> list[dict[str, Any]]:
             "raw": json.loads(r["raw"]) if r["raw"] else None,
             "qty": r["qty"],
             "target_distributor": r["target_distributor"],
+            "target_packaging": r["target_packaging"],
+            "preset": r["preset"],
+            "per_board_qty": r["per_board_qty"],
         }
         for r in rows
     ]
@@ -57,6 +101,7 @@ def _cart_dict(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
         "id": row["id"],
         "name": row["name"],
         "created_at": row["created_at"],
+        "board_count": row["board_count"],
         "items": _item_rows(conn, row["id"]),
     }
 
@@ -67,9 +112,10 @@ def _persist(conn: sqlite3.Connection, data_dir: str) -> None:
             "id": r["id"],
             "name": r["name"],
             "created_at": r["created_at"],
+            "board_count": r["board_count"],
             "items": _item_rows(conn, r["id"]),
         }
-        for r in conn.execute("SELECT id, name, created_at FROM carts ORDER BY created_at").fetchall()
+        for r in conn.execute(_CART_COLUMNS + " FROM carts ORDER BY created_at").fetchall()
     ]
     os.makedirs(data_dir, exist_ok=True)
     csv_io.atomic_write_text(
@@ -79,31 +125,51 @@ def _persist(conn: sqlite3.Connection, data_dir: str) -> None:
     )
 
 
-def create(conn: sqlite3.Connection, data_dir: str, name: str) -> dict[str, Any]:
+def create(conn: sqlite3.Connection, data_dir: str, name: str,
+           board_count: int = DEFAULT_BOARD_COUNT) -> dict[str, Any]:
     cart_id = "cart_" + uuid.uuid4().hex
     created_at = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    boards = clean_board_count(board_count)
     conn.execute(
-        "INSERT INTO carts (id, name, created_at) VALUES (?,?,?)",
-        (cart_id, name, created_at),
+        "INSERT INTO carts (id, name, created_at, board_count) VALUES (?,?,?,?)",
+        (cart_id, name, created_at, boards),
     )
     conn.commit()
     _persist(conn, data_dir)
-    return {"id": cart_id, "name": name, "created_at": created_at, "items": []}
+    return {"id": cart_id, "name": name, "created_at": created_at,
+            "board_count": boards, "items": []}
 
 
 def list_carts(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    rows = conn.execute("SELECT id, name, created_at FROM carts ORDER BY created_at").fetchall()
+    rows = conn.execute(_CART_COLUMNS + " FROM carts ORDER BY created_at").fetchall()
     return [_cart_dict(conn, r) for r in rows]
 
 
 def get(conn: sqlite3.Connection, cart_id: str) -> dict[str, Any] | None:
-    row = conn.execute("SELECT id, name, created_at FROM carts WHERE id=?", (cart_id,)).fetchone()
+    row = conn.execute(_CART_COLUMNS + " FROM carts WHERE id=?", (cart_id,)).fetchone()
     return _cart_dict(conn, row) if row else None
 
 
 def rename(conn: sqlite3.Connection, data_dir: str, cart_id: str, name: str) -> dict[str, Any]:
     _require(conn, cart_id)
     conn.execute("UPDATE carts SET name=? WHERE id=?", (name, cart_id))
+    conn.commit()
+    _persist(conn, data_dir)
+    return get(conn, cart_id)
+
+
+def set_board_count(conn: sqlite3.Connection, data_dir: str, cart_id: str,
+                    board_count: int) -> dict[str, Any]:
+    """Set how many boards this cart builds.
+
+    The count is stored rather than folded into the item quantities, so a
+    5,000-piece line stays explainable as "25 boards x 8 placements, less 112
+    on hand" weeks later. Re-deriving it from the BOM instead would require the
+    BOM to be byte-identical, which at procurement stage it never is.
+    """
+    _require(conn, cart_id)
+    conn.execute("UPDATE carts SET board_count=? WHERE id=?",
+                 (clean_board_count(board_count), cart_id))
     conn.commit()
     _persist(conn, data_dir)
     return get(conn, cart_id)
@@ -126,18 +192,22 @@ def load_into_db(conn: sqlite3.Connection, data_dir: str) -> None:
         records = json.load(f)
     for rec in records:
         conn.execute(
-            "INSERT OR REPLACE INTO carts (id, name, created_at) VALUES (?,?,?)",
-            (rec["id"], rec.get("name", ""), rec.get("created_at", "")),
+            "INSERT OR REPLACE INTO carts (id, name, created_at, board_count) VALUES (?,?,?,?)",
+            (rec["id"], rec.get("name", ""), rec.get("created_at", ""),
+             clean_board_count(rec.get("board_count"))),
         )
         for pos, item in enumerate(rec.get("items", [])):
             ref = item.get("ref") or item_ref(item.get("part_id"), item.get("raw"))
             conn.execute(
                 "INSERT OR REPLACE INTO cart_items "
-                "(cart_id, ref, part_id, raw, qty, target_distributor, position) VALUES (?,?,?,?,?,?,?)",
+                "(cart_id, ref, part_id, raw, qty, target_distributor, target_packaging, "
+                "preset, per_board_qty, position) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (
                     rec["id"], ref, item.get("part_id"),
                     json.dumps(item["raw"]) if item.get("raw") else None,
-                    int(item.get("qty", 1)), item.get("target_distributor"), pos,
+                    int(item.get("qty", 1)), item.get("target_distributor"),
+                    item.get("target_packaging"), item.get("preset"),
+                    _clean_optional_qty(item.get("per_board_qty")), pos,
                 ),
             )
     conn.commit()
@@ -165,9 +235,23 @@ def add_item(
     raw: dict | None = None,
     qty: int = 1,
     target_distributor: str | None = None,
+    target_packaging: str | None = None,
+    preset: str | None = None,
+    per_board_qty: int | None = None,
 ) -> dict[str, Any]:
     """Add an item to the cart. Re-adding an existing ref SETS qty (not additive)
-    and updates target_distributor."""
+    and updates target_distributor.
+
+    `per_board_qty` is what makes the cart's board count mean anything: it is
+    the placement count for one board, so a quantity stays derivable as
+    `per_board_qty x board_count - on_hand` instead of being a number nobody
+    can account for later. None for one-off lines that are not per-board.
+
+    `preset` records whether `qty` is a *rule* ("whatever the cheapest option
+    is at this volume") or a *pinned number* ("buy exactly 5,000"). Without it a
+    board-count change cannot tell which rows to re-derive and which to leave
+    alone.
+    """
     _require(conn, cart_id)
     ref = item_ref(part_id, raw)
     existing = conn.execute(
@@ -175,16 +259,19 @@ def add_item(
     ).fetchone()
     if existing:
         conn.execute(
-            "UPDATE cart_items SET qty=?, target_distributor=? WHERE cart_id=? AND ref=?",
-            (int(qty), target_distributor, cart_id, ref),
+            "UPDATE cart_items SET qty=?, target_distributor=?, target_packaging=?, "
+            "preset=?, per_board_qty=? WHERE cart_id=? AND ref=?",
+            (int(qty), target_distributor, target_packaging, preset,
+             _clean_optional_qty(per_board_qty), cart_id, ref),
         )
     else:
         conn.execute(
-            "INSERT INTO cart_items (cart_id, ref, part_id, raw, qty, target_distributor, position) "
-            "VALUES (?,?,?,?,?,?,?)",
+            "INSERT INTO cart_items (cart_id, ref, part_id, raw, qty, target_distributor, "
+            "target_packaging, preset, per_board_qty, position) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
                 cart_id, ref, part_id, json.dumps(raw) if raw else None, int(qty),
-                target_distributor, _next_position(conn, cart_id),
+                target_distributor, target_packaging, preset,
+                _clean_optional_qty(per_board_qty), _next_position(conn, cart_id),
             ),
         )
     conn.commit()
@@ -200,7 +287,18 @@ def update_item(
     *,
     qty: int | None = None,
     target_distributor: str | None = None,
+    target_packaging: str | None = None,
+    preset: str | None = None,
+    per_board_qty: int | None = None,
 ) -> dict[str, Any]:
+    """Patch one cart line. Only the fields passed are touched.
+
+    Every field is None-means-leave-alone, so a caller changing a preset does
+    not have to restate the quantity -- and clearing a field is therefore a
+    deliberate act, not something a partial update does by accident. The one
+    exception is the empty string, which clears `preset`/`target_packaging`
+    back to "follow the cart default".
+    """
     _require(conn, cart_id)
     if qty is not None:
         conn.execute("UPDATE cart_items SET qty=? WHERE cart_id=? AND ref=?", (int(qty), cart_id, ref))
@@ -208,6 +306,21 @@ def update_item(
         conn.execute(
             "UPDATE cart_items SET target_distributor=? WHERE cart_id=? AND ref=?",
             (target_distributor, cart_id, ref),
+        )
+    if target_packaging is not None:
+        conn.execute(
+            "UPDATE cart_items SET target_packaging=? WHERE cart_id=? AND ref=?",
+            (target_packaging or None, cart_id, ref),
+        )
+    if preset is not None:
+        conn.execute(
+            "UPDATE cart_items SET preset=? WHERE cart_id=? AND ref=?",
+            (preset or None, cart_id, ref),
+        )
+    if per_board_qty is not None:
+        conn.execute(
+            "UPDATE cart_items SET per_board_qty=? WHERE cart_id=? AND ref=?",
+            (_clean_optional_qty(per_board_qty), cart_id, ref),
         )
     conn.commit()
     _persist(conn, data_dir)

@@ -270,8 +270,68 @@ const ROUTES = [
     if (!item) throw new Error(`route-mocks.mjs: update_cart_item — no item "${a.ref}" in cart "${a.cart_id}"`);
     if (a.qty !== null && a.qty !== undefined) item.qty = a.qty;
     if (a.target_distributor !== null && a.target_distributor !== undefined) item.target_distributor = a.target_distributor;
+    // The sourcing fields follow the real route's null-means-leave-alone
+    // semantics, INCLUDING the empty string meaning "clear back to the cart
+    // default" — a mock that treated '' as absent would make un-pinning a
+    // preset look like a no-op in E2E while working against the real server.
+    if (a.target_packaging !== null && a.target_packaging !== undefined) {
+      item.target_packaging = a.target_packaging || null;
+    }
+    if (a.preset !== null && a.preset !== undefined) item.preset = a.preset || null;
+    if (a.per_board_qty !== null && a.per_board_qty !== undefined) {
+      item.per_board_qty = a.per_board_qty;
+    }
     return item;
   }, { mutation: true }),
+  // set_cart_board_count: the multiplier behind every per-board quantity.
+  // `detail` is the whole updated cart (server/routes/carts.py).
+  route('set_cart_board_count', (a, ctx) => {
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    if (!cart) throw new Error(`route-mocks.mjs: set_cart_board_count — no cart "${a.cart_id}" in mock cartsState`);
+    cart.board_count = a.board_count;
+    return cart;
+  }, { mutation: true }),
+  // plan_cart: the purchase plan. Read-only, so it mutates nothing.
+  //
+  // A spec supplies `options.cartPlan` to assert against a fixed plan. With
+  // none it derives a MINIMAL but self-consistent one from cartsState — the
+  // real thing is domain/cart_plan.py and reimplementing its ranking here
+  // would be a second implementation to keep in step. What matters for specs
+  // that are not about the plan is that this route answers at all: without it
+  // every cart spec would take a 404 and an error toast.
+  route('plan_cart', (a, ctx) => {
+    if (ctx.options.cartPlan) return ctx.options.cartPlan;
+    const cart = ctx.cartsState.carts.find((c) => c.id === a.cart_id);
+    const boards = (cart && cart.board_count) || 1;
+    const lines = ((cart && cart.items) || []).map((item) => ({
+      ref: item.ref,
+      part_id: item.part_id,
+      preset: item.preset || a.preset || 'min',
+      board_count: boards,
+      per_board_qty: item.per_board_qty ?? null,
+      gross_qty: item.per_board_qty ? item.per_board_qty * boards : (item.qty || 0),
+      covered_by_stock: 0,
+      required_qty: item.per_board_qty ? item.per_board_qty * boards : (item.qty || 0),
+      on_hand: null,
+      target_distributor: item.target_distributor || null,
+      target_packaging: item.target_packaging || null,
+      candidates: [],
+      selected: null,
+      runner_up: null,
+      rejections: [],
+      reason: 'no observed prices for this part',
+      over_ceiling: false,
+      fell_back: '',
+    }));
+    return {
+      cart_id: a.cart_id,
+      board_count: boards,
+      default_preset: a.preset || 'min',
+      reel_ceiling: a.reel_ceiling ?? null,
+      lines,
+      totals: { spend: 0, lines: lines.length, covered_by_stock: 0, unpriced: lines.length },
+    };
+  }),
   // remove_cart_item (Task B6): filters the matching ref out of ctx.cartsState —
   // real detail shape per server/routes/carts.py: {"cart_id", "ref"}.
   route('remove_cart_item', (a, ctx) => {

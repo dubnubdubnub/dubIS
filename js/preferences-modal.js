@@ -76,6 +76,7 @@ function syncKeyboardPrefs() {
   document.getElementById('pref-enter-submit').checked = p.enterSubmitsModals;
   document.getElementById('pref-vim-nav').checked = p.vimNav;
   document.getElementById('pref-auto-copy').checked = getBehaviorPrefs().autoCopySelection;
+  document.getElementById('pref-reel-ceiling').value = String(getBehaviorPrefs().reelCeiling);
 }
 
 function wireKeyboardPrefs() {
@@ -83,6 +84,15 @@ function wireKeyboardPrefs() {
   document.getElementById('pref-enter-submit').addEventListener('change', (e) => setShortcutPrefs({ enterSubmitsModals: e.target.checked }));
   document.getElementById('pref-vim-nav').addEventListener('change', (e) => setShortcutPrefs({ vimNav: e.target.checked }));
   document.getElementById('pref-auto-copy').addEventListener('change', (e) => setBehaviorPrefs({ autoCopySelection: e.target.checked }));
+  // Committed on 'change' (blur or Enter), not 'input': every keystroke of
+  // "150" passes through 1 and 15, and persisting those would rewrite the rule
+  // twice on the way to the number the user meant. setBehaviorPrefs rejects a
+  // non-positive value back to the default, so the field is re-read from the
+  // store rather than trusting what was typed.
+  document.getElementById('pref-reel-ceiling').addEventListener('change', (e) => {
+    setBehaviorPrefs({ reelCeiling: Number(e.target.value) });
+    e.target.value = String(getBehaviorPrefs().reelCeiling);
+  });
 }
 
 // ── Open / Close / Apply ──
