@@ -15,9 +15,6 @@ const MOCK_INVENTORY = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'fixtures', 'inventory.json'), 'utf8')
 );
 
-// Screenshot destination for the open dropdown (throwaway visual check)
-const SCREENSHOT_PATH = 'C:/Users/isaac/AppData/Local/Temp/claude/D--gehub-dubIS/915009e0-4141-437d-821d-d43e35d13964/scratchpad/shot-savedviews.png';
-
 test.describe('Saved Views', () => {
 
   test('Views button is visible in the inventory toolbar', async ({ page }) => {
@@ -182,7 +179,7 @@ test.describe('Saved Views', () => {
     await expect(menu.locator('.sv-view-name').filter({ hasText: 'Temp view' })).not.toBeVisible();
   });
 
-  test('screenshot: open Views dropdown for visual check', async ({ page }) => {
+  test('screenshot: open Views dropdown for visual check', async ({ page }, testInfo) => {
     await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 1920, height: 900 });
     await page.goto('/index.html');
@@ -201,8 +198,11 @@ test.describe('Saved Views', () => {
     await page.locator('#saved-views-btn').click();
     await expect(page.locator('.saved-views-menu')).toBeVisible();
 
-    // Capture screenshot to the exact scratchpad path
-    await page.screenshot({ path: SCREENSHOT_PATH });
+    // Screenshot for visual inspection. testInfo.outputPath puts it under the
+    // run's own test-results/ dir (gitignored, and cleaned between runs) — a
+    // hardcoded absolute path here used to write a literal `C:/Users/...` tree
+    // into the repo on every non-Windows run.
+    await page.screenshot({ path: testInfo.outputPath('shot-savedviews.png') });
   });
 
 });
