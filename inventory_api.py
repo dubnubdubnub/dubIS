@@ -16,6 +16,7 @@ import domain.inventory
 import domain.pricing
 import inventory_ops
 from distributor_manager import DistributorManager
+from domain.api_attributes import AttributesFacade
 from domain.api_cart import CartFacade
 from domain.api_distributor import DistributorFacade
 from domain.api_fileio import FileIOFacade
@@ -80,6 +81,7 @@ class InventoryApi:
         self._last_migration_summary: dict[str, int] = {}
         self._distributors = DistributorManager(self.base_dir, self._get_cache)
         self._files = FileIOFacade(self)
+        self._attrs = AttributesFacade(self)
         self._dist = DistributorFacade(self)
         self._pricing = PricingFacade(self)
         self._generic = GenericPartsFacade(self)
@@ -311,6 +313,21 @@ class InventoryApi:
 
     def get_price_summary(self, part_key: str) -> dict[str, dict[str, Any]]:
         return self._pricing.get_price_summary(part_key)
+
+    # ── Part attribute store ────────────────────────────────────────────────
+
+    def record_fetched_attributes(self, part_key: str, distributor: str,
+                                  attributes: list[dict[str, Any]] | None) -> int:
+        """Persist parametric attributes fetched from a distributor.
+
+        Called automatically for every product the distributor facade fetches;
+        exposed here for callers that already hold a normalized product.
+        """
+        return self._attrs.record_fetched_attributes(part_key, distributor, attributes)
+
+    def get_part_attributes(self, part_key: str) -> list[dict[str, Any]]:
+        """Stored parametric attributes for a part, across all distributors."""
+        return self._attrs.get_part_attributes(part_key)
 
     def get_sourced_distributors(self, part_key: str) -> list[dict[str, str]]:
         return self._pricing.get_sourced_distributors(part_key)

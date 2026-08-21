@@ -29,6 +29,14 @@ Existing entities and their durable stores:
 | Generic parts (manual state) | `data/generic_parts.json` | `domain/generic_parts.load_into_db` |
 | Part identity registry | `data/part_registry.json` | loaded each rebuild (`domain/part_registry.py`) |
 | Price observations | `events/price_observations.csv` | `populate_prices_cache` |
+| Part attributes (distributor parametrics) | `data/part_attributes.csv` | `domain/attributes.load_into_db` |
+
+Note the two shapes of durable log. `events/price_observations.csv` is
+append-only because a price is a *sighting* (the history is the data). A
+parametric attribute is a *property* of the part, so
+`data/part_attributes.csv` is keyed on (part_id, canonical_name, distributor)
+and re-fetching a part updates its rows in place — the file stays
+one-row-per-fact instead of growing on every hover.
 
 **Audit trails (never replayed):** `events/part_events.csv` records generic-part
 mutations for forensics only. Do not build restore logic on it.
