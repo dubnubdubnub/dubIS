@@ -21,6 +21,7 @@ import urllib.request
 from typing import Any
 
 from base_client import BaseProductClient
+from domain.packaging import carrier_of
 from domain.product import build_product
 from html_product_parser import (
     extract_attributes,
@@ -38,6 +39,52 @@ logger = logging.getLogger(__name__)
 
 _API_SEARCH_URL = "https://api.mouser.com/api/v2/search/partnumber"
 _API_KEYWORD_URL = "https://api.mouser.com/api/v2/search/keyword"
+
+# Mouser publishes the carrier as an ordinary parametric attribute
+# ("Packaging": "Cut Tape" / "Tape & Reel" / "MouseReel" / "Tray" / "Tube" /
+# "Bulk"), both in the Search API's ProductAttributes and in the product
+# page's spec table. Deliberately excludes a bare "Package" — on Mouser that
+# is the footprint/case ("0402"), not the carrier.
+_PACKAGING_ATTR_NAMES = frozenset({"packaging", "packaging type", "package type"})
+
+# "Full Reel (Order in multiples of 3,000)" — the reel-anchored form is the
+# only one we trust as a *reel* quantity, since a bare "order in multiples of
+# 5" on a bulk part is an order multiple, not a reel.
+_REEL_MULTIPLE_RE = re.compile(
+    r"reel[^.]{0,100}?multiples?\s+of\s+([\d,]+)", re.IGNORECASE,
+)
+_ORDER_MULTIPLE_RE = re.compile(r"multiples?\s+of\s+([\d,]+)", re.IGNORECASE)
+
+# "MouseReel ... $7.00" — the custom-reeling surcharge, rendered next to the
+# MouseReel option on the product page. The Search API does not expose it.
+_MOUSEREEL_FEE_RE = re.compile(
+    r"MouseReel[^$]{0,160}\$\s*(\d+(?:\.\d+)?)", re.IGNORECASE,
+)
+
+
+def _clean_int(value: Any) -> int | None:
+    """Best-effort positive int from Mouser's string-typed numeric fields.
+
+    Mouser reports Min/Mult as strings ("1", "3,000"); anything unparseable or
+    non-positive means "not published", which is None.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        n = int(float(str(value).replace(",", "").strip()))
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None
+
+
+def _packaging_name(attributes: list[dict[str, str]]) -> str:
+    """Pull the carrier name out of an already-normalized attribute list."""
+    for attr in attributes:
+        if (attr.get("name") or "").strip().lower() in _PACKAGING_ATTR_NAMES:
+            value = (attr.get("value") or "").strip()
+            if value:
+                return value
+    return ""
 
 
 class MouserClient(BaseProductClient):
@@ -232,6 +279,36 @@ class MouserClient(BaseProductClient):
             if name and value:
                 attributes.append({"name": name, "value": value})
 
+        # Packaging: Mouser's Search API carries the carrier as a
+        # "Packaging" ProductAttribute, the order floor/step as Min/Mult, and
+        # a `Reeling` boolean meaning "MouseReel is available for this part"
+        # (availability of the service — *not* a claim that this packaging is
+        # itself a reel, so it is exposed as its own key rather than used to
+        # override the name-derived isReel).
+        packaging_name = _packaging_name(attributes)
+        order_multiple = _clean_int(part.get("Mult"))
+        reeling = part.get("Reeling")
+        packagings: list[dict[str, Any]] = []
+        if packaging_name:
+            packagings.append({
+                "name": packaging_name,
+                "partNumber": part.get("MouserPartNumber") or part_number,
+                "minBuyQty": _clean_int(part.get("Min")),
+                "orderMultiple": order_multiple,
+                "reelingAvailable": None if reeling is None else bool(reeling),
+                "prices": prices,
+            })
+
+        # A >1 order multiple is the reel quantity only when the carrier is
+        # tape — Mouser also uses Mult for bulk pack sizes ("multiples of 5"),
+        # which is not a reel of 5.
+        reel_qty = (
+            order_multiple
+            if order_multiple and order_multiple > 1
+            and carrier_of(packaging_name) == "tape"
+            else None
+        )
+
         title = (part.get("Description") or part.get("ManufacturerPartNumber")
                  or part_number)
         return build_product(
@@ -253,6 +330,10 @@ class MouserClient(BaseProductClient):
             subcategory="",
             attributes=attributes,
             provider="mouser",
+            packagings=packagings,
+            reel_qty=reel_qty,
+            # The Search API publishes no MouseReel surcharge field — only the
+            # product page renders it — so reel_fee stays None on this path.
             debug={
                 "source": "api",
                 "part_number": part_number,
@@ -354,6 +435,35 @@ class MouserClient(BaseProductClient):
             page_html, excluded_names=["quantity", "price", "unit price"]
         )
 
+        # Packaging: reuse the page's own spec table (already parsed into
+        # `attributes`) rather than adding a second carrier-name regex.
+        packaging_name = _packaging_name(attributes)
+
+        # Reel quantity: prefer the reel-anchored phrasing the product page
+        # uses ("Full Reel (Order in multiples of 3,000)"); fall back to a bare
+        # order multiple only when the carrier is already known to be tape.
+        reel_match = _REEL_MULTIPLE_RE.search(page_html)
+        if reel_match:
+            reel_qty = _clean_int(reel_match.group(1))
+        else:
+            mult_match = _ORDER_MULTIPLE_RE.search(page_html)
+            reel_qty = (
+                _clean_int(mult_match.group(1))
+                if mult_match and carrier_of(packaging_name) == "tape"
+                else None
+            )
+
+        fee_match = _MOUSEREEL_FEE_RE.search(page_html)
+        reel_fee = fee_match.group(1) if fee_match else None
+
+        packagings: list[dict[str, Any]] = []
+        if packaging_name:
+            packagings.append({
+                "name": packaging_name,
+                "partNumber": part_number,
+                "prices": prices,
+            })
+
         product: dict[str, Any] = build_product(
             product_code=part_number,
             title=title,
@@ -370,6 +480,9 @@ class MouserClient(BaseProductClient):
             subcategory=subcategory,
             attributes=attributes,
             provider="mouser",
+            packagings=packagings,
+            reel_qty=reel_qty,
+            reel_fee=reel_fee,
             debug={
                 "url": url,
                 "part_number": part_number,
