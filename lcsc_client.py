@@ -15,6 +15,17 @@ from domain.product import build_product
 logger = logging.getLogger(__name__)
 
 
+def _clean_int(value: Any) -> int | None:
+    """Best-effort positive int from LCSC's loosely-typed numeric fields."""
+    if value is None:
+        return None
+    try:
+        n = int(float(str(value).replace(",", "").strip()))
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None
+
+
 class LcscClient(BaseProductClient):
     """Fetches and caches LCSC product details by product code."""
 
@@ -81,6 +92,23 @@ class LcscClient(BaseProductClient):
         images = result_data.get("productImages") or []
         image_url = images[0] if images else result_data.get("productImageUrl", "")
 
+        # Packaging: LCSC publishes the packet quantity (`minPacketNumber`),
+        # its unit ("Reel"/"Tray"), a boolean `isReel`, and the custom-reeling
+        # surcharge (`reelPrice`). `isReel` is authoritative and can disagree
+        # with the unit name — C393939 reports unit "Reel" with isReel False —
+        # so it is passed explicitly rather than inferred from the name.
+        packet_qty = result_data.get("minPacketNumber")
+        packet_unit = result_data.get("minPacketUnit") or ""
+        packagings = []
+        if packet_unit or packet_qty:
+            packagings.append({
+                "name": packet_unit or "Standard",
+                "packetQty": _clean_int(packet_qty),
+                "minBuyQty": _clean_int(result_data.get("minBuyNumber")),
+                "isReel": bool(result_data.get("isReel")),
+                "prices": prices,
+            })
+
         product = build_product(
             product_code=result_data.get("productCode", product_code),
             title=result_data.get("title", "") or result_data.get("productIntroEn", ""),
@@ -97,6 +125,9 @@ class LcscClient(BaseProductClient):
             subcategory=subcat_name,
             attributes=attributes,
             provider="lcsc",
+            packagings=packagings,
+            reel_qty=packet_qty,
+            reel_fee=result_data.get("reelPrice"),
             debug=result_data,
         )
 

@@ -16,7 +16,7 @@ def test_build_product_lcsc_shape():
     assert set(p) >= {
         "productCode", "title", "manufacturer", "mpn", "package", "description",
         "stock", "prices", "imageUrl", "pdfUrl", "category", "subcategory",
-        "attributes", "provider", "_debug",
+        "attributes", "packagings", "reelQty", "reelFee", "provider", "_debug",
     }
 
 
@@ -37,6 +37,9 @@ def test_build_product_full_shape_matches_current_lcsc_dict():
         "category": "Resistors",
         "subcategory": "Chip Resistors",
         "attributes": [{"name": "Tolerance", "value": "1%"}],
+        "packagings": [],
+        "reelQty": None,
+        "reelFee": None,
         "provider": "lcsc",
         "_debug": {"raw": "data"},
     }
@@ -80,4 +83,7 @@ def test_defaults_when_optional_fields_omitted():
     assert p["category"] is None
     assert p["subcategory"] is None
     assert p["attributes"] == []
+    assert p["packagings"] == []
+    assert p["reelQty"] is None
+    assert p["reelFee"] is None
     assert p["_debug"] is None
