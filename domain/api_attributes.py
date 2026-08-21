@@ -59,12 +59,18 @@ class AttributesFacade:
         leaves its parametrics behind. Persistence is best-effort: a product
         preview must not fail because the attribute store could not be written
         (it is warned about, not swallowed silently, per the error policy).
+
+        A product with no attributes returns before the lock and the cache
+        connection are touched — a fetch that has nothing to record must not
+        be the thing that lazily opens cache.db.
         """
         if not product:
             return product
+        attributes = product.get("attributes")
+        if not attributes:
+            return product
         try:
-            self.record_fetched_attributes(
-                part_key, distributor, product.get("attributes"))
+            self.record_fetched_attributes(part_key, distributor, attributes)
         except Exception as exc:  # noqa: BLE001 - a preview must survive a store failure
             logger.warning(
                 "record_fetched_attributes failed for %s/%s: %s", distributor, part_key, exc)
