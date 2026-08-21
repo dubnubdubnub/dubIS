@@ -500,6 +500,7 @@ graph LR
     "mirror_install/windows.py" --> "mirror_install/base.py"
     "mirror_push.py" --> "mirror_serialize.py"
     "mouser_client.py" --> "base_client.py"
+    "mouser_client.py" --> "domain/packaging.py"
     "mouser_client.py" --> "domain/product.py"
     "mouser_client.py" --> "html_product_parser.py"
     "ocr_layout.py" --> "distributor_profiles.py"
@@ -829,6 +830,10 @@ graph LR
     "tests/python/test_packaging.py" --> "domain/packaging.py"
     "tests/python/test_packaging.py" --> "domain/product.py"
     "tests/python/test_packaging.py" --> "lcsc_client.py"
+    "tests/python/test_packaging_clients.py" --> "digikey_normalizer.py"
+    "tests/python/test_packaging_clients.py" --> "domain/product.py"
+    "tests/python/test_packaging_clients.py" --> "mouser_client.py"
+    "tests/python/test_packaging_clients.py" --> "pololu_client.py"
     "tests/python/test_part_history.py" --> "domain/api_history.py"
     "tests/python/test_part_history.py" --> "inventory_api.py"
     "tests/python/test_pdf_raster.py" --> "pdf_raster.py"
@@ -935,7 +940,7 @@ graph LR
 ### digikey_normalizer.py
 
 - **Imports:** `domain/product.py`
-- **Imported by:** `digikey_client.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_digikey_normalizer.py`, `tests/python/test_normalizers.py`
+- **Imported by:** `digikey_client.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_digikey_normalizer.py`, `tests/python/test_normalizers.py`, `tests/python/test_packaging_clients.py`
 
 ### digikey_scrape_js.py
 
@@ -1045,7 +1050,7 @@ graph LR
 ### domain/packaging.py
 
 - **Imports:** —
-- **Imported by:** `domain/product.py`, `tests/python/test_packaging.py`
+- **Imported by:** `domain/product.py`, `mouser_client.py`, `tests/python/test_packaging.py`
 
 ### domain/part_registry.py
 
@@ -1060,7 +1065,7 @@ graph LR
 ### domain/product.py
 
 - **Imports:** `domain/packaging.py`
-- **Imported by:** `digikey_normalizer.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`, `tests/python/test_packaging.py`, `tests/python/test_product_factory.py`
+- **Imported by:** `digikey_normalizer.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`, `tests/python/test_packaging.py`, `tests/python/test_packaging_clients.py`, `tests/python/test_product_factory.py`
 
 ### domain/schema.py
 
@@ -1715,8 +1720,8 @@ graph LR
 
 ### mouser_client.py
 
-- **Imports:** `base_client.py`, `domain/product.py`, `html_product_parser.py`
-- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_contract.py`, `tests/python/test_normalizers.py`
+- **Imports:** `base_client.py`, `domain/packaging.py`, `domain/product.py`, `html_product_parser.py`
+- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_contract.py`, `tests/python/test_normalizers.py`, `tests/python/test_packaging_clients.py`
 
 ### ocr_engine.py
 
@@ -1751,7 +1756,7 @@ graph LR
 ### pololu_client.py
 
 - **Imports:** `base_client.py`, `domain/product.py`, `html_product_parser.py`
-- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_pololu.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_contract.py`, `tests/python/test_normalizers.py`
+- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_pololu.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_contract.py`, `tests/python/test_normalizers.py`, `tests/python/test_packaging_clients.py`
 
 ### purchase_orders.py
 
@@ -2892,6 +2897,11 @@ graph LR
 ### tests/python/test_packaging.py
 
 - **Imports:** `domain/packaging.py`, `domain/product.py`, `lcsc_client.py`
+- **Imported by:** —
+
+### tests/python/test_packaging_clients.py
+
+- **Imports:** `digikey_normalizer.py`, `domain/product.py`, `mouser_client.py`, `pololu_client.py`
 - **Imported by:** —
 
 ### tests/python/test_part_history.py
