@@ -24,6 +24,54 @@ export async function rectOf(locator) {
 }
 
 /**
+ * A rect read only once the element has stopped moving.
+ *
+ * Every measurement here is a separate round-trip, so a reflow landing between
+ * two of them corrupts whatever compares them: a cascade delta absorbs the
+ * whole shift, or a screenshot clip taken from an earlier rect no longer frames
+ * what the coordinates say it does. Waiting for two consecutive identical reads
+ * makes the layout quiescent *before* anything depends on it.
+ *
+ * This STRENGTHENS a test rather than relaxing it — a layout that genuinely
+ * never settles now fails with a clear message instead of flaking on whichever
+ * frame the measurement happened to catch.
+ *
+ * @param {import('@playwright/test').Locator} locator
+ * @param {{tries?: number, interval?: number}} [opts]
+ * @returns {Promise<Rect>}
+ */
+export async function settledRect(locator, opts = {}) {
+  const tries = opts.tries ?? 20;
+  const interval = opts.interval ?? 50;
+  let prev = await rectOf(locator);
+  for (let i = 0; i < tries; i++) {
+    await locator.page().waitForTimeout(interval);
+    const next = await rectOf(locator);
+    if (next.x === prev.x && next.y === prev.y
+      && next.width === prev.width && next.height === prev.height) {
+      return next;
+    }
+    prev = next;
+  }
+  throw new Error(
+    `settledRect: layout still moving after ${tries * interval}ms `
+    + `(last rect ${JSON.stringify(prev)})`,
+  );
+}
+
+/**
+ * Wait for web fonts to finish loading.
+ *
+ * Icons carrying emoji glyphs reflow their row when a late font arrives, which
+ * is one of the reflows settledRect would otherwise have to sit through — and
+ * under parallel load it can arrive after the first measurement.
+ * @param {import('@playwright/test').Page} page
+ */
+export async function fontsReady(page) {
+  await page.evaluate(() => document.fonts && document.fonts.ready);
+}
+
+/**
  * Screenshot a region (locator or viewport-px clip rect), expanded by `pad`,
  * and decode it. Returns a Frame with pixel access and coordinate mappers.
  * @param {import('@playwright/test').Page} page
