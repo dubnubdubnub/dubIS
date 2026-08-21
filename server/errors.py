@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from dubis_errors import (
+    AlternateRejectedError,
     CacheError,
     DistributorAuthError,
     DistributorError,
@@ -27,6 +28,7 @@ _MAPPING: list[tuple[type[Exception], int, str]] = [
     # order matters: subclasses before bases
     (LoopbackRequiredError, 403, "loopback_only"),
     (PartRegistryCollisionError, 409, "part_registry_collision"),
+    (AlternateRejectedError, 409, "alternate_rejected"),
     (NotFoundError, 404, "not_found"),
     (DistributorAuthError, 401, "distributor_auth"),
     (DistributorTimeout, 504, "distributor_timeout"),
@@ -39,7 +41,28 @@ _MAPPING: list[tuple[type[Exception], int, str]] = [
 
 
 def _body(exc: Exception, code: str) -> dict:
-    return {"error": str(exc) or exc.__class__.__name__, "code": code, "detail": None}
+    return {
+        "error": str(exc) or exc.__class__.__name__,
+        "code": code,
+        "detail": _detail(exc),
+    }
+
+
+def _detail(exc: Exception) -> dict | None:
+    """Structured payload for the error types that carry one.
+
+    `AlternateRejectedError` exists to hand the caller the *prior* rejection
+    (reason, who, when, spec deltas) so a re-proposal can be shown the
+    verdict it collided with — a message string alone would force clients to
+    re-fetch and re-correlate it.
+    """
+    if isinstance(exc, AlternateRejectedError):
+        return {
+            "generic_part_id": exc.generic_part_id,
+            "part_id": exc.part_id,
+            "review": exc.review,
+        }
+    return None
 
 
 def _http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:

@@ -736,6 +736,44 @@
         "title": "ResolveBomSpecBody",
         "type": "object"
       },
+      "ReviewMemberBody": {
+        "description": "An interchangeability verdict on one (group, part) pair.\n\n`approval` is one of domain.generic_parts.APPROVAL_STATES. Anything other\nthan \"unreviewed\" requires a non-empty `rationale`. `spec_deltas` records\nwhat differs and by how much \u2014 including non-parametric constraints\n(kind \"design_constraint\"), e.g. a firmware coupling that no datasheet\ncomparison would surface. `asserted_by` defaults to the caller identity.\n`acknowledge_rejection` is required to overwrite a prior rejection.",
+        "properties": {
+          "acknowledge_rejection": {
+            "default": false,
+            "title": "Acknowledge Rejection",
+            "type": "boolean"
+          },
+          "approval": {
+            "title": "Approval",
+            "type": "string"
+          },
+          "asserted_by": {
+            "default": "",
+            "title": "Asserted By",
+            "type": "string"
+          },
+          "rationale": {
+            "default": "",
+            "title": "Rationale",
+            "type": "string"
+          },
+          "spec_deltas": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Spec Deltas",
+            "type": "array"
+          }
+        },
+        "required": [
+          "approval"
+        ],
+        "title": "ReviewMemberBody",
+        "type": "object"
+      },
       "SetMouserKeyBody": {
         "properties": {
           "key": {
@@ -2861,6 +2899,115 @@
           }
         },
         "summary": "Set Preferred Member",
+        "tags": [
+          "generic-parts"
+        ]
+      }
+    },
+    "/v1/generic-parts/{generic_part_id}/members/{part_id}/review": {
+      "post": {
+        "description": "Propose / approve / reject a part as an alternate within a group.\n\nPublishes `inventory.updated`: a verdict can change membership (rejecting\nexcludes, approving lifts an exclusion) and changes what the flyout shows.\nOverwriting a prior rejection without `acknowledge_rejection` returns 409\n`alternate_rejected` with the prior verdict in `detail`.",
+        "operationId": "review_generic_member",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "generic_part_id",
+            "required": true,
+            "schema": {
+              "title": "Generic Part Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part_id",
+            "required": true,
+            "schema": {
+              "title": "Part Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewMemberBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Review Generic Member",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Generic Member",
+        "tags": [
+          "generic-parts"
+        ]
+      }
+    },
+    "/v1/generic-parts/{generic_part_id}/reviews": {
+      "get": {
+        "description": "Every recorded interchangeability review for a group.\n\nIncludes reviews for parts that are not (or no longer) members \u2014 a\nrejection outlives the membership link on purpose, so that the same bad\nalternate can't be re-proposed as if nobody had ever looked at it.",
+        "operationId": "list_generic_member_reviews",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "generic_part_id",
+            "required": true,
+            "schema": {
+              "title": "Generic Part Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response List Generic Member Reviews",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Generic Member Reviews",
         "tags": [
           "generic-parts"
         ]
