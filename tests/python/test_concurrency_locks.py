@@ -89,9 +89,9 @@ class TestReadPathHoldsLock:
         observed = {}
         real = domain.pricing.record_fetched_prices
 
-        def probe(conn, events_dir, part_key, distributor, price_tiers):
+        def probe(conn, events_dir, part_key, distributor, price_tiers, **kwargs):
             observed["locked"] = _lock_held_by_another_thread(api._lock)
-            return real(conn, events_dir, part_key, distributor, price_tiers)
+            return real(conn, events_dir, part_key, distributor, price_tiers, **kwargs)
 
         monkeypatch.setattr(domain.pricing, "record_fetched_prices", probe)
         api.record_fetched_prices("C100000", "lcsc", [{"qty": 1, "price": 0.1}])

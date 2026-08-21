@@ -155,9 +155,12 @@ async function showTooltip(code, provider, triggerEl) {
   // Re-position after render (content may have changed height)
   positionTooltip(triggerEl);
 
-  // Record price observation (fire-and-forget)
+  // Record price observation (fire-and-forget). Packagings/reelQty/reelFee ride
+  // along so the stored observation records WHICH packaging the price is for --
+  // Digikey quotes Cut Tape and Tape & Reel as separate ladders.
   if (data.prices && data.prices.length > 0) {
-    api("record_fetched_prices", code, provider, data.prices).catch(function () { /* ignore */ });
+    api("record_fetched_prices", code, provider, data.prices,
+        data.packagings, data.reelQty, data.reelFee).catch(function () { /* ignore */ });
   }
 
   // Fetch and display price history (fire-and-forget)

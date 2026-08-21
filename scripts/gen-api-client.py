@@ -113,7 +113,10 @@ ARG_ORDER: dict[str, list[str]] = {
     "ocr_overlay": ["file_b64", "file_name", "template"],
     "parse_import_source": ["file_b64", "file_name", "path", "template"],
     "pnp_consume": ["part_id", "qty"],
-    "record_fetched_prices": ["part_key", "distributor", "price_tiers"],
+    "record_fetched_prices": [
+        "part_key", "distributor", "price_tiers", "packagings", "reel_qty",
+        "reel_fee",
+    ],
     "remove_generic_member": ["generic_part_id", "part_id"],
     "resolve_bom_spec": ["part_type", "value", "package"],
     "review_generic_member": [

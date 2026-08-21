@@ -1063,11 +1063,17 @@ export const API_MAP = {
     "argOrder": [
       "part_key",
       "distributor",
-      "price_tiers"
+      "price_tiers",
+      "packagings",
+      "reel_qty",
+      "reel_fee"
     ],
     "bodyParams": [
       "distributor",
-      "price_tiers"
+      "packagings",
+      "price_tiers",
+      "reel_fee",
+      "reel_qty"
     ],
     "mutating": true,
     "path": "/v1/parts/{part_key}/fetched-prices",

@@ -11,6 +11,7 @@ graph LR
     "cache_db.py" --> "domain/pricing.py"
     "cache_db.py" --> "domain/schema.py"
     "cache_db.py" --> "inventory_ops.py"
+    "cart_qty.py" --> "domain/packaging.py"
     "carts.py" --> "csv_io.py"
     "carts.py" --> "dubis_errors.py"
     "client_shell.py" --> "file_dialogs.py"
@@ -80,6 +81,8 @@ graph LR
     "domain/part_registry.py" --> "dubis_errors.py"
     "domain/predicates.py" --> "domain/attribute_parse.py"
     "domain/predicates.py" --> "domain/packages.py"
+    "domain/pricing.py" --> "csv_io.py"
+    "domain/pricing.py" --> "domain/packaging.py"
     "domain/product.py" --> "domain/packaging.py"
     "file_dialogs.py" --> "csv_io.py"
     "file_dialogs.py" --> "domain/pricing.py"
@@ -752,6 +755,7 @@ graph LR
     "tests/python/test_capture_page.py" --> "pnp_server.py"
     "tests/python/test_cart_export.py" --> "cart_export.py"
     "tests/python/test_cart_qty.py" --> "cart_qty.py"
+    "tests/python/test_cart_qty.py" --> "domain/pricing.py"
     "tests/python/test_carts.py" --> "cache_db.py"
     "tests/python/test_carts.py" --> "carts.py"
     "tests/python/test_carts.py" --> "dubis_errors.py"
@@ -924,7 +928,7 @@ graph LR
 
 ### cart_qty.py
 
-- **Imports:** —
+- **Imports:** `domain/packaging.py`
 - **Imported by:** `domain/api_cart.py`, `tests/python/test_cart_qty.py`
 
 ### carts.py
@@ -945,7 +949,7 @@ graph LR
 ### csv_io.py
 
 - **Imports:** —
-- **Imported by:** `carts.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `domain/attributes.py`, `domain/feeders.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/part_registry.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_csv_io.py`, `vendors.py`
+- **Imported by:** `carts.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `domain/attributes.py`, `domain/feeders.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/part_registry.py`, `domain/pricing.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_csv_io.py`, `vendors.py`
 
 ### digikey_cdp.py
 
@@ -1090,7 +1094,7 @@ graph LR
 ### domain/packaging.py
 
 - **Imports:** —
-- **Imported by:** `domain/product.py`, `mouser_client.py`, `tests/python/test_packaging.py`
+- **Imported by:** `cart_qty.py`, `domain/pricing.py`, `domain/product.py`, `mouser_client.py`, `tests/python/test_packaging.py`
 
 ### domain/part_registry.py
 
@@ -1104,8 +1108,8 @@ graph LR
 
 ### domain/pricing.py
 
-- **Imports:** —
-- **Imported by:** `cache_db.py`, `domain/api_cart.py`, `domain/api_pricing.py`, `domain/attributes.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_inventory_api_pricing.py`
+- **Imports:** `csv_io.py`, `domain/packaging.py`
+- **Imported by:** `cache_db.py`, `domain/api_cart.py`, `domain/api_pricing.py`, `domain/attributes.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_cart_qty.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_inventory_api_pricing.py`
 
 ### domain/product.py
 
@@ -2666,7 +2670,7 @@ graph LR
 
 ### tests/python/test_cart_qty.py
 
-- **Imports:** `cart_qty.py`
+- **Imports:** `cart_qty.py`, `domain/pricing.py`
 - **Imported by:** —
 
 ### tests/python/test_carts.py
