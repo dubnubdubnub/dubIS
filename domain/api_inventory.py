@@ -155,11 +155,16 @@ class InventoryCRUDFacade:
     def fetch_missing_descriptions(self) -> dict:
         """Fetch descriptions for parts with a distributor PN but none set."""
         dm = self._api._distributors
+        # Wrapped so this bulk path persists parametric attributes too — same
+        # hook the single-product fetch path gets in DistributorFacade.
         fetchers = {
-            "lcsc": dm.fetch_lcsc_product,
-            "digikey": dm.fetch_digikey_product,
-            "mouser": dm.fetch_mouser_product,
-            "pololu": dm.fetch_pololu_product,
+            name: self._api._attrs.recording_fetcher(name, fetch)
+            for name, fetch in (
+                ("lcsc", dm.fetch_lcsc_product),
+                ("digikey", dm.fetch_digikey_product),
+                ("mouser", dm.fetch_mouser_product),
+                ("pololu", dm.fetch_pololu_product),
+            )
         }
         # Lock is held across the distributor network fetches, not just the CSV
         # read/write, so the read -> write -> rebuild stays atomic. This is
