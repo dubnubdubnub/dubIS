@@ -1,18 +1,38 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-import { resetServer, setupPage } from './setup-page.mjs';
+import { fetchApi, resetServer, setupPage } from './setup-page.mjs';
 import { waitForInventoryRows } from '../helpers.mjs';
 
 // /v1/_test/reset only rolls back adjustment-tagged rows (see setup-page.mjs) —
 // feeders.json isn't touched by it, so each test uses its own tag id rather
 // than relying on reset for isolation (same pattern as vendors-modal.spec.mjs
 // using unique vendor names).
+//
+// That id must come from the server, not a module counter. A module `let` is
+// reset when Playwright restarts the worker for a retry, while feeders.json
+// persists for the whole project run — so every retry re-requested tag 100,
+// hit "already used", left the register modal open, and its overlay then
+// intercepted the next test's clicks. One flake anywhere in this file poisoned
+// every following attempt, which read as a spreading defect rather than a
+// flaky test. Asking the server for a free id is immune to that: it is correct
+// no matter how many workers, retries, or prior runs share the file.
+//
 // DICT_APRILTAG_36h11 only has ids 0..586 (see server/routes/feeders.py's
 // MAX_TAG_ID) — the tag-PNG download test exercises the real range check, so
-// keep every test tag id well under that ceiling.
-let nextTagId = 100;
-function freshTagId() {
-  return String(nextTagId++);
+// every id stays well under that ceiling and we fail loudly rather than wrap.
+const TAG_ID_FLOOR = 100;
+const TAG_ID_CEILING = 500;
+
+async function freshTagId() {
+  const { feeders: existing } = await fetchApi('/v1/feeders');
+  const taken = new Set((existing || []).map((f) => Number(f.tag_id)));
+  for (let id = TAG_ID_FLOOR; id <= TAG_ID_CEILING; id++) {
+    if (!taken.has(id)) return String(id);
+  }
+  throw new Error(
+    `no free AprilTag id in ${TAG_ID_FLOOR}..${TAG_ID_CEILING}; ` +
+    `${taken.size} already registered — is feeders.json being cleaned up?`,
+  );
 }
 
 const feederRow = (page, tagId) => page.locator(`tr[data-row-key="${tagId}"]`);
@@ -47,7 +67,7 @@ test.describe('Feeders modal', () => {
   });
 
   test('register a feeder → it appears in the list', async ({ page }) => {
-    const tagId = freshTagId();
+    const tagId = await freshTagId();
     await openFeeders(page);
     await registerFeeder(page, tagId, '8mm reel');
 
@@ -60,7 +80,7 @@ test.describe('Feeders modal', () => {
   });
 
   test('registering an already-used tag id shows a clear error and keeps the modal open', async ({ page }) => {
-    const tagId = freshTagId();
+    const tagId = await freshTagId();
     await openFeeders(page);
     await registerFeeder(page, tagId);
 
@@ -76,7 +96,7 @@ test.describe('Feeders modal', () => {
   });
 
   test('load a reel → the row shows the loaded part, qty, and derived tape width', async ({ page }) => {
-    const tagId = freshTagId();
+    const tagId = await freshTagId();
     await openFeeders(page);
     await registerFeeder(page, tagId);
 
@@ -102,7 +122,7 @@ test.describe('Feeders modal', () => {
   });
 
   test('unload clears the row back to placeholders', async ({ page }) => {
-    const tagId = freshTagId();
+    const tagId = await freshTagId();
     await openFeeders(page);
     await registerFeeder(page, tagId);
 
@@ -123,7 +143,7 @@ test.describe('Feeders modal', () => {
   });
 
   test('downloading a tag PNG triggers a real browser download', async ({ page }) => {
-    const tagId = freshTagId();
+    const tagId = await freshTagId();
     await openFeeders(page);
     await registerFeeder(page, tagId);
 
