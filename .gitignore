@@ -35,5 +35,6 @@ test-results/
 .server-url
 
 # CI watcher local state (only relevant when developing locally; production state lives on m4-air)
+.venv/
 scripts/ci_watcher/.venv/
 scripts/ci_watcher/*.db

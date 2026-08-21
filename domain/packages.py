@@ -14,7 +14,10 @@ This module maps those raw strings onto a **canonical token** so callers can com
 packages by identity instead of by spelling.
 
 NOTE: this is about the *body*, not the *carrier*. Reel / tray / tube / cut-tape is a
-different concern and is not modelled here.
+different concern, modelled separately in `domain/packaging.py` (`carrier_of`,
+`is_reel`). The two module names are similar and the distinction is not: this one
+decides whether a substitute part will physically fit the land pattern, that one
+decides how the part arrives and whether a feeder can take it.
 
 Design rules
 ------------
