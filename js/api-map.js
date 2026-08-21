@@ -353,6 +353,28 @@ export const API_MAP = {
     "unwrap": null,
     "verb": "POST"
   },
+  "evaluate_part_predicates": {
+    "argOrder": [
+      "part_key",
+      "predicates",
+      "package",
+      "prefer"
+    ],
+    "bodyParams": [
+      "package",
+      "predicates",
+      "prefer"
+    ],
+    "mutating": false,
+    "path": "/v1/parts/{part_key}/evaluate",
+    "pathParams": [
+      "part_key"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "POST"
+  },
   "exclude_generic_member": {
     "argOrder": [
       "generic_part_id",
@@ -615,6 +637,21 @@ export const API_MAP = {
     "mutating": false,
     "path": "/v1/distributors/mouser/key",
     "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "GET"
+  },
+  "get_part_attributes": {
+    "argOrder": [
+      "part_key"
+    ],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/parts/{part_key}/attributes",
+    "pathParams": [
+      "part_key"
+    ],
     "queryParams": [],
     "rawBody": false,
     "unwrap": null,

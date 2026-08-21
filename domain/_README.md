@@ -45,6 +45,7 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `generic_parts.py`: `APPROVAL_STATES`, `DELTA_KINDS` — approval-state and spec-delta vocabularies
 - `packages.py`: `normalize_package`, `packages_equivalent`, `package_info` — controlled package (land-pattern) vocabulary: vendor/KiCad string -> canonical token
 - `predicates.py`: `Predicate`, `evaluate`, `evaluate_all`, `Report`, `Verdict` — evaluate substitution requirements against stored attributes; emits generic_parts spec_deltas
+- `api_predicates.py`: `PredicatesFacade` — evaluate requirements for a part in this inventory (supplies attributes + cached package under the API lock)
 
 ## Internal layout
 
@@ -56,3 +57,4 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `generic_parts.py` — generic parts CRUD, auto-matching, BOM resolution, membership interchangeability reviews
 - `packages.py` — package vocabulary: alias table + generated families, pure/stdlib, no I/O (about the *body*, not the reel/tray carrier)
 - `predicates.py` — requirement evaluation: numeric/enum/package predicates over the attribute store; unknown never reads as pass
+- `api_predicates.py` — facade over `predicates.py`: resolves the candidate package from the parts cache, rejects malformed predicates

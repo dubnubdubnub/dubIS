@@ -73,6 +73,19 @@ def get_generic_group_names(request: Request, part_key: str) -> dict:
     return {"groups": api.get_generic_group_names(part_key)}
 
 
+@router.get("/parts/{part_key}/attributes", operation_id="get_part_attributes")
+def get_part_attributes(request: Request, part_key: str) -> list:
+    """Stored distributor parametrics for a part, across all distributors.
+
+    Persisted by the fetch path (domain/attributes.py) but until now readable
+    only from Python -- the frontend and tools/dubis-mcp reach the backend over
+    /v1 alone, so a predicate or alternate-approval caller had no way to see
+    them.
+    """
+    api = request.app.state.api
+    return api.get_part_attributes(part_key)
+
+
 @router.get("/parts/{part_key}/spec", operation_id="extract_spec")
 def extract_spec(request: Request, part_key: str) -> dict:
     api = request.app.state.api
