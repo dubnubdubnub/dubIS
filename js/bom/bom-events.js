@@ -9,7 +9,7 @@ import { store, setBomDirty, setBomResults, setBomMeta, scheduleInventoryRefresh
 import { bomAggKey } from '../part-keys.js';
 import { generateCSV } from '../csv-parser.js';
 import { computeRows, prepareConsumption, buildMissingCartEntries } from './bom-logic.js';
-import { addBomMissing } from '../cart/cart-store.js';
+import { addBomMissing, setBoardCount } from '../cart/cart-store.js';
 import state from './bom-state.js';
 
 /**
@@ -112,10 +112,21 @@ export function setupEvents(handlers) {
       // addBomMissing() auto-creates+activates a cart when none is active
       // yet (js/cart/cart-store.js's _ensureActiveCartId) — first use must
       // work, not silently no-op.
+      // The BOM panel's multiplier IS "how many boards", so it becomes the
+      // cart's board count. Syncing matters for coherence: the shortfalls just
+      // added are already multiplied by it, and a cart left at a different
+      // board count would have the plan re-derive different requirements and
+      // disagree with the quantities it holds.
+      const boards = getMultiplier();
       const result = await addBomMissing(missing);
       const cartId = result && result.id;
+      if (cartId && boards !== (result.board_count ?? 1)) {
+        await setBoardCount(boards, cartId).catch((e) =>
+          AppLog.error("bom-events: setBoardCount failed: " + e.message));
+      }
       AppLog.info("Added " + missing.length + " missing/short BOM parts to cart " + cartId);
-      showToast("Added " + missing.length + " part" + (missing.length === 1 ? "" : "s") + " to cart");
+      showToast("Added " + missing.length + " part" + (missing.length === 1 ? "" : "s")
+        + " to cart" + (boards > 1 ? " for " + boards + " boards" : ""));
     }
   });
 
