@@ -193,6 +193,23 @@ class TestRecordAttributes:
     def test_missing_file_reads_empty(self, data_dir):
         assert attributes.read_rows(data_dir) == []
 
+    def test_numeric_zero_is_a_real_value(self, data_dir):
+        """Distributor payloads are not always strings (Mouser/HTML paths)."""
+        assert attributes.record_attributes(
+            data_dir, "C1525", "mouser", [{"name": "Offset", "value": 0}]) == 1
+        row = attributes.read_rows(data_dir)[0]
+        assert row["raw_value"] == "0"
+        assert row["value_min"] == "0"
+
+    def test_numeric_float_value(self, data_dir):
+        attributes.record_attributes(
+            data_dir, "C1525", "mouser", [{"name": "Gain", "value": 2.5}])
+        assert float(attributes.read_rows(data_dir)[0]["value_min"]) == pytest.approx(2.5)
+
+    def test_none_value_is_absent(self, data_dir):
+        assert attributes.record_attributes(
+            data_dir, "C1525", "mouser", [{"name": "Gain", "value": None}]) == 0
+
 
 class TestCsvMigration:
     def test_legacy_header_without_the_newer_columns_still_loads(self, data_dir):
