@@ -10,6 +10,14 @@ from domain.product import build_product
 
 logger = logging.getLogger(__name__)
 
+# DigiKey's attribute label for the factory reel/package quantity — the
+# multiple a whole reel is sold in, rendered like "3,000". "Manufacturer
+# Standard Package" is the current label; the shorter form has been seen on
+# older pages, so both are accepted.
+_STANDARD_PACKAGE_LABELS = frozenset({
+    "manufacturer standard package", "standard package",
+})
+
 
 def normalize_result(
     raw: dict[str, Any], part_number: str
@@ -47,58 +55,119 @@ def _normalize_combined(
     jsonld = raw.get("jsonld")
     dom = raw.get("dom") or {}
 
+    # Work in `build_product` **kwargs** rather than in the assembled dict:
+    # packagings/reel metadata have to be known before the product is built,
+    # since bolting them onto the finished dict is exactly the drift
+    # domain/product.py exists to prevent.
     if nextdata:
-        result = _normalize_nextdata(
+        fields = _nextdata_fields(
             {"_source": "nextdata", "_props": nextdata}, part_number,
         )
         nd_packagings = _extract_nextdata_packagings(nextdata)
+        reel_fee = _extract_nextdata_reel_fee(nextdata)
     elif jsonld:
-        result = _normalize_jsonld(jsonld, part_number)
+        fields = _jsonld_fields(jsonld, part_number)
         nd_packagings = []
+        reel_fee = None
     else:
-        result = _normalize_fallback(part_number)
+        fields = _fallback_fields(part_number)
         nd_packagings = []
+        reel_fee = None
 
     # DOM enrichment — only fill fields the structured source missed,
     # except for prices where DOM is preferred when it has more tiers
     # (DK JSON-LD typically only carries lowPrice/highPrice).
     dom_tiers = dom.get("priceTiers") or []
-    existing_prices = result.get("prices") or []
+    existing_prices = fields.get("prices") or []
     if dom_tiers and len(dom_tiers) > len(existing_prices):
-        result["prices"] = [
+        fields["prices"] = [
             {"qty": int(t.get("qty", 0)), "price": float(t.get("price", 0))}
             for t in dom_tiers
             if t.get("qty") and t.get("price") is not None
         ]
 
-    if not result.get("pdfUrl") and dom.get("datasheetUrl"):
-        result["pdfUrl"] = dom["datasheetUrl"]
+    if not fields.get("pdf_url") and dom.get("datasheetUrl"):
+        fields["pdf_url"] = dom["datasheetUrl"]
 
-    if not result.get("stock") and dom.get("stock"):
+    if not fields.get("stock") and dom.get("stock"):
         try:
-            result["stock"] = int(dom["stock"])
+            fields["stock"] = int(dom["stock"])
         except (ValueError, TypeError):
             pass
 
-    if not result.get("digikeyUrl") and raw.get("_url"):
-        result["digikeyUrl"] = raw["_url"]
+    if not fields.get("url") and raw.get("_url"):
+        fields["url"] = raw["_url"]
 
     # Packagings: prefer Next.js (has full price tiers per packaging);
     # fall back to DOM scrape (names/codes only).
     packagings = nd_packagings
     if not packagings:
         packagings = _convert_dom_packagings(
-            dom.get("packagings") or [], result.get("prices") or [], part_number,
+            dom.get("packagings") or [], fields.get("prices") or [], part_number,
         )
     if packagings:
-        result["packagings"] = packagings
         # Pick the packaging matching the requested PN as the active price
         # source — keeps `prices` aligned with what's currently selected.
         active = _pick_active_packaging(packagings, part_number)
         if active and active.get("prices"):
-            result["prices"] = active["prices"]
+            fields["prices"] = active["prices"]
 
-    return result
+    return build_product(**fields, packagings=packagings, reel_fee=reel_fee)
+
+
+def _price_quantity(pageprops: dict[str, Any]) -> dict[str, Any]:
+    """``envelope.data.priceQuantity`` from a Next.js pageProps, defensively."""
+    envelope = (pageprops or {}).get("envelope") or {}
+    data = envelope.get("data") if isinstance(envelope, dict) else None
+    pq = data.get("priceQuantity") if isinstance(data, dict) else None
+    return pq if isinstance(pq, dict) else {}
+
+
+def _money(value: Any) -> float | None:
+    """Positive float from a DK money field (``7``, ``"7.00"``, ``"$7.00"``)."""
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        value = value.replace("$", "").replace(",", "").strip()
+        if not value:
+            return None
+    try:
+        fee = float(value)
+    except (TypeError, ValueError):
+        return None
+    return fee if fee > 0 else None
+
+
+# The custom-reeling surcharge DigiKey charges for a Digi-Reel®. DK's V4 REST
+# API calls it `DigiReelFee` on a ProductVariation; the Next.js payload the
+# scraper sees has used several camelCase spellings, and we have no captured
+# DigiKey fixture to pin one down (DK needs auth), so probe the plausible set
+# the same way _extract_nextdata_packagings already probes for the name.
+_REEL_FEE_KEYS = (
+    "digiReelFee", "digiReelingFee", "reelingFee", "reelFee", "customReelFee",
+)
+
+
+def _extract_nextdata_reel_fee(pageprops: dict[str, Any]) -> float | None:
+    """Find DigiKey's Digi-Reel surcharge in a Next.js pageProps payload.
+
+    Looked for on ``priceQuantity`` itself and then on each pricing entry (the
+    fee belongs to the Digi-Reel packaging option). Returns None when absent —
+    the honest answer for a part DK will not custom-reel.
+    """
+    pq = _price_quantity(pageprops)
+    for key in _REEL_FEE_KEYS:
+        fee = _money(pq.get(key))
+        if fee is not None:
+            return fee
+    for entry in pq.get("pricing") or []:
+        if not isinstance(entry, dict):
+            continue
+        for key in _REEL_FEE_KEYS:
+            fee = _money(entry.get(key))
+            if fee is not None:
+                return fee
+    return None
 
 
 def _extract_nextdata_packagings(
@@ -111,10 +180,7 @@ def _extract_nextdata_packagings(
     read the human-readable name from a few common field shapes since the
     exact key has shifted over DK API versions.
     """
-    envelope = (pageprops or {}).get("envelope") or {}
-    data = envelope.get("data") or {}
-    pq = data.get("priceQuantity") or {}
-    pricing_list = pq.get("pricing") or []
+    pricing_list = _price_quantity(pageprops).get("pricing") or []
 
     packagings: list[dict[str, Any]] = []
     for entry in pricing_list:
@@ -230,6 +296,13 @@ def _normalize_jsonld(
     raw: dict[str, Any], part_number: str
 ) -> dict[str, Any]:
     """Normalize a JSON-LD Product schema result."""
+    return build_product(**_jsonld_fields(raw, part_number))
+
+
+def _jsonld_fields(
+    raw: dict[str, Any], part_number: str
+) -> dict[str, Any]:
+    """``build_product`` kwargs for a JSON-LD Product schema result."""
     offers = raw.get("offers") or {}
     if isinstance(offers, list):
         offers = offers[0] if offers else {}
@@ -246,37 +319,44 @@ def _normalize_jsonld(
     if isinstance(image, list):
         image = image[0] if image else ""
 
-    return build_product(
-        product_code=raw.get("sku") or part_number,
-        title=raw.get("name", ""),
-        manufacturer=(
+    return {
+        "product_code": raw.get("sku") or part_number,
+        "title": raw.get("name", ""),
+        "manufacturer": (
             brand.get("name", "")
             if isinstance(brand, dict)
             else str(brand)
         ),
-        mpn=raw.get("mpn", "") or raw.get("sku", ""),
-        package="",
-        description=raw.get("description", ""),
-        stock=raw.get("_stock") or (
+        "mpn": raw.get("mpn", "") or raw.get("sku", ""),
+        "package": "",
+        "description": raw.get("description", ""),
+        "stock": raw.get("_stock") or (
             1 if "InStock" in str(
                 offers.get("availability", "")
             ) else 0
         ),
-        prices=(
+        "prices": (
             [{"qty": 1, "price": price_val}] if price_val else []
         ),
-        image_url=image,
-        pdf_url="",
-        url=raw.get("url", ""),
-        attributes=[],
-        provider="digikey",
-    )
+        "image_url": image,
+        "pdf_url": "",
+        "url": raw.get("url", ""),
+        "attributes": [],
+        "provider": "digikey",
+    }
 
 
 def _normalize_nextdata(
     raw: dict[str, Any], part_number: str
 ) -> dict[str, Any]:
     """Normalize a Next.js SSR envelope.data result."""
+    return build_product(**_nextdata_fields(raw, part_number))
+
+
+def _nextdata_fields(
+    raw: dict[str, Any], part_number: str
+) -> dict[str, Any]:
+    """``build_product`` kwargs for a Next.js SSR envelope.data result."""
     props = raw.get("_props") or {}
     envelope = props.get("envelope") or {}
     data = envelope.get("data") or {}
@@ -298,9 +378,13 @@ def _normalize_nextdata(
     # Prices — use first pricing option (smallest MOQ packaging)
     prices: list[dict[str, int | float]] = []
     pricing_list = pq.get("pricing") or []
-    if pricing_list:
+    # `pricing` is scraped, so a non-dict entry is possible; the packaging
+    # extractor already skips them and this must not crash on them either.
+    if pricing_list and isinstance(pricing_list[0], dict):
         tiers = pricing_list[0].get("mergedPricingTiers") or []
         for t in tiers:
+            if not isinstance(t, dict):
+                continue
             try:
                 qty = int(
                     str(t.get("brkQty", "0")).replace(",", "")
@@ -327,13 +411,19 @@ def _normalize_nextdata(
 
     # Package and attributes from attribute list
     package = ""
+    reel_qty: Any = None
     attrs_out: list[dict[str, str]] = []
     skip_ids = {"-1", "-4", "-5", "1989", "-7"}
     for attr in pa.get("attributes") or []:
         vals = attr.get("values") or []
         val = vals[0].get("value", "") if vals else ""
-        if attr.get("label") == "Package / Case":
+        label = attr.get("label") or ""
+        if label == "Package / Case":
             package = val
+        # DigiKey's factory reel/package quantity, rendered like "3,000".
+        # `build_product` does the comma-stripping and 0/"" → None coercion.
+        if label.strip().lower() in _STANDARD_PACKAGE_LABELS:
+            reel_qty = val
         attr_id = str(attr.get("id", ""))
         if attr_id not in skip_ids and val and val != "-":
             attrs_out.append(
@@ -352,45 +442,51 @@ def _normalize_nextdata(
         if dk_url and not dk_url.startswith("http"):
             dk_url = "https://www.digikey.com" + dk_url
 
-    return build_product(
-        product_code=(
+    return {
+        "product_code": (
             overview.get("rolledUpProductNumber") or part_number
         ),
-        title=overview.get("title") or "",
-        manufacturer=overview.get("manufacturer") or "",
-        mpn=overview.get("manufacturerProductNumber") or "",
-        package=package,
-        description=(
+        "title": overview.get("title") or "",
+        "manufacturer": overview.get("manufacturer") or "",
+        "mpn": overview.get("manufacturerProductNumber") or "",
+        "package": package,
+        "description": (
             overview.get("detailedDescription")
             or overview.get("description")
             or ""
         ),
-        stock=stock,
-        prices=prices,
-        image_url=image_url,
-        pdf_url=overview.get("datasheetUrl") or "",
-        url=dk_url,
-        category=category,
-        subcategory=subcategory,
-        attributes=attrs_out,
-        provider="digikey",
-    )
+        "stock": stock,
+        "prices": prices,
+        "image_url": image_url,
+        "pdf_url": overview.get("datasheetUrl") or "",
+        "url": dk_url,
+        "category": category,
+        "subcategory": subcategory,
+        "attributes": attrs_out,
+        "provider": "digikey",
+        "reel_qty": reel_qty,
+    }
 
 
 def _normalize_fallback(part_number: str) -> dict[str, Any]:
     """Return an empty shell for unknown formats."""
-    return build_product(
-        product_code=part_number,
-        title="",
-        manufacturer="",
-        mpn="",
-        package="",
-        description="",
-        stock=0,
-        prices=[],
-        image_url="",
-        pdf_url="",
-        url="",
-        attributes=[],
-        provider="digikey",
-    )
+    return build_product(**_fallback_fields(part_number))
+
+
+def _fallback_fields(part_number: str) -> dict[str, Any]:
+    """``build_product`` kwargs for an empty shell (unknown format)."""
+    return {
+        "product_code": part_number,
+        "title": "",
+        "manufacturer": "",
+        "mpn": "",
+        "package": "",
+        "description": "",
+        "stock": 0,
+        "prices": [],
+        "image_url": "",
+        "pdf_url": "",
+        "url": "",
+        "attributes": [],
+        "provider": "digikey",
+    }
