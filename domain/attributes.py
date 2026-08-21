@@ -109,7 +109,10 @@ def build_rows(
         raw_value = attribute.get("value")
         if not name:
             continue
-        parsed = parse_value(raw_value if isinstance(raw_value, str) else str(raw_value or ""))
+        # Not `str(raw_value or "")`: a numeric 0 is a real published value.
+        parsed = parse_value(
+            raw_value if isinstance(raw_value, str)
+            else ("" if raw_value is None else str(raw_value)))
         if parsed.kind == KIND_EMPTY:
             continue
         row = {
