@@ -13,6 +13,7 @@ import {
   buildLinkableKeys,
   prepareConsumption,
   computePriceInfo,
+  buildMissingCartEntries,
 } from '../../js/bom/bom-logic.js';
 
 const baseCols = { lcsc: 0, mpn: 1, qty: 2, ref: 3, desc: -1, value: -1, footprint: -1, dnp: -1 };
@@ -339,5 +340,51 @@ describe('computePriceInfo', () => {
     const { pricePerBoard, totalPrice } = computePriceInfo([], 1);
     expect(pricePerBoard).toBe(0);
     expect(totalPrice).toBe(0);
+  });
+});
+
+describe('buildMissingCartEntries', () => {
+  // computeRows(results, multiplier) puts the per-board count on r.bom.qty and
+  // the multiplied one on r.effectiveQty — the same split computePriceInfo
+  // relies on for price-per-board.
+  const shortRow = (bomQty, invQty, mult = 1) =>
+    computeRows([{ bom: { qty: bomQty, dnp: false }, inv: { qty: invQty, lcsc: 'C1525' },
+                   matchType: 'lcsc', alts: [] }], mult, {})[0];
+
+  it('carries the per-board placement count, not the multiplied quantity', () => {
+    // Without this the cart's board count is decorative: domain/cart_plan.py
+    // re-derives a requirement as per_board_qty × board_count − on_hand, and a
+    // null per_board_qty makes it fall back to the stored absolute number.
+    const entries = buildMissingCartEntries([shortRow(8, 0, 25)]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].per_board_qty).toBe(8);
+    // The shortfall stays multiplied — it is what the build actually needs now.
+    expect(entries[0].shortfall).toBe(200);
+  });
+
+  it('carries it for an unmatched part too', () => {
+    const rows = computeRows(
+      [{ bom: { qty: 3, dnp: false, mpn: 'BH-00019' }, inv: null, matchType: null, alts: [] }],
+      10, {},
+    );
+    const entries = buildMissingCartEntries(rows);
+    expect(entries[0].per_board_qty).toBe(3);
+    expect(entries[0].raw.mpn).toBe('BH-00019');
+  });
+
+  it('sends null rather than zero when the BOM has no usable quantity', () => {
+    // 0 would multiply every board count down to nothing, so "unrecorded" has
+    // to stay distinguishable from "zero per board" (carts._clean_optional_qty
+    // collapses 0 to NULL for the same reason).
+    const rows = computeRows(
+      [{ bom: { qty: 0, dnp: false, mpn: 'X' }, inv: null, matchType: null, alts: [] }],
+      5, {},
+    );
+    const entries = buildMissingCartEntries(rows);
+    if (entries.length) expect(entries[0].per_board_qty).toBeNull();
+  });
+
+  it('still skips rows that are not missing or short', () => {
+    expect(buildMissingCartEntries([shortRow(5, 100)])).toEqual([]);
   });
 });

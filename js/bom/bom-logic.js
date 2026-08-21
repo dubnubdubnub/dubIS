@@ -154,13 +154,23 @@ export function buildMissingCartEntries(rows) {
     const isMissingOrShort = st === "missing" || st === "possible" || st === "short" ||
       st === "manual-short" || st === "confirmed-short" || st === "generic-short";
     if (!isMissingOrShort) return;
+    // per_board_qty is the BOM's own per-board placement count — the same
+    // r.bom.qty computePriceInfo() multiplies to get price-per-board. Carrying
+    // it lets the cart's purchase plan re-derive a requirement as
+    // `per_board_qty x board_count - on_hand` (domain/cart_plan.py) instead of
+    // holding an absolute number nobody can account for later. Without it the
+    // cart's board count is decorative.
+    const perBoardQty = r.bom.qty > 0 ? r.bom.qty : null;
     if (r.inv) {
       const pk = invPartKey(r.inv);
       if (!pk) return;
       const shortfall = Math.max(0, r.effectiveQty - r.inv.qty);
-      entries.push({ part_id: pk, shortfall });
+      entries.push({ part_id: pk, shortfall, per_board_qty: perBoardQty });
     } else {
-      entries.push({ raw: { mpn: r.bom.mpn || "", description: r.bom.desc || "", footprint: r.bom.footprint || "" } });
+      entries.push({
+        raw: { mpn: r.bom.mpn || "", description: r.bom.desc || "", footprint: r.bom.footprint || "" },
+        per_board_qty: perBoardQty,
+      });
     }
   });
   return entries;
