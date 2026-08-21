@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from domain.packaging import carrier_of, is_reel
+from domain.packaging import carrier_of, clean_reel_fee, clean_reel_qty, is_reel
 
 
 @dataclass
@@ -72,45 +72,6 @@ class NormalizedProduct:
             "provider": self.provider,
             "_debug": self.debug,
         }
-
-
-def _clean_reel_qty(value: Any) -> int | None:
-    """Coerce a scraped reel quantity to a positive int, else None.
-
-    Distributors variously report this as "3,000", 3000.0, "" or 0; a zero or
-    unparseable value means "not published", which is None, not 0 — a 0 would
-    read downstream as "reels of zero parts".
-    """
-    if value is None:
-        return None
-    if isinstance(value, str):
-        value = value.replace(",", "").strip()
-        if not value:
-            return None
-    try:
-        qty = int(float(value))
-    except (TypeError, ValueError):
-        return None
-    return qty if qty > 0 else None
-
-
-def _clean_reel_fee(value: Any) -> float | None:
-    """Coerce a reeling surcharge to a positive float, else None.
-
-    LCSC reports 0 for parts it will not custom-reel; 0 and None mean the same
-    thing to a caller pricing a reel option, so both collapse to None.
-    """
-    if value is None:
-        return None
-    if isinstance(value, str):
-        value = value.replace("$", "").replace(",", "").strip()
-        if not value:
-            return None
-    try:
-        fee = float(value)
-    except (TypeError, ValueError):
-        return None
-    return fee if fee > 0 else None
 
 
 def annotate_packagings(
@@ -184,8 +145,8 @@ def build_product(
         subcategory=subcategory,
         attributes=attributes if attributes is not None else [],
         packagings=annotate_packagings(packagings),
-        reel_qty=_clean_reel_qty(reel_qty),
-        reel_fee=_clean_reel_fee(reel_fee),
+        reel_qty=clean_reel_qty(reel_qty),
+        reel_fee=clean_reel_fee(reel_fee),
         debug=debug,
     )
     return product.to_dict()

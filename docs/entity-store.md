@@ -30,6 +30,29 @@ Existing entities and their durable stores:
 | Part identity registry | `data/part_registry.json` | loaded each rebuild (`domain/part_registry.py`) |
 | Price observations | `events/price_observations.csv` | `populate_prices_cache` |
 
+### Price-observation schema and its migration
+
+`events/price_observations.csv` is append-only, and its header is
+`domain.pricing.FIELDNAMES`. The five packaging columns (`packaging`,
+`carrier`, `is_reel`, `reel_qty`, `reel_fee`) were appended after the original
+eight, so a deployment's existing file has a *shorter* header than the code
+expects. Two mechanisms keep that working:
+
+- **Writes migrate.** `record_observations` goes through
+  `csv_io.append_csv_rows`, which calls `csv_io.migrate_csv_header` first — the
+  file is rewritten once with the full header (old rows getting empty packaging
+  cells) and appended to thereafter. `domain.pricing.migrate_observations` does
+  the same thing on demand, and is idempotent: a file already on the current
+  header is left byte-identical.
+- **Reads tolerate.** `read_observations`, `populate_prices_cache` and
+  `cart_qty.tier_ladders` all read missing columns as `""`, so an unmigrated
+  file loads correctly and reading never rewrites it.
+
+`""` means **unknown**, and unknown is not a value: an empty `carrier` is not
+`bulk` and an empty `is_reel` is not "not a reel". Nothing may default a
+missing packaging to a real carrier — `domain/packaging.py`'s `carrier_of`
+returns `None` for exactly this reason.
+
 **Audit trails (never replayed):** `events/part_events.csv` records generic-part
 mutations for forensics only. Do not build restore logic on it.
 
