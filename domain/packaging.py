@@ -24,6 +24,8 @@ as "bulk".
 
 from __future__ import annotations
 
+from typing import Any
+
 # Ordered longest-idea-first: "tape & reel" must beat the bare "tape" and
 # "reel" substrings, and "cut tape" must not be read as a reel.
 _TAPE_TOKENS = ("cut tape", "tape & reel", "tape and reel", "tape & box",
@@ -81,3 +83,42 @@ def is_reel(name: str | None) -> bool:
     if any(token in n for token in _CUT_TOKENS):
         return False
     return any(token in n for token in _REEL_TOKENS)
+
+
+def clean_reel_qty(value: Any) -> int | None:
+    """Coerce a scraped reel quantity to a positive int, else ``None``.
+
+    Distributors variously report this as "3,000", 3000.0, "" or 0; a zero or
+    unparseable value means "not published", which is ``None``, not 0 -- a 0
+    would read downstream as "reels of zero parts".
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.replace(",", "").strip()
+        if not value:
+            return None
+    try:
+        qty = int(float(value))
+    except (TypeError, ValueError):
+        return None
+    return qty if qty > 0 else None
+
+
+def clean_reel_fee(value: Any) -> float | None:
+    """Coerce a reeling surcharge to a positive float, else ``None``.
+
+    LCSC reports 0 for parts it will not custom-reel; 0 and ``None`` mean the
+    same thing to a caller pricing a reel option, so both collapse to ``None``.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.replace("$", "").replace(",", "").strip()
+        if not value:
+            return None
+    try:
+        fee = float(value)
+    except (TypeError, ValueError):
+        return None
+    return fee if fee > 0 else None

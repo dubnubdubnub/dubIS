@@ -661,3 +661,291 @@ class TestGetSourcedDistributorsBatch:
         conn.execute("INSERT INTO parts (part_id, digikey) VALUES ('DK1', 'DK1')")
         out = get_sourced_distributors_batch(conn, str(tmp_path / "nope.csv"), ["DK1"])
         assert out == {"DK1": [{"distributor": "digikey", "part_number": "DK1"}]}
+
+
+# ── packaging columns + header migration ────────────────────────────────────
+
+# The exact header shipped before the packaging columns existed. Deployments
+# (including the cluster PVC) hold files with this header, so it is spelled out
+# literally rather than derived — deriving it from FIELDNAMES would make the
+# migration tests move with the code they are supposed to pin.
+LEGACY_FIELDNAMES = ["timestamp", "part_id", "distributor", "unit_price",
+                     "currency", "source", "moq", "note"]
+
+LEGACY_ROWS = [
+    ["2026-01-01T00:00:00", "C1525", "lcsc", "0.0074", "USD", "import", "1", ""],
+    ["2026-02-01T00:00:00", "C1525", "lcsc", "0.0070", "", "live_fetch", "10", "hi"],
+    ["2026-03-01T00:00:00", "C2875244", "digikey", "0.0100", "USD", "manual", "", "x"],
+]
+
+
+def _write_legacy(events_dir, rows=LEGACY_ROWS, fieldnames=LEGACY_FIELDNAMES):
+    """Write a pre-packaging 8-column observations file, as deployed today."""
+    path = os.path.join(events_dir, domain.pricing.OBSERVATIONS_FILE)
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(fieldnames)
+        w.writerows(rows)
+    return path
+
+
+def _header(path):
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        return next(csv.reader(f))
+
+
+class TestPackagingSchema:
+    def test_packaging_columns_appended_not_inserted(self):
+        """Legacy columns keep their order and position; new ones come after."""
+        assert domain.pricing.FIELDNAMES[:8] == LEGACY_FIELDNAMES
+        assert domain.pricing.FIELDNAMES[8:] == domain.pricing.PACKAGING_FIELDNAMES
+
+    def test_carrier_and_reel_derived_from_name(self, events_dir):
+        domain.pricing.record_observations(events_dir, [
+            {"part_id": "C1525", "distributor": "digikey", "unit_price": 0.01,
+             "moq": 1, "packaging": "Cut Tape (CT)"},
+            {"part_id": "C1525", "distributor": "digikey", "unit_price": 0.005,
+             "moq": 3000, "packaging": "Tape & Reel (TR)", "reel_qty": "3,000",
+             "reel_fee": 0},
+        ])
+        rows = domain.pricing.read_observations(events_dir)
+        assert [r["packaging"] for r in rows] == ["Cut Tape (CT)", "Tape & Reel (TR)"]
+        assert [r["carrier"] for r in rows] == ["tape", "tape"]
+        # carrier alone cannot separate these two — is_reel is what does.
+        assert [r["is_reel"] for r in rows] == ["0", "1"]
+        assert [r["reel_qty"] for r in rows] == ["", "3000"]
+        # reelPrice 0 means "will not custom-reel" -> unknown, not $0.00
+        assert [r["reel_fee"] for r in rows] == ["", ""]
+
+    def test_explicit_flags_override_derived(self, events_dir):
+        """LCSC publishes an authoritative isReel that contradicts its own name."""
+        domain.pricing.record_observations(events_dir, [
+            {"part_id": "C393939", "distributor": "lcsc", "unit_price": 0.02,
+             "moq": 1, "packaging": "Reel", "is_reel": False, "reel_fee": "3"},
+        ])
+        row = domain.pricing.read_observations(events_dir)[0]
+        assert row["packaging"] == "Reel"
+        assert row["carrier"] == "tape"   # still derived
+        assert row["is_reel"] == "0"      # not derived — the caller knew better
+        assert row["reel_fee"] == "3.0"
+
+    def test_unknown_is_distinguishable_from_bulk(self, events_dir):
+        """A missing packaging must never become a real carrier."""
+        domain.pricing.record_observations(events_dir, [
+            {"part_id": "C1", "distributor": "lcsc", "unit_price": 1.0, "moq": 1},
+            {"part_id": "C2", "distributor": "lcsc", "unit_price": 1.0, "moq": 1,
+             "packaging": "Bulk"},
+        ])
+        unknown, bulk = domain.pricing.read_observations(events_dir)
+        assert (unknown["packaging"], unknown["carrier"], unknown["is_reel"]) == ("", "", "")
+        assert (bulk["packaging"], bulk["carrier"], bulk["is_reel"]) == ("Bulk", "bulk", "0")
+
+    def test_unrecognised_name_leaves_carrier_unknown(self, events_dir):
+        """Scraped prose we don't have a token for stays unknown, not bulk."""
+        domain.pricing.record_observations(events_dir, [
+            {"part_id": "C1", "distributor": "digikey", "unit_price": 1.0,
+             "moq": 1, "packaging": "Bespoke Vendor Wording"},
+        ])
+        row = domain.pricing.read_observations(events_dir)[0]
+        assert row["packaging"] == "Bespoke Vendor Wording"
+        assert row["carrier"] == ""
+        assert row["is_reel"] == "0"
+
+
+class TestObservationHeaderMigration:
+    def test_legacy_file_migrates_on_append(self, events_dir):
+        path = _write_legacy(events_dir)
+        assert _header(path) == LEGACY_FIELDNAMES
+        domain.pricing.record_observations(events_dir, [
+            {"part_id": "C1525", "distributor": "lcsc", "unit_price": 0.006,
+             "moq": 100, "packaging": "Reel"},
+        ])
+        assert _header(path) == domain.pricing.FIELDNAMES
+
+    def test_legacy_rows_survive_migration_intact(self, events_dir):
+        """No data loss: every legacy cell round-trips, byte for byte."""
+        path = _write_legacy(events_dir)
+        domain.pricing.record_observations(events_dir, [
+            {"part_id": "C1525", "distributor": "lcsc", "unit_price": 0.006,
+             "moq": 100, "packaging": "Reel"},
+        ])
+        with open(path, newline="", encoding="utf-8-sig") as f:
+            rows = list(csv.DictReader(f))
+        assert len(rows) == len(LEGACY_ROWS) + 1
+        for original, migrated in zip(LEGACY_ROWS, rows):
+            assert [migrated[c] for c in LEGACY_FIELDNAMES] == original
+
+    def test_legacy_rows_read_as_packaging_unknown(self, events_dir):
+        _write_legacy(events_dir)
+        for row in domain.pricing.read_observations(events_dir):
+            for col in domain.pricing.PACKAGING_FIELDNAMES:
+                assert row[col] == "", col
+
+    def test_legacy_file_readable_without_migrating(self, events_dir):
+        """Reading is not a write: an unmigrated file still loads, unchanged."""
+        path = _write_legacy(events_dir)
+        with open(path, "rb") as f:
+            before = f.read()
+        rows = domain.pricing.read_observations(events_dir, part_id="C1525")
+        assert len(rows) == 2
+        assert all(r["packaging"] == "" for r in rows)
+        with open(path, "rb") as f:
+            assert f.read() == before
+
+    def test_explicit_migration_is_idempotent(self, events_dir):
+        """Second migrate leaves the file byte-identical — no rewrite churn."""
+        _write_legacy(events_dir)
+        path = os.path.join(events_dir, domain.pricing.OBSERVATIONS_FILE)
+        assert domain.pricing.migrate_observations(events_dir) is True
+        with open(path, "rb") as f:
+            once = f.read()
+        assert domain.pricing.migrate_observations(events_dir) is True
+        with open(path, "rb") as f:
+            assert f.read() == once
+        assert _header(path) == domain.pricing.FIELDNAMES
+
+    def test_already_migrated_file_is_untouched(self, events_dir):
+        domain.pricing.record_observations(events_dir, [
+            {"part_id": "C1525", "distributor": "lcsc", "unit_price": 0.01,
+             "moq": 1, "packaging": "Cut Tape"},
+        ])
+        path = os.path.join(events_dir, domain.pricing.OBSERVATIONS_FILE)
+        with open(path, "rb") as f:
+            before = f.read()
+        assert domain.pricing.migrate_observations(events_dir) is True
+        with open(path, "rb") as f:
+            assert f.read() == before
+
+    def test_absent_file_is_not_created_by_migration(self, events_dir):
+        assert domain.pricing.migrate_observations(events_dir) is False
+        assert not os.path.exists(
+            os.path.join(events_dir, domain.pricing.OBSERVATIONS_FILE))
+
+    def test_absent_dir_is_not_created_by_migration(self, tmp_path):
+        missing = str(tmp_path / "nope")
+        assert domain.pricing.migrate_observations(missing) is False
+        assert not os.path.isdir(missing)
+
+    def test_empty_file_gets_a_full_header(self, events_dir):
+        """A 0-byte file (crash between create and write) must not stay headerless."""
+        path = os.path.join(events_dir, domain.pricing.OBSERVATIONS_FILE)
+        open(path, "w").close()
+        assert domain.pricing.migrate_observations(events_dir) is False
+        domain.pricing.record_observations(events_dir, [
+            {"part_id": "C1525", "distributor": "lcsc", "unit_price": 0.01, "moq": 1},
+        ])
+        assert _header(path) == domain.pricing.FIELDNAMES
+        assert len(domain.pricing.read_observations(events_dir)) == 1
+
+    def test_header_only_legacy_file_migrates(self, events_dir):
+        path = _write_legacy(events_dir, rows=[])
+        domain.pricing.record_observations(events_dir, [
+            {"part_id": "C1525", "distributor": "lcsc", "unit_price": 0.01, "moq": 1},
+        ])
+        assert _header(path) == domain.pricing.FIELDNAMES
+        assert len(domain.pricing.read_observations(events_dir)) == 1
+
+    def test_missing_events_dir_is_created_on_write(self, tmp_path):
+        events_dir = str(tmp_path / "fresh" / "events")
+        domain.pricing.record_observations(events_dir, [
+            {"part_id": "C1525", "distributor": "lcsc", "unit_price": 0.01, "moq": 1},
+        ])
+        assert len(domain.pricing.read_observations(events_dir)) == 1
+
+    def test_legacy_file_populates_cache(self, events_dir, db):
+        """A deployment that never appends still serves its old observations."""
+        _seed_parts(db)
+        _write_legacy(events_dir)
+        domain.pricing.populate_prices_cache(db, events_dir)
+        rows = db.execute(
+            "SELECT * FROM prices WHERE part_id = 'C1525' AND distributor = 'lcsc'"
+        ).fetchall()
+        assert len(rows) == 1
+        assert rows[0]["price_count"] == 2
+
+
+class TestRecordFetchedPricesPackaging:
+    def test_no_packaging_records_unchanged_rows(self, db, events_dir):
+        """The pre-change call shape still writes the pre-change values."""
+        _seed_parts(db)
+        domain.pricing.record_fetched_prices(db, events_dir, "C1525", "lcsc", [
+            {"qty": 1, "price": 0.0080},
+            {"qty": 10, "price": 0.0070},
+        ])
+        rows = domain.pricing.read_observations(events_dir)
+        assert [(r["moq"], r["unit_price"], r["source"]) for r in rows] == [
+            ("1", "0.008", "live_fetch"), ("10", "0.007", "live_fetch"),
+        ]
+        for r in rows:
+            for col in domain.pricing.PACKAGING_FIELDNAMES:
+                assert r[col] == "", col
+
+    def test_every_packaging_ladder_is_recorded(self, db, events_dir):
+        """Digikey's Cut Tape and Tape & Reel ladders both land, each tagged."""
+        _seed_parts(db)
+        domain.pricing.record_fetched_prices(
+            db, events_dir, "C1525", "digikey",
+            [{"qty": 1, "price": 0.10}],
+            packagings=[
+                {"name": "Cut Tape (CT)", "carrier": "tape", "isReel": False,
+                 "prices": [{"qty": 1, "price": 0.10}, {"qty": 10, "price": 0.09}]},
+                {"name": "Tape & Reel (TR)", "carrier": "tape", "isReel": True,
+                 "prices": [{"qty": 3000, "price": 0.04}]},
+            ],
+            reel_qty=3000, reel_fee=None,
+        )
+        rows = domain.pricing.read_observations(events_dir)
+        assert [(r["packaging"], r["moq"], r["is_reel"]) for r in rows] == [
+            ("Cut Tape (CT)", "1", "0"),
+            ("Cut Tape (CT)", "10", "0"),
+            ("Tape & Reel (TR)", "3000", "1"),
+        ]
+        assert {r["reel_qty"] for r in rows} == {"3000"}
+
+    def test_active_ladder_not_double_recorded(self, db, events_dir):
+        """`prices` IS the active packaging's ladder — recording both duplicates it."""
+        _seed_parts(db)
+        tiers = [{"qty": 1, "price": 0.10}, {"qty": 10, "price": 0.09}]
+        domain.pricing.record_fetched_prices(
+            db, events_dir, "C1525", "digikey", tiers,
+            packagings=[{"name": "Cut Tape", "prices": tiers}],
+        )
+        assert len(domain.pricing.read_observations(events_dir)) == 2
+
+    def test_priceless_packagings_fall_back_to_tiers(self, db, events_dir):
+        """The DOM-only Digikey scrape knows the names but not whose ladder is whose."""
+        _seed_parts(db)
+        domain.pricing.record_fetched_prices(
+            db, events_dir, "C1525", "digikey",
+            [{"qty": 1, "price": 0.10}],
+            packagings=[{"name": "Cut Tape (CT)", "prices": []},
+                        {"name": "Tape & Reel (TR)", "prices": []}],
+        )
+        rows = domain.pricing.read_observations(events_dir)
+        assert len(rows) == 1
+        assert rows[0]["packaging"] == ""
+
+    def test_per_packaging_packet_qty_wins(self, db, events_dir):
+        """LCSC's per-entry packetQty beats the product-level reel qty."""
+        _seed_parts(db)
+        domain.pricing.record_fetched_prices(
+            db, events_dir, "C1525", "lcsc", [],
+            packagings=[{"name": "Reel", "packetQty": 4000, "isReel": True,
+                         "prices": [{"qty": 1, "price": 0.02}]}],
+            reel_qty=3000, reel_fee=3.0,
+        )
+        row = domain.pricing.read_observations(events_dir)[0]
+        assert row["reel_qty"] == "4000"
+        assert row["reel_fee"] == "3.0"
+
+    def test_appends_packaged_rows_onto_a_legacy_file(self, db, events_dir):
+        """The real upgrade path: live deployment, old file, new fetch."""
+        _seed_parts(db)
+        _write_legacy(events_dir)
+        domain.pricing.record_fetched_prices(
+            db, events_dir, "C1525", "digikey", [],
+            packagings=[{"name": "Tray", "prices": [{"qty": 1, "price": 1.5}]}],
+        )
+        rows = domain.pricing.read_observations(events_dir)
+        assert [r["packaging"] for r in rows] == ["", "", "", "Tray"]
+        assert rows[-1]["carrier"] == "tray"

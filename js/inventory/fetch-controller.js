@@ -175,8 +175,10 @@ export function createFetchController({ panelEl, unitInput, onPartUpdated }) {
       if (product && Array.isArray(product.prices) && product.prices.length) {
         r.prices = product.prices;
         recompute(i);
-        // fire-and-forget price-history logging (unchanged behavior)
-        api("record_fetched_prices", pk, r.distributor, product.prices).catch(() => {});
+        // fire-and-forget price-history logging. The packaging metadata rides
+        // along so each stored ladder says which packaging it belongs to.
+        api("record_fetched_prices", pk, r.distributor, product.prices,
+            product.packagings, product.reelQty, product.reelFee).catch(() => {});
         return;
       }
     } catch (e) {

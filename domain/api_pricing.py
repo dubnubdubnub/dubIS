@@ -18,11 +18,20 @@ class PricingFacade:
         self._api = api
 
     def record_fetched_prices(self, part_key: str, distributor: str,
-                               price_tiers: list[dict[str, Any]]) -> None:
-        """Record prices fetched from a distributor API/scraper."""
+                               price_tiers: list[dict[str, Any]],
+                               packagings: list[dict[str, Any]] | None = None,
+                               reel_qty: int | None = None,
+                               reel_fee: float | None = None) -> None:
+        """Record prices fetched from a distributor API/scraper.
+
+        `packagings` / `reel_qty` / `reel_fee` are the normalized product's
+        `packagings` / `reelQty` / `reelFee` passed straight through, so the
+        stored observation says which packaging its price belongs to.
+        """
         with self._api._lock:
             return domain.pricing.record_fetched_prices(
                 self._api._get_cache(), self._api.events_dir, part_key, distributor, price_tiers,
+                packagings=packagings, reel_qty=reel_qty, reel_fee=reel_fee,
             )
 
     def get_price_summary(self, part_key: str) -> dict[str, dict[str, Any]]:

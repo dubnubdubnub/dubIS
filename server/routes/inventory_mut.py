@@ -42,6 +42,13 @@ class UpdatePartPriceBody(BaseModel):
 class RecordFetchedPricesBody(BaseModel):
     distributor: str
     price_tiers: list[dict]
+    # Packaging metadata off the normalized product, so the stored price
+    # observation records WHICH packaging's ladder it came from. All
+    # optional: a client that does not send them records exactly what it
+    # recorded before, with the packaging left unknown.
+    packagings: list[dict] | None = None
+    reel_qty: int | None = None
+    reel_fee: float | None = None
 
 
 class ImportPurchasesBody(BaseModel):
@@ -144,7 +151,10 @@ def record_fetched_prices(
     body: RecordFetchedPricesBody,
 ) -> dict:
     api = request.app.state.api
-    api.record_fetched_prices(part_key, body.distributor, body.price_tiers)
+    api.record_fetched_prices(
+        part_key, body.distributor, body.price_tiers,
+        packagings=body.packagings, reel_qty=body.reel_qty, reel_fee=body.reel_fee,
+    )
     detail = {"part_key": part_key, "distributor": body.distributor}
     return finish_mutation(reason="prices", detail=detail)
 
