@@ -72,6 +72,7 @@ graph LR
     "domain/inventory.py" --> "saved_searches.py"
     "domain/part_registry.py" --> "csv_io.py"
     "domain/part_registry.py" --> "dubis_errors.py"
+    "domain/product.py" --> "domain/packaging.py"
     "file_dialogs.py" --> "csv_io.py"
     "file_dialogs.py" --> "domain/pricing.py"
     "inventory_api.py" --> "bench.py"
@@ -825,6 +826,9 @@ graph LR
     "tests/python/test_ocr_overlay_api.py" --> "ocr_engine.py"
     "tests/python/test_ocr_overlay_api.py" --> "ocr_layout.py"
     "tests/python/test_ocr_table.py" --> "ocr_table.py"
+    "tests/python/test_packaging.py" --> "domain/packaging.py"
+    "tests/python/test_packaging.py" --> "domain/product.py"
+    "tests/python/test_packaging.py" --> "lcsc_client.py"
     "tests/python/test_part_history.py" --> "domain/api_history.py"
     "tests/python/test_part_history.py" --> "inventory_api.py"
     "tests/python/test_pdf_raster.py" --> "pdf_raster.py"
@@ -1038,6 +1042,11 @@ graph LR
 - **Imports:** `cache_db.py`, `carts.py`, `csv_io.py`, `domain/__init__.py`, `domain/generic_parts.py`, `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`, `saved_searches.py`
 - **Imported by:** `domain/api_inventory.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/test_concurrency_locks.py`
 
+### domain/packaging.py
+
+- **Imports:** —
+- **Imported by:** `domain/product.py`, `tests/python/test_packaging.py`
+
 ### domain/part_registry.py
 
 - **Imports:** `csv_io.py`, `dubis_errors.py`
@@ -1050,8 +1059,8 @@ graph LR
 
 ### domain/product.py
 
-- **Imports:** —
-- **Imported by:** `digikey_normalizer.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`, `tests/python/test_product_factory.py`
+- **Imports:** `domain/packaging.py`
+- **Imported by:** `digikey_normalizer.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`, `tests/python/test_packaging.py`, `tests/python/test_product_factory.py`
 
 ### domain/schema.py
 
@@ -1657,7 +1666,7 @@ graph LR
 ### lcsc_client.py
 
 - **Imports:** `base_client.py`, `domain/product.py`
-- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_lcsc.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_contract.py`
+- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_lcsc.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_contract.py`, `tests/python/test_packaging.py`
 
 ### mfg_direct_import.py
 
@@ -2878,6 +2887,11 @@ graph LR
 ### tests/python/test_ocr_table.py
 
 - **Imports:** `ocr_table.py`
+- **Imported by:** —
+
+### tests/python/test_packaging.py
+
+- **Imports:** `domain/packaging.py`, `domain/product.py`, `lcsc_client.py`
 - **Imported by:** —
 
 ### tests/python/test_part_history.py
