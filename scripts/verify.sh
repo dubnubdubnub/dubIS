@@ -33,7 +33,7 @@ run_step() {
 cd "$REPO_ROOT" || { echo "ERROR: cannot cd to $REPO_ROOT"; exit 1; }
 
 # 1. ruff
-run_step "ruff" ruff check .
+run_step "ruff" "$PY" -m ruff check .
 
 # 2. test fixtures — regenerate, then check for staleness
 echo ""
