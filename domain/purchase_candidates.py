@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Sequence
+from typing import Any, Sequence
 
 from domain.predicates import DISTRIBUTOR_PREFERENCE
 
@@ -405,6 +405,23 @@ REELING_SUFFIX = " + reeling"
 """Marks a packaging derived by paying a distributor to reel a cut-tape buy."""
 
 
+def _reel_multiple(
+    is_reel: bool, reel_qty: Any, ladder: tuple[tuple[int, float], ...]
+) -> int | None:
+    """The reel size as an order multiple, when the ladder does not contradict it.
+
+    See ``offers_from_ladders``. A quoted break below the reel size is the
+    vendor saying that quantity is purchasable, which a whole-reel multiple
+    would deny.
+    """
+    if not is_reel or not reel_qty:
+        return None
+    qty = int(reel_qty)
+    if qty <= 0:
+        return None
+    return qty if ladder[0][0] >= qty else None
+
+
 def offers_from_ladders(
     groups: dict[str, dict],
     distributor: str,
@@ -420,6 +437,17 @@ def offers_from_ladders(
     order, not a constraint on cutting tape -- reading it as a multiple there
     would reject every ordinary cut-tape quantity for a part whose vendor
     happens to mention its reel size.
+
+    Even on a reel it is only a multiple when the ladder agrees. A vendor that
+    publishes a price for 20 pieces of a part it calls "Reel" (LCSC labels its
+    single packaging that way and quotes from 20 up, with the 10,000 reel as
+    just another break) is telling us plainly that 20 is buyable. Taking the
+    reel size as a multiple there rejects the vendor's own quoted quantities
+    and makes the cheapest way to cover a need of 20 a full 10,000-piece reel
+    -- an answer that is not merely suboptimal but contradicts the quote it was
+    derived from. So the multiple is dropped whenever the ladder starts below
+    it, and kept when the ladder starts at the reel (DigiKey's Tape & Reel,
+    whose first break IS the reel, still cannot be bought in part).
 
     A stored ``reel_fee`` on a non-reel packaging is what makes a part-reel
     buyable, so it yields a second, derived offer: the same ladder, any
@@ -449,7 +477,7 @@ def offers_from_ladders(
             is_reel=is_reel,
             ladder=ladder,
             stock=stock,
-            multiple=reel_qty if is_reel else None,
+            multiple=_reel_multiple(is_reel, reel_qty, ladder),
             fee=0.0,
         ))
 

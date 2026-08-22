@@ -429,6 +429,44 @@ def test_reel_quantity_constrains_a_reel_packaging():
     assert by_packaging(offers)["Tape & Reel"].multiple == 5000
 
 
+def test_a_reel_whose_ladder_quotes_less_than_a_reel_is_not_a_multiple():
+    """LCSC's real shape: one packaging called "Reel", quoted from 20 pieces up.
+
+    Observed on Glasgow revD0's C13533. Treating the 10,000-piece reel as an
+    order multiple rejected 20, 50, 500 and 1,500 -- every quantity LCSC had
+    just published a price for -- and made the cheapest way to cover a need of
+    20 a $40 reel of 10,000.
+    """
+    offers = offers_from_ladders({
+        "reel": group("Reel", [(20, 0.0063), (50, 0.0055), (500, 0.0045),
+                               (1500, 0.0042), (10000, 0.0040)],
+                      is_reel=True, reel_qty=10000),
+    }, "lcsc")
+    assert by_packaging(offers)["Reel"].multiple is None
+    candidates, rejected = enumerate_candidates(offers, 20)
+    assert 20 in {c.qty for c in candidates}
+    assert rejected == []
+    assert min(c.spend for c in candidates) == pytest.approx(20 * 0.0063)
+
+
+def test_a_reel_whose_ladder_starts_at_the_reel_stays_a_multiple():
+    """DigiKey's Tape & Reel still cannot be bought in part."""
+    offers = offers_from_ladders({
+        "tape & reel": group("Tape & Reel", [(5000, 0.0021), (10000, 0.0019)],
+                             is_reel=True, reel_qty=5000),
+    }, "lcsc")
+    assert by_packaging(offers)["Tape & Reel"].multiple == 5000
+    _c, rejected = enumerate_candidates(offers, 5000)
+    assert [r.reason for r in rejected] == []
+
+
+def test_a_nonsense_reel_quantity_is_ignored_rather_than_dividing_by_zero():
+    offers = offers_from_ladders({
+        "reel": group("Reel", [(100, 0.01)], is_reel=True, reel_qty=0),
+    }, "lcsc")
+    assert by_packaging(offers)["Reel"].multiple is None
+
+
 def test_reel_quantity_does_not_constrain_a_cut_tape_ladder():
     """A vendor mentioning its 5,000-piece reel must not make 694 pieces of cut
     tape unbuyable."""
