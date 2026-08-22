@@ -124,4 +124,67 @@ describe('behavior preferences slice', () => {
     expect(store.setServerUrl('   ')).toBe('');
     expect(store.getServerUrl()).toBe('');
   });
+
+  // ── reader_mode / reader_url ──
+  // Same carry-through hazard as server_url, with a worse failure: "local"
+  // downloads multi-GB weights, so a mode silently reverting to "off" on the
+  // next unrelated save would strand a completed install.
+
+  it('defaults reader_mode to off so nothing downloads unasked', () => {
+    expect(store.getReaderMode()).toBe('off');
+  });
+
+  it('round-trips all four reader modes', () => {
+    for (const mode of store.READER_MODES) {
+      expect(store.setReaderMode(mode)).toBe(mode);
+      expect(store.getReaderMode()).toBe(mode);
+    }
+    expect(store.READER_MODES).toEqual(['off', 'local', 'remote', 'auto']);
+  });
+
+  it('keeps the reader mode across a save of an unrelated preference', () => {
+    store.setReaderMode('auto');
+    store.setBehaviorPrefs({ reelCeiling: 150 });
+    expect(store.getReaderMode()).toBe('auto');
+  });
+
+  it('loads the reader mode and url back from stored preferences', async () => {
+    const { api } = await import('../../js/api.js');
+    api.mockResolvedValueOnce({ reader_mode: 'remote', reader_url: 'http://y740.ts.net:8080' });
+    await store.loadPreferences();
+    expect(store.getReaderMode()).toBe('remote');
+    expect(store.getReaderUrl()).toBe('http://y740.ts.net:8080');
+  });
+
+  it('repairs an unknown stored reader mode to off rather than posting it back', async () => {
+    // The server rejects an unknown mode with a 400 (domain/api_preferences.py),
+    // so a stale value must be repaired here or every later save would fail.
+    const { api } = await import('../../js/api.js');
+    api.mockResolvedValueOnce({ reader_mode: 'locl' });
+    await store.loadPreferences();
+    expect(store.getReaderMode()).toBe('off');
+  });
+
+  it('defaults reader_url to fleet discovery', () => {
+    expect(store.getReaderUrl()).toBe('');
+  });
+
+  it('round-trips a reader url and strips its trailing slash', () => {
+    expect(store.setReaderUrl('http://y740.ts.net:8080/')).toBe('http://y740.ts.net:8080');
+    expect(store.getReaderUrl()).toBe('http://y740.ts.net:8080');
+  });
+
+  it('rejects a reader url with no scheme or no host', () => {
+    // Without a scheme the browser resolves it against dubIS's own origin,
+    // quietly pointing the reader at dubIS instead of the GPU node.
+    expect(store.setReaderUrl('y740.ts.net:8080')).toBe('');
+    expect(store.setReaderUrl('http://')).toBe('');
+    expect(store.getReaderUrl()).toBe('');
+  });
+
+  it('clears the reader url back to fleet discovery on empty input', () => {
+    store.setReaderUrl('http://y740.ts.net:8080');
+    expect(store.setReaderUrl('  ')).toBe('');
+    expect(store.getReaderUrl()).toBe('');
+  });
 });

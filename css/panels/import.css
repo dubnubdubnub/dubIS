@@ -186,7 +186,7 @@
 .import-btn:hover { background: #23863640; border-color: var(--color-green); }
 .import-btn:disabled { opacity: 0.4; cursor: default; }
 
-/* ── Missing Tesseract OCR engine notice ─────────────────── */
+/* ── No picture/PDF reader set up: in-zone notice ────────── */
 .ocr-engine-missing {
   display: flex;
   flex-direction: column;
@@ -202,23 +202,18 @@
   margin: 0;
 }
 /* Inherits sizing/padding from .new-po-btn; emphasize as the primary action. */
-#install-tesseract-btn {
+#open-reader-prefs-btn {
   font-weight: var(--weight-semibold);
   border-color: var(--color-blue);
   color: var(--color-blue);
 }
-#install-tesseract-btn:hover:not(:disabled) {
+#open-reader-prefs-btn:hover:not(:disabled) {
   background: var(--bg-raised);
 }
-#install-tesseract-btn:disabled { opacity: 0.6; cursor: default; }
+#open-reader-prefs-btn:disabled { opacity: 0.6; cursor: default; }
 .ocr-engine-missing-fallback {
   font-size: var(--text-xs);
   color: var(--text-muted);
-}
-.ocr-engine-missing-fallback code {
-  font-family: var(--font-mono);
-  color: var(--text-primary);
-  user-select: all;
 }
 
 /* ── PO picker placement ───────────────────────────────────

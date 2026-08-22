@@ -5,6 +5,18 @@ that (a) do not start with ``_`` and (b) pass ``inspect.ismethod()`` — i.e. bo
 instance methods. Those become ``window.pywebview.api.<name>`` and the JS frontend
 calls them *positionally* via the ``api("name", ...args)`` bridge in ``js/api.js``.
 
+The shell grew past nine with the cross-platform picture/PDF reader
+(``start_reader_install`` / ``get_reader_install_status`` / ``uninstall_reader``
+/ ``get_reader_status``, replacing the Windows-only ``install_tesseract``).
+That is deliberate, not drift: the reader installs and runs on the **client**
+machine, and in remote-backend mode ``app.pyw`` never boots a local ``/v1`` at
+all, so there is no local HTTP surface to carry it and the remote one is the
+wrong machine. Spawning processes and writing binaries to the client's disk is
+squarely the "OS-only concerns … that have no HTTP-y shape" the shell is scoped
+to. pywebview cannot stream, hence a job id plus a polled status method rather
+than one long call. See ``docs/plans/2026-08-21-cross-platform-reader-design.md``
+§"Transport: why the client shell, not /v1".
+
 Since Phase 1b Task 8 (``feat(app): desktop = browser on loopback /v1; bridge
 shrinks to 9-method client shell``), ``app.pyw`` passes ``ClientShell``
 (``client_shell.py``), not ``InventoryApi``, as ``js_api`` — the desktop app
@@ -62,7 +74,8 @@ PUBLIC_CLASS_ATTRS = (
 FROZEN_SURFACE = {
     'bench_mark': "(label, detail='')",
     'confirm_close': '()',
-    'install_tesseract': '()',
+    'get_reader_install_status': '(job_id)',
+    'get_reader_status': '()',
     'load_file': '(path)',
     'notify_webview_ready': '()',
     'open_file_dialog': "(title='Select CSV file', default_dir=None)",
@@ -71,6 +84,8 @@ FROZEN_SURFACE = {
     'save_file_dialog': "(content, default_name='export.csv', default_dir=None, links_json=None)",
     'set_bom_dirty': '(dirty)',
     'start_digikey_login': '()',
+    'start_reader_install': '()',
+    'uninstall_reader': '()',
 }
 
 
