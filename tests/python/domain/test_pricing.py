@@ -7,6 +7,7 @@ import sqlite3
 
 import pytest
 
+import cart_qty
 import domain.pricing
 from domain.pricing import derive_missing_price, ensure_parsed, parse_price, parse_qty
 
@@ -404,6 +405,68 @@ class TestRecordFetchedPrices:
         assert len(rows) == 1
         assert rows[0]["latest_unit_price"] == pytest.approx(0.0070)
         assert rows[0]["price_count"] == 2
+
+    def test_records_a_quote_for_a_part_that_is_not_in_inventory(self, db, events_dir):
+        """A BOM turns up parts you do not stock; their quotes must still land.
+
+        This is the write half of planning a BOM-built cart. `_seed_parts` is
+        deliberately NOT called: nothing in inventory matches C99999.
+        """
+        domain.pricing.record_fetched_prices(db, events_dir, "C99999", "lcsc", [
+            {"qty": 100, "price": 0.0093},
+            {"qty": 1000, "price": 0.0071},
+        ])
+        ladders = cart_qty.tier_ladders(events_dir, "C99999", "lcsc")
+        assert ladders, "the plan reads the CSV, so the CSV must have the ladder"
+        assert cart_qty.observed_distributors(events_dir, "C99999") == ["lcsc"]
+
+    def test_a_quote_for_an_unstocked_part_leaves_the_prices_cache_alone(
+        self, db, events_dir
+    ):
+        """`prices.part_id` has an FK into `parts`, so the cache cannot hold it.
+
+        Recording must not fail on that account -- the cache serves the
+        inventory view's price columns, which an unstocked part has no row in.
+        """
+        domain.pricing.record_fetched_prices(db, events_dir, "C99999", "lcsc", [
+            {"qty": 1, "price": 0.5},
+        ])
+        assert db.execute(
+            "SELECT COUNT(*) c FROM prices WHERE part_id = ?", ("C99999",)
+        ).fetchone()["c"] == 0
+
+    def test_an_unstocked_quote_does_not_disturb_a_stocked_one(self, db, events_dir):
+        """One unknown part must not cost a known part its cache row."""
+        _seed_parts(db)
+        domain.pricing.record_fetched_prices(db, events_dir, "C99999", "lcsc", [
+            {"qty": 1, "price": 0.5},
+        ])
+        domain.pricing.record_fetched_prices(db, events_dir, "C1525", "lcsc", [
+            {"qty": 1, "price": 0.008},
+        ])
+        row = db.execute(
+            "SELECT latest_unit_price FROM prices WHERE part_id = ? AND distributor = ?",
+            ("C1525", "lcsc"),
+        ).fetchone()
+        assert row["latest_unit_price"] == pytest.approx(0.008)
+
+    def test_a_known_alias_is_still_recorded_canonically(self, db, events_dir):
+        """The fallback must not cost aliased parts their canonical key.
+
+        A part in inventory under one id but quoted by a distributor PN still
+        has to record under the id, or the reader would look in the wrong place.
+        """
+        _seed_parts(db)
+        db.execute(
+            "INSERT OR REPLACE INTO parts (part_id, lcsc, mpn) VALUES (?, ?, ?)",
+            ("CANON-1", "C77777", "MPN-1"),
+        )
+        db.commit()
+        domain.pricing.record_fetched_prices(db, events_dir, "C77777", "lcsc", [
+            {"qty": 1, "price": 1.25},
+        ])
+        assert cart_qty.tier_ladders(events_dir, "CANON-1", "lcsc")
+        assert not cart_qty.tier_ladders(events_dir, "C77777", "lcsc")
 
     def test_creates_events_dir(self, db, tmp_path):
         new_events = str(tmp_path / "new_events")

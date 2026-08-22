@@ -706,6 +706,7 @@ graph LR
     "tests/python/domain/test_predicates.py" --> "domain/generic_parts.py"
     "tests/python/domain/test_predicates.py" --> "domain/predicates.py"
     "tests/python/domain/test_pricing.py" --> "cache_db.py"
+    "tests/python/domain/test_pricing.py" --> "cart_qty.py"
     "tests/python/domain/test_pricing.py" --> "domain/pricing.py"
     "tests/python/domain/test_purchase_candidates.py" --> "domain/purchase_candidates.py"
     "tests/python/helpers.py" --> "distributor_manager.py"
@@ -953,7 +954,7 @@ graph LR
 ### cart_qty.py
 
 - **Imports:** `domain/packaging.py`
-- **Imported by:** `domain/api_cart.py`, `tests/python/test_cart_qty.py`
+- **Imported by:** `domain/api_cart.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cart_qty.py`
 
 ### carts.py
 
@@ -2554,7 +2555,7 @@ graph LR
 
 ### tests/python/domain/test_pricing.py
 
-- **Imports:** `cache_db.py`, `domain/pricing.py`
+- **Imports:** `cache_db.py`, `cart_qty.py`, `domain/pricing.py`
 - **Imported by:** —
 
 ### tests/python/domain/test_purchase_candidates.py

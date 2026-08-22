@@ -256,7 +256,11 @@ def populate_prices_cache(conn: Any, events_dir: str) -> None:
             if resolved:
                 pid = resolved
             else:
-                logger.warning("populate_prices_cache: skipping unknown part_id %r", pid)
+                # Expected, not anomalous: quotes are recorded for parts that
+                # were never stocked (see record_fetched_prices), and the
+                # prices cache only serves inventory rows. Warning here would
+                # emit one line per BOM part on every refresh.
+                logger.debug("populate_prices_cache: no inventory part for %r", pid)
                 continue
         try:
             price = float(obs["unit_price"])
@@ -403,10 +407,16 @@ def record_fetched_prices(
     to `price_tiers` with the packaging left unknown -- the names are known but
     which ladder belongs to which is not.
     """
-    resolved_key = resolve_part_key(conn, part_key)
-    if not resolved_key:
-        logger.warning("record_fetched_prices: no inventory part for %r", part_key)
-        return
+    # A part you do not stock can still be quoted, and that quote is exactly
+    # the evidence a BOM-built cart plans from -- so an unknown key is recorded
+    # under itself rather than dropped. Every reader in this file already spells
+    # the fallback this way; only this writer treated "not in inventory" as a
+    # reason to discard an observation, which silently made the hover tooltip a
+    # no-op on precisely the rows a BOM turns up. `populate_prices_cache` below
+    # skips these for the `prices` cache, whose part_id has an FK into `parts`;
+    # `price_observations.csv` has no such constraint and is the file the plan
+    # actually reads.
+    resolved_key = resolve_part_key(conn, part_key) or part_key
     os.makedirs(events_dir, exist_ok=True)
 
     observations: list[dict[str, Any]] = []
