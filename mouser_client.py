@@ -11,6 +11,7 @@ Two paths:
 
 from __future__ import annotations
 
+import html as html_mod
 import json
 import logging
 import os
@@ -20,6 +21,7 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
+import browser_page
 from base_client import BaseProductClient
 from domain.packaging import carrier_of
 from domain.product import build_product
@@ -39,6 +41,23 @@ logger = logging.getLogger(__name__)
 
 _API_SEARCH_URL = "https://api.mouser.com/api/v2/search/partnumber"
 _API_KEYWORD_URL = "https://api.mouser.com/api/v2/search/keyword"
+_PRODUCT_URL = "https://www.mouser.com/ProductDetail/{}"
+_SEARCH_URL = "https://www.mouser.com/c/?q={}"
+
+# A Mouser part number is a numeric vendor prefix and a dash ("736-FGG0B305CLAD52",
+# "81-GRM155R71H103KA88D"); anything else in that column is an MPN, which
+# /ProductDetail/ does not resolve -- it 404s rather than searching. Getting
+# this wrong only costs a wasted page load, since each path falls back to the
+# other.
+_MOUSER_PN_RE = re.compile(r"^\d{2,4}-\S")
+_PRODUCT_LINK_RE = re.compile(
+    r'href="(/(?:[a-z]{2}/)?ProductDetail/[^"\s]+)"', re.IGNORECASE,
+)
+
+# Mouser fires `loaded` and then fills the price table in, so the document has
+# to be read a beat later or the ladder is simply absent. Measured against the
+# real site; the value is a guess with margin, not a threshold.
+_RENDER_SETTLE_S = 3.5
 
 # Mouser publishes the carrier as an ordinary parametric attribute
 # ("Packaging": "Cut Tape" / "Tape & Reel" / "MouseReel" / "Tray" / "Tube" /
@@ -87,6 +106,104 @@ def _packaging_name(attributes: list[dict[str, str]]) -> str:
     return ""
 
 
+# Mouser renders every price break in one `table.pricing-table`, split into
+# per-packaging blocks by a `th.sub-heading` row:
+#
+#   Qty. | Unit Price | Ext. Price
+#   -- Cut Tape / MouseReel(tm) --
+#   1    | $0.10      | $0.10
+#   10   | $0.015     | $0.15
+#   -- Full Reel (Order in multiples of 10000) --
+#   10,000 | $0.004   | $40.00
+#
+# That is the whole packaging model dubIS wants, already separated by the
+# vendor: two carriers, two ladders, and a reel multiple written into the
+# sub-heading. Worth parsing properly rather than scraping loose "qty $price"
+# pairs out of the page, which cannot tell the two ladders apart and, because
+# the cells are separated by markup, mostly matches nothing at all.
+_PRICING_TABLE_RE = re.compile(
+    r'<table[^>]*\bclass="[^"]*\bpricing-table\b[^"]*"[^>]*>(.*?)</table>',
+    re.IGNORECASE | re.DOTALL,
+)
+_ROW_RE = re.compile(r"<tr\b.*?</tr>", re.IGNORECASE | re.DOTALL)
+_SUB_HEADING_RE = re.compile(
+    r'<th[^>]*\bclass="[^"]*\bsub-heading\b[^"]*"[^>]*>(.*?)</th>',
+    re.IGNORECASE | re.DOTALL,
+)
+_BREAK_QTY_RE = re.compile(
+    r'<th[^>]*\bclass="[^"]*\bpricebreak-col\b[^"]*"[^>]*>(.*?)</th>',
+    re.IGNORECASE | re.DOTALL,
+)
+_CELL_RE = re.compile(r"<td\b[^>]*>(.*?)</td>", re.IGNORECASE | re.DOTALL)
+_TAG_RE = re.compile(r"<[^>]+>")
+_MONEY_RE = re.compile(r"\$\s*([\d,]+(?:\.\d+)?)")
+_WS_RE = re.compile(r"\s+")
+
+
+def _cell_text(fragment: str) -> str:
+    """Visible text of one table cell: tags out, entities decoded, spaces collapsed."""
+    return _WS_RE.sub(" ", html_mod.unescape(_TAG_RE.sub(" ", fragment))).strip()
+
+
+def _packaging_heading(fragment: str) -> str:
+    """A sub-heading as a packaging name, minus its footnote marker.
+
+    Mouser hangs a dagger off "Cut Tape / MouseReel(tm) \u2020" pointing at a note
+    further down the page. The name becomes the key an observation is stored
+    and grouped under, so carrying a typographic mark into it would split one
+    packaging into two the day Mouser renumbers its footnotes.
+    """
+    return _cell_text(fragment).rstrip(" \u2020\u2021*").strip()
+
+
+def _parse_pricing_table(page_html: str) -> list[dict[str, Any]]:
+    """Per-packaging price ladders from a Mouser product page.
+
+    Returns ``[{"name": str, "prices": [{"qty": int, "price": float}, ...]}]``
+    in page order, which puts the packaging Mouser defaults to first. Returns
+    [] when the table is absent (a bot-block page, or a product with no
+    published pricing) so the caller can fall back rather than treat an empty
+    ladder as a real one.
+
+    Rows before the first sub-heading are ignored: a table with prices but no
+    packaging block has no carrier to attribute them to, and guessing one is
+    exactly the invention the packaging model exists to prevent.
+    """
+    table = _PRICING_TABLE_RE.search(page_html)
+    if not table:
+        return []
+    groups: list[dict[str, Any]] = []
+    for row in _ROW_RE.findall(table.group(1)):
+        heading = _SUB_HEADING_RE.search(row)
+        if heading:
+            name = _packaging_heading(heading.group(1))
+            if name:
+                groups.append({"name": name, "prices": []})
+            continue
+        if not groups:
+            continue
+        qty_cell = _BREAK_QTY_RE.search(row)
+        if not qty_cell:
+            continue
+        qty = _clean_int(_cell_text(qty_cell.group(1)))
+        if qty is None:
+            continue
+        # The first <td> is Unit Price; the second is Ext. Price, which is
+        # unit x qty and would be a wildly wrong unit price if taken.
+        cells = _CELL_RE.findall(row)
+        if not cells:
+            continue
+        money = _MONEY_RE.search(_cell_text(cells[0]))
+        if not money:
+            continue
+        try:
+            price = float(money.group(1).replace(",", ""))
+        except ValueError:
+            continue
+        groups[-1]["prices"].append({"qty": qty, "price": price})
+    return [g for g in groups if g["prices"]]
+
+
 class MouserClient(BaseProductClient):
     """Fetches and caches Mouser product details by part number."""
 
@@ -95,6 +212,9 @@ class MouserClient(BaseProductClient):
     def __init__(self, credentials_file: str | None = None) -> None:
         super().__init__()
         self._credentials_file = credentials_file
+        # Created on first browser fetch and reused: one hidden window per
+        # client, not one per part.
+        self._page: browser_page.BrowserPage | None = None
 
     # ── API key persistence ───────────────────────────────────────────────
 
@@ -154,6 +274,14 @@ class MouserClient(BaseProductClient):
         api_key = self.get_api_key()
         if api_key:
             return self._fetch_via_api(part_number, api_key)
+        # No key: render the page in a real browser. Mouser refuses a plain
+        # urllib request (verified from two networks -- it is the request that
+        # is refused, not the address), so the legacy path below is kept only
+        # for the container, where there is no browser to render with and
+        # something is still better than an unconditional None.
+        product = self._fetch_via_browser(part_number)
+        if product is not None:
+            return product
         return self._fetch_via_scrape(part_number)
 
     def _fetch_via_api(self, part_number: str, api_key: str) -> dict[str, Any] | None:
@@ -223,6 +351,66 @@ class MouserClient(BaseProductClient):
 
         results = payload.get("SearchResults") or {}
         return results.get("Parts") or []
+
+    def _fetch_via_browser(self, part_number: str) -> dict[str, Any] | None:
+        """Render the product page in a hidden window and parse it.
+
+        Two ways in, because the column this string came from may hold either
+        kind of identifier. A Mouser PN resolves at /ProductDetail/ directly; an
+        MPN does not (that URL 404s rather than searching), so it goes through
+        the search page and follows the first result. Whichever is tried first,
+        the other is the fallback -- misjudging the format costs a page load,
+        not the fetch.
+        """
+        if not browser_page.available():
+            return None
+        if self._page is None:
+            self._page = browser_page.BrowserPage(title="Mouser")
+
+        attempts = (
+            [self._via_product_url, self._via_search]
+            if _MOUSER_PN_RE.match(part_number)
+            else [self._via_search, self._via_product_url]
+        )
+        for attempt in attempts:
+            try:
+                product = attempt(part_number)
+            except (RuntimeError, AttributeError) as exc:
+                logger.warning("Mouser browser fetch failed for %s: %s",
+                               part_number, exc)
+                return None
+            if product is not None:
+                return product
+        return None
+
+    def _via_product_url(self, part_number: str) -> dict[str, Any] | None:
+        url = _PRODUCT_URL.format(urllib.parse.quote(part_number, safe=""))
+        html = self._page.fetch_html(url, settle_s=_RENDER_SETTLE_S)
+        return self._parse_product_page(html, part_number, url) if html else None
+
+    def _via_search(self, part_number: str) -> dict[str, Any] | None:
+        """Search, then open the first product the results offer.
+
+        The results page carries price text but no JSON-LD and, when several
+        products match, several interleaved ladders -- so it is never parsed as
+        a product. It is only read for where to go next. An exact single match
+        redirects straight to the product page, which is why the landing URL is
+        checked before looking for a link at all.
+        """
+        search = _SEARCH_URL.format(urllib.parse.quote(part_number, safe=""))
+        html = self._page.fetch_html(search, settle_s=_RENDER_SETTLE_S)
+        if not html:
+            return None
+        landed = self._page.current_url() or ""
+        if "/ProductDetail/" in landed:
+            return self._parse_product_page(html, part_number, landed)
+        link = _PRODUCT_LINK_RE.search(html)
+        if not link:
+            logger.debug("Mouser search for %s offered no product link", part_number)
+            return None
+        url = urllib.parse.urljoin("https://www.mouser.com", link.group(1))
+        page = self._page.fetch_html(url, settle_s=_RENDER_SETTLE_S)
+        return self._parse_product_page(page, part_number, url) if page else None
 
     def _fetch_via_scrape(self, part_number: str) -> dict[str, Any] | None:
         url = f"https://www.mouser.com/ProductDetail/{part_number}"
@@ -453,16 +641,46 @@ class MouserClient(BaseProductClient):
                 else None
             )
 
-        fee_match = _MOUSEREEL_FEE_RE.search(page_html)
-        reel_fee = fee_match.group(1) if fee_match else None
-
-        packagings: list[dict[str, Any]] = []
-        if packaging_name:
-            packagings.append({
+        # The pricing table, when present, is strictly better than everything
+        # above: it names each carrier and gives it its own ladder, where the
+        # spec-table attribute names one carrier and the loose page-wide regex
+        # cannot attribute a break to any of them. So it wins outright, and the
+        # default packaging's ladder (Mouser lists it first) becomes the
+        # product's headline `prices`.
+        table_groups = _parse_pricing_table(page_html)
+        if table_groups:
+            packagings = [{
+                "name": group["name"],
+                "partNumber": part_number,
+                "prices": group["prices"],
+            } for group in table_groups]
+            prices = table_groups[0]["prices"]
+        elif packaging_name:
+            packagings = [{
                 "name": packaging_name,
                 "partNumber": part_number,
                 "prices": prices,
-            })
+            }]
+        else:
+            packagings = []
+
+        # Every Mouser product page renders the same "Packaging Choice"
+        # explainer, MouseReel(tm) (Add $7.00 reeling fee) and all, whether or
+        # not the part is offered that way -- so the figure is real but its
+        # applicability is not. Reeling cuts a tape; a part that does not come
+        # on tape cannot be reeled, and a part whose carriers we could not read
+        # has not told us it can. Unknown is not permission, the same rule
+        # domain/predicates.py applies to substitutions, and the cost of
+        # getting it wrong here is a "Tray + reeling" offer that the reel
+        # preset would happily choose.
+        #
+        # Searched with the pricing table removed: its sub-heading reads
+        # "Cut Tape / MouseReel(tm)" and the next dollar figure after it is the
+        # first price break, which a page-wide search returns as the fee.
+        offers_tape = any(carrier_of(entry["name"]) == "tape" for entry in packagings)
+        fee_match = (_MOUSEREEL_FEE_RE.search(_PRICING_TABLE_RE.sub(" ", page_html))
+                     if offers_tape else None)
+        reel_fee = fee_match.group(1) if fee_match else None
 
         product: dict[str, Any] = build_product(
             product_code=part_number,
