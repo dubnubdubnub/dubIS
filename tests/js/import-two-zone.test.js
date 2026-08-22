@@ -6,7 +6,7 @@ import {
   TARGET_FIELDS,
   PO_TEMPLATES,
 } from '../../js/import/import-logic.js';
-import { renderDropZone, renderOcrEngineNotice, TESSERACT_WINGET_COMMAND } from '../../js/import/import-renderer.js';
+import { renderDropZone, renderOcrEngineNotice } from '../../js/import/import-renderer.js';
 
 describe('isOcrFile — drop-zone routing predicate', () => {
   it('returns true for image / PDF names', () => {
@@ -129,22 +129,30 @@ describe('renderDropZone — two-zone layout', () => {
   });
 });
 
-describe('renderOcrEngineNotice — missing-engine notice', () => {
+describe('renderOcrEngineNotice — no reader set up', () => {
   const html = renderOcrEngineNotice();
 
-  it('contains the Install Tesseract button', () => {
-    expect(html).toContain('id="install-tesseract-btn"');
-    expect(html).toContain('Install Tesseract');
+  it('offers a route to the reader setting, not an install of one fixed engine', () => {
+    expect(html).toContain('id="open-reader-prefs-btn"');
+    expect(html).toContain('Set up the reader');
   });
 
-  it('explains why the engine is needed', () => {
-    expect(html).toContain('Tesseract OCR engine');
+  it('says what is missing in the operator’s terms', () => {
+    expect(html).toContain('read pictures or PDFs');
   });
 
-  it('includes the copyable winget command fallback', () => {
-    expect(TESSERACT_WINGET_COMMAND).toContain('UB-Mannheim.TesseractOCR');
-    expect(html).toContain('<code>');
-    expect(html).toContain(TESSERACT_WINGET_COMMAND);
+  it('names where the setting lives, and that CSV import is unaffected', () => {
+    expect(html).toContain('Picture/PDF reader');
+    expect(html).toContain('CSV import works without it');
+  });
+
+  it('has retired the Windows-only tesseract framing entirely', () => {
+    // The winget command was a no-op off Windows, and the reader that replaces
+    // it is a preference with four modes — not one thing to install from here.
+    // Guard against the whole family of strings coming back, not just the id.
+    for (const dead of ['tesseract', 'winget', 'UB-Mannheim', 'Windows prompt', '<code>']) {
+      expect(html.toLowerCase()).not.toContain(dead.toLowerCase());
+    }
   });
 
   it('wraps the notice in an identifiable container', () => {

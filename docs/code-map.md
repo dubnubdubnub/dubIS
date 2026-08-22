@@ -61,6 +61,7 @@ graph LR
     "domain/api_scan.py" --> "ocr_engine.py"
     "domain/api_scan.py" --> "ocr_layout.py"
     "domain/api_scan.py" --> "pnp_server.py"
+    "domain/api_scan.py" --> "reader_jobs.py"
     "domain/api_vendors.py" --> "csv_io.py"
     "domain/api_vendors.py" --> "vendors.py"
     "domain/attributes.py" --> "csv_io.py"
@@ -91,6 +92,7 @@ graph LR
     "domain/purchase_candidates.py" --> "domain/predicates.py"
     "file_dialogs.py" --> "csv_io.py"
     "file_dialogs.py" --> "domain/pricing.py"
+    "fleet_client.py" --> "dubis_errors.py"
     "inventory_api.py" --> "bench.py"
     "inventory_api.py" --> "cache_db.py"
     "inventory_api.py" --> "csv_io.py"
@@ -486,8 +488,13 @@ graph LR
     "js/part-preview.js" --> "js/ui-helpers.js"
     "js/part-preview.js" --> "js/ui-zoom.js"
     "js/preferences-modal.js" --> "js/api.js"
+    "js/preferences-modal.js" --> "js/reader/reader-panel.js"
     "js/preferences-modal.js" --> "js/store.js"
     "js/preferences-modal.js" --> "js/ui-helpers.js"
+    "js/reader/reader-panel.js" --> "js/api.js"
+    "js/reader/reader-panel.js" --> "js/reader/reader-progress-logic.js"
+    "js/reader/reader-panel.js" --> "js/store.js"
+    "js/reader/reader-panel.js" --> "js/ui-helpers.js"
     "js/resize-panels.js" --> "js/ui-zoom.js"
     "js/sse.js" --> "js/api.js"
     "js/store.js" --> "js/api.js"
@@ -545,6 +552,14 @@ graph LR
     "purchase_orders.py" --> "csv_io.py"
     "purchase_orders.py" --> "pdf_raster.py"
     "purchase_orders.py" --> "source_sanitizer.py"
+    "reader_install.py" --> "dubis_errors.py"
+    "reader_jobs.py" --> "dubis_errors.py"
+    "reader_jobs.py" --> "reader_install.py"
+    "reader_jobs.py" --> "reader_memory.py"
+    "reader_jobs.py" --> "reader_runtime.py"
+    "reader_jobs.py" --> "reader_tiers.py"
+    "reader_jobs.py" --> "vlm_extract.py"
+    "reader_runtime.py" --> "dubis_errors.py"
     "saved_searches.py" --> "csv_io.py"
     "scripts/bench-floor.py" --> "bench.py"
     "scripts/capture-distributor-fixtures.py" --> "distributor_fixtures.py"
@@ -568,6 +583,7 @@ graph LR
     "server/app.py" --> "server/errors.py"
     "server/app.py" --> "server/routes/__init__.py"
     "server/errors.py" --> "dubis_errors.py"
+    "server/errors.py" --> "fleet_client.py"
     "server/errors.py" --> "server/auth.py"
     "server/lockfile.py" --> "dubis_errors.py"
     "server/models.py" --> "domain/schema.py"
@@ -656,6 +672,7 @@ graph LR
     "tests/js/pick-tier.test.js" --> "js/inventory/pricing-utils.js"
     "tests/js/predicate-ui.test.js" --> "js/components/predicate-ui.js"
     "tests/js/qrcode.test.js" --> "js/vendor/qrcode.js"
+    "tests/js/reader-progress-logic.test.js" --> "js/reader/reader-progress-logic.js"
     "tests/js/real-data.test.js" --> "js/csv-parser.js"
     "tests/js/real-data.test.js" --> "js/matching.js"
     "tests/js/real-data.test.js" --> "js/part-keys.js"
@@ -724,6 +741,10 @@ graph LR
     "tests/python/server/test_error_contract.py" --> "server/app.py"
     "tests/python/server/test_error_contract.py" --> "tests/python/helpers.py"
     "tests/python/server/test_error_mapping_exhaustive.py" --> "dubis_errors.py"
+    "tests/python/server/test_error_mapping_exhaustive.py" --> "fleet_client.py"
+    "tests/python/server/test_error_mapping_exhaustive.py" --> "reader_install.py"
+    "tests/python/server/test_error_mapping_exhaustive.py" --> "reader_jobs.py"
+    "tests/python/server/test_error_mapping_exhaustive.py" --> "reader_runtime.py"
     "tests/python/server/test_error_mapping_exhaustive.py" --> "server/errors.py"
     "tests/python/server/test_events.py" --> "server/__init__.py"
     "tests/python/server/test_events.py" --> "tests/python/server/conftest.py"
@@ -827,9 +848,9 @@ graph LR
     "tests/python/test_dubis_mcp_tools.py" --> "tests/python/helpers.py"
     "tests/python/test_dubis_mcp_tools.py" --> "tests/python/server/conftest.py"
     "tests/python/test_file_dialogs.py" --> "file_dialogs.py"
+    "tests/python/test_fleet_client.py" --> "dubis_errors.py"
+    "tests/python/test_fleet_client.py" --> "fleet_client.py"
     "tests/python/test_html_product_parser.py" --> "html_product_parser.py"
-    "tests/python/test_install_tesseract.py" --> "inventory_api.py"
-    "tests/python/test_install_tesseract.py" --> "ocr_engine.py"
     "tests/python/test_inventory_api_adjustments.py" --> "cache_db.py"
     "tests/python/test_inventory_api_adjustments.py" --> "inventory_api.py"
     "tests/python/test_inventory_api_adjustments.py" --> "tests/python/helpers.py"
@@ -861,13 +882,14 @@ graph LR
     "tests/python/test_normalizers.py" --> "mouser_client.py"
     "tests/python/test_normalizers.py" --> "pololu_client.py"
     "tests/python/test_ocr_engine.py" --> "ocr_engine.py"
-    "tests/python/test_ocr_layout.py" --> "distributor_profiles.py"
     "tests/python/test_ocr_layout.py" --> "ocr_engine.py"
     "tests/python/test_ocr_layout.py" --> "ocr_layout.py"
-    "tests/python/test_ocr_layout.py" --> "ocr_table.py"
-    "tests/python/test_ocr_layout.py" --> "pdf_raster.py"
-    "tests/python/test_ocr_layout.py" --> "vlm_extract.py"
+    "tests/python/test_ocr_layout_backend.py" --> "distributor_profiles.py"
+    "tests/python/test_ocr_layout_backend.py" --> "ocr_engine.py"
     "tests/python/test_ocr_layout_backend.py" --> "ocr_layout.py"
+    "tests/python/test_ocr_layout_backend.py" --> "ocr_table.py"
+    "tests/python/test_ocr_layout_backend.py" --> "pdf_raster.py"
+    "tests/python/test_ocr_layout_backend.py" --> "vlm_extract.py"
     "tests/python/test_ocr_overlay_api.py" --> "inventory_api.py"
     "tests/python/test_ocr_overlay_api.py" --> "ocr_engine.py"
     "tests/python/test_ocr_overlay_api.py" --> "ocr_layout.py"
@@ -885,8 +907,26 @@ graph LR
     "tests/python/test_pnp_server.py" --> "pnp_server.py"
     "tests/python/test_pnp_server.py" --> "server/__init__.py"
     "tests/python/test_pnp_server.py" --> "tests/python/helpers.py"
+    "tests/python/test_preferences_reader.py" --> "domain/api_preferences.py"
+    "tests/python/test_preferences_reader.py" --> "server/app.py"
     "tests/python/test_product_factory.py" --> "domain/product.py"
     "tests/python/test_purchase_orders.py" --> "purchase_orders.py"
+    "tests/python/test_reader_api_wiring.py" --> "reader_install.py"
+    "tests/python/test_reader_api_wiring.py" --> "reader_jobs.py"
+    "tests/python/test_reader_install.py" --> "reader_install.py"
+    "tests/python/test_reader_jobs.py" --> "dubis_errors.py"
+    "tests/python/test_reader_jobs.py" --> "reader_install.py"
+    "tests/python/test_reader_jobs.py" --> "reader_jobs.py"
+    "tests/python/test_reader_jobs.py" --> "reader_memory.py"
+    "tests/python/test_reader_jobs.py" --> "reader_runtime.py"
+    "tests/python/test_reader_jobs.py" --> "reader_tiers.py"
+    "tests/python/test_reader_jobs.py" --> "vlm_extract.py"
+    "tests/python/test_reader_memory.py" --> "reader_memory.py"
+    "tests/python/test_reader_runtime.py" --> "dubis_errors.py"
+    "tests/python/test_reader_runtime.py" --> "reader_runtime.py"
+    "tests/python/test_reader_runtime.py" --> "vlm_extract.py"
+    "tests/python/test_reader_tiers.py" --> "reader_memory.py"
+    "tests/python/test_reader_tiers.py" --> "reader_tiers.py"
     "tests/python/test_real_data.py" --> "inventory_api.py"
     "tests/python/test_remote_mode.py" --> "remote_mode.py"
     "tests/python/test_request_restart.py" --> "inventory_api.py"
@@ -1021,7 +1061,7 @@ graph LR
 ### distributor_profiles.py
 
 - **Imports:** `mfg_direct_import.py`
-- **Imported by:** `domain/api_scan.py`, `mfg_direct_import.py`, `ocr_layout.py`, `tests/python/test_distributor_profiles.py`, `tests/python/test_ocr_layout.py`
+- **Imported by:** `domain/api_scan.py`, `mfg_direct_import.py`, `ocr_layout.py`, `tests/python/test_distributor_profiles.py`, `tests/python/test_ocr_layout_backend.py`
 
 ### domain/__init__.py
 
@@ -1076,7 +1116,7 @@ graph LR
 ### domain/api_preferences.py
 
 - **Imports:** `csv_io.py`
-- **Imported by:** `inventory_api.py`
+- **Imported by:** `inventory_api.py`, `tests/python/test_preferences_reader.py`
 
 ### domain/api_pricing.py
 
@@ -1090,7 +1130,7 @@ graph LR
 
 ### domain/api_scan.py
 
-- **Imports:** `distributor_profiles.py`, `mfg_direct_import.py`, `ocr_engine.py`, `ocr_layout.py`, `pnp_server.py`
+- **Imports:** `distributor_profiles.py`, `mfg_direct_import.py`, `ocr_engine.py`, `ocr_layout.py`, `pnp_server.py`, `reader_jobs.py`
 - **Imported by:** `inventory_api.py`
 
 ### domain/api_vendors.py
@@ -1171,12 +1211,17 @@ graph LR
 ### dubis_errors.py
 
 - **Imports:** —
-- **Imported by:** `base_client.py`, `carts.py`, `digikey_client.py`, `domain/generic_parts.py`, `domain/part_registry.py`, `server/__main__.py`, `server/errors.py`, `server/lockfile.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/test_base_client.py`, `tests/python/test_carts.py`, `tests/python/test_dubis_errors.py`
+- **Imported by:** `base_client.py`, `carts.py`, `digikey_client.py`, `domain/generic_parts.py`, `domain/part_registry.py`, `fleet_client.py`, `reader_install.py`, `reader_jobs.py`, `reader_runtime.py`, `server/__main__.py`, `server/errors.py`, `server/lockfile.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/test_base_client.py`, `tests/python/test_carts.py`, `tests/python/test_dubis_errors.py`, `tests/python/test_fleet_client.py`, `tests/python/test_reader_jobs.py`, `tests/python/test_reader_runtime.py`
 
 ### file_dialogs.py
 
 - **Imports:** `csv_io.py`, `domain/pricing.py`
 - **Imported by:** `client_shell.py`, `domain/api_fileio.py`, `tests/python/test_file_dialogs.py`
+
+### fleet_client.py
+
+- **Imports:** `dubis_errors.py`
+- **Imported by:** `server/errors.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/test_fleet_client.py`
 
 ### html_product_parser.py
 
@@ -1186,7 +1231,7 @@ graph LR
 ### inventory_api.py
 
 - **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_attributes.py`, `domain/api_cart.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/api_mirror.py`, `domain/api_predicates.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`, `mirror_push.py`
-- **Imported by:** `client_shell.py`, `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `server/__main__.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/server/test_main_flags.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`, `tests/python/test_request_restart.py`
+- **Imported by:** `client_shell.py`, `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `server/__main__.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/server/test_main_flags.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`, `tests/python/test_request_restart.py`
 
 ### inventory_mirror.py
 
@@ -1241,7 +1286,7 @@ graph LR
 ### js/api.js
 
 - **Imports:** `js/api-map.js`, `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-add.js`, `js/cart/cart-export.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-scan-session.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/sse.js`, `js/store.js`, `js/text-popover.js`, `js/ui-zoom-control.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/command-palette.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-add.js`, `js/cart/cart-export.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-scan-session.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/reader/reader-panel.js`, `js/sse.js`, `js/store.js`, `js/text-popover.js`, `js/ui-zoom-control.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/command-palette.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`
 
 ### js/app-init.js
 
@@ -1704,8 +1749,18 @@ graph LR
 
 ### js/preferences-modal.js
 
-- **Imports:** `js/api.js`, `js/store.js`, `js/ui-helpers.js`
+- **Imports:** `js/api.js`, `js/reader/reader-panel.js`, `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/app-init.js`
+
+### js/reader/reader-panel.js
+
+- **Imports:** `js/api.js`, `js/reader/reader-progress-logic.js`, `js/store.js`, `js/ui-helpers.js`
+- **Imported by:** `js/preferences-modal.js`
+
+### js/reader/reader-progress-logic.js
+
+- **Imports:** —
+- **Imported by:** `js/reader/reader-panel.js`, `tests/js/reader-progress-logic.test.js`
 
 ### js/resize-panels.js
 
@@ -1725,7 +1780,7 @@ graph LR
 ### js/store.js
 
 - **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/signals.js`, `js/sse.js`, `js/ui-helpers.js`
-- **Imported by:** `js/a11y/roving-grid.js`, `js/a11y/scrollable.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/preferences-modal.js`, `js/text-popover.js`, `js/vendors-modal.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/inventory-rendering.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/saved-views.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
+- **Imported by:** `js/a11y/roving-grid.js`, `js/a11y/scrollable.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/preferences-modal.js`, `js/reader/reader-panel.js`, `js/text-popover.js`, `js/vendors-modal.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/inventory-rendering.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/saved-views.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
 - **Emits:** `CONFIRMED_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LINKING_MODE`, `LINKS_CHANGED`, `PO_CHANGED`, `VENDORS_CHANGED`
 - **Listens:** —
 
@@ -1742,7 +1797,7 @@ graph LR
 ### js/ui-helpers.js
 
 - **Imports:** `js/a11y/focus-trap.js`
-- **Imported by:** `js/a11y/shortcut-help.js`, `js/api.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/cart/cart-export.js`, `js/cart/cart-modal.js`, `js/components/form-modal.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-renderer.js`, `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-import-queue.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/mfg-direct-scan-session.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js`, `js/import/mfg-direct/scan-shell.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-tree-render.js`, `js/inventory/price-modal.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/store.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/ui-helpers.test.js`
+- **Imported by:** `js/a11y/shortcut-help.js`, `js/api.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/cart/cart-export.js`, `js/cart/cart-modal.js`, `js/components/form-modal.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-renderer.js`, `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-import-queue.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/mfg-direct-scan-session.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js`, `js/import/mfg-direct/scan-shell.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-tree-render.js`, `js/inventory/price-modal.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/reader/reader-panel.js`, `js/store.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/ui-helpers.test.js`
 
 ### js/ui-zoom-control.js
 
@@ -1832,7 +1887,7 @@ graph LR
 ### ocr_engine.py
 
 - **Imports:** —
-- **Imported by:** `domain/api_scan.py`, `ocr_layout.py`, `ocr_table.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_ocr_engine.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_ocr_overlay_api.py`
+- **Imported by:** `domain/api_scan.py`, `ocr_layout.py`, `ocr_table.py`, `tests/python/test_ocr_engine.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_ocr_layout_backend.py`, `tests/python/test_ocr_overlay_api.py`
 
 ### ocr_layout.py
 
@@ -1842,12 +1897,12 @@ graph LR
 ### ocr_table.py
 
 - **Imports:** `ocr_engine.py`
-- **Imported by:** `ocr_layout.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_ocr_table.py`
+- **Imported by:** `ocr_layout.py`, `tests/python/test_ocr_layout_backend.py`, `tests/python/test_ocr_table.py`
 
 ### pdf_raster.py
 
 - **Imports:** —
-- **Imported by:** `ocr_layout.py`, `purchase_orders.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_pdf_raster.py`
+- **Imported by:** `ocr_layout.py`, `purchase_orders.py`, `tests/python/test_ocr_layout_backend.py`, `tests/python/test_pdf_raster.py`
 
 ### pnp_part_map.py
 
@@ -1868,6 +1923,31 @@ graph LR
 
 - **Imports:** `csv_io.py`, `pdf_raster.py`, `source_sanitizer.py`
 - **Imported by:** `domain/api_purchase_orders.py`, `mfg_direct_import.py`, `server/routes/vendors_pos.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_purchase_orders.py`
+
+### reader_install.py
+
+- **Imports:** `dubis_errors.py`
+- **Imported by:** `reader_jobs.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/test_reader_api_wiring.py`, `tests/python/test_reader_install.py`, `tests/python/test_reader_jobs.py`
+
+### reader_jobs.py
+
+- **Imports:** `dubis_errors.py`, `reader_install.py`, `reader_memory.py`, `reader_runtime.py`, `reader_tiers.py`, `vlm_extract.py`
+- **Imported by:** `domain/api_scan.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/test_reader_api_wiring.py`, `tests/python/test_reader_jobs.py`
+
+### reader_memory.py
+
+- **Imports:** —
+- **Imported by:** `reader_jobs.py`, `tests/python/test_reader_jobs.py`, `tests/python/test_reader_memory.py`, `tests/python/test_reader_tiers.py`
+
+### reader_runtime.py
+
+- **Imports:** `dubis_errors.py`
+- **Imported by:** `reader_jobs.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/test_reader_jobs.py`, `tests/python/test_reader_runtime.py`
+
+### reader_tiers.py
+
+- **Imports:** —
+- **Imported by:** `reader_jobs.py`, `tests/python/test_reader_jobs.py`, `tests/python/test_reader_tiers.py`
 
 ### remote_mode.py
 
@@ -2017,7 +2097,7 @@ graph LR
 ### server/app.py
 
 - **Imports:** `server/auth.py`, `server/errors.py`, `server/routes/__init__.py`
-- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_mutation_publishes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
+- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_mutation_publishes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`, `tests/python/test_preferences_reader.py`
 
 ### server/auth.py
 
@@ -2026,7 +2106,7 @@ graph LR
 
 ### server/errors.py
 
-- **Imports:** `dubis_errors.py`, `server/auth.py`
+- **Imports:** `dubis_errors.py`, `fleet_client.py`, `server/auth.py`
 - **Imported by:** `server/app.py`, `tests/python/server/test_error_mapping_exhaustive.py`
 
 ### server/events.py
@@ -2398,6 +2478,16 @@ graph LR
 - **Imports:** `js/vendor/qrcode.js`
 - **Imported by:** —
 
+### tests/js/reader-panel.test.js
+
+- **Imports:** —
+- **Imported by:** —
+
+### tests/js/reader-progress-logic.test.js
+
+- **Imports:** `js/reader/reader-progress-logic.js`
+- **Imported by:** —
+
 ### tests/js/real-data.test.js
 
 - **Imports:** `js/csv-parser.js`, `js/matching.js`, `js/part-keys.js`, `tests/js/helpers/load-fixtures.js`
@@ -2612,7 +2702,7 @@ graph LR
 
 ### tests/python/server/test_error_mapping_exhaustive.py
 
-- **Imports:** `dubis_errors.py`, `server/errors.py`
+- **Imports:** `dubis_errors.py`, `fleet_client.py`, `reader_install.py`, `reader_jobs.py`, `reader_runtime.py`, `server/errors.py`
 - **Imported by:** —
 
 ### tests/python/server/test_events.py
@@ -2940,6 +3030,11 @@ graph LR
 - **Imports:** `file_dialogs.py`
 - **Imported by:** —
 
+### tests/python/test_fleet_client.py
+
+- **Imports:** `dubis_errors.py`, `fleet_client.py`
+- **Imported by:** —
+
 ### tests/python/test_gen_api_client.py
 
 - **Imports:** —
@@ -2958,11 +3053,6 @@ graph LR
 ### tests/python/test_html_product_parser.py
 
 - **Imports:** `html_product_parser.py`
-- **Imported by:** —
-
-### tests/python/test_install_tesseract.py
-
-- **Imports:** `inventory_api.py`, `ocr_engine.py`
 - **Imported by:** —
 
 ### tests/python/test_inventory_api_adjustments.py
@@ -3057,12 +3147,12 @@ graph LR
 
 ### tests/python/test_ocr_layout.py
 
-- **Imports:** `distributor_profiles.py`, `ocr_engine.py`, `ocr_layout.py`, `ocr_table.py`, `pdf_raster.py`, `vlm_extract.py`
+- **Imports:** `ocr_engine.py`, `ocr_layout.py`
 - **Imported by:** —
 
 ### tests/python/test_ocr_layout_backend.py
 
-- **Imports:** `ocr_layout.py`
+- **Imports:** `distributor_profiles.py`, `ocr_engine.py`, `ocr_layout.py`, `ocr_table.py`, `pdf_raster.py`, `vlm_extract.py`
 - **Imported by:** —
 
 ### tests/python/test_ocr_overlay_api.py
@@ -3100,6 +3190,11 @@ graph LR
 - **Imports:** `pnp_server.py`, `server/__init__.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
+### tests/python/test_preferences_reader.py
+
+- **Imports:** `domain/api_preferences.py`, `server/app.py`
+- **Imported by:** —
+
 ### tests/python/test_product_factory.py
 
 - **Imports:** `domain/product.py`
@@ -3108,6 +3203,36 @@ graph LR
 ### tests/python/test_purchase_orders.py
 
 - **Imports:** `purchase_orders.py`
+- **Imported by:** —
+
+### tests/python/test_reader_api_wiring.py
+
+- **Imports:** `reader_install.py`, `reader_jobs.py`
+- **Imported by:** —
+
+### tests/python/test_reader_install.py
+
+- **Imports:** `reader_install.py`
+- **Imported by:** —
+
+### tests/python/test_reader_jobs.py
+
+- **Imports:** `dubis_errors.py`, `reader_install.py`, `reader_jobs.py`, `reader_memory.py`, `reader_runtime.py`, `reader_tiers.py`, `vlm_extract.py`
+- **Imported by:** —
+
+### tests/python/test_reader_memory.py
+
+- **Imports:** `reader_memory.py`
+- **Imported by:** —
+
+### tests/python/test_reader_runtime.py
+
+- **Imports:** `dubis_errors.py`, `reader_runtime.py`, `vlm_extract.py`
+- **Imported by:** —
+
+### tests/python/test_reader_tiers.py
+
+- **Imports:** `reader_memory.py`, `reader_tiers.py`
 - **Imported by:** —
 
 ### tests/python/test_real_data.py
@@ -3188,7 +3313,7 @@ graph LR
 ### vlm_extract.py
 
 - **Imports:** —
-- **Imported by:** `ocr_layout.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_vlm_extract.py`, `tests/python/test_vlm_gpu.py`
+- **Imported by:** `ocr_layout.py`, `reader_jobs.py`, `tests/python/test_ocr_layout_backend.py`, `tests/python/test_reader_jobs.py`, `tests/python/test_reader_runtime.py`, `tests/python/test_vlm_extract.py`, `tests/python/test_vlm_gpu.py`
 
 ### webview_profile.py
 
