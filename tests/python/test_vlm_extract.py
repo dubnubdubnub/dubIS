@@ -497,6 +497,56 @@ def test_extract_returns_none_on_fenced_non_json(monkeypatch):
     assert vlm_extract.extract_line_items(PNG, "lcsc") is None
 
 
+# ── truncated replies ───────────────────────────────────────────────────
+# A verbose model on a long goods table hits max_tokens and the reply stops
+# mid-string. Measured on a real 6-row LCSC packing list: the 3B truncated and
+# scored 0 of 6 rows, because one unterminated string threw away five complete
+# ones. The complete objects before the break are good data.
+
+TRUNCATED_FENCED = (
+    '```json\n'
+    '{"items": [\n'
+    '  {"distributor_pn": "C12624", "mfr_pn": "CC0402KRX7R7BB104", "qty": 500},\n'
+    '  {"distributor_pn": "C25804", "mfr_pn": "RC0402FR-0710KL", "qty": 1000},\n'
+    '  {"distributor_pn": "C7420", "mfr_pn": "SS8050", "descr'
+)
+
+
+def test_extract_salvages_complete_rows_from_a_truncated_reply(monkeypatch):
+    _mock_urlopen(monkeypatch, models=ONLY_3B, content=TRUNCATED_FENCED)
+    rows = vlm_extract.extract_line_items(PNG, "lcsc")
+    assert rows is not None, "a truncated reply must not lose every row"
+    assert [r["distributor_pn"] for r in rows] == ["C12624", "C25804"]
+    assert [r["quantity"] for r in rows] == [500, 1000]
+
+
+def test_extract_salvages_from_a_truncated_bare_array(monkeypatch):
+    _mock_urlopen(monkeypatch, models=ONLY_3B, content=(
+        '[{"distributor_pn": "C1", "qty": 5}, {"distributor_pn": "C2", "qty": 6}, {"dist'))
+    rows = vlm_extract.extract_line_items(PNG, "lcsc")
+    assert [r["distributor_pn"] for r in rows] == ["C1", "C2"]
+
+
+def test_salvage_does_not_split_on_a_brace_inside_a_string():
+    # A description containing a brace must not end the object early.
+    text = '[{"mfr_pn": "X", "description": "bracket } here", "qty": 3}, {"mfr_pn": "trunc'
+    got = vlm_extract._salvage_truncated(text)
+    assert got == [{"mfr_pn": "X", "description": "bracket } here", "qty": 3}]
+
+
+def test_salvage_returns_none_when_nothing_is_recoverable():
+    # Prose, or a reply cut off before the first complete object: the caller
+    # must see the original parse failure, not a silent empty success.
+    assert vlm_extract._salvage_truncated("I cannot read that image") is None
+    assert vlm_extract._salvage_truncated('{"items": [{"mfr_pn": "trun') is None
+
+
+def test_extract_still_returns_none_when_salvage_finds_nothing(monkeypatch):
+    _mock_urlopen(monkeypatch, models=ONLY_3B,
+                  content='{"items": [{"mfr_pn": "trunca')
+    assert vlm_extract.extract_line_items(PNG, "lcsc") is None
+
+
 def test_extract_returns_none_on_malformed_envelope(monkeypatch):
     # A server that answers 200 with no choices must fall back, not raise.
     def fake(req, timeout=None):

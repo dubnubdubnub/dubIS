@@ -309,8 +309,62 @@ def _strip_code_fence(text: str) -> str:
     return (body[:close] if close != -1 else body).strip()
 
 
+def _salvage_truncated(text: str) -> list | None:
+    """Recover the complete row objects from a reply that was cut off mid-JSON.
+
+    A verbose model on a long goods table runs into ``max_tokens`` and the reply
+    ends inside a string, so ``json.loads`` rejects the whole thing and every row
+    is lost — measured on a 6-row LCSC packing list, where a truncated 3B reply
+    scored 0 of 6 while the same page read cleanly at a larger size. The complete
+    objects before the break are perfectly good, so scan the text for balanced
+    ``{...}`` runs (respecting strings and escapes, so a brace inside a
+    description is not counted) and keep the ones that parse. Returns None when
+    nothing is recoverable, so the caller reports the original parse failure
+    rather than silently succeeding with an empty result.
+    """
+    # Balanced objects are collected at EVERY nesting depth, not just depth 0:
+    # the rows live inside {"items": [...]} and that wrapper is exactly the thing
+    # the truncation left unclosed, so a depth-0-only scan finds nothing.
+    spans, stack, in_str, esc = [], [], False, False
+    for i, ch in enumerate(text):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            stack.append(i)
+        elif ch == "}" and stack:
+            start = stack.pop()
+            try:
+                obj = json.loads(text[start:i + 1])
+            except ValueError:
+                continue
+            if isinstance(obj, dict):
+                spans.append((start, i, obj))
+    # Keep only the outermost objects, so a row carrying a nested dict is
+    # counted once as the row rather than twice.
+    out = [o for (s, e, o) in spans
+           if not any(s2 < s and e < e2 for (s2, e2, _) in spans)]
+    return out or None
+
+
 def _parse_response(response_text: str, template: str, page_w: int = 0, page_h: int = 0):
-    data = json.loads(_strip_code_fence(response_text))
+    cleaned = _strip_code_fence(response_text)
+    try:
+        data = json.loads(cleaned)
+    except ValueError:
+        salvaged = _salvage_truncated(cleaned)
+        if salvaged is None:
+            raise
+        logger.warning("VLM reply was truncated; salvaged %d complete row(s)",
+                       len(salvaged))
+        data = salvaged
     if isinstance(data, dict):
         raw_items = data.get("items")
         if raw_items is None:
