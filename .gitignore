@@ -8,7 +8,14 @@ data/*.json
 !data/pnp_part_map.json
 !data/openpnp_families.json
 node_modules/
-.claude/
+# Local per-developer agent config, EXCEPT generated shared skills:
+# .claude/skills/dubis-cli/ is emitted by scripts/gen-cli.py and
+# staleness-checked by verify.sh, so CI needs it committed — an untracked file
+# can't be compared against the spec. Written as `.claude/*` rather than
+# `.claude/`, because git cannot re-include a path whose parent DIRECTORY is
+# excluded; only the contents can be globbed and then negated.
+.claude/*
+!.claude/skills/
 .mcp.json
 .pytest_cache/
 .ruff_cache/
