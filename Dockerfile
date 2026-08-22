@@ -44,6 +44,15 @@ COPY css/ css/
 # check below fails even though /data (the actual runtime volume) is empty.
 COPY data/constants.json data/constants.json
 
+# Static UI assets baked into the image, NOT user data: the frontend requests
+# these over HTTP from --static-dir /app (index.html's rel=icon and distributor
+# filter buttons, js/inventory/inv-html-builders.js's part-ID row icons), so
+# they must live at /app/data/ — the runtime volume mounts at /data, a
+# different path, and cannot serve them. Without this copy every icon 404s in
+# remote mode. data/dubIS.ico is omitted on purpose: it is only app.pyw's
+# native window icon, never fetched over HTTP.
+COPY data/dubIS.png data/digikey-icon.png data/lcsc-icon.ico data/mouser-icon.svg data/pololu-icon.svg data/
+
 # Proves the container's dependency set actually satisfies the server's import
 # graph at build time, not just "pip install didn't error" — inventory_api.py
 # pulls in every domain/api_*.py facade; server/__main__.py's _build_api() wraps
