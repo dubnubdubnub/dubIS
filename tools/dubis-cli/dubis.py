@@ -46,6 +46,7 @@ from tools.dubis_client import (  # noqa: E402
     PartNotFoundError,
     V1Error,
     connect,
+    default_data_dir,
     derive_part_key,
     find_part,
     precheck_adjust,
@@ -298,10 +299,16 @@ def _run_serve(args: argparse.Namespace) -> int:
     This replaces the implicit per-invocation spawn the retired MCP client
     did — see tools/dubis_client/v1client.py's module docstring for why a CLI
     must not spawn one itself.
+
+    The --data-dir is ALWAYS passed explicitly, never left to `python -m
+    server`'s own default of "." — that default is the repo root, one level
+    above the `<repo>/data` that connect() probes, so `dubis serve` followed by
+    any other command would exit 4 while the repo root quietly accumulated
+    .v1_port and .dubis_lock files.
     """
-    cmd = [sys.executable, "-m", "server", "--host", args.host, "--port", str(args.port)]
-    if args.data_dir:
-        cmd += ["--data-dir", args.data_dir]
+    data_dir = args.data_dir or default_data_dir(str(_REPO_ROOT))
+    cmd = [sys.executable, "-m", "server", "--host", args.host,
+           "--port", str(args.port), "--data-dir", data_dir]
     return subprocess.call(cmd, cwd=str(_REPO_ROOT))
 
 

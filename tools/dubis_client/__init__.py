@@ -16,7 +16,13 @@ from .curate import (
     precheck_adjust,
     resolve_canonical_key,
 )
-from .v1client import NoServerFoundError, V1Client, V1Error, connect
+from .v1client import (
+    NoServerFoundError,
+    V1Client,
+    V1Error,
+    connect,
+    default_data_dir,
+)
 
 __all__ = [
     "NoServerFoundError",
@@ -25,6 +31,7 @@ __all__ = [
     "V1Error",
     "compact_part",
     "connect",
+    "default_data_dir",
     "derive_part_key",
     "fetch_inventory",
     "find_part",
