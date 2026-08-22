@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Launcher for the dubIS CLI: `scripts/dubis parts list`.
+#
+# A shim rather than a console_script entry point because pyproject.toml has no
+# [project] table — this repo is not an installable package, and making it one
+# to get a `dubis` command on PATH would also drag in dubIS.spec (PyInstaller)
+# and the build story. Symlink this into your PATH if you want the bare name:
+#   ln -s "$PWD/scripts/dubis" ~/.local/bin/dubis
+#
+# Honours $PYTHON the way scripts/verify.sh does.
+set -eu
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PY="${PYTHON:-python}"
+exec "$PY" "$REPO_ROOT/tools/dubis-cli/dubis.py" "$@"
