@@ -1,8 +1,53 @@
+/**
+ * matching-perf.test.js — algorithmic guards for the BOM matcher.
+ *
+ * Nothing here is timed, and that is the point.
+ *
+ * These tests used to assert wall-clock budgets ("300 rows against 1000 items
+ * under 1000ms"). On the self-hosted macOS runner, which runs several CI legs
+ * at once, such a budget measures the runner's load and not the matcher: PR
+ * #418 — a one-line YAML change to deploy/kustomization.yaml — failed at
+ * 1900ms, and passed on rerun with nothing changed. Saturating that machine
+ * reproduces it exactly: the 300x1000 match takes ~24ms idle and 484-1000ms
+ * under load, and the whole suite fails 2 runs in 10.
+ *
+ * A ratio between two timed workloads does not rescue it either. Measured on
+ * the same saturated machine, best-of-5 samples each, the ratio between a
+ * 500-item and a 2000-item match ranged from 1.20 to 18.36 where an idle
+ * machine gives 1.92-2.05. Descheduling is bursty, so it does not cancel
+ * between two workloads. Nothing derived from a clock is trustworthy here.
+ *
+ * What these tests protect instead is the matcher's SHAPE: `buildLookupMaps`
+ * indexes inventory once, and every exact match is an O(1) lookup into those
+ * maps. The regression that matters is someone replacing `invByLCSC[key]` with
+ * `inventory.find(...)`, which turns matching quadratic. That is measured
+ * directly, by counting how many inventory items the matcher touches — the
+ * inventory handed to `matchBOM` is a Proxy that tallies every element and
+ * property read. The counts are exact integers, identical on any machine at
+ * any load.
+ *
+ * They also catch what the millisecond budgets never could. Swap that hash
+ * lookup for a full `inventory.find` scan and the old suite measures 24.7ms
+ * against its 1000ms budget and 0.39ms against its 50ms one — indistinguishable
+ * from healthy code, because 90 scanned rows over 1000 items is nothing for a
+ * CPU even though it is the whole regression. The old suite passed the bug and
+ * failed the scheduler. These counts do the reverse.
+ *
+ * The generators are seeded for the same reason — a perf guard that reads
+ * different data every run is measuring the data as well as the code.
+ *
+ * Deliberately NOT covered: steps 3 and 4 of `matchBOM` (MPN prefix and fuzzy
+ * matching) walk the entire MPN index for every row that reaches them, so a
+ * BOM of near-miss MPNs is O(rows x inventory) by design. That scan iterates
+ * the keys of a map built inside `matchBOM`, so it is invisible to the Proxy,
+ * and it is left unguarded rather than guarded by a clock that lies.
+ */
+
 import { describe, it, expect } from 'vitest';
 import { matchBOM } from '../../js/matching.js';
 import { bomKey } from '../../js/part-keys.js';
 
-// ── Synthetic data generators ──
+// ── Deterministic synthetic data ──
 
 const SECTIONS = [
   'Passives - Resistors',
@@ -23,8 +68,18 @@ const RES_VALUES = ['100Ω', '1kΩ', '4.7kΩ', '10kΩ', '47kΩ', '100kΩ', '1MΩ
 const CAP_VALUES = ['100nF', '10nF', '1µF', '10µF', '22pF', '47pF', '100pF', '4.7µF', '22µF', '470nF'];
 const IND_VALUES = ['10µH', '22µH', '100µH', '1µH', '4.7µH', '47µH', '220µH', '330µH', '2.2µH', '68µH'];
 
-function randomItem(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
+// mulberry32. The fixtures used to come from Math.random, which meant the work
+// the matcher did varied run to run — an avoidable source of noise in a suite
+// whose whole job is to notice when that work changes.
+function makeRng(seed) {
+  let s = seed >>> 0;
+  return function next() {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 function generateLCSC(i) {
@@ -37,14 +92,16 @@ function generateMPN(i) {
   return prefix + String(1000 + i).slice(1) + 'ABCD'.charAt(i % 4);
 }
 
-function generateInventory(count) {
+function generateInventory(count, seed = 1) {
+  const rnd = makeRng(seed);
+  const pick = arr => arr[Math.floor(rnd() * arr.length)];
   const items = [];
   for (let i = 0; i < count; i++) {
     const section = SECTIONS[i % SECTIONS.length];
     let desc;
-    if (section === 'Passives - Resistors') desc = 'Resistor ' + randomItem(RES_VALUES) + ' ±1%';
-    else if (section === 'Passives - Capacitors') desc = 'Capacitor ' + randomItem(CAP_VALUES) + ' 50V';
-    else if (section === 'Passives - Inductors') desc = 'Inductor ' + randomItem(IND_VALUES);
+    if (section === 'Passives - Resistors') desc = 'Resistor ' + pick(RES_VALUES) + ' ±1%';
+    else if (section === 'Passives - Capacitors') desc = 'Capacitor ' + pick(CAP_VALUES) + ' 50V';
+    else if (section === 'Passives - Inductors') desc = 'Inductor ' + pick(IND_VALUES);
     else desc = 'Part ' + i + ' ' + section;
 
     items.push({
@@ -52,7 +109,7 @@ function generateInventory(count) {
       mpn: generateMPN(i),
       section,
       description: desc,
-      package: randomItem(PACKAGES),
+      package: pick(PACKAGES),
       qty: 10 + (i % 50),
       unit_price: 0.01 + (i % 100) * 0.01,
     });
@@ -60,7 +117,9 @@ function generateInventory(count) {
   return items;
 }
 
-function generateBOM(count, inventory) {
+function generateBOM(count, inventory, seed = 2) {
+  const rnd = makeRng(seed);
+  const pick = arr => arr[Math.floor(rnd() * arr.length)];
   const entries = [];
   for (let i = 0; i < count; i++) {
     const bom = { lcsc: '', mpn: '', value: '', desc: '', refs: '', qty: 1 + (i % 5), footprint: '', dnp: false };
@@ -88,9 +147,9 @@ function generateBOM(count, inventory) {
       bom.refs = 'U' + (i + 1);
     } else if (i < count * 0.85) {
       // 10% value match (passive)
-      bom.value = randomItem(CAP_VALUES).replace('µ', 'u').replace('Ω', '');
+      bom.value = pick(CAP_VALUES).replace('µ', 'u').replace('Ω', '');
       bom.refs = 'C' + (i + 1);
-      bom.footprint = randomItem(PACKAGES);
+      bom.footprint = pick(PACKAGES);
     } else {
       // 15% missing (no match)
       bom.mpn = 'NONEXISTENT_' + i;
@@ -108,46 +167,145 @@ function bomMap(entries) {
   return m;
 }
 
-// ── Performance tests ──
+// A BOM of nothing but exact LCSC hits — the path that must be O(1) per row.
+//
+// Rows are spread across the whole inventory by a stride coprime with every
+// size used here, not taken off the front. That matters: a linear scan finds
+// item N after N comparisons, so a BOM that only ever asks for the first few
+// hundred items costs the same to scan whether inventory holds 500 records or
+// 8000, and the scan hides from any test that compares the two. Spread rows
+// make the average scan depth half the inventory, which is what a scan
+// actually costs in the field. The stride also walks all ten sections evenly,
+// keeping the per-row read count identical across inventory sizes.
+//
+// `count` must not exceed `inv.length`: two rows landing on the same item would
+// collide on bomKey and the Map would dedupe them. Callers read the row count
+// off the returned Map rather than assuming `count`.
+const BOM_STRIDE = 977;
 
-describe('matchBOM performance', () => {
-  it('matches 150 BOM rows against 500 inventory items under 500ms', () => {
-    const inventory = generateInventory(500);
-    const bomEntries = generateBOM(150, inventory);
-    const bom = bomMap(bomEntries);
+function exactMatchBom(inv, count) {
+  expect(count, 'exactMatchBom needs one distinct inventory item per row').toBeLessThanOrEqual(inv.length);
+  const entries = [];
+  for (let i = 0; i < count; i++) {
+    const item = inv[(i * BOM_STRIDE) % inv.length];
+    entries.push({ lcsc: item.lcsc, mpn: '', value: '', desc: '', refs: 'U' + i, qty: 1, footprint: '', dnp: false });
+  }
+  return bomMap(entries);
+}
 
-    const start = performance.now();
-    const { results } = matchBOM(bom, inventory, null, null);
-    const elapsed = performance.now() - start;
+// ── The instrument ──
 
-    expect(results).toHaveLength(150);
-    expect(elapsed).toBeLessThan(500);
+const ARRAY_INDEX = /^\d+$/;
+
+/**
+ * Wrap an inventory list so every element access and every property read on an
+ * element is tallied. One "read" is one unit of work the matcher spent looking
+ * at inventory, so the tally is a direct, machine-independent measure of how
+ * much of the inventory the matcher had to touch.
+ *
+ * Item proxies are created once and reused, so identity comparisons inside
+ * `matchBOM` (`findAlternatives` filters `c !== primaryInv`) behave normally.
+ */
+function meterInventory(items) {
+  const meter = { reads: 0 };
+  const tallyProperty = {
+    get(target, prop, receiver) {
+      meter.reads++;
+      return Reflect.get(target, prop, receiver);
+    },
+  };
+  const rows = items.map(item => new Proxy(item, tallyProperty));
+  const inventory = new Proxy(rows, {
+    get(target, prop, receiver) {
+      if (typeof prop === 'string' && ARRAY_INDEX.test(prop)) meter.reads++;
+      return Reflect.get(target, prop, receiver);
+    },
+  });
+  return { inventory, meter };
+}
+
+/** Run one match and report how many inventory reads it took. */
+function inventoryWork(bom, items) {
+  const { inventory, meter } = meterInventory(items);
+  meter.reads = 0;
+  const { results } = matchBOM(bom, inventory, null, null);
+  return { reads: meter.reads, results };
+}
+
+/** Reads spent purely on indexing `size` items — matching an empty BOM. */
+function indexingWork(size) {
+  return inventoryWork(new Map(), generateInventory(size)).reads;
+}
+
+/**
+ * The cost of one more exact-match BOM row, at a given inventory size.
+ * Taking a difference between two BOM sizes cancels the fixed indexing cost,
+ * leaving only what a row itself spends looking at inventory.
+ */
+function marginalReadsPerExactRow(invSize) {
+  const items = generateInventory(invSize);
+  const few = exactMatchBom(items, 100);
+  const many = exactMatchBom(items, 500);
+  const a = inventoryWork(few, items);
+  const b = inventoryWork(many, items);
+  expect(a.results).toHaveLength(few.size);
+  expect(b.results).toHaveLength(many.size);
+  return (b.reads - a.reads) / (many.size - few.size);
+}
+
+// ── Indexing ──
+
+describe('matchBOM indexing', () => {
+  it('reads each inventory item a fixed number of times, however big inventory is', () => {
+    // buildLookupMaps is one pass: reads-per-item is a property of the record
+    // shape, not of how many records there are. If indexing ever became
+    // quadratic — a dedupe that rescans what it has accumulated, say — this is
+    // the number that moves.
+    const perItem = [500, 2000, 8000].map(n => indexingWork(n) / n);
+    expect(perItem[1], 'reads/item grew when inventory quadrupled').toBeLessThan(perItem[0] * 1.1);
+    expect(perItem[2], 'reads/item grew when inventory grew 16x').toBeLessThan(perItem[0] * 1.1);
+  });
+});
+
+// ── The O(1) exact-match invariant ──
+
+describe('matchBOM exact matches', () => {
+  it('costs the same per BOM row whether inventory is small or large', () => {
+    // The whole reason buildLookupMaps exists. A hash hit reads the one item it
+    // found; a linear scan reads a fraction of the entire inventory, so this
+    // ratio would come back at roughly the 16x the inventory grew by.
+    const small = marginalReadsPerExactRow(500);
+    const large = marginalReadsPerExactRow(8000);
+    expect(large, `per-row cost scaled with inventory: ${small} -> ${large} reads/row for 16x the items`)
+      .toBeLessThan(small * 1.5);
   });
 
-  it('matches 300 BOM rows against 1000 inventory items under 1000ms', () => {
-    const inventory = generateInventory(1000);
-    const bomEntries = generateBOM(300, inventory);
-    const bom = bomMap(bomEntries);
-
-    const start = performance.now();
-    const { results } = matchBOM(bom, inventory, null, null);
-    const elapsed = performance.now() - start;
-
-    expect(results).toHaveLength(300);
-    expect(elapsed).toBeLessThan(1000);
+  it('reads only a handful of inventory items per BOM row', () => {
+    // The absolute companion to the ratio above: a scan of even 1% of an 8000
+    // item inventory is 80 reads a row. Current cost is 2.3, so this bound has
+    // room for the matcher to grow a few more per-row reads legitimately.
+    const perRow = marginalReadsPerExactRow(8000);
+    expect(perRow, 'an exact match should be a lookup, not a search').toBeLessThan(10);
   });
+});
 
-  it('matches 500 BOM rows against 2000 inventory items under 3000ms', () => {
-    const inventory = generateInventory(2000);
-    const bomEntries = generateBOM(500, inventory);
-    const bom = bomMap(bomEntries);
+// ── The realistic mixed BOM ──
 
-    const start = performance.now();
-    const { results } = matchBOM(bom, inventory, null, null);
-    const elapsed = performance.now() - start;
+describe('matchBOM on a realistic BOM', () => {
+  it('costs little more than indexing the inventory it matches against', () => {
+    // 300 rows across every match path — exact, prefix, fuzzy, value, missing.
+    // Measured against the cost of merely indexing the same inventory, so the
+    // bound scales with the record shape instead of hard-coding a read count.
+    for (const size of [1000, 4000]) {
+      const items = generateInventory(size);
+      const bom = bomMap(generateBOM(300, items));
+      const { reads, results } = inventoryWork(bom, items);
+      expect(results).toHaveLength(bom.size);
 
-    expect(results).toHaveLength(500);
-    expect(elapsed).toBeLessThan(3000);
+      const ratio = reads / indexingWork(size);
+      expect(ratio, `matching ${bom.size} rows against ${size} items cost ${ratio.toFixed(2)}x indexing them`)
+        .toBeLessThan(2);
+    }
   });
 });
 
@@ -205,45 +363,6 @@ describe('matchBOM correctness at scale', () => {
         expect(alt).not.toBe(r.inv);
       });
     });
-  });
-});
-
-// ── Scaling behavior ──
-
-describe('matchBOM scaling', () => {
-  it('doubling inventory size increases time sub-linearly for exact matches', () => {
-    // With mostly exact matches, time should scale ~linearly with BOM size,
-    // not quadratically with inventory size (thanks to lookup maps)
-    const smallInv = generateInventory(250);
-    const largeInv = generateInventory(1000);
-
-    // BOM with only LCSC matches (O(1) lookups)
-    function makeExactBom(inv, count) {
-      const entries = [];
-      for (let i = 0; i < count; i++) {
-        const item = inv[i % inv.length];
-        entries.push({ lcsc: item.lcsc, mpn: '', value: '', desc: '', refs: 'U' + i, qty: 1, footprint: '', dnp: false });
-      }
-      return bomMap(entries);
-    }
-
-    const bomSmall = makeExactBom(smallInv, 100);
-    const bomLarge = makeExactBom(largeInv, 100);
-
-    // Warm up
-    matchBOM(bomSmall, smallInv, null, null);
-
-    const t1Start = performance.now();
-    matchBOM(bomSmall, smallInv, null, null);
-    const t1 = performance.now() - t1Start;
-
-    const t2Start = performance.now();
-    matchBOM(bomLarge, largeInv, null, null);
-    const t2 = performance.now() - t2Start;
-
-    // 4x inventory but same BOM size — with hash lookups, should be < 4x slower
-    // Allow generous 6x factor to account for map building overhead
-    expect(t2).toBeLessThan(Math.max(t1 * 6, 50));
   });
 });
 
