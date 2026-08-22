@@ -89,6 +89,7 @@
 <link rel="stylesheet" href="css/components/cart.css">
 <link rel="stylesheet" href="css/components/ui-zoom.css">
 <link rel="stylesheet" href="css/components/panel-collapse.css">
+<link rel="stylesheet" href="css/components/reader.css">
 <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -364,6 +365,46 @@
       <span style="font-size:11px;color:var(--text-muted);max-width:420px">
         Blank runs dubIS&rsquo;s own server locally. A URL points this window at an
         already-deployed one instead &mdash; decided once at launch, so it needs a restart.
+      </span>
+    </div>
+    <div class="modal-divider"></div>
+    <!-- Picture/PDF reader. In the modal, never the header: a new header control
+         adds a whole wrapped row at narrow widths and can push the panels off an
+         800x600 viewport (see CLAUDE.md's header trap). No "restart to apply"
+         here either — unlike the remote server above, the reader is chosen per
+         import, so a change takes effect on the next one. -->
+    <div class="modal-subtitle" style="margin-bottom:4px"><strong>Picture/PDF reader</strong></div>
+    <div class="reader-prefs" id="reader-prefs">
+      <label class="reader-field">Read pictures with
+        <select id="pref-reader-mode">
+          <option value="off">Off &mdash; plain text only</option>
+          <option value="local">This computer</option>
+          <option value="remote">Another machine</option>
+          <option value="auto">Automatic &mdash; this computer, else another</option>
+        </select>
+      </label>
+      <label class="reader-field" id="reader-url-field">Reader address
+        <input type="text" id="pref-reader-url" spellcheck="false"
+               placeholder="find one automatically (blank)">
+      </label>
+      <span class="reader-hint" id="reader-mode-hint"></span>
+      <div class="reader-actions">
+        <button class="btn-lg btn btn-apply" id="reader-install-btn" style="padding:4px 14px;font-size:12px">Install on this computer</button>
+        <button class="btn-lg btn btn-danger hidden" id="reader-uninstall-btn" style="padding:4px 14px;font-size:12px">Uninstall</button>
+        <span class="reader-local-status" id="reader-local-status"></span>
+      </div>
+      <div class="reader-progress-wrap hidden" id="reader-progress-wrap">
+        <div class="reader-progress" id="reader-progress" role="progressbar"
+             aria-label="Reader install progress" aria-valuemin="0" aria-valuemax="100">
+          <div class="reader-progress-fill" id="reader-progress-fill"></div>
+        </div>
+        <span class="reader-progress-pct" id="reader-progress-pct"></span>
+      </div>
+      <div class="reader-status-line" id="reader-status-line" role="status" aria-live="polite"></div>
+      <span class="reader-hint">
+        Reading a picture or PDF needs a reader model. Downloading it takes
+        several GiB; nothing is fetched until you press Install. A change here
+        applies to the next import &mdash; no restart needed.
       </span>
     </div>
     <div class="modal-divider"></div>

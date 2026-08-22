@@ -546,8 +546,19 @@ class InventoryApi:
     def ocr_engine_available(self) -> bool:
         return self._scan.ocr_engine_available()
 
-    def install_tesseract(self) -> dict[str, Any]:
-        return self._scan.install_tesseract()
+    # Local picture/PDF reader — reached over the pywebview client shell, not
+    # /v1 (it installs/runs on the client machine; see client_shell.py).
+    def start_reader_install(self) -> dict[str, Any]:
+        return self._scan.start_reader_install()
+
+    def get_reader_install_status(self, job_id: str) -> dict[str, Any]:
+        return self._scan.get_reader_install_status(job_id)
+
+    def uninstall_reader(self) -> dict[str, Any]:
+        return self._scan.uninstall_reader()
+
+    def get_reader_status(self) -> dict[str, Any]:
+        return self._scan.get_reader_status()
 
     def start_scan_session(self, template: str = "generic") -> dict[str, Any]:
         return self._scan.start_scan_session(template)

@@ -53,23 +53,26 @@ export function renderDropZone(templates, selectedOcrTemplate = 'generic') {
   `;
 }
 
-/** The copyable fallback command shown when in-app install isn't possible. */
-export const TESSERACT_WINGET_COMMAND = 'winget install UB-Mannheim.TesseractOCR';
-
 /**
- * Render the missing-OCR-engine notice with an in-app Install button and a
- * copyable winget command fallback. Inserted into #import-ocr-zone when the
- * engine is unavailable.
+ * Render the notice shown in #import-ocr-zone when nothing on this machine can
+ * read a picture or PDF.
+ *
+ * This used to offer an in-app `winget install UB-Mannheim.TesseractOCR` and a
+ * copyable command to run by hand. Both were Windows-only: off Windows the click
+ * was a no-op that toasted a winget command, and the command itself was useless
+ * (see docs/plans/2026-08-21-cross-platform-reader-design.md, problem 2). The
+ * cross-platform reader replaces it, and the reader is a *preference* — off,
+ * local, remote or automatic — so the honest affordance here is to send the user
+ * to that setting rather than to imply one fixed thing to install.
  * @returns {string} HTML string
  */
 export function renderOcrEngineNotice() {
   return `
     <div class="ocr-engine-missing" id="ocr-engine-missing">
-      <p class="ocr-engine-missing-msg">Image/PDF import needs the Tesseract OCR engine.</p>
-      <button class="new-po-btn" id="install-tesseract-btn">Install Tesseract</button>
+      <p class="ocr-engine-missing-msg">Nothing is set up yet to read pictures or PDFs.</p>
+      <button class="new-po-btn" id="open-reader-prefs-btn">Set up the reader…</button>
       <div class="ocr-engine-missing-fallback">
-        <span>or run this command yourself:</span>
-        <code>${escHtml(TESSERACT_WINGET_COMMAND)}</code>
+        <span>Preferences &rarr; Picture/PDF reader. CSV import works without it.</span>
       </div>
     </div>
   `;

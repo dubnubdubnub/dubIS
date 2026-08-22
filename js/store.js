@@ -50,6 +50,14 @@ let preferences = {
   saved_views: [],
   // "" = local mode (spawn our own server). See remote_mode.py.
   server_url: "",
+  // Where the picture/PDF reader's VLM runs: off | local | remote | auto.
+  // "off" on a clean install on purpose — "local" downloads multi-GB weights,
+  // which may only happen because someone clicked Install. See
+  // domain/api_preferences.py (READER_MODES).
+  reader_mode: "off",
+  // Explicit endpoint for remote mode; "" = discover a node via the fleet
+  // registry instead (fleet_client.py).
+  reader_url: "",
 };
 
 // ── Signals ───────────────────────────────────────────────
@@ -324,6 +332,11 @@ export async function loadPreferences() {
     // server_url from that file, so dropping it would have quietly un-set the
     // remote server the moment the user touched a slider.
     preferences.server_url = normalizeServerUrl(stored.server_url);
+    // Same reason, same hazard: the reader mode is a click away from a
+    // multi-GB download, so silently reverting it to "off" on the next
+    // unrelated save would be worse than useless.
+    preferences.reader_mode = normalizeReaderMode(stored.reader_mode);
+    preferences.reader_url = normalizeReaderUrl(stored.reader_url);
     // Raw pass-through: both are validated by their own owning module —
     // ui_zoom by normalizePersistedZoom (js/ui-zoom-logic.js) and
     // panels_collapsed by normalizeCollapsed (js/panel-collapse-logic.js) —
@@ -562,6 +575,85 @@ export function setServerUrl(url) {
   savePreferences();
   preferencesSignal.set(preferences);
   return preferences.server_url;
+}
+
+// ── Reader preferences ──
+// Mirrors server_url above, and mirrors domain/api_preferences.py, which is the
+// authority: the server REJECTS an unknown reader_mode with a 400 rather than
+// coercing it. Coercing here (not raising) is what keeps our own UI from ever
+// posting one — a select element can only offer the four, and a stale
+// preferences.json is repaired on read instead of failing every later save.
+
+/** The four modes, in the order the Preferences UI offers them. */
+export const READER_MODES = ["off", "local", "remote", "auto"];
+
+/**
+ * Coerce a stored reader mode to one of READER_MODES, defaulting to "off".
+ * @param {any} raw
+ * @returns {string}
+ */
+function normalizeReaderMode(raw) {
+  const text = String(raw ?? "").trim().toLowerCase();
+  if (!text) return "off";
+  if (!READER_MODES.includes(text)) {
+    AppLog.warn("load_preferences: unknown reader_mode " + JSON.stringify(raw) + " — using off");
+    return "off";
+  }
+  return text;
+}
+
+/**
+ * Coerce a stored reader endpoint to a string, or "" for fleet discovery.
+ *
+ * Shape only, like normalizeServerUrl: a node that is merely powered off must
+ * stay typable. A value with no http(s) scheme and host is dropped rather than
+ * stored — it would be resolved against this page's own origin and quietly
+ * point the reader at dubIS itself.
+ * @param {any} raw
+ * @returns {string}
+ */
+function normalizeReaderUrl(raw) {
+  const text = String(raw ?? "").trim();
+  if (!text) return "";
+  if (!/^https?:\/\/[^\s/?#]+/i.test(text)) return "";
+  return text.replace(/\/+$/, "");
+}
+
+/** @returns {string} the configured reader mode: off | local | remote | auto. */
+export function getReaderMode() {
+  return normalizeReaderMode(preferences.reader_mode);
+}
+
+/**
+ * Persist the reader mode. Takes effect on the NEXT extraction — unlike
+ * server_url this needs no restart, because the reader is chosen per import
+ * rather than once at launch.
+ * @param {string} mode one of READER_MODES
+ * @returns {string} what was actually stored
+ */
+export function setReaderMode(mode) {
+  preferences.reader_mode = normalizeReaderMode(mode);
+  savePreferences();
+  preferencesSignal.set(preferences);
+  return preferences.reader_mode;
+}
+
+/** @returns {string} the explicit reader endpoint, or "" for fleet discovery. */
+export function getReaderUrl() {
+  return normalizeReaderUrl(preferences.reader_url);
+}
+
+/**
+ * Persist the explicit reader endpoint. "" hands remote mode back to fleet
+ * discovery rather than disabling it.
+ * @param {string} url
+ * @returns {string} what was actually stored ("" if the URL was rejected)
+ */
+export function setReaderUrl(url) {
+  preferences.reader_url = normalizeReaderUrl(url);
+  savePreferences();
+  preferencesSignal.set(preferences);
+  return preferences.reader_url;
 }
 
 /**

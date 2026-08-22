@@ -169,7 +169,16 @@ export const apiMfgDirect = {
   matchPart: (mpn, mfg) => api('match_part', mpn, mfg),
   startScanSession: (template) => api('start_scan_session', template),
   ocrEngineAvailable: () => api('ocr_engine_available'),
-  installTesseract: () => api('install_tesseract'),
+
+  // The local picture/PDF reader (start_reader_install /
+  // get_reader_install_status / uninstall_reader / get_reader_status) has no
+  // wrapper here on purpose. Its only caller, js/reader/reader-panel.js, uses
+  // api()'s string-keyed form, and a second spelling of the same four calls is
+  // just drift waiting to happen. They are pywebview-shell methods and are
+  // deliberately absent from API_MAP, so api() falls through to
+  // window.pywebview.api[name] rather than issuing a fetch: the reader installs
+  // to and runs on the CLIENT machine, and in remote-backend mode there is no
+  // local /v1 at all (the remote one is the wrong machine) — see client_shell.py.
 };
 
 export const apiWarnings = { get: () => api('get_warnings') };

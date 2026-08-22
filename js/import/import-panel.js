@@ -130,14 +130,20 @@ export function init() {
     });
   }
 
-  // Async: if the Tesseract OCR engine is missing, surface an in-app install
-  // affordance in the image/PDF zone. Best-effort — failure to check is logged.
+  // Async: if nothing on this machine can read a picture/PDF, surface a notice
+  // in the image/PDF zone pointing at the reader setting. Best-effort — failure
+  // to check is logged.
   refreshOcrEngineNotice();
 }
 
 /**
- * Check whether the OCR engine is available and, if not, render the missing-
- * engine notice (with Install button + copyable command) into the OCR zone.
+ * Check whether anything can read a picture/PDF and, if not, render the notice
+ * that points at the reader setting into the OCR zone.
+ *
+ * `ocr_engine_available` still drives whether the notice shows — it is the one
+ * backend answer that means "an image import right now would produce nothing".
+ * What changed is the notice itself: it no longer offers a Windows-only
+ * tesseract install (see renderOcrEngineNotice).
  */
 async function refreshOcrEngineNotice() {
   // `ocr_engine_available` is an HTTP-mapped /v1 method (Task 10 flip) — no
@@ -158,37 +164,30 @@ async function refreshOcrEngineNotice() {
   const ocrZone = document.getElementById("import-ocr-zone");
   if (!ocrZone || document.getElementById("ocr-engine-missing")) return;
   ocrZone.insertAdjacentHTML("afterbegin", renderOcrEngineNotice());
-  wireInstallTesseract();
+  wireReaderNotice();
 }
 
-/** Wire the in-zone "Install Tesseract" button to the backend install method. */
-function wireInstallTesseract() {
-  const btn = document.getElementById("install-tesseract-btn");
+/**
+ * Wire the in-zone notice's button to the reader setting in Preferences.
+ *
+ * The install itself lives there, not here: it is a preference with four modes
+ * (off / this computer / another machine / automatic) plus a multi-GiB download
+ * with its own progress bar and an uninstall — none of which belongs crammed
+ * into a drop zone. Dynamic import so the import panel does not statically
+ * depend on the preferences modal (which imports the store and the reader
+ * panel).
+ */
+function wireReaderNotice() {
+  const btn = document.getElementById("open-reader-prefs-btn");
   if (!btn) return;
-  btn.addEventListener("click", async (e) => {
+  btn.addEventListener("click", (e) => {
     e.stopPropagation();
-    const label = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = "Installing… approve the Windows prompt";
-    let res;
-    try {
-      res = await apiMfgDirect.installTesseract();
-    } catch (exc) {
-      AppLog.error('install_tesseract call failed: ' + exc);
-      res = undefined;
-    }
-    if (res && (res.ok || res.available)) {
-      showToast("Tesseract installed");
-      AppLog.info("Tesseract OCR engine installed via in-app button");
-      const notice = document.getElementById("ocr-engine-missing");
-      if (notice) notice.remove();
-      return;
-    }
-    btn.disabled = false;
-    btn.textContent = label;
-    const msg = (res && res.message) || "Install failed — run: winget install UB-Mannheim.TesseractOCR";
-    showToast(msg);
-    AppLog.warn("Tesseract install failed: " + msg);
+    import('../preferences-modal.js')
+      .then(m => m.openPreferencesModal())
+      .catch(exc => {
+        AppLog.error('could not open Preferences: ' + exc);
+        showToast('Could not open Preferences — the reader setting lives there');
+      });
   });
 }
 

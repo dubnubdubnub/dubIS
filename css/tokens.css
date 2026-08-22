@@ -146,4 +146,23 @@
   --cart-plan-seg-pad-y:         2px;  /* vertical padding inside a segment */
   --cart-boards-input-w:        62px;  /* board-count number input */
   --cart-plan-note-max-w:      260px;  /* note text before it ellipsises */
+
+  /* ── Picture/PDF reader (css/components/reader.css) ─────────────────────────
+     The reader block in the Preferences modal: mode select, endpoint field,
+     Install/Uninstall buttons, and the install progress bar.
+     The bar is deliberately reserved-space: the status line and percentage
+     readout keep their box whether or not there is anything to say, so a poll
+     that arrives with a longer phase label cannot jog every control below it.
+     Consumed by: css/components/reader.css */
+  --reader-row-gap:            8px;   /* vertical gap between rows in the block */
+  --reader-actions-gap:        8px;   /* gap between Install / Uninstall / status */
+  --reader-url-min-w:        220px;   /* endpoint input before it flexes wider */
+  --reader-hint-max-w:       420px;   /* explanatory text, matching the Server hint */
+  --reader-bar-h:              8px;   /* progress bar track height */
+  --reader-bar-indet-w:         34%;  /* width of the sliding sliver while a phase
+                                         reports no percentage — a determinate-looking
+                                         bar parked at 0% reads as "stuck" */
+  --reader-bar-gap:            8px;   /* gap between the bar and its percentage */
+  --reader-pct-w:             38px;   /* percentage readout, sized for "100%" */
+  --reader-status-min-h:      15px;   /* one line of status text, always reserved */
 }

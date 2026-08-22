@@ -384,8 +384,9 @@ class Launcher:
     def _cleanup(self):
         """Best-effort teardown before os._exit. Order matters: stop the PnP
         server FIRST (no new requests; in-flight ones finish) so a mid-flight
-        adjust_part can't write to a connection we're about to close, THEN
-        commit+close the cache, THEN release the data-dir lock LAST.
+        adjust_part can't write to a connection we're about to close, THEN stop
+        the local reader's llama-server (once nothing can still be mid-OCR),
+        THEN commit+close the cache, THEN release the data-dir lock LAST.
 
         The lock must outlive both the /v1 server and the cache close: if it
         were released as soon as stop_server() is called (the old behavior),
@@ -422,6 +423,23 @@ class Launcher:
                 stop_server(v1_server, data_dir=self.api.base_dir, release_lock=False)
         except Exception as exc:
             logger.warning("Cleanup: stopping /v1 server failed: %s", exc)
+        # Local picture/PDF reader: stop the llama-server we spawned, if any.
+        # After both request sources are down, for the same reason the PnP server
+        # goes first — an in-flight OCR call must not lose its VLM backend
+        # mid-request. reader_runtime's own last-resort atexit hook never fires
+        # here: _hard_exit() below is TerminateProcess/os._exit, neither of which
+        # runs atexit. So on macOS — which has neither PDEATHSIG (Linux) nor a
+        # kill-on-job-close Job Object (Windows) — the child would otherwise
+        # outlive us, holding the GPU and an mmap of a multi-GiB GGUF until the
+        # *next* launch reaped its state file. Imported lazily: reader_runtime is
+        # only reachable after an install, so module-scope import would cost
+        # every startup for a feature most launches never touch. No-op when
+        # nothing is running, and idempotent, like the rest of _cleanup.
+        try:
+            import reader_runtime
+            reader_runtime.stop_all()
+        except Exception as exc:
+            logger.warning("Cleanup: stopping the local reader failed: %s", exc)
         try:
             self.api.shutdown()
         except Exception as exc:
