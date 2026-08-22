@@ -25,6 +25,11 @@
 #      cluster-side install, not a change here, and this workflow becomes
 #      redundant.
 #
+# UNTIL THEN, the PR opens with no checks at all and sits at BLOCKED. Close and
+# reopen it (`gh pr close <n> && gh pr reopen <n>`) and the checks start: the
+# reopen is your event, not the token's, so the recursion guard does not apply.
+# That is the no-secret way to merge it without an admin protection bypass.
+#
 # The branch name is fixed, so repeated runs update the same PR instead of
 # stacking one PR per merge to main.
 name: Bump deployed image
