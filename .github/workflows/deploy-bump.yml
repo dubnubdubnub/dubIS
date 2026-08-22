@@ -1,0 +1,195 @@
+# Open a PR pinning deploy/kustomization.yaml to the image that was just built.
+#
+# WHY A PR AND NOT A PUSH
+# build-image.yml explains at length why it does not write the built sha back
+# to `main`: main is hardened (PR required + required status checks), so a
+# write-back push is rejected with GH006. That reasoning stands. What it left
+# manual was the bookkeeping -- read the sha out of a job summary, hand-edit
+# one line, remember that a short sha 404s at pull time. That part is
+# mechanical, so this workflow does it and opens the PR.
+#
+# The merge stays a human click, which is the intent build-image.yml states:
+# dubIS deploys are gated -- Isaac provisions them. Automating the edit does
+# not automate the decision to ship.
+#
+# TO GO FULLY HANDS-OFF, pick one:
+#   1. Set a DEPLOY_BUMP_TOKEN secret (fine-grained PAT or GitHub App token
+#      with contents:write + pull-requests:write) and enable auto-merge on the
+#      repo. A PR opened with the default GITHUB_TOKEN deliberately does NOT
+#      trigger other workflows -- that is GitHub's recursion guard -- so the
+#      required checks never start and auto-merge would wait forever. A PAT is
+#      a different actor, so its PR triggers CI normally. This workflow already
+#      prefers DEPLOY_BUMP_TOKEN when present and enables auto-merge with it.
+#   2. Run Argo CD Image Updater so Argo watches GHCR directly and no git
+#      write happens at all (build-image.yml's stated preference). That needs
+#      cluster-side install, not a change here, and this workflow becomes
+#      redundant.
+#
+# The branch name is fixed, so repeated runs update the same PR instead of
+# stacking one PR per merge to main.
+name: Bump deployed image
+
+on:
+  workflow_run:
+    workflows: ["Build image"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Full 40-char commit sha to pin (defaults to main's HEAD)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: deploy-bump
+  cancel-in-progress: false
+
+env:
+  BUMP_BRANCH: deploy/bump-image
+  KUSTOMIZATION: deploy/kustomization.yaml
+
+jobs:
+  bump:
+    name: Open image-pin PR
+    # A failed or cancelled build produced no image to pin.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.DEPLOY_BUMP_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Resolve the sha to pin
+        id: target
+        env:
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          INPUT_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          sha="${INPUT_SHA:-$RUN_SHA}"
+          if [[ -z "$sha" ]]; then sha="$(git rev-parse main)"; fi
+          # Full 40-char hex only. GHCR tags are exact strings, so a short sha
+          # is not a prefix of anything -- it simply fails to pull. Refusing
+          # here beats discovering it as ImagePullBackOff.
+          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::'$sha' is not a full 40-char sha"
+            exit 1
+          fi
+          # Pin only something that is actually on main. A sha from a branch
+          # would deploy code that never passed main's required checks.
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "::error::$sha is not an ancestor of main"
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Read the currently pinned sha
+        id: current
+        run: |
+          set -euo pipefail
+          current="$(grep -oE 'newTag: *"?[0-9a-f]{40}"?' "$KUSTOMIZATION" \
+                     | grep -oE '[0-9a-f]{40}' || true)"
+          echo "sha=$current" >> "$GITHUB_OUTPUT"
+          echo "Currently pinned: ${current:-<none>}"
+
+      - name: Nothing to do
+        if: steps.current.outputs.sha == steps.target.outputs.sha
+        run: |
+          echo "Already pinned to ${{ steps.target.outputs.sha }}." \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write the new pin
+        if: steps.current.outputs.sha != steps.target.outputs.sha
+        env:
+          TARGET: ${{ steps.target.outputs.sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re, sys
+          path = os.environ["KUSTOMIZATION"]
+          target = os.environ["TARGET"]
+          src = open(path).read()
+          new, n = re.subn(r'(newTag: *)"?[0-9a-f]{40}"?', rf'\1"{target}"', src)
+          if n != 1:
+              sys.exit(f"expected exactly one 40-char newTag in {path}, found {n}")
+          open(path, "w").write(new)
+          PY
+          git diff --stat -- "$KUSTOMIZATION"
+
+      - name: Push the branch and open/update the PR
+        if: steps.current.outputs.sha != steps.target.outputs.sha
+        env:
+          GH_TOKEN: ${{ secrets.DEPLOY_BUMP_TOKEN || secrets.GITHUB_TOKEN }}
+          HAVE_PAT: ${{ secrets.DEPLOY_BUMP_TOKEN != '' }}
+          TARGET: ${{ steps.target.outputs.sha }}
+          CURRENT: ${{ steps.current.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BUMP_BRANCH"
+          git add "$KUSTOMIZATION"
+          git commit -m "deploy: pin dubis-server to ${TARGET:0:12}"
+          git push --force-with-lease origin "$BUMP_BRANCH"
+
+          # What the cluster would gain, so the PR says what is being shipped
+          # rather than just showing a sha swap.
+          if [[ -n "$CURRENT" ]] && git cat-file -e "$CURRENT^{commit}" 2>/dev/null; then
+            changelog="$(git log --oneline --no-merges "$CURRENT..$TARGET")"
+          else
+            changelog="(previous pin $CURRENT is not a known commit -- no range available)"
+          fi
+
+          body="$(cat <<EOF
+          Pins \`deploy/kustomization.yaml\` to \`$TARGET\`.
+
+          | | |
+          |---|---|
+          | was | \`$CURRENT\` |
+          | now | \`$TARGET\` |
+
+          Reaches the cluster once Argo syncs.
+
+          <details><summary>Commits this deploy picks up</summary>
+
+          \`\`\`
+          $changelog
+          \`\`\`
+
+          </details>
+
+          Opened by \`.github/workflows/deploy-bump.yml\`.
+          EOF
+          )"
+
+          if gh pr view "$BUMP_BRANCH" --json number >/dev/null 2>&1; then
+            gh pr edit "$BUMP_BRANCH" --title "deploy: pin dubis-server to ${TARGET:0:12}" \
+              --body "$body"
+          else
+            gh pr create --base main --head "$BUMP_BRANCH" \
+              --title "deploy: pin dubis-server to ${TARGET:0:12}" --body "$body"
+          fi
+
+          if [[ "$HAVE_PAT" == "true" ]]; then
+            # Only meaningful with a PAT: a GITHUB_TOKEN PR never starts the
+            # required checks, so --auto would block forever.
+            gh pr merge "$BUMP_BRANCH" --auto --squash || \
+              echo "::warning::auto-merge unavailable (enable it in repo settings)"
+          else
+            echo "::notice::No DEPLOY_BUMP_TOKEN -- the PR is open but its required checks will not start. Merge it yourself, or see this workflow's header."
+          fi
+
+          {
+            echo "### Deploy pin PR ready"
+            echo ""
+            echo "\`$CURRENT\` → \`$TARGET\`"
+          } >> "$GITHUB_STEP_SUMMARY"
