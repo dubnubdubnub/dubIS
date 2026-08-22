@@ -273,3 +273,113 @@ def test_serve_honours_an_explicit_data_dir(monkeypatch, tmp_path):
 
     cmd = captured["cmd"]
     assert cmd[cmd.index("--data-dir") + 1] == str(tmp_path)
+
+
+# ── curated hot-path commands ────────────────────────────────────────────────
+#
+# Hand-written rather than generated because they are compositions, not
+# routes: `get` aggregates five calls, `search` filters client-side (there is
+# no /v1 search route), `low-stock` reads per-section thresholds.
+
+
+def test_search_matches_description_case_insensitively(cli):
+    payload, _ = cli("search", "capacitor")
+    assert payload["total_count"] == 1
+    assert payload["matches"][0]["part_key"] == "C1000"
+
+
+def test_search_matches_mpn(cli):
+    payload, _ = cli("search", "LM358DR")
+    assert payload["matches"][0]["part_key"] == "LM358DR"
+
+
+def test_search_empty_query_returns_everything(cli):
+    payload, _ = cli("search")
+    assert payload["total_count"] >= 2
+
+
+def test_search_respects_max_results_without_lying_about_the_total(cli):
+    payload, _ = cli("search", "--max-results", "1")
+    assert payload["returned"] == 1
+    assert payload["total_count"] >= 2
+
+
+def test_search_returns_only_the_compact_projection(cli):
+    payload, _ = cli("search", "capacitor")
+    assert set(payload["matches"][0]) == {
+        "part_key", "description", "qty", "section", "package", "unit_price",
+    }
+
+
+def test_get_aggregates_the_detail_card(cli):
+    payload, _ = cli("get", "C1000")
+    assert payload["part_key"] == "C1000"
+    for field in ("prices", "groups", "recent_history", "has_purchase_history"):
+        assert field in payload
+
+
+def test_get_resolves_an_alias_pn(cli):
+    payload, _ = cli("get", "CL05B104KO5NNNC")
+    assert payload["part_key"] == "C1000"
+
+
+def test_get_on_a_miss_exits_3_rather_than_succeeding(cli):
+    """The MCP tool returned "Part not found: X" as a SUCCESSFUL result. A CLI
+    caller reads the exit code, so a miss reported as 0 is a silent failure."""
+    _, err = cli("get", "NOT-A-PART", expect=3)
+    assert "Part not found" in err
+
+
+def test_prices_and_history_also_exit_3_on_a_miss(cli):
+    cli("prices", "NOT-A-PART", expect=3)
+    cli("history", "NOT-A-PART", expect=3)
+
+
+def test_history_honours_limit(cli):
+    cli("parts", "adjust", "LM358DR", "--adj-type", "add", "--quantity", "1")
+    cli("parts", "adjust", "LM358DR", "--adj-type", "add", "--quantity", "1")
+    payload, _ = cli("history", "LM358DR", "--limit", "1")
+    assert len(payload["history"]) == 1
+
+
+def test_low_stock_flags_by_explicit_threshold(cli):
+    payload, _ = cli("low-stock", "--threshold", "100000")
+    assert payload["count"] >= 2
+    assert all("threshold" in part for part in payload["parts"])
+
+
+def test_low_stock_without_threshold_uses_per_section_preferences(cli):
+    """Unconfigured sections default to 0, so a well-stocked part must not be
+    flagged when no --threshold is given."""
+    payload, _ = cli("low-stock")
+    assert not any(part["part_key"] == "LM358DR" for part in payload["parts"])
+
+
+def test_status_reports_the_discovered_server(cli):
+    payload, _ = cli("status")
+    assert payload["discovered_via"] == "port_file"
+    assert payload["part_count"] >= 2
+    assert payload["schema_version"]
+
+
+def test_generic_groups_returns_a_list(cli):
+    payload, _ = cli("generic-groups")
+    assert isinstance(payload["groups"], list)
+
+
+def test_spec_search_routes_a_display_string_through_extract(cli):
+    """A display string is not a float, so it must go through POST
+    /v1/spec/extract before resolve-spec rather than failing on float()."""
+    payload, _ = cli("spec-search", "capacitor", "100nF", "--package", "0402")
+    assert "match" in payload
+
+
+def test_curated_dry_run_declines_to_run(cli):
+    payload, err = cli("search", "capacitor", "--dry-run")
+    assert payload == {"dry_run": True, "command": "search"}
+    assert "read-only" in err
+
+
+def test_curated_names_do_not_collide_with_generated_resources():
+    resources = {cmd["resource"] for cmd in dubis_cli.COMMANDS.values()}
+    assert not resources.intersection(dubis_cli._RESERVED)

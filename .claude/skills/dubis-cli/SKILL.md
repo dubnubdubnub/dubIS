@@ -29,9 +29,32 @@ without one, commands exit 4 and say so. `DUBIS_URL` overrides discovery.
 exist (exit 3) rather than letting /v1 silently no-op it; `--adj-type set`
 creates parts on purpose and is exempt.
 
+## Start here — the hot path
+
+Hand-written commands covering the common questions. Reach for these
+before the generated surface below.
+
+- `dubis status` — which /v1 server this session talks to, and its part count
+- `dubis search` — substring search over inventory, compact projection
+- `dubis get` — aggregated detail card for one part
+- `dubis spec-search` — find the generic group matching a BOM spec
+- `dubis low-stock` — parts at or below a stock threshold
+- `dubis prices` — per-distributor price aggregates + last PO quantity
+- `dubis history` — adjustment log for one part
+- `dubis generic-groups` — generic-part groups with member counts and best member
+
+```bash
+dubis search 100nF                 # substring over lcsc/mpn/description/mfr/package
+dubis get C1000                    # one detail card: stock, prices, groups, history
+dubis low-stock                    # per-section thresholds from preferences
+dubis spec-search capacitor 100nF --package 0402
+```
+
+A part key that matches nothing exits 3, so a miss is never a silent success.
+
 ## Full surface
 
-`dubis schema --json` dumps every command with its params. 87 commands:
+Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 87 commands:
 
 - **adjustments**: remove-last, rollback-source
 - **bom**: consume, resolve-spec
