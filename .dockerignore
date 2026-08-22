@@ -8,6 +8,17 @@
 # exception was added.
 data/**
 !data/constants.json
+# Also static UI assets, not user data: the frontend fetches these over HTTP
+# from the static_dir (index.html's rel=icon and distributor filter buttons,
+# js/inventory/inv-html-builders.js's part-ID row icons), so they must be baked
+# into the image at /app/data/ — the runtime volume mounts at /data, a
+# different path, and would not serve them. data/dubIS.ico is deliberately NOT
+# here: it is only app.pyw's native window icon, never requested over HTTP.
+!data/dubIS.png
+!data/digikey-icon.png
+!data/lcsc-icon.ico
+!data/mouser-icon.svg
+!data/pololu-icon.svg
 
 # Test suites, tooling, and docs never needed at runtime.
 tests/
