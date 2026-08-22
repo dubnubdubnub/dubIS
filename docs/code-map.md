@@ -524,6 +524,7 @@ graph LR
     "mirror_install/windows.py" --> "mirror_install/base.py"
     "mirror_push.py" --> "mirror_serialize.py"
     "mouser_client.py" --> "base_client.py"
+    "mouser_client.py" --> "browser_page.py"
     "mouser_client.py" --> "domain/packaging.py"
     "mouser_client.py" --> "domain/product.py"
     "mouser_client.py" --> "html_product_parser.py"
@@ -764,6 +765,7 @@ graph LR
     "tests/python/test_app_restart.py" --> "app_restart.py"
     "tests/python/test_base_client.py" --> "base_client.py"
     "tests/python/test_base_client.py" --> "dubis_errors.py"
+    "tests/python/test_browser_page.py" --> "browser_page.py"
     "tests/python/test_cache_db.py" --> "cache_db.py"
     "tests/python/test_cache_db.py" --> "carts.py"
     "tests/python/test_cache_db.py" --> "domain/pricing.py"
@@ -940,6 +942,11 @@ graph LR
 
 - **Imports:** —
 - **Imported by:** `inventory_api.py`, `scripts/bench-floor.py`
+
+### browser_page.py
+
+- **Imports:** —
+- **Imported by:** `mouser_client.py`, `tests/python/test_browser_page.py`
 
 ### cache_db.py
 
@@ -1819,7 +1826,7 @@ graph LR
 
 ### mouser_client.py
 
-- **Imports:** `base_client.py`, `domain/packaging.py`, `domain/product.py`, `html_product_parser.py`
+- **Imports:** `base_client.py`, `browser_page.py`, `domain/packaging.py`, `domain/product.py`, `html_product_parser.py`
 - **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_contract.py`, `tests/python/test_normalizers.py`, `tests/python/test_packaging_clients.py`
 
 ### ocr_engine.py
@@ -2726,6 +2733,11 @@ graph LR
 ### tests/python/test_base_client.py
 
 - **Imports:** `base_client.py`, `dubis_errors.py`
+- **Imported by:** —
+
+### tests/python/test_browser_page.py
+
+- **Imports:** `browser_page.py`
 - **Imported by:** —
 
 ### tests/python/test_cache_db.py

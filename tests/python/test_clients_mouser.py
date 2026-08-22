@@ -6,6 +6,7 @@ import urllib.request
 
 import pytest
 
+import mouser_client
 from mouser_client import MouserClient
 
 
@@ -660,3 +661,217 @@ class TestMouserApiFetch:
 
         assert product is not None
         assert product["productCode"] == "111-FIRST"
+
+
+# ── the product page's pricing table ─────────────────────────────────────────
+# Mouser separates its ladders by carrier in one table, which is the packaging
+# model dubIS wants handed over for free. The markup below is trimmed from a
+# real GRM155R71H103KA88D page.
+
+PRICING_TABLE_HTML = """
+<table class="pricing-table">
+  <tr><th class="text-right">Qty.</th><th class="text-right">Unit Price</th>
+      <th class="text-right ext-price-col">Ext. Price</th></tr>
+  <tr><th class="sub-heading">Cut Tape / MouseReel&trade; &dagger;</th></tr>
+  <tr><th class="text-right pricebreak-col">1</th>
+      <td class="text-right">$0.10</td>
+      <td class="text-right ext-price-col">$0.10</td></tr>
+  <tr><th class="text-right pricebreak-col">10</th>
+      <td class="text-right">$0.015</td>
+      <td class="text-right ext-price-col">$0.15</td></tr>
+  <tr><th class="text-right pricebreak-col">5,000</th>
+      <td class="text-right">$0.006</td>
+      <td class="text-right ext-price-col">$30.00</td></tr>
+  <tr><th class="sub-heading">Full Reel (Order in multiples of 10000)</th></tr>
+  <tr><th class="text-right pricebreak-col">10,000</th>
+      <td class="text-right">$0.004</td>
+      <td class="text-right ext-price-col">$40.00</td></tr>
+</table>
+"""
+
+
+class TestPricingTable:
+    def test_splits_the_ladders_by_packaging(self):
+        groups = mouser_client._parse_pricing_table(PRICING_TABLE_HTML)
+        assert [g["name"] for g in groups] == [
+            "Cut Tape / MouseReel™",
+            "Full Reel (Order in multiples of 10000)",
+        ]
+        assert groups[0]["prices"] == [
+            {"qty": 1, "price": 0.10},
+            {"qty": 10, "price": 0.015},
+            {"qty": 5000, "price": 0.006},
+        ]
+        assert groups[1]["prices"] == [{"qty": 10000, "price": 0.004}]
+
+    def test_reads_unit_price_not_extended_price(self):
+        """Ext. Price is unit x qty; taking it would be wrong by orders of magnitude."""
+        groups = mouser_client._parse_pricing_table(PRICING_TABLE_HTML)
+        assert groups[0]["prices"][-1]["price"] == 0.006  # not 30.00
+        assert groups[1]["prices"][0]["price"] == 0.004   # not 40.00
+
+    def test_footnote_marker_is_not_part_of_the_packaging_name(self):
+        """The name is the key observations group under; a dagger would split it."""
+        groups = mouser_client._parse_pricing_table(PRICING_TABLE_HTML)
+        assert "†" not in groups[0]["name"]
+        assert not groups[0]["name"].endswith(" ")
+
+    def test_breaks_before_any_packaging_heading_are_dropped(self):
+        """A break with no carrier above it cannot be attributed to one."""
+        html = """
+        <table class="pricing-table">
+          <tr><th class="text-right pricebreak-col">1</th><td>$9.99</td></tr>
+          <tr><th class="sub-heading">Tray</th></tr>
+          <tr><th class="text-right pricebreak-col">5</th><td>$8.00</td></tr>
+        </table>
+        """
+        groups = mouser_client._parse_pricing_table(html)
+        assert groups == [{"name": "Tray", "prices": [{"qty": 5, "price": 8.00}]}]
+
+    def test_no_table_is_empty_not_an_empty_ladder(self):
+        assert mouser_client._parse_pricing_table("<html><body>nope</body></html>") == []
+
+    def test_a_packaging_with_no_breaks_is_dropped(self):
+        html = """
+        <table class="pricing-table">
+          <tr><th class="sub-heading">Discontinued</th></tr>
+          <tr><th class="sub-heading">Tube</th></tr>
+          <tr><th class="text-right pricebreak-col">1</th><td>$1.00</td></tr>
+        </table>
+        """
+        assert [g["name"] for g in mouser_client._parse_pricing_table(html)] == ["Tube"]
+
+
+class TestProductPageUsesTheTable:
+    def _page(self, extra=""):
+        return f"""
+        <html><head><title>GRM155R71H103KA88D Murata | Mouser</title>
+        <script type="application/ld+json">{{"@type":"Product",
+          "name":"GRM155R71H103KA88D","mpn":"GRM155R71H103KA88D",
+          "brand":{{"name":"Murata"}},
+          "offers":{{"price":"0.10","availability":"InStock"}}}}</script>
+        </head><body>{PRICING_TABLE_HTML}{extra}</body></html>
+        """
+
+    def test_headline_prices_come_from_the_default_packaging(self):
+        p = MouserClient._parse_product_page(self._page(), "GRM155R71H103KA88D", "u")
+        assert [b["qty"] for b in p["prices"]] == [1, 10, 5000]
+
+    def test_every_packaging_keeps_its_own_ladder(self):
+        p = MouserClient._parse_product_page(self._page(), "GRM155R71H103KA88D", "u")
+        by_name = {g["name"]: g for g in p["packagings"]}
+        assert len(by_name) == 2
+        cut = by_name["Cut Tape / MouseReel™"]
+        reel = by_name["Full Reel (Order in multiples of 10000)"]
+        # domain.packaging classifies these, and the distinction is the whole
+        # point: a fee on the cut-tape ladder is what makes a part reel buyable.
+        assert cut["isReel"] is False
+        assert reel["isReel"] is True
+        assert len(cut["prices"]) == 3 and len(reel["prices"]) == 1
+
+    def test_the_reel_multiple_is_read_off_the_heading(self):
+        p = MouserClient._parse_product_page(self._page(), "GRM155R71H103KA88D", "u")
+        assert p["reelQty"] == 10000
+
+    def test_mousereel_fee_still_rides_along(self):
+        p = MouserClient._parse_product_page(
+            self._page(extra="<div>MouseReel service fee $7.00</div>"),
+            "GRM155R71H103KA88D", "u")
+        assert float(p["reelFee"]) == 7.00
+
+    def test_a_page_with_no_table_falls_back_to_the_attribute(self):
+        """Unchanged behaviour for pages that never had a pricing table."""
+        html = """
+        <html><head><title>Thing | Mouser</title>
+        <script type="application/ld+json">{"@type":"Product","name":"Thing",
+          "offers":{"price":"1.50"}}</script></head>
+        <body><tr><td>Packaging</td><td>Tray</td></tr></body></html>
+        """
+        p = MouserClient._parse_product_page(html, "PN", "u")
+        assert [g["name"] for g in p["packagings"]] == ["Tray"]
+
+
+class TestFetchPathSelection:
+    def test_mouser_part_numbers_are_told_from_mpns(self):
+        """Only the first decides which URL is tried first; both are tried."""
+        assert mouser_client._MOUSER_PN_RE.match("736-FGG0B305CLAD52")
+        assert mouser_client._MOUSER_PN_RE.match("81-GRM155R71H103KA88D")
+        assert not mouser_client._MOUSER_PN_RE.match("GRM155R71H103KA88D")
+        assert not mouser_client._MOUSER_PN_RE.match("CL05B104KB54PNC")
+
+    def test_browser_is_skipped_when_there_is_no_window_to_use(self, monkeypatch):
+        """The container has no GUI loop; it must fall through, not raise."""
+        monkeypatch.setattr(mouser_client.browser_page, "available", lambda: False)
+        client = MouserClient()
+        assert client._fetch_via_browser("736-ANYTHING") is None
+
+    def test_a_configured_key_still_wins(self, monkeypatch, tmp_path):
+        """The API is cleaner and unblocked; the browser is the keyless path."""
+        creds = tmp_path / "mouser_credentials.json"
+        creds.write_text(json.dumps({"api_key": "k"}))
+        client = MouserClient(credentials_file=str(creds))
+        called = []
+        monkeypatch.setattr(client, "_fetch_via_api",
+                            lambda pn, key: called.append("api") or {"ok": True})
+        monkeypatch.setattr(client, "_fetch_via_browser",
+                            lambda pn: called.append("browser"))
+        assert client._fetch_raw("736-X") == {"ok": True}
+        assert called == ["api"]
+
+    def test_without_a_key_the_browser_is_tried_before_the_legacy_scrape(self, monkeypatch):
+        client = MouserClient()
+        order = []
+        monkeypatch.setattr(client, "_fetch_via_browser",
+                            lambda pn: order.append("browser"))
+        monkeypatch.setattr(client, "_fetch_via_scrape",
+                            lambda pn: order.append("scrape") or {"ok": True})
+        assert client._fetch_raw("736-X") == {"ok": True}
+        assert order == ["browser", "scrape"]
+
+
+class TestReelingFeeApplicability:
+    """Mouser prints the same MouseReel explainer on every product page.
+
+    The $7.00 in it is real, but it is boilerplate about the service, not a
+    statement that this part can be reeled -- observed on a LEMO connector
+    sold in bulk. Recording it there would hand the reel preset a
+    "Tray + reeling" offer to choose.
+    """
+
+    _EXPLAINER = ("<div>Cut Tape Product is cut from a full reel. "
+                  "MouseReel&#8482; (Add $7.00 reeling fee) A product reel is cut "
+                  "to customer-specified quantities.</div>")
+
+    def _page(self, spec_packaging, table=""):
+        return f"""
+        <html><head><title>Thing | Mouser</title>
+        <script type="application/ld+json">{{"@type":"Product","name":"Thing",
+          "offers":{{"price":"1.50"}}}}</script></head>
+        <body>{table}
+        <tr><td>Packaging</td><td>{spec_packaging}</td></tr>
+        {self._EXPLAINER}</body></html>
+        """
+
+    def test_a_part_that_comes_on_tape_keeps_the_fee(self):
+        p = MouserClient._parse_product_page(self._page("Cut Tape"), "PN", "u")
+        assert float(p["reelFee"]) == 7.00
+
+    def test_a_bulk_part_does_not_get_a_reeling_fee(self):
+        p = MouserClient._parse_product_page(self._page("Bulk"), "PN", "u")
+        assert p["reelFee"] is None
+
+    def test_a_tray_part_does_not_get_a_reeling_fee(self):
+        p = MouserClient._parse_product_page(self._page("Tray"), "PN", "u")
+        assert p["reelFee"] is None
+
+    def test_a_page_whose_carriers_we_could_not_read_gets_no_fee(self):
+        """Unknown is not permission — the rule domain/predicates.py applies."""
+        p = MouserClient._parse_product_page(self._page(""), "PN", "u")
+        assert p["packagings"] == []
+        assert p["reelFee"] is None
+
+    def test_the_fee_is_not_the_first_price_break(self):
+        """The table's own sub-heading says MouseReel; the next $ is a price."""
+        p = MouserClient._parse_product_page(
+            self._page("Cut Tape", table=PRICING_TABLE_HTML), "PN", "u")
+        assert float(p["reelFee"]) == 7.00  # not 0.10
