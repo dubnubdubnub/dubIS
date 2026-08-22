@@ -72,15 +72,22 @@ Every `/v1` route as `dubis <resource> <verb>`, generated from `docs/openapi-v1.
 
 ```bash
 scripts/dubis serve                                              # start /v1 (everything else needs it)
-scripts/dubis parts list --json                                  # compact single-line JSON
+# hot path — hand-written in tools/dubis-cli/curated.py, these are compositions, not routes
+scripts/dubis search 100nF                                       # substring over lcsc/mpn/desc/mfr/package
+scripts/dubis get C1000                                          # detail card: stock, prices, groups, history
+scripts/dubis low-stock                                          # per-section thresholds from preferences
+scripts/dubis spec-search capacitor 100nF --package 0402
+# generated surface — every /v1 route
 scripts/dubis parts adjust C1000 --adj-type add --quantity 50    # --source defaults to "cli"
 scripts/dubis parts adjust C1000 --adj-type add --quantity 50 --dry-run
-scripts/dubis schema --json                                      # all 87 commands + their params
+scripts/dubis schema --json                                      # all 87 generated commands + params
 ```
 
 Path params are positional, everything else is a flag; global flags work before or after the subcommand. Exit codes: `2` bad usage, `3` server or precheck error, `4` no server found. Mutations are tagged `--source` so `dubis adjustments rollback-source <name>` undoes a session.
 
-`parts adjust --adj-type add|remove` against a part that does not exist exits 3 rather than letting `/v1` silently no-op it; `set` creates parts on purpose and is exempt. `--dry-run` never contacts the server, so it will not catch an unknown key. Full detail lives in the generated `.claude/skills/dubis-cli/SKILL.md`.
+`parts adjust --adj-type add|remove` against a part that does not exist exits 3 rather than letting `/v1` silently no-op it; `set` creates parts on purpose and is exempt. A part key that matches nothing exits 3 everywhere, so a miss is never a silent success. `--dry-run` never contacts the server, so it will not catch an unknown key. Full detail lives in the generated `.claude/skills/dubis-cli/SKILL.md`.
+
+The eight hot-path commands (`status`, `search`, `get`, `spec-search`, `low-stock`, `prices`, `history`, `generic-groups`) are hand-written, not generated — they are compositions the OpenAPI spec cannot describe (`get` aggregates five routes, `search` filters client-side since no `/v1` search route exists). Add new ones to `tools/dubis-cli/curated.py`; the generated skill picks them up automatically.
 
 ## EventBus Flow
 

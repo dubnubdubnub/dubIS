@@ -257,6 +257,24 @@ def render_commands(commands: dict[str, dict[str, Any]]) -> str:
     )
 
 
+def _curated_commands() -> dict[str, str]:
+    """{name: help} for the hand-written hot-path commands.
+
+    Read from tools/dubis-cli/curated.py rather than duplicated here, so the
+    skill cannot describe a command set that does not exist. These are not
+    generated — they are compositions (`get` aggregates five routes, `search`
+    filters client-side) that no route-level spec can produce.
+    """
+    sys.path.insert(0, str(REPO_ROOT))
+    sys.path.insert(0, str(REPO_ROOT / "tools" / "dubis-cli"))
+    try:
+        from curated import CURATED
+    finally:
+        sys.path.remove(str(REPO_ROOT / "tools" / "dubis-cli"))
+        sys.path.remove(str(REPO_ROOT))
+    return {name: spec["help"] for name, spec in CURATED.items()}
+
+
 def render_skill(commands: dict[str, dict[str, Any]]) -> str:
     by_resource: dict[str, list[str]] = {}
     for name, cmd in commands.items():
@@ -294,10 +312,29 @@ def render_skill(commands: dict[str, dict[str, Any]]) -> str:
         "exist (exit 3) rather than letting /v1 silently no-op it; `--adj-type set`",
         "creates parts on purpose and is exempt.",
         "",
+        "## Start here — the hot path",
+        "",
+        "Hand-written commands covering the common questions. Reach for these",
+        "before the generated surface below.",
+        "",
+    ]
+    for name, help_text in _curated_commands().items():
+        lines.append(f"- `dubis {name}` — {help_text}")
+    lines += [
+        "",
+        "```bash",
+        "dubis search 100nF                 # substring over lcsc/mpn/description/mfr/package",
+        "dubis get C1000                    # one detail card: stock, prices, groups, history",
+        "dubis low-stock                    # per-section thresholds from preferences",
+        "dubis spec-search capacitor 100nF --package 0402",
+        "```",
+        "",
+        "A part key that matches nothing exits 3, so a miss is never a silent success.",
+        "",
         "## Full surface",
         "",
-        "`dubis schema --json` dumps every command with its params. "
-        f"{len(commands)} commands:",
+        "Every /v1 route, generated. `dubis schema --json` dumps them all with "
+        f"their params. {len(commands)} commands:",
         "",
     ]
     for resource in sorted(by_resource):

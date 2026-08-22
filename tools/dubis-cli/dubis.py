@@ -41,6 +41,7 @@ sys.path.insert(0, str(_HERE))
 sys.path.insert(0, str(_REPO_ROOT))
 
 from commands import COMMANDS  # noqa: E402  (needs the sys.path above)
+from curated import CURATED  # noqa: E402
 from tools.dubis_client import (  # noqa: E402
     NoServerFoundError,
     PartNotFoundError,
@@ -58,8 +59,12 @@ EXIT_USAGE = 2
 EXIT_SERVER = 3
 EXIT_NO_SERVER = 4
 
-# Commands that do not go through the generated table.
+# Top-level commands that do not go through the generated table: two builtins
+# plus the hand-written hot path in curated.py. Kept as one set because the
+# generated resources must not collide with any of them — enforced in
+# build_parser() and pinned by a test.
 _BUILTIN = ("serve", "schema")
+_RESERVED = frozenset(_BUILTIN) | frozenset(CURATED)
 
 
 def _json_arg(raw: str) -> Any:
@@ -181,14 +186,18 @@ def build_parser() -> argparse.ArgumentParser:
     subs.add_parser("schema", parents=[common],
                     help="dump every command and its params")
 
+    for name, spec in CURATED.items():
+        curated_parser = subs.add_parser(name, parents=[common], help=spec["help"])
+        spec["add_args"](curated_parser)
+
     by_resource: dict[str, dict[str, dict]] = {}
     for cmd in COMMANDS.values():
         by_resource.setdefault(cmd["resource"], {})[cmd["verb"]] = cmd
 
     for resource in sorted(by_resource):
-        if resource in _BUILTIN:
+        if resource in _RESERVED:
             raise RuntimeError(
-                f"generated resource {resource!r} collides with a built-in command"
+                f"generated resource {resource!r} collides with a top-level command"
             )
         res_parser = subs.add_parser(resource, help=f"{len(by_resource[resource])} commands")
         verb_subs = res_parser.add_subparsers(dest="verb", metavar="<verb>")
@@ -312,6 +321,25 @@ def _run_serve(args: argparse.Namespace) -> int:
     return subprocess.call(cmd, cwd=str(_REPO_ROOT))
 
 
+def _dispatch_curated(args: argparse.Namespace) -> int:
+    """Run a hand-written hot-path command.
+
+    Every curated command is a read, so --dry-run has no write to withhold —
+    but it still declines to run, because "dry-run executed it anyway" is the
+    more surprising of the two behaviours and matches what the generated
+    read-only commands do.
+    """
+    if args.dry_run:
+        print(f"note: {args.resource} is read-only; --dry-run has nothing to withhold",
+              file=sys.stderr)
+        _emit({"dry_run": True, "command": args.resource}, args.json)
+        return EXIT_OK
+
+    client = connect(str(_REPO_ROOT), data_dir=args.data_dir)
+    _emit(CURATED[args.resource]["run"](client, args), args.json)
+    return EXIT_OK
+
+
 def _dispatch(cmd: dict, args: argparse.Namespace) -> int:
     request = _build_request(cmd, args, args.source)
 
@@ -356,6 +384,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.resource == "schema":
         _emit(COMMANDS, args.json)
         return EXIT_OK
+
+    if args.resource in CURATED:
+        try:
+            return _dispatch_curated(args)
+        except NoServerFoundError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return EXIT_NO_SERVER
+        except (V1Error, PartNotFoundError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return EXIT_SERVER
 
     verb = getattr(args, "verb", None)
     if verb is None:
