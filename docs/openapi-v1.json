@@ -3953,7 +3953,7 @@
     },
     "/v1/parts/{part_key}/attributes": {
       "get": {
-        "description": "Stored distributor parametrics for a part, across all distributors.\n\nPersisted by the fetch path (domain/attributes.py) but until now readable\nonly from Python -- the frontend and tools/dubis-mcp reach the backend over\n/v1 alone, so a predicate or alternate-approval caller had no way to see\nthem.",
+        "description": "Stored distributor parametrics for a part, across all distributors.\n\nPersisted by the fetch path (domain/attributes.py) but until now readable\nonly from Python -- the frontend and tools/dubis-cli reach the backend over\n/v1 alone, so a predicate or alternate-approval caller had no way to see\nthem.",
         "operationId": "get_part_attributes",
         "parameters": [
           {
