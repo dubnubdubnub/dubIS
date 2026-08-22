@@ -374,3 +374,69 @@ def test_migrated_file_with_blank_packaging_behaves_like_legacy(tmp_path):
     events_dir = _write_events(tmp_path, rows, fieldnames=PKG_FIELDNAMES)
     assert cart_qty.tier_ladder(events_dir, "PN1", "LCSC") == [(10, 4.5), (50, 3.0)]
     assert cart_qty.tier_ladders(events_dir, "PN1", "LCSC")[""]["carrier"] is None
+
+
+# ── observed_distributors ────────────────────────────────────────────────────
+# The plan needs the distributors that QUOTED a part, which is not the same set
+# as the ones it was catalogued or bought from (domain.pricing's
+# get_sourced_distributors). A part with a quote and no purchase history is the
+# ordinary case for a cart built from a BOM.
+
+def test_observed_distributors_finds_a_quote_with_no_purchase_history(tmp_path):
+    events = _write_events(tmp_path, [
+        ["2026-01-01T00:00:00", "C52923", "lcsc", "0.01", "USD", "web", "10", ""],
+        ["2026-01-01T00:00:00", "C52923", "lcsc", "0.005", "USD", "web", "100", ""],
+    ])
+    assert cart_qty.observed_distributors(events, "C52923") == ["lcsc"]
+
+
+def test_observed_distributors_dedupes_and_sorts(tmp_path):
+    events = _write_events(tmp_path, [
+        ["2026-01-01T00:00:00", "P1", "mouser", "1.0", "USD", "web", "1", ""],
+        ["2026-01-02T00:00:00", "P1", "lcsc", "0.9", "USD", "web", "1", ""],
+        ["2026-01-03T00:00:00", "P1", "mouser", "0.8", "USD", "web", "10", ""],
+    ])
+    assert cart_qty.observed_distributors(events, "P1") == ["lcsc", "mouser"]
+
+
+def test_observed_distributors_does_not_leak_across_parts(tmp_path):
+    events = _write_events(tmp_path, [
+        ["2026-01-01T00:00:00", "P1", "lcsc", "1.0", "USD", "web", "1", ""],
+        ["2026-01-01T00:00:00", "P2", "mouser", "1.0", "USD", "web", "1", ""],
+    ])
+    assert cart_qty.observed_distributors(events, "P1") == ["lcsc"]
+    assert cart_qty.observed_distributors(events, "P2") == ["mouser"]
+
+
+def test_observed_distributors_ignores_blank_distributor(tmp_path):
+    events = _write_events(tmp_path, [
+        ["2026-01-01T00:00:00", "P1", "", "1.0", "USD", "web", "1", ""],
+    ])
+    assert cart_qty.observed_distributors(events, "P1") == []
+
+
+def test_observed_distributors_missing_file_returns_empty(tmp_path):
+    assert cart_qty.observed_distributors(str(tmp_path / "nope"), "P1") == []
+
+
+def test_observed_distributors_batch_matches_the_per_part_version(tmp_path):
+    events = _write_events(tmp_path, [
+        ["2026-01-01T00:00:00", "P1", "lcsc", "1.0", "USD", "web", "1", ""],
+        ["2026-01-01T00:00:00", "P2", "mouser", "1.0", "USD", "web", "1", ""],
+        ["2026-01-02T00:00:00", "P2", "lcsc", "0.9", "USD", "web", "1", ""],
+    ])
+    batch = cart_qty.observed_distributors_batch(events, ["P1", "P2", "P3"])
+    assert batch == {"P1": ["lcsc"], "P2": ["lcsc", "mouser"]}
+    for pid in ("P1", "P2"):
+        assert batch[pid] == cart_qty.observed_distributors(events, pid)
+    # A part with no observation is absent, not mapped to an empty list: the
+    # caller distinguishes "nothing quoted it" from "we did not ask".
+    assert "P3" not in batch
+
+
+def test_observed_distributors_batch_no_ids_skips_the_file(tmp_path):
+    events = _write_events(tmp_path, [
+        ["2026-01-01T00:00:00", "P1", "lcsc", "1.0", "USD", "web", "1", ""],
+    ])
+    assert cart_qty.observed_distributors_batch(events, []) == {}
+    assert cart_qty.observed_distributors_batch(events, [""]) == {}
