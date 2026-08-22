@@ -822,10 +822,12 @@ graph LR
     "tests/python/test_distributor_live.py" --> "distributor_manager.py"
     "tests/python/test_distributor_manager.py" --> "distributor_manager.py"
     "tests/python/test_distributor_profiles.py" --> "distributor_profiles.py"
+    "tests/python/test_dubis_cli_commands.py" --> "tests/python/helpers.py"
+    "tests/python/test_dubis_cli_commands.py" --> "tests/python/server/conftest.py"
+    "tests/python/test_dubis_client.py" --> "server/run.py"
+    "tests/python/test_dubis_client.py" --> "tests/python/helpers.py"
+    "tests/python/test_dubis_client.py" --> "tests/python/server/conftest.py"
     "tests/python/test_dubis_errors.py" --> "dubis_errors.py"
-    "tests/python/test_dubis_mcp_client.py" --> "server/run.py"
-    "tests/python/test_dubis_mcp_tools.py" --> "tests/python/helpers.py"
-    "tests/python/test_dubis_mcp_tools.py" --> "tests/python/server/conftest.py"
     "tests/python/test_file_dialogs.py" --> "file_dialogs.py"
     "tests/python/test_html_product_parser.py" --> "html_product_parser.py"
     "tests/python/test_install_tesseract.py" --> "inventory_api.py"
@@ -1969,6 +1971,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** —
 
+### scripts/gen-cli.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### scripts/gen-code-map.py
 
 - **Imports:** —
@@ -2132,7 +2139,7 @@ graph LR
 ### server/run.py
 
 - **Imports:** `server/app.py`, `server/lockfile.py`
-- **Imported by:** `scripts/spike-webview-loopback.py`, `server/__main__.py`, `tests/python/server/test_lifecycle.py`, `tests/python/test_dubis_mcp_client.py`
+- **Imported by:** `scripts/spike-webview-loopback.py`, `server/__main__.py`, `tests/python/server/test_lifecycle.py`, `tests/python/test_dubis_client.py`
 
 ### source_sanitizer.py
 
@@ -2578,12 +2585,12 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `distributor_manager.py`, `inventory_api.py`, `lcsc_client.py`
-- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_dubis_mcp_tools.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_dubis_cli_commands.py`, `tests/python/test_dubis_client.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/server/conftest.py
 
 - **Imports:** `server/app.py`, `tests/python/helpers.py`
-- **Imported by:** `tests/python/server/test_events.py`, `tests/python/test_dubis_mcp_tools.py`
+- **Imported by:** `tests/python/server/test_events.py`, `tests/python/test_dubis_cli_commands.py`, `tests/python/test_dubis_client.py`
 
 ### tests/python/server/test_app_skeleton.py
 
@@ -2915,24 +2922,24 @@ graph LR
 - **Imports:** `distributor_profiles.py`
 - **Imported by:** —
 
-### tests/python/test_dubis_errors.py
+### tests/python/test_dubis_cli_commands.py
 
-- **Imports:** `dubis_errors.py`
+- **Imports:** `tests/python/helpers.py`, `tests/python/server/conftest.py`
 - **Imported by:** —
 
-### tests/python/test_dubis_mcp_client.py
-
-- **Imports:** `server/run.py`
-- **Imported by:** —
-
-### tests/python/test_dubis_mcp_contract.py
+### tests/python/test_dubis_cli_contract.py
 
 - **Imports:** —
 - **Imported by:** —
 
-### tests/python/test_dubis_mcp_tools.py
+### tests/python/test_dubis_client.py
 
-- **Imports:** `tests/python/helpers.py`, `tests/python/server/conftest.py`
+- **Imports:** `server/run.py`, `tests/python/helpers.py`, `tests/python/server/conftest.py`
+- **Imported by:** —
+
+### tests/python/test_dubis_errors.py
+
+- **Imports:** `dubis_errors.py`
 - **Imported by:** —
 
 ### tests/python/test_file_dialogs.py

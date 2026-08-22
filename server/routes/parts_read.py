@@ -78,7 +78,7 @@ def get_part_attributes(request: Request, part_key: str) -> list:
     """Stored distributor parametrics for a part, across all distributors.
 
     Persisted by the fetch path (domain/attributes.py) but until now readable
-    only from Python -- the frontend and tools/dubis-mcp reach the backend over
+    only from Python -- the frontend and tools/dubis-cli reach the backend over
     /v1 alone, so a predicate or alternate-approval caller had no way to see
     them.
     """
