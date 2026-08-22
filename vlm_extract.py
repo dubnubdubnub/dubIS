@@ -23,10 +23,21 @@ Configuration (per-node, via environment):
                        serves exactly one model, named by its --alias.
     DUBIS_VLM_DISABLE  set to any non-empty value to force the backend off.
 
+Configuration (per-call, overriding the environment):
+    endpoint           base URL of one specific server. The env is process-wide,
+                       but the reader picks its server per read: a locally-spawned
+                       llama-server gets an ephemeral port known only at spawn
+                       time, and a fleet lease names a node. Both are arguments,
+                       not env.
+    token              bearer credential for that server. Sent on the /v1/models
+                       probe and the inference call alike; omitted entirely (no
+                       header) when there is no token, which is the loopback case.
+
 Public API:
-    available() -> bool
+    available(endpoint=None, token=None) -> bool
         Fast check: server reachable AND serving a usable vision model.
-    extract_line_items(image_bytes, template="generic") -> list[dict] | None
+    extract_line_items(image_bytes, template="generic", page_w=0, page_h=0,
+                       endpoint=None, token=None) -> list[dict] | None
         Line-item dicts share the distributor_profiles shape (mpn, manufacturer,
         package, description, quantity, unit_price, distributor, distributor_pn).
         Returns None on any unavailability/error so the caller can fall back.
@@ -46,7 +57,9 @@ logger = logging.getLogger(__name__)
 # DUBIS_VLM_URL explicitly.)
 _DEFAULT_URL = "http://127.0.0.1:8080"
 # Model ids to try, best first. The 7B reads faint/folded LCSC C-numbers reliably
-# but needs ~9 GB VRAM at Q4 with its vision projector; the 3B fits smaller GPUs
+# but needs ~7 GB VRAM at Q4 with its vision projector (4.36 GiB weights + 1.26
+# GiB mmproj, measured), and nearer 10 once a full page's vision tokens are in
+# the KV cache; the 3B fits smaller GPUs
 # (e.g. the cluster's 6 GB RTX 2060, which serves exactly this) — it still gets
 # MPNs + quantities but may miss faint C-numbers. We pick the best one the server
 # actually reports, so a low-VRAM node just serves the 3B with no config.
@@ -98,8 +111,25 @@ def _prompt_for(template: str) -> str:
     return f"{_PROMPT}\n{hint}" if hint else _PROMPT
 
 
-def _base_url() -> str:
-    return (os.environ.get("DUBIS_VLM_URL") or _DEFAULT_URL).rstrip("/")
+def _base_url(endpoint: str | None = None) -> str:
+    """Base URL to dial: an explicit endpoint wins, else the env, else the default.
+
+    An explicit endpoint is how a caller targets one specific server — a
+    locally-spawned llama-server on an ephemeral port, or a leased fleet node —
+    rather than whatever this process's environment happens to say. Blank or None
+    means "not specified", so it falls through to the env exactly as before.
+    """
+    return (endpoint or os.environ.get("DUBIS_VLM_URL") or _DEFAULT_URL).rstrip("/")
+
+
+def _auth_headers(token: str | None) -> dict[str, str]:
+    """The bearer header, or nothing at all when there is no token.
+
+    Absent-not-empty matters: a server behind an auth proxy rejects
+    ``Authorization: Bearer`` with an empty credential differently from an
+    unauthenticated request, and a loopback llama-server wants no header at all.
+    """
+    return {"Authorization": f"Bearer {token}"} if token else {}
 
 
 def _preferred_ids() -> list[str]:
@@ -112,16 +142,17 @@ def _disabled() -> bool:
     return bool(os.environ.get("DUBIS_VLM_DISABLE"))
 
 
-def _get_json(url: str, timeout: float):
-    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+def _get_json(url: str, timeout: float, token: str | None = None):
+    req = urllib.request.Request(
+        url, headers={"Accept": "application/json", **_auth_headers(token)})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _served_models():
+def _served_models(endpoint: str | None = None, token: str | None = None):
     """Model ids the server reports at /v1/models, or None if it's unreachable."""
     try:
-        body = _get_json(f"{_base_url()}/v1/models", _PROBE_TIMEOUT)
+        body = _get_json(f"{_base_url(endpoint)}/v1/models", _PROBE_TIMEOUT, token)
     except (urllib.error.URLError, OSError, ValueError) as exc:
         logger.debug("VLM backend unavailable (probe failed): %s", exc)
         return None
@@ -133,10 +164,10 @@ def _is_qwen_vl(model_id: str) -> bool:
     return any(marker in lowered for marker in _QWEN_MARKERS)
 
 
-def _select_model():
+def _select_model(endpoint: str | None = None, token: str | None = None):
     """Best served model: the first preferred id (7B over 3B), then any served
     Qwen2.5-VL variant. None if none are served / the server is down."""
-    served = _served_models()
+    served = _served_models(endpoint, token)
     if not served:
         return None
     for wanted in _preferred_ids():
@@ -151,24 +182,51 @@ def _select_model():
 
 
 def model_name() -> str:
-    """The VLM model last selected (for logging); a best guess before any run."""
+    """The VLM model last selected (for logging); a best guess before any run.
+
+    One slot, not a per-endpoint map: it holds whatever the most recent
+    successful probe/extraction selected, on whichever endpoint that was. The
+    only consumer logs it immediately after the call it describes ("OCR backend:
+    local VLM (%s)"), so "the model the server that just answered is serving" is
+    exactly the right answer, and there is no endpoint argument here to key a
+    per-endpoint cache by.
+    """
     return _selected_model or _preferred_ids()[0]
 
 
-def available() -> bool:
-    """True if enabled and a usable VLM model is served by a reachable server."""
+def available(endpoint: str | None = None, token: str | None = None) -> bool:
+    """True if enabled and a usable VLM model is served by a reachable server.
+
+    A successful probe records the selected id, so ``model_name()`` reports what
+    is actually loaded rather than the head of the preference list — the caller
+    logs that name ("OCR backend: local VLM (%s)"), and a probe is often the only
+    call made before it logs.
+
+    ``endpoint``/``token``: probe that specific server, with a bearer token if it
+    needs one. Omitted, the environment decides (``DUBIS_VLM_URL``) — unchanged.
+    """
+    global _selected_model
     if _disabled():
         return False
-    return _select_model() is not None
+    model = _select_model(endpoint, token)
+    if model:
+        _selected_model = model
+    return model is not None
 
 
 def extract_line_items(image_bytes: bytes, template: str = "generic",
-                       page_w: int = 0, page_h: int = 0):
-    """Extract line items via the local VLM, or None if unavailable/failed."""
+                       page_w: int = 0, page_h: int = 0,
+                       endpoint: str | None = None, token: str | None = None):
+    """Extract line items via the local VLM, or None if unavailable/failed.
+
+    ``endpoint``/``token`` target one specific ``/v1`` server (a locally-spawned
+    llama-server on an ephemeral port, a leased fleet node) and authenticate to
+    it; both are optional and the env-configured default is used without them.
+    """
     if _disabled() or not image_bytes:
         return None
     try:
-        return _extract(image_bytes, template, page_w, page_h)
+        return _extract(image_bytes, template, page_w, page_h, endpoint, token)
     except (urllib.error.URLError, OSError, ValueError, KeyError, IndexError) as exc:
         logger.warning("VLM extraction failed, falling back: %s", exc)
         return None
@@ -186,12 +244,13 @@ def _image_mime(image_bytes: bytes) -> str:
     return "application/octet-stream"
 
 
-def _extract(image_bytes: bytes, template: str, page_w: int = 0, page_h: int = 0):
+def _extract(image_bytes: bytes, template: str, page_w: int = 0, page_h: int = 0,
+             endpoint: str | None = None, token: str | None = None):
     import base64
     global _selected_model
     if _disabled():
         return None
-    model = _select_model()
+    model = _select_model(endpoint, token)
     if not model:
         return None
     _selected_model = model
@@ -206,17 +265,19 @@ def _extract(image_bytes: bytes, template: str, page_w: int = 0, page_h: int = 0
                 {"type": "image_url", "image_url": {"url": data_uri}},
             ],
         }],
-        # json_object is a grammar constraint in llama.cpp (and honoured by other
-        # /v1 servers), so _parse_response can json.loads the content unconditionally.
+        # Asked for because servers that honour it (vLLM, LM Studio) then emit
+        # bare JSON. llama.cpp may ignore it entirely and wrap the reply in a
+        # ```json fence anyway (verified against Qwen2.5-VL-3B), which is why
+        # _parse_response strips a fence before parsing rather than trusting this.
         "response_format": {"type": "json_object"},
         "temperature": 0,
         "max_tokens": _MAX_TOKENS,
         "stream": False,
     }
     req = urllib.request.Request(
-        f"{_base_url()}/v1/chat/completions",
+        f"{_base_url(endpoint)}/v1/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", **_auth_headers(token)},
     )
     with urllib.request.urlopen(req, timeout=_INFER_TIMEOUT) as resp:
         body = json.loads(resp.read().decode("utf-8"))
@@ -225,8 +286,31 @@ def _extract(image_bytes: bytes, template: str, page_w: int = 0, page_h: int = 0
     return rows or None
 
 
+def _strip_code_fence(text: str) -> str:
+    """Unwrap a markdown code fence around the model's reply.
+
+    Despite ``response_format={"type": "json_object"}``, llama.cpp answers with
+    the JSON inside a ```` ```json ```` fence, so parsing the content as-is
+    raises and the whole VLM path silently degrades to Tesseract. Handles a
+    language-tagged or bare fence, surrounding whitespace, and a reply truncated
+    (at ``max_tokens``) before its closing fence. Text with no opening fence is
+    returned unchanged apart from stripping, and nothing here makes non-JSON
+    parseable — ``_parse_response`` still raises on prose, as before.
+    """
+    stripped = (text or "").strip()
+    if not stripped.startswith("```"):
+        return stripped
+    # Drop the opening fence and its optional language tag. Matched as a unit,
+    # with the newline optional, so an inline ```json {...}``` loses the "json"
+    # too — splitting on the newline alone leaves the tag glued to the JSON and
+    # the parse still fails, which is the whole bug this function exists to stop.
+    body = re.sub(r"^```[ \t]*[A-Za-z0-9_+.-]*[ \t]*\r?\n?", "", stripped)
+    close = body.rfind("```")
+    return (body[:close] if close != -1 else body).strip()
+
+
 def _parse_response(response_text: str, template: str, page_w: int = 0, page_h: int = 0):
-    data = json.loads(response_text)
+    data = json.loads(_strip_code_fence(response_text))
     if isinstance(data, dict):
         raw_items = data.get("items")
         if raw_items is None:
