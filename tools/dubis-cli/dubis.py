@@ -32,11 +32,16 @@ from typing import Any
 
 _HERE = Path(__file__).resolve().parent
 _REPO_ROOT = _HERE.parent.parent
+# _HERE for commands.py (this directory is hyphenated, so it can never be a
+# package); the repo root so dubis_client is reached as `tools.dubis_client`.
+# Importing it bare off tools/ instead would give a SECOND module object for
+# the same files whenever a caller already imported tools.dubis_client — and
+# `except PartNotFoundError` would then miss the other copy's class.
 sys.path.insert(0, str(_HERE))
-sys.path.insert(0, str(_REPO_ROOT / "tools"))
+sys.path.insert(0, str(_REPO_ROOT))
 
 from commands import COMMANDS  # noqa: E402  (needs the sys.path above)
-from dubis_client import (  # noqa: E402
+from tools.dubis_client import (  # noqa: E402
     NoServerFoundError,
     PartNotFoundError,
     V1Error,
