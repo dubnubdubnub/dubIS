@@ -782,6 +782,50 @@ class TestOrphanReaping:
         time.sleep(0.4)
         return proc
 
+    def test_cmdline_is_not_truncated_for_a_long_exe_path(self, fake_exe, tmp_path):
+        """GNU ps truncates the command column to the terminal width, so a long
+        enough exe path loses its basename and reap_orphan's identity check
+        refuses to kill a process that IS the stranded llama-server -- it then
+        holds VRAM forever. Only reproduces on Linux (macOS ps does not
+        truncate), which is exactly how it reached CI green locally and failed
+        there. See also the -ww structural guard below."""
+        deep = tmp_path.joinpath(*[f"segment-{i:02d}-padding-padding" for i in range(6)])
+        deep.mkdir(parents=True)
+        exe = deep / "llama-server"
+        exe.write_bytes(fake_exe.read_bytes())
+        exe.chmod(0o755)
+        proc = subprocess.Popen(
+            [str(exe), "--host", "127.0.0.1", "--port", str(rr.free_loopback_port()),
+             "--alias", "stray"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        time.sleep(0.4)
+        try:
+            assert len(str(exe)) > 120, "path must exceed a default ps width to be a real test"
+            cmdline = rr._process_cmdline(proc.pid)
+            assert cmdline is not None
+            assert "llama-server" in cmdline, (
+                f"basename lost from a {len(str(exe))}-char path: {cmdline!r}")
+        finally:
+            proc.kill()
+            proc.wait(timeout=10)
+
+    def test_ps_fallback_passes_ww_so_it_cannot_truncate(self, monkeypatch):
+        """Structural guard for the fix above. macOS ps does not truncate, so no
+        behavioural test on this platform can catch the flag going missing."""
+        monkeypatch.setattr(rr.Path, "read_bytes",
+                            lambda self: (_ for _ in ()).throw(OSError()))
+        seen = {}
+
+        def fake_run(argv):
+            seen["argv"] = argv
+            return "/some/path/llama-server --alias x"
+
+        monkeypatch.setattr(rr, "_run", fake_run)
+        monkeypatch.setattr(rr.sys, "platform", "linux")
+        rr._process_cmdline(4242)
+        assert "-ww" in seen["argv"], f"ps invoked without -ww: {seen['argv']}"
+
     def test_state_file_records_what_is_needed_to_reap(self, fake_exe, model_files, tmp_path):
         srv = _server(fake_exe, model_files, tmp_path)
         try:

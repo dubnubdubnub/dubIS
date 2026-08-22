@@ -1155,10 +1155,24 @@ def _process_cmdline(pid: int) -> str | None:
         if not out or "No tasks" in out or str(pid) not in out:
             return None
         return out
+    # Linux: /proc is authoritative, never truncated, and needs no fork.
+    proc_cmdline = Path("/proc") / str(pid) / "cmdline"
+    try:
+        raw = proc_cmdline.read_bytes()
+    except OSError:
+        pass  # not Linux, or the process is gone -- fall through to ps
+    else:
+        return raw.replace(b"\0", b" ").decode("utf-8", "replace").strip() or None
+
     exe = shutil.which("ps")
     if not exe:
         return None  # pragma: no cover
-    out = _run([exe, "-p", str(pid), "-o", "command="])
+    # `ww` is load-bearing: GNU ps truncates the command column to the terminal
+    # width, so a long enough exe path loses its basename and the caller's
+    # identity check silently fails -- meaning a genuinely stranded llama-server
+    # is never reaped and quietly holds VRAM. macOS ps does not truncate, which
+    # is why this only ever showed up on Linux CI. Accepted on both.
+    out = _run([exe, "-ww", "-p", str(pid), "-o", "command="])
     return out.strip() or None if out is not None else None
 
 
