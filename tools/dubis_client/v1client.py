@@ -136,6 +136,19 @@ def _is_healthy(base_url: str, timeout: float = 1.0) -> bool:
         return False
 
 
+def default_data_dir(repo_root: str) -> str:
+    """The data directory every dubIS client agrees on: ``<repo_root>/data``.
+
+    Exported rather than inlined because `dubis serve` must start a server in
+    the SAME directory `connect()` probes. `python -m server` defaults its own
+    --data-dir to "." (the repo root), so a serve that let that default stand
+    would write `.v1_port`/`.dubis_lock` one level above where every other
+    command looks — the two would never find each other, and the repo root
+    would collect stray lock files.
+    """
+    return os.path.join(repo_root, "data")
+
+
 def _port_file_path(data_dir: str) -> Path:
     return Path(data_dir) / ".v1_port"
 
@@ -163,7 +176,7 @@ def connect(repo_root: str, data_dir: str | None = None) -> V1Client:
     if env_url:
         return V1Client(env_url, discovered_via="env", token=token)
 
-    resolved_dir = data_dir if data_dir is not None else os.path.join(repo_root, "data")
+    resolved_dir = data_dir if data_dir is not None else default_data_dir(repo_root)
     port = _read_port_file(resolved_dir)
     if port is not None:
         base_url = f"http://127.0.0.1:{port}"

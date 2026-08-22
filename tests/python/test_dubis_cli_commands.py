@@ -242,3 +242,34 @@ def test_schema_entries_carry_what_a_caller_needs(capsys):
 def test_builtin_commands_do_not_collide_with_generated_resources():
     resources = {cmd["resource"] for cmd in dubis_cli.COMMANDS.values()}
     assert not resources.intersection(dubis_cli._BUILTIN)
+
+
+# ── serve ────────────────────────────────────────────────────────────────────
+
+
+def test_serve_starts_the_server_where_connect_looks(monkeypatch):
+    """`python -m server` defaults --data-dir to "." (the repo root), one level
+    above the <repo>/data that connect() probes. If serve let that default
+    stand, `dubis serve` followed by any other command would exit 4 while the
+    repo root collected .v1_port and .dubis_lock files."""
+    from tools.dubis_client import default_data_dir
+
+    captured = {}
+    monkeypatch.setattr(dubis_cli.subprocess, "call",
+                        lambda cmd, **kw: captured.setdefault("cmd", cmd) and 0 or 0)
+    dubis_cli.main(["serve"])
+
+    cmd = captured["cmd"]
+    assert "--data-dir" in cmd
+    served = cmd[cmd.index("--data-dir") + 1]
+    assert served == default_data_dir(str(dubis_cli._REPO_ROOT))
+
+
+def test_serve_honours_an_explicit_data_dir(monkeypatch, tmp_path):
+    captured = {}
+    monkeypatch.setattr(dubis_cli.subprocess, "call",
+                        lambda cmd, **kw: captured.setdefault("cmd", cmd) and 0 or 0)
+    dubis_cli.main(["--data-dir", str(tmp_path), "serve"])
+
+    cmd = captured["cmd"]
+    assert cmd[cmd.index("--data-dir") + 1] == str(tmp_path)
