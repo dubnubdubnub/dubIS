@@ -59,12 +59,18 @@ class CartFacade:
             get_sourced_distributors_batch(self._api._get_cache(), self._api.input_csv, part_ids)
             if part_ids else {}
         )
+        # Quoted-only distributors count as available too, or the plan would
+        # recommend a distributor the line's own dropdown says it cannot use.
+        quoted = cart_qty.observed_distributors_batch(self._api.events_dir, part_ids)
         for cart in carts_list:
             for it in cart["items"]:
                 pid = it.get("part_id")
-                it["available_distributors"] = (
-                    [e["distributor"] for e in batch.get(pid, [])] if pid else []
-                )
+                if not pid:
+                    it["available_distributors"] = []
+                    continue
+                avail = [e["distributor"] for e in batch.get(pid, [])]
+                avail.extend(d for d in quoted.get(pid, []) if d not in avail)
+                it["available_distributors"] = avail
         return carts_list
 
     def _part_meta(self, part_id: str | None) -> dict[str, Any]:
@@ -133,6 +139,22 @@ class CartFacade:
         ).fetchone()
         return None if row is None else int(row["quantity"] or 0)
 
+    def _quotable_distributors(self, part_id: str | None, resolved: str) -> list[str]:
+        """Every distributor that could price this part: sourced, then quoted.
+
+        Sourced distributors come first so a part you actually buy keeps
+        offering its usual supplier first; quoted-only ones are appended.
+        Planning is the one place that must look past `get_sourced_distributors`
+        -- see `cart_qty.observed_distributors` for why.
+        """
+        wanted = self._part_distributors(part_id)
+        seen = set(wanted)
+        for dist in cart_qty.observed_distributors(self._api.events_dir, resolved):
+            if dist not in seen:
+                seen.add(dist)
+                wanted.append(dist)
+        return wanted
+
     def _offers(self, part_id: str, distributor: str | None) -> list:
         """Every purchasable offer for a part, across one or all distributors.
 
@@ -143,7 +165,8 @@ class CartFacade:
         """
         conn = self._api._get_cache()
         resolved = resolve_part_key(conn, part_id) or part_id
-        wanted = [distributor] if distributor else self._part_distributors(part_id)
+        wanted = ([distributor] if distributor
+                  else self._quotable_distributors(part_id, resolved))
         offers = []
         for dist in wanted:
             if not dist:

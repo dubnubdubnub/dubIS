@@ -83,6 +83,60 @@ def _row_carrier(row: dict[str, Any], name: str) -> str | None:
     return carrier_of(name) if name else None
 
 
+def observed_distributors(events_dir: str, part_id: str) -> list[str]:
+    """Distributors that have quoted this part, from the observation log alone.
+
+    ``get_sourced_distributors`` answers a different question -- which
+    distributors this part has been *catalogued or bought* from -- and returns
+    nothing for a part that is neither on the shelf nor in the ledger. A part
+    can still have been quoted: hovering a BOM row fetches a ladder and records
+    it, which is the only price evidence a brand-new part has. Planning a cart
+    of parts you have never bought is the ordinary case, not the exception, so
+    the plan reads both.
+
+    Sorted, so enumeration order does not depend on the file's row order.
+    """
+    path = os.path.join(events_dir, "price_observations.csv")
+    if not os.path.exists(path):
+        return []
+    found: set[str] = set()
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            if row.get("part_id") != part_id:
+                continue
+            dist = (row.get("distributor") or "").strip()
+            if dist:
+                found.add(dist)
+    return sorted(found)
+
+
+def observed_distributors_batch(
+    events_dir: str, part_ids: list[str]
+) -> dict[str, list[str]]:
+    """``observed_distributors`` for many parts, reading the log once.
+
+    The per-part version rescans the whole observation file; enriching every
+    line of a cart would rescan it once per line. Keyed by the part id passed
+    in; parts with no observation are absent rather than mapped to [].
+    """
+    wanted = {p for p in part_ids if p}
+    if not wanted:
+        return {}
+    path = os.path.join(events_dir, "price_observations.csv")
+    if not os.path.exists(path):
+        return {}
+    found: dict[str, set[str]] = {}
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            pid = row.get("part_id")
+            if pid not in wanted:
+                continue
+            dist = (row.get("distributor") or "").strip()
+            if dist:
+                found.setdefault(pid, set()).add(dist)
+    return {pid: sorted(dists) for pid, dists in found.items()}
+
+
 def tier_ladders(
     events_dir: str, part_id: str, distributor: str
 ) -> dict[str, dict[str, Any]]:

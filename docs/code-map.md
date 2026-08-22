@@ -771,6 +771,7 @@ graph LR
     "tests/python/test_cache_db.py" --> "inventory_ops.py"
     "tests/python/test_capture_page.py" --> "pnp_server.py"
     "tests/python/test_cart_export.py" --> "cart_export.py"
+    "tests/python/test_cart_facade.py" --> "domain/pricing.py"
     "tests/python/test_cart_qty.py" --> "cart_qty.py"
     "tests/python/test_cart_qty.py" --> "domain/pricing.py"
     "tests/python/test_carts.py" --> "cache_db.py"
@@ -1142,7 +1143,7 @@ graph LR
 ### domain/pricing.py
 
 - **Imports:** `csv_io.py`, `domain/packaging.py`
-- **Imported by:** `cache_db.py`, `domain/api_cart.py`, `domain/api_pricing.py`, `domain/attributes.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/server/test_carts_routes.py`, `tests/python/test_cache_db.py`, `tests/python/test_cart_qty.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_inventory_api_pricing.py`
+- **Imported by:** `cache_db.py`, `domain/api_cart.py`, `domain/api_pricing.py`, `domain/attributes.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/server/test_carts_routes.py`, `tests/python/test_cache_db.py`, `tests/python/test_cart_facade.py`, `tests/python/test_cart_qty.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_inventory_api_pricing.py`
 
 ### domain/product.py
 
@@ -2743,7 +2744,7 @@ graph LR
 
 ### tests/python/test_cart_facade.py
 
-- **Imports:** —
+- **Imports:** `domain/pricing.py`
 - **Imported by:** —
 
 ### tests/python/test_cart_qty.py

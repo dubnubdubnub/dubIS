@@ -2,6 +2,8 @@
 
 import csv
 
+import domain.pricing
+
 
 def test_cart_facade_crud(api):
     c = api.create_cart("Facade Cart")
@@ -162,3 +164,72 @@ def test_raw_cart_item_has_empty_available_distributors(api):
     c = api.create_cart("Raw")
     api.add_cart_item(c["id"], raw={"mpn": "NOPART"}, qty=1)
     assert api.get_cart(c["id"])["items"][0]["available_distributors"] == []
+
+
+# ── planning a part that is only in the cart ─────────────────────────────────
+# The headline flow (load a BOM, add what's missing to a cart, plan it) is all
+# about parts that are NOT on the shelf and have never been bought. Those have
+# no record PN and no ledger row, so get_sourced_distributors returns [] for
+# them -- and the plan used to report "no observed prices" for a part whose
+# ladder was sitting in the observation log.
+
+def _quote(api, part_id, distributor, ladder, packaging="Cut Tape", **extra):
+    domain.pricing.record_observations(api.events_dir, [
+        {"part_id": part_id, "distributor": distributor, "moq": q,
+         "unit_price": p, "currency": "USD", "source": "test",
+         "packaging": packaging, **extra}
+        for q, p in ladder
+    ])
+
+
+def test_plan_prices_a_part_that_was_only_ever_quoted(api):
+    c = api.create_cart("BOM")
+    _quote(api, "C52923", "lcsc", [(10, 0.01), (100, 0.005), (1000, 0.002)])
+    api.add_cart_item(c["id"], part_id="C52923", qty=100, per_board_qty=100)
+
+    # Nothing catalogued this part and nothing ever bought it...
+    assert api.get_sourced_distributors("C52923") == []
+    # ...but it was quoted, so it can be planned.
+    line = api.plan_cart(c["id"])["lines"][0]
+    assert line["required_qty"] == 100
+    assert line["candidates"], line["reason"]
+    assert line["selected"]["distributor"] == "lcsc"
+    assert line["selected"]["qty"] == 100
+    assert line["selected"]["unit_price"] == 0.005
+
+
+def test_plan_still_says_unpriced_when_nothing_quoted_the_part(api):
+    c = api.create_cart("BOM")
+    api.add_cart_item(c["id"], part_id="NEVER-QUOTED", qty=5, per_board_qty=5)
+    line = api.plan_cart(c["id"])["lines"][0]
+    assert line["candidates"] == []
+    assert line["selected"] is None
+    assert api.plan_cart(c["id"])["totals"]["unpriced"] == 1
+
+
+def test_quoted_only_distributor_is_offered_on_the_line(api):
+    """The plan and the line's own dropdown must agree on what is available.
+
+    Recommending `lcsc` while `available_distributors` is empty would render a
+    recommendation the row claims it cannot act on.
+    """
+    c = api.create_cart("BOM")
+    _quote(api, "C52923", "lcsc", [(10, 0.01)])
+    api.add_cart_item(c["id"], part_id="C52923", qty=10, per_board_qty=10)
+    item = api.list_carts()[0]["items"][0]
+    assert item["available_distributors"] == ["lcsc"]
+
+
+def test_a_quoted_distributor_does_not_displace_a_sourced_one(api):
+    """Sourced distributors keep coming first; quoted-only ones are appended."""
+    c = api.create_cart("BOM")
+    _quote(api, "C52923", "mouser", [(1, 0.05)])
+    api.add_cart_item(c["id"], part_id="C52923", qty=1, per_board_qty=1)
+    # Fake a record PN so the part is "sourced" from lcsc as well.
+    conn = api._get_cache()
+    conn.execute(
+        "INSERT OR REPLACE INTO parts (part_id, lcsc, mpn) VALUES (?, ?, ?)",
+        ("C52923", "C52923", "CL05A105KA5NQNC"),
+    )
+    conn.commit()
+    assert api._cart._quotable_distributors("C52923", "C52923") == ["lcsc", "mouser"]
