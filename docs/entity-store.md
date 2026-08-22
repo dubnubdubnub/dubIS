@@ -67,8 +67,8 @@ returns `None` for exactly this reason.
 `cache.db`'s `prices` table is keyed `(part_id, distributor)` — there is no
 packaging column — so its aggregates now span every packaging a part was
 observed in. This is **not** a cosmetic concern: `get_price_summary` feeds
-`GET /v1/parts/{key}/prices`, which `tools/dubis-mcp/server.py`'s
-`price_summary` tool returns verbatim to an agent asking what a part costs.
+`GET /v1/parts/{key}/prices`, which `tools/dubis-cli`'s
+`parts get-price-summary` command returns verbatim to an agent asking what a part costs.
 
 - `avg_unit_price` / `price_count` now average across packagings. Coarser, but
   still interpretable as an average.

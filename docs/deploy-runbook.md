@@ -278,13 +278,15 @@ back 401, `DUBIS_AUTH_MODE` isn't actually `on` in the running Pod — check
 the Secret and that the Deployment picked it up (`kubectl rollout restart`
 after any Secret edit; `envFrom` isn't live-reloaded).
 
-**MCP footgun:** if you point the desktop at this remote instance (`DUBIS_URL`
-env or `data/preferences.json`'s `server_url`), set the same `DUBIS_URL` (and
-`DUBIS_TOKEN`) for `tools/dubis-mcp` too. Otherwise the desktop shows the
-remote's inventory while the MCP server, seeing no `DUBIS_URL`, falls through
-to its local-discovery path and spawns its own `python -m server` against the
-local CSVs — giving agents a stale/divergent view of the inventory the user is
-actually looking at.
+**CLI footgun:** if you point the desktop at this remote instance (`DUBIS_URL`
+env or `data/preferences.json`'s `server_url`), export the same `DUBIS_URL`
+(and `DUBIS_TOKEN`) for `tools/dubis-cli` too. Otherwise the desktop shows the
+remote's inventory while the CLI, seeing no `DUBIS_URL`, falls back to the
+local port file and reads whichever server is running against the local CSVs —
+giving agents a stale/divergent view of the inventory the user is actually
+looking at. The CLI will not silently start a server of its own (that is
+`dubis serve`, explicitly), so the failure mode is a wrong-but-live answer from
+a local instance, not a second writer appearing behind your back.
 
 ## 7. Longhorn backup-group confirmation
 
