@@ -1,5 +1,4 @@
 import io
-import logging
 import shutil
 
 import pytest
@@ -100,76 +99,7 @@ def test_extract_page_mocked(monkeypatch):
     assert page["width"] == 640
 
 
-class TestExtractPagesPrefillSelection:
-    """extract_pages keeps whichever extractor recovered MORE rows, so a partial
-    grid result never suppresses a more complete flat parse (the bug that made a
-    6-row packing list autofill a single row)."""
-
-    def _patch(self, monkeypatch, grid_rows, flat_rows, vlm_rows=None):
-        import ocr_engine, ocr_table, distributor_profiles, pdf_raster, vlm_extract
-        monkeypatch.setattr(ocr_engine, "require_tesseract", lambda: None)
-        monkeypatch.setattr(pdf_raster, "rasterize", lambda data, ext: [(b"png", 10, 10)])
-        monkeypatch.setattr(
-            ocr_layout, "extract_page",
-            lambda png: {"image_b64": "", "width": 10, "height": 10,
-                         "words": [], "lines": [{"text": "x"}]})
-        # VLM backend off by default in these tests (None) so the grid/flat
-        # selection logic is exercised; overridden where the VLM path is tested.
-        monkeypatch.setattr(vlm_extract, "extract_line_items",
-                            lambda png, template, page_w, page_h: vlm_rows)
-        monkeypatch.setattr(ocr_table, "extract_line_items",
-                            lambda png, template: grid_rows)
-        monkeypatch.setattr(distributor_profiles, "parse_with_template",
-                            lambda template, text: flat_rows)
-
-    def test_flat_wins_when_it_has_more_rows(self, monkeypatch):
-        grid = [{"distributor_pn": "C1"}]
-        flat = [{"distributor_pn": "C1"}, {"distributor_pn": "C2"}, {"distributor_pn": "C3"}]
-        self._patch(monkeypatch, grid, flat)
-        out = ocr_layout.extract_pages(b"img", ".jpg", "lcsc")
-        assert out["prefill_rows"] == flat
-
-    def test_grid_wins_when_it_has_more_or_equal_rows(self, monkeypatch):
-        grid = [{"distributor_pn": "C1"}, {"distributor_pn": "C2"}]
-        flat = [{"distributor_pn": "C9"}]
-        self._patch(monkeypatch, grid, flat)
-        out = ocr_layout.extract_pages(b"img", ".jpg", "lcsc")
-        assert out["prefill_rows"] == grid
-
-    def test_grid_none_falls_back_to_flat(self, monkeypatch):
-        flat = [{"distributor_pn": "C1"}]
-        self._patch(monkeypatch, None, flat)
-        out = ocr_layout.extract_pages(b"img", ".jpg", "lcsc")
-        assert out["prefill_rows"] == flat
-
-    def test_vlm_preferred_when_available(self, monkeypatch):
-        # When the local VLM backend returns rows, they win outright over the
-        # grid/flat extractors (it reads faint/folded pages classical OCR can't).
-        vlm = [{"distributor_pn": "C1"}, {"distributor_pn": "C2"}, {"distributor_pn": "C3"}]
-        self._patch(monkeypatch, grid_rows=[{"distributor_pn": "Cgrid"}],
-                    flat_rows=[{"distributor_pn": "Cflat"}], vlm_rows=vlm)
-        out = ocr_layout.extract_pages(b"img", ".jpg", "lcsc")
-        assert out["prefill_rows"] == vlm
-
-    def test_vlm_none_falls_back_to_classical(self, monkeypatch):
-        # No capable VLM (GPU-less node / CI) → unchanged grid/flat behaviour.
-        grid = [{"distributor_pn": "C1"}, {"distributor_pn": "C2"}]
-        self._patch(monkeypatch, grid_rows=grid, flat_rows=[{"distributor_pn": "C9"}],
-                    vlm_rows=None)
-        out = ocr_layout.extract_pages(b"img", ".jpg", "lcsc")
-        assert out["prefill_rows"] == grid
-
-    @pytest.mark.parametrize("vlm,grid,flat,marker", [
-        ([{"distributor_pn": "C1"}], [], [], "local VLM"),
-        (None, [{"distributor_pn": "C1"}, {"distributor_pn": "C2"}],
-         [{"distributor_pn": "C9"}], "Tesseract grid"),
-        (None, [{"distributor_pn": "C1"}],
-         [{"distributor_pn": "C1"}, {"distributor_pn": "C2"}], "Tesseract flat-parse"),
-    ])
-    def test_logs_which_backend(self, monkeypatch, caplog, vlm, grid, flat, marker):
-        # The log states which OCR backend produced the rows, for diagnosability.
-        self._patch(monkeypatch, grid_rows=grid, flat_rows=flat, vlm_rows=vlm)
-        with caplog.at_level(logging.INFO, logger="ocr_layout"):
-            ocr_layout.extract_pages(b"img", ".jpg", "lcsc")
-        assert marker in caplog.text
-        assert "OCR backend:" in caplog.text
+# extract_pages' backend selection (VLM vs Tesseract grid/flat, and which of
+# them each tesseract/VLM availability combination uses) lives in
+# tests/python/test_ocr_layout_backend.py — one _patch helper for the whole
+# matrix rather than two that can drift.
