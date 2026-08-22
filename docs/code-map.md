@@ -1987,6 +1987,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** —
 
+### scripts/seed-bom-prices.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### scripts/spike-webview-loopback.py
 
 - **Imports:** `server/__init__.py`, `server/__main__.py`, `server/run.py`
