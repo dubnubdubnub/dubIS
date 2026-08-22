@@ -180,3 +180,37 @@ All three open questions are settled; no blockers remain.
 ## Not in scope
 
 Changing `/v1` itself. Every route already exists; this is a new client only.
+
+## Outcome (2026-08-22)
+
+Shipped in PR #424 across four commits. 87 commands generated; 61 tests
+replacing the MCP suites; all 14 `verify.sh` gates green.
+
+Deviations from the plan above, and why:
+
+- **No `console_script`.** `pyproject.toml` has no `[project]` table, so
+  getting `dubis` onto PATH would mean making the repo an installable package
+  and reckoning with `dubIS.spec` (PyInstaller). Shipped `scripts/dubis`, a
+  shim, with a symlink line in its header.
+- **Two generated artifacts, not three.** `SCHEMA.json` was dropped — `dubis
+  schema --json` serializes the in-memory table instead, so there is one less
+  file to keep in sync.
+- **The hot-path "alias table" was not built.** Decision 1 assumed the ten MCP
+  tools were aliases for single routes. They are not: `get_part` aggregates
+  five calls, `search_parts` filters client-side, `low_stock` reads a
+  preferences threshold. They are a *curated command family* that has to be
+  hand-written against `dubis_client.curate`, not generated. The generated
+  surface covers every route and the curation hooks preserve the safety
+  properties, so nothing is lost in capability — but `dubis search 100nF` does
+  not exist yet, and the terse hot path is still worth adding.
+- **`.claude/skills/` is now tracked** (`.gitignore` narrowed to `.claude/*`
+  with a `!.claude/skills/` negation). A generated artifact that CI must
+  staleness-check cannot be untracked. This makes the directory shared team
+  state rather than local config.
+- **`.mcp.json.example` needed no edit** — it never carried a dubis entry. The
+  local untracked `.mcp.json` still does and must be edited by hand.
+
+Two bugs the build surfaced, both recorded in commit messages: the api-map's
+`mutating` flag does not mean "writes" (it means "the frontend must refresh
+inventory"), and optional query params are `anyOf[X, null]` so a bare
+`schema.type` read mistypes them as strings.
