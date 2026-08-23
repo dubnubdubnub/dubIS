@@ -251,7 +251,7 @@ class Launcher:
         # a normal top-level navigation to remote_base, with no Authorization
         # header involved (pywebview navigation can't attach custom headers
         # cleanly, and the tailnet path doesn't need one). Bearer tokens
-        # (DUBIS_TOKEN) are for headless clients only — see tools/dubis-mcp/v1client.py
+        # (DUBIS_TOKEN) are for headless clients only — see tools/dubis_client/v1client.py
         # — never injected into this webview navigation. Out of scope: a
         # non-tailnet/token browser auth story (e.g. a `?token=` cookie
         # bootstrap) — see the design doc's open question in §7.

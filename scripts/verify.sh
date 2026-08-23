@@ -83,6 +83,13 @@ run_step "openapi" "$PY" scripts/gen-openapi.py --check
 # 4d. api-client
 run_step "api-client" "$PY" scripts/gen-api-client.py --check
 
+# 4e. cli (command table + the generated agent skill)
+run_step "cli" "$PY" scripts/gen-cli.py --check
+cli_rc=$?
+if [ $cli_rc -ne 0 ]; then
+    echo "  → CLI artifacts stale — run \`python scripts/gen-cli.py\` and commit."
+fi
+
 # 5. layout-tokens
 run_step "layout-tokens" "$PY" scripts/check-layout-tokens.py --check
 layout_rc=$?
