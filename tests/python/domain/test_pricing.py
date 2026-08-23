@@ -1048,8 +1048,8 @@ class TestRecordFetchedPricesPackaging:
 # ── prices-cache `moq` across packagings ───────────────────────────────────
 #
 # `moq` is one scalar per (part_id, distributor), filled last-row-wins. It
-# reaches an agent verbatim through tools/dubis-mcp/server.py's `price_summary`
-# tool, so a wrong number there is not cosmetic. With per-packaging ladders
+# reaches an agent verbatim through tools/dubis-cli's `parts get-price-summary`
+# command, so a wrong number there is not cosmetic. With per-packaging ladders
 # recorded, no single value is correct — so it is NULL when the moq-bearing
 # observations span more than one packaging, and unchanged otherwise.
 

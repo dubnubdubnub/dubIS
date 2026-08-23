@@ -135,7 +135,7 @@ def _print_ready_when_started(
     (when data_dir is given) write the bound port to <data_dir>/.v1_port —
     the same discovery signal server/run.py's start_server() writes for the
     in-thread desktop-app path, so a standalone `python -m server` instance
-    is equally discoverable by tools/dubis-mcp/v1client.py. Also updates
+    is equally discoverable by tools/dubis_client/v1client.py. Also updates
     the data-dir lockfile's content with the resolved port, if *lock* is
     given (it was acquired with port=None in main(), before the actual
     port was known).

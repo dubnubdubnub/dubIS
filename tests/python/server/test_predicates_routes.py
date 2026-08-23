@@ -1,7 +1,7 @@
 """GET /v1/parts/{key}/attributes and POST /v1/parts/{key}/evaluate.
 
 The read route exists because attributes were persisted but unreachable over
-/v1 -- the frontend and tools/dubis-mcp only speak /v1, so nothing outside
+/v1 -- the frontend and tools/dubis-cli only speak /v1, so nothing outside
 Python could see them. The evaluate route turns a requirement into a recorded
 verdict without writing anything.
 """
