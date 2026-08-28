@@ -58,26 +58,53 @@ def extract_page(png_bytes: bytes) -> dict[str, Any]:
     }
 
 
+def _image_only_page(png_bytes: bytes, width: int, height: int) -> dict[str, Any]:
+    """A page with the image but no OCR tokens — the tesseract-less shape.
+
+    Same keys as extract_page() so the frontend renders the page and its prefilled
+    grid identically; the empty ``words``/``lines`` simply mean no click-to-fill
+    highlight, which is a degraded overlay rather than no overlay.
+    """
+    return {
+        "image_b64": base64.b64encode(png_bytes).decode("ascii"),
+        "width": width, "height": height,
+        "words": [], "lines": [],
+    }
+
+
 def extract_pages(file_bytes: bytes, ext: str, template: str = "generic") -> dict[str, Any]:
     """Rasterize -> OCR each page -> heuristic prefill.
 
     Returns {pages, prefill_rows, template}. ``pages`` is one extract_page() dict
     per rasterized page; ``prefill_rows`` is the distributor-profile heuristic run
     over all line text concatenated.
+
+    Tesseract is required only for what actually needs it — the overlay's
+    word/line tokens and the grid/flat fallback extractors. The VLM backend needs
+    neither, so a machine with no tesseract but a reachable model server still
+    gets its rows (with token-less pages). TesseractMissingError is raised only
+    when tesseract is absent AND the VLM produced nothing, i.e. when there is
+    genuinely no backend.
     """
     import distributor_profiles
     import ocr_engine
     import pdf_raster
+    import vlm_extract
 
-    # Fail fast: surface a clear TesseractMissingError before doing the
-    # (potentially expensive) PDF rasterization work.
-    ocr_engine.require_tesseract()
+    have_tesseract = ocr_engine.ensure_tesseract()
+    # Fail fast: with neither backend there is nothing to extract with, so
+    # surface the actionable TesseractMissingError before doing the (potentially
+    # expensive) PDF rasterization work. The probe is cheap and only runs on the
+    # tesseract-less path, so the tesseract-present path is untouched.
+    if not have_tesseract and not vlm_extract.available():
+        ocr_engine.require_tesseract()
 
     # Rasterize once: pages are EXIF-uprighted and downscaled (see pdf_raster), so
     # the preview image, the OCR tokens, and the parsers below all work on the same
     # upright, sane-resolution page rather than raw sideways 24 MP pixels.
     raster = pdf_raster.rasterize(file_bytes, ext)
-    pages = [extract_page(png) for (png, _w, _h) in raster]
+    pages = [extract_page(png) if have_tesseract else _image_only_page(png, w, h)
+             for (png, w, h) in raster]
 
     # Preferred backend: a local vision-language model (llama.cpp or any other
     # OpenAI-compatible server) reads the page holistically — robust to faint print,
@@ -87,7 +114,6 @@ def extract_pages(file_bytes: bytes, ext: str, template: str = "generic") -> dic
     # no behaviour change. Runs entirely locally — no PII leaves the machine.
     page_w = raster[0][1] if raster else 0
     page_h = raster[0][2] if raster else 0
-    import vlm_extract
     vlm_rows = (vlm_extract.extract_line_items(raster[0][0], template, page_w, page_h)
                 if raster else None)
     if vlm_rows:
@@ -95,6 +121,11 @@ def extract_pages(file_bytes: bytes, ext: str, template: str = "generic") -> dic
                     vlm_extract.model_name(), len(vlm_rows))
         return {"pages": pages, "prefill_rows": _tag_rows(vlm_rows, "vlm"),
                 "template": template}
+
+    # Everything below reads tesseract's output (cell OCR, or the page text the
+    # word tokens produced), so this is where the binary is genuinely required —
+    # the VLM had its turn above and declined.
+    ocr_engine.require_tesseract()
 
     # Two extractors, then keep whichever recovered MORE rows:
     #  - grid-aware (ocr_table): OCRs each ruled cell in isolation and assigns

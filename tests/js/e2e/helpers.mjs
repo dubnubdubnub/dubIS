@@ -49,6 +49,23 @@ export function addMockSetup(page, inventory, options = {}) {
       (window.__apiCalls[name] = window.__apiCalls[name] || []).push(args);
     };
 
+    // Reader install state, driven by the spec (see start_reader_install below).
+    window.__reader = {
+      statuses: opts.readerInstallStatuses || [],
+      index: 0,
+      polls: 0,
+      jobId: null,
+      local: opts.readerStatus || {
+        installed: false, path: '/fake/dubis-data/reader', bytes_total: 0,
+        file_count: 0, server_running: false, endpoint: '', job_id: '',
+      },
+      /** Step to the next scripted status. Idempotent at the end of the list. */
+      advance() {
+        const r = window.__reader;
+        if (r.index < r.statuses.length - 1) r.index += 1;
+      },
+    };
+
     window.pywebview = {
       api: {
         load_inventory: async () => inv,
@@ -188,9 +205,52 @@ export function addMockSetup(page, inventory, options = {}) {
           if (opts.ocrEngineCheckThrows) throw new Error('bridge not ready (simulated)');
           return opts.ocrEngineAvailable === undefined ? true : opts.ocrEngineAvailable;
         },
-        install_tesseract: async () => {
-          record('install_tesseract', {});
-          return opts.installTesseractResult || { ok: true, message: 'Tesseract installed.', available: true };
+        // ── Picture/PDF reader (client-shell methods, deliberately NOT on /v1:
+        // the local reader installs on the *client* machine, and in remote-backend
+        // mode there is no local /v1 at all).
+        //
+        // The install is scripted, not timed: `opts.readerInstallStatuses` is a
+        // list of status dicts and the mock serves whichever one
+        // `window.__reader.index` points at, so a spec can hold the bar in a
+        // chosen phase for as long as it needs and step forward with
+        // `window.__reader.advance()`. Advancing on poll count instead would
+        // make every assertion a race against the panel's 700ms timer.
+        start_reader_install: async () => {
+          record('start_reader_install', {});
+          // Single-flight, like reader_jobs.start_install: a second start while
+          // one runs returns the SAME job id rather than a second download.
+          window.__reader.jobId = window.__reader.jobId || (opts.readerJobId || 'job-e2e-1');
+          return { job_id: window.__reader.jobId };
+        },
+        get_reader_install_status: async (jobId) => {
+          record('get_reader_install_status', [jobId]);
+          const r = window.__reader;
+          r.polls += 1;
+          const seq = r.statuses;
+          const s = seq.length ? seq[Math.min(r.index, seq.length - 1)]
+            : { phase: 'done', done: true, pct: 100 };
+          if (s.done && opts.readerStatusAfterInstall) r.local = opts.readerStatusAfterInstall;
+          return { job_id: jobId, ...s };
+        },
+        get_reader_status: async () => {
+          record('get_reader_status', {});
+          return window.__reader.local;
+        },
+        uninstall_reader: async () => {
+          record('uninstall_reader', {});
+          const before = window.__reader.local;
+          window.__reader.local = {
+            installed: false, path: before.path, bytes_total: 0, file_count: 0,
+            server_running: false, endpoint: '', job_id: '',
+          };
+          return {
+            path: before.path,
+            existed: !!before.installed,
+            bytes_reclaimed: before.bytes_total || 0,
+            file_count: before.file_count || 0,
+            server_stopped: !!before.server_running,
+            reaped_pid: null,
+          };
         },
         match_part: async () => ({ status: 'new' }),
         get_warnings: async () => ({ migration: { inferred_count: 0, unknown_count: 0 },

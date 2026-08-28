@@ -20,6 +20,7 @@ from dubis_errors import (
     NotFoundError,
     PartRegistryCollisionError,
 )
+from fleet_client import FleetError, FleetUnavailableError, LeaseConflictError
 from server.auth import LoopbackRequiredError
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,14 @@ _MAPPING: list[tuple[type[Exception], int, str]] = [
     (DistributorAuthError, 401, "distributor_auth"),
     (DistributorTimeout, 504, "distributor_timeout"),
     (DistributorError, 502, "distributor_error"),
+    # The fleet registry is an upstream dependency of the *server*: in remote
+    # reader mode the dubis pod does the discovery, so these do cross /v1 and
+    # need real statuses. 409 mirrors the registry's own answer for a held
+    # lease (and carries the holder in the message); an unreachable registry is
+    # a dependency outage, not a client mistake, hence 503 rather than 500.
+    (LeaseConflictError, 409, "fleet_lease_conflict"),
+    (FleetUnavailableError, 503, "fleet_unavailable"),
+    (FleetError, 502, "fleet_error"),
     (CacheError, 500, "cache_error"),
     (DubISError, 500, "dubis_error"),
     (KeyError, 404, "not_found"),

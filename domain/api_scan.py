@@ -66,43 +66,88 @@ class ScanFacade:
         import ocr_engine
         return ocr_engine.ensure_tesseract()
 
-    def install_tesseract(self) -> dict[str, Any]:
-        """Best-effort install of the Tesseract OCR engine via winget (Windows).
+    # ── Local picture/PDF reader ────────────────────────────────────────────
+    #
+    # Successor to the Windows-only `install_tesseract` this facade used to
+    # carry (winget + a UAC prompt, and nothing at all on macOS/Linux). The
+    # reader is cross-platform, downloads on demand, and is reached from the
+    # pywebview *client shell* rather than /v1 — it installs and runs on the
+    # client machine, and in remote-backend mode there is no local /v1 to carry
+    # it. See `client_shell.ClientShell.start_reader_install` for the full
+    # transport rationale and `reader_jobs.py` for the state machine.
+    #
+    # Every method below derives its target from `_reader_data_dir()` and never
+    # accepts a path from the caller, so the preview, the install and the
+    # uninstall cannot disagree about which directory they mean.
 
-        Runs winget non-interactively (machine scope; Windows shows a UAC prompt
-        the user approves). Returns {ok: bool, message: str, available: bool}.
-        On success the engine is re-detected so OCR works without an app restart.
-        Never raises; always returns the dict.
+    def _reader_data_dir(self) -> str:
+        """The data dir whose `reader/` subdirectory the local reader lives in.
+
+        The single place the managed directory is chosen. `reader_install`
+        derives (and safety-validates) `<data_dir>/reader` from it, and
+        `reader_jobs` keys its single-flight lock on that derived path — so
+        routing every reader call through here is what makes "one install per
+        install target" mean one install per app.
         """
-        import shutil
-        import subprocess
+        return self._api.base_dir
 
-        import ocr_engine
+    def start_reader_install(self) -> dict[str, Any]:
+        """Begin (or join) a local reader install; return the initial status dict.
 
-        if ocr_engine.ensure_tesseract():
-            return {"ok": True, "message": "Tesseract is already installed.", "available": True}
-        if sys.platform != "win32":
-            return {"ok": False, "message": ocr_engine.INSTALL_HINT, "available": False}
-        if not shutil.which("winget"):
-            return {"ok": False, "message": "winget not found. " + ocr_engine.INSTALL_HINT, "available": False}
-        try:
-            proc = subprocess.run(
-                ["winget", "install", "-e", "--id", "UB-Mannheim.TesseractOCR",
-                 "--accept-package-agreements", "--accept-source-agreements"],
-                capture_output=True, text=True, timeout=600,
-            )
-        except (OSError, subprocess.SubprocessError) as exc:
-            logger.warning("Tesseract install failed to start: %s", exc)
-            return {"ok": False,
-                    "message": f"Install failed to start: {exc}. " + ocr_engine.INSTALL_HINT,
-                    "available": False}
-        available = ocr_engine.ensure_tesseract()
-        if proc.returncode == 0 and available:
-            return {"ok": True, "message": "Tesseract installed.", "available": True}
-        tail = (proc.stderr or proc.stdout or "").strip()[-400:]
-        logger.warning("winget Tesseract install exited %s: %s", proc.returncode, tail)
-        return {"ok": False, "available": available,
-                "message": f"winget exited {proc.returncode}. {tail}".strip() + " " + ocr_engine.INSTALL_HINT}
+        Returns the same 14-key shape as `get_reader_install_status` rather than
+        a bare job id, so the frontend has one dict to render from and does not
+        have to special-case its first paint. `reader_jobs.start_install` is
+        single-flight per managed directory: a second click while one install is
+        in flight attaches to the running job instead of racing a second
+        multi-GiB download onto the same disk.
+        """
+        import reader_jobs
+        job_id = reader_jobs.start_install(self._reader_data_dir())
+        return reader_jobs.get_status(job_id)
+
+    def get_reader_install_status(self, job_id: str) -> dict[str, Any]:
+        """Poll one install job. See `reader_jobs.InstallJob.status` for the contract.
+
+        An unknown/expired id answers with a terminal error dict rather than
+        raising, so a poll timer stops instead of retrying forever.
+        """
+        import reader_jobs
+        return reader_jobs.get_status(job_id)
+
+    def uninstall_reader(self) -> dict[str, Any]:
+        """Stop the local reader and delete its managed directory.
+
+        Returns {path, existed, bytes_reclaimed, file_count, server_stopped,
+        reaped_pid}. Idempotent — uninstalling nothing succeeds with 0 bytes.
+        """
+        import reader_jobs
+        return reader_jobs.uninstall_reader(self._reader_data_dir())
+
+    def get_reader_status(self) -> dict[str, Any]:
+        """Everything the reader UI needs before the user clicks anything.
+
+        `install_dir` for the label; `installed`/`bytes_total`/`file_count`/
+        `entries` for the uninstall confirm — measured by
+        `reader_install.plan_uninstall`, the *same* measurement the uninstall
+        itself reports, so the confirm can never name a different directory or a
+        different size than what gets deleted; `server_running`/`endpoint` for
+        whether a reader is up right now; and `active_job_id` so a Preferences
+        panel reopened mid-install re-attaches to the running job rather than
+        showing an idle Install button over a live download.
+        """
+        import reader_jobs
+        data_dir = self._reader_data_dir()
+        plan = reader_jobs.plan_uninstall_reader(data_dir)
+        return {
+            "install_dir": plan["path"],
+            "installed": plan["exists"],
+            "bytes_total": plan["bytes_total"],
+            "file_count": plan["file_count"],
+            "entries": plan["entries"],
+            "server_running": plan["server_running"],
+            "endpoint": reader_jobs.running_endpoint(data_dir) or "",
+            "active_job_id": reader_jobs.active_job_id(data_dir) or "",
+        }
 
     def start_scan_session(self, template: str = "generic") -> dict[str, Any]:
         """Mint a phone-scan session and return connection details.

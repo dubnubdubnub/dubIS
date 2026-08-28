@@ -28,7 +28,10 @@ is what the CI GPU node runs and the easiest way to get started: one binary that
 downloads the GGUF *and* its vision projector for you.
 
 ```
-# Best quality; ~6 GB VRAM at 4-bit.
+# Best quality. Budget ~7 GB VRAM at 4-bit and expect to want ~10: the weights
+# are 4.36 GiB and the mmproj vision projector another 1.26 GiB (measured from
+# ggml-org/Qwen2.5-VL-7B-Instruct-GGUF), then KV cache on top — and a full-page
+# scan is thousands of vision tokens, so the cache is not a rounding error.
 llama-server -hf ggml-org/Qwen2.5-VL-7B-Instruct-GGUF:Q4_K_M --port 8080
 
 # …or, on a smaller GPU (e.g. a 6 GB RTX 2060): fits ~4 GB and still gets MPNs +
