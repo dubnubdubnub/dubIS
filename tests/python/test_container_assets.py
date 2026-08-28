@@ -60,6 +60,40 @@ def _dockerfile_data_copies() -> set[str]:
     return copied
 
 
+def _dockerignore_allowed_data_files() -> set[str]:
+    """Filenames under data/ that survive .dockerignore's `data/**` exclusion."""
+    text = (REPO_ROOT / ".dockerignore").read_text(encoding="utf-8")
+    allowed: set[str] = set()
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("!data/"):
+            allowed.add(line[len("!data/"):])
+    return allowed
+
+
+def test_every_copied_data_file_survives_dockerignore():
+    """The COPY list and the .dockerignore exemption list must agree.
+
+    .dockerignore excludes `data/**`, which removes the file from the build
+    *context* — so a COPY of an unexempted file does not quietly produce an
+    image without it, it fails the build with "not found". Nothing short of an
+    actual `docker build` catches this, which is exactly why it needs a guard:
+    a copy of the repo's own filesystem (the obvious way to sanity-check the
+    static layout locally) never goes through the build context at all.
+    """
+    copied = _dockerfile_data_copies()
+    allowed = _dockerignore_allowed_data_files()
+
+    excluded = copied - allowed
+    assert not excluded, (
+        "the Dockerfile COPYs these files out of data/, but .dockerignore's "
+        "`data/**` rule keeps them out of the build context, so `docker build` "
+        "fails with \"not found\":\n"
+        + "\n".join(f"  data/{name}" for name in sorted(excluded))
+        + "\nAdd a `!data/<name>` line to .dockerignore for each."
+    )
+
+
 def test_frontend_data_assets_are_copied_into_the_image():
     refs = _frontend_data_refs()
     copied = _dockerfile_data_copies()
