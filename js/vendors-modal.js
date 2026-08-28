@@ -7,7 +7,7 @@
    the backend rejects mutating them. */
 
 import { apiVendors, AppLog } from './api.js';
-import { showToast, escHtml, Modal } from './ui-helpers.js';
+import { showToast, escHtml, Modal, vendorIconFor } from './ui-helpers.js';
 import { scheduleInventoryRefresh } from './store.js';
 
 const PSEUDO_TYPES = new Set(["self", "salvage", "unknown"]);
@@ -33,8 +33,12 @@ function hostOf(url) {
 function iconHtml(v) {
   // Backend serves favicons as base64 data URIs (works in the app, the static
   // test server, and the live bridge — no filesystem path resolution needed).
-  if (v.favicon_data_uri) {
-    return `<img src="${escHtml(v.favicon_data_uri)}" alt="" onerror="this.remove()">`;
+  // vendorIconFor also covers the icons that ship as static assets under
+  // data/, whose bytes the backend cannot inline from a remote server's data
+  // dir; onerror keeps a stale path from leaving a broken-image glyph behind.
+  const src = vendorIconFor(v);
+  if (src) {
+    return `<img src="${escHtml(src)}" alt="" onerror="this.remove()">`;
   }
   if (v.icon) return escHtml(v.icon);
   const letter = (v.name || "?").trim().charAt(0).toUpperCase() || "?";

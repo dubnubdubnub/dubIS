@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 // the pure-function tests keep running without pulling in DOM/constants dependencies.
 vi.mock('../../js/a11y/focus-trap.js', () => ({ trap: vi.fn(), release: vi.fn() }));
 
-import { stockValueColor, vendorIconSrc, escHtml } from '../../js/ui-helpers.js';
+import { stockValueColor, vendorIconSrc, vendorIconFor, escHtml } from '../../js/ui-helpers.js';
 
 describe('escHtml', () => {
   it('escapes quotes for attribute safety (unified on the attribute-safe escapeHtml)', () => {
@@ -40,6 +40,29 @@ describe('vendorIconSrc', () => {
   it('passes through absolute filesystem paths', () => {
     expect(vendorIconSrc('C:\\Users\\x\\f.png')).toBe('C:/Users/x/f.png');
     expect(vendorIconSrc('/var/data/f.png')).toBe('/var/data/f.png');
+  });
+});
+
+describe('vendorIconFor', () => {
+  it('prefers the data URI the backend inlines', () => {
+    // The static data/ URL only resolves where the page's static root and the
+    // data dir are the same directory — true on the desktop, false for
+    // dubis-server (/app vs /data), where a fetched favicon 404s.
+    expect(vendorIconFor({
+      favicon_path: 'sources/favicons/abc.png',
+      favicon_data_uri: 'data:image/png;base64,AAAA',
+    })).toBe('data:image/png;base64,AAAA');
+  });
+
+  it('falls back to the path for the icons shipped in the image', () => {
+    expect(vendorIconFor({ favicon_path: 'lcsc-icon.ico' })).toBe('data/lcsc-icon.ico');
+    expect(vendorIconFor({ favicon_path: 'lcsc-icon.ico', favicon_data_uri: '' })).toBe('data/lcsc-icon.ico');
+  });
+
+  it('returns empty string for a vendor with neither, or no vendor at all', () => {
+    expect(vendorIconFor({})).toBe('');
+    expect(vendorIconFor(null)).toBe('');
+    expect(vendorIconFor(undefined)).toBe('');
   });
 });
 

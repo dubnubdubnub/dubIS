@@ -14,7 +14,7 @@
    keeps its own markup and supplies a getVendor/setVendor/onChange context. */
 
 import { apiVendors } from '../../api.js';
-import { escHtml, vendorIconSrc } from '../../ui-helpers.js';
+import { escHtml, vendorIconFor } from '../../ui-helpers.js';
 import { store } from '../../store.js';
 import { canonicalizeUrl } from './mfg-direct-logic.js';
 
@@ -29,8 +29,8 @@ export function vendorFaviconHtml(vendor) {
   if (vendor.icon) {
     return `<span class="vendor-favicon-emoji">${escHtml(vendor.icon)}</span>`;
   }
-  if (vendor.favicon_path) {
-    return `<img class="vendor-favicon" src="${escHtml(vendorIconSrc(vendor.favicon_path))}" alt="">`;
+  if (vendor.favicon_data_uri || vendor.favicon_path) {
+    return `<img class="vendor-favicon" src="${escHtml(vendorIconFor(vendor))}" alt="">`;
   }
   return `<span class="vendor-favicon-empty"></span>`;
 }
