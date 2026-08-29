@@ -45,6 +45,9 @@ import time
 import urllib.error
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import browser_page  # noqa: E402  - needs the repo root on the path first
+
 LCSC_CODE = re.compile(r"^C\d{4,}$", re.IGNORECASE)
 
 
@@ -102,7 +105,7 @@ def lcsc_codes(csv_path: str) -> list[str]:
 
 
 def seed(base: str, token: str | None, codes: list[str], distributor: str,
-         delay: float, dry_run: bool) -> tuple[int, int, int]:
+         delay: float, sigma: float, dry_run: bool) -> tuple[int, int, int]:
     quoted = skipped = failed = 0
     for i, code in enumerate(codes, 1):
         prefix = f"[{i}/{len(codes)}] {code}"
@@ -142,8 +145,13 @@ def seed(base: str, token: str | None, codes: list[str], distributor: str,
                 quoted += 1
         # Spread the load: this is someone else's public catalogue, and a BOM
         # is hundreds of rows arriving as fast as the loop can send them.
+        #
+        # Randomised, because a constant gap is itself a signature -- 110
+        # requests spaced at exactly 0.5s is not a shape human browsing takes,
+        # and it is the tell whether or not the gap is generous. `human_pause`
+        # draws from a log-normal; see its docstring for why not a Gaussian.
         if delay and i < len(codes):
-            time.sleep(delay)
+            time.sleep(browser_page.human_pause(delay, sigma=sigma))
     return quoted, skipped, failed
 
 
@@ -159,7 +167,13 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0,
                     help="quote at most N parts (0 = all)")
     ap.add_argument("--delay", type=float, default=0.5,
-                    help="seconds between parts (default: 0.5)")
+                    help="MEDIAN seconds between parts (default: 0.5). Through a "
+                         "browser shared with human traffic, raise this a lot — "
+                         "the point of that browser is a profile that does not "
+                         "look automated, and a 110-part run at 0.5s undoes it.")
+    ap.add_argument("--sigma", type=float, default=0.6,
+                    help="log-normal spread of the delay; 0 for a fixed gap "
+                         "(default: 0.6)")
     ap.add_argument("--dry-run", action="store_true",
                     help="list what would be quoted and exit")
     args = ap.parse_args()
@@ -184,9 +198,13 @@ def main() -> int:
         return _fail(f"{base} has no /v1/carts/{{cart_id}}/plan -- it is running "
                      "an older build, so nothing would read these ladders")
 
-    print(f"{len(codes)} part(s) to quote from {args.distributor} via {base}\n")
+    pacing = ("no delay" if not args.delay else
+              f"~{args.delay}s median between parts"
+              + ("" if args.sigma > 0 else " (fixed)"))
+    print(f"{len(codes)} part(s) to quote from {args.distributor} via {base}"
+          f" — {pacing}\n")
     quoted, skipped, failed = seed(base, args.token, codes, args.distributor,
-                                   args.delay, args.dry_run)
+                                   args.delay, args.sigma, args.dry_run)
     print(f"\nquoted {quoted}, skipped {skipped}, failed {failed}")
     return 1 if failed and not quoted else 0
 
