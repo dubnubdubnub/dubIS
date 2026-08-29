@@ -48,10 +48,10 @@ jobs:
       - id: resolve
         run: |
           # NOTE: run_distributors is deliberately NOT in set_all. That suite
-          # drives the cluster's shared browser and fetches real Mouser pages,
-          # so it is selected on purpose — by an explicit tag, by a change to
-          # the distributor code, or by a push to main — never as a side effect
-          # of "some file we don't recognise changed, run everything".
+          # fetches from real third-party sites, so it is selected on purpose —
+          # by an explicit tag, by a change to the distributor code, or by a
+          # push to main — never as a side effect of "some file we don't
+          # recognise changed, run everything".
           set_all() {
             echo "run_lint=true"    >> "$GITHUB_OUTPUT"
             echo "run_js=true"      >> "$GITHUB_OUTPUT"
@@ -90,7 +90,7 @@ jobs:
             # Named separately from set_all: a merge is the one moment worth
             # spending a real distributor fetch on unprompted, because it is
             # how upstream drift gets noticed between the weekly fixture
-            # refreshes. The job is advisory, so a Mouser outage annotates the
+            # refreshes. The job is advisory, so an LCSC outage annotates the
             # run rather than breaking main.
             echo "run_distributors=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -165,9 +165,9 @@ jobs:
           JS=false PY=false PNP=false QUALITY=false DIST=false
 
           # CLAUDE.md has always said "run `pytest -m live` locally before
-          # merging changes to these files". This list is that instruction,
-          # moved onto CI now that a machine can borrow a browser: the same
-          # files, minus the two tests that need Isaac's credentials.
+          # merging changes to these files". This list is as much of that
+          # instruction as a runner can honour by itself: the same files, minus
+          # every test needing a credential or a browser.
           while IFS= read -r f; do
             [[ -z "$f" ]] && continue
             case "$f" in
@@ -730,87 +730,59 @@ jobs:
       - name: VLM live smoke test (real llama.cpp server on the RTX 2060)
         run: pytest tests/python/test_vlm_gpu.py -m gpu -v
 
-  # ── Real distributor fetches, through the cluster's shared browser ───
+  # ── Real fetches from the distributors that need nothing but a network ──
   #   What this exists for
-  #     The `live` tier has never run anywhere but Isaac's desktop, so the
-  #     distributor code that talks to the outside world has effectively had
-  #     no automated coverage at all -- including `mouser_client`'s keyless
-  #     path, which needs a browser and could not run even locally under
-  #     pytest. `browser_page`'s CDP backend fixes the second half of that:
-  #     point DUBIS_CDP_URL at a Chrome running elsewhere and a runner with no
-  #     GUI can render a product page.
+  #     The `live` tier has never run anywhere but Isaac's desktop, and the two
+  #     tests below never needed to be stuck there: LCSC and Pololu are plain
+  #     HTTP. They were collateral damage of a single `live` marker that also
+  #     covered tests needing his credentials. Splitting the marker frees them.
   #
-  #   Why "live and not credentials", not "live"
-  #     Two of the live tests need a secret that lives only on Isaac's machine
-  #     (a Mouser API key, a cached DigiKey login), and those secrets are never
-  #     coming to CI. They carry `credentials`; everything else needs nothing
-  #     but a network and that browser. See pyproject.toml's markers.
+  #     What they cover that nothing else does is the CLIENTS' OWN fetch code —
+  #     headers, timeouts, error handling, `_fetch_raw`. The offline replay
+  #     tests exercise the normalizers against committed bytes and never call
+  #     a client; the fixture capture script has its own duplicate fetch
+  #     implementations. So without this job, `lcsc_client._fetch_raw` could
+  #     rot untouched and every suite would stay green.
+  #
+  #   Why "and not browser"
+  #     Reaching the shared Chrome over CDP would mean labelling `arc-runners`
+  #     `browser-client=enabled`, and CDP is unauthenticated — that label lets
+  #     any branch pushed to this repo read the cookies of a browser holding
+  #     live logged-in sessions. Isaac declined it, so nothing in CI speaks
+  #     CDP. Mouser drift is watched instead by asking the DEPLOYED server (see
+  #     refresh-fixtures.yml), which costs an API token rather than a browser.
+  #     `pytest -m browser` still exists and still runs wherever a browser is
+  #     reachable — a desktop, or a shell pointed at the cluster.
+  #
+  #   Why "and not credentials"
+  #     A Mouser API key and a cached DigiKey login live only on Isaac's
+  #     machine and are not coming here. See pyproject.toml's markers.
   #
   #   Why advisory
-  #     One shared browser and three third-party websites. An upstream outage,
-  #     a bot-block, or someone restarting the browser Pod must not block every
-  #     merge -- same policy as the m4-air, js-windows and vlm-gpu single-box
-  #     legs, and the reason this job is in no required gate. Promote it once
-  #     it has a track record.
+  #     Two third-party websites. An LCSC outage must not block every merge —
+  #     same policy as the m4-air, js-windows and vlm-gpu single-box legs, and
+  #     the reason this job is in no required gate.
   #
-  #   NEEDS A HUMAN: the `browser` namespace runs `default-deny-ingress` plus
-  #   `allow-browser-clients`, which admits port 9222 only from namespaces
-  #   labelled `browser-client=enabled`. `dubis` and `bots` have that label;
-  #   `arc-runners`, where these runner Pods live, does NOT, so this job fails
-  #   its preflight until someone runs:
-  #       kubectl label namespace arc-runners browser-client=enabled
-  #   That is a real grant and not plumbing. CDP is unauthenticated, so the
-  #   label lets ANY branch pushed to this repo drive a browser holding live
-  #   logged-in sessions, and read their cookies. Fork PRs already cannot run
-  #   self-hosted CI (see parse-tags step 0), which removes the anonymous-
-  #   stranger path but not the "a branch I pushed does something I did not
-  #   read" one. The lower-risk alternative is a second Chrome with no personal
-  #   logins in a namespace CI may reach, pointed at by the env below.
+  #   No secrets, no grants, no cluster access: it needs a network and nothing
+  #   else, which is exactly why it can run on every PR that touches the
+  #   distributor code.
   distributors:
-    name: Distributor Live (shared browser)
+    name: Public Distributor Fetches (LCSC + Pololu)
     needs: [parse-tags, guard]
     if: >-
       always() && !failure() &&
       needs.parse-tags.outputs.hosted != 'true' &&
       needs.parse-tags.outputs.run_distributors == 'true'
     runs-on: arc-dubis
-    timeout-minutes: 20
+    timeout-minutes: 10
     continue-on-error: true
-    env:
-      # Same endpoint the deployed dubis-server uses (deploy/deployment.yaml).
-      DUBIS_CDP_URL: http://browser-x.browser.svc.cluster.local:9222
-      # Median seconds between navigations against that browser, jittered
-      # log-normally by browser_page.human_pause. A person may be using it.
-      DUBIS_CDP_PAUSE_MEDIAN: "8"
     steps:
       - uses: actions/checkout@v4
-      # Answer "can we even reach the browser" in ten seconds and in words,
-      # rather than after twenty minutes of navigation timeouts. Uses the venv
-      # python rather than curl so it depends on nothing but the runner image's
-      # pre-provisioned interpreter.
-      - name: Preflight — is the shared browser reachable from this namespace?
-        run: |
-          ~/dubis-venv/bin/python - <<'PY'
-          import json, os, sys, urllib.error, urllib.request
-          url = os.environ["DUBIS_CDP_URL"].rstrip("/") + "/json/version"
-          try:
-              with urllib.request.urlopen(url, timeout=10) as resp:
-                  info = json.load(resp)
-          except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
-              print("::error::Cannot reach the shared browser at "
-                    f"{url}: {exc}")
-              print("::error::Most likely cause: the arc-runners namespace is "
-                    "not labelled browser-client=enabled, so the browser "
-                    "namespace's NetworkPolicy drops this traffic. Applying "
-                    "that label is a deliberate grant -- read the comment "
-                    "above this job before doing it.")
-              sys.exit(1)
-          print("Browser:", info.get("Browser"))
-          print("WebSocket:", info.get("webSocketDebuggerUrl"))
-          PY
       - run: ~/dubis-venv/bin/pip install -q -r requirements-dev.txt
-      - name: Real distributor fetches (network + shared browser, no secrets)
-        run: ~/dubis-venv/bin/pytest tests/python/ -m "live and not credentials" -v
+      - name: Real distributor fetches (network only — no secrets, no browser)
+        run: >-
+          ~/dubis-venv/bin/pytest tests/python/
+          -m "live and not credentials and not browser" -v
 
   # ── Tier 2: Functional (PnP E2E tests) ──────────────────────────────
   pnp-e2e:

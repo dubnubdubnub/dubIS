@@ -302,59 +302,80 @@ if os.path.exists(FIXTURE_PATH):
                     assert isinstance(attr["name"], str) and attr["name"]
                     assert isinstance(attr["value"], str) and attr["value"]
 
-    # ── Mouser rendered-page tests ──
+    # ── Mouser product tests (captured through a deployed dubIS server) ──
     #
-    # A different capture of the same distributor, and the only offline record
-    # of `table.pricing-table`. The Search API publishes one flat list of price
-    # breaks; the product page splits them per carrier and is where the
-    # MouseReel fee lives, so `_parse_pricing_table` — the piece the packaging
-    # model actually leans on — has no real captured input other than this.
+    # WHAT THESE ARE, AND WHAT THEY ARE NOT
+    # Every other block here holds RAW upstream bytes, so replaying it runs
+    # this branch's parser over real input. This one does not: the Mouser
+    # product page can only be fetched with a browser, and the browser lives on
+    # the deployed server rather than anywhere CI can reach. So the block holds
+    # the NORMALIZED product that server returned, and what these tests watch
+    # is upstream — if Mouser stops publishing per-carrier ladders, the next
+    # weekly refresh captures a product without them and this goes red.
+    #
+    # They cannot catch a parser regression in the branch, because the product
+    # was parsed by whatever the server was running. That job belongs to the
+    # hand-written page tests in test_clients_mouser.py and, where a browser is
+    # reachable, to `pytest -m browser`. Kept honest here so nobody reads a
+    # green run as "the pricing-table parser still works on this branch".
+    #
     # Refreshed by `capture-distributor-fixtures.py --refresh-if-stale
-    # --browser-only`, which needs a browser but no secret.
+    # --server-only`, which needs a dubIS API token and no browser.
 
-    _mouser_pages = _FIXTURES.get("mouser_page", {}).get("parts", {})
+    _mouser_products = _FIXTURES.get("mouser_product", {}).get("parts", {})
 
-    if _mouser_pages:
-        from mouser_client import MouserClient as _MouserPageClient
+    if _mouser_products:
+        from domain.packaging import carrier_of as _carrier_of
 
-        class TestMouserProductPage:
-            """Replay `_parse_product_page` over every captured Mouser page."""
+        class TestMouserProductViaServer:
+            """Upstream-drift assertions over every captured Mouser product."""
 
             @pytest.fixture(
-                params=list(_mouser_pages.keys()), ids=list(_mouser_pages.keys())
+                params=list(_mouser_products.keys()),
+                ids=list(_mouser_products.keys()),
             )
-            def mouser_page(self, request):
+            def mouser_product(self, request):
                 mpn = request.param
-                return mpn, _mouser_pages[mpn]
+                return mpn, _mouser_products[mpn]["product"]
 
-            def test_the_page_still_parses_as_a_product(self, mouser_page):
-                mpn, entry = mouser_page
-                result = _MouserPageClient._parse_product_page(
-                    entry["raw_html"], mpn, entry["url"]
-                )
-                assert result is not None, (
-                    f"{mpn}: the captured page no longer parses — Mouser changed "
-                    "the markup, or a bot-block page was captured"
-                )
-                assert result["provider"] == "mouser"
-                assert isinstance(result["stock"], int) and result["stock"] >= 0
-                for tier in result["prices"]:
-                    assert isinstance(tier["qty"], int)
-                    assert isinstance(tier["price"], (int, float))
+            def test_the_product_is_still_shaped_like_a_product(self, mouser_product):
+                mpn, product = mouser_product
+                assert product["provider"] == "mouser"
+                assert product["title"]
+                assert isinstance(product["stock"], int) and product["stock"] >= 0
+                assert product["prices"], f"{mpn}: no price breaks"
+                quantities = [tier["qty"] for tier in product["prices"]]
+                assert quantities == sorted(quantities), f"{mpn}: unsorted ladder"
+                for tier in product["prices"]:
+                    assert isinstance(tier["qty"], int) and tier["qty"] > 0
+                    assert isinstance(tier["price"], (int, float)) and tier["price"] > 0
 
-            def test_the_per_carrier_ladders_survive(self, mouser_page):
-                """The whole reason this block exists: a named carrier with its
-                own ladder. A page that parses but yields no packagings means
-                the pricing-table markup drifted underneath us."""
-                mpn, entry = mouser_page
-                result = _MouserPageClient._parse_product_page(
-                    entry["raw_html"], mpn, entry["url"]
+            def test_mouser_still_publishes_per_carrier_ladders(self, mouser_product):
+                """The one thing only a rendered page yields. Losing it means
+                Mouser changed the pricing table, or the server quietly fell
+                back to the Search API — either way somebody needs to look."""
+                mpn, product = mouser_product
+                assert product["packagings"], f"{mpn}: no per-carrier ladders"
+                for group in product["packagings"]:
+                    assert group["name"], f"{mpn}: a carrier with no name"
+                    assert group["prices"], f"{mpn}: {group['name']!r} has no ladder"
+                    assert group["carrier"] == _carrier_of(group["name"])
+                    assert isinstance(group["isReel"], bool)
+
+            def test_a_reel_quantity_and_fee_are_either_real_or_absent(
+                self, mouser_product,
+            ):
+                """Unknown is never a pass — a zero reel quantity or a fee of
+                nothing would both plan a purchase wrongly, so the normalizer
+                turns them into None and this holds it to that."""
+                mpn, product = mouser_product
+                reel_qty, reel_fee = product["reelQty"], product["reelFee"]
+                assert reel_qty is None or (isinstance(reel_qty, int) and reel_qty > 0), (
+                    f"{mpn}: reelQty is {reel_qty!r}"
                 )
-                assert result["packagings"], f"{mpn}: no per-carrier ladders"
-                for group in result["packagings"]:
-                    assert group["name"]
-                    assert group["prices"]
-                    assert "carrier" in group and "isReel" in group
+                assert reel_fee is None or (
+                    isinstance(reel_fee, (int, float)) and reel_fee > 0
+                ), f"{mpn}: reelFee is {reel_fee!r}"
 
     # ── Pololu normalizer tests ──
 
