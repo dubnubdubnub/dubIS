@@ -555,6 +555,7 @@ graph LR
     "scripts/generate-test-fixtures.py" --> "csv_io.py"
     "scripts/generate-test-fixtures.py" --> "inventory_api.py"
     "scripts/generate-test-fixtures.py" --> "inventory_ops.py"
+    "scripts/seed-bom-prices.py" --> "browser_page.py"
     "scripts/spike-webview-loopback.py" --> "server/__init__.py"
     "scripts/spike-webview-loopback.py" --> "server/__main__.py"
     "scripts/spike-webview-loopback.py" --> "server/run.py"
@@ -948,7 +949,7 @@ graph LR
 ### browser_page.py
 
 - **Imports:** —
-- **Imported by:** `mouser_client.py`, `tests/python/test_browser_page.py`
+- **Imported by:** `mouser_client.py`, `scripts/seed-bom-prices.py`, `tests/python/test_browser_page.py`
 
 ### cache_db.py
 
@@ -2003,7 +2004,7 @@ graph LR
 
 ### scripts/seed-bom-prices.py
 
-- **Imports:** —
+- **Imports:** `browser_page.py`
 - **Imported by:** —
 
 ### scripts/spike-webview-loopback.py
