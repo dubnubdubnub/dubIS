@@ -3,7 +3,7 @@
    hover flyout showing purchase-order history. */
 
 import { store } from '../store.js';
-import { escHtml, vendorIconSrc } from '../ui-helpers.js';
+import { escHtml, vendorIconFor } from '../ui-helpers.js';
 
 /** Number of most-recent POs shown in the inline grid stack. */
 var MAX_VISIBLE = 3;
@@ -71,8 +71,8 @@ export function renderFanStack(part) {
     var style = 'left:' + offX + 'px;top:' + offY + 'px;z-index:' + (n - k);
     var iconHtml = v.icon
       ? '<span class="fan-icon fan-icon-emoji" style="' + style + '">' + escHtml(v.icon) + '</span>'
-      : (v.favicon_path
-        ? '<img class="fan-icon fan-icon-img" src="' + escHtml(vendorIconSrc(v.favicon_path)) + '" alt="" style="' + style + '">'
+      : (v.favicon_data_uri || v.favicon_path
+        ? '<img class="fan-icon fan-icon-img" src="' + escHtml(vendorIconFor(v)) + '" alt="" style="' + style + '">'
         : '<span class="fan-icon fan-icon-empty" style="' + style + '"></span>');
     icons += iconHtml;
   }
@@ -121,8 +121,8 @@ export function buildHoverFlyout(part) {
     if (vendor) {
       if (vendor.icon) {
         iconHtml = '<span class="flyout-favicon flyout-favicon-emoji">' + escHtml(vendor.icon) + '</span>';
-      } else if (vendor.favicon_path) {
-        iconHtml = '<img class="flyout-favicon flyout-favicon-img" src="' + escHtml(vendorIconSrc(vendor.favicon_path)) + '" alt="">';
+      } else if (vendor.favicon_data_uri || vendor.favicon_path) {
+        iconHtml = '<img class="flyout-favicon flyout-favicon-img" src="' + escHtml(vendorIconFor(vendor)) + '" alt="">';
       }
     }
     rows += '<div class="flyout-po-row" data-po-id="' + escHtml(poId) + '">' +
