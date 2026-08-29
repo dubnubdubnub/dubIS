@@ -1,17 +1,38 @@
-# Scheduled auto-refresh of the PUBLIC distributor fixtures.
+# Scheduled auto-refresh of the distributor fixtures that need no credentials.
 #
 # What this does
-#   Once a week (and on manual dispatch) it re-captures only the distributors
-#   that need NO credentials — LCSC and Pololu — via
-#   `capture-distributor-fixtures.py --refresh-if-stale --public-only`.
-#   The script only re-captures blocks whose per-distributor `captured_at`
-#   timestamp is stale (>30 days), so most weekly runs are a quiet no-op.
+#   Once a week (and on manual dispatch) it re-captures only the blocks that
+#   need NO secret of their own: LCSC and Pololu over plain HTTP, and
+#   `mouser_product` by asking the DEPLOYED dubIS server for a part. The script
+#   only re-captures blocks whose per-block `captured_at` timestamp is stale
+#   (>30 days), so most weekly runs are a quiet no-op.
 #
-# Why public-only / no secrets
-#   Mouser (API key) and DigiKey (browser cookies) are intentionally NOT
-#   refreshed here — their credentials never live on CI. The cred-safe guard
-#   in the script skips them; they are refreshed locally via `pytest -m live`.
-#   Because this job touches no secrets, there is nothing to leak.
+# Why mouser_product is here and `mouser` is not
+#   They are two captures of one distributor with different prerequisites.
+#   `mouser` is Search API JSON and needs an API key; `digikey` needs a cached
+#   browser login. Those credentials never live on CI, the cred-safe guard in
+#   the script skips them, and they are refreshed locally via `pytest -m live`.
+#   `mouser_product` needs neither: the deployed server already has a browser
+#   (DUBIS_CDP_URL, see deploy/deployment.yaml), so it can read the per-carrier
+#   price ladders and the MouseReel fee that the Search API does not publish,
+#   and all this job needs from it is an HTTP GET.
+#
+# Why ask the server instead of driving the browser here
+#   Reaching the shared Chrome directly would mean labelling `arc-runners`
+#   `browser-client=enabled`, and CDP is unauthenticated: that label would let
+#   anything running there read the cookies of a browser holding live
+#   logged-in sessions, including a real X account. Isaac declined it, and a
+#   second dedicated Chrome would not have helped — the cluster NATs through
+#   one public IP and the image is identical, so a fresh profile shares the
+#   fingerprint and merely lacks the aged anti-bot history that makes the real
+#   one credible. Going through /v1 swaps that grant for a dubIS API token.
+#   The token reaches inventory; CDP would have reached the X account.
+#
+#   Note what this does and does not test. It records what UPSTREAM returns,
+#   through whatever code the deployed server is running — right for "has
+#   Mouser changed its page", useless for "does this branch still parse it".
+#   The branch's own parsing is covered offline, on every PR, by the replay
+#   tests in tests/python/test_normalizers.py.
 #
 # Why a PR, not a direct push
 #   `main` is protected (requires PR + passing CI), so this job must NOT push
@@ -26,7 +47,7 @@
 #   `contents: write` + `pull-requests: write` here cannot be abused by
 #   external contributors.
 
-name: Refresh public distributor fixtures
+name: Refresh credential-free distributor fixtures
 
 on:
   schedule:
@@ -51,7 +72,7 @@ concurrency:
 
 jobs:
   refresh:
-    name: Refresh public fixtures
+    name: Refresh credential-free fixtures
     # Mirrors ci.yml's "Python Checks" job: same internet-connected
     # ARC runner and the same pre-provisioned venv (~/dubis-venv). The old
     # static `pnp-testbox` runners were retired in the ARC migration — this
@@ -66,6 +87,25 @@ jobs:
 
       - name: Refresh stale PUBLIC fixtures (LCSC + Pololu only, no creds)
         run: ~/dubis-venv/bin/python scripts/capture-distributor-fixtures.py --refresh-if-stale --public-only
+
+      # NEEDS A HUMAN, once: DUBIS_CI_TOKEN must exist as a repository secret,
+      # holding a token that also appears in the `dubis-server-auth` Secret's
+      # DUBIS_TOKENS (the server runs DUBIS_AUTH_MODE=on). Nothing here creates
+      # it. Until it does, the request 401s, the step reports and the run
+      # carries on — losing the Mouser refresh must not cost the LCSC/Pololu
+      # one. The script's own guard leaves the existing mouser_product block
+      # untouched whenever it cannot capture a replacement, including when the
+      # server answers but every part comes back challenged, so no failure here
+      # can turn into a deleted fixture.
+      #
+      # The `dubis` namespace has no NetworkPolicy, so the ClusterIP is
+      # reachable from arc-runners with no label and no grant.
+      - name: Refresh the stale Mouser product block (via the deployed server)
+        continue-on-error: true
+        env:
+          DUBIS_URL: http://dubis-server.dubis.svc.cluster.local
+          DUBIS_TOKEN: ${{ secrets.DUBIS_CI_TOKEN }}
+        run: ~/dubis-venv/bin/python scripts/capture-distributor-fixtures.py --refresh-if-stale --server-only
 
       - name: Push refreshed fixture to the automation branch
         id: push
@@ -98,7 +138,7 @@ jobs:
           git stash pop
 
           git add "$FIXTURE"
-          git commit -m "chore(fixtures): refresh public distributor fixtures (LCSC + Pololu)"
+          git commit -m "chore(fixtures): refresh credential-free distributor fixtures"
 
           # Force-update the deterministic branch (it is automation-owned).
           git push --force origin "$BRANCH"
@@ -114,8 +154,8 @@ jobs:
           script: |
             const base = context.payload.repository.default_branch;
             const head = 'automation/refresh-fixtures';
-            const title = 'chore(fixtures): refresh public distributor fixtures';
-            const body = 'Automated weekly refresh of the public (LCSC + Pololu) distributor fixtures. CI runs the offline replay tests on this PR to validate the captured data. Mouser/DigiKey are refreshed locally (their credentials never run on CI).';
+            const title = 'chore(fixtures): refresh credential-free distributor fixtures';
+            const body = 'Automated weekly refresh of the distributor fixtures that need no credentials of their own: LCSC and Pololu over plain HTTP, plus `mouser_product` — the normalized product the deployed dubIS server returns, which is how the per-carrier price ladders get captured without CI ever touching a browser. CI runs the offline replay tests on this PR to validate the captured data. The `mouser` (API key) and `digikey` (cached login) blocks are refreshed locally; those credentials never run on CI.';
             try {
               const pr = await github.rest.pulls.create({ owner: context.repo.owner, repo: context.repo.repo, base, head, title, body });
               core.info(`Opened PR #${pr.data.number}`);

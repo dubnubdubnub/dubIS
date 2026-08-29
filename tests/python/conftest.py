@@ -23,6 +23,14 @@ def pytest_collection_modifyitems(session, config, items):
     # --collect-only must never touch the network or rewrite fixtures.
     if config.option.collectonly:
         return
+    # Neither must CI. This hook exists so that a local live run tests against
+    # data no older than 30 days; on CI the committed fixture IS the thing
+    # under test, and silently re-capturing it would mean the replay tests
+    # validated bytes nobody reviewed — the opposite of what the refresh PR
+    # that .github/workflows/refresh-fixtures.yml opens is for. GitHub Actions
+    # always sets CI=true, as does essentially every other runner.
+    if os.environ.get("CI"):
+        return
     # Ordering-independent guard: the default run and CI use `-m "not live"`
     # (via addopts). A CLI `-m` overrides addopts, so `getoption("-m")` reflects
     # the effective expression. Bail whenever live is *excluded*. NOTE: a naive
@@ -50,12 +58,13 @@ def pytest_collection_modifyitems(session, config, items):
 
     # A refresh failure (e.g. network down) must NOT abort the session — the live
     # tests themselves will surface the real problem. refresh_if_stale skips any
-    # distributor whose creds are absent, so this is safe to call for all of them.
+    # block whose prerequisite is absent — credentials for mouser/digikey, a
+    # reachable server for mouser_product — so this is safe for all of them.
     # print() is swallowed during collection (not affected by -s), so use the
     # terminal writer to ensure these messages are actually visible.
     tw = config.get_terminal_writer()
     try:
-        refreshed = cap.refresh_if_stale(distributor_fixtures.DISTRIBUTORS)
+        refreshed = cap.refresh_if_stale(distributor_fixtures.CAPTURE_BLOCKS)
         if refreshed:
             tw.line("[live] stale distributor fixtures were refreshed")
     except Exception as exc:  # noqa: BLE001 - never let a refresh failure abort the run
