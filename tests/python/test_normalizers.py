@@ -36,9 +36,9 @@ if os.path.exists(FIXTURE_PATH):
     with open(FIXTURE_PATH, encoding="utf-8") as _f:
         _FIXTURES = json.load(_f)
 
-    # Per-distributor staleness warning (not a failure).
+    # Per-block staleness warning (not a failure).
     _stale = distributor_fixtures.stale_distributors(
-        _FIXTURES, distributor_fixtures.DISTRIBUTORS, datetime.now()
+        _FIXTURES, distributor_fixtures.CAPTURE_BLOCKS, datetime.now()
     )
     if _stale:
         warnings.warn(
@@ -301,6 +301,60 @@ if os.path.exists(FIXTURE_PATH):
                 for attr in result["attributes"]:
                     assert isinstance(attr["name"], str) and attr["name"]
                     assert isinstance(attr["value"], str) and attr["value"]
+
+    # ── Mouser rendered-page tests ──
+    #
+    # A different capture of the same distributor, and the only offline record
+    # of `table.pricing-table`. The Search API publishes one flat list of price
+    # breaks; the product page splits them per carrier and is where the
+    # MouseReel fee lives, so `_parse_pricing_table` — the piece the packaging
+    # model actually leans on — has no real captured input other than this.
+    # Refreshed by `capture-distributor-fixtures.py --refresh-if-stale
+    # --browser-only`, which needs a browser but no secret.
+
+    _mouser_pages = _FIXTURES.get("mouser_page", {}).get("parts", {})
+
+    if _mouser_pages:
+        from mouser_client import MouserClient as _MouserPageClient
+
+        class TestMouserProductPage:
+            """Replay `_parse_product_page` over every captured Mouser page."""
+
+            @pytest.fixture(
+                params=list(_mouser_pages.keys()), ids=list(_mouser_pages.keys())
+            )
+            def mouser_page(self, request):
+                mpn = request.param
+                return mpn, _mouser_pages[mpn]
+
+            def test_the_page_still_parses_as_a_product(self, mouser_page):
+                mpn, entry = mouser_page
+                result = _MouserPageClient._parse_product_page(
+                    entry["raw_html"], mpn, entry["url"]
+                )
+                assert result is not None, (
+                    f"{mpn}: the captured page no longer parses — Mouser changed "
+                    "the markup, or a bot-block page was captured"
+                )
+                assert result["provider"] == "mouser"
+                assert isinstance(result["stock"], int) and result["stock"] >= 0
+                for tier in result["prices"]:
+                    assert isinstance(tier["qty"], int)
+                    assert isinstance(tier["price"], (int, float))
+
+            def test_the_per_carrier_ladders_survive(self, mouser_page):
+                """The whole reason this block exists: a named carrier with its
+                own ladder. A page that parses but yields no packagings means
+                the pricing-table markup drifted underneath us."""
+                mpn, entry = mouser_page
+                result = _MouserPageClient._parse_product_page(
+                    entry["raw_html"], mpn, entry["url"]
+                )
+                assert result["packagings"], f"{mpn}: no per-carrier ladders"
+                for group in result["packagings"]:
+                    assert group["name"]
+                    assert group["prices"]
+                    assert "carrier" in group and "isReel" in group
 
     # ── Pololu normalizer tests ──
 

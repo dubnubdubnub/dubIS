@@ -1,17 +1,32 @@
-# Scheduled auto-refresh of the PUBLIC distributor fixtures.
+# Scheduled auto-refresh of the distributor fixtures that need no credentials.
 #
 # What this does
-#   Once a week (and on manual dispatch) it re-captures only the distributors
-#   that need NO credentials — LCSC and Pololu — via
-#   `capture-distributor-fixtures.py --refresh-if-stale --public-only`.
-#   The script only re-captures blocks whose per-distributor `captured_at`
-#   timestamp is stale (>30 days), so most weekly runs are a quiet no-op.
+#   Once a week (and on manual dispatch) it re-captures only the blocks that
+#   need NO secret: LCSC and Pololu over plain HTTP, and `mouser_page` — the
+#   rendered Mouser product page — through the cluster's shared browser. The
+#   script only re-captures blocks whose per-block `captured_at` timestamp is
+#   stale (>30 days), so most weekly runs are a quiet no-op.
 #
-# Why public-only / no secrets
-#   Mouser (API key) and DigiKey (browser cookies) are intentionally NOT
-#   refreshed here — their credentials never live on CI. The cred-safe guard
-#   in the script skips them; they are refreshed locally via `pytest -m live`.
-#   Because this job touches no secrets, there is nothing to leak.
+# Why mouser_page is here and `mouser` is not
+#   They are two captures of one distributor with different prerequisites.
+#   `mouser` is Search API JSON and needs an API key; `digikey` needs a cached
+#   browser login. Those credentials never live on CI, the cred-safe guard in
+#   the script skips them, and they are refreshed locally via `pytest -m live`.
+#   `mouser_page` needs only a browser, and it is the only offline record of
+#   `table.pricing-table` — the per-carrier price ladders the Search API does
+#   not publish at all. Without it the parser that reads them has no captured
+#   real input to be replayed against.
+#
+# Why the browser is safer here than in ci.yml
+#   `schedule` runs the DEFAULT BRANCH's code, never a contributor's, so a
+#   scheduled run cannot be used to smuggle arbitrary code next to a browser
+#   holding live sessions. `workflow_dispatch` can target a ref, so it is only
+#   as trustworthy as whoever can dispatch it — which is the same set of people
+#   who can push to this repo. See the NEEDS A HUMAN note on ci.yml's
+#   `distributors` job: reaching the browser at all requires the arc-runners
+#   namespace to carry `browser-client=enabled`, which nobody has applied yet.
+#   Until that happens the browser step below reports and moves on, and the
+#   LCSC/Pololu refresh continues to work exactly as before.
 #
 # Why a PR, not a direct push
 #   `main` is protected (requires PR + passing CI), so this job must NOT push
@@ -26,7 +41,7 @@
 #   `contents: write` + `pull-requests: write` here cannot be abused by
 #   external contributors.
 
-name: Refresh public distributor fixtures
+name: Refresh credential-free distributor fixtures
 
 on:
   schedule:
@@ -51,7 +66,7 @@ concurrency:
 
 jobs:
   refresh:
-    name: Refresh public fixtures
+    name: Refresh credential-free fixtures
     # Mirrors ci.yml's "Python Checks" job: same internet-connected
     # ARC runner and the same pre-provisioned venv (~/dubis-venv). The old
     # static `pnp-testbox` runners were retired in the ARC migration — this
@@ -64,8 +79,25 @@ jobs:
           # Full history so we can branch off the latest default branch and push.
           fetch-depth: 0
 
+      # The pre-provisioned venv covers the stdlib-only captures; the browser
+      # one needs playwright's client library (requirements-dev.txt).
+      - run: ~/dubis-venv/bin/pip install -q -r requirements-dev.txt
+
       - name: Refresh stale PUBLIC fixtures (LCSC + Pololu only, no creds)
         run: ~/dubis-venv/bin/python scripts/capture-distributor-fixtures.py --refresh-if-stale --public-only
+
+      # A browser, unlike a network, may simply not be reachable from here —
+      # the namespace label this needs is a decision nobody has made yet. Not
+      # having one is not a reason to lose the LCSC/Pololu refresh, so this
+      # step reports and continues; the script's own guard leaves the existing
+      # mouser_page block untouched when it cannot capture a new one, so a
+      # failure here can never turn into a deleted fixture.
+      - name: Refresh stale Mouser product pages (browser, still no creds)
+        continue-on-error: true
+        env:
+          DUBIS_CDP_URL: http://browser-x.browser.svc.cluster.local:9222
+          DUBIS_CDP_PAUSE_MEDIAN: "8"
+        run: ~/dubis-venv/bin/python scripts/capture-distributor-fixtures.py --refresh-if-stale --browser-only
 
       - name: Push refreshed fixture to the automation branch
         id: push
@@ -98,7 +130,7 @@ jobs:
           git stash pop
 
           git add "$FIXTURE"
-          git commit -m "chore(fixtures): refresh public distributor fixtures (LCSC + Pololu)"
+          git commit -m "chore(fixtures): refresh credential-free distributor fixtures"
 
           # Force-update the deterministic branch (it is automation-owned).
           git push --force origin "$BRANCH"
@@ -114,8 +146,8 @@ jobs:
           script: |
             const base = context.payload.repository.default_branch;
             const head = 'automation/refresh-fixtures';
-            const title = 'chore(fixtures): refresh public distributor fixtures';
-            const body = 'Automated weekly refresh of the public (LCSC + Pololu) distributor fixtures. CI runs the offline replay tests on this PR to validate the captured data. Mouser/DigiKey are refreshed locally (their credentials never run on CI).';
+            const title = 'chore(fixtures): refresh credential-free distributor fixtures';
+            const body = 'Automated weekly refresh of the distributor fixtures that need no secret: LCSC and Pololu over plain HTTP, plus the rendered Mouser product pages (`mouser_page`) through the shared browser. CI runs the offline replay tests on this PR to validate the captured data. The `mouser` (API key) and `digikey` (cached login) blocks are refreshed locally — those credentials never run on CI.';
             try {
               const pr = await github.rest.pulls.create({ owner: context.repo.owner, repo: context.repo.repo, base, head, title, body });
               core.info(`Opened PR #${pr.data.number}`);

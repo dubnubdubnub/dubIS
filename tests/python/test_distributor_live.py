@@ -9,6 +9,13 @@ Run them explicitly with::
 
     pytest -m live
 
+Two of them additionally carry ``@pytest.mark.credentials``, meaning they need
+a secret that lives only on this machine — a Mouser API key or a cached DigiKey
+login. CI runs ``-m "live and not credentials"`` precisely to leave those two
+behind while still exercising everything that needs nothing but a network or
+the shared browser. See ``tests/python/test_distributor_browser.py`` for the
+other half of that split.
+
 Latency for each real fetch is printed to stdout and appended to
 ``tests/python/.live_latencies.json`` (gitignored, appended to without
 rotation — trim manually if it grows; no assertions are made on it).
@@ -145,6 +152,7 @@ def test_pololu_live(live_data):
 
 
 @pytest.mark.live
+@pytest.mark.credentials
 def test_mouser_live(live_data):
     """Fetch a known real Mouser MPN — requires a configured API key."""
     if live_data._mouser.get_api_key() is None:
@@ -162,6 +170,7 @@ def test_mouser_live(live_data):
 
 
 @pytest.mark.live
+@pytest.mark.credentials
 def test_digikey_session_live(live_data):
     """Validate the cached DigiKey session — requires cached cookies.
 

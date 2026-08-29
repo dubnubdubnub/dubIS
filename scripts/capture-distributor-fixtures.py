@@ -6,26 +6,37 @@ offline.
 
 Usage:
     python scripts/capture-distributor-fixtures.py             # fetch all
-    python scripts/capture-distributor-fixtures.py --check     # per-distributor freshness report
+    python scripts/capture-distributor-fixtures.py --check     # per-block freshness report
     python scripts/capture-distributor-fixtures.py --lcsc-only # LCSC parts only
     python scripts/capture-distributor-fixtures.py --digikey-only  # Digikey parts only
     python scripts/capture-distributor-fixtures.py --mouser-only   # Mouser parts only
     python scripts/capture-distributor-fixtures.py --pololu-only   # Pololu parts only
+    python scripts/capture-distributor-fixtures.py --mouser-page-only  # Mouser pages, via a browser
     python scripts/capture-distributor-fixtures.py --refresh-if-stale  # re-capture only stale blocks
     python scripts/capture-distributor-fixtures.py --refresh-if-stale --public-only  # only lcsc/pololu
+    python scripts/capture-distributor-fixtures.py --refresh-if-stale --browser-only # only mouser_page
     python scripts/capture-distributor-fixtures.py --refresh-if-stale --max-age-days 7  # custom age
 
-The --check flag reports each distributor's age and which are stale; it exits 0
-if NONE of the four are stale, 1 if any is.
+The --check flag reports each block's age and which are stale; it exits 0
+if NONE is stale, 1 if any is.
 
---refresh-if-stale re-captures only the distributors whose per-distributor
+Five blocks, not four: Mouser is captured twice. "mouser" is Search API JSON
+and needs an API key; "mouser_page" is the rendered product page and needs a
+browser (DUBIS_CDP_URL, or a desktop GUI loop) and no secret whatsoever. The
+page is the only offline record of `table.pricing-table`, whose per-carrier
+price ladders the API simply does not publish -- so without it the parser that
+reads them has no captured real input to be tested against. See
+distributor_fixtures.CAPTURE_BLOCKS.
+
+--refresh-if-stale re-captures only the blocks whose per-block
 ``captured_at`` is missing/unparseable/older than --max-age-days (default 30),
-then MERGES the new blocks into the existing fixture so untouched distributors
-are preserved. A stale distributor whose credentials are absent (Mouser API key
-/ DigiKey cookies) is SKIPPED — its existing block is left untouched rather than
-overwritten with an empty auth-error block (data-loss guard). --public-only
-narrows the refresh scope to {lcsc, pololu}; it is only meaningful alongside
---refresh-if-stale and is ignored otherwise. --max-age-days N overrides the
+then MERGES the new blocks into the existing fixture so untouched blocks
+are preserved. A stale block whose prerequisite is absent (Mouser API key /
+DigiKey cookies / a browser for mouser_page) is SKIPPED — its existing block is
+left untouched rather than overwritten with an empty error block (data-loss
+guard). --public-only narrows the refresh scope to {lcsc, pololu} and
+--browser-only to {mouser_page}; both are only meaningful alongside
+--refresh-if-stale and are errors otherwise. --max-age-days N overrides the
 default 30-day threshold (N must be a non-negative integer (0 = treat everything as stale)).
 """
 
@@ -47,7 +58,9 @@ from datetime import datetime
 # so ensure the project root is on sys.path before importing distributor_fixtures.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import browser_page  # noqa: E402
 import distributor_fixtures  # noqa: E402
+import mouser_client  # noqa: E402
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GENERATED_DIR = os.path.join(PROJECT_ROOT, "tests", "fixtures", "generated")
@@ -58,6 +71,11 @@ MOUSER_CREDENTIALS_FILE = os.path.join(PROJECT_ROOT, "data", "mouser_credentials
 
 MOUSER_API_SEARCH_URL = "https://api.mouser.com/api/v2/search/partnumber"
 POLOLU_PRODUCT_URL = "https://www.pololu.com/product/{sku}"
+
+# Median gap between rendered-page captures, jittered log-normally. Generous
+# because this runs weekly over a handful of parts and shares a browser with a
+# person; the wall-clock cost of being polite here is a couple of minutes.
+MOUSER_PAGE_PAUSE_MEDIAN_S = 12.0
 
 # fmt: off
 LCSC_HARDCODED = [
@@ -134,6 +152,22 @@ MOUSER_HARDCODED = [
     "MMBT3904LT1G",        # NPN transistor SOT-23
     "IRLZ44NPBF",          # N-channel power MOSFET TO-220
     "TPS3839G33DBZR",      # 3.3V supervisory circuit SOT-23-5
+]
+
+# Rendered-page captures cost a real browser navigation each (two, when the
+# identifier has to go through the search page first) against a browser shared
+# with other consumers, and a Mouser product page is ~400KB of HTML that then
+# lives in the repo forever. So this list is deliberately a fraction of
+# MOUSER_HARDCODED, and it is chosen for CARRIER spread rather than category
+# spread: the only thing this capture can exercise that the API block cannot is
+# the per-carrier pricing table, and what varies there is how the part arrives.
+# Passives come on cut tape and full reels, the SOIC in a tube, the TO-220 in
+# bulk. A fifth electrolytic would cost 400KB and prove nothing new.
+MOUSER_PAGE_HARDCODED = [
+    "CL10A106MQ8NNNC",     # 10uF MLCC 0603 — cut tape / full reel
+    "ABM8-16.000MHZ-B2-T", # 16MHz crystal SMD — tape
+    "MCP3008-I/SL",        # 8-channel ADC SOIC-16 — tube
+    "IRLZ44NPBF",          # N-channel MOSFET TO-220 — bulk
 ]
 
 # Pololu SKUs are short numeric strings (the product/{sku} path segment).
@@ -476,6 +510,90 @@ def capture_mouser(parts: list[str]) -> dict:
     return {"parts": results, "errors": errors}
 
 
+def fetch_mouser_page(part_number: str, page) -> dict:
+    """Render one Mouser product page in a real browser and keep the HTML.
+
+    Routing mirrors ``MouserClient._via_search``: the search URL first, because
+    the identifiers in a purchase ledger are usually MPNs and /ProductDetail/
+    404s on those rather than searching. An exact match redirects straight to
+    the product, which is why the landing URL is consulted before looking for a
+    link at all.
+
+    The captured HTML is parsed before it is accepted. A bot-block page and a
+    challenge page both render fine and would be committed as a perfectly
+    valid-looking fixture that teaches the parser nothing; making the parser
+    agree it is a product is the cheapest way to refuse them.
+
+    Returns:
+        {"raw_html": html, "url": landed}   on success
+        {"error": "message"}                on failure
+    """
+    from urllib.parse import urljoin
+
+    settle = mouser_client._RENDER_SETTLE_S
+    search = mouser_client._SEARCH_URL.format(urllib.parse.quote(part_number, safe=""))
+    html = page.fetch_html(search, settle_s=settle)
+    if not html:
+        return {"error": "search page did not render (browser unreachable or challenged)"}
+    landed = page.current_url() or search
+
+    if "/ProductDetail/" not in landed:
+        link = mouser_client._PRODUCT_LINK_RE.search(html)
+        if not link:
+            return {"error": "search returned no product link"}
+        landed = urljoin("https://www.mouser.com", link.group(1))
+        html = page.fetch_html(landed, settle_s=settle)
+        if not html:
+            return {"error": "product page did not render"}
+
+    if mouser_client.MouserClient._parse_product_page(html, part_number, landed) is None:
+        return {"error": "rendered page did not parse as a product (bot block?)"}
+    return {"raw_html": html, "url": landed}
+
+
+def capture_mouser_page(parts: list[str]) -> dict:
+    """Render each Mouser product page, print progress, return collected results.
+
+    Paced with ``browser_page.human_pause`` rather than a fixed sleep: the
+    browser is shared with ordinary human browsing, and a run of identically
+    spaced navigations is a louder bot signal than the requests themselves.
+
+    Returns:
+        {
+            "capture_method": "browser",
+            "parts":  {mpn: {"raw_html": ..., "url": ...}, ...},
+            "errors": {mpn: "error message", ...},
+        }
+    """
+    if not browser_page.available():
+        msg = (
+            "no browser available — set DUBIS_CDP_URL to a Chrome DevTools "
+            "endpoint, or run this from a process with a pywebview loop"
+        )
+        return {"capture_method": "browser", "parts": {}, "errors": {"_browser": msg}}
+
+    results: dict[str, dict] = {}
+    errors: dict[str, str] = {}
+    page = browser_page.BrowserPage(title="fixture capture")
+    try:
+        for i, mpn in enumerate(parts, 1):
+            print(f"  Mouser page [{i}/{len(parts)}] {mpn} ... ", end="", flush=True)
+            data = fetch_mouser_page(mpn, page)
+            if "error" in data:
+                print(f"ERROR: {data['error']}")
+                errors[mpn] = data["error"]
+            else:
+                print("OK")
+                results[mpn] = data
+            if i < len(parts):
+                time.sleep(browser_page.human_pause(MOUSER_PAGE_PAUSE_MEDIAN_S))
+    finally:
+        # Detaches this client. The browser is shared and is not ours to stop.
+        page.destroy()
+
+    return {"capture_method": "browser", "parts": results, "errors": errors}
+
+
 def fetch_pololu_part(sku: str) -> dict:
     """Fetch a raw Pololu product page for a given SKU.
 
@@ -562,13 +680,13 @@ def _load_fixture() -> dict:
 
 
 def check_freshness(max_age_days: int = 30) -> bool:
-    """Report per-distributor fixture freshness.
+    """Report per-block fixture freshness.
 
-    Prints the age of each of the four distributors (using the per-block
-    timestamp, falling back to the legacy top-level ``captured_at``) and which
-    are stale relative to *max_age_days*.
+    Prints the age of every capture block (using the per-block timestamp,
+    falling back to the legacy top-level ``captured_at``) and which are stale
+    relative to *max_age_days*.
 
-    Returns True if NONE of the four distributors are stale, False if any is.
+    Returns True if NONE is stale, False if any is.
     Backward-compatible with the single top-level ``captured_at`` format.
     """
     if not os.path.exists(FIXTURE_PATH):
@@ -584,26 +702,26 @@ def check_freshness(max_age_days: int = 30) -> bool:
 
     now = datetime.now()
     stale = distributor_fixtures.stale_distributors(
-        fixture, distributor_fixtures.DISTRIBUTORS, now, max_age_days
+        fixture, distributor_fixtures.CAPTURE_BLOCKS, now, max_age_days
     )
 
-    for dist in distributor_fixtures.DISTRIBUTORS:
+    for dist in distributor_fixtures.CAPTURE_BLOCKS:
         ts = distributor_fixtures.block_captured_at(fixture, dist)
         block = fixture.get(dist) if isinstance(fixture.get(dist), dict) else {}
         count = len(block.get("parts", {}))
         if ts is None:
-            print(f"  {dist:<8} STALE: no timestamp")
+            print(f"  {dist:<12} STALE: no timestamp")
             continue
         try:
             age_days = (now - datetime.fromisoformat(ts)).days
         except (ValueError, TypeError):
-            print(f"  {dist:<8} STALE: invalid timestamp {ts!r}")
+            print(f"  {dist:<12} STALE: invalid timestamp {ts!r}")
             continue
         label = "STALE" if dist in stale else "OK"
-        print(f"  {dist:<8} {label}: {count} parts, {age_days} days old (captured {ts})")
+        print(f"  {dist:<12} {label}: {count} parts, {age_days} days old (captured {ts})")
 
     if stale:
-        print(f"STALE distributors: {', '.join(sorted(stale))}")
+        print(f"STALE blocks: {', '.join(sorted(stale))}")
         print("  Run: python scripts/capture-distributor-fixtures.py --refresh-if-stale")
         return False
     print("OK: all distributors fresh")
@@ -619,13 +737,16 @@ def _lcsc_part_list() -> list[str]:
 def refresh_if_stale(scope: Iterable[str], max_age_days: int = 30) -> bool:
     """Re-capture only the stale distributors in *scope*, merge, and write.
 
-    For each stale distributor:
+    For each stale block:
       - lcsc / pololu: always re-captured (public, no creds needed).
       - mouser: re-captured ONLY if ``_load_mouser_api_key()`` is truthy.
       - digikey: re-captured ONLY if ``_load_digikey_cookies()`` is truthy.
-      - A stale distributor with absent creds is SKIPPED entirely — its capture
-        function is NOT called and it is NOT added to the merge, so its existing
-        block is preserved untouched (data-loss guard).
+      - mouser_page: re-captured ONLY if ``browser_page.available()`` — the
+        same guard shape, since a browser is this block's prerequisite in
+        exactly the way a key is Mouser's.
+      - A stale block whose prerequisite is absent is SKIPPED entirely — its
+        capture function is NOT called and it is NOT added to the merge, so its
+        existing block is preserved untouched (data-loss guard).
 
     Returns True if anything was re-captured and written, False otherwise.
     """
@@ -666,16 +787,37 @@ def refresh_if_stale(scope: Iterable[str], max_age_days: int = 30) -> bool:
             skipped.append("digikey")
             print("Skipping stale Digikey: no cookies (existing block preserved).")
 
+    if "mouser_page" in stale:
+        if browser_page.available():
+            print(f"Refreshing Mouser pages ({len(MOUSER_PAGE_HARDCODED)} parts)...")
+            captured = capture_mouser_page(MOUSER_PAGE_HARDCODED)
+            # Second half of the data-loss guard, and the one that matters for
+            # a block refreshed unattended: an endpoint that is reachable but
+            # is serving challenge pages produces a syntactically fine capture
+            # with nothing in it. Merging that would silently delete the only
+            # real Mouser pages we have.
+            if captured["parts"]:
+                new_blocks["mouser_page"] = captured
+            else:
+                skipped.append("mouser_page")
+                print("Skipping stale Mouser pages: every capture failed "
+                      "(existing block preserved).")
+        else:
+            skipped.append("mouser_page")
+            print("Skipping stale Mouser pages: no browser (existing block preserved). "
+                  "Set DUBIS_CDP_URL to a Chrome DevTools endpoint to enable it.")
+
     if not new_blocks:
         if skipped:
-            print(f"Nothing refreshed — stale but missing creds: {', '.join(sorted(skipped))}.")
+            print("Nothing refreshed — stale but could not be captured: "
+                  f"{', '.join(sorted(skipped))}.")
         return False
 
     merged = distributor_fixtures.merge_capture(existing, new_blocks, now)
     write_json(FIXTURE_PATH, merged)
     print(f"Refreshed: {', '.join(sorted(new_blocks))}")
     if skipped:
-        print(f"Preserved (stale, no creds): {', '.join(sorted(skipped))}")
+        print(f"Preserved (stale, not capturable here): {', '.join(sorted(skipped))}")
     print(f"Fixtures written to {_display_path(FIXTURE_PATH)}")
     return True
 
@@ -708,18 +850,25 @@ def main() -> None:
     if "--check" in args:
         sys.exit(0 if check_freshness(max_age_days) else 1)
 
+    scope_flags = [f for f in ("--public-only", "--browser-only") if f in args]
+    if len(scope_flags) > 1:
+        print(f"Error: pass at most one of {', '.join(scope_flags)} — "
+              "they narrow the same scope.", file=sys.stderr)
+        sys.exit(1)
+
     if "--refresh-if-stale" in args:
-        scope = (
-            ("lcsc", "pololu")
-            if "--public-only" in args
-            else distributor_fixtures.DISTRIBUTORS
-        )
+        if "--public-only" in args:
+            scope = ("lcsc", "pololu")
+        elif "--browser-only" in args:
+            scope = ("mouser_page",)
+        else:
+            scope = distributor_fixtures.CAPTURE_BLOCKS
         refresh_if_stale(scope, max_age_days)
         return
 
-    if "--public-only" in args:
+    if scope_flags:
         print(
-            "Error: --public-only is only meaningful with --refresh-if-stale.",
+            f"Error: {scope_flags[0]} is only meaningful with --refresh-if-stale.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -728,17 +877,23 @@ def main() -> None:
     lcsc_only = "--lcsc-only" in args
     mouser_only = "--mouser-only" in args
     pololu_only = "--pololu-only" in args
+    mouser_page_only = "--mouser-page-only" in args
 
-    only_flags = [f for f in ("--lcsc-only", "--digikey-only", "--mouser-only", "--pololu-only") if f in args]
+    only_flags = [f for f in ("--lcsc-only", "--digikey-only", "--mouser-only",
+                              "--pololu-only", "--mouser-page-only") if f in args]
     if len(only_flags) > 1:
         print(f"Error: pass at most one of {', '.join(only_flags)} — they are mutually exclusive.", file=sys.stderr)
         sys.exit(1)
 
-    # A distributor runs only when no OTHER --*-only flag excludes it.
-    do_lcsc = not (digikey_only or mouser_only or pololu_only)
-    do_digikey = not (lcsc_only or mouser_only or pololu_only)
-    do_mouser = not (lcsc_only or digikey_only or pololu_only)
-    do_pololu = not (lcsc_only or digikey_only or mouser_only)
+    # A block runs only when no OTHER --*-only flag excludes it.
+    def _wanted(own: bool) -> bool:
+        return own or not only_flags
+
+    do_lcsc = _wanted(lcsc_only)
+    do_digikey = _wanted(digikey_only)
+    do_mouser = _wanted(mouser_only)
+    do_pololu = _wanted(pololu_only)
+    do_mouser_page = _wanted(mouser_page_only)
 
     new_blocks: dict = {}
 
@@ -771,6 +926,24 @@ def main() -> None:
         p_ok = len(new_blocks["pololu"]["parts"])
         p_err = len(new_blocks["pololu"]["errors"])
         print(f"  Done: {p_ok} OK, {p_err} errors")
+
+    if do_mouser_page:
+        # No browser is not an error on a full run: the desktop has one, a
+        # plain CLI does not, and a capture that cannot happen leaves the
+        # existing block alone rather than emptying it. Asking for this block
+        # BY NAME and getting nothing is worth saying out loud, though.
+        if browser_page.available():
+            print(f"Capturing {len(MOUSER_PAGE_HARDCODED)} Mouser product pages...")
+            captured = capture_mouser_page(MOUSER_PAGE_HARDCODED)
+            if captured["parts"]:
+                new_blocks["mouser_page"] = captured
+            print(f"  Done: {len(captured['parts'])} OK, {len(captured['errors'])} errors")
+        elif mouser_page_only:
+            print("Error: --mouser-page-only needs a browser — set DUBIS_CDP_URL "
+                  "to a Chrome DevTools endpoint.", file=sys.stderr)
+            sys.exit(1)
+        else:
+            print("Skipping Mouser product pages: no browser (set DUBIS_CDP_URL).")
 
     # Merge into the existing fixture so per-distributor timestamps are stamped
     # and any distributor NOT captured in this run (e.g. a --lcsc-only run) keeps
