@@ -41,6 +41,27 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          env:
+            # Borrow the shared Chrome in the `browser` namespace instead of
+            # trying to run one here: the image has no browser and no GUI
+            # loop, so without this the keyless Mouser path cannot render a
+            # page and every Mouser fetch falls through to the urllib scrape
+            # Mouser blocks. See browser_page.py.
+            #
+            # REQUIRES a one-time label on this namespace, because the
+            # browser Service is ClusterIP with a namespace-selector policy:
+            #     kubectl label namespace dubis browser-client=enabled
+            # That label is a real grant, not plumbing — CDP is unauthenticated,
+            # so anything in this namespace can then drive that browser as
+            # every identity it holds. Sharing one profile is deliberate: a
+            # browser whose whole history is distributor product pages is a
+            # louder bot signal than one mixed with ordinary traffic.
+            - name: DUBIS_CDP_URL
+              value: "http://browser-x.browser.svc.cluster.local:9222"
+            # Median seconds between navigations against that shared browser,
+            # jittered log-normally. Unset means no floor.
+            - name: DUBIS_CDP_PAUSE_MEDIAN
+              value: "8"
           envFrom:
             # Created out-of-band by Isaac per docs/deploy-runbook.md
             # (`kubectl create secret ... dubis-server-auth`) — carries
