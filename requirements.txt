@@ -1,4 +1,8 @@
 pywebview>=5.0
+# Client only -- `playwright install` is deliberately NOT run. The CDP
+# backend in browser_page.py attaches to a browser running elsewhere, so
+# the ~400MB of bundled browsers would be downloaded and never used.
+playwright>=1.44
 browser-cookie3>=0.19
 xlrd>=2.0
 pdfplumber>=0.10

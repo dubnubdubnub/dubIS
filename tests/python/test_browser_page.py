@@ -69,3 +69,224 @@ class TestLifecycle:
 
     def test_current_url_without_a_window_is_none(self):
         assert BrowserPage().current_url() is None
+
+
+# ── the shared-browser (CDP) backend ─────────────────────────────────────────
+# The browser lives in the cluster and is shared with other consumers, so the
+# rules that matter are about being a good guest: reuse the existing profile,
+# close what you opened, and never take the process down.
+
+import sys
+import types
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _no_cdp_by_default(monkeypatch):
+    """Keep the desktop-path tests honest if a real endpoint is configured."""
+    monkeypatch.delenv(browser_page.CDP_ENV, raising=False)
+    monkeypatch.delenv(browser_page.CDP_PAUSE_ENV, raising=False)
+
+
+class FakePage:
+    def __init__(self, context, html, url):
+        self._context = context
+        self._html = html
+        self.url = url
+        self.closed = False
+        self.goto_calls = []
+
+    def goto(self, url, **kwargs):
+        self.goto_calls.append(url)
+
+    def content(self):
+        return self._html() if callable(self._html) else self._html
+
+    def wait_for_timeout(self, ms):
+        self._context.waits.append(ms)
+
+    def close(self):
+        self.closed = True
+
+
+class FakeContext:
+    def __init__(self, html, url):
+        self._html, self._url = html, url
+        self.pages = []
+        self.waits = []
+
+    def new_page(self):
+        page = FakePage(self, self._html, self._url)
+        self.pages.append(page)
+        return page
+
+
+class FakeBrowser:
+    def __init__(self, contexts):
+        self.contexts = contexts
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+def install_fake_playwright(monkeypatch, *, html="<html></html>",
+                            url="https://example.com/landed", contexts=None):
+    """Stand in for playwright.sync_api so no real browser is needed."""
+    shared = FakeContext(html, url)
+    browser = FakeBrowser(contexts if contexts is not None else [shared])
+    state = {"browser": browser, "shared": shared, "endpoints": [],
+             "stopped": False, "extra_contexts": 0}
+
+    class FakeChromium:
+        def connect_over_cdp(self, endpoint):
+            state["endpoints"].append(endpoint)
+            return browser
+
+    class FakePw:
+        chromium = FakeChromium()
+
+        def stop(self):
+            state["stopped"] = True
+
+    module = types.ModuleType("playwright.sync_api")
+    module.sync_playwright = lambda: types.SimpleNamespace(start=lambda: FakePw())
+    pkg = types.ModuleType("playwright")
+    pkg.sync_api = module
+    monkeypatch.setitem(sys.modules, "playwright", pkg)
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", module)
+    return state
+
+
+class TestCdpSelection:
+    def test_endpoint_is_read_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv(browser_page.CDP_ENV, "  http://browser:9222  ")
+        assert browser_page.cdp_endpoint() == "http://browser:9222"
+
+    def test_blank_endpoint_is_no_endpoint(self, monkeypatch):
+        monkeypatch.setenv(browser_page.CDP_ENV, "   ")
+        assert browser_page.cdp_endpoint() is None
+
+    def test_a_configured_endpoint_makes_the_container_capable(self, monkeypatch):
+        """No GUI loop here, yet rendering is possible — that is the whole point."""
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+        assert browser_page.available() is True
+
+
+class TestSharedBrowserEtiquette:
+    def test_it_reuses_the_existing_profile_not_a_fresh_one(self, monkeypatch):
+        """`new_context()` would be logged out; contexts[0] holds the cookies."""
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+        state = install_fake_playwright(monkeypatch, html="<html>ok</html>")
+        page = browser_page.BrowserPage()
+        assert page.fetch_html("https://example.com") == "<html>ok</html>"
+        assert state["shared"].pages, "should have opened a page on contexts[0]"
+        assert not hasattr(state["browser"], "new_context_called")
+
+    def test_it_closes_its_own_page(self, monkeypatch):
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+        state = install_fake_playwright(monkeypatch)
+        browser_page.BrowserPage().fetch_html("https://example.com")
+        assert state["shared"].pages[0].closed is True
+
+    def test_it_does_not_close_the_shared_browser_on_a_fetch(self, monkeypatch):
+        """Detaching per fetch would churn a browser other consumers are using."""
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+        state = install_fake_playwright(monkeypatch)
+        page = browser_page.BrowserPage()
+        page.fetch_html("https://example.com")
+        page.fetch_html("https://example.com/2")
+        assert state["browser"].closed is False
+        assert len(state["endpoints"]) == 1, "connection should be reused"
+
+    def test_the_page_is_closed_even_when_the_fetch_raises(self, monkeypatch):
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+
+        def boom():
+            raise RuntimeError("render exploded")
+
+        state = install_fake_playwright(monkeypatch, html=boom)
+        assert browser_page.BrowserPage().fetch_html("https://example.com") is None
+        assert state["shared"].pages[0].closed is True
+
+    def test_destroy_detaches_rather_than_leaking(self, monkeypatch):
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+        state = install_fake_playwright(monkeypatch)
+        page = browser_page.BrowserPage()
+        page.fetch_html("https://example.com")
+        page.destroy()
+        assert state["browser"].closed is True and state["stopped"] is True
+
+    def test_a_browser_with_no_context_is_refused(self, monkeypatch):
+        """Rather than making one, which would be a logged-out profile."""
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+        install_fake_playwright(monkeypatch, contexts=[])
+        assert browser_page.BrowserPage().fetch_html("https://example.com") is None
+
+
+class TestCdpFetchBehaviour:
+    def test_the_landed_url_survives_the_page_being_closed(self, monkeypatch):
+        """Callers use it to tell a redirect-to-product from a results list."""
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+        install_fake_playwright(monkeypatch, url="https://m.com/ProductDetail/X")
+        page = browser_page.BrowserPage()
+        page.fetch_html("https://m.com/search?q=X")
+        assert page.current_url() == "https://m.com/ProductDetail/X"
+
+    def test_a_challenge_page_is_rechecked_then_given_up_on(self, monkeypatch):
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+        state = install_fake_playwright(
+            monkeypatch, html="<html><title>Just a moment...</title></html>")
+        assert browser_page.BrowserPage().fetch_html("https://example.com") is None
+        assert browser_page.INTERSTITIAL_RECHECK_S * 1000 in state["shared"].waits
+
+    def test_settle_is_honoured(self, monkeypatch):
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+        state = install_fake_playwright(monkeypatch)
+        browser_page.BrowserPage().fetch_html("https://example.com", settle_s=2.5)
+        assert 2500 in state["shared"].waits
+
+    def test_an_unreachable_endpoint_is_a_None_not_a_crash(self, monkeypatch):
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://nowhere:9222")
+
+        class Exploding:
+            def connect_over_cdp(self, endpoint):
+                raise OSError("connection refused")
+
+        module = types.ModuleType("playwright.sync_api")
+        module.sync_playwright = lambda: types.SimpleNamespace(
+            start=lambda: types.SimpleNamespace(chromium=Exploding()))
+        pkg = types.ModuleType("playwright")
+        pkg.sync_api = module
+        monkeypatch.setitem(sys.modules, "playwright", pkg)
+        monkeypatch.setitem(sys.modules, "playwright.sync_api", module)
+        assert browser_page.BrowserPage().fetch_html("https://example.com") is None
+
+
+class TestHumanPause:
+    def test_it_is_right_skewed_not_symmetric(self):
+        """A Gaussian would put as much mass below the median as above."""
+        import statistics
+        draws = [browser_page.human_pause(20) for _ in range(4000)]
+        assert statistics.mean(draws) > statistics.median(draws)
+
+    def test_the_median_is_the_median(self):
+        import statistics
+        draws = [browser_page.human_pause(20) for _ in range(4000)]
+        assert 17 < statistics.median(draws) < 23
+
+    def test_it_never_returns_a_burst_or_a_stall(self):
+        draws = [browser_page.human_pause(10) for _ in range(2000)]
+        assert min(draws) >= 2.5 and max(draws) <= 60.0
+
+    def test_sigma_zero_is_the_old_fixed_delay(self):
+        assert browser_page.human_pause(7, sigma=0) == 7.0
+
+    def test_no_delay_asked_for_is_no_delay_given(self):
+        assert browser_page.human_pause(0) == 0.0
+
+    def test_successive_draws_differ(self):
+        """A constant gap is the signature the jitter exists to remove."""
+        draws = {browser_page.human_pause(5) for _ in range(50)}
+        assert len(draws) > 40
