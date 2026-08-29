@@ -32,17 +32,22 @@ DISTRIBUTORS = ("lcsc", "digikey", "mouser", "pololu")
 
 # One distributor can be captured two ways, so the set of fixture BLOCKS is
 # larger than the set of distributors. "mouser" holds Search API JSON, which
-# needs an API key and therefore only ever gets captured on Isaac's machine;
-# "mouser_page" holds the rendered product page, which needs a browser and no
-# secret at all, and is the only offline record of `table.pricing-table` --
-# the per-carrier ladders the API does not publish. Kept as a separate block
-# rather than a third key inside "mouser" so a browser-only refresh cannot
-# quietly replace API JSON with HTML and take `TestMouserNormalizer` with it.
+# needs an API key and therefore only ever gets captured on Isaac's machine.
+# "mouser_product" holds the normalized product a DEPLOYED dubIS server
+# returns: that server has a browser, so it can read the per-carrier price
+# ladders and the MouseReel fee, which the Search API does not publish at all
+# -- and asking it over HTTP costs an API token rather than CDP access to a
+# browser full of live sessions.
 #
-# DISTRIBUTORS stays four names because callers that mean "the distributors"
+# Two blocks rather than a second key inside "mouser" because they are
+# different shapes with different prerequisites: a server-mediated refresh must
+# not be able to overwrite raw API JSON with a normalized product and take
+# `TestMouserNormalizer` down with it.
+#
+# DISTRIBUTORS stays four names, because callers that mean "the distributors"
 # (freshness scoping for a credentialed local run, the contract test) still
 # mean four. Anything iterating capture targets wants CAPTURE_BLOCKS.
-CAPTURE_BLOCKS = DISTRIBUTORS + ("mouser_page",)
+CAPTURE_BLOCKS = DISTRIBUTORS + ("mouser_product",)
 
 
 def block_captured_at(fixture: dict, distributor: str) -> "str | None":

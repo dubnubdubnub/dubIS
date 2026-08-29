@@ -59,7 +59,7 @@ def pytest_collection_modifyitems(session, config, items):
     # A refresh failure (e.g. network down) must NOT abort the session — the live
     # tests themselves will surface the real problem. refresh_if_stale skips any
     # block whose prerequisite is absent — credentials for mouser/digikey, a
-    # browser for mouser_page — so this is safe to call for all of them.
+    # reachable server for mouser_product — so this is safe for all of them.
     # print() is swallowed during collection (not affected by -s), so use the
     # terminal writer to ensure these messages are actually visible.
     tw = config.get_terminal_writer()

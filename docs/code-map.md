@@ -549,7 +549,6 @@ graph LR
     "scripts/bench-floor.py" --> "bench.py"
     "scripts/capture-distributor-fixtures.py" --> "browser_page.py"
     "scripts/capture-distributor-fixtures.py" --> "distributor_fixtures.py"
-    "scripts/capture-distributor-fixtures.py" --> "mouser_client.py"
     "scripts/ci_watcher/listener.py" --> "scripts/ci_watcher/state.py"
     "scripts/ci_watcher/worker.py" --> "scripts/ci_watcher/triage_payload.py"
     "scripts/gen-inventory-types.py" --> "domain/schema.py"
@@ -865,6 +864,7 @@ graph LR
     "tests/python/test_mirror_serialize.py" --> "mirror_serialize.py"
     "tests/python/test_normalizers.py" --> "digikey_normalizer.py"
     "tests/python/test_normalizers.py" --> "distributor_fixtures.py"
+    "tests/python/test_normalizers.py" --> "domain/packaging.py"
     "tests/python/test_normalizers.py" --> "mouser_client.py"
     "tests/python/test_normalizers.py" --> "pololu_client.py"
     "tests/python/test_ocr_engine.py" --> "ocr_engine.py"
@@ -1143,7 +1143,7 @@ graph LR
 ### domain/packaging.py
 
 - **Imports:** —
-- **Imported by:** `cart_qty.py`, `domain/pricing.py`, `domain/product.py`, `mouser_client.py`, `tests/python/test_packaging.py`
+- **Imported by:** `cart_qty.py`, `domain/pricing.py`, `domain/product.py`, `mouser_client.py`, `tests/python/test_normalizers.py`, `tests/python/test_packaging.py`
 
 ### domain/part_registry.py
 
@@ -1834,7 +1834,7 @@ graph LR
 ### mouser_client.py
 
 - **Imports:** `base_client.py`, `browser_page.py`, `domain/packaging.py`, `domain/product.py`, `html_product_parser.py`
-- **Imported by:** `distributor_manager.py`, `scripts/capture-distributor-fixtures.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_browser.py`, `tests/python/test_distributor_contract.py`, `tests/python/test_normalizers.py`, `tests/python/test_packaging_clients.py`
+- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_browser.py`, `tests/python/test_distributor_contract.py`, `tests/python/test_normalizers.py`, `tests/python/test_packaging_clients.py`
 
 ### ocr_engine.py
 
@@ -1923,7 +1923,7 @@ graph LR
 
 ### scripts/capture-distributor-fixtures.py
 
-- **Imports:** `browser_page.py`, `distributor_fixtures.py`, `mouser_client.py`
+- **Imports:** `browser_page.py`, `distributor_fixtures.py`
 - **Imported by:** —
 
 ### scripts/check-claude-md.py
@@ -3064,7 +3064,7 @@ graph LR
 
 ### tests/python/test_normalizers.py
 
-- **Imports:** `digikey_normalizer.py`, `distributor_fixtures.py`, `mouser_client.py`, `pololu_client.py`
+- **Imports:** `digikey_normalizer.py`, `distributor_fixtures.py`, `domain/packaging.py`, `mouser_client.py`, `pololu_client.py`
 - **Imported by:** —
 
 ### tests/python/test_ocr_engine.py

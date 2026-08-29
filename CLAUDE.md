@@ -182,12 +182,16 @@ A missing credential — and an unset `DUBIS_CDP_URL` in a `browser` run — cau
 
 The Mouser API key is optional **for the app**: without one, `mouser_client` renders the product page in a browser (`browser_page.py`) and parses `table.pricing-table`, which is where the per-carrier ladders and the MouseReel fee come from. That path used to be untestable, since pytest has no GUI event loop — but `browser_page` can now attach over CDP to a browser running elsewhere, so `DUBIS_CDP_URL=http://browser-x.browser.svc.cluster.local:9222 pytest -m browser` exercises it from anywhere that can reach the cluster's shared Chrome. Keep the API key configured as well, or the Mouser half of `pytest -m live` proves nothing.
 
-CI runs `-m "live and not credentials"` in the advisory `distributors` job in `.github/workflows/ci.yml` against that same browser — see `docs/ci-reference.md`, including the namespace label it is still waiting on. If live runs reveal upstream drift, refresh the committed fixtures and commit the result:
+**Nothing in CI speaks CDP.** The advisory `distributors` job in `.github/workflows/ci.yml` runs `-m "live and not credentials and not browser"` — LCSC and Pololu, which need only a network. Giving a runner CDP would mean labelling `arc-runners` `browser-client=enabled`, and CDP is unauthenticated, so that label lets any pushed branch read the cookies of a browser holding live logged-in sessions; Isaac declined it. Upstream Mouser drift is watched a different way, below. Full reasoning: `docs/ci-reference.md`.
+
+If live runs reveal upstream drift, refresh the committed fixtures and commit the result:
 ```bash
 python scripts/capture-distributor-fixtures.py
 git add tests/fixtures/generated/distributor-scrapes.json
 ```
-The fixture holds five blocks, not four: Mouser is captured twice, as `mouser` (Search API JSON, needs a key) and `mouser_page` (the rendered page, needs a browser and no secret — the only offline record of the per-carrier ladders). The credential-free blocks (LCSC, Pololu, `mouser_page`) self-refresh weekly via the scheduled `.github/workflows/refresh-fixtures.yml` workflow, which opens a PR. `mouser` and `digikey` are local-only (refresh them via `pytest -m live`); their credentials never run on CI.
+The fixture holds five blocks, not four: Mouser is captured twice, as `mouser` (Search API JSON, needs a key) and `mouser_product` (the normalized product a *deployed* dubIS server returns — that server has a browser, so this is how the per-carrier ladders get captured without CI touching one). The credential-free blocks (LCSC, Pololu, `mouser_product`) self-refresh weekly via the scheduled `.github/workflows/refresh-fixtures.yml` workflow, which opens a PR. `mouser` and `digikey` are local-only (refresh them via `pytest -m live`); their credentials never run on CI.
+
+Mind what each half proves. `mouser_product` records what **upstream** returns, as parsed by whatever the deployed server runs — the right instrument for "has Mouser changed its page", the wrong one for "does this branch still parse it". The branch's parsing is covered by the hand-written page tests in `tests/python/test_clients_mouser.py` and, wherever a browser is reachable, by `pytest -m browser`.
 
 ## Remote deployment (Phase 1c)
 

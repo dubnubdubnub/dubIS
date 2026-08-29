@@ -14,11 +14,28 @@ running -- the cluster's shared one -- and the same `BrowserPage` renders the
 page from a machine that has no GUI at all, which is what lets CI exercise this
 instead of only Isaac's desktop.
 
-WHY A SEPARATE MARKER
-Every test here is `live` (it hits mouser.com) *and* `browser` (it needs that
-endpoint). It deliberately is NOT `credentials`: nothing here reads a secret,
-which is the entire reason CI can run it. `-m "live and not credentials"` is
-therefore the CI selection and `-m browser` is "just the shared-browser ones".
+WHY A SEPARATE MARKER, AND WHY CI DOES NOT RUN THESE
+Every test here is `live` (it hits mouser.com) *and* `browser` (it needs a CDP
+endpoint). CI runs `-m "live and not credentials and not browser"` and so skips
+the whole module, which is a decision rather than an oversight.
+
+Reaching the cluster's shared Chrome from a runner would mean labelling the
+`arc-runners` namespace `browser-client=enabled`. CDP is unauthenticated, so
+that label lets any branch pushed to this repo read the cookies of a browser
+holding live logged-in sessions, including a real X account. Isaac declined it.
+A second dedicated Chrome was considered and rejected too: the cluster NATs
+through one public IP and the image is identical, so a fresh profile shares the
+fingerprint and only lacks the aged anti-bot history that makes the shared one
+credible.
+
+What CI does instead is watch for upstream drift without a browser of its own —
+the weekly fixture refresh asks the DEPLOYED server for a Mouser product, and
+the offline replay tests assert its shape on every PR. That catches "Mouser
+changed the page". It cannot catch "this branch broke the parser", which is
+what the tests below are for, so run them wherever a browser is reachable: a
+desktop, or a shell pointed at the cluster.
+
+    DUBIS_CDP_URL=http://browser-x.browser.svc.cluster.local:9222 pytest -m browser
 
 WHY AN UNSET DUBIS_CDP_URL IS A FAILURE, NOT A SKIP
 The marker is the opt-in. Nothing selects these tests unless someone asked for
@@ -26,7 +43,8 @@ them by name, so by the time one runs, the operator has already said they want
 a real browser fetch -- and answering that with a green skip would report
 success for work that never happened. Project policy bans `pytest.skip` for a
 missing dependency for exactly this reason, so the missing endpoint is a
-`pytest.fail` naming the variable and the in-cluster URL to put in it.
+`pytest.fail` naming the variable and the in-cluster URL to put in it. (CI does
+not hit that failure: it never selects the marker in the first place.)
 
 DO NOT POINT THIS AT A HEADLESS CHROME YOU JUST STARTED
 Measured, not guessed: a fresh `--headless=new` Chrome gets `example.com` fine
