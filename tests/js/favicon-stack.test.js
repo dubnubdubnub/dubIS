@@ -13,17 +13,23 @@ vi.mock('../../js/store.js', () => ({
   },
 }));
 
-vi.mock('../../js/ui-helpers.js', () => ({
-  escHtml: vi.fn(s => String(s || '')),
-  vendorIconSrc: vi.fn((path) => {
+vi.mock('../../js/ui-helpers.js', () => {
+  // Kept in step with the real js/ui-helpers.js. Declared inside the factory
+  // because vi.mock is hoisted above the module body.
+  function iconSrc(path) {
     if (!path) return '';
     const p = String(path).replace(/\\/g, '/');
     if (/^(https?:|data:|blob:|file:)/i.test(p)) return p;
     if (/^[a-zA-Z]:\//.test(p) || p.startsWith('/')) return p;
     if (p.startsWith('data/')) return p;
     return 'data/' + p.replace(/^\/+/, '');
-  }),
-}));
+  }
+  return {
+    escHtml: vi.fn(s => String(s || '')),
+    vendorIconSrc: vi.fn(iconSrc),
+    vendorIconFor: vi.fn(v => (v && v.favicon_data_uri) || iconSrc(v && v.favicon_path)),
+  };
+});
 
 import { renderFanStack, buildHoverFlyout } from '../../js/inventory/favicon-stack.js';
 
@@ -51,6 +57,28 @@ describe('renderFanStack', () => {
     expect(html).toContain('favicon-fan-stack');
     expect(html).toContain('fan-icon-img');
     expect(html).toContain('data/lcsc-icon.ico');
+  });
+
+  it('prefers the inlined data URI over the filesystem path', () => {
+    // A favicon fetched for a vendor lives in the *data dir*, which a remote
+    // client's static root does not serve — only the data URI survives there.
+    _mockVendors = [{
+      id: 'v1', name: 'MDT', icon: '',
+      favicon_path: 'sources/favicons/abc.png',
+      favicon_data_uri: 'data:image/png;base64,AAAA',
+    }];
+    _mockPOs = [{ po_id: 'PO-001', vendor_id: 'v1', purchase_date: '2025-01-01' }];
+    var html = renderFanStack({ lcsc: 'C123', mpn: 'RES', po_history: ['PO-001'] });
+    expect(html).toContain('data:image/png;base64,AAAA');
+    expect(html).not.toContain('sources/favicons/abc.png');
+  });
+
+  it('renders an icon for a vendor that has only a data URI', () => {
+    _mockVendors = [{ id: 'v1', name: 'MDT', icon: '', favicon_path: '', favicon_data_uri: 'data:image/png;base64,AAAA' }];
+    _mockPOs = [{ po_id: 'PO-001', vendor_id: 'v1', purchase_date: '2025-01-01' }];
+    var html = renderFanStack({ lcsc: 'C123', mpn: 'RES', po_history: ['PO-001'] });
+    expect(html).toContain('fan-icon-img');
+    expect(html).not.toContain('fan-icon-empty');
   });
 
   it('renders fan stack with emoji icon when vendor has icon', () => {

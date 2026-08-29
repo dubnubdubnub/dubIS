@@ -841,6 +841,7 @@ graph LR
     "tests/python/test_inventory_api_loading.py" --> "tests/python/helpers.py"
     "tests/python/test_inventory_api_misc.py" --> "cache_db.py"
     "tests/python/test_inventory_api_misc.py" --> "tests/python/helpers.py"
+    "tests/python/test_inventory_api_misc.py" --> "vendors.py"
     "tests/python/test_inventory_api_pricing.py" --> "distributor_manager.py"
     "tests/python/test_inventory_api_pricing.py" --> "domain/pricing.py"
     "tests/python/test_inventory_api_pricing.py" --> "tests/python/helpers.py"
@@ -2863,6 +2864,11 @@ graph LR
 - **Imports:** `cache_db.py`, `domain/inventory.py`, `domain/pricing.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
+### tests/python/test_container_assets.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### tests/python/test_csv_io.py
 
 - **Imports:** `csv_io.py`
@@ -2995,7 +3001,7 @@ graph LR
 
 ### tests/python/test_inventory_api_misc.py
 
-- **Imports:** `cache_db.py`, `tests/python/helpers.py`
+- **Imports:** `cache_db.py`, `tests/python/helpers.py`, `vendors.py`
 - **Imported by:** —
 
 ### tests/python/test_inventory_api_pricing.py
@@ -3186,7 +3192,7 @@ graph LR
 ### vendors.py
 
 - **Imports:** `csv_io.py`
-- **Imported by:** `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `inventory_ops.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_mfg_direct_import.py`, `tests/python/test_vendors.py`
+- **Imported by:** `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `inventory_ops.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_mfg_direct_import.py`, `tests/python/test_vendors.py`
 
 ### vitest.config.js
 

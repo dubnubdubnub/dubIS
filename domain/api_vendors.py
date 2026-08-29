@@ -11,6 +11,20 @@ import csv_io
 logger = logging.getLogger(__name__)
 
 
+def _to_native_path(rel: str) -> str:
+    """Rewrite a stored relative favicon_path to this OS's separators.
+
+    favicon_path is persisted in vendors.json, which travels: a vendor added on
+    the Windows desktop app stores ``sources\\favicons\\<hash>.png``, and that
+    same file is later read by dubis-server on Linux (the data dir is a PVC, or
+    a mirrored copy). ``os.path.join`` would treat those backslashes as part of
+    the filename, so the file "goes missing" and the vendor renders with no
+    icon at all. Forward slashes are legal separators on Windows too, so
+    normalizing one way covers both directions.
+    """
+    return rel.replace("\\", "/")
+
+
 class VendorsFacade:
     def __init__(self, api) -> None:
         self._api = api
@@ -24,6 +38,7 @@ class VendorsFacade:
         for v in result:
             fp = v.get("favicon_path")
             if fp:
+                fp = _to_native_path(fp)
                 abs_fp = fp if os.path.isabs(fp) else os.path.join(self._api.base_dir, fp)
                 v["favicon_data_uri"] = vendors.favicon_data_uri(abs_fp)
         return result
@@ -45,8 +60,11 @@ class VendorsFacade:
             import requests
             try:
                 fp = vendors.fetch_favicon(v["url"], self._api._favicons_dir)
+                # Store forward slashes so the path stays readable on whatever
+                # OS next opens this vendors.json — see _to_native_path.
+                rel = _to_native_path(os.path.relpath(fp, self._api.base_dir))
                 v = vendors.update_vendor(self._api._vendors_json, v["id"],
-                                          favicon_path=os.path.relpath(fp, self._api.base_dir))
+                                          favicon_path=rel)
             except (requests.exceptions.RequestException, OSError) as exc:
                 logger.warning("favicon fetch failed for %s: %s", v["url"], exc)
         return v

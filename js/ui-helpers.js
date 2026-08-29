@@ -58,6 +58,27 @@ export function vendorIconSrc(path) {
   return "data/" + p.replace(/^\/+/, "");
 }
 
+/**
+ * Resolve a whole vendor record into an img src, preferring the backend's
+ * inlined `data:` URI over the filesystem path.
+ *
+ * The static `data/...` URL that vendorIconSrc builds only resolves when the
+ * page's static root and the data dir are the same directory — true for the
+ * desktop app (both are the repo), false for dubis-server, which serves /app
+ * and keeps user data in /data. Favicons fetched for a vendor land in the data
+ * dir (`sources/favicons/<hash>.png`), so on a remote client that URL is always
+ * a 404; `favicon_data_uri`, which /v1/vendors already returns for every vendor
+ * with a cached favicon, carries the bytes and works in both. The path stays as
+ * a fallback for the icons shipped in the image (data/lcsc-icon.ico and
+ * friends), which are reachable as static assets in both deployments.
+ * @param {{ favicon_data_uri?: string, favicon_path?: string }} vendor
+ * @returns {string}
+ */
+export function vendorIconFor(vendor) {
+  if (!vendor) return "";
+  return vendor.favicon_data_uri || vendorIconSrc(vendor.favicon_path || "");
+}
+
 export function Modal(id, { onClose, cancelId, confirmId } = {}) {
   const el = document.getElementById(id);
   // Deferred trap: if a modal is opened and closed within the same frame, the trap
