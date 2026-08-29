@@ -71,6 +71,7 @@ Add a `[ci: <suite>]` tag to your commit message to override auto-detection:
 | `[ci: python]` | Full Python: ruff + fixture check + pytest | ~17s |
 | `[ci: pnp-e2e]` | PnP same-machine E2E (both runners) | ~28s |
 | `[ci: quality]` | Visual/a11y: contrast, style-audit, accessibility E2E (warns, never blocks) | ~49s |
+| `[ci: distributors]` | Real LCSC/Pololu/Mouser fetches through the shared browser (advisory) | ~2 min |
 
 ### `[ci: hosted]` — GitHub-hosted fallback (emergency escape hatch)
 
@@ -96,17 +97,26 @@ PR runs: pushes to main and fork PRs always ignore it.
 
 ## Live distributor test tier
 
-The `live` pytest marker gates tests that hit real distributor endpoints (`test_lcsc_live`, `test_pololu_live`, `test_mouser_live`, `test_digikey_session_live`). The DigiKey test uses `DigikeyClient.ensure_session(interactive=True)` — a warm cookie cache validates silently; a stale cache opens a browser to re-login.
+The `live` pytest marker gates every test that hits a real distributor endpoint. Two further markers say *what else* a live test needs, so a run can ask for a subset instead of all-or-nothing:
 
-These tests are **deselected by default** via `addopts = ["-m", "not live"]` in `pyproject.toml`, so `pytest tests/python/ -v` (and all CI runs) never collect them.
+| Marker | Means | Tests |
+|--------|-------|-------|
+| `live` | Hits a real endpoint. Deselected by default via `addopts` in `pyproject.toml`. | all of the below |
+| `browser` | Additionally needs the shared Chrome named by `DUBIS_CDP_URL`. | `tests/python/test_distributor_browser.py` |
+| `credentials` | Additionally needs a secret that lives only on Isaac's machine. | `test_mouser_live` (API key), `test_digikey_session_live` (cookies), the two Windows-only DigiKey session tests |
 
-**Run locally** when touching distributor clients, normalizers, or `scripts/capture-distributor-fixtures.py`, and before merging that work:
+`browser` and `credentials` never appear alone, so `pytest -m live` still means exactly what it always did — everything. The split exists so CI can run `-m "live and not credentials"`: a runner can be given a browser, and is never going to be given the secrets.
+
+**Run locally** when touching distributor clients, normalizers, `browser_page.py`, or `scripts/capture-distributor-fixtures.py`, and before merging that work:
 
 ```bash
 pytest -m live   # requires network, cached DigiKey cookies (data/digikey_cookies.json),
                  # and a Mouser API key (data/mouser_credentials.json)
                  # missing credentials → actionable failure, not a skip
+pytest -m browser DUBIS_CDP_URL=...   # just the shared-browser ones
 ```
+
+An unset `DUBIS_CDP_URL` in a `browser` run is a **failure**, not a skip: the marker is the opt-in, so by the time one of these is selected the operator has already asked for a real browser fetch, and a green skip would report success for work that never happened.
 
 Latency is recorded and printed; there are no threshold assertions. If live runs reveal upstream API drift, refresh the committed fixtures:
 
@@ -115,13 +125,21 @@ python scripts/capture-distributor-fixtures.py
 git add tests/fixtures/generated/distributor-scrapes.json
 ```
 
-The capture → commit → replay flow: `scripts/capture-distributor-fixtures.py` writes `tests/fixtures/generated/distributor-scrapes.json`; `tests/python/test_normalizers.py` replays all four distributors offline from that file. Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
+The capture → commit → replay flow: `scripts/capture-distributor-fixtures.py` writes `tests/fixtures/generated/distributor-scrapes.json`; `tests/python/test_normalizers.py` replays it offline. Five blocks, not four — Mouser is captured twice: `mouser` is Search API JSON (needs a key), `mouser_page` is the rendered product page (needs a browser, no secret) and is the only offline record of `table.pricing-table`, whose per-carrier price ladders the API does not publish. See `distributor_fixtures.CAPTURE_BLOCKS`. Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
+
+### The `distributors` CI job
+
+`ci.yml`'s `distributors` job runs `pytest -m "live and not credentials"` on `arc-dubis` with `DUBIS_CDP_URL` pointed at the cluster's shared Chrome. It is selected by a `[ci: distributors]` tag, by `-f suite=distributors`, by a push to main, or automatically when a PR touches a distributor client, normalizer, `browser_page.py`, `distributor_fixtures.py`, or the capture script.
+
+It is **advisory** (`continue-on-error`, in no required gate) for the same reason the single-box legs are: one shared browser and three third-party websites, so an outage must not block every merge.
+
+**It does not work yet.** The `browser` namespace runs `default-deny-ingress` plus `allow-browser-clients`, which admits port 9222 only from namespaces labelled `browser-client=enabled`. `dubis` and `bots` carry that label; `arc-runners`, where the runner Pods live, does not — so the job's preflight fails with a message saying exactly that. Applying the label is a deliberate grant, not plumbing: CDP is unauthenticated, so it lets any branch pushed to this repo drive a browser holding live logged-in sessions and read their cookies. Fork PRs already cannot run self-hosted CI, which closes the anonymous path but not the "a branch I pushed does something I did not read" one. The lower-risk alternative is a second Chrome with no personal logins, in a namespace CI may reach, pointed at by the job's `DUBIS_CDP_URL`.
 
 ### Scheduled fixture auto-refresh (`refresh-fixtures.yml`)
 
-A scheduled workflow keeps the **public** fixtures (LCSC + Pololu) fresh without any credentials on CI. It runs weekly (Mondays 06:00 UTC) and on manual `workflow_dispatch`, invoking `capture-distributor-fixtures.py --refresh-if-stale --public-only` on the same internet-connected self-hosted runner as the Python job. Per-distributor `captured_at` timestamps drive it: the script re-captures only blocks older than 30 days (via `distributor_fixtures.stale_distributors`), so most weekly runs are a no-op.
+A scheduled workflow keeps the credential-free fixtures fresh: LCSC and Pololu over plain HTTP, and `mouser_page` through the shared browser. It runs weekly (Mondays 06:00 UTC) and on manual `workflow_dispatch`, invoking `capture-distributor-fixtures.py --refresh-if-stale` twice — once `--public-only`, once `--browser-only` — on the same internet-connected self-hosted runner as the Python job. Per-block `captured_at` timestamps drive it: the script re-captures only blocks older than 30 days (via `distributor_fixtures.stale_distributors`), so most weekly runs are a no-op.
 
-It uses **no secrets** — Mouser (API key) and DigiKey (cookies) are deliberately skipped and stay local-only (`pytest -m live`). When a public fixture does change, the job does **not** push to protected `main`; it force-updates the `automation/refresh-fixtures` branch and opens (or reuses) a PR, so the normal offline replay tests validate the captured data before a human merges. Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
+It uses **no secrets** — `mouser` (API key) and `digikey` (cookies) are deliberately skipped and stay local-only (`pytest -m live`). The browser step is `continue-on-error`, because the namespace label above may never be applied and that must not cost the LCSC/Pololu refresh; the script's own guard leaves an existing block untouched whenever it cannot capture a replacement, including when the browser is reachable but every page comes back challenged. When a fixture does change, the job does **not** push to protected `main`; it force-updates the `automation/refresh-fixtures` branch and opens (or reuses) a PR, so the normal offline replay tests validate the captured data before a human merges. Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
 
 ## Troubleshooting
 
@@ -133,6 +151,8 @@ It uses **no secrets** — Mouser (API key) and DigiKey (cookies) are deliberate
 | "Reused workspace has drifted" error on a macos leg | Tracked files in the m4-air workspace differ from the checked-out commit, so the staleness guards are checking the wrong bytes | The listed files show what drifted. Re-run; if it recurs, flip that leg's `checkout-clean` to `true` (costs a cold `npm install`, nothing more) |
 | Playwright tests fail on one OS only | Genuine cross-platform rendering difference, or a spec measuring across more than one layout generation | Browser installs are no longer per-leg optional, so this is not a missing-browser problem. Check the failing spec for sequential measurements that assume no re-render between them |
 | Visual snapshot "doesn't exist" / fails only on ubuntu | Golden-image baselines are per-platform; CI Linux runner lacks `-linux.png` | Regenerate on the runner — see [visual-testing.md](visual-testing.md) |
+| `distributors` job: preflight says it cannot reach the browser | The `arc-runners` namespace does not carry `browser-client=enabled`, so the `browser` namespace's NetworkPolicy drops port 9222 | Read the grant discussion above before applying the label; the job is advisory, so nothing is blocked meanwhile |
+| `distributors` job: endpoint tests pass, every Mouser one fails | Whatever `DUBIS_CDP_URL` points at is a freshly launched or headless browser. Mouser reads the browser, not the address: a `--headless=new` Chrome gets an empty search page and a bot-blocked product page | Point it at a long-lived headful profile that also sees human traffic — the shared `browser-x`. This is not a code regression |
 | Quality suite "fails" | Quality tier uses `continue-on-error: true` | These are warnings, not blockers — quality failures don't block merge |
 | ruff or eslint fails after refactor | New file not covered by existing config | Check `pyproject.toml` excludes and `eslint.config.mjs` includes |
 

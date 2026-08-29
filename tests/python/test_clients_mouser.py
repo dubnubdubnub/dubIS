@@ -799,6 +799,30 @@ class TestFetchPathSelection:
         assert not mouser_client._MOUSER_PN_RE.match("GRM155R71H103KA88D")
         assert not mouser_client._MOUSER_PN_RE.match("CL05B104KB54PNC")
 
+    def test_a_not_found_page_is_not_a_product(self):
+        """Mouser answers an unresolvable /ProductDetail/ with a 200 and an
+        apology, which has a title and therefore used to parse: the tooltip
+        showed "Sorry, we can't find the page you're looking for." as a part
+        name, and `_fetch_via_browser` stopped there instead of falling back to
+        the search page that would have resolved the MPN."""
+        html = (
+            "<html><body><h1>Sorry, we can’t find the page you’re "
+            "looking for.</h1></body></html>"
+        )
+        assert MouserClient._parse_product_page(
+            html, "LM358DR", "https://www.mouser.com/ProductDetail/LM358DR"
+        ) is None
+
+    def test_a_part_number_that_merely_looks_like_an_error_still_parses(self):
+        """The not-found check is phrase-based on purpose: matching a bare
+        "404" would hide every part whose number contains those digits."""
+        html = "<html><body><h1>RC0805FR-07404RL Yageo</h1></body></html>"
+        result = MouserClient._parse_product_page(
+            html, "RC0805FR-07404RL", "https://www.mouser.com/ProductDetail/x"
+        )
+        assert result is not None
+        assert result["title"] == "RC0805FR-07404RL Yageo"
+
     def test_browser_is_skipped_when_there_is_no_window_to_use(self, monkeypatch):
         """The container has no GUI loop; it must fall through, not raise."""
         monkeypatch.setattr(mouser_client.browser_page, "available", lambda: False)

@@ -53,6 +53,10 @@ def wired(monkeypatch, tmp_path):
     monkeypatch.setattr(cap, "capture_pololu", _stub("pololu"))
     monkeypatch.setattr(cap, "capture_mouser", _stub("mouser"))
     monkeypatch.setattr(cap, "capture_digikey", _stub("digikey"))
+    monkeypatch.setattr(cap, "capture_mouser_page", _stub("mouser_page"))
+    # Nothing here may reach a real browser; each test says explicitly whether
+    # one is supposed to be available.
+    monkeypatch.setattr(cap.browser_page, "available", lambda: False)
     # _lcsc_part_list reads the purchase ledger / hardcoded list; stub it out.
     monkeypatch.setattr(cap, "_lcsc_part_list", lambda: ["C1"])
     monkeypatch.setattr(cap, "get_dynamic_digikey_parts", lambda: [])
@@ -198,3 +202,72 @@ def test_merge_preserves_untouched_distributor(wired, monkeypatch):
     # digikey untouched (it was fresh, not in stale set)
     assert written["digikey"] == digikey_block
     assert written["lcsc"]["captured_at"] == NOW_ISO
+
+
+# ── the mouser_page block: a browser is its credential ───────────────────────
+#
+# Captured through a real browser rather than an API key, which is what makes
+# it the one Mouser block CI can refresh. The guard shape is deliberately the
+# same as the credentialed ones: no browser means the existing block is left
+# exactly where it is, never emptied.
+
+
+def test_stale_mouser_page_with_a_browser_is_captured(wired, monkeypatch):
+    calls, fixture_path = wired
+    _seed(monkeypatch, {"mouser_page": _stale("mouser_page")})
+    monkeypatch.setattr(cap.browser_page, "available", lambda: True)
+
+    result = cap.refresh_if_stale(("mouser_page",), 30)
+
+    assert result is True
+    assert "mouser_page" in calls
+    import json
+    with open(fixture_path, encoding="utf-8") as f:
+        written = json.load(f)
+    assert written["mouser_page"]["captured_at"] == NOW_ISO
+    assert written["mouser_page"]["parts"] == {"mouser_page-new": {}}
+
+
+def test_stale_mouser_page_without_a_browser_is_preserved(wired, monkeypatch):
+    """The data-loss guard, browser edition."""
+    calls, fixture_path = wired
+    _seed(monkeypatch, {"mouser_page": _stale("mouser_page")})
+    # browser_page.available() is already False via the `wired` fixture.
+
+    result = cap.refresh_if_stale(("mouser_page",), 30)
+
+    assert result is False
+    assert "mouser_page" not in calls
+    assert not os.path.exists(fixture_path)
+
+
+def test_an_all_errors_capture_never_replaces_a_real_one(wired, monkeypatch):
+    """A reachable browser serving challenge pages produces a well-formed
+    capture with nothing in it. Merging that would delete the only real pages
+    we have, so an empty parts dict is treated as no capture at all."""
+    calls, fixture_path = wired
+    _seed(monkeypatch, {"mouser_page": _stale("mouser_page")})
+    monkeypatch.setattr(cap.browser_page, "available", lambda: True)
+    monkeypatch.setattr(
+        cap, "capture_mouser_page",
+        lambda parts: {"capture_method": "browser", "parts": {},
+                       "errors": {p: "challenged" for p in parts}},
+    )
+
+    result = cap.refresh_if_stale(("mouser_page",), 30)
+
+    assert result is False
+    assert not os.path.exists(fixture_path)
+    assert calls == []
+
+
+def test_the_default_scope_covers_every_capture_block():
+    """A block missing from CAPTURE_BLOCKS would never be refreshed by anything
+    and would rot in place, so the tuple the default scope reads is worth
+    pinning."""
+    assert set(cap.distributor_fixtures.CAPTURE_BLOCKS) == {
+        "lcsc", "digikey", "mouser", "pololu", "mouser_page",
+    }
+    assert set(cap.distributor_fixtures.DISTRIBUTORS) <= set(
+        cap.distributor_fixtures.CAPTURE_BLOCKS
+    )

@@ -30,6 +30,20 @@ from datetime import datetime
 
 DISTRIBUTORS = ("lcsc", "digikey", "mouser", "pololu")
 
+# One distributor can be captured two ways, so the set of fixture BLOCKS is
+# larger than the set of distributors. "mouser" holds Search API JSON, which
+# needs an API key and therefore only ever gets captured on Isaac's machine;
+# "mouser_page" holds the rendered product page, which needs a browser and no
+# secret at all, and is the only offline record of `table.pricing-table` --
+# the per-carrier ladders the API does not publish. Kept as a separate block
+# rather than a third key inside "mouser" so a browser-only refresh cannot
+# quietly replace API JSON with HTML and take `TestMouserNormalizer` with it.
+#
+# DISTRIBUTORS stays four names because callers that mean "the distributors"
+# (freshness scoping for a credentialed local run, the contract test) still
+# mean four. Anything iterating capture targets wants CAPTURE_BLOCKS.
+CAPTURE_BLOCKS = DISTRIBUTORS + ("mouser_page",)
+
 
 def block_captured_at(fixture: dict, distributor: str) -> "str | None":
     """Return the ISO capture timestamp for one distributor.
