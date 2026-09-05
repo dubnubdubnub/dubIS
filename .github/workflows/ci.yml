@@ -363,69 +363,110 @@ jobs:
           name: playwright-report-live
           path: test-results/
 
-  # ── JS on Windows (win11 VM): lint/type/unit + Windows-smoke E2E ─────
+  # ── JS on Windows (GitHub-hosted): lint/type/unit + Windows-smoke E2E ─────
   #   dubIS ships on Windows (pywebview/WebView2), so this leg exercises the
   #   frontend on a real Windows runner — catching Windows-only path/render
-  #   issues the ubuntu+macos legs miss. Runs on the single self-hosted win11
-  #   VM (blhx370/KVM). Deliberately NOT part of the js-required gate: it's a
-  #   single VM, so an outage must not block merges. Gated on run_js.
+  #   issues the ubuntu+macos legs miss.
+  #
+  #   Moved from the self-hosted win11 KubeVirt VM to GitHub-hosted
+  #   windows-latest on 2026-09-04. That VM served 15.3 h/month of CI at ~1%
+  #   utilisation while holding 10.1 GiB of standing RAM on y740 (the only GPU
+  #   node) and needed a KubeVirt + CDI + autoscaler + golden-image + in-cluster
+  #   registry apparatus to exist. dubIS is public, so hosted Windows minutes
+  #   are free.
+  #
+  #   This is also an OUTAGE FIX, not only a cost one. There are currently ZERO
+  #   runners carrying the `win11` label (`gh api repos/.../actions/runners`,
+  #   2026-09-04); the last green js-windows was 2026-08-31, and a run queued
+  #   2026-09-04T13:21Z can never start. `timeout-minutes` does not bound queue
+  #   wait for a label that never appears — GitHub cancels at 24 h — and
+  #   scripts/merge-prs.sh reads ALL checks, not just required contexts, so a
+  #   perpetually-pending js-windows wedges the auto-merger. Across the
+  #   nightly's history 14 of 41 scheduled runs were cancelled the same way.
+  #
+  #   Still deliberately NOT part of the js-required gate. The original reason
+  #   ("a single VM, so an outage must not block merges") no longer applies, so
+  #   promoting it is now a live option — but that is a policy decision about
+  #   what may block a merge, not a side effect of changing runners. Gated on
+  #   run_js.
   #
   #   E2E runs the `windows` Playwright project — a ~15-spec Windows-smoke
   #   subset (render/layout, OS keyboard/focus, path/file handling), NOT the
   #   full functional suite (which the ubuntu+macos legs already prove
-  #   identical). The full functional suite still runs nightly on win11 via
-  #   .github/workflows/win11-nightly.yml. Grow the subset in
+  #   identical). The full functional suite still runs nightly via
+  #   .github/workflows/windows-nightly.yml. Grow the subset in
   #   playwright.config.mjs rather than reverting to --project functional here.
-  #   See docs/superpowers/specs/2026-07-24-win11-ci-speedup-design.md.
+  #   See docs/ci-reference.md.
   js-windows:
-    name: JS Windows E2E (win11)
+    name: JS Windows E2E (hosted)
     needs: [parse-tags, guard]
+    # The `hosted != 'true'` guard is KEPT even though this leg is no longer
+    # self-hosted, and the reason is scripts/merge-prs.sh: it gates on
+    # `gh pr checks`, which reports EVERY check rather than only the required
+    # contexts, and treats `pending` as do-not-merge. Letting this job run in
+    # hosted mode would therefore add an 8-15 min blocking wait to the automated
+    # merge path in exactly the mode that exists to stop an outage freezing the
+    # queue. Running it there would be a genuine coverage gain (it would be the
+    # only E2E in hosted mode), so this is worth revisiting — but it needs
+    # merge-prs.sh to honour required contexts first, which is a separate change.
     if: >-
       always() && !failure() &&
       needs.parse-tags.outputs.hosted != 'true' &&
       needs.parse-tags.outputs.run_js == 'true'
-    runs-on: [self-hosted, win11]
-    # Subset E2E (~15 specs) + cached deps runs well under this; the headroom
-    # covers a cold node_modules/browser cache miss on the slow CoW golden disk.
+    # PINNED, not `windows-latest`. Same argument as the Node pin below, and it
+    # applies harder to the one leg whose entire purpose is OS fidelity: the
+    # floating label silently migrated 2022 -> 2025 once already.
+    #
+    # Honest about what this leg is and is not: `windows-2025` is Windows
+    # SERVER, while dubIS ships on Windows 11 client, and Playwright drives its
+    # own bundled Chromium rather than WebView2 — so this never tested WebView2
+    # even on the win11 VM. What it does exercise is real Windows path/file
+    # handling, OS keyboard/focus, and the Windows font stack. The font-metric
+    # specs want "Segoe UI"/Consolas, both present on Server SKUs.
+    runs-on: windows-2025
+    # Subset E2E (~15 specs) + cached deps. Kept at 30 even though hosted
+    # runners have no CoW golden disk — headroom for a cold cache, and
+    # tightening a timeout buys nothing.
     timeout-minutes: 30
     defaults:
       run:
         shell: powershell
     steps:
       - uses: actions/checkout@v4
-      # actions/cache hardcodes Git-for-Windows' GNU tar (C:\Program Files\Git\
-      # usr\bin\tar.exe) and archives with `-z`, which shells out to `gzip`. That
-      # gzip.exe ships right next to tar.exe but that dir is NOT on the runner's
-      # PATH, so the child died with status 127 ("Broken pipe") and EVERY cache
-      # save silently failed — no cache ever persisted. Put Git's usr\bin on PATH
-      # so tar finds its own gzip. Without this the caches below are no-ops.
-      # (bsdtar can't be forced here — actions/cache prefers GNU tar by exact path
-      # whenever it exists.) Must run before the first actions/cache step.
-      - name: Put Git's gzip on PATH for actions/cache
-        run: Add-Content -Path $env:GITHUB_PATH -Value 'C:\Program Files\Git\usr\bin'
-      # The win11 runners are ephemeral (fresh golden disk each boot) with no warm
-      # cache, so npm downloads + the Playwright browser download dominated setup.
-      # Cache via the GitHub cache service (works across ephemeral self-hosted
-      # runners), keyed on package-lock so a lock change busts them.
-      #
-      # We cache node_modules DIRECTLY (not just the npm download store): the
-      # win11-<...> key prefix + the fixed golden-image Node version make the
-      # native-binary-staleness risk moot, and it eliminates npm's slow
-      # thousands-of-small-files relink onto the CoW disk (the 0.5–3m variance).
-      # No restore-keys on node_modules: only an exact lock match may count as a
-      # hit, so a stale tree from a different lock is never reused.
-      - name: Cache npm downloads
-        uses: actions/cache@v4
+      # EXPLICIT Node pin. Every other leg inherits Node from its runner image
+      # (ARC's Dockerfile and the win11 golden image both pinned 22.22.1), but a
+      # GitHub-hosted image bumps its default Node without asking — which would
+      # silently swap the interpreter underneath a cached node_modules full of
+      # compiled native binaries. Pinning keeps the fleet on one version and
+      # makes that version an explicit, greppable input to the cache key below.
+      - uses: actions/setup-node@v4
+        id: setup-node
         with:
-          path: ~\AppData\Local\npm-cache
-          key: win11-npm-${{ hashFiles('package-lock.json') }}
-          restore-keys: win11-npm-
+          node-version: 22.22.1
+          # Let setup-node own the npm download cache. Do NOT hand-roll this with
+          # actions/cache on `~\AppData\Local\npm-cache`: that is npm's DEFAULT
+          # location, but the hosted image relocates it at bake time
+          # (`npm config set cache C:\npm\cache --global`, plus a machine-level
+          # npm_config_prefix), so a hardcoded path matches nothing and
+          # actions/cache logs a warning and saves nothing — green job, cache
+          # permanently cold. setup-node asks `npm config get cache` instead.
+          cache: npm
+      # node_modules is cached DIRECTLY on top of setup-node's download cache: it
+      # eliminates npm's slow thousands-of-small-files relink on Windows. The key
+      # takes the Node version from setup-node's OUTPUT rather than repeating the
+      # literal, so bumping `node-version` cannot leave a stale key behind that
+      # restores a tree of native binaries built by the old Node. No restore-keys
+      # here: only an exact match may count as a hit.
+      #
+      # NOTE the `winhosted-` prefix, deliberately NOT `win11-`: entries under
+      # that old prefix were built on the golden image against its own Node and
+      # must never restore onto a hosted runner.
       - name: Cache node_modules
         id: node_modules_cache
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: win11-nodemodules-${{ hashFiles('package-lock.json') }}
+          key: winhosted-node${{ steps.setup-node.outputs.node-version }}-nodemodules-${{ hashFiles('package-lock.json') }}
       - name: Install deps
         if: steps.node_modules_cache.outputs.cache-hit != 'true'
         run: npm ci
@@ -437,14 +478,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~\AppData\Local\ms-playwright
-          key: win11-playwright-${{ hashFiles('package-lock.json') }}
-          restore-keys: win11-playwright-
+          key: winhosted-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: winhosted-playwright-
       - name: Install Playwright browsers
         run: npx playwright install chromium
       # The browser cache here comes back from actions/cache, not from a fresh
       # download — a truncated cache entry restores a revision directory that
       # `playwright install` then treats as complete. Same failure mode as the
       # m4-air's persistent cache, so the same guard applies.
+      #
+      # This repairs the RUNNER, not the cache: on an exact key hit actions/cache
+      # does not write back at post-job, so a poisoned entry survives until
+      # package-lock.json changes and every run re-pays the repair download.
       - name: Verify the Playwright browser can actually launch
         run: node scripts/check-playwright-browsers.mjs --repair
       - name: Windows-smoke E2E
@@ -452,7 +497,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report-win11-windows
+          name: playwright-report-windows-hosted
           path: test-results/
 
   # ── JS: hosted fallback (only with an explicit [ci: hosted] tag) ─────
