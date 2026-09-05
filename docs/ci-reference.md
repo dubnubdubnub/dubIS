@@ -23,9 +23,11 @@ Superseded PR runs are automatically cancelled (concurrency groups).
 
 Branch protection requires three contexts, all of which are aggregate gate jobs running on GitHub-hosted ubuntu: **JS Lint & Test (ubuntu)** (aggregates js + js-e2e + js-live + js-hosted), **Python Lint & Test (ubuntu)** (aggregates python + python-hosted), and **PnP E2E (required)** (aggregates pnp-e2e). Skipped suites satisfy the gates, so e.g. a docs-only PR is still mergeable.
 
-Single-physical-machine legs are **advisory** (`continue-on-error`): the macos (m4-air) legs of js/js-e2e/python/pnp-e2e, js-windows (win11 VM), and vlm-gpu. Their failures annotate the run red but never block merges — a laptop outage must not stall the queue.
+Single-physical-machine legs are **advisory** (`continue-on-error`): the macos (m4-air) legs of js/js-e2e/python/pnp-e2e, and vlm-gpu (y740). Their failures annotate the run red but never block merges — a laptop outage must not stall the queue.
 
-### Persistent-runner hygiene (m4-air, win11)
+**js-windows is non-blocking too, but by a different mechanism, and the distinction matters.** It has never carried `continue-on-error` — it is simply absent from `js-required`. So branch protection ignores it, but a failure still sets the whole run's conclusion to `failure`, which is what `ci_watcher` and `scripts/merge-prs.sh` read. It moved to GitHub-hosted `windows-2025` on 2026-09-04, so it is no longer a single-physical-machine leg and a home-lab outage cannot affect it; it stays out of the required gate by inertia rather than necessity. Promoting it is now a live option and a deliberate policy decision about what may block a merge.
+
+### Persistent-runner hygiene (m4-air)
 
 Advisory is not the same as ignorable: an advisory leg that fails for environmental reasons trains everyone to stop reading it. Two properties of the m4-air legs used to produce exactly that, and both now have a guard.
 
@@ -79,8 +81,13 @@ suite tag (e.g. `[ci: python] [ci: hosted]`). Use it when the self-hosted runner
 (the home k3s cluster) are down and the merge queue is frozen because the required
 checks can never start. With the tag present on the PR's head commit:
 
-- All self-hosted jobs are **skipped** (js, js-e2e, js-live, js-windows, python,
-  vlm-gpu, pnp-e2e, quality — nothing queues on a dead runner).
+- All self-hosted jobs are **skipped** (js, js-e2e, js-live, python, vlm-gpu,
+  pnp-e2e, quality — nothing queues on a dead runner). `js-windows` is skipped
+  too, but no longer because it is self-hosted (it runs on GitHub-hosted
+  `windows-2025` since 2026-09-04): it keeps the guard because
+  `scripts/merge-prs.sh` gates on **all** checks rather than the required
+  contexts, so letting it run here would add a blocking wait to the automated
+  merge path in the very mode meant to unblock it.
 - The blocking lint/unit legs rerun on GitHub-hosted `ubuntu-latest` instead:
   `js-hosted` (eslint + tsc + vitest core) and `python-hosted` (ruff + staleness
   guards + pytest, with tesseract installed via apt so the OCR tests still run).
@@ -88,8 +95,11 @@ checks can never start. With the tag present on the PR's head commit:
   (ubuntu)`, `PnP E2E (required)`) aggregate the hosted jobs and go green/red on
   their results.
 
-The trade-off is deliberate: hosted mode has **no E2E coverage** (Playwright
-functional/live, win11, PnP). It exists so lint + unit verified work can still
+The trade-off is deliberate: hosted mode has **almost no E2E coverage** —
+Playwright functional/live and PnP are all skipped. The one exception since
+2026-09-04 is **js-windows**, which now runs on GitHub-hosted `windows-latest`
+and so is no longer gated off in hosted mode: `[ci: hosted]` exists to route
+around a self-hosted outage, and that leg is no longer self-hosted. It exists so lint + unit verified work can still
 merge during an infra outage — don't use it routinely. Untagged runs are
 completely unaffected (no double-running, no added latency). It only applies to
 PR runs: pushes to main and fork PRs always ignore it.

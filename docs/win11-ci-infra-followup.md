@@ -1,3 +1,18 @@
+> ## ⚠️ SUPERSEDED 2026-09-04 — the win11 KubeVirt VM is being retired
+>
+> Windows CI moved to GitHub-hosted `windows-latest` (`ci.yml` js-windows +
+> `windows-nightly.yml`), so none of the tuning below is worth doing: it optimises a
+> VM that should not exist. The VM served ~15.3 h/month of CI at ~1% utilisation
+> while holding 10.1 GiB of standing RAM on y740, the only GPU node. 14 of the 41
+> scheduled nightly runs in this workflow's history were cancelled at GitHub's 24 h
+> queue ceiling waiting for it, and as of 2026-09-04 there are ZERO runners carrying
+> the `win11` label, so Windows CI had stopped entirely. dubIS is a public repo, so
+> hosted Windows minutes are free.
+>
+> Kept as the record of why the VM behaved as it did, and because decommissioning
+> the KubeVirt + CDI + autoscaler + golden-image + in-cluster-registry apparatus in
+> the infra repo has not happened yet. Do not action anything below.
+
 # win11 CI infra follow-up — `disk-v4` bake + more cores
 
 **Status:** proposed (out-of-repo cluster work; not part of the repo PR)
