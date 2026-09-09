@@ -89,6 +89,7 @@
 <link rel="stylesheet" href="css/components/cart.css">
 <link rel="stylesheet" href="css/components/ui-zoom.css">
 <link rel="stylesheet" href="css/components/panel-collapse.css">
+<link rel="stylesheet" href="css/components/servers.css">
 <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -352,18 +353,22 @@
     </div>
     <div class="modal-divider"></div>
     <div class="modal-subtitle" style="margin-bottom:4px"><strong>Server</strong></div>
-    <div class="modal-form" style="flex-direction:column;align-items:flex-start;gap:8px">
-      <label style="display:flex;gap:8px;align-items:center;width:100%">Remote server
-        <input type="text" id="pref-server-url" spellcheck="false" placeholder="local (blank)"
-               style="flex:1;min-width:0;font-family:monospace;font-size:12px;padding:4px 8px">
-      </label>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn-lg btn btn-apply" id="pref-restart" style="padding:4px 14px;font-size:12px">Restart to apply</button>
-        <span id="pref-server-status" style="font-size:11px;color:var(--text-muted)"></span>
+    <div class="server-picker">
+      <div id="pref-server-list" class="server-list"></div>
+      <div class="server-add">
+        <input type="text" class="input-field" id="pref-server-new-name" spellcheck="false" placeholder="Name (optional)">
+        <input type="text" class="input-field" id="pref-server-new-url" spellcheck="false" placeholder="https://dubis.example.ts.net">
+        <button class="btn btn-sm" id="pref-server-add">Add server</button>
       </div>
-      <span style="font-size:11px;color:var(--text-muted);max-width:420px">
-        Blank runs dubIS&rsquo;s own server locally. A URL points this window at an
-        already-deployed one instead &mdash; decided once at launch, so it needs a restart.
+      <div class="server-footer">
+        <button class="btn-lg btn btn-apply" id="pref-restart">Restart to apply</button>
+        <span id="pref-server-status"></span>
+      </div>
+      <span class="server-help">
+        &ldquo;Local&rdquo; runs dubIS&rsquo;s own server on this machine; any other entry points this
+        window at an already-deployed one. The dot is a live reachability check from
+        this window. Which server is used is decided once at launch, so a change
+        needs a restart.
       </span>
     </div>
     <div class="modal-divider"></div>
