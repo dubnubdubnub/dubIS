@@ -71,6 +71,7 @@ Add a `[ci: <suite>]` tag to your commit message to override auto-detection:
 | `[ci: python]` | Full Python: ruff + fixture check + pytest | ~17s |
 | `[ci: pnp-e2e]` | PnP same-machine E2E (both runners) | ~28s |
 | `[ci: quality]` | Visual/a11y: contrast, style-audit, accessibility E2E (warns, never blocks) | ~49s |
+| `[ci: distributors]` | Real LCSC + Pololu fetches — network only, no secrets (advisory) | ~20s |
 
 ### `[ci: hosted]` — GitHub-hosted fallback (emergency escape hatch)
 
@@ -96,17 +97,26 @@ PR runs: pushes to main and fork PRs always ignore it.
 
 ## Live distributor test tier
 
-The `live` pytest marker gates tests that hit real distributor endpoints (`test_lcsc_live`, `test_pololu_live`, `test_mouser_live`, `test_digikey_session_live`). The DigiKey test uses `DigikeyClient.ensure_session(interactive=True)` — a warm cookie cache validates silently; a stale cache opens a browser to re-login.
+The `live` pytest marker gates every test that hits a real distributor endpoint. Two further markers say *what else* a live test needs, so a run can ask for a subset instead of all-or-nothing:
 
-These tests are **deselected by default** via `addopts = ["-m", "not live"]` in `pyproject.toml`, so `pytest tests/python/ -v` (and all CI runs) never collect them.
+| Marker | Means | Tests |
+|--------|-------|-------|
+| `live` | Hits a real endpoint. Deselected by default via `addopts` in `pyproject.toml`. | all of the below |
+| `browser` | Additionally needs the shared Chrome named by `DUBIS_CDP_URL`. | `tests/python/test_distributor_browser.py` |
+| `credentials` | Additionally needs a secret that lives only on Isaac's machine. | `test_mouser_live` (API key), `test_digikey_session_live` (cookies), the two Windows-only DigiKey session tests |
 
-**Run locally** when touching distributor clients, normalizers, or `scripts/capture-distributor-fixtures.py`, and before merging that work:
+`browser` and `credentials` never appear alone, so `pytest -m live` still means exactly what it always did — everything. The split exists so a run can ask for the part it can actually satisfy: CI runs `-m "live and not credentials and not browser"`, which is LCSC and Pololu.
+
+**Run locally** when touching distributor clients, normalizers, `browser_page.py`, or `scripts/capture-distributor-fixtures.py`, and before merging that work:
 
 ```bash
 pytest -m live   # requires network, cached DigiKey cookies (data/digikey_cookies.json),
                  # and a Mouser API key (data/mouser_credentials.json)
                  # missing credentials → actionable failure, not a skip
+DUBIS_CDP_URL=http://browser-x.browser.svc.cluster.local:9222 pytest -m browser
 ```
+
+An unset `DUBIS_CDP_URL` in a `browser` run is a **failure**, not a skip: the marker is the opt-in, so by the time one of these is selected the operator has already asked for a real browser fetch, and a green skip would report success for work that never happened.
 
 Latency is recorded and printed; there are no threshold assertions. If live runs reveal upstream API drift, refresh the committed fixtures:
 
@@ -115,13 +125,41 @@ python scripts/capture-distributor-fixtures.py
 git add tests/fixtures/generated/distributor-scrapes.json
 ```
 
-The capture → commit → replay flow: `scripts/capture-distributor-fixtures.py` writes `tests/fixtures/generated/distributor-scrapes.json`; `tests/python/test_normalizers.py` replays all four distributors offline from that file. Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
+The capture → commit → replay flow: `scripts/capture-distributor-fixtures.py` writes `tests/fixtures/generated/distributor-scrapes.json`; `tests/python/test_normalizers.py` replays it offline. Five blocks, not four — Mouser is captured twice: `mouser` is Search API JSON (needs a key), `mouser_product` is the normalized product a *deployed* dubIS server returns from `GET /v1/distributors/mouser/product/{code}` (needs an API token, no browser here). See `distributor_fixtures.CAPTURE_BLOCKS`. Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
+
+### Why nothing in CI speaks CDP
+
+`mouser_client`'s keyless path needs a browser, and the only browser available is the cluster's shared Chrome (`browser-x` in namespace `browser`). Reaching it from a runner would mean labelling `arc-runners` with `browser-client=enabled`, because a `default-deny-ingress` plus `allow-browser-clients` policy admits port 9222 only from labelled namespaces.
+
+That label was **considered and rejected**. CDP is unauthenticated, so it lets anything in the namespace read `contexts[0]`'s cookies and act as every identity the profile holds — including a live X account. CI executes branch code, and while fork PRs already cannot run self-hosted CI (see parse-tags step 0), that only closes the anonymous path, not the "a branch I pushed does something I did not read" one.
+
+A second, dedicated Chrome with no personal logins does **not** solve it either, and it is worth writing down why so nobody re-proposes it. Cluster egress is a single NAT with no per-namespace SNAT, so a second browser has the same public IP. The same image gives it the same UA, Chrome version, TLS fingerprint, canvas/WebGL and fonts. The only real difference is the cookie jar, and that difference runs the wrong way: a virgin profile has no anti-bot history, which is itself a mild bot signal. Sharing the aged profile is the better position for the app, so the app keeps it and CI gets nothing.
+
+**What CI does instead** splits capture from parsing, because they need different trust levels and only one of them needs a browser:
+
+| Job | Runs | Needs | Catches |
+|-----|------|-------|---------|
+| Offline replay (`test_normalizers.py`, in the normal Python job) | every PR | nothing | our code breaking against committed bytes |
+| `distributors` | PRs touching distributor code, pushes to main | a network | the LCSC/Pololu clients' own fetch code rotting |
+| `refresh-fixtures.yml` weekly | schedule | a dubIS API token | Mouser/LCSC/Pololu changing upstream |
+
+Routing capture through the deployed server would be wrong for a parser test — it tests deployed code, not the branch's — but it is exactly right for capture, whose whole point is recording what *upstream* returns.
+
+### The `distributors` CI job
+
+`ci.yml`'s `distributors` job runs `pytest -m "live and not credentials and not browser"` on `arc-dubis` — LCSC and Pololu over plain HTTP. No secrets, no grants, no cluster access. It is selected by a `[ci: distributors]` tag, by `-f suite=distributors`, by a push to main, or automatically when a PR touches a distributor client, normalizer, `browser_page.py`, `distributor_fixtures.py`, or the capture script.
+
+What it covers that nothing else does is the **clients' own fetch code** — headers, timeouts, error handling, `_fetch_raw`. The offline replay tests exercise the normalizers against committed bytes and never call a client, and the capture script has its own duplicate fetch implementations, so without this job `lcsc_client._fetch_raw` could rot untouched with every suite green.
+
+It is **advisory** (`continue-on-error`, in no required gate) for the same reason the single-box legs are: two third-party websites, and an LCSC outage must not block every merge.
 
 ### Scheduled fixture auto-refresh (`refresh-fixtures.yml`)
 
-A scheduled workflow keeps the **public** fixtures (LCSC + Pololu) fresh without any credentials on CI. It runs weekly (Mondays 06:00 UTC) and on manual `workflow_dispatch`, invoking `capture-distributor-fixtures.py --refresh-if-stale --public-only` on the same internet-connected self-hosted runner as the Python job. Per-distributor `captured_at` timestamps drive it: the script re-captures only blocks older than 30 days (via `distributor_fixtures.stale_distributors`), so most weekly runs are a no-op.
+A scheduled workflow keeps the credential-free fixtures fresh: LCSC and Pololu over plain HTTP, and `mouser_product` by asking the deployed dubIS server. It runs weekly (Mondays 06:00 UTC) and on manual `workflow_dispatch`, invoking `capture-distributor-fixtures.py --refresh-if-stale` twice — once `--public-only`, once `--server-only` — on the same internet-connected self-hosted runner as the Python job. Per-block `captured_at` timestamps drive it: the script re-captures only blocks older than 30 days (via `distributor_fixtures.stale_distributors`), so most weekly runs are a no-op.
 
-It uses **no secrets** — Mouser (API key) and DigiKey (cookies) are deliberately skipped and stay local-only (`pytest -m live`). When a public fixture does change, the job does **not** push to protected `main`; it force-updates the `automation/refresh-fixtures` branch and opens (or reuses) a PR, so the normal offline replay tests validate the captured data before a human merges. Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
+The Mouser step is the only thing here that needs a credential, and it is a dubIS API token rather than a distributor secret. **Needs a human, once:** a repository secret `DUBIS_CI_TOKEN` whose value also appears in the `dubis-server-auth` Secret's `DUBIS_TOKENS` (the server runs `DUBIS_AUTH_MODE=on`). Nothing in this repo creates it. Until it exists the request 401s, the step is `continue-on-error`, and the LCSC/Pololu refresh proceeds untouched. The `dubis` namespace has no NetworkPolicy, so no label is involved in reaching its ClusterIP.
+
+The `mouser` (API key) and `digikey` (cookies) blocks are deliberately skipped and stay local-only (`pytest -m live`). The script's own guard leaves an existing block untouched whenever it cannot capture a replacement — including when the server answers but every part comes back challenged — so no failure here can turn into a deleted fixture. When a fixture does change, the job does **not** push to protected `main`; it force-updates the `automation/refresh-fixtures` branch and opens (or reuses) a PR, so the normal offline replay tests validate the captured data before a human merges. Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
 
 ## Troubleshooting
 
@@ -133,6 +171,9 @@ It uses **no secrets** — Mouser (API key) and DigiKey (cookies) are deliberate
 | "Reused workspace has drifted" error on a macos leg | Tracked files in the m4-air workspace differ from the checked-out commit, so the staleness guards are checking the wrong bytes | The listed files show what drifted. Re-run; if it recurs, flip that leg's `checkout-clean` to `true` (costs a cold `npm install`, nothing more) |
 | Playwright tests fail on one OS only | Genuine cross-platform rendering difference, or a spec measuring across more than one layout generation | Browser installs are no longer per-leg optional, so this is not a missing-browser problem. Check the failing spec for sequential measurements that assume no re-render between them |
 | Visual snapshot "doesn't exist" / fails only on ubuntu | Golden-image baselines are per-platform; CI Linux runner lacks `-linux.png` | Regenerate on the runner — see [visual-testing.md](visual-testing.md) |
+| `distributors` job red | LCSC or Pololu is down, slow, or changed shape | The job is advisory and blocks nothing. If the shape changed, the fixtures need a refresh too |
+| refresh-fixtures: "HTTP 401 from the server" on the Mouser step | The `DUBIS_CI_TOKEN` repository secret is missing, or its value is not in the server's `DUBIS_TOKENS` | Human step, see above. Everything else in that run still refreshed |
+| `pytest -m browser`: endpoint tests pass, every Mouser one fails | Whatever `DUBIS_CDP_URL` points at is a freshly launched or headless browser. Mouser reads the browser, not the address: a `--headless=new` Chrome gets an empty search page and a bot-blocked product page | Point it at a long-lived headful profile that also sees human traffic — the shared `browser-x`. This is not a code regression |
 | Quality suite "fails" | Quality tier uses `continue-on-error: true` | These are warnings, not blockers — quality failures don't block merge |
 | ruff or eslint fails after refactor | New file not covered by existing config | Check `pyproject.toml` excludes and `eslint.config.mjs` includes |
 
