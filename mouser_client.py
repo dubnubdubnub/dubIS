@@ -553,6 +553,26 @@ class MouserClient(BaseProductClient):
         re.IGNORECASE,
     )
 
+    # Mouser answers an unresolvable /ProductDetail/ with a 200 and a friendly
+    # not-found page, and that page parses: it has a title, so everything below
+    # runs and returns a "product" called "Sorry, we can't find the page you're
+    # looking for." with no prices and no packagings. Two ways that hurts. A
+    # tooltip renders the apology as though it were a part, and `_fetch_raw`
+    # stops looking, because a non-None answer is a successful one -- so an MPN
+    # that the search page would have resolved never gets searched for, since
+    # /ProductDetail/<mpn> is tried first for anything shaped like a Mouser PN.
+    # A page that could not be found is not a product; say so and let the
+    # caller's fallback run.
+    #
+    # Phrases only, deliberately: a bare "404" would match the title of any
+    # part whose number happens to contain those digits, and getting this
+    # wrong in that direction hides a real product rather than an apology.
+    # The apostrophe in "can't" is a typographic one on the real page and
+    # could arrive as an entity, so the match starts after it.
+    _NOT_FOUND_TITLE_RE = re.compile(
+        r"find the page you|page (?:cannot be|not) found", re.IGNORECASE,
+    )
+
     @classmethod
     def _parse_product_page(cls, page_html: str, part_number: str, url: str) -> dict[str, Any] | None:
         """Parse a Mouser product page and extract product details."""
@@ -562,6 +582,9 @@ class MouserClient(BaseProductClient):
         if not title:
             return None
         if cls._BOT_BLOCK_TITLE_RE.search(title):
+            return None
+        if cls._NOT_FOUND_TITLE_RE.search(title):
+            logger.debug("Mouser: %s is a not-found page, not a product", url)
             return None
 
         description = extract_description(page_html, jsonld)

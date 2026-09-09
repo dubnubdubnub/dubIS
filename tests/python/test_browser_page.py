@@ -247,6 +247,42 @@ class TestCdpFetchBehaviour:
         browser_page.BrowserPage().fetch_html("https://example.com", settle_s=2.5)
         assert 2500 in state["shared"].waits
 
+    def test_a_dropped_connection_is_reattached_without_a_second_driver(
+        self, monkeypatch,
+    ):
+        """Someone restarting the browser mid-run must cost one fetch, not all
+        of them. Playwright's sync API refuses to start a second driver in a
+        thread that already has a live one, and refuses through the asyncio
+        guard -- so restarting it turned the first hiccup into a permanent
+        "cannot run inside an asyncio loop" for every later part."""
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+        state = install_fake_playwright(monkeypatch, html="<html>ok</html>")
+        browser = state["browser"]
+        starts: list[int] = []
+        attempts: list[str] = []
+
+        def flaky_connect(endpoint):
+            attempts.append(endpoint)
+            if len(attempts) == 1:
+                raise OSError("connection refused")
+            return browser
+
+        def start():
+            starts.append(1)
+            return types.SimpleNamespace(
+                chromium=types.SimpleNamespace(connect_over_cdp=flaky_connect),
+                stop=lambda: None,
+            )
+
+        monkeypatch.setattr(sys.modules["playwright.sync_api"], "sync_playwright",
+                            lambda: types.SimpleNamespace(start=start))
+
+        page = browser_page.BrowserPage()
+        assert page.fetch_html("https://example.com") is None
+        assert page.fetch_html("https://example.com") == "<html>ok</html>"
+        assert len(attempts) == 2, "the second fetch should have reattached"
+        assert len(starts) == 1, "the driver should have been started once"
+
     def test_an_unreachable_endpoint_is_a_None_not_a_crash(self, monkeypatch):
         monkeypatch.setenv(browser_page.CDP_ENV, "http://nowhere:9222")
 
