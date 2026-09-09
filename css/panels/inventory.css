@@ -359,7 +359,10 @@
 .filter-chip {
   font-size: 10px; padding: 1px 7px; border-radius: 10px;
   background: var(--bg-raised); color: var(--text-secondary); border: 1px solid var(--border-default);
-  cursor: pointer; white-space: nowrap; transition: all 0.1s;
+  cursor: pointer; white-space: nowrap;
+  /* Never `all` — see the .dist-filter-btn note below. Only the paint-only
+     properties these chips actually change may animate. */
+  transition: background 0.1s, border-color 0.1s, color 0.1s, opacity 0.1s;
 }
 .filter-chip:hover { border-color: #a371f750; color: var(--color-purple-light); background: #a371f715; }
 .filter-chip.active { background: #a371f725; color: var(--color-purple-light); border-color: #a371f760; }
@@ -393,7 +396,19 @@
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  /* Paint-only properties, never `all`. `.dist-filter-bar.compact` swaps this
+     button's PADDING (6px -> 4px) as the panel crosses FILTER_BAR_MIN_WIDTH
+     (js/inventory/inv-events.js), so `transition: all` animated a layout
+     property: for 150ms after the width crossed, the five buttons kept growing,
+     the header's flex row kept re-fitting, and it finally un-wrapped a whole
+     28px chip row LONG after the click that caused it — sliding every inventory
+     row 9px up under a pointer that never moved. That silently kills an armed
+     hover (js/part-preview.js arms on mouseover and cancels on mouseout, and
+     the re-hit-test lands on the row, not the part-number span, so nothing
+     re-arms): collapse a side panel, move onto a part number, and the tooltip
+     never opens until you jiggle the mouse. The compact swap is a discrete
+     layout decision and must land in one frame. */
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -430,8 +445,11 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
+  /* Paint-only, never `all` — this button's `.compact` variant swaps its label
+     for an icon, so an `all` transition here is one edit away from animating
+     the same header re-wrap described on .dist-filter-btn. */
   white-space: nowrap;
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   flex-shrink: 0;
 }
 .clear-filters-btn:disabled {

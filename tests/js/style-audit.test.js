@@ -123,3 +123,59 @@ describe('Part preview tooltip text selection contract', () => {
     expect(propertyValue(rule, 'pointer-events')).toBe('auto');
   });
 });
+
+/**
+ * The inventory panel header is a `flex-wrap: wrap` row whose controls swap
+ * layout on a width threshold: `.dist-filter-bar.compact` (js/inventory/
+ * inv-events.js, at FILTER_BAR_MIN_WIDTH) hides the pill labels AND shrinks
+ * `.dist-filter-btn`'s padding. That swap is a discrete decision and must land
+ * in the same frame as the resize that caused it.
+ *
+ * `transition: all` broke that. Padding is a layout property, so the pills kept
+ * growing for the full transition duration after the width had already changed;
+ * the header's flex row kept re-fitting, and ~50ms after the user collapsed a
+ * side panel it finally un-wrapped a whole chip row and slid every inventory
+ * row 9px UP under a pointer that had not moved. That silently kills an armed
+ * hover: js/part-preview.js arms a 300ms timer on `mouseover` and clears it on
+ * `mouseout`, and the browser's re-hit-test lands on `.inv-part-row` — an
+ * ancestor, so `closest('[data-lcsc], ...)` finds nothing and nothing re-arms.
+ * The tooltip then never opens until the user jiggles the mouse. It reached CI
+ * as an intermittent failure of tests/js/e2e/panel-collapse-passive.spec.mjs.
+ *
+ * The E2E spec only catches it when the race falls the wrong way, so this is
+ * the deterministic guard: these controls animate paint, never layout.
+ */
+describe('Inventory header controls animate paint, never layout', () => {
+  // `transition: all` is the trap itself; the rest are the layout-affecting
+  // longhands that would reintroduce it by name.
+  const LAYOUT_ANIMATABLE = [
+    'all', 'width', 'height', 'padding', 'margin', 'font-size', 'gap',
+    'border-width', 'inset', 'top', 'right', 'bottom', 'left', 'flex',
+  ];
+
+  /**
+   * Like cssRule, but anchored so `.dist-filter-btn` cannot match inside the
+   * longer `.dist-filter-bar.compact .dist-filter-btn` selector, and with
+   * comments stripped so prose about `transition: all` is not read as a
+   * declaration.
+   */
+  function ownRule(selector) {
+    const escaped = selector.replace(/([.[\](){}+*?^$|\\])/g, '\\$1');
+    const re = new RegExp('(?:^|[};])\\s*' + escaped + '\\s*\\{([^}]+)\\}', 'm');
+    const m = css.match(re);
+    return m ? m[1].replace(/\/\*[\s\S]*?\*\//g, '').trim() : null;
+  }
+
+  for (const selector of ['.dist-filter-btn', '.clear-filters-btn', '.filter-chip']) {
+    it(`${selector} transitions no layout-affecting property`, () => {
+      const rule = ownRule(selector);
+      expect(rule, `${selector} rule not found`).not.toBeNull();
+      const transition = propertyValue(rule, 'transition');
+      expect(transition, `${selector} has no transition`).not.toBeNull();
+      for (const prop of LAYOUT_ANIMATABLE) {
+        expect(transition, `${selector} must not transition "${prop}"`)
+          .not.toMatch(new RegExp('(^|[\\s,])' + prop + '($|[\\s,])'));
+      }
+    });
+  }
+});
