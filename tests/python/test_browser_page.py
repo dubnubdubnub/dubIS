@@ -326,3 +326,68 @@ class TestHumanPause:
         """A constant gap is the signature the jitter exists to remove."""
         draws = {browser_page.human_pause(5) for _ in range(50)}
         assert len(draws) > 40
+
+
+class TestContentDuringNavigation:
+    """A page that fires `load` and then redirects can move mid-read.
+
+    Mouser's search URL did exactly this in production: it answered `/c/?q=`
+    and redirected to `/en/c/?q=`, and `page.content()` raised. Because it is
+    a race it was won for a fortnight first, which is why it is pinned here.
+    """
+
+    class MovingPage:
+        def __init__(self, fail_times):
+            self.fail_times = fail_times
+            self.reads = 0
+            self.waits = 0
+
+        def content(self):
+            self.reads += 1
+            if self.reads <= self.fail_times:
+                raise RuntimeError(
+                    "Page.content: Unable to retrieve content because the page "
+                    "is navigating and changing the content.")
+            return "<html>arrived</html>"
+
+        def wait_for_load_state(self, state, timeout=None):
+            self.waits += 1
+
+    def test_it_waits_for_the_new_document_and_re_reads(self):
+        page = self.MovingPage(fail_times=1)
+        assert BrowserPage._content_after_navigation(page) == "<html>arrived</html>"
+        assert page.waits == 1, "should have waited for the navigation"
+
+    def test_it_gives_up_rather_than_spinning(self):
+        page = self.MovingPage(fail_times=99)
+        assert BrowserPage._content_after_navigation(page) is None
+        assert page.reads == BrowserPage.CONTENT_ATTEMPTS
+
+    def test_a_page_that_is_not_navigating_is_read_once(self):
+        page = self.MovingPage(fail_times=0)
+        assert BrowserPage._content_after_navigation(page) == "<html>arrived</html>"
+        assert page.reads == 1 and page.waits == 0
+
+    def test_any_other_error_is_the_callers_to_see(self):
+        """Retrying a real fault would just hide it three times."""
+        class Broken:
+            def content(self):
+                raise RuntimeError("Target closed")
+
+        with pytest.raises(RuntimeError, match="Target closed"):
+            BrowserPage._content_after_navigation(Broken())
+
+    def test_a_failed_wait_does_not_mask_the_navigation(self):
+        class WaitBreaks(TestContentDuringNavigation.MovingPage):
+            def wait_for_load_state(self, state, timeout=None):
+                self.waits += 1
+                raise RuntimeError("wait blew up")
+
+        page = WaitBreaks(fail_times=99)
+        assert BrowserPage._content_after_navigation(page) is None
+
+
+def test_the_mouser_search_url_asks_for_the_locale_path_directly():
+    """Removing the known redirect rather than only tolerating it."""
+    import mouser_client
+    assert "/en/c/?q=" in mouser_client._SEARCH_URL
