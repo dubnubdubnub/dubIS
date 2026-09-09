@@ -768,6 +768,7 @@ graph LR
     "tests/python/test_base_client.py" --> "base_client.py"
     "tests/python/test_base_client.py" --> "dubis_errors.py"
     "tests/python/test_browser_page.py" --> "browser_page.py"
+    "tests/python/test_browser_page.py" --> "mouser_client.py"
     "tests/python/test_cache_db.py" --> "cache_db.py"
     "tests/python/test_cache_db.py" --> "carts.py"
     "tests/python/test_cache_db.py" --> "domain/pricing.py"
@@ -1835,7 +1836,7 @@ graph LR
 ### mouser_client.py
 
 - **Imports:** `base_client.py`, `browser_page.py`, `domain/packaging.py`, `domain/product.py`, `html_product_parser.py`
-- **Imported by:** `distributor_manager.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_browser.py`, `tests/python/test_distributor_contract.py`, `tests/python/test_normalizers.py`, `tests/python/test_packaging_clients.py`
+- **Imported by:** `distributor_manager.py`, `tests/python/test_browser_page.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_browser.py`, `tests/python/test_distributor_contract.py`, `tests/python/test_normalizers.py`, `tests/python/test_packaging_clients.py`
 
 ### ocr_engine.py
 
@@ -2750,7 +2751,7 @@ graph LR
 
 ### tests/python/test_browser_page.py
 
-- **Imports:** `browser_page.py`
+- **Imports:** `browser_page.py`, `mouser_client.py`
 - **Imported by:** —
 
 ### tests/python/test_cache_db.py
