@@ -20,8 +20,21 @@ export const STATUS_ROW_CLASS = {
 };
 
 // ── Shared status counting (used by bom-panel.js and inventory-panel.js) ──
+/**
+ * Tallies effective statuses across BOM/inventory-BOM rows.
+ *
+ * `total` is every unique row, DNP included — that is what the inventory
+ * filter bar's "All (N)" button filters over. `utbp` ("unique to be placed")
+ * is `total` minus the DNP rows: the count of unique parts that actually
+ * have to be placed on the board.
+ *
+ * @param {Array<{ effectiveStatus?: string, coveredByAlts?: boolean }>} rows
+ * @returns {{ ok: number, short: number, possible: number, missing: number,
+ *   manual: number, confirmed: number, generic: number, covered: number,
+ *   dnp: number, total: number, utbp: number }}
+ */
 export function countStatuses(rows) {
-  const c = { ok: 0, short: 0, possible: 0, missing: 0, manual: 0, confirmed: 0, generic: 0, covered: 0, dnp: 0 };
+  const c = { ok: 0, short: 0, possible: 0, missing: 0, manual: 0, confirmed: 0, generic: 0, covered: 0, dnp: 0, total: 0, utbp: 0 };
   rows.forEach(r => {
     const st = r.effectiveStatus;
     if (st === "ok") c.ok++;
@@ -35,6 +48,7 @@ export function countStatuses(rows) {
     if (r.coveredByAlts) c.covered++;
   });
   c.total = rows.length;
+  c.utbp = rows.length - c.dnp;   // unique to be placed: every row except the DNPs
   return c;
 }
 
