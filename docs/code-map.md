@@ -139,6 +139,7 @@ graph LR
     "js/app-init.js" --> "js/bom/bom-panel.js"
     "js/app-init.js" --> "js/cart/cart-header.js"
     "js/app-init.js" --> "js/cart/cart-store.js"
+    "js/app-init.js" --> "js/col-resize.js"
     "js/app-init.js" --> "js/components/command-palette.js"
     "js/app-init.js" --> "js/csv-parser.js"
     "js/app-init.js" --> "js/event-bus.js"
@@ -1274,7 +1275,7 @@ graph LR
 
 ### js/app-init.js
 
-- **Imports:** `js/a11y/keyboard-nav.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/api.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-header.js`, `js/cart/cart-store.js`, `js/components/command-palette.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory/fetch-descriptions-command.js`, `js/inventory/inv-modals.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/panel-collapse.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/sse.js`, `js/store.js`, `js/text-popover.js`, `js/ui-helpers.js`, `js/ui-zoom-control.js`, `js/ui-zoom.js`, `js/undo-redo.js`, `js/vendors-modal.js`
+- **Imports:** `js/a11y/keyboard-nav.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/api.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-header.js`, `js/cart/cart-store.js`, `js/col-resize.js`, `js/components/command-palette.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory/fetch-descriptions-command.js`, `js/inventory/inv-modals.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/panel-collapse.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/sse.js`, `js/store.js`, `js/text-popover.js`, `js/ui-helpers.js`, `js/ui-zoom-control.js`, `js/ui-zoom.js`, `js/undo-redo.js`, `js/vendors-modal.js`
 - **Imported by:** —
 - **Emits:** `SAVE_AND_CLOSE`
 - **Listens:** `BOM_CLEARED`, `BOM_LOADED`, `CONFIRMED_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LABEL_MODE`, `LINKING_MODE`, `LINKS_CHANGED`, `PO_CHANGED`
@@ -1356,7 +1357,7 @@ graph LR
 ### js/col-resize.js
 
 - **Imports:** `js/api.js`, `js/col-resize-logic.js`, `js/store.js`, `js/ui-zoom.js`
-- **Imported by:** `js/inventory/inventory-panel.js`
+- **Imported by:** `js/app-init.js`, `js/inventory/inventory-panel.js`
 
 ### js/components/command-palette.js
 

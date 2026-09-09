@@ -30,14 +30,19 @@
    and therefore any localStorage — changes on every start, and a remote client
    would get a different set again. Preferences follow the user instead.
 
-   NOTE: store.js's loadPreferences() copies *known* keys only, so this module
-   reads its key straight off the /v1 response and then re-injects it into the
-   in-memory preferences object; savePreferences() posts that whole object, and
-   a key missing from it is erased from preferences.json by the next unrelated
-   save. Two lines in store.js's loader (a `column_widths` pass-through, like
-   ui_zoom's) would make the re-injection unnecessary. */
+   store.js's loader carries `column_widths` through explicitly (like ui_zoom's
+   pass-through) — it copies known keys only, and savePreferences() posts the
+   whole in-memory object, so a key the loader ignored would be erased from
+   preferences.json by the next unrelated save.
 
-import { api, AppLog } from './api.js';
+   Panels mount *before* preferences load, so the stored widths are applied from
+   app-init.js once loadPreferences() has resolved — the same seam
+   applyStoredZoom and applyStoredCollapse use. This module deliberately does
+   not fetch preferences itself: an extra GET during panel init reordered
+   startup enough to push the roving grid's rAF re-arm (js/a11y/keyboard-nav.js)
+   past the frame the win11 E2E leg samples. */
+
+import { AppLog } from './api.js';
 import { store, savePreferences } from './store.js';
 import { toInnerPx } from './ui-zoom.js';
 import {
@@ -131,24 +136,14 @@ function markCustomHandles(t) {
 }
 
 /**
- * Load persisted widths and apply them. Never throws: a missing, malformed, or
- * stale-shaped stored value falls back to the default widths.
+ * Apply the persisted widths. Synchronous and fetch-free — app-init.js calls
+ * this after loadPreferences() resolves, since panels mount before preferences
+ * are read. Never throws: a missing, malformed, or stale-shaped stored value
+ * falls back to the default widths.
+ * @param {unknown} [raw] stored value; defaults to the in-memory preferences
  */
-export async function loadPersistedColWidths() {
-  /** @type {unknown} */
-  let raw = prefsBag()[PREF_KEY];
-  if (raw === undefined) {
-    try {
-      const stored = await api('load_preferences');
-      if (stored && typeof stored === 'object') raw = stored[PREF_KEY];
-    } catch (err) {
-      AppLog.warn('col-resize: could not read stored column widths — ' + err);
-    }
-  }
-  _state = normalizeWidths(raw, tableSpecs());
-  // Re-inject so the next savePreferences() (which posts the whole in-memory
-  // preferences object) cannot erase a key store.js's loader does not copy.
-  if (Object.keys(_state).length > 0) prefsBag()[PREF_KEY] = serializeWidths(_state);
+export function applyStoredColWidths(raw) {
+  _state = normalizeWidths(raw === undefined ? prefsBag()[PREF_KEY] : raw, tableSpecs());
   applyColWidths();
 }
 
