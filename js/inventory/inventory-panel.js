@@ -5,7 +5,13 @@
 
 import { store } from '../store.js';
 import { countByDistributor } from './inventory-logic.js';
-import { renderInvColHeader } from './inv-html-builders.js';
+import {
+  renderInvColHeader, INV_TABLE_ID, INV_RESIZE_COLS, BOM_TABLE_ID, BOM_RESIZE_COLS,
+} from './inv-html-builders.js';
+import { getLayoutTokenPx } from '../layout-tokens.js';
+import {
+  registerColResizeTable, applyColWidths, loadPersistedColWidths,
+} from '../col-resize.js';
 import state from './inv-state.js';
 import { setupEvents } from './inv-events.js';
 import { setupRowDelegation } from './inv-row-build.js';
@@ -41,6 +47,68 @@ export function init() {
   if (window.ResizeObserver && state.body) {
     new ResizeObserver(() => refreshImportMarkers()).observe(state.body);
   }
+
+  initColumnResizing();
+}
+
+// ── Column resizing ──
+//
+// Both tables that render inside #inventory-body opt in through the same
+// generic module (js/col-resize.js); all each one declares is how a width is
+// applied. Nothing else about resizing lives in this panel.
+
+function initColumnResizing() {
+  var body = state.body;
+  if (!body) return;
+
+  // The inventory grid: widths are CSS custom properties that the header cells
+  // AND the row cells both read, so writing the property on the grid container
+  // moves both at once. Defaults and floors come from css/tokens.css.
+  registerColResizeTable({
+    id: INV_TABLE_ID,
+    cols: INV_RESIZE_COLS.map(function (c) {
+      return {
+        id: c.id,
+        def: getLayoutTokenPx(c.prop),
+        min: getLayoutTokenPx(c.minProp),
+        max: getLayoutTokenPx('--col-resize-max-w'),
+      };
+    }),
+    container: function () { return body; },
+    apply: function (colId, px) {
+      for (var i = 0; i < INV_RESIZE_COLS.length; i++) {
+        if (INV_RESIZE_COLS[i].id === colId) {
+          body.style.setProperty(INV_RESIZE_COLS[i].prop, px + 'px');
+        }
+      }
+    },
+    // The header's existing ↺ already means "put this view back to defaults";
+    // widths are part of that view, so it resets them too.
+    resetSelector: '.inv-col-cell[data-col="reset"]',
+  });
+
+  // The BOM comparison table is a real <table> with table-layout: fixed, so a
+  // width belongs on the <th>.
+  registerColResizeTable({
+    id: BOM_TABLE_ID,
+    cols: BOM_RESIZE_COLS.map(function (c) {
+      return {
+        id: c.id,
+        def: c.def,
+        min: getLayoutTokenPx('--col-resize-min-w'),
+        max: getLayoutTokenPx('--col-resize-max-w'),
+      };
+    }),
+    container: function () { return body; },
+    apply: function (colId, px) {
+      var ths = body.querySelectorAll('thead th[data-bom-col="' + colId + '"]');
+      for (var i = 0; i < ths.length; i++) {
+        /** @type {HTMLElement} */ (ths[i]).style.width = px + 'px';
+      }
+    },
+  });
+
+  loadPersistedColWidths();
 }
 
 // ── Distributor filter UI state ──
@@ -92,6 +160,11 @@ function render() {
     while (headerWrap.firstChild) state.body.appendChild(headerWrap.firstChild);
     renderNormalInventory();
   }
+  // The header (flex cells or <thead>) was just rebuilt from scratch, so
+  // re-stamp the persisted widths onto it. The inventory grid's widths live on
+  // the container and survive on their own; the BOM table's live on its fresh
+  // <th>s and do not.
+  applyColWidths();
   refreshImportMarkers();
   // Restore the pre-rebuild scroll position (see note at top of render()).
   if (state.body.scrollTop !== prevScroll) state.body.scrollTop = prevScroll;
