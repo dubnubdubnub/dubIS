@@ -742,6 +742,7 @@ graph LR
     "tests/python/server/test_auth.py" --> "tests/python/helpers.py"
     "tests/python/server/test_carts_routes.py" --> "domain/pricing.py"
     "tests/python/server/test_carts_routes.py" --> "server/__init__.py"
+    "tests/python/server/test_distributors_routes.py" --> "digikey_session.py"
     "tests/python/server/test_error_contract.py" --> "server/app.py"
     "tests/python/server/test_error_contract.py" --> "tests/python/helpers.py"
     "tests/python/server/test_error_mapping_exhaustive.py" --> "dubis_errors.py"
@@ -831,7 +832,9 @@ graph LR
     "tests/python/test_digikey_cdp.py" --> "digikey_cdp.py"
     "tests/python/test_digikey_normalizer.py" --> "digikey_normalizer.py"
     "tests/python/test_digikey_session.py" --> "digikey_client.py"
+    "tests/python/test_digikey_session.py" --> "digikey_session.py"
     "tests/python/test_distributor_api.py" --> "digikey_client.py"
+    "tests/python/test_distributor_api.py" --> "digikey_session.py"
     "tests/python/test_distributor_api.py" --> "distributor_manager.py"
     "tests/python/test_distributor_api.py" --> "lcsc_client.py"
     "tests/python/test_distributor_api.py" --> "mouser_client.py"
@@ -1036,7 +1039,7 @@ graph LR
 ### digikey_session.py
 
 - **Imports:** `digikey_cdp.py`, `digikey_client.py`
-- **Imported by:** `digikey_client.py`, `tests/python/test_clients_digikey.py`
+- **Imported by:** `digikey_client.py`, `tests/python/server/test_distributors_routes.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_digikey_session.py`, `tests/python/test_distributor_api.py`
 
 ### distributor_fixtures.py
 
@@ -2672,7 +2675,7 @@ graph LR
 
 ### tests/python/server/test_distributors_routes.py
 
-- **Imports:** —
+- **Imports:** `digikey_session.py`
 - **Imported by:** —
 
 ### tests/python/server/test_error_contract.py
@@ -2962,12 +2965,12 @@ graph LR
 
 ### tests/python/test_digikey_session.py
 
-- **Imports:** `digikey_client.py`
+- **Imports:** `digikey_client.py`, `digikey_session.py`
 - **Imported by:** —
 
 ### tests/python/test_distributor_api.py
 
-- **Imports:** `digikey_client.py`, `distributor_manager.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`
+- **Imports:** `digikey_client.py`, `digikey_session.py`, `distributor_manager.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`
 - **Imported by:** —
 
 ### tests/python/test_distributor_browser.py
