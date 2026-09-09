@@ -221,7 +221,15 @@ class BrowserPage:
                 "thread (a plain `def` route handler already is one)")
         from playwright.sync_api import sync_playwright
 
-        self._pw = sync_playwright().start()
+        # The driver outlives a dropped connection on purpose. Starting a
+        # second one in a thread that already has a live Playwright loop is
+        # what makes the *reconnect* fail, and it fails through the asyncio
+        # guard above -- so the first transient hiccup (someone restarting the
+        # browser Pod mid-run) turns every later fetch in the process into
+        # "cannot run inside an asyncio loop", which is not remotely what
+        # happened. Reattaching is cheap; re-driving is not.
+        if self._pw is None:
+            self._pw = sync_playwright().start()
         self._browser = self._pw.chromium.connect_over_cdp(endpoint)
         return self._browser
 
@@ -260,7 +268,9 @@ class BrowserPage:
             context = self._shared_context(browser)
         except Exception as exc:  # noqa: BLE001 - connect surfaces many types
             logger.warning("BrowserPage: cannot attach to %s: %s", endpoint, exc)
-            self._browser = self._pw = None
+            # Drop the connection so the next call reattaches, but keep the
+            # driver: see _connect_cdp for why restarting it poisons the retry.
+            self._browser = None
             return None
 
         self._throttle()
