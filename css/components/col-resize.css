@@ -1,0 +1,96 @@
+/* ── User-resizable columns ────────────────────────────────────────────────
+   The drag affordance for column resizing (js/col-resize.js). One rule set
+   serves both table flavours: the inventory grid's flex header cells and a
+   real <table>'s <th>.
+
+   The handle is absolutely positioned and therefore out of flow — an extra
+   flex child in .inv-col-header would have added a `gap` and pushed every
+   header cell out of alignment with its row cell, which is exactly what
+   inv-col-alignment / row-alignment guard. Its px geometry comes from
+   css/tokens.css (--col-resize-*).
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* Positioning context for the handle. The inventory header cells are buttons
+   with no position of their own.
+
+   <th> is deliberately absent: `thead th` is `position: sticky` (css/tables.css)
+   and that is ALREADY a containing block for an absolutely positioned child, so
+   re-declaring `position: relative` here would only un-stick the header — which
+   is exactly what sticky-buttons.spec.mjs and zoom-sticky-buttons.spec.mjs
+   caught when this rule did include it. */
+.inv-col-header .inv-col-cell,
+.inv-col-header .inv-col-vendor {
+  position: relative;
+}
+
+.col-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* Straddle the boundary so the grab zone covers both sides of the edge.
+     .inv-col-header has an 8px gap, so this sits in dead space rather than
+     over the neighbouring label. */
+  right: calc(var(--col-resize-handle-w) / -2);
+  width: var(--col-resize-handle-w);
+  cursor: col-resize;
+  /* The press is a drag, not a text selection. Scoped to the handle so it does
+     not fight the surrounding text-selection policy. */
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The visible grip: a hairline that appears on hover so the affordance is
+   discoverable, without drawing a permanent set of vertical rules. */
+.col-resize-handle::after {
+  content: "";
+  width: 1px;
+  height: var(--col-resize-grip-h);
+  background: var(--border-strong);
+  opacity: 0;
+  transition: opacity var(--dur-fast, 0.1s);
+}
+.inv-col-header:hover .col-resize-handle::after,
+.table-wrap thead:hover .col-resize-handle::after {
+  opacity: 0.45;
+}
+.col-resize-handle:hover::after {
+  opacity: 1;
+  background: var(--color-blue);
+}
+
+/* A column dragged away from its default keeps a faint grip visible, so the
+   customised edge is findable again without hunting for it. */
+.col-resize-handle[data-col-resize-custom="1"]::after {
+  opacity: 0.3;
+}
+
+/* Whole-document state while a drag is in progress: the cursor must not flip
+   back to a text I-beam when the pointer leaves the handle, and nothing may
+   start selecting text under the moving pointer. Scoped to the drag, so the
+   normal (selectable) behaviour of data text is untouched the rest of the
+   time. */
+.col-resizing,
+.col-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Cells that clip their own content (overflow: hidden) would clip a handle
+   straddling their edge too, so those handles sit fully inside instead.
+   — a <th> dragged narrower than its label must clip the label rather than
+     spill it into the next column (the shared table rules set nowrap), and
+   — .inv-col-vendor already clips, to keep its label off the ↺ button. */
+.table-wrap thead th:has(> .col-resize-handle) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.table-wrap thead th > .col-resize-handle,
+.inv-col-header .inv-col-vendor > .col-resize-handle {
+  right: 0;
+}
