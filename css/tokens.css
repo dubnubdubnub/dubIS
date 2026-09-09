@@ -17,6 +17,25 @@
   --inv-col-extprice-w: 70px;  /* Extended (total) price */
   --inv-col-stock-w:   60px;   /* Stock qty */
 
+  /* ── User-resizable columns ────────────────────────────────────────────────
+     Drag-handle geometry, plus the floor each column may not be dragged below.
+     The *defaults* above stay the single source of truth for a column's width:
+     a drag persists an override (preferences key `column_widths`) that
+     js/col-resize.js writes back onto the same custom property, scoped to the
+     grid container — so header and rows keep reading one value.
+     Consumed by: css/components/col-resize.css, js/layout-tokens.js,
+                  js/inventory/inventory-panel.js */
+  --col-resize-handle-w:      9px;  /* hit area at a column's right edge */
+  --col-resize-grip-h:       14px;  /* height of the visible grip line */
+  --col-resize-max-w:       900px;  /* ceiling no drag may cross */
+  --col-resize-min-w:        44px;  /* generic floor (real <table> columns) */
+  --inv-col-pn-min-w:        56px;  /* floors for the inventory grid, per column */
+  --inv-col-mfgpn-min-w:     56px;
+  --inv-col-vendor-min-w:    28px;
+  --inv-col-unit-min-w:      48px;
+  --inv-col-extprice-min-w:  48px;
+  --inv-col-stock-min-w:     36px;
+
   /* Sticky action-button column geometry (BOM comparison table).
      These govern the Adjust / Confirm / Link buttons that stick to the
      right edge of the inventory table and are the recurring source of
