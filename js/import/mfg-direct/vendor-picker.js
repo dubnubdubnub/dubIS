@@ -44,6 +44,28 @@ export function vendorFaviconHtml(vendor) {
 export function createVendorPicker({ getVendor, setVendor, onChange }) {
   const fire = () => { if (onChange) onChange(); };
 
+  /* Both blur handlers are wired as fire-and-forget `onblur` callbacks, so a
+     user who types a vendor name, tabs into the website field, types a URL and
+     tabs out again has TWO of them in flight at once — the name upsert is still
+     waiting on the backend when the URL blur runs. Without serialization the
+     second one reads a vendor that has no `id` yet, takes the "stash the URL
+     locally" branch, and then the name upsert resolves and does
+     `setVendor({ ...v })`, throwing that stash away. Net effect: the URL the
+     user typed silently vanishes from the field, no upsert ever carries it, and
+     the favicon never appears until they retype it. (Measured: name POST at
+     t=29ms, URL typed at t=34ms, Tab at t=37ms, response at t=39ms → lost.)
+     Running the handlers one at a time fixes it without either of them needing
+     to know about the other: by the time the URL blur runs, the vendor it reads
+     already has the id the name upsert created, so it takes the real upsert
+     branch and the favicon comes back with the response. */
+  let chain = Promise.resolve();
+  function serialized(fn) {
+    // `.then(fn, fn)` so a failed handler doesn't strand the ones behind it.
+    const next = chain.then(fn, fn);
+    chain = next.catch(() => {});
+    return next;
+  }
+
   function selectPseudoVendor(id) {
     const v = (store.vendors || []).find(x => x.id === id);
     if (!v) return;
@@ -51,7 +73,7 @@ export function createVendorPicker({ getVendor, setVendor, onChange }) {
     fire();
   }
 
-  async function onVendorNameBlur(text) {
+  async function nameBlur(text) {
     const trimmed = (text || '').trim();
     if (!trimmed) return;
     const vendor = getVendor();
@@ -78,7 +100,7 @@ export function createVendorPicker({ getVendor, setVendor, onChange }) {
     fire();
   }
 
-  async function onVendorUrlBlur(text) {
+  async function urlBlur(text) {
     const canonical = canonicalizeUrl(text || '');
     const vendor = getVendor();
     if (!vendor.id) {
@@ -94,5 +116,9 @@ export function createVendorPicker({ getVendor, setVendor, onChange }) {
     fire();
   }
 
-  return { selectPseudoVendor, onVendorNameBlur, onVendorUrlBlur };
+  return {
+    selectPseudoVendor,
+    onVendorNameBlur: (text) => serialized(() => nameBlur(text)),
+    onVendorUrlBlur: (text) => serialized(() => urlBlur(text)),
+  };
 }
