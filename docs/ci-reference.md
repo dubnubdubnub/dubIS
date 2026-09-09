@@ -23,7 +23,7 @@ Superseded PR runs are automatically cancelled (concurrency groups).
 
 Branch protection requires three contexts, all of which are aggregate gate jobs running on GitHub-hosted ubuntu: **JS Lint & Test (ubuntu)** (aggregates js + js-e2e + js-live + js-hosted), **Python Lint & Test (ubuntu)** (aggregates python + python-hosted), and **PnP E2E (required)** (aggregates pnp-e2e). Skipped suites satisfy the gates, so e.g. a docs-only PR is still mergeable.
 
-Single-physical-machine legs are **advisory** (`continue-on-error`): the macos (m4-air) legs of js/js-e2e/python/pnp-e2e, js-windows (win11 VM), and vlm-gpu. Their failures annotate the run red but never block merges — a laptop outage must not stall the queue.
+Single-physical-machine legs are **advisory** (`continue-on-error`): the macos (m4-air) legs of js/js-e2e/python/pnp-e2e, js-windows (native runners on the mauler workstation), and vlm-gpu. Their failures annotate the run red but never block merges — a laptop outage must not stall the queue.
 
 ### Persistent-runner hygiene (m4-air, win11)
 
