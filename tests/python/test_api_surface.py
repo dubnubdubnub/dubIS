@@ -33,9 +33,13 @@ If this fails after an *intentional* API change, update ``FROZEN_SURFACE``
 deliberately — and check whether ``js/`` callers depend on the changed shape.
 """
 import inspect
+import re
+from pathlib import Path
 
 from client_shell import ClientShell
 from inventory_api import InventoryApi
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Hardcoded in js/api.js whenPywebviewReady(): the bridge is probed for this exact
 # method name to detect readiness. Losing/renaming it hangs app startup silently.
@@ -140,3 +144,59 @@ def test_public_statics_and_class_attrs_present():
         assert callable(getattr(api, name, None)), f"missing public static {name!r}"
     for name in PUBLIC_CLASS_ATTRS:
         assert getattr(type(api), name, None) is not None, f"missing public class attr {name!r}"
+
+
+def _js_api_call_site_names() -> dict[str, list[str]]:
+    """Every `api("name", ...)` name literal in `js/`, mapped to its files."""
+    pattern = re.compile(r'\bapi\(\s*["\']([a-z_][a-z0-9_]*)["\']')
+    found: dict[str, set[str]] = {}
+    for path in sorted((REPO_ROOT / "js").rglob("*.js")):
+        for match in pattern.finditer(path.read_text(encoding="utf-8")):
+            found.setdefault(match.group(1), set()).add(
+                str(path.relative_to(REPO_ROOT)))
+    return {name: sorted(files) for name, files in found.items()}
+
+
+def test_js_api_call_sites_resolve_to_a_real_surface():
+    """Every `api("name")` in js/ must exist in API_MAP or on the bridge.
+
+    `js/api.js`'s `api()` looks the name up in `API_MAP` (the /v1 HTTP
+    surface, generated from `docs/openapi-v1.json`) and *silently* falls
+    through to `window.pywebview.api[method]` when it misses. A name in
+    neither place is therefore dead on arrival in both clients, with no
+    build-time or lint-time signal: in a browser `window.pywebview` is
+    undefined ("Cannot read properties of undefined (reading 'api')"), and in
+    the desktop app the ~11-method `ClientShell` has no such attribute ("is
+    not a function"). Either way `api()` swallows it into an `AppLog.error`
+    and returns `undefined`, so the feature just quietly does nothing.
+
+    This is how the three `get_inventory_mirror_info` /
+    `enable_inventory_mirror` / `disable_inventory_mirror` calls in
+    `js/preferences-modal.js` shipped broken — the /v1 migration moved
+    `InventoryApi` off the bridge without giving those three a route. Routes:
+    `server/routes/mirror.py`; route tests:
+    `tests/python/server/test_mirror_routes.py`.
+    """
+    api_map = set(re.findall(
+        r'^  "([a-z_][a-z0-9_]*)": \{',
+        (REPO_ROOT / "js" / "api-map.js").read_text(encoding="utf-8"),
+        re.MULTILINE,
+    ))
+    assert api_map, "parsed no keys out of js/api-map.js — the parse regex is stale"
+
+    bridge = set(_live_surface())
+    unresolvable = {
+        name: files
+        for name, files in _js_api_call_site_names().items()
+        if name not in api_map and name not in bridge
+    }
+    assert not unresolvable, (
+        "js/ calls api(\"name\") for method(s) on neither surface — these fail "
+        "silently at runtime in both the browser and the desktop app:\n"
+        + "\n".join(f"  {name!r} — called from {', '.join(files)}"
+                    for name, files in sorted(unresolvable.items()))
+        + "\nGive each one a /v1 route (server/routes/, then rerun "
+          "`python scripts/gen-openapi.py && python scripts/gen-api-client.py "
+          "&& python scripts/gen-cli.py`), or add it to client_shell.py if it "
+          "is genuinely an OS-only client concern."
+    )
