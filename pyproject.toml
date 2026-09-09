@@ -3,6 +3,13 @@ pythonpath = ["."]
 testpaths = ["tests/python"]
 markers = [
     "live: hits real distributor endpoints / opens a browser; deselected by default",
+    # `browser` and `credentials` never appear alone -- they qualify a `live`
+    # test by naming *what* it needs beyond a network, so `-m live` still means
+    # exactly what it always did and a run can ask for a subset instead. CI can
+    # supply a browser but must never hold a secret, which is the whole reason
+    # the two are separate words: `-m 'live and not credentials'`.
+    "browser: needs the shared Chrome named by DUBIS_CDP_URL; always also `live`",
+    "credentials: needs a local secret (DigiKey cookies / Mouser API key); always also `live`",
     "gpu: requires a local GPU + a reachable VLM server (image-recognition); deselected by default",
 ]
 addopts = ["-m", "not live and not gpu"]

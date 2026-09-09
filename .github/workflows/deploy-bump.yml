@@ -30,8 +30,14 @@
 # reopen is your event, not the token's, so the recursion guard does not apply.
 # That is the no-secret way to merge it without an admin protection bypass.
 #
-# The branch name is fixed, so repeated runs update the same PR instead of
-# stacking one PR per merge to main.
+# One branch per sha, never reused. A fixed branch name looked tidier -- one
+# PR that updates in place -- but this repo has a Branch guard job that fails
+# any branch already carrying a merged PR, precisely because squash-merging
+# makes branch reuse a footgun. Reuse also meant `gh pr view <branch>` could
+# match the merged PR from last time and retitle it instead of opening a new
+# one, which is how the first real bump silently produced no PR at all.
+# Superseded open bump PRs are closed when a newer one opens, which keeps the
+# "only one live bump" property the fixed name was reaching for.
 name: Bump deployed image
 
 on:
@@ -55,7 +61,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BUMP_BRANCH: deploy/bump-image
+  BUMP_PREFIX: deploy/pin-
   KUSTOMIZATION: deploy/kustomization.yaml
 
 jobs:
@@ -130,7 +136,7 @@ jobs:
           PY
           git diff --stat -- "$KUSTOMIZATION"
 
-      - name: Push the branch and open/update the PR
+      - name: Push the branch and open the PR
         if: steps.current.outputs.sha != steps.target.outputs.sha
         env:
           GH_TOKEN: ${{ secrets.DEPLOY_BUMP_TOKEN || secrets.GITHUB_TOKEN }}
@@ -139,12 +145,13 @@ jobs:
           CURRENT: ${{ steps.current.outputs.sha }}
         run: |
           set -euo pipefail
+          BRANCH="${BUMP_PREFIX}${TARGET:0:12}"
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -C "$BUMP_BRANCH"
+          git switch -C "$BRANCH"
           git add "$KUSTOMIZATION"
           git commit -m "deploy: pin dubis-server to ${TARGET:0:12}"
-          git push --force-with-lease origin "$BUMP_BRANCH"
+          git push --force-with-lease origin "$BRANCH"
 
           # What the cluster would gain, so the PR says what is being shipped
           # rather than just showing a sha swap.
@@ -176,25 +183,27 @@ jobs:
           EOF
           )"
 
-          if gh pr view "$BUMP_BRANCH" --json number >/dev/null 2>&1; then
-            gh pr edit "$BUMP_BRANCH" --title "deploy: pin dubis-server to ${TARGET:0:12}" \
-              --body "$body"
-          else
-            gh pr create --base main --head "$BUMP_BRANCH" \
-              --title "deploy: pin dubis-server to ${TARGET:0:12}" --body "$body"
-          fi
+          # Supersede any older bump still open, so there is one live deploy
+          # PR rather than a queue of them pinning different shas.
+          for old in $(gh pr list --state open --json number,headRefName \
+                        --jq ".[] | select(.headRefName | startswith(\"$BUMP_PREFIX\")) | select(.headRefName != \"$BRANCH\") | .number"); do
+            gh pr close "$old" -c "Superseded by a newer pin (${TARGET:0:12})." || true
+          done
+
+          gh pr create --base main --head "$BRANCH" \
+            --title "deploy: pin dubis-server to ${TARGET:0:12}" --body "$body"
 
           if [[ "$HAVE_PAT" == "true" ]]; then
             # Only meaningful with a PAT: a GITHUB_TOKEN PR never starts the
             # required checks, so --auto would block forever.
-            gh pr merge "$BUMP_BRANCH" --auto --squash || \
+            gh pr merge "$BRANCH" --auto --squash || \
               echo "::warning::auto-merge unavailable (enable it in repo settings)"
           else
-            echo "::notice::No DEPLOY_BUMP_TOKEN -- the PR is open but its required checks will not start. Merge it yourself, or see this workflow's header."
+            echo "::notice::No DEPLOY_BUMP_TOKEN -- the PR is open but its required checks will not start. Close and reopen it to start them, or see this workflow's header."
           fi
 
           {
             echo "### Deploy pin PR ready"
             echo ""
-            echo "\`$CURRENT\` → \`$TARGET\`"
+            echo "\`$CURRENT\` -> \`$TARGET\`"
           } >> "$GITHUB_STEP_SUMMARY"
