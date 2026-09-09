@@ -1,5 +1,21 @@
 # win11 CI infra follow-up — `disk-v4` bake + more cores
 
+> ## ⚠️ OBSOLETE as of 2026-09-09 — the pool this describes is retired
+>
+> Both follow-ups below were completed (the VM did get 6 cores and `disk-v4`), and
+> then the whole KubeVirt `win11-pool` was retired. Windows CI now runs on three
+> **native** GitHub Actions runners on the mauler workstation, started on demand by
+> `win11-warden`. Nothing in this file is actionable any more.
+>
+> **Why the pool went:** after the hard `nodeAffinity` keeping guests off the three
+> storage/etcd nodes, only y740 had room for an 8,554Mi guest — so `MAX_REPLICAS`
+> was 1 and every concurrent Windows job queued behind the one before it. Native
+> runners do the full functional suite in ~3.2 min vs ~12.5 min, three at a time.
+>
+> Current docs: `win-runners/mauler-native/README.md` in `dubnubdubnub/infra`.
+> Kept for the history of why the VM was shaped the way it was.
+
+
 **Status:** proposed (out-of-repo cluster work; not part of the repo PR)
 **Where:** `mauler@blhx370` (libvirt master + KubeVirt host); containerDisk built on `ux430`
 **Context:** the repo-side speedup (windows Playwright project + node_modules cache +
