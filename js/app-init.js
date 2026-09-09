@@ -16,6 +16,7 @@ import { initShortcuts } from './a11y/shortcuts.js';
 import { applyStoredZoom, setZoomPersister, zoomIn, zoomOut, resetZoom } from './ui-zoom.js';
 import { initZoomControl } from './ui-zoom-control.js';
 import { initPanelCollapse, applyStoredCollapse, handleTrigger } from './panel-collapse.js';
+import { applyStoredColWidths } from './col-resize.js';
 import { initShortcutHelp } from './a11y/shortcut-help.js';
 import { saveBomFile } from './bom/bom-events.js';
 import { CommandPalette } from './components/command-palette.js';
@@ -618,6 +619,9 @@ async function bootstrapData() {
   // Panels mount before preferences load, so the persisted collapse state has to
   // be applied here rather than at mount time.
   applyStoredCollapse(store.preferences.panels_collapsed);
+  // Same reason as the collapse state above: the inventory and BOM tables
+  // register their resizable columns at mount, before preferences exist.
+  applyStoredColWidths(store.preferences.column_widths);
   if (benchOn) api("bench_mark", "js_prefs_loaded");
   const { hydrateFromPreferences: hydrateInvView } = await import('./inventory/inv-state.js');
   hydrateInvView(store.preferences.inventory_view);
