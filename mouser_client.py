@@ -42,7 +42,12 @@ logger = logging.getLogger(__name__)
 _API_SEARCH_URL = "https://api.mouser.com/api/v2/search/partnumber"
 _API_KEYWORD_URL = "https://api.mouser.com/api/v2/search/keyword"
 _PRODUCT_URL = "https://www.mouser.com/ProductDetail/{}"
-_SEARCH_URL = "https://www.mouser.com/c/?q={}"
+# The locale-qualified path, because /c/?q= answers and then redirects to
+# /en/c/?q=, and a redirect arriving after the load event is a race
+# against reading the document. Asking for where it was going to send
+# us removes the race rather than tolerating it -- browser_page still
+# tolerates it, for the redirects we do not know about.
+_SEARCH_URL = "https://www.mouser.com/en/c/?q={}"
 
 # A Mouser part number is a numeric vendor prefix and a dash ("736-FGG0B305CLAD52",
 # "81-GRM155R71H103KA88D"); anything else in that column is an MPN, which

@@ -261,6 +261,44 @@ class BrowserPage:
         if wait > 0:
             time.sleep(wait)
 
+    # How many times to re-read a document that moved under us.
+    CONTENT_ATTEMPTS = 3
+
+    @classmethod
+    def _content_after_navigation(cls, page: Any) -> str | None:
+        """Read the document, tolerating a navigation that is still in flight.
+
+        A page can fire `load` and then send itself somewhere else -- Mouser's
+        search URL answers /c/?q= and then redirects to /en/c/?q= -- and asking
+        for content mid-flight raises "Unable to retrieve content because the
+        page is navigating and changing the content". It is a race, so it is
+        won more often than it is lost, which is the worst kind: the fetch
+        worked in testing and in production for a fortnight before a locale
+        redirect landed a few milliseconds later than usual and turned a real
+        product into a 404.
+
+        So wait for the new document and ask again. Only that one error is
+        retried; anything else is the caller's to see.
+        """
+        for attempt in range(cls.CONTENT_ATTEMPTS):
+            try:
+                return page.content()
+            except Exception as exc:  # noqa: BLE001 - playwright error surface
+                if "navigating" not in str(exc).lower():
+                    raise
+                if attempt == cls.CONTENT_ATTEMPTS - 1:
+                    logger.warning(
+                        "BrowserPage: document still navigating after %d reads",
+                        cls.CONTENT_ATTEMPTS)
+                    return None
+                try:
+                    page.wait_for_load_state("load", timeout=LOAD_TIMEOUT_S * 1000)
+                except Exception as wait_exc:  # noqa: BLE001
+                    # Not fatal: the next read may still succeed, and if it
+                    # does not the loop reports the navigation, not this.
+                    logger.debug("BrowserPage: waiting for load failed: %s", wait_exc)
+        return None
+
     def _fetch_over_cdp(self, endpoint: str, url: str, settle_s: float) -> str | None:
         """Render `url` in the shared browser. Caller holds _lock."""
         try:
@@ -283,11 +321,11 @@ class BrowserPage:
             self._last_url = page.url
             if settle_s:
                 page.wait_for_timeout(settle_s * 1000)
-            html = page.content()
+            html = self._content_after_navigation(page)
             if html and self._looks_like_interstitial(html):
                 logger.debug("BrowserPage: interstitial at %s, rechecking", url)
                 page.wait_for_timeout(INTERSTITIAL_RECHECK_S * 1000)
-                html = page.content()
+                html = self._content_after_navigation(page)
                 if html and self._looks_like_interstitial(html):
                     logger.warning("BrowserPage: still challenged at %s", url)
                     return None
