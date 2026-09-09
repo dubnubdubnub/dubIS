@@ -79,12 +79,77 @@ Every env the Deployment's `envFrom` expects (see `server/auth.py` and
 | `DUBIS_TRUST_TAILSCALE_HEADER` | `0` — **leave unset/0 until step 6 confirms** the tailscale operator ingress actually injects the identity header. Flipping this on before verifying just trusts a header nobody is proving. |
 | `DUBIS_TRUSTED_PROXY_IPS` | leave empty for now — see step 5's source-IP gate note before ever setting `DUBIS_TRUST_TAILSCALE_HEADER=1` |
 
-Generate tokens with e.g. `openssl rand -hex 32`. Re-running the same
+Generate tokens with e.g. `openssl rand -hex 32`. Re-running the whole
 `create ... --dry-run=client -o yaml | kubectl apply -f -` command later
-(e.g. to rotate a token or add a new client) updates the Secret in place —
-the Deployment needs a rollout restart to pick up new env values
-(`kubectl rollout restart deployment/dubis-server -n dubis`), since
-`envFrom` env vars aren't live-reloaded.
+updates the Secret in place, but **only if you re-supply every key** — omit
+one and it is dropped. To change a single entry afterwards, and to verify it
+actually works, see *Changing `DUBIS_TOKENS` later* below rather than reusing
+this command.
+
+### Changing `DUBIS_TOKENS` later, without breaking something
+
+Four things worth knowing before touching this Secret again, all learned the
+hard way.
+
+**Look before you write — the values are unrecoverable.** Kubernetes keeps no
+history and this Secret is created out-of-band, so it exists nowhere in git.
+Overwrite an entry and its old value is gone. Print the entry *names* first
+and decide which slot you are claiming:
+
+```bash
+kubectl -n dubis get secret dubis-server-auth \
+  -o jsonpath='{.data.DUBIS_TOKENS}' | base64 -d | tr ',' '\n' | cut -d: -f1
+```
+
+The bootstrap job (`deploy/secret-bootstrap.yaml`) pre-creates three slots —
+`ci`, `openpnp`, `desktop` — with `openssl rand -hex 16` **inside an ephemeral
+container that never echoes them**. So an untouched slot has no consumer and
+cannot have one: nobody, including you, ever saw the value. Claiming one is
+free. Overwriting a slot you *did* hand out is not.
+
+**Append; do not re-run the create.** The `create ... --dry-run=client -o yaml
+| kubectl apply -f -` form above is only safe when you re-supply *every* key.
+Run it with a subset and the keys you left out are dropped from the Secret and
+the server loses them. To change one entry, read the current value, edit it,
+and merge-patch just that key — via a `0600` patch file, so the token never
+reaches a command line where `ps` and the audit log can see it:
+
+```bash
+CUR=$(kubectl -n dubis get secret dubis-server-auth \
+        -o jsonpath='{.data.DUBIS_TOKENS}' | base64 -d)
+# drop the slot you are replacing, keep the rest, then append the new one
+UPDATED=$(printf '%s' "$CUR" | tr ',' '\n' | grep -v '^ci:' | paste -sd, -)
+UPDATED="${UPDATED},ci:$(cat /path/to/0600/token-file)"
+umask 077
+python3 -c 'import json,sys; json.dump({"stringData":{"DUBIS_TOKENS":sys.argv[1]}}, sys.stdout)' \
+  "$UPDATED" > /tmp/patch.json
+kubectl -n dubis patch secret dubis-server-auth --type=merge --patch-file /tmp/patch.json
+shred -u /tmp/patch.json
+```
+
+**You can install a token without ever reading it.** Generate it straight to a
+`0600` file (`openssl rand -hex 32 | tr -d '\n' > f`), feed that file to
+whatever needs it by redirection (`gh secret set NAME < f`), and shred both
+copies afterwards. Strip the trailing newline: whether a given tool trims it
+is not worth guessing, and a one-byte mismatch fails as a plain 401.
+
+**A bearer token cannot be verified over the tailnet.** Requests arriving
+through the tailscale ingress authenticate by identity header *first*, so they
+return 200 with a bogus token, with no token, with anything. That is not the
+token working. Test on the path a bearer client actually uses — in-cluster, to
+the ClusterIP, where no proxy header is set:
+
+```bash
+kubectl -n dubis exec deploy/dubis-server -- python -c "..."   # -> 200 with, 401 without
+```
+
+**Then restart with `rollout restart`, not a rolling update.** `envFrom` env
+vars are read once at start, so the Deployment must restart to see a changed
+Secret. Use `kubectl -n dubis rollout restart deployment/dubis-server`: a
+default rolling update briefly runs two pods against one `/data`, the new one
+loses the race for `/data/.dubis_lock`, exits 1, and only succeeds on the
+retry after the old pod is gone. It self-heals, but it looks like a crash loop
+and it is avoidable.
 
 ## 3. Apply the Argo AppProject, then the Application
 
