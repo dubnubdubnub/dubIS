@@ -16,6 +16,10 @@ node_modules/
 # excluded; only the contents can be globbed and then negated.
 .claude/*
 !.claude/skills/
+# settings.json carries the shared PreToolUse worktree guard (see the Branch
+# Workflow section of CLAUDE.md), so it has to be committed to bind anyone but
+# its author. settings.local.json stays ignored — that one IS per-developer.
+!.claude/settings.json
 .mcp.json
 .pytest_cache/
 .ruff_cache/

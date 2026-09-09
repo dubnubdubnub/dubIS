@@ -237,7 +237,14 @@ When executing implementation plans, always use subagent-driven dispatch (superp
 - **Main branch** (`main`): protected, requires PR + passing CI
 - **Branch naming**: `claude/<scope>-<description>` (e.g., `claude/refactor-tests`, `claude/feature-bom-export`)
 - **Squash-merge** PRs to keep linear history
-- **Each Claude instance** works in a separate git worktree
+- **Every task starts in its own worktree** — created *before the first edit*, not after, and not only when the branch you happen to be on looks wrong:
+  ```bash
+  git worktree add -b claude/<scope>-<desc> .claude/worktrees/<name> origin/main
+  ```
+  **Why this is not optional:** the primary checkout is shared with every other concurrent Claude session in this repo. Files left uncommitted there get swept into *another session's* commit and pushed under its PR — the work is not lost, but it lands in a PR whose title and review scope have nothing to do with it, and untangling it afterwards means either rewriting a branch someone else is actively using or shipping the change under their name. Sitting on `main` in the primary checkout is the specific state that causes this, and it has already happened once.
+
+  Enforced, not just advised: `.claude/settings.json` runs `scripts/guard-primary-checkout.sh` as a `PreToolUse` hook on Edit/Write/NotebookEdit, which refuses an edit whose target sits in the primary checkout (`git rev-parse --git-dir` equals `--git-common-dir`; a linked worktree's does not) and prints the command above. Set `DUBIS_ALLOW_MAIN_EDITS=1` to edit the shared checkout on purpose — resolving a conflict, a release chore — where a worktree would be the wrong tool. Claude Code's built-in `worktree.bgIsolation` covers only *background* sessions, which is why an ordinary interactive one needed this.
+- **Never leave feature work uncommitted in the primary checkout.** If you find changes there, move them to a worktree before doing anything else — do not commit them in place to "keep them safe".
 - **Coordination**: via GitHub Issues (labels: `feature`, `refactor`)
 - **Before creating a PR**: ensure lint, type check, and tests pass (see Testing & Linting section above)
 - **Push via `scripts/push-pr.sh`**: Always use this script to push and create PRs. It automatically detects if your branch's PR was already merged and creates a new branch if needed.
@@ -247,5 +254,5 @@ When executing implementation plans, always use subagent-driven dispatch (superp
   bash scripts/push-pr.sh --body "Fixes #123"      # explicit body
   ```
   If you forget and push to a merged branch directly, CI will fail with an error telling you to use this script.
-- **Verify your worktree matches your task**: Before starting work, check that your current worktree/branch is relevant to the task at hand. If you're on an unrelated branch (e.g., leftover from a previous task), create a new worktree and branch for your current work instead of reusing it.
+- **Verify your worktree matches your task**: a worktree left over from a previous task is not a home for this one either. Reuse one only when the new work genuinely continues what that branch already does; otherwise make a new worktree per the rule above.
 - **PR your work and watch CI**: When your work is complete, push your branch and create a PR. Then monitor CI (`gh pr checks <number>`) — if any checks fail, diagnose and fix the issues, push again, and keep iterating until all checks pass and the PR is ready to merge. Do not abandon a PR with failing CI.
