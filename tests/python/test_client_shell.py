@@ -165,15 +165,64 @@ class TestDigikeyAndPoAndTesseractDelegation:
         mock.assert_called_once_with("po-1")
         assert result == {"path": "/po/1.csv"}
 
-    def test_install_tesseract_delegates(self, api, monkeypatch):
-        mock = MagicMock(return_value={"ok": True})
-        monkeypatch.setattr(api, "install_tesseract", mock)
+
+class TestReaderDelegation:
+    """The picture/PDF reader lives on this shell, not /v1: it installs and runs
+    on the client machine, and in remote-backend mode app.pyw never boots a local
+    /v1 at all. ClientShell still only forwards — the managed directory is chosen
+    once, inside ScanFacade, so no path ever crosses the bridge."""
+
+    def test_start_reader_install_delegates(self, api, monkeypatch):
+        mock = MagicMock(return_value={"job_id": "abc", "phase": "detect"})
+        monkeypatch.setattr(api, "start_reader_install", mock)
         shell = ClientShell(api)
 
-        result = shell.install_tesseract()
+        result = shell.start_reader_install()
 
         mock.assert_called_once_with()
-        assert result == {"ok": True}
+        assert result == {"job_id": "abc", "phase": "detect"}
+
+    def test_get_reader_install_status_forwards_job_id(self, api, monkeypatch):
+        mock = MagicMock(return_value={"job_id": "abc", "done": True})
+        monkeypatch.setattr(api, "get_reader_install_status", mock)
+        shell = ClientShell(api)
+
+        result = shell.get_reader_install_status("abc")
+
+        mock.assert_called_once_with("abc")
+        assert result == {"job_id": "abc", "done": True}
+
+    def test_uninstall_reader_delegates(self, api, monkeypatch):
+        mock = MagicMock(return_value={"bytes_reclaimed": 42, "existed": True})
+        monkeypatch.setattr(api, "uninstall_reader", mock)
+        shell = ClientShell(api)
+
+        result = shell.uninstall_reader()
+
+        mock.assert_called_once_with()
+        assert result == {"bytes_reclaimed": 42, "existed": True}
+
+    def test_get_reader_status_delegates(self, api, monkeypatch):
+        mock = MagicMock(return_value={"install_dir": "/d/reader", "installed": False})
+        monkeypatch.setattr(api, "get_reader_status", mock)
+        shell = ClientShell(api)
+
+        result = shell.get_reader_status()
+
+        mock.assert_called_once_with()
+        assert result == {"install_dir": "/d/reader", "installed": False}
+
+    def test_shell_takes_no_path_argument(self):
+        """A path from JS would let the bridge point the installer/uninstaller at
+        an arbitrary directory. Every reader method is nullary except the poll,
+        which takes only an opaque job id."""
+        import inspect
+        for name in ("start_reader_install", "uninstall_reader", "get_reader_status"):
+            params = inspect.signature(getattr(ClientShell, name)).parameters
+            assert list(params) == ["self"], f"{name} grew an argument"
+        assert list(
+            inspect.signature(ClientShell.get_reader_install_status).parameters
+        ) == ["self", "job_id"]
 
 
 class TestBenchMarkPassthrough:

@@ -23,6 +23,11 @@ PO editor sub-flow (`mfg-direct/`). Does NOT own the inventory store (updated vi
 - `../ui-helpers.js` — showToast, escHtml, setupDropZone, resetDropZoneInput
 - `../csv-parser.js` — parseCSV, generateCSV
 - `../undo-redo.js` — UndoRedo
+- `../preferences-modal.js` — openPreferencesModal, dynamically imported only:
+  the in-zone "no picture/PDF reader" notice sends the user to the reader
+  setting, which lives in Preferences. Dynamic so the import panel does not
+  statically depend on the preferences modal (which pulls in the store and the
+  reader panel).
 
 ## Internal layout
 

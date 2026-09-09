@@ -10,7 +10,9 @@
  * Design:
  *   - `addMockSetup` is reused UNCHANGED as the shim layer: dialog/window
  *     methods (`open_file_dialog`, `save_file_dialog`, `load_file`,
- *     `set_bom_dirty`, `confirm_close`, `bench_mark`, `install_tesseract`,
+ *     `set_bom_dirty`, `confirm_close`, `bench_mark`, the reader methods
+ *     (`start_reader_install`, `get_reader_install_status`, `uninstall_reader`,
+ *     `get_reader_status`),
  *     `start_digikey_login`, `open_source_file`) and the inventory-mirror
  *     endpoints (deliberately NOT on /v1 — see Task 4 brief) are the only
  *     methods actually still reachable through `window.pywebview.api` (the

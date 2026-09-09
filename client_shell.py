@@ -11,9 +11,9 @@ through this bridge).
 
 ``ClientShell`` is what pywebview sees instead: OS/window-integration actions
 that have no HTTP-server equivalent (dialogs run in-process against the
-native window; DigiKey login/tesseract-install spawn client-machine
-subprocesses; ``bench_mark`` is dev-only startup telemetry). It holds no
-business logic of its own — every method delegates either to the
+native window; DigiKey login and the local picture/PDF reader spawn
+client-machine subprocesses and write to the client's disk; ``bench_mark`` is
+dev-only startup telemetry). It holds no business logic of its own — every method delegates either to the
 module-level functions in ``file_dialogs.py`` (which already operate
 directly on ``webview.windows[0]``, no window reference needed here) or to
 the existing ``InventoryApi`` methods for anything stateful.
@@ -85,8 +85,55 @@ class ClientShell:
     def open_source_file(self, po_id: str) -> dict[str, str]:
         return self._api.open_source_file(po_id)
 
-    def install_tesseract(self) -> dict[str, Any]:
-        return self._api.install_tesseract()
+    # ── Local picture/PDF reader ─────────────────────────────────────────────
+    #
+    # These four replace the Windows-only ``install_tesseract`` and are the one
+    # deliberate expansion of this shell past its original nine methods.
+    #
+    # **Why here and not /v1.** The local reader installs to, and runs on, the
+    # *client* machine. In remote-backend mode ``app.pyw`` skips the local
+    # server boot entirely, so there is no local ``/v1`` to carry this — and the
+    # remote ``/v1`` is the wrong machine: it would download multi-GiB weights
+    # onto a cluster node and start a llama-server nowhere near the operator.
+    # Spawning processes and writing binaries to the client's disk is exactly
+    # the "OS-only concerns … that have no HTTP-y shape" this shell is scoped
+    # to. See ``docs/plans/2026-08-21-cross-platform-reader-design.md``
+    # §"Transport: why the client shell, not /v1".
+    #
+    # **Why polled and not streamed.** pywebview has no server-push channel
+    # (that is what SSE on ``/v1`` is for, and ``/v1`` is not available here),
+    # so an install cannot report progress from inside one call:
+    # ``start_reader_install`` returns immediately with a job id and the
+    # frontend polls ``get_reader_install_status`` on a timer.
+
+    def start_reader_install(self) -> dict[str, Any]:
+        """Start (or join) the local reader install; returns the initial status dict.
+
+        Returns at once — the download runs on a background thread. The dict
+        carries ``job_id``; poll ``get_reader_install_status`` with it.
+        """
+        return self._api.start_reader_install()
+
+    def get_reader_install_status(self, job_id) -> dict[str, Any]:
+        """One poll of an install job. See ``reader_jobs.InstallJob.status``.
+
+        Untyped ``job_id`` on purpose: pywebview passes whatever JS handed it,
+        and ``reader_jobs.get_status`` already answers an unrecognised id with a
+        terminal error dict rather than raising.
+        """
+        return self._api.get_reader_install_status(job_id)
+
+    def uninstall_reader(self) -> dict[str, Any]:
+        """Stop the local reader, then delete its managed directory."""
+        return self._api.uninstall_reader()
+
+    def get_reader_status(self) -> dict[str, Any]:
+        """Install directory, size, and running state — the pre-click snapshot.
+
+        Also the source of the byte total and path the uninstall confirm names,
+        and of ``active_job_id`` so a panel reopened mid-install re-attaches.
+        """
+        return self._api.get_reader_status()
 
     # ── Dev telemetry ────────────────────────────────────────────────────────
 

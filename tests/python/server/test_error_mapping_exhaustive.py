@@ -14,10 +14,36 @@ import dubis_errors
 from dubis_errors import DubISError
 from server.errors import _MAPPING
 
+# This guard walks DubISError.__subclasses__(), which only sees classes whose
+# defining module has been imported — so it is only as exhaustive as this import
+# list. Left implicit, it passed in isolation and failed in a full run (whichever
+# other test happened to import reader_install first decided the verdict). Any
+# module that defines a DubISError subclass outside dubis_errors.py belongs here.
+import fleet_client  # noqa: F401,E402
+import reader_install  # noqa: F401,E402
+import reader_jobs  # noqa: F401,E402
+import reader_runtime  # noqa: F401,E402
+
 # Subclasses that intentionally fall through to the (DubISError, 500) base entry,
 # each with the reason a specific status isn't warranted.
+_READER_IS_CLIENT_SIDE = (
+    "picture/PDF reader install runs on the CLIENT machine over the pywebview "
+    "shell (there is no local /v1 in remote-backend mode) — never raised inside "
+    "a /v1 request"
+)
 BASE_FALLBACK_OK = {
     "DataDirLockedError": "startup/lock failure — never raised inside a /v1 request",
+    "ReaderInstallError": _READER_IS_CLIENT_SIDE,
+    "DownloadError": _READER_IS_CLIENT_SIDE,
+    "ChecksumMismatchError": _READER_IS_CLIENT_SIDE,
+    "UnsafeUninstallTargetError": _READER_IS_CLIENT_SIDE,
+    "ReaderRuntimeError": _READER_IS_CLIENT_SIDE,
+    "ReaderPlatformUnsupportedError": _READER_IS_CLIENT_SIDE,
+    "ReaderProcessExitedError": _READER_IS_CLIENT_SIDE,
+    "ReaderStartTimeoutError": _READER_IS_CLIENT_SIDE,
+    "ReaderJobError": _READER_IS_CLIENT_SIDE,
+    "NoReaderTierError": _READER_IS_CLIENT_SIDE,
+    "ReaderVerifyError": _READER_IS_CLIENT_SIDE,
 }
 
 

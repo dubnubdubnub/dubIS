@@ -4,6 +4,7 @@
 import { api, AppLog } from './api.js';
 import { showToast, escHtml, Modal } from './ui-helpers.js';
 import { store, getThreshold, savePreferences, preferencesSignal, getShortcutPrefs, setShortcutPrefs, getBehaviorPrefs, setBehaviorPrefs, getServerUrl, setServerUrl } from './store.js';
+import { wireReaderPanel, syncReaderPanel, stopReaderPolling } from './reader/reader-panel.js';
 
 var PREFS_MAX_THRESHOLD = 200;
 var PREFS_MIN_THRESHOLD = 5;
@@ -15,7 +16,15 @@ function stopDkPolling() {
 }
 
 // ── Modal instance ──
-const prefsModal = Modal("prefs-modal", { cancelId: "prefs-cancel", confirmId: "prefs-save" });
+// onClose, not just closePreferencesModal(): Escape, the backdrop and Cancel all
+// go straight through Modal's own close(), and every one of them has to drop the
+// reader install's poll timer. (The install keeps running in the backend;
+// syncReaderPanel() re-attaches to the same job when the modal reopens.)
+const prefsModal = Modal("prefs-modal", {
+  cancelId: "prefs-cancel",
+  confirmId: "prefs-save",
+  onClose: stopReaderPolling,
+});
 
 // ── Slider helpers ──
 
@@ -203,6 +212,10 @@ export function openPreferencesModal() {
   // Sync keyboard prefs controls
   syncKeyboardPrefs();
 
+  // Reader block: repaint from the store and re-attach to an install that is
+  // still running from a previous open of this modal.
+  syncReaderPanel();
+
   prefsModal.open();
 }
 
@@ -251,6 +264,7 @@ function refreshMouserStatus() {
 
 function closePreferencesModal() {
   stopDkPolling();
+  // prefsModal's onClose stops the reader poll timer for every close path.
   prefsModal.close();
 }
 
@@ -389,3 +403,4 @@ export function wireDigikeyButtons() {
 
 // ── Module init ──
 wireKeyboardPrefs();
+wireReaderPanel();

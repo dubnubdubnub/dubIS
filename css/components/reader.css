@@ -1,0 +1,145 @@
+/* reader.css — the picture/PDF reader block in the Preferences modal.
+
+   Deliberately NOT in the header: `.header` is `flex-wrap: wrap`, so one more
+   control there adds a whole ~28px row at narrow widths and shifts every panel
+   down — enough to shove the Import button off an 800x600 viewport (see the
+   CLAUDE.md trap and tests/js/e2e/resize-visibility.spec.mjs). Everything here
+   lives inside #prefs-modal, which already scrolls.
+
+   Every layout dimension comes from a --reader-* token in css/tokens.css; no
+   bare vh/vw anywhere (root zoom multiplies raw viewport units — see
+   css/tokens/scale.css). */
+
+.reader-prefs {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--reader-row-gap);
+}
+
+/* One label + control per row. The label stays on the baseline of its control
+   and never wraps; the control takes the rest. */
+.reader-field {
+  display: flex;
+  align-items: center;
+  gap: var(--reader-actions-gap);
+  font-size: var(--text-md);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.reader-field select {
+  flex: 1;
+  min-width: 0;
+}
+
+.reader-field input[type="text"] {
+  flex: 1;
+  min-width: var(--reader-url-min-w);
+  font-family: monospace;
+  font-size: var(--text-base);
+}
+
+/* A field the current mode does not consult. Kept visible and kept populated —
+   switching back to remote must not silently lose a typed address — but greyed
+   so it does not read as "this is what the reader will use". */
+.reader-field.is-inert {
+  opacity: 0.55;
+}
+
+.reader-hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  max-width: var(--reader-hint-max-w);
+  white-space: normal;
+}
+
+.reader-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--reader-actions-gap);
+  flex-wrap: wrap;
+}
+
+.reader-local-status {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* ── Install progress ──────────────────────────────────────────────────────
+   The wrap keeps its box once an install starts, so the controls above it do
+   not jog as the status text changes length between polls. */
+.reader-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--reader-bar-gap);
+}
+
+.reader-progress-wrap.hidden { display: none; }
+
+.reader-progress {
+  flex: 1;
+  min-width: 0;
+  height: var(--reader-bar-h);
+  border-radius: 999px;
+  background: var(--bg-tertiary, var(--border-default));
+  overflow: hidden;
+}
+
+.reader-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--color-blue);
+  transition: width var(--dur-base) linear;
+}
+
+/* Indeterminate: a phase whose length is not knowable in bytes (detect, start,
+   verify). A determinate-looking bar parked at 0% reads as "stuck" when the
+   truth is "working, length unknown", so the fill becomes a fixed-width sliver
+   that travels the track instead. No percentage is rendered next to it —
+   js/reader/reader-panel.js blanks the readout. */
+.reader-progress.is-indeterminate .reader-progress-fill {
+  width: var(--reader-bar-indet-w);
+  transition: none;
+  animation: reader-indeterminate 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes reader-indeterminate {
+  from { margin-left: 0; }
+  to   { margin-left: calc(100% - var(--reader-bar-indet-w)); }
+}
+
+/* Motion is the only signal an indeterminate bar has, so the reduced-motion
+   fallback replaces it with a static half-filled track rather than an empty
+   one — still visibly different from "0% and stuck". */
+@media (prefers-reduced-motion: reduce) {
+  .reader-progress.is-indeterminate .reader-progress-fill {
+    animation: none;
+    width: 50%;
+    opacity: 0.6;
+  }
+}
+
+.reader-progress.is-failed .reader-progress-fill {
+  background: var(--color-red);
+}
+
+.reader-progress-pct {
+  min-width: var(--reader-pct-w);
+  text-align: right;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.reader-status-line {
+  min-height: var(--reader-status-min-h);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  white-space: normal;
+  word-break: break-word;
+}
+
+.reader-status-line.is-failed { color: var(--color-red); }
+.reader-status-line.is-done   { color: var(--color-green); }
