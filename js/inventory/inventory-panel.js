@@ -9,9 +9,7 @@ import {
   renderInvColHeader, INV_TABLE_ID, INV_RESIZE_COLS, BOM_TABLE_ID, BOM_RESIZE_COLS,
 } from './inv-html-builders.js';
 import { getLayoutTokenPx } from '../layout-tokens.js';
-import {
-  registerColResizeTable, applyColWidths, loadPersistedColWidths,
-} from '../col-resize.js';
+import { registerColResizeTable, applyColWidths } from '../col-resize.js';
 import state from './inv-state.js';
 import { setupEvents } from './inv-events.js';
 import { setupRowDelegation } from './inv-row-build.js';
@@ -108,7 +106,9 @@ function initColumnResizing() {
     },
   });
 
-  loadPersistedColWidths();
+  // Stored widths are applied from app-init.js once loadPreferences() has
+  // resolved (panels mount first), alongside applyStoredZoom/applyStoredCollapse.
+  applyColWidths();
 }
 
 // ── Distributor filter UI state ──

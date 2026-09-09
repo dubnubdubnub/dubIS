@@ -165,4 +165,17 @@
   --cart-plan-seg-pad-y:         2px;  /* vertical padding inside a segment */
   --cart-boards-input-w:        62px;  /* board-count number input */
   --cart-plan-note-max-w:      260px;  /* note text before it ellipsises */
+
+  /* ── Server picker (css/components/servers.css) ─────────────────────────────
+     The roster of dubIS servers in Preferences: one row per server, each with a
+     reachability dot, the name/URL pair, and its row actions.
+     Consumed by: css/components/servers.css */
+  --server-list-max-h:      200px;  /* roster scrolls past ~5 servers */
+  --server-row-gap:           8px;  /* between a row's dot, identity and actions */
+  --server-row-pad-y:         5px;  /* vertical padding in a roster row */
+  --server-row-pad-x:         8px;  /* horizontal padding in a roster row */
+  --server-dot-size:          8px;  /* the reachability dot */
+  --server-detail-w:         104px;  /* fixed lane for "12 ms" / "unreachable" */
+  --server-add-name-w:       120px;  /* the optional-name field in the add row */
+  --server-help-max-w:       460px;  /* explanatory text under the picker */
 }
