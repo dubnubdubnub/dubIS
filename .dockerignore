@@ -8,6 +8,19 @@
 # exception was added.
 data/**
 !data/constants.json
+# Same reasoning for the rest of the repo-committed data/ assets, which the
+# Dockerfile also copies: an exclusion here keeps the file out of the build
+# CONTEXT, so its COPY fails the build outright with "not found" — the
+# Dockerfile's COPY list and this exemption list have to be kept in step.
+# tests/python/test_container_assets.py fails when they drift apart.
+# data/dubIS.ico stays excluded on purpose: it is only app.pyw's native
+# window icon, read off the local filesystem and never fetched over HTTP.
+!data/dubIS.png
+!data/digikey-icon.png
+!data/lcsc-icon.ico
+!data/mouser-icon.svg
+!data/pololu-icon.svg
+!data/openpnp_families.json
 
 # Test suites, tooling, and docs never needed at runtime.
 tests/

@@ -279,6 +279,52 @@ def test_list_vendors_returns_seeded(api):
     assert {"v_self", "v_salvage", "v_unknown"}.issubset(ids)
 
 
+def test_list_vendors_reads_a_windows_authored_favicon_path(api, tmp_path):
+    """vendors.json travels between the Windows desktop app and Linux.
+
+    A vendor added on Windows stores `sources\\favicons\\<hash>.png`; the same
+    file is later read by dubis-server on Linux off the PVC. Joining those
+    backslashes onto a POSIX base_dir makes the file look missing, and the
+    vendor renders with no icon at all rather than an error.
+    """
+    import vendors
+
+    fav = tmp_path / "sources" / "favicons"
+    fav.mkdir(parents=True)
+    (fav / "abc.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    api.list_vendors()  # seeds built-ins so vendors.json exists
+    v = api.update_vendor(vendor_id="", name="MDT")
+    vendors.update_vendor(api._vendors_json, v["id"],
+                          favicon_path="sources\\favicons\\abc.png")
+
+    row = next(x for x in api.list_vendors() if x["id"] == v["id"])
+    assert row["favicon_data_uri"].startswith("data:image/png;base64,")
+
+
+def test_fetched_favicon_path_is_stored_with_forward_slashes(api, monkeypatch):
+    """The write side of the same rule — never persist an OS-specific separator.
+
+    relpath is stubbed to answer the way it would on Windows, since that is the
+    only platform that can produce the bad value and not one CI runs on.
+    """
+    import os
+
+    import vendors
+
+    def fake_fetch(url, cache_dir):
+        os.makedirs(cache_dir, exist_ok=True)
+        target = os.path.join(cache_dir, "abc.png")
+        with open(target, "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n")
+        return target
+
+    monkeypatch.setattr(vendors, "fetch_favicon", fake_fetch)
+    monkeypatch.setattr(os.path, "relpath", lambda p, start: "sources\\favicons\\abc.png")
+    v = api.update_vendor(vendor_id="", name="MDT", url="https://tmr-sensors.com")
+    assert v["favicon_path"] == "sources/favicons/abc.png"
+
+
 def test_create_and_update_vendor(api):
     new_v = api.update_vendor(
         vendor_id="",  # empty → create

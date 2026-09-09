@@ -44,6 +44,31 @@ COPY css/ css/
 # check below fails even though /data (the actual runtime volume) is empty.
 COPY data/constants.json data/constants.json
 
+# The rest of the repo-committed data/ assets, for the same reason: they are
+# image content, not user data, so --data-dir never points at them.
+#
+# The icons are *static frontend assets* that happen to live under data/:
+# index.html asks for data/dubIS.png (the browser-tab icon) and the four
+# distributor icons (the .dist-filter-btn row), and js/inventory/
+# inv-html-builders.js hardcodes the same four next to every LCSC/DigiKey/
+# Pololu/Mouser part number. --static-dir is /app, so those URLs resolve to
+# /app/data/... — a path that only exists if it is copied here. Without this
+# every one of them 404s on a remote client while looking perfect on the
+# desktop app, whose static root is the repo itself. Vendor rows reach the
+# same four files through vendors.json's favicon_path, so this copy is also
+# what makes domain/api_vendors.py's favicon_data_uri non-empty for them.
+# tests/python/test_container_assets.py fails if a new data/ asset is
+# referenced by the frontend and not added here.
+#
+# openpnp_families.json is read by server/routes/openpnp.py from a path
+# relative to its own module directory (like constants.json above), and
+# degrades *silently* when missing — every part answers tier:"unmapped"
+# instead of erroring — so it has to be copied deliberately, not noticed.
+COPY data/dubIS.png data/lcsc-icon.ico data/digikey-icon.png \
+     data/mouser-icon.svg data/pololu-icon.svg \
+     data/openpnp_families.json \
+     data/
+
 # Proves the container's dependency set actually satisfies the server's import
 # graph at build time, not just "pip install didn't error" — inventory_api.py
 # pulls in every domain/api_*.py facade; server/__main__.py's _build_api() wraps
