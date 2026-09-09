@@ -9,6 +9,14 @@ import { SECTION_ORDER } from './constants.js';
 import { api, AppLog } from './api.js';
 import { onEvent } from './sse.js';
 import { formatMoney } from './ui-helpers.js';
+import {
+  LOCAL_ID,
+  normalizeServerUrl,
+  normalizeServers,
+  addServerEntry,
+  updateServerEntry,
+  removeServerEntry,
+} from './servers-logic.js';
 
 // Debounce window for the SSE-driven inventory refresh (trailing debounce:
 // the timer resets on every event and fires once quiet). 250ms per Task 3
@@ -48,6 +56,9 @@ let preferences = {
   shortcuts: { ...SHORTCUT_DEFAULTS },
   behavior: { ...BEHAVIOR_DEFAULTS },
   saved_views: [],
+  // The roster of servers offered in Preferences. Purely a list of candidates;
+  // `server_url` below is what actually decides where we connect.
+  servers: [],
   // "" = local mode (spawn our own server). See remote_mode.py.
   server_url: "",
 };
@@ -324,6 +335,13 @@ export async function loadPreferences() {
     // server_url from that file, so dropping it would have quietly un-set the
     // remote server the moment the user touched a slider.
     preferences.server_url = normalizeServerUrl(stored.server_url);
+    // Same carry-through reasoning as server_url above: unread keys are erased
+    // by the next save of any unrelated preference, so the roster has to be
+    // loaded here or adding a server would survive exactly until the user
+    // touched a slider.
+    preferences.servers = normalizeServers(stored.servers, function (msg) {
+      AppLog.warn('load_preferences: ' + msg);
+    });
     // Raw pass-through: both are validated by their own owning module —
     // ui_zoom by normalizePersistedZoom (js/ui-zoom-logic.js) and
     // panels_collapsed by normalizeCollapsed (js/panel-collapse-logic.js) —
@@ -526,25 +544,10 @@ export function setShortcutPrefs(partial) {
   preferencesSignal.set(preferences);
 }
 
-/**
- * Coerce a stored server URL to a string, or "" for local mode.
- *
- * Only shape is validated here, not reachability: an unreachable URL is a
- * runtime condition the splash screen already surfaces by polling
- * /v1/health, and refusing to persist one would make a URL untypable while
- * the server happens to be down.
- * @param {any} raw
- * @returns {string}
- */
-function normalizeServerUrl(raw) {
-  const text = String(raw ?? "").trim();
-  if (!text) return "";
-  // Anything without an http(s) scheme would be resolved relative to the app's
-  // own origin by the webview, silently pointing at the local server instead of
-  // the remote one — a wrong answer that looks like a working one.
-  if (!/^https?:\/\//i.test(text)) return "";
-  return text.replace(/\/+$/, "");
-}
+// normalizeServerUrl now lives in js/servers-logic.js — the roster loader and
+// the selection setter have to agree byte-for-byte on what a URL normalizes
+// to, or a roster entry stops matching the `server_url` that selected it and
+// the list shows nothing as selected.
 
 /** @returns {string} the configured remote server URL, or "" for local mode. */
 export function getServerUrl() {
@@ -562,6 +565,97 @@ export function setServerUrl(url) {
   savePreferences();
   preferencesSignal.set(preferences);
   return preferences.server_url;
+}
+
+// ── Server roster ─────────────────────────────────────────
+// The list of servers offered in Preferences. Selection is still `server_url`
+// (see js/servers-logic.js for why), so these functions only ever maintain the
+// menu — with one exception: removing the *selected* server has to move the
+// selection too, or the app would keep connecting to an entry the user just
+// deleted and the list would show it back as an "unlisted" row.
+
+/** @returns {Array<{id: string, name: string, url: string}>} a copy of the roster. */
+export function getServers() {
+  return normalizeServers(preferences.servers).map((s) => ({ ...s }));
+}
+
+/** Ids are opaque and only need to be unique within one preferences file. */
+function newServerId() {
+  return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+/**
+ * Add a server to the roster. Does NOT select it.
+ * @param {string} name blank derives a name from the URL's host
+ * @param {string} url
+ * @returns {{ok: boolean, reason?: string, entry?: {id: string, name: string, url: string}}}
+ */
+export function addServer(name, url) {
+  const result = addServerEntry(getServers(), { id: newServerId(), name, url });
+  if (!result.ok) return result;
+  preferences.servers = result.servers;
+  savePreferences();
+  preferencesSignal.set(preferences);
+  return { ok: true, entry: result.entry };
+}
+
+/**
+ * Rename or re-point a roster entry. Re-pointing the *selected* entry moves
+ * the selection with it, so editing a URL typo does not silently leave the app
+ * pointed at the old address.
+ * @param {string} id
+ * @param {{name?: string, url?: string}} patch
+ * @returns {{ok: boolean, reason?: string, entry?: {id: string, name: string, url: string}}}
+ */
+export function updateServer(id, patch) {
+  const before = getServers().find((s) => s.id === id);
+  const result = updateServerEntry(getServers(), id, patch);
+  if (!result.ok) return result;
+  preferences.servers = result.servers;
+  if (before && before.url === getServerUrl() && result.entry.url !== before.url) {
+    preferences.server_url = result.entry.url;
+  }
+  savePreferences();
+  preferencesSignal.set(preferences);
+  return { ok: true, entry: result.entry };
+}
+
+/**
+ * Remove a roster entry, falling the selection back to local if it was the
+ * selected one.
+ * @param {string} id
+ * @returns {{removed: boolean, deselected: boolean}}
+ */
+export function removeServer(id) {
+  const target = getServers().find((s) => s.id === id);
+  if (!target) return { removed: false, deselected: false };
+  preferences.servers = removeServerEntry(getServers(), id);
+  const deselected = target.url === getServerUrl();
+  if (deselected) preferences.server_url = '';
+  savePreferences();
+  preferencesSignal.set(preferences);
+  return { removed: true, deselected };
+}
+
+/**
+ * Select a roster entry (or `LOCAL_ID` for local mode) as the server to use.
+ *
+ * Takes effect on the NEXT launch, for the same reason setServerUrl does:
+ * `app.pyw` resolves the URL once at startup to decide whether to spawn a
+ * local server, and the webview is already navigated to whichever origin that
+ * produced. js/server-list.js offers the restart.
+ * @param {string} id
+ * @returns {{ok: boolean, reason?: string, url?: string}}
+ */
+export function selectServer(id) {
+  if (id === LOCAL_ID) {
+    setServerUrl('');
+    return { ok: true, url: '' };
+  }
+  const target = getServers().find((s) => s.id === id);
+  if (!target) return { ok: false, reason: 'That server is no longer in the list' };
+  setServerUrl(target.url);
+  return { ok: true, url: target.url };
 }
 
 /**
