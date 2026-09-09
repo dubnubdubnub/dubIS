@@ -79,7 +79,7 @@ describe('renderLoadedDropZone', () => {
 
 describe('renderBomSummary', () => {
   const counts = {
-    total: 20, ok: 10, short: 3, possible: 2, missing: 5,
+    total: 20, utbp: 17, ok: 10, short: 3, possible: 2, missing: 5,
     manual: 1, confirmed: 2, dnp: 3, covered: 1,
   };
 
@@ -90,7 +90,6 @@ describe('renderBomSummary', () => {
 
   it('includes correct chip counts', () => {
     const html = renderBomSummary(counts, 'bom.csv', 1);
-    expect(html).toContain('20 unique');
     expect(html).toContain('10 ok');
     expect(html).toContain('3 short');
     expect(html).toContain('2 possible');
@@ -131,6 +130,55 @@ describe('renderBomSummary', () => {
   it('hides multiplier label when 1', () => {
     const html = renderBomSummary(counts, 'bom.csv', 1);
     expect(html).not.toContain('(x1)');
+  });
+
+  // ── total / UTBP chip pair ──────────────────────────────────────────────
+  // The old single blue "N unique" chip counted DNP rows too. It is now a
+  // quiet grey "N total" (all unique rows) followed by the blue "N UTBP"
+  // (unique to be placed = total - dnp).
+
+  it('renders a grey total chip with the full unique row count', () => {
+    const html = renderBomSummary(counts, 'bom.csv', 1);
+    expect(html).toMatch(/<span class="chip grey chip-quiet"[^>]*>20 total<\/span>/);
+  });
+
+  it('renders a blue UTBP chip with total minus DNP', () => {
+    const html = renderBomSummary(counts, 'bom.csv', 1);
+    expect(html).toMatch(/<span class="chip blue"[^>]*>17 UTBP<\/span>/);
+  });
+
+  it('gives the UTBP chip a title spelling out the abbreviation', () => {
+    const html = renderBomSummary(counts, 'bom.csv', 1);
+    expect(html).toMatch(/<span class="chip blue" title="unique to be placed">/);
+  });
+
+  it('UTBP equals total when there are no DNP rows', () => {
+    const noDnp = { ...counts, total: 20, utbp: 20, dnp: 0 };
+    const html = renderBomSummary(noDnp, 'bom.csv', 1);
+    expect(html).toContain('20 total');
+    expect(html).toContain('20 UTBP');
+  });
+
+  it('UTBP excludes DNP rows when present', () => {
+    const withDnp = { ...counts, total: 142, utbp: 128, dnp: 14 };
+    const html = renderBomSummary(withDnp, 'bom.csv', 1);
+    expect(html).toContain('142 total');
+    expect(html).toContain('128 UTBP');
+    expect(html).not.toContain('142 UTBP');
+  });
+
+  it('no longer labels any chip "unique" (the conflated count is gone)', () => {
+    const html = renderBomSummary(counts, 'bom.csv', 1);
+    expect(html).not.toMatch(/\d+ unique/);
+  });
+
+  it('orders the grey total chip before the blue UTBP chip', () => {
+    const html = renderBomSummary(counts, 'bom.csv', 1);
+    const totalAt = html.indexOf('20 total');
+    const utbpAt = html.indexOf('17 UTBP');
+    expect(totalAt).toBeGreaterThan(-1);
+    expect(utbpAt).toBeGreaterThan(-1);
+    expect(totalAt).toBeLessThan(utbpAt);
   });
 });
 
