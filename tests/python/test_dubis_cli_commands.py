@@ -383,3 +383,50 @@ def test_curated_dry_run_declines_to_run(cli):
 def test_curated_names_do_not_collide_with_generated_resources():
     resources = {cmd["resource"] for cmd in dubis_cli.COMMANDS.values()}
     assert not resources.intersection(dubis_cli._RESERVED)
+
+
+# ── scripts/dubis launcher ───────────────────────────────────────────────────
+#
+# Nothing exercised the shim until it shipped broken: it defaulted to a bare
+# `python`, which macOS does not provide, so `scripts/dubis` died with
+# "exec: python: not found" (exit 127) for anyone who had not set $PYTHON.
+# Every test above calls main() directly and would have stayed green.
+
+import os  # noqa: E402
+import subprocess  # noqa: E402
+
+LAUNCHER = REPO_ROOT / "scripts" / "dubis"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bash shim; Windows runs the .py directly")
+def test_launcher_runs_with_an_explicit_python():
+    result = subprocess.run(
+        [str(LAUNCHER), "--help"],
+        env={**os.environ, "PYTHON": sys.executable},
+        capture_output=True, text=True, timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "dubis" in result.stdout
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bash shim; Windows runs the .py directly")
+def test_launcher_resolves_an_interpreter_on_its_own():
+    """With $PYTHON unset the shim must either work, or fail with its own
+    actionable exit 3 — never die on an interpreter it picked itself.
+
+    Asserted as "0 or 3" rather than "0" because the deps genuinely may not be
+    importable in every environment; what must never happen again is the 127
+    that the bare-`python` default produced.
+    """
+    env = {k: v for k, v in os.environ.items() if k != "PYTHON"}
+    result = subprocess.run(
+        [str(LAUNCHER), "--help"], env=env, capture_output=True, text=True, timeout=60,
+    )
+    assert result.returncode in (0, 3), (
+        f"exit {result.returncode}\nstdout={result.stdout}\nstderr={result.stderr}"
+    )
+    if result.returncode == 3:
+        assert "no Python interpreter" in result.stderr
+        assert "PYTHON=" in result.stderr  # names the way out
+    else:
+        assert "dubis" in result.stdout
