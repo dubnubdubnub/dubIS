@@ -1,5 +1,31 @@
 /* ── Part Preview Tooltip ─────────────────────────────── */
-[data-lcsc], [data-digikey], [data-pololu], [data-mouser] { cursor: pointer; display: inline-flex; align-items: center; }
+/* inline-BLOCK, not inline-flex. A flex container wraps its text child in an
+   anonymous block, and Chromium's caret hit-testing over that anonymous box
+   lands on the span's own child offsets instead of offsets inside the text — so
+   a click-drag across a part number produced an empty selection, or a single
+   character, no matter where it started or ended. (Measured, not inferred: see
+   the drag matrix in tests/js/e2e/data-text-selectable.spec.mjs.) inline-block
+   keeps the icon+text on one line, keeps `overflow: hidden` working for the
+   narrow-column clipping the inventory columns rely on, and restores ordinary
+   inline text selection. */
+[data-lcsc], [data-digikey], [data-pololu], [data-mouser] {
+  cursor: pointer;
+  display: inline-block;
+  white-space: nowrap;
+}
+/* The distributor glyph is decoration, not content. Left selectable and
+   draggable it hijacks any drag that starts on it — mousedown on an <img> begins
+   a native image drag instead of a text selection, which is the other half of
+   why the part number could not be highlighted. pointer-events: none hands that
+   mousedown to the span behind it; nothing binds a click to this icon (the
+   clickable favicons are .fan-icon / .sub-favicon). */
+[data-lcsc] > img, [data-digikey] > img, [data-pololu] > img, [data-mouser] > img {
+  vertical-align: middle;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
 
 .part-preview {
   position: fixed;
@@ -23,6 +49,41 @@
   -webkit-user-select: text;
   cursor: default;
 }
+
+/* ── Part-number header strip (selectable PN + Copy) ──── */
+.part-preview-pn-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f6f8fa;
+  border-bottom: 1px solid #e8e8e8;
+}
+.part-preview-pn {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2328;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+.part-preview-pn-actions { display: flex; gap: 4px; flex: 0 0 auto; }
+.part-preview-copy-field {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border: 1px solid #d0d0d0;
+  border-radius: 3px;
+  background: #fff;
+  color: #57606a;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.part-preview-copy-field:hover { background: #eaedf1; color: #1f2328; }
 
 .part-preview-img {
   background: #f5f5f5;
