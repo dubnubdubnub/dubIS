@@ -52,7 +52,12 @@ export function renderLoadedDropZone(fileName) {
 
 /**
  * Returns summary chips HTML.
- * @param {object} counts - from countStatuses
+ *
+ * The leading pair of chips is `total` (quiet grey — every unique row, DNP
+ * included) followed by `UTBP` (blue — unique to be placed, i.e. total minus
+ * the DNP rows). Both come straight off countStatuses; nothing is derived here.
+ *
+ * @param {object} counts - from countStatuses (needs `total` and `utbp`)
  * @param {string} fileName
  * @param {number} multiplier
  * @returns {string}
@@ -62,7 +67,8 @@ export function renderBomSummary(counts, fileName, multiplier) {
   const multLabel = multiplier > 1 ? ` (x${multiplier})` : "";
   return `
     <span class="bom-name">${escHtml(fileName)}${multLabel}</span>
-    <span class="chip blue">${c.total} unique</span>
+    <span class="chip grey chip-quiet" title="unique rows in this BOM, including do-not-place">${c.total} total</span>
+    <span class="chip blue" title="unique to be placed">${c.utbp} UTBP</span>
     ${c.manual > 0 ? `<span class="chip pink">${c.manual} manual</span>` : ''}
     ${c.confirmed > 0 ? `<span class="chip teal">${c.confirmed} confirmed</span>` : ''}
     <span class="chip green">${c.ok} ok</span>

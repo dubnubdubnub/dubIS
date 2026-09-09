@@ -352,6 +352,15 @@ export async function loadPreferences() {
     if (Object.prototype.hasOwnProperty.call(stored, 'panels_collapsed')) {
       preferences.panels_collapsed = stored.panels_collapsed;
     }
+    // Same raw pass-through: column_widths is validated by normalizeWidths
+    // (js/col-resize-logic.js). Carrying it here is what lets col-resize.js
+    // read the widths off the already-loaded preferences instead of issuing its
+    // own load_preferences GET during panel init — that extra async round trip
+    // reordered startup enough to push the roving grid's rAF re-arm past the
+    // point the win11 E2E leg sampled it.
+    if (Object.prototype.hasOwnProperty.call(stored, 'column_widths')) {
+      preferences.column_widths = stored.column_widths;
+    }
     if (Object.prototype.hasOwnProperty.call(stored, 'saved_views')) {
       if (Array.isArray(stored.saved_views)) {
         // Filter out malformed entries (must have string id and name)
