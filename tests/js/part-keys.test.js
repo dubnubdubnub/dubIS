@@ -117,6 +117,65 @@ describe('countStatuses', () => {
     expect(c.covered).toBe(1);
     expect(c.dnp).toBe(1);
     expect(c.total).toBe(8);
+    expect(c.utbp).toBe(7);
+  });
+
+  // ── utbp: unique to be placed = total - dnp ─────────────────────────────
+  it('utbp excludes DNP rows from a mixed status set', () => {
+    const rows = [
+      { effectiveStatus: 'ok' },
+      { effectiveStatus: 'short' },
+      { effectiveStatus: 'manual-short' },
+      { effectiveStatus: 'possible' },
+      { effectiveStatus: 'missing' },
+      { effectiveStatus: 'generic' },
+      { effectiveStatus: 'dnp' },
+      { effectiveStatus: 'dnp' },
+      { effectiveStatus: 'dnp' },
+    ];
+    const c = countStatuses(rows);
+    expect(c.total).toBe(9);
+    expect(c.dnp).toBe(3);
+    expect(c.utbp).toBe(6);
+    expect(c.utbp).toBe(c.total - c.dnp);
+  });
+
+  it('utbp equals total when no row is DNP', () => {
+    const rows = [
+      { effectiveStatus: 'ok' },
+      { effectiveStatus: 'confirmed' },
+      { effectiveStatus: 'missing' },
+    ];
+    const c = countStatuses(rows);
+    expect(c.dnp).toBe(0);
+    expect(c.total).toBe(3);
+    expect(c.utbp).toBe(3);
+  });
+
+  it('utbp is 0 when every row is DNP', () => {
+    const rows = [
+      { effectiveStatus: 'dnp' },
+      { effectiveStatus: 'dnp' },
+    ];
+    const c = countStatuses(rows);
+    expect(c.total).toBe(2);
+    expect(c.dnp).toBe(2);
+    expect(c.utbp).toBe(0);
+  });
+
+  it('utbp counts rows with an unrecognized status as to-be-placed', () => {
+    // Only an explicit 'dnp' is excluded — an unknown/absent status still
+    // occupies a board position, so it must not silently drop out of utbp.
+    const rows = [
+      { effectiveStatus: 'ok' },
+      { effectiveStatus: 'something-new' },
+      {},
+      { effectiveStatus: 'dnp' },
+    ];
+    const c = countStatuses(rows);
+    expect(c.total).toBe(4);
+    expect(c.dnp).toBe(1);
+    expect(c.utbp).toBe(3);
   });
 
   it('counts manual-short and confirmed-short under short + manual/confirmed', () => {
@@ -134,6 +193,7 @@ describe('countStatuses', () => {
     const c = countStatuses([]);
     expect(c.total).toBe(0);
     expect(c.ok).toBe(0);
+    expect(c.utbp).toBe(0);
   });
 });
 
