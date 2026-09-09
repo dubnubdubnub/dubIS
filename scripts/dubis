@@ -7,8 +7,73 @@
 # and the build story. Symlink this into your PATH if you want the bare name:
 #   ln -s "$PWD/scripts/dubis" ~/.local/bin/dubis
 #
-# Honours $PYTHON the way scripts/verify.sh does.
+# Interpreter resolution, in order:
+#   1. $PYTHON       — explicit override (same knob scripts/verify.sh uses),
+#                      honoured as-is with no second-guessing.
+#   2. a .venv       — this checkout's, or, when run from a git worktree, the
+#                      main checkout's: a worktree has no .venv of its own, and
+#                      this repo runs several agent worktrees at a time.
+#   3. python3, then python — probed, and only accepted if the interpreter can
+#                      actually import httpx. macOS ships a system python3 with
+#                      no site-packages, so an unprobed fallback "succeeds" and
+#                      then dies on `import httpx` — a much more confusing
+#                      failure than being told the deps are missing.
+#
+# `python` is last, not first: macOS ships no bare `python`, so defaulting to
+# it made this script fail with "exec: python: not found" on the very platform
+# it was written on.
 set -eu
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PY="${PYTHON:-python}"
+
+# The main checkout for a worktree (git-common-dir is <main>/.git); empty when
+# this is not a worktree, or when git is unavailable.
+main_checkout() {
+    local common
+    common="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 0
+    [ -n "$common" ] && dirname "$common"
+}
+
+venv_python() {
+    local root="$1"
+    for candidate in "$root/.venv/bin/python" "$root/.venv/Scripts/python.exe"; do
+        if [ -x "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+find_python() {
+    if [ -n "${PYTHON:-}" ]; then
+        printf '%s\n' "$PYTHON"
+        return 0
+    fi
+
+    # A venv is authoritative — used without probing, so the common case pays
+    # no extra interpreter spawn.
+    venv_python "$REPO_ROOT" && return 0
+    local main
+    main="$(main_checkout)"
+    if [ -n "$main" ] && [ "$main" != "$REPO_ROOT" ]; then
+        venv_python "$main" && return 0
+    fi
+
+    for candidate in python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1 \
+           && "$candidate" -c 'import httpx' >/dev/null 2>&1; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+if ! PY="$(find_python)"; then
+    echo "dubis: no Python interpreter with the CLI's dependencies." >&2
+    echo "  tried: \$PYTHON, a .venv in this checkout or its main worktree, python3, python" >&2
+    echo "  fix: create the venv and \`pip install -r requirements.txt\`, or set PYTHON=/path/to/python" >&2
+    exit 3
+fi
+
 exec "$PY" "$REPO_ROOT/tools/dubis-cli/dubis.py" "$@"
