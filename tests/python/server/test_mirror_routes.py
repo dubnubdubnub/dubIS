@@ -75,13 +75,17 @@ def test_disable_dispatches_and_returns_info(api, client, monkeypatch):
 
 @pytest.mark.parametrize("exc", [
     RuntimeError("tailscale is not logged in"),
+    RuntimeError("systemctl daemon-reload failed: Failed to connect to bus"),
     NotImplementedError("mirror autostart not yet implemented for sunos5"),
 ])
 def test_enable_failure_keeps_the_actionable_message(api, client, monkeypatch, exc):
-    """`enable_serve`'s RuntimeError and `get_installer`'s NotImplementedError
-    both carry a message written for the user. Unhandled, neither is mapped by
-    `server/errors.py`, so both would surface as an opaque 500 with no body
-    contract and the reason lost."""
+    """Every way a host says "I can't mirror" carries a message written for the
+    user: `tailscale.enable_serve`'s RuntimeError, an installer's own
+    RuntimeError (this is the container's case — it is Linux, so it gets
+    `LinuxInstaller` and fails at `systemctl --user`, not at dispatch), and
+    `get_installer`'s NotImplementedError on a platform with no installer at
+    all. Unhandled, `server/errors.py` maps none of them, so each would surface
+    as an opaque 500 with no body contract and the reason lost."""
     def boom():
         raise exc
     monkeypatch.setattr(api, "enable_inventory_mirror", boom)
