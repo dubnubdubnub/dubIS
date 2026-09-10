@@ -817,9 +817,11 @@ graph LR
     "tests/python/test_clients_base.py" --> "lcsc_client.py"
     "tests/python/test_clients_base.py" --> "mouser_client.py"
     "tests/python/test_clients_base.py" --> "pololu_client.py"
+    "tests/python/test_clients_digikey.py" --> "browser_page.py"
     "tests/python/test_clients_digikey.py" --> "digikey_client.py"
     "tests/python/test_clients_digikey.py" --> "digikey_normalizer.py"
     "tests/python/test_clients_digikey.py" --> "digikey_session.py"
+    "tests/python/test_clients_digikey.py" --> "dubis_errors.py"
     "tests/python/test_clients_lcsc.py" --> "lcsc_client.py"
     "tests/python/test_clients_mouser.py" --> "mouser_client.py"
     "tests/python/test_clients_pololu.py" --> "pololu_client.py"
@@ -976,7 +978,7 @@ graph LR
 ### browser_page.py
 
 - **Imports:** —
-- **Imported by:** `mouser_client.py`, `scripts/capture-distributor-fixtures.py`, `scripts/seed-bom-prices.py`, `tests/python/test_browser_page.py`, `tests/python/test_distributor_browser.py`
+- **Imported by:** `mouser_client.py`, `scripts/capture-distributor-fixtures.py`, `scripts/seed-bom-prices.py`, `tests/python/test_browser_page.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_distributor_browser.py`
 
 ### cache_db.py
 
@@ -1201,7 +1203,7 @@ graph LR
 ### dubis_errors.py
 
 - **Imports:** —
-- **Imported by:** `base_client.py`, `carts.py`, `digikey_client.py`, `domain/generic_parts.py`, `domain/part_registry.py`, `server/__main__.py`, `server/errors.py`, `server/lockfile.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/test_base_client.py`, `tests/python/test_carts.py`, `tests/python/test_dubis_errors.py`
+- **Imported by:** `base_client.py`, `carts.py`, `digikey_client.py`, `domain/generic_parts.py`, `domain/part_registry.py`, `server/__main__.py`, `server/errors.py`, `server/lockfile.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/test_base_client.py`, `tests/python/test_carts.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_dubis_errors.py`
 
 ### file_dialogs.py
 
@@ -2907,7 +2909,7 @@ graph LR
 
 ### tests/python/test_clients_digikey.py
 
-- **Imports:** `digikey_client.py`, `digikey_normalizer.py`, `digikey_session.py`
+- **Imports:** `browser_page.py`, `digikey_client.py`, `digikey_normalizer.py`, `digikey_session.py`, `dubis_errors.py`
 - **Imported by:** —
 
 ### tests/python/test_clients_lcsc.py
