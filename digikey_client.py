@@ -27,6 +27,29 @@ from dubis_errors import DistributorError, DistributorTimeout
 logger = logging.getLogger(__name__)
 
 
+def hidden_window_available() -> bool:
+    """Whether this process can drive DigiKey's hidden pywebview window.
+
+    Mirrors `browser_page.available()`'s webview half — minus its CDP branch,
+    which does not apply here: this client scrapes through `evaluate_js` on a
+    pywebview window it owns, not through a browser running somewhere else.
+
+    pywebview only has a GUI loop once `webview.start()` has been called,
+    which the desktop app does and a headless `python -m server` (or the
+    container) does not. Without one, `webview.create_window` still returns a
+    Window and appends it to `webview.windows`, but nothing ever initializes
+    it: the first `load_url` blocks 20s and then raises `WebViewException`,
+    which is a plain `Exception` and escapes every narrow handler in this
+    module. So availability is a queryable state callers branch on, not a
+    failure to discover 35 seconds later.
+    """
+    try:
+        import webview
+    except ImportError:
+        return False
+    return bool(getattr(webview, "windows", None))
+
+
 class DigikeyClient(BaseProductClient):
     """Manages Digikey browser session, cookie sync, and product scraping."""
 
@@ -51,9 +74,21 @@ class DigikeyClient(BaseProductClient):
         NOT thread-safe — caller must hold ``_lock``.
         If pending cookies were stored by the login flow, they are injected
         after the window is ready.
+
+        Raises ``DistributorError`` where there is no GUI loop to host the
+        window, rather than creating one that can never load. That phantom
+        window would still be appended to the process-wide ``webview.windows``
+        — which is exactly what `hidden_window_available()` and
+        `browser_page.available()` read to decide a loop exists, so creating
+        it makes both of them lie from then on.
         """
         if self._window is not None:
             return
+        if not hidden_window_available():
+            raise DistributorError(
+                "DigiKey needs the desktop app's browser window — this process has none",
+                provider="digikey",
+            )
         import webview
 
         self._loaded.clear()
@@ -246,6 +281,22 @@ class DigikeyClient(BaseProductClient):
             return {
                 "logged_in": False, "changed": False,
                 "message": "No saved session to validate",
+            }
+
+        if not hidden_window_available():
+            # No GUI loop, so the probe cannot navigate anywhere. Inconclusive
+            # is the honest answer and the safe one: a session synced onto a
+            # headless server is not expired just because nothing here can
+            # open a browser to check, and invalidating would delete its
+            # cookie file. Without this guard the probe spent 15s waiting on a
+            # window that never loads, then 20s inside `load_url`, then raised
+            # `WebViewException` past the handler below — a 500 from
+            # `POST /v1/distributors/digikey/session/validate`, which the
+            # frontend calls at startup whenever cookies are present.
+            logger.debug("DK session validation unsupported: no browser window in this process")
+            return {
+                "logged_in": was_logged_in, "changed": False, "supported": False,
+                "message": "No browser window here — session left as-is",
             }
 
         try:
