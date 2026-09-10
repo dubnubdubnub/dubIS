@@ -3690,6 +3690,75 @@
         ]
       }
     },
+    "/v1/inventory-mirror": {
+      "get": {
+        "operationId": "get_inventory_mirror_info",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Inventory Mirror Info",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Inventory Mirror Info",
+        "tags": [
+          "mirror"
+        ]
+      }
+    },
+    "/v1/inventory-mirror/disable": {
+      "post": {
+        "operationId": "disable_inventory_mirror",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Disable Inventory Mirror",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Disable Inventory Mirror",
+        "tags": [
+          "mirror"
+        ]
+      }
+    },
+    "/v1/inventory-mirror/enable": {
+      "post": {
+        "operationId": "enable_inventory_mirror",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Enable Inventory Mirror",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Enable Inventory Mirror",
+        "tags": [
+          "mirror"
+        ]
+      }
+    },
     "/v1/meta": {
       "get": {
         "operationId": "meta",
