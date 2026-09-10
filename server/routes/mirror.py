@@ -14,17 +14,19 @@ name of the `InventoryApi` method it dispatches to
 `js/preferences-modal.js` already calls. All three return the same shape,
 which is what `MirrorFacade` already does.
 
-`MirrorFacade` signals a host that *cannot* mirror by raising: `RuntimeError`
-from `tailscale.enable_serve` when tailscale is missing or not logged in,
-`NotImplementedError` from `base.get_installer` on a platform with no
-autostart implementation (and the container image is exactly that case — see
-CLAUDE.md's Container feature gaps). Those messages are written to be shown to
-the user, so they are re-raised as `DubISError` to travel in the standard
-`{error, code, detail}` body instead of being swallowed by an unhandled-500;
-`server/errors.py` has no status closer than its generic 500, and the message,
-not the code, is what the Preferences modal surfaces. Reading the info needs no
-such guard — `get_inventory_mirror_info` already degrades a missing installer
-to `installed: false, running: false`.
+`MirrorFacade` signals a host that *cannot* mirror by raising, in two flavors:
+`RuntimeError` — from `tailscale.enable_serve` when tailscale is missing or not
+logged in, and from the installers themselves (e.g. `LinuxInstaller` when
+`systemctl --user` fails, which is how the container image reports it: it *is*
+Linux, so it gets a real installer and fails at systemd, not at dispatch) — and
+`NotImplementedError` from `base.get_installer` on a platform that is none of
+win32/darwin/linux. Both messages are written to be shown to the user, so they
+are re-raised as `DubISError` to travel in the standard `{error, code, detail}`
+body instead of being swallowed by an unhandled-500; `server/errors.py` has no
+status closer than its generic 500, and the message, not the code, is what the
+Preferences modal surfaces. Reading the info needs no such guard —
+`get_inventory_mirror_info` already degrades a missing installer to
+`installed: false, running: false`.
 """
 
 from __future__ import annotations
