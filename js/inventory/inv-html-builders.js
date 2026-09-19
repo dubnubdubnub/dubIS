@@ -6,6 +6,9 @@ import { escHtml, stockValueColor, formatMoney } from '../ui-helpers.js';
 import { invPartKey, colorizeRefs, countStatuses } from '../part-keys.js';
 import { renderFanStack } from './favicon-stack.js';
 import { isLabelMode, isSelected } from '../label-selection.js';
+/* col-resize-LOGIC, not col-resize.js: this module must stay store-free (see
+   the header note), and the logic module imports nothing at all. */
+import { colResizeHandleHtml } from '../col-resize-logic.js';
 
 /**
  * Build the label-mode selection checkbox HTML for a given part key.
@@ -365,6 +368,44 @@ export function renderFilterBarHtml(c, activeFilter) {
 
 // ── BOM comparison table header ──
 
+/** Table id the BOM comparison table's column widths persist under. */
+export var BOM_TABLE_ID = 'bom';
+
+/**
+ * The BOM comparison table's user-resizable columns, with the default width
+ * (authored px) each <th> is emitted at. These numbers used to be inline
+ * `style="width:NNpx"` literals in the thead string below; they now live here
+ * once, so the header markup and the resize defaults cannot drift apart.
+ *
+ * Deliberately NOT resizable: Designators (its .refs-cell max-width lives in
+ * css/tables.css, so widening the column alone would not widen the content),
+ * the status icon, Description (the flexible column that absorbs the slack the
+ * others give up), Match, and the sticky button column — that one's width is
+ * the subject of the button-clipping tests.
+ * @type {{id: string, def: number}[]}
+ */
+export var BOM_RESIZE_COLS = [
+  { id: 'part', def: 110 },
+  { id: 'mpn',  def: 140 },
+  { id: 'need', def: 50 },
+  { id: 'have', def: 50 },
+];
+
+/**
+ * One resizable <th>: default width from BOM_RESIZE_COLS, plus a drag handle.
+ * @param {string} id
+ * @param {string} label
+ * @returns {string}
+ */
+function bomTh(id, label) {
+  var def = 0;
+  for (var i = 0; i < BOM_RESIZE_COLS.length; i++) {
+    if (BOM_RESIZE_COLS[i].id === id) def = BOM_RESIZE_COLS[i].def;
+  }
+  return '<th data-bom-col="' + id + '" style="width:' + def + 'px">' + label +
+    colResizeHandleHtml(BOM_TABLE_ID, id) + '</th>';
+}
+
 /**
  * Returns the BOM comparison table header HTML.
  * @returns {string}
@@ -373,10 +414,10 @@ export function renderBomTableHeader() {
   return '<thead><tr>' +
     '<th class="refs-col">Designators</th>' +
     '<th style="width:24px"></th>' +
-    '<th style="width:110px">Part #</th>' +
-    '<th style="width:140px">MPN</th>' +
-    '<th style="width:50px">Need</th>' +
-    '<th style="width:50px">Have</th>' +
+    bomTh('part', 'Part #') +
+    bomTh('mpn', 'MPN') +
+    bomTh('need', 'Need') +
+    bomTh('have', 'Have') +
     '<th>Description</th>' +
     '<th style="width:78px;text-align:center">Match</th>' +
     '<th class="btn-group-hdr"></th>' +
@@ -386,6 +427,31 @@ export function renderBomTableHeader() {
 export { countStatuses };
 
 // ── Column header ────────────────────────────────────────
+
+/** Table id the inventory grid's column widths persist under. */
+export var INV_TABLE_ID = 'inv';
+
+/**
+ * The inventory grid's user-resizable columns. Each one is a CSS custom
+ * property that BOTH the header cell (css/panels/inventory.css) and the
+ * matching row cell read, which is why resizing writes the property rather
+ * than a width: header and rows cannot fall out of alignment.
+ *
+ * `prop` is the width token; `minProp` the token holding that column's floor.
+ * Values come from css/tokens.css — never hard-coded here.
+ *
+ * Deliberately NOT resizable: the Group dots (a 30px toggle), Description (the
+ * flexible column that absorbs whatever the others take), and the ↺ button.
+ * @type {{id: string, prop: string, minProp: string}[]}
+ */
+export var INV_RESIZE_COLS = [
+  { id: 'partid', prop: '--inv-col-pn-w',       minProp: '--inv-col-pn-min-w' },
+  { id: 'mpn',    prop: '--inv-col-mfgpn-w',    minProp: '--inv-col-mfgpn-min-w' },
+  { id: 'vendor', prop: '--inv-col-vendor-w',   minProp: '--inv-col-vendor-min-w' },
+  { id: 'unit',   prop: '--inv-col-unit-w',     minProp: '--inv-col-unit-min-w' },
+  { id: 'value',  prop: '--inv-col-extprice-w', minProp: '--inv-col-extprice-min-w' },
+  { id: 'qty',    prop: '--inv-col-stock-w',    minProp: '--inv-col-stock-min-w' },
+];
 
 /**
  * Build the inventory column-header HTML.
@@ -431,17 +497,25 @@ export function renderInvColHeader(viewState) {
     // button, and the tooltip keeps the clipped label readable.
     : '<button class="inv-col-cell inv-col-desc" data-col="description" title="Description">Description ' + sortIndicator('description') + '</button>';
 
+  // Resize handles are absolutely positioned inside their header cell (see
+  // css/components/col-resize.css), so they add no flex child and no gap —
+  // column alignment with the rows is unaffected.
+  function grip(col) { return colResizeHandleHtml(INV_TABLE_ID, col); }
+
   return '<div class="inv-col-header">' +
     '<button class="inv-col-cell inv-col-group" data-col="group" title="Cycle grouping: full → sections → flat">' +
       '<span class="inv-col-group-dots">' + groupDots() + '</span>' +
     '</button>' +
-    '<button class="inv-col-cell inv-col-partid" data-col="partid" title="Group by vendor">Part # ' + vendorIndicator() + '</button>' +
-    '<button class="inv-col-cell inv-col-mpn" data-col="mpn">MPN ' + sortIndicator('mpn') + '</button>' +
-    '<span class="inv-col-vendor" title="Purchase source vendor(s)">Src</span>' +
-    '<button class="inv-col-cell inv-col-unit"  data-col="unit_price">Unit $ ' + sortIndicator('unit_price') + '</button>' +
-    '<button class="inv-col-cell inv-col-value" data-col="value">Total $ ' + sortIndicator('value') + '</button>' +
-    '<button class="inv-col-cell inv-col-qty"   data-col="qty">Qty ' + sortIndicator('qty') + '</button>' +
+    '<button class="inv-col-cell inv-col-partid" data-col="partid" title="Group by vendor">Part # ' + vendorIndicator() + grip('partid') + '</button>' +
+    '<button class="inv-col-cell inv-col-mpn" data-col="mpn">MPN ' + sortIndicator('mpn') + grip('mpn') + '</button>' +
+    '<span class="inv-col-vendor" title="Purchase source vendor(s)">Src' + grip('vendor') + '</span>' +
+    '<button class="inv-col-cell inv-col-unit"  data-col="unit_price">Unit $ ' + sortIndicator('unit_price') + grip('unit') + '</button>' +
+    '<button class="inv-col-cell inv-col-value" data-col="value">Total $ ' + sortIndicator('value') + grip('value') + '</button>' +
+    '<button class="inv-col-cell inv-col-qty"   data-col="qty">Qty ' + sortIndicator('qty') + grip('qty') + '</button>' +
     descCellHtml +
-    '<button class="inv-col-cell inv-col-reset" data-col="reset" title="Reset sort/group">↺</button>' +  // ↺ (U+21BA ANTICLOCKWISE OPEN CIRCLE ARROW)
+    // Also resets column widths (js/col-resize.js binds to this same control):
+    // one "put the view back" button, rather than a second glyph in a header
+    // that is already width-constrained.
+    '<button class="inv-col-cell inv-col-reset" data-col="reset" title="Reset sort, grouping and column widths">↺</button>' +  // ↺ (U+21BA ANTICLOCKWISE OPEN CIRCLE ARROW)
     '</div>';
 }

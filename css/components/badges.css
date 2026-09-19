@@ -36,3 +36,12 @@
 .near-miss-badge:hover {
   background: rgba(255, 180, 60, 0.45);
 }
+
+/* Quieter, smaller chip — for a contextual count that should not compete with
+   the status chips beside it (the BOM summary's "N total" next to "N UTBP").
+   Padding is em-relative so it tracks the reduced font-size. */
+.chip.chip-quiet {
+  padding: 0.15em 0.55em;
+  font-size: 11px;
+  font-weight: 500;
+}

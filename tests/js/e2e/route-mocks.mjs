@@ -11,10 +11,15 @@
  *   - `addMockSetup` is reused UNCHANGED as the shim layer: dialog/window
  *     methods (`open_file_dialog`, `save_file_dialog`, `load_file`,
  *     `set_bom_dirty`, `confirm_close`, `bench_mark`, `install_tesseract`,
- *     `start_digikey_login`, `open_source_file`) and the inventory-mirror
- *     endpoints (deliberately NOT on /v1 — see Task 4 brief) are the only
- *     methods actually still reachable through `window.pywebview.api` (the
- *     ~9-method ClientShell). Every OTHER method addMockSetup stubs is still
+ *     `start_digikey_login`, `open_source_file`) are the only methods
+ *     actually still reachable through `window.pywebview.api` (the
+ *     ~9-method ClientShell). The inventory-mirror endpoints were stubbed
+ *     there too, described as "deliberately NOT on /v1" — they were in fact
+ *     simply missed by the port, unreachable in the real app on either
+ *     transport, and those mocks were the only reason the bridge path
+ *     existed for them at all. They now have routes
+ *     (`server/routes/mirror.py`) and are mocked below like everything else.
+ *     Every OTHER method addMockSetup stubs is still
  *     installed on `window.pywebview.api` too, but is dead weight now — kept
  *     only so this file doesn't have to re-derive shim behavior.
  *   - `installRouteMocks` ADDITIONALLY installs `page.route('**\/v1/**')` to
@@ -131,6 +136,26 @@ const ROUTES = [
   route('get_mouser_api_key_status', (_a, ctx) => ctx.options.mouserKeyStatus || { configured: false }),
   route('set_mouser_api_key', () => null),
   route('clear_mouser_api_key', () => null),
+  // Inventory mirror. Stateful across the three calls (the spec enables, then
+  // reads the serve URL back, then disables) so `mirrorState` lives on ctx
+  // alongside cartsState rather than in the browser context — these were
+  // bridge mocks keeping a `window.__mirrorState` until the methods got their
+  // /v1 routes.
+  route('get_inventory_mirror_info', (_a, ctx) => ctx.mirrorState),
+  route('enable_inventory_mirror', (_a, ctx) => {
+    ctx.mirrorState = {
+      enabled: true, installed: true, running: true,
+      serve_url: 'https://mauler.example.ts.net', read_port: 7893, allowlist: [],
+    };
+    return ctx.mirrorState;
+  }),
+  route('disable_inventory_mirror', (_a, ctx) => {
+    ctx.mirrorState = {
+      enabled: false, installed: false, running: false,
+      serve_url: '', read_port: 7893, allowlist: [],
+    };
+    return ctx.mirrorState;
+  }),
   route('list_vendors', (_a, ctx) => ctx.options.mfgDirectVendors || [
     { id: 'v_unknown', name: 'Unknown', type: 'unknown', icon: '❓', url: '', favicon_path: '' },
     { id: 'v_self', name: 'Self', type: 'self', icon: '⚙️', url: '', favicon_path: '' },
@@ -666,6 +691,12 @@ export async function installRouteMocks(page, inventory, options = {}) {
     // this clone, a spec's own `options.carts` object literal (or a shared
     // fixture) would be corrupted across tests/reused test-file scope.
     cartsState: JSON.parse(JSON.stringify(options.carts || { carts: [], active_cart_id: null })),
+    // Mirror is disabled until a spec enables it — the same default the real
+    // MirrorFacade reports for a data dir that has never had one set up.
+    mirrorState: {
+      enabled: false, installed: false, running: false,
+      serve_url: '', read_port: 7893, allowlist: [],
+    },
     // Canary counter (Finding 2): incremented once per intercepted /v1
     // request in the catch-all handler below, so specs can assert the HTTP
     // transport was actually exercised rather than silently falling back to
