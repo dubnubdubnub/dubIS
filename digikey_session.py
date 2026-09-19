@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import threading
 import time
 import urllib.error
@@ -19,8 +20,32 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def cdp_login_available() -> bool:
+    """Whether this process can drive a CDP-enabled browser for DigiKey.
+
+    Resolving the default browser goes through the Windows registry
+    (`find_default_browser_exe`), so the whole launch-a-browser-with-CDP path
+    — the interactive login and the headless session probe alike — is
+    Windows-only. Mirrors `browser_page.available()`: a platform that
+    structurally cannot host the feature is a queryable state callers branch
+    on, not an error to raise on every startup.
+    """
+    return sys.platform == "win32"
+
+
 def find_default_browser_exe() -> str | None:
-    """Find the default browser executable on Windows via registry."""
+    """Find the default browser executable on Windows via registry.
+
+    Returns ``None`` when no browser can be resolved — which off Windows is
+    every time, since there is no registry to read. That is the same answer
+    the Windows path gives when the UserChoice key or the exe is missing, so
+    callers need no platform branch of their own. (The `import winreg` below
+    used to raise `ModuleNotFoundError` straight past the `OSError` handler
+    on macOS/Linux, turning `GET /v1/distributors/digikey/session` into a
+    500.)
+    """
+    if not cdp_login_available():
+        return None
     try:
         import winreg
 
@@ -37,6 +62,12 @@ def find_default_browser_exe() -> str | None:
         exe = cmd.split('"')[1] if cmd.startswith('"') else cmd.split()[0]
         return exe if os.path.exists(exe) else None
     except OSError:
+        return None
+    except ImportError as exc:
+        # Unreachable behind the guard above, so reaching it means a Windows
+        # build without `winreg` — genuinely unexpected, hence a warning
+        # rather than the debug line the known non-Windows case gets.
+        logger.warning("winreg unavailable on %s: %s", sys.platform, exc)
         return None
 
 
@@ -255,7 +286,18 @@ def check_session(client: "DigikeyClient") -> dict[str, Any]:
         # so a fresh browser session can still be discovered.
         logger.debug("Startup: saved session expired, trying headless CDP")
 
-    # 2. Try headless browser CDP
+    # 2. Try headless browser CDP — Windows-only, since the browser is found
+    #    through the registry. Answer truthfully instead of launching nothing:
+    #    "not logged in because this platform cannot look" is a different fact
+    #    from "not logged in", and neither is a server fault.
+    if not cdp_login_available():
+        logger.debug("Startup: DigiKey CDP session check unsupported on %s", sys.platform)
+        return {
+            "logged_in": False,
+            "supported": False,
+            "message": f"DigiKey browser login is Windows-only (this is {sys.platform})",
+        }
+
     import random
     import subprocess
 
@@ -310,7 +352,11 @@ def start_login(client: "DigikeyClient") -> dict[str, Any]:
         client._cdp_port = None
         client._sync_result = {
             "status": "error",
-            "message": "Could not find browser — cookie sync unavailable.",
+            # True on both paths that land here: a Windows registry that
+            # resolved nothing, and every non-Windows platform, where
+            # `webbrowser` just opened the real default browser — with no CDP
+            # port to read its cookies back out of.
+            "message": "Browser opened without CDP — cookie sync unavailable.",
             "logged_in": False,
             "cookies_injected": 0,
         }
