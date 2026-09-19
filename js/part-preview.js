@@ -4,10 +4,18 @@
 import { api, AppLog } from './api.js';
 import { formatMoney } from './ui-helpers.js';
 import { html, el } from './dom/html.js';
-import { innerRect, zoomedViewport } from './ui-zoom.js';
+import { innerRect, zoomedViewport, toInnerPx } from './ui-zoom.js';
+import { copyText, inHoverCorridor } from './hover-affordance.js';
 
 var HOVER_DELAY_MS = 300;
-var HIDE_DELAY_MS = 150;
+/* The tooltip is anchored GAP_PX below (or above) the part number, so the
+   pointer has to cross a strip that belongs to neither element and reports no
+   useful `relatedTarget`. This delay is the fallback; the real guard is that
+   scheduleHide re-checks `:hover` and the trigger→tooltip corridor when the
+   timer fires (see js/hover-affordance.js). */
+var HIDE_DELAY_MS = 220;
+/** Vertical offset between the trigger and the tooltip — also the gap's width. */
+var GAP_PX = 6;
 var LCSC_PART_REGEX = /^C\d{4,}$/i;
 
 // JS-side cache: { lcsc: { code -> data|null }, digikey: { code -> data|null }, pololu: { sku -> data|null } }
@@ -19,6 +27,10 @@ var currentProvider = null;
 var showTimer = null;
 var hideTimer = null;
 var mouseDownInTooltip = false;
+/** Trigger box in authored px, captured whenever the tooltip is positioned. */
+var currentTriggerBox = null;
+/** Last pointer position in authored px — the corridor test's input. */
+var pointer = { x: NaN, y: NaN };
 
 var tooltip = null;
 
@@ -46,6 +58,23 @@ export function init() {
   tooltip.addEventListener("mousedown", function () {
     mouseDownInTooltip = true;
   });
+
+  /* Copy affordance for the part number itself. The generic Copy popover
+     (js/text-popover.js) is deliberately suppressed on part-number elements and
+     inside this tooltip, so without this button a user hovering a PN has no
+     click-to-copy path at all — only the debug "Copy JSON" button, which is
+     behind a _debug payload. Delegated once here so it works for the loading,
+     error, and loaded cards alike. */
+  tooltip.addEventListener("click", function (e) {
+    var btn = e.target.closest ? e.target.closest("[data-copy-value]") : null;
+    if (!btn || !tooltip.contains(btn)) return;
+    var value = btn.getAttribute("data-copy-value") || "";
+    var label = btn.textContent;
+    copyText(value).then(function (ok) {
+      btn.textContent = ok ? "Copied!" : "Failed";
+      setTimeout(function () { btn.textContent = label; }, 1200);
+    });
+  });
   document.addEventListener("mouseup", function () {
     if (mouseDownInTooltip) {
       mouseDownInTooltip = false;
@@ -58,6 +87,17 @@ export function init() {
   });
 
   // ── Event delegation ──
+
+  /* The pointer's authored-px position. Nothing in the trigger→tooltip gap fires
+     an event we could hang "the user is on their way in" on, so the position is
+     sampled globally and answered by inHoverCorridor. clientX/clientY are
+     post-zoom; toInnerPx puts them in the same space as innerRect. */
+  document.addEventListener("mousemove", function (e) {
+    pointer.x = toInnerPx(e.clientX);
+    pointer.y = toInnerPx(e.clientY);
+    if (tooltip.classList.contains("hidden")) return;
+    if (pointerEngaged()) cancelHide();
+  }, { passive: true, capture: true });
 
   document.addEventListener("mouseover", function (e) {
     var trigger = e.target.closest("[data-lcsc], [data-digikey], [data-pololu], [data-mouser]");
@@ -108,11 +148,38 @@ export function init() {
   });
 }
 
+/**
+ * Is the pointer still engaged with the tooltip — on the part number, on the
+ * tooltip, or crossing the gap between them?
+ *
+ * `:hover` is authoritative for "on the tooltip" and, unlike a mousemove-derived
+ * answer, stays correct when the tooltip is *repositioned* under a stationary
+ * pointer (this tooltip re-anchors itself as the price and adjustment history
+ * arrive, so that happens routinely). The corridor covers the gap, which fires
+ * no events of its own.
+ */
+function pointerEngaged() {
+  if (!tooltip) return false;
+  if (tooltip.matches(":hover")) return true;
+  return inHoverCorridor(pointer.x, pointer.y, currentTriggerBox,
+                         innerRect(tooltip), GAP_PX + 2);
+}
+
+function cancelHide() {
+  clearTimeout(hideTimer);
+  hideTimer = null;
+}
+
 function scheduleHide() {
   if (mouseDownInTooltip || hasSelectionInTooltip()) return;
-  clearTimeout(hideTimer);
+  cancelHide();
   hideTimer = setTimeout(function () {
+    hideTimer = null;
+    // Re-check at fire time, not just at schedule time: the pointer may have
+    // spent the delay travelling into the tooltip through the gap.
+    if (mouseDownInTooltip || hasSelectionInTooltip() || pointerEngaged()) return;
     tooltip.classList.add("hidden");
+    currentTriggerBox = null;
     currentCode = null;
     currentProvider = null;
   }, HIDE_DELAY_MS);
@@ -127,7 +194,7 @@ async function showTooltip(code, provider, triggerEl) {
   positionTooltip(triggerEl);
 
   // Show loading state
-  tooltip.replaceChildren(html`<div class="part-preview-card"><div class="part-preview-loading">Loading ${code}...</div></div>`);
+  tooltip.replaceChildren(html`<div class="part-preview-card">${copyBar(code)}<div class="part-preview-loading">Loading ${code}...</div></div>`);
 
   var data = await fetchProduct(code, provider);
 
@@ -147,7 +214,7 @@ async function showTooltip(code, provider, triggerEl) {
         ? "Mouser API: no match for " + code
         : "Save a Mouser API key in Preferences for tooltips";
     }
-    tooltip.replaceChildren(html`<div class="part-preview-card"><div class="part-preview-error">${errMsg}</div></div>`);
+    tooltip.replaceChildren(html`<div class="part-preview-card">${copyBar(code)}<div class="part-preview-error">${errMsg}</div></div>`);
     return;
   }
 
@@ -199,6 +266,12 @@ async function fetchProduct(code, provider) {
 // ── Position tooltip ──
 
 function positionTooltip(triggerEl) {
+  /* Never move the tooltip while the pointer is inside it. showTooltip re-anchors
+     after each async section lands (prices, then history), and a card that grows
+     taller can flip from below the trigger to above it — sliding out from under
+     the cursor, firing mouseleave, and dismissing the thing the user was reading.
+     The first call always runs: the pointer is on the trigger then, not the card. */
+  if (tooltip.matches(":hover")) return;
   // innerRect + zoomedViewport, not getBoundingClientRect + window.innerWidth:
   // under the root UI zoom, rects read back post-zoom while offsetHeight and the
   // px we write below are pre-zoom. Mixing the two mispositions the tooltip at
@@ -209,7 +282,7 @@ function positionTooltip(triggerEl) {
   var th = tooltip.offsetHeight || 200;
 
   // Prefer below the trigger
-  var top = rect.bottom + 6;
+  var top = rect.bottom + GAP_PX;
   var left = rect.left;
 
   // Clamp horizontally
@@ -220,20 +293,41 @@ function positionTooltip(triggerEl) {
 
   // If not enough space below, show above
   if (top + th > vp.h - 8) {
-    top = rect.top - th - 6;
+    top = rect.top - th - GAP_PX;
   }
   // Clamp vertically
   if (top < 8) top = 8;
 
   tooltip.style.left = left + "px";
   tooltip.style.top = top + "px";
+  // Remember the trigger in the same authored space the corridor test uses.
+  currentTriggerBox = rect;
 }
 
 // ── Render tooltip content ──
 
+/**
+ * The tooltip's header strip: the part number as selectable text plus a Copy
+ * button. Present on every card state (loading, error, loaded) so hovering a
+ * part number always yields a working copy path.
+ * @param {string} code the part number the tooltip is about
+ * @param {string} [mpn] the manufacturer part number, when known
+ */
+function copyBar(code, mpn) {
+  var buttons = [
+    el("button", { type: "button", class: "part-preview-copy-field",
+                   "data-copy-value": code, title: "Copy " + code }, "Copy"),
+  ];
+  if (mpn && mpn !== code) {
+    buttons.push(el("button", { type: "button", class: "part-preview-copy-field",
+                                "data-copy-value": mpn, title: "Copy " + mpn }, "Copy MPN"));
+  }
+  return html`<div class="part-preview-pn-bar"><span class="part-preview-pn">${code}</span><span class="part-preview-pn-actions">${buttons}</span></div>`;
+}
+
 function renderTooltip(data, provider) {
   var providerClass = "provider-" + provider;
-  var parts = [];
+  var parts = [copyBar(data.productCode || currentCode || "", data.mpn)];
 
   // Product image
   if (data.imageUrl) {

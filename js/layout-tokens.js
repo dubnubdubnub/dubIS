@@ -21,8 +21,32 @@ export function getLayoutTokenPx(name) {
   return parseInt(getLayoutToken(name), 10);
 }
 
+/**
+ * Read a custom property as it resolves *for a given element* — i.e. including
+ * any override set further down the tree.
+ *
+ * Needed because a column width is no longer a constant: dragging a column
+ * writes the same custom property onto the grid container (see
+ * js/col-resize.js), so `--inv-col-pn-w` read from :root is the *default*
+ * while the same name read from `#inventory-body` is the *effective* width.
+ * Anything that needs the width the user is actually looking at must read it
+ * from the container, not from :root, and must read it live rather than
+ * caching a module-init value.
+ * @param {Element} el
+ * @param {string} name - CSS custom property name, e.g. "--inv-col-pn-w"
+ * @returns {number}
+ */
+export function getLayoutTokenPxFor(el, name) {
+  return parseInt(getComputedStyle(el).getPropertyValue(name).trim(), 10);
+}
+
 // ── Inventory column width accessors ─────────────────────────────────────────
 // Cached at module-init time (document is ready when ES modules execute).
+// These are the :root DEFAULTS. A user-dragged column overrides the same
+// property on the grid container, so these constants are the reset target, not
+// the current on-screen width — use getLayoutTokenPxFor(container, name) for
+// that. (Nothing in js/ computes layout from the INV_COL_* values today; they
+// exist as the documented bridge between css/tokens.css and JS.)
 
 /** Width of the Group / drag-handle column (px). */
 export var INV_COL_GROUP_W     = getLayoutTokenPx("--inv-col-group-w");

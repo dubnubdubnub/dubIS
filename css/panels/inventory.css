@@ -1,6 +1,32 @@
 /* ── Inventory Panel ───────────────────────────────────── */
 .panel-inventory { flex: 1; min-width: 300px; }
 
+/* ── Selection policy ──────────────────────────────────────────────────────
+   Data text is selectable by DEFAULT; only genuine UI chrome opts out. That is
+   the inverse of how this file used to read, where whole regions were
+   `user-select: none` and a handful of cells opted back in — which left values
+   the user plainly wants to copy (part numbers among them) unhighlightable.
+
+   The `user-select: none` rules that remain, and why each is chrome rather than
+   data:
+     .inv-col-header        the sort-button row; a drag across it is a
+                            column-header interaction, not a copy
+     .inv-section-header    click-to-collapse category headers — the whole strip
+     .inv-parent-header     is a control, and its text is its label
+     .inv-subsection-header
+     .generic-group-header
+     .inv-drag-handle       drag target for the group flyout (below)
+     .label-select-checkbox a checkbox (below)
+   Every other opt-out was removed. New non-selectable *data* is a test failure:
+   tests/js/e2e/data-text-selectable.spec.mjs walks the rendered panels and
+   fails with the offending selector, and its exemption list has to be edited
+   deliberately — see tests/js/e2e/helpers/data-text.mjs. */
+.inv-part-row .inv-drag-handle,
+.inv-part-row .label-select-checkbox {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 /* CSS custom property: column-header row height (single line of small text). */
 .panel-inventory { --inv-col-header-h: 26px; }
 
@@ -230,7 +256,7 @@
   overflow: hidden;
 }
 .inv-part-row:hover { background: var(--bg-hover); }
-.inv-part-row .part-id { width: 90px; flex-shrink: 0; font-family: var(--font-mono); font-size: 11px; color: var(--color-blue); }
+.inv-part-row .part-id { width: var(--inv-col-pn-w); flex-shrink: 0; font-family: var(--font-mono); font-size: 11px; color: var(--color-blue); }
 .inv-part-row .part-mpn { width: var(--inv-col-mfgpn-w); min-width: 40px; font-family: var(--font-mono); font-size: 11px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
 .inv-part-row .part-vendor { width: var(--inv-col-vendor-w); min-width: 0; flex-shrink: 1; display: inline-flex; align-items: center; overflow: hidden; }
 /* The Group column slot. Always present so the row's first content

@@ -33,8 +33,12 @@ test.describe('Inventory roving grid', () => {
     await installRouteMocks(page, MOCK_INVENTORY);
     await page.goto('/index.html');
     await waitForInventoryRows(page);
-    const count = await page.locator('#inventory-body [tabindex="0"]').count();
-    expect(count).toBe(1);
+    // toHaveCount, not a bare count(): the single tab stop is armed by
+    // keyboard-nav.js's MutationObserver on the next animation frame, so a
+    // sampled count can catch the frame before it and read 0 — measured as
+    // exactly `sync=0 raf0=1 … settled=1`. The invariant is unchanged (this
+    // still fails on 0 or 2 tab stops); only the sampling waits for the frame.
+    await expect(page.locator('#inventory-body [tabindex="0"]')).toHaveCount(1);
   });
 
   test('plain inventory: ArrowRight moves across column spans within a row', async ({ page }) => {

@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import digikey_session
 from digikey_client import DigikeyClient
 
 DKUHINT = {"name": "dkuhint", "value": "1", "domain": ".digikey.com"}
@@ -159,8 +160,12 @@ class TestCheckSessionWiring:
     def test_expired_falls_through_to_headless(self, client):
         # validate -> False must NOT short-circuit to logged_in True; it falls
         # through to the headless path. With no browser exe, that path returns
-        # the existing "No browser found" dict.
-        with patch.object(client, "_load_cookies", return_value=SAVED), \
+        # the existing "No browser found" dict. Platform pinned to win32
+        # because the headless CDP path is the Windows one — off Windows
+        # `check_session` stops at the unsupported branch below and never
+        # reaches `find_default_browser_exe`.
+        with patch("digikey_session.sys.platform", "win32"), \
+                patch.object(client, "_load_cookies", return_value=SAVED), \
                 patch.object(client, "validate_session_http", return_value=False), \
                 patch.object(client, "_set_logged_in") as set_logged, \
                 patch("digikey_session.find_default_browser_exe", return_value=None):
@@ -168,3 +173,79 @@ class TestCheckSessionWiring:
             assert result["logged_in"] is False
             assert result["message"] == "No browser found"
             set_logged.assert_not_called()
+
+
+# ── Non-Windows platforms ────────────────────────────────────────────────
+# `find_default_browser_exe` reads the Windows registry, and its bare
+# `import winreg` used to raise ModuleNotFoundError — an ImportError, not the
+# OSError the handler caught — so it escaped through `check_session` and made
+# GET /v1/distributors/digikey/session a 500 on every macOS/Linux launch.
+# These pin the truthful non-Windows answer. The platform is monkeypatched
+# rather than skipped, so both halves run on every OS.
+
+
+class TestPlatformSupport:
+    def test_cdp_login_available_only_on_windows(self):
+        for platform, expected in (("win32", True), ("darwin", False), ("linux", False)):
+            with patch("digikey_session.sys.platform", platform):
+                assert digikey_session.cdp_login_available() is expected
+
+    def test_find_browser_exe_returns_none_off_windows(self):
+        # None == "no browser resolved", the same member of `str | None` the
+        # Windows path returns when the registry names no usable exe.
+        for platform in ("darwin", "linux"):
+            with patch("digikey_session.sys.platform", platform):
+                assert digikey_session.find_default_browser_exe() is None
+
+    def test_find_browser_exe_never_touches_registry_off_windows(self):
+        # The guard must come *before* the import, not rely on catching it.
+        with patch("digikey_session.sys.platform", "darwin"), \
+                patch.dict("sys.modules", {"winreg": None}):
+            assert digikey_session.find_default_browser_exe() is None
+
+    def test_missing_winreg_on_windows_warns_and_returns_none(self, caplog):
+        # The one case that is genuinely unexpected: a Windows build with no
+        # `winreg`. Loud (warning), still no crash.
+        with patch("digikey_session.sys.platform", "win32"), \
+                patch.dict("sys.modules", {"winreg": None}), \
+                caplog.at_level("WARNING", logger="digikey_session"):
+            assert digikey_session.find_default_browser_exe() is None
+        assert any("winreg unavailable" in r.message for r in caplog.records)
+
+    def test_check_session_reports_unsupported_off_windows(self, client):
+        # The regression: no 500, and the response never claims logged_in.
+        with patch("digikey_session.sys.platform", "darwin"), \
+                patch.object(client, "_load_cookies", return_value=None), \
+                patch("subprocess.Popen") as popen, \
+                patch("digikey_session.cdp_get_cookies") as cdp:
+            result = client.check_session()
+        assert result["logged_in"] is False
+        assert result["supported"] is False
+        assert "Windows-only" in result["message"]
+        popen.assert_not_called()
+        cdp.assert_not_called()
+
+    def test_check_session_off_windows_still_uses_saved_cookies(self, client):
+        # The platform guard sits *after* the cached-cookie path, so a synced
+        # session keeps working on macOS/Linux — the unsupported branch is
+        # only about launching a browser.
+        with patch("digikey_session.sys.platform", "darwin"), \
+                patch.object(client, "_load_cookies", return_value=SAVED), \
+                patch.object(client, "validate_session_http", return_value=True), \
+                patch.object(client, "_set_logged_in") as set_logged:
+            result = client.check_session()
+        assert result["logged_in"] is True
+        assert "supported" not in result
+        set_logged.assert_called_once_with(SAVED)
+
+    def test_start_login_falls_back_to_webbrowser_off_windows(self, client):
+        with patch("digikey_session.sys.platform", "darwin"), \
+                patch("webbrowser.open") as wb_open, \
+                patch("subprocess.Popen") as popen:
+            result = client.start_login()
+        assert result == {"status": "opened", "cdp": False,
+                          "message": "Browser opened (no CDP)"}
+        wb_open.assert_called_once()
+        popen.assert_not_called()
+        assert client._sync_result["logged_in"] is False
+        assert "cookie sync unavailable" in client._sync_result["message"]

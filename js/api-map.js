@@ -359,6 +359,28 @@ export const API_MAP = {
     "unwrap": null,
     "verb": "POST"
   },
+  "disable_inventory_mirror": {
+    "argOrder": [],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/inventory-mirror/disable",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "POST"
+  },
+  "enable_inventory_mirror": {
+    "argOrder": [],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/inventory-mirror/enable",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "POST"
+  },
   "evaluate_part_predicates": {
     "argOrder": [
       "part_key",
@@ -620,6 +642,17 @@ export const API_MAP = {
     "queryParams": [],
     "rawBody": false,
     "unwrap": "groups",
+    "verb": "GET"
+  },
+  "get_inventory_mirror_info": {
+    "argOrder": [],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/inventory-mirror",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
     "verb": "GET"
   },
   "get_last_po_quantity": {

@@ -93,6 +93,19 @@ class TestDigikeySession:
         result = dist_mgr.check_digikey_session()
         assert "logged_in" in result
 
+    def test_check_session_off_windows_is_truthful_not_a_crash(self, dist_mgr, monkeypatch):
+        """The counterpart to the win32-only test above, monkeypatched so it
+        runs everywhere: no registry means no session check, which has to
+        report itself rather than raise ModuleNotFoundError out of
+        `import winreg` (that escaped as a 500 from
+        `GET /v1/distributors/digikey/session`)."""
+        import digikey_session
+
+        monkeypatch.setattr(digikey_session.sys, "platform", "darwin")
+        result = dist_mgr.check_digikey_session()
+        assert result["logged_in"] is False
+        assert result["supported"] is False
+
     @pytest.mark.live
     @pytest.mark.credentials
     @pytest.mark.skipif(sys.platform != "win32", reason="winreg only available on Windows")
