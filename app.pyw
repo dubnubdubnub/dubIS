@@ -37,6 +37,7 @@ from inventory_api import InventoryApi
 from pnp_server import start_pnp_server, stop_pnp_server
 from remote_mode import resolve_remote_base_url
 from window_close import handle_closing
+import app_launch
 import app_restart
 import webview_profile
 
@@ -136,18 +137,25 @@ class Launcher:
     """Owns the full app.pyw boot/close lifecycle as instance state instead
     of the closures this replaces. `main()` below is a thin `Launcher().run()`.
 
-    This is a structural extraction only — the sequence of side effects,
-    thread starts, and handler registrations in `run()` is byte-for-byte
-    equivalent to the old main(), in the same order. Two lifecycle traps
-    documented in CLAUDE.md make that ordering load-bearing and must not be
+    `run()` answers exactly one question — does this process own the data dir,
+    or attach to the dubIS that already does — and is otherwise a straight line:
+    pick a port, (own only) start the /v1 server on a background thread, open
+    the window on the local splash. That question is about the DATA DIR, never
+    about which server's data the user is looking at: the local server is a hub,
+    and another dubIS is a source it fetches from rather than somewhere this
+    window navigates (docs/plans/2026-09-19-multi-server-hub-design.md). An
+    attached window owns nothing — no server, no lock, no PnP port, no profile
+    — and `self.attached` gates every teardown step accordingly. Two lifecycle
+    traps documented in CLAUDE.md make the ordering load-bearing and must not be
     disturbed by future edits to this class:
 
     1. pywebview second-origin navigation race: don't change WHEN/WHERE the
        window is created or navigated. splash.html self-navigates only after
        its own /v1/health poll succeeds — app.pyw never touches the window
-       object from the boot thread. See the comment block that used to live
-       above this point in main() (now inline in `run()`, before
-       `webview.create_window`) for the full history.
+       object from the boot thread. See the comment block in `run()`, before
+       `webview.create_window`, for the full history. There is now only ever
+       one origin in play, which is what puts this race out of reach; keep it
+       that way.
     2. Close deadlock: `on_closing` runs synchronously on the WinForms UI
        thread (pywebview's `closing` event is should_lock=True) — never call
        the blocking `window.evaluate_js()` from there directly; that's why
@@ -158,8 +166,15 @@ class Launcher:
     def __init__(self):
         self.debug = "--debug" in sys.argv
         self.api = None
-        self.remote_base = None
-        self.is_remote = False
+        # The URL (if any) the hub should start ACTIVE on — a data-source
+        # choice handed to the server at boot, not a mode this class branches
+        # on. None means "start on local data".
+        self.initial_source_url = None
+        # True when another live dubIS owns this data dir and is serving this
+        # window (see app_launch's "second launch" section). An attached window
+        # owns no server, no lock, no PnP port and no data — it is a second view
+        # onto someone else's hub, and every teardown step below is gated on it.
+        self.attached = False
         self.shell = None
         # Populated by _boot_server() once the /v1 server thread starts it;
         # None until then (mirrors the old server_state dict's initial state).
@@ -182,22 +197,20 @@ class Launcher:
         self.api = api
         bench.mark("api_constructed")
 
-        # Remote-server mode (Phase 1c Task 7): DUBIS_URL env or preferences.json's
-        # server_url point this desktop client at an already-deployed dubis-server
-        # instead of spawning one locally. Constructing InventoryApi above is
-        # still fine to do unconditionally even in remote mode — __init__ does no
-        # I/O beyond building path strings (the SQLite cache connection is opened
-        # lazily by _get_cache() on first access, which nothing here triggers),
-        # and load_preferences() below is a single small JSON read. Neither
-        # touches cache.db, so there's no wasted work building a local cache that
-        # a remote-mode session will never use.
+        # Which dubIS server's data the user wants to see first (DUBIS_URL env,
+        # else preferences.json's server_url, else local — precedence unchanged,
+        # see remote_mode.py). This is NO LONGER a boot decision: the local /v1
+        # server is the hub and always boots, and this URL is handed to it in
+        # _boot_server() as the source to start ACTIVE on. The user can switch
+        # sources at runtime from there, which is the whole point — a resolved
+        # URL used to mean "don't boot a server, navigate elsewhere", and that is
+        # what made changing servers require a restart.
         #
-        # remote_base is None for today's local path — byte-identical: same free
-        # port, same _boot_server thread, same splash.html?port=<port> URL, same
-        # PnP server + mirror push wiring in on_ready/_cleanup below.
-        remote_base = resolve_remote_base_url(os.environ, api.load_preferences())
-        self.remote_base = remote_base
-        self.is_remote = remote_base is not None
+        # load_preferences() is a single small JSON read; InventoryApi.__init__
+        # above does no I/O beyond building path strings (cache.db is opened
+        # lazily by _get_cache()), so neither costs anything on the path to first
+        # paint.
+        self.initial_source_url = resolve_remote_base_url(os.environ, api.load_preferences())
 
         shell = ClientShell(api)
         self.shell = shell
@@ -238,31 +251,53 @@ class Launcher:
         # triggers it). splash.html's script carries a short empirically-tuned
         # delay before its first poll to work around that; see splash.html for
         # the full writeup and the bisection results that picked the delay.
-        self.port = int(os.environ.get("DUBIS_SERVER_PORT", 0)) or _free_port()
-
-        # Remote mode: no local server to spawn, so skip the boot thread entirely
-        # (no port bound either — port is meaningless when is_remote, only used
-        # for the splash.html?port= URL below and DUBIS_SERVER_PORT lookups, both
-        # skipped). splash.html?base=<url> polls the REMOTE /v1/health instead
-        # and navigates the webview there once it answers.
+        # ── own the hub, or attach to one that's already running ────────────
+        # Decided HERE, on the main thread, before the window exists — because
+        # the splash URL bakes in the port this window will poll, and an
+        # attached window polls the OWNER's port. Discovering the collision
+        # later (on the boot thread, where the lock is actually taken) would
+        # leave the window polling a port nothing will ever answer, and the only
+        # fix from there would be re-navigating the window from Python, which is
+        # precisely the bridge-corrupting move CLAUDE.md forbids.
         #
-        # Browser auth in remote mode: per the design (§7), humans reach the
-        # tailnet-fronted server via tailnet identity — the webview just performs
-        # a normal top-level navigation to remote_base, with no Authorization
-        # header involved (pywebview navigation can't attach custom headers
-        # cleanly, and the tailnet path doesn't need one). Bearer tokens
-        # (DUBIS_TOKEN) are for headless clients only — see tools/dubis_client/v1client.py
-        # — never injected into this webview navigation. Out of scope: a
-        # non-tailnet/token browser auth story (e.g. a `?token=` cookie
-        # bootstrap) — see the design doc's open question in §7.
-        if not self.is_remote:
+        # The cost on the path to first paint is one lock acquire+release —
+        # microseconds, stdlib-only, no uvicorn import — and a health GET only
+        # when a live owner actually exists. A normal single-instance launch
+        # does no I/O beyond that probe.
+        plan = app_launch.resolve_launch(self.api.base_dir)
+        self.attached = plan.mode == app_launch.ATTACH
+
+        if plan.mode == app_launch.BROKEN:
+            # The lock is held but nothing is serving. There is no window worth
+            # opening: it could only poll a dead port and time out 15s later
+            # behind this dialog. Say what's wrong and stop.
+            logger.error("Launch aborted: %s", plan.message)
+            _show_error_dialog("dubIS is not responding", plan.message)
+            _hard_exit(1)
+
+        if self.attached:
+            # Someone else's hub, someone else's port. No boot thread, no lock,
+            # no port file — this process starts nothing it would have to stop.
+            self.port = plan.port
+            logger.info(
+                "Attaching to the dubIS instance already serving this data "
+                "directory (pid=%s, port=%s).", plan.owner_pid, plan.port,
+            )
+        else:
+            self.port = int(os.environ.get("DUBIS_SERVER_PORT", 0)) or _free_port()
+            # The local server is the hub, so it boots on every launch that owns
+            # the data dir. There is no second ORIGIN to navigate to either way —
+            # a remote dubIS is a source the hub fetches on the page's behalf,
+            # not a place this window goes, which is what keeps the pywebview
+            # second-origin navigation race (CLAUDE.md, splash.html) out of reach
+            # by construction rather than by timing. Bearer tokens for remote
+            # sources (DUBIS_TOKEN) belong to the hub's outbound HTTP, never to
+            # this navigation.
             threading.Thread(target=self._boot_server, name="dubis-server-boot", daemon=True).start()
 
-        if self.is_remote:
-            import urllib.parse
-            splash_url = f"{SPLASH_PATH}?base={urllib.parse.quote(remote_base, safe='')}"
-        else:
-            splash_url = f"{SPLASH_PATH}?port={self.port}"
+        # Same splash either way, pointed at whichever loopback hub serves this
+        # window. It is still exactly one navigation, to one origin.
+        splash_url = app_launch.splash_url(SPLASH_PATH, self.port)
 
         window = webview.create_window(
             "dubIS",
@@ -288,7 +323,19 @@ class Launcher:
         # startup watchdog make that non-fatal. `persist_profile` is decided here so
         # the self-heal setup, on_ready's watchdog, and webview.start() all share it.
         self.webview2_profile = os.path.join(APP_DIR, "data", "webview2")
-        self.persist_profile = os.environ.get("DUBIS_WEBVIEW_PROFILE") != "ephemeral"
+        # The persistent profile is single-owner for the same reason the data dir
+        # is: it's one on-disk store, WebView2 locks its UserDataFolder per
+        # process, and the self-heal path here DELETES it wholesale. An attached
+        # window sharing it could wipe the owner's live profile mid-session (via
+        # prepare_for_launch seeing the owner's in-flight sentinel, or via
+        # _ready_watchdog's rmtree). So an attached window runs ephemeral: a
+        # colder start for the second window, and no way for it to corrupt the
+        # first. This also disables the sentinel + self-heal watchdog below,
+        # both of which are gated on persist_profile — correctly, since neither
+        # is this window's business.
+        self.persist_profile = (
+            not self.attached and os.environ.get("DUBIS_WEBVIEW_PROFILE") != "ephemeral"
+        )
         self.webview_sentinel = os.path.join(APP_DIR, "data", webview_profile.SENTINEL_FILENAME)
         # A self-heal relaunch sets DUBIS_PROFILE_HEALED=1 so a fresh profile that
         # STILL hangs can't trigger an endless relaunch loop.
@@ -343,6 +390,20 @@ class Launcher:
         try:
             from server.run import start_server, stop_server  # deferred: heavy import
 
+            # Hand the hub the source the user asked for BEFORE the app is
+            # built, so it comes up with that source already active instead of
+            # flashing local data and switching. See app_launch for the seam's
+            # contract; a URL that can't be seeded is loud but not fatal, since
+            # the hub is perfectly usable on local data and dying here would
+            # only leave the user on a splash that times out.
+            seeded = app_launch.seed_initial_active_source(self.initial_source_url)
+            if seeded == "unavailable":
+                logger.error(
+                    "Cannot start on %s: the hub's source registry (%s) is missing. "
+                    "Starting on local data instead.",
+                    self.initial_source_url, app_launch.ACTIVE_SOURCE_SEAM,
+                )
+
             self.stop_server_fn = stop_server
             v1_server = start_server(self.api, static_dir=APP_DIR, port=self.port, data_dir=self.api.base_dir)
             self.server = v1_server
@@ -361,18 +422,22 @@ class Launcher:
                 return
             bench.mark("server_started")
         except DataDirLockedError as e:
-            # Distinct from the generic except below: this is a common,
-            # user-actionable case (another dubIS instance is already
-            # running against this data dir — e.g. launched twice by
-            # accident) rather than a boot bug, so it gets a real dialog
-            # instead of just a log line splash.html's timeout silently
-            # papers over.
+            # Reaching here now means we LOST A RACE, not that a second window
+            # is forbidden: run() probed the lock before creating this window,
+            # found it free, and another dubIS took it in the milliseconds
+            # between that probe and start_server's real acquire. (The ordinary
+            # "someone else is already running" case never gets here — run()
+            # turns it into an attached window.) There is no recovery from this
+            # point: the window exists and is polling a port we'll never bind,
+            # and re-pointing it from this thread is the bridge-corrupting move
+            # CLAUDE.md forbids. So: say what happened, plainly.
             logger.error("v1 server boot failed: %s", e, exc_info=True)
             _show_error_dialog(
                 "dubIS is already running",
-                f"Another dubIS server is already running against this data "
-                f"directory (pid={e.pid}, port={e.port}).\n\n"
-                f"Close the other instance before opening a new one.",
+                f"Another dubIS instance (pid={e.pid}, port={e.port}) claimed "
+                f"this data directory a moment after this one started.\n\n"
+                f"Close this window and open dubIS again — it will open as a "
+                f"second window onto the instance that's already running.",
             )
         except Exception as e:
             logger.error("v1 server boot failed: %s", e, exc_info=True)
@@ -401,14 +466,32 @@ class Launcher:
         process exit. Idempotent — safe to call repeatedly (e.g. closing
         then closed both fire); a second call finds no server on self.server
         (or an already-released LockHandle, itself idempotent) and no-ops."""
-        # Mirror: push current inventory on shutdown (no-op unless enabled).
-        # Remote mode has no local inventory to mirror — the deployed server
-        # is the source of truth there, not this thin client's local CSVs.
-        if not self.is_remote:
+        # An attached window owns no server, no lock, no PnP port and no data:
+        # it started none of them and must stop none of them, or closing the
+        # second window would tear the hub out from under the first. The
+        # stop_server/lock steps below are already no-ops in that case (both are
+        # None — nothing ever set them), but the mirror push and api.shutdown()
+        # would NOT be: they'd write on behalf of a process that never owned the
+        # data dir. Return before either.
+        if self.attached:
             try:
-                self.api._mirror_ctl.push_event(self.api._load_organized(), dubis_running=False, block=True)
+                stop_pnp_server(self.pnp_server)  # None here; kept for symmetry
             except Exception as exc:
-                logger.warning("Mirror shutdown push failed: %s", exc)
+                logger.warning("Cleanup: stopping PnP server failed: %s", exc)
+            webview_profile.kill_child_webview_processes(os.getpid())
+            bench.mark("cache_closed")
+            return
+
+        # Mirror: push current inventory on shutdown (no-op unless enabled).
+        # Ungated: this process always owns local CSVs now, and MirrorController
+        # already gates on the `mirror_enabled` preference. The old extra gate
+        # was also half a gate — inventory_api's on_inventory_changed push never
+        # had one — so a session could stream live updates and then never send
+        # the dubis_running=False marker that closes them out.
+        try:
+            self.api._mirror_ctl.push_event(self.api._load_organized(), dubis_running=False, block=True)
+        except Exception as exc:
+            logger.warning("Mirror shutdown push failed: %s", exc)
         try:
             stop_pnp_server(self.pnp_server)
         except Exception as exc:
@@ -492,15 +575,28 @@ class Launcher:
     def on_ready(self):
         bench.mark("on_ready")  # native window shown; WebView2 runtime up
         set_icon()
-        # PnP server + mirror are local concerns (they operate on this
-        # process's local CSVs/cache); in remote mode the desktop is a thin
-        # client of the deployed server, so both are skipped entirely rather
-        # than started against a local api that isn't the source of truth.
-        if not self.is_remote:
+        # PnP server + mirror push belong to whichever process owns the data
+        # dir. For an owner they're unconditional — they were skipped when a
+        # launch spawned no local server, and the hub is always local now, so
+        # both always apply, and neither needs to know which source is active:
+        # the PnP machine and the mirror daemon talk to `self.api` (this
+        # process's CSVs/cache), which is exactly the hub's own "local" source.
+        #
+        # An attached window starts neither. PnP's port is machine-wide (one
+        # OpenPnP, one dubIS to feed it) and the owner holds it — start_pnp_server
+        # would log a port-in-use warning and return None, which is merely
+        # harmless rather than correct. The mirror is the data dir's snapshot,
+        # and this process doesn't own the data dir.
+        if self.attached:
+            threading.Thread(
+                target=self._watch_owner, name="dubis-owner-watch", daemon=True,
+            ).start()
+        else:
             self.pnp_server = start_pnp_server(self.api)
             # Expose the running server so api.start_scan_session() can mint
             # sessions on it (phone-scan transport). May be None if the port
-            # was unavailable.
+            # was unavailable — start_pnp_server already logs and returns None
+            # rather than raising when another instance holds the port.
             self.api._pnp_server = self.pnp_server
             # Mirror: push current inventory on startup (no-op unless enabled).
             try:
@@ -520,6 +616,36 @@ class Launcher:
         # X (destroy() raises FormClosing → on_closing, like the real path).
         if os.environ.get("DUBIS_BENCH_CLOSE"):
             threading.Thread(target=self._bench_auto_close, name="bench-close", daemon=True).start()
+
+    def _watch_owner(self):
+        """Attached windows only: notice when the hub serving us exits.
+
+        The alternative is a window that looks fine and fails every action with
+        a 500 — the page itself was served by a process that is now gone, so
+        nothing in it can work and nothing in it can say why. This says why.
+
+        Deliberately NOT a reconnect or failover: there is nothing to fail over
+        to. The hub held the data-dir lock; when it exits, the honest options
+        are "this window is dead, open dubIS again" (which relaunches as a fresh
+        owner) or a silent lie. The window is left open rather than closed from
+        under the user — they may want to read what's on screen — and the dialog
+        is system-modal, so it can't be missed.
+        """
+        failures = 0
+        while True:
+            time.sleep(app_launch.OWNER_POLL_SECONDS)
+            if app_launch.hub_responds(self.port):
+                failures = 0
+                continue
+            failures += 1
+            if not app_launch.owner_has_exited(failures):
+                continue
+            logger.error(
+                "The dubIS instance serving this window (port %s) stopped "
+                "answering; this window is now disconnected.", self.port,
+            )
+            _show_error_dialog(app_launch.OWNER_GONE_TITLE, app_launch.OWNER_GONE_MESSAGE)
+            return
 
     def _ready_watchdog(self):
         ready = self.ready_event.wait(WEBVIEW_READY_TIMEOUT)

@@ -634,6 +634,29 @@ def catch_up(
             if new_qty is None:
                 continue
             if adj_type == "set":
+                # `set` is the one adjustment type that can CREATE a part
+                # (inventory_ops.apply_adjustments invents a merged row for an
+                # unknown key with qty > 0; CLAUDE.md: "`set` creates parts on
+                # purpose").  Catch-up cannot do that: a new part needs a
+                # section and a sort key, which only categorize_and_sort +
+                # populate_full produce.  set_stock_quantity is an UPDATE, so
+                # it used to match no row and the part silently never appeared
+                # — the cache and a from-scratch rebuild disagreed, with no
+                # symptom until someone deleted cache.db.  Hand it back to the
+                # caller as "full rebuild needed", which is exactly what this
+                # return value is for.
+                # Found by tests/python/test_cache_catchup_properties.py;
+                # shrunk counterexample: ledger [C1000], adjustments
+                # [set C2000 1] -> full rebuild {C1000, C2000}, catch-up {C1000}.
+                # `qty > 0` mirrors apply_adjustments exactly: a `set 0` for an
+                # unknown part creates nothing there either, so forcing a
+                # rebuild for it would cost time and change no answer.
+                if qty > 0 and not conn.execute(
+                    "SELECT 1 FROM stock WHERE part_id = ?", (pn,)
+                ).fetchone():
+                    logger.info(
+                        "Catch-up saw `set` for unknown part %s — full rebuild needed", pn)
+                    return False
                 set_stock_quantity(conn, pn, new_qty)
             else:
                 apply_stock_delta(conn, pn, qty)

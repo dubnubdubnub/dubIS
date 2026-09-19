@@ -10,6 +10,7 @@ vi.mock('../../js/constants.js', () => ({
 }));
 
 vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {},
   api: vi.fn(async () => ({})),
   AppLog: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));

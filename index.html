@@ -90,6 +90,8 @@
 <link rel="stylesheet" href="css/components/ui-zoom.css">
 <link rel="stylesheet" href="css/components/panel-collapse.css">
 <link rel="stylesheet" href="css/components/servers.css">
+<link rel="stylesheet" href="css/components/server-tabs.css">
+<link rel="stylesheet" href="css/components/inv-source.css">
 <link rel="stylesheet" href="css/components/col-resize.css">
 <link rel="stylesheet" href="css/a11y.css">
 </head>
@@ -180,6 +182,23 @@
   </div>
 </div>
 
+<!-- Server quick-switcher: browser-style tabs over dubIS data sources. A tab is
+     a view INSTANCE, not a server — the same server can be open twice (each tab
+     keeps its own search/filter/sort), and a tab can name several servers at
+     once, which is a merged view of exactly those. "All" is just the degenerate
+     case of that. Rendered by js/server-tabs.js; decisions in
+     js/server-tabs-logic.js.
+     Deliberately a SIBLING of .header, not a child: .header is flex-wrap: wrap,
+     so a control inside it costs a whole extra header row at narrow widths and
+     shifts every panel down far enough to push the Import button off an 800x600
+     viewport (tests/js/e2e/resize-visibility.spec.mjs). As its own row the cost
+     is exactly this strip, and css/components/server-tabs.css hides it below the
+     documented 1200x700 minimum the same way the zoom control is hidden.
+     Starts `hidden`: with one tab and no other server configured there is
+     nothing to switch between, and an always-on row that says only "Local" would
+     cost the panels its height forever in exchange for nothing. -->
+<div class="server-tabs" id="server-tabs" role="group" aria-label="Open server tabs" hidden></div>
+
 <div class="panels">
   <!-- Left Panel: Purchase Import -->
   <div class="panel panel-import" id="panel-import">
@@ -235,6 +254,15 @@
         <button class="btn-md label-done-btn" id="label-done-btn" title="Exit label mode">Done</button>
       </div>
     </div>
+    <!-- Merged view, one server down: the fan-out degrades rather than failing
+         (server/fanout.py), so the rows below are a perfectly plausible 200
+         that is simply missing a machine's stock. Rendered by
+         js/inventory/inv-source-view.js from sourceStatusSignal; `hidden`
+         whenever nothing failed, which is every single-server view, so it
+         costs the panels no height in the normal case. Between the header and
+         the scrolling body on purpose: it qualifies every total below it and
+         must not scroll away from them. -->
+    <div class="inv-source-banner hidden" id="inv-source-banner" role="status"></div>
     <div class="panel-body" id="inventory-body"></div>
   </div>
   <div class="flyout-container" id="flyout-container"></div>
@@ -362,14 +390,13 @@
         <button class="btn btn-sm" id="pref-server-add">Add server</button>
       </div>
       <div class="server-footer">
-        <button class="btn-lg btn btn-apply" id="pref-restart">Restart to apply</button>
         <span id="pref-server-status"></span>
       </div>
       <span class="server-help">
-        &ldquo;Local&rdquo; runs dubIS&rsquo;s own server on this machine; any other entry points this
-        window at an already-deployed one. The dot is a live reachability check from
-        this window. Which server is used is decided once at launch, so a change
-        needs a restart.
+        &ldquo;Local&rdquo; runs dubIS&rsquo;s own server on this machine; any other entry is a
+        server this one fetches from on your behalf. The dot is a live reachability
+        check from this window. Choosing one switches immediately &mdash; no restart
+        &mdash; and the tab strip under the header does the same thing in one click.
       </span>
     </div>
     <div class="modal-divider"></div>

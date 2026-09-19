@@ -9,6 +9,7 @@ vi.mock('../../js/constants.js', () => ({
 
 // api.js has network side effects; stub it before importing the store.
 vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {},
   api: vi.fn(async () => ({})),
   AppLog: { warn: vi.fn(), error: vi.fn() },
 }));

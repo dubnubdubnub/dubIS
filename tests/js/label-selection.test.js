@@ -10,6 +10,7 @@ vi.mock('../../js/ui-helpers.js', () => ({
 
 const api = vi.fn().mockResolvedValue(undefined);
 vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {},
   api: (...a) => api(...a),
   AppLog: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), clear: vi.fn() },
 }));

@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // Mocks must be declared before any import that transitively loads the module.
 // vi.mock factories are hoisted — do not reference variables defined outside them.
 vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {},
   api: vi.fn(),
   AppLog: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));

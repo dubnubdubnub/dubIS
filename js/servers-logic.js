@@ -286,8 +286,9 @@ export function classifyProbe(result) {
     return { state: 'down', detail: 'unreachable' };
   }
   // Answered, but not with dubIS's health payload — something else is on that
-  // host/port. Selecting it would restart into a broken app, so "reachable" on
-  // its own would be the wrong thing to show.
+  // host/port. Selecting it now switches the hub onto a source that cannot
+  // serve an inventory, so "reachable" on its own would be the wrong thing to
+  // show.
   if (!r.dubis) return { state: 'foreign', detail: 'not dubIS' };
   return { state: 'live', detail: 'reachable' };
 }
@@ -296,20 +297,25 @@ export function classifyProbe(result) {
 export const GOOD_STATES = new Set(['active', 'live', 'dormant']);
 
 /**
- * The label under the roster: is the selection live, or waiting on a restart?
+ * The label under the roster: which server the inventory is coming from.
+ *
+ * There is no "pending" state any more, and the page's origin is no longer part
+ * of the answer. Both used to be: selecting a server wrote a preference that
+ * only `app.pyw` read, at launch, and the window was then navigated at that
+ * origin — so comparing the selection to `window.location.origin` was how you
+ * could tell a saved choice from an applied one, and "pending restart" was the
+ * honest thing to say in between.
+ *
+ * The window now always stays on the local hub and other servers are sources it
+ * fetches from, so a selection is applied by `PUT /v1/sources/active` before
+ * this label is re-rendered, and the origin says nothing about which server the
+ * data came from. A switch that FAILS never reaches here: js/server-list.js
+ * re-renders from the store, which still holds the previous selection, and
+ * toasts the reason.
  * @param {string} selectedUrl "" for local
- * @param {string} pageOrigin
- * @returns {{pending: boolean, text: string}}
+ * @returns {{text: string}}
  */
-export function selectionStatus(selectedUrl, pageOrigin) {
+export function selectionStatus(selectedUrl) {
   const selected = normalizeServerUrl(selectedUrl);
-  const origin = normalizeServerUrl(pageOrigin);
-  const originIsLoopback = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|$)/i.test(origin);
-  const pending = selected ? selected !== origin : !originIsLoopback;
-  return {
-    pending,
-    text: pending
-      ? 'pending restart — now using ' + (origin || 'an unknown origin')
-      : 'active — ' + (origin || 'the local server'),
-  };
+  return { text: 'active — ' + (selected || 'the local server') };
 }

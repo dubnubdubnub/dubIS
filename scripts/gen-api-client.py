@@ -117,6 +117,11 @@ ARG_ORDER: dict[str, list[str]] = {
     "extract_spec_from_value": ["part_type", "value_str", "package_str"],
     "fetch_distributor_product": ["name", "code"],
     "match_part": ["mpn", "manufacturer"],
+    # url first: it is the only required field, and every other one is derivable
+    # from it (id and name default to the host). Alphabetical would lead with
+    # `enabled`, which reads as though the flag were the point of the call.
+    "create_source": ["url", "id", "name", "token", "enabled"],
+    "update_source": ["source_id", "name", "url", "token", "enabled"],
     "merge_vendors": ["src_id", "dst_id"],
     "ocr_overlay": ["file_b64", "file_name", "template"],
     "parse_import_source": ["file_b64", "file_name", "path", "template"],
@@ -169,6 +174,13 @@ FINISH_MUTATION_OPERATION_IDS: set[str] = {
     "update_vendor", "delete_vendor", "merge_vendors",
     "create_purchase_order_with_items", "delete_last_purchase_order",
     "update_purchase_order", "delete_purchase_order",
+    # sources.py — the multi-server hub's roster. These publish because in
+    # `merged` mode the roster IS the inventory's shape: the merged view is the
+    # union of the enabled sources, so adding, editing, removing or switching
+    # one changes what GET /v1/parts answers.
+    # NOT set_active_source: that route saves the default-source preference and
+    # publishes nothing (server/routes/sources.py).
+    "create_source", "update_source", "delete_source",
 }
 
 # Scalar-envelope unwraps for operations whose response shape isn't the
@@ -220,6 +232,11 @@ UNWRAP_OVERRIDES: dict[str, str] = {
     # Category 2 (load-bearing, see above):
     "create_saved_search": "detail",
     "delete_saved_search": "detail",
+    # server/routes/sources.py: hand-builds the envelope rather than calling
+    # finish_mutation, because it saves the default-source PREFERENCE and
+    # publishes nothing — no data any client is showing has changed. Without
+    # this override the mutating-keyed default would give it unwrap: None.
+    "set_active_source": "detail",
     # server/routes/carts.py: hand-builds {"ok": True, "detail": ...} for every
     # mutating cart route (like create/delete_saved_search above) without
     # calling finish_mutation — none of these are in

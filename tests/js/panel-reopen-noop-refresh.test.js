@@ -35,6 +35,7 @@ vi.mock('../../js/ui-helpers.js', () => ({
 }));
 vi.mock('../../js/constants.js', () => ({ SECTION_ORDER: [], FIELDNAMES: [] }));
 vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {},
   api: vi.fn().mockResolvedValue(undefined),
   AppLog: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), clear: vi.fn() },
 }));

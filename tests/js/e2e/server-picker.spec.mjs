@@ -1,7 +1,15 @@
 // @ts-check
 /* The server picker in Preferences: the roster persists, each row's dot
-   reflects a real cross-origin /v1/health probe, and selecting a row moves the
-   selection without applying it until a restart.
+   reflects a real cross-origin /v1/health probe, and selecting a row switches
+   the server immediately — no restart.
+
+   That last part changed with the hub: the window is always served by the local
+   dubIS server and other servers are data sources it fetches from, so `Use`
+   does a `PUT /v1/sources/active` and the existing debounced inventory refresh
+   re-renders. `installSourcesRouteMocks` stands in for that route (see
+   route-mocks.mjs for why it serves both transports). `client_shell.restart_app`
+   still exists, but nothing in this picker calls it, so there is no longer a
+   "Restart to apply" button to assert on.
 
    The probe is a genuine cross-origin fetch, so the fulfilled responses below
    carry `Access-Control-Allow-Origin` exactly as server/routes/meta.py does.
@@ -16,7 +24,12 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { waitForInventoryRows } from './helpers.mjs';
-import { installRouteMocks, addPersistentPrefsRouteMock } from './route-mocks.mjs';
+import {
+  installRouteMocks,
+  addPersistentPrefsRouteMock,
+  installSourcesRouteMocks,
+  defaultSourceOnHub,
+} from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_INVENTORY = JSON.parse(
@@ -78,6 +91,7 @@ function row(page, name) {
 test.beforeEach(async ({ page }) => {
   await installRouteMocks(page, MOCK_INVENTORY);
   await addPersistentPrefsRouteMock(page);
+  await installSourcesRouteMocks(page);
   await installServerProbes(page);
   await page.goto('/index.html');
   await waitForInventoryRows(page);
@@ -127,14 +141,14 @@ test('as many servers as you want, each persisting across a reopen', async ({ pa
   await expect(page.locator('.server-row')).toHaveCount(7);
   await expect(row(page, 'Server 6')).toBeVisible();
 
-  // The roster is a scroll region, so a long list cannot push the restart
-  // button out of the modal.
+  // The roster is a scroll region, so a long list cannot push what sits under
+  // it out of the modal.
   const list = page.locator('#pref-server-list');
   const box = await list.boundingBox();
   const maxH = await list.evaluate((el) =>
     parseFloat(getComputedStyle(el).getPropertyValue('max-height')));
   expect(box.height).toBeLessThanOrEqual(maxH + 1);
-  await expect(page.locator('#pref-restart')).toBeVisible();
+  await expect(page.locator('#pref-server-status')).toBeVisible();
 });
 
 test('a URL without a scheme is refused and nothing is added', async ({ page }) => {
@@ -161,10 +175,9 @@ test('a blank name falls back to the host', async ({ page }) => {
   await expect(row(page, 'alive.example')).toBeVisible();
 });
 
-test('selecting a server moves the badge and marks the change pending', async ({ page }) => {
-  // Dialogs are auto-dismissed by Playwright, so the restart offer is declined
-  // — which is the path this test wants: the selection is saved, and nothing
-  // is applied until the user restarts.
+test('selecting a server switches to it immediately, with no restart', async ({ page }) => {
+  // This used to save a preference and offer a relaunch. It now switches the
+  // hub's active source and lets the existing debounced refresh re-render.
   await openPrefs(page);
   await addServer(page, 'Cluster', ALIVE);
   await expect(page.locator('#pref-server-status')).toContainText('active');
@@ -174,10 +187,12 @@ test('selecting a server moves the badge and marks the change pending', async ({
   await expect(row(page, 'Local').locator('.server-badge')).toHaveCount(0);
   await expect(row(page, 'Local').locator('[data-act="select"]')).toBeVisible();
 
-  // Still served from localhost, so the choice is saved but not yet in effect.
-  await expect(page.locator('#pref-server-status')).toContainText('pending restart');
-  await expect(page.locator('#pref-restart')).toHaveClass(/pending/);
-  await expect(page.locator('#toast')).toContainText(/restart/i);
+  // In effect, not pending: the hub adopted it before the badge moved.
+  await expect(page.locator('#pref-server-status')).toContainText('active — ' + ALIVE);
+  expect(await defaultSourceOnHub(page)).not.toBe('local');
+  // And nothing anywhere offers, or needs, a restart.
+  await expect(page.locator('#pref-restart')).toHaveCount(0);
+  await expect(page.locator('#pref-server-status')).not.toContainText('restart');
 });
 
 test('a selection survives closing and reopening the modal', async ({ page }) => {
@@ -187,7 +202,7 @@ test('a selection survives closing and reopening the modal', async ({ page }) =>
   await page.keyboard.press('Escape');
   await openPrefs(page);
   await expect(row(page, 'Cluster').locator('.server-badge')).toHaveText('selected');
-  await expect(page.locator('#pref-server-status')).toContainText('pending restart');
+  await expect(page.locator('#pref-server-status')).toContainText('active — ' + ALIVE);
 });
 
 test('removing the selected server falls the selection back to local', async ({ page }) => {
@@ -235,7 +250,7 @@ test('a server_url nobody added still shows as the selected row', async ({ page 
   // is to add it.
   await expect(row(page, 'alive.example').locator('[data-act="remove"]')).toHaveCount(0);
   await expect(row(page, 'alive.example').locator('[data-act="select"]')).toHaveCount(0);
-  await expect(page.locator('#pref-server-status')).toContainText('pending restart');
+  await expect(page.locator('#pref-server-status')).toContainText('active — ' + ALIVE);
 });
 
 test('the dots keep re-checking while the modal is open', async ({ page }) => {
