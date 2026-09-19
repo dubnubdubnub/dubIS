@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // AppLog spy — must be set up before DataGrid is imported so the mock is in place
 const AppLogErrorSpy = vi.fn();
 vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {},
   AppLog: {
     warn: vi.fn(),
     error: (...args) => AppLogErrorSpy(...args),

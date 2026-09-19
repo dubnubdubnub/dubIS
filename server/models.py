@@ -66,3 +66,57 @@ class FeederModel(BaseModel):
 
 class FeederListResponse(BaseModel):
     feeders: list[FeederModel]
+
+
+class SourceStatusModel(BaseModel):
+    """One roster entry as `GET /v1/sources` reports it.
+
+    The token is NEVER echoed — only `has_token`. It is a credential for another
+    server that this hub holds on the user's behalf; a GET that returned it
+    would hand it to anything that can read the roster.
+    """
+
+    id: str
+    name: str
+    url: str
+    enabled: bool
+    has_token: bool
+    # Reachable FROM THIS HUB, which is finally the honest question now that the
+    # hub is what does the fetching (the old dot in Preferences could only ask
+    # "reachable from this browser window").
+    reachable: bool
+    # Why not, in a few words — so a red dot can say something rather than just
+    # being red. Empty when `reachable`.
+    detail: str = ""
+
+
+class SourcesResponse(BaseModel):
+    # What a request with no `X-Dubis-Source` header falls back to. NOT "the
+    # server this hub is on" — the hub holds no such state; see
+    # server/dispatch.py.
+    default: str
+    # The same value under the name js/server-tabs-logic.js already reads.
+    active: str
+    sources: list[SourceStatusModel]
+
+
+class SetActiveSourceBody(BaseModel):
+    # "local" | "<source id>" | "merged"
+    source: str
+
+
+class CreateSourceBody(BaseModel):
+    url: str
+    id: str = ""
+    name: str = ""
+    token: str = ""
+    enabled: bool = True
+
+
+class UpdateSourceBody(BaseModel):
+    """Every field optional: `None` means "leave this one alone"."""
+
+    name: str | None = None
+    url: str | None = None
+    token: str | None = None
+    enabled: bool | None = None

@@ -71,6 +71,14 @@ if [ $invtypes_rc -ne 0 ]; then
     echo "  → inventory-record.d.ts stale — run \`python scripts/gen-inventory-types.py\` and commit."
 fi
 
+# 3c. property-test schema table (the JS half of the property harness reads a
+#     generated copy of domain/schema.py; same staleness contract as 3b).
+run_step "property-schema" "$PY" scripts/gen-property-schema.py --check
+propschema_rc=$?
+if [ $propschema_rc -ne 0 ]; then
+    echo "  → property schema stale — run \`python scripts/gen-property-schema.py\` and commit."
+fi
+
 # 4. manifests
 run_step "manifests" "$PY" scripts/check-manifests.py
 
@@ -107,7 +115,9 @@ run_step "eslint" npx eslint js/
 run_step "tsc" npx tsc --noEmit
 
 # 9. vitest
-run_step "vitest" npx vitest run --project core
+# `property` runs beside `core`, not instead of it: property tests are an extra
+# axis over the same pure functions, never a replacement for the example suite.
+run_step "vitest" npx vitest run --project core --project property
 
 # 10. E2E (opt-in)
 if [ "$1" = "--e2e" ]; then

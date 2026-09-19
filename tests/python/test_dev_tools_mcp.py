@@ -28,15 +28,18 @@ _JS_ROOT = _REPO_ROOT / "js"
 # ── api_callers: regression test (the bug) ────────────────────────────────────
 
 def test_api_callers_finds_adjust_part() -> None:
-    """find_api_callers must return call sites for adjust_part (string-keyed convention).
+    """find_api_callers must return call sites for adjust_part.
 
-    The real JS uses api("adjust_part", ...) in js/inventory/adjust-modal.js.
-    The old dot-notation patterns would return [] for this — that was the bug.
+    The real JS writes it through ``apiOn(src, "adjust_part", ...)``
+    (js/inventory/adjust-modal.js) so a merged view's adjustment lands on the
+    server that holds the stock.  The method name is the SECOND argument there,
+    which the string-keyed pattern alone does not match — and a reverse-mapping
+    tool that answers "no call sites" for a mutation is worse than no tool.
     """
     results = matchers.find_api_callers("adjust_part", _JS_ROOT, _REPO_ROOT)
 
     assert len(results) > 0, (
-        "find_api_callers('adjust_part') returned [] — the string-keyed pattern is broken"
+        "find_api_callers('adjust_part') returned [] — the routed-call pattern is broken"
     )
 
     # Verify the known real file appears in results
@@ -45,10 +48,24 @@ def test_api_callers_finds_adjust_part() -> None:
         f"Expected a hit in js/inventory/adjust-modal.js but got files: {files}"
     )
 
-    # Prove the string-keyed pattern is doing the work (not a legacy dot-call)
+    # Prove the routed pattern is doing the work (not a legacy dot-call)
     codes = [r["code"] for r in results]
-    assert any('api("adjust_part"' in c for c in codes), (
-        f"No hit contains api(\"adjust_part\" — string-keyed pattern not matching. codes={codes}"
+    assert any('apiOn(' in c and '"adjust_part"' in c for c in codes), (
+        f'No hit contains apiOn(..., "adjust_part" — routed pattern not matching. codes={codes}'
+    )
+
+
+def test_api_callers_finds_a_plain_string_keyed_call() -> None:
+    """The dominant convention — api("method_name", ...) — still matches.
+
+    Kept as its own test now that adjust_part is routed: this is the regression
+    the dot-notation-only patterns caused, and it must not go unguarded just
+    because the method it was originally written against moved to `apiOn`.
+    """
+    results = matchers.find_api_callers("list_generic_parts", _JS_ROOT, _REPO_ROOT)
+    codes = [r["code"] for r in results]
+    assert any('api("list_generic_parts"' in c for c in codes), (
+        f"No hit contains the string-keyed form. codes={codes}"
     )
 
 

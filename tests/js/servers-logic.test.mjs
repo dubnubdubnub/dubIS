@@ -280,19 +280,26 @@ describe('classifyProbe', () => {
 });
 
 describe('selectionStatus', () => {
-  it('is active when the selection is where the page came from', () => {
-    expect(selectionStatus('https://x.example', 'https://x.example').pending).toBe(false);
-    expect(selectionStatus('', 'http://127.0.0.1:7890').pending).toBe(false);
-    expect(selectionStatus('', 'http://localhost:7890').pending).toBe(false);
+  it('names the selected server, live', () => {
+    // Selecting used to only write a preference that app.pyw read at the next
+    // launch, so the label had to distinguish "saved" from "in effect" and said
+    // "pending restart" in between. The window now always stays on the local
+    // hub and other servers are sources it fetches from, so the selection is
+    // applied by PUT /v1/sources/active before this label is re-rendered.
+    expect(selectionStatus('https://x.example').text).toBe('active — https://x.example');
+    expect(selectionStatus('https://x.example/').text).toBe('active — https://x.example');
   });
 
-  it('is pending when a saved change has not been applied yet', () => {
-    const s = selectionStatus('https://new.example', 'http://127.0.0.1:7890');
-    expect(s.pending).toBe(true);
-    expect(s.text).toContain('http://127.0.0.1:7890');
+  it('names the local server when nothing is selected', () => {
+    expect(selectionStatus('').text).toBe('active — the local server');
+    expect(selectionStatus(undefined).text).toBe('active — the local server');
   });
 
-  it('is pending when local is selected but the page is remote', () => {
-    expect(selectionStatus('', 'https://x.example').pending).toBe(true);
+  it('has no pending state left to report', () => {
+    // There is no longer a way for a selection to be saved-but-not-applied: a
+    // switch that fails leaves the store untouched, so this label never has to
+    // describe a selection the app is not honouring.
+    expect(selectionStatus('https://x.example').pending).toBeUndefined();
+    expect(selectionStatus('').text).not.toContain('restart');
   });
 });

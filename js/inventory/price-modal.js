@@ -3,11 +3,13 @@
    Split from inv-modals.js (Task 3) so adjust and price modals can be
    maintained independently; inv-modals.js remains a thin barrel. */
 
-import { api, AppLog } from '../api.js';
+import { apiOn, AppLog } from '../api.js';
 import { showToast } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
 import { scheduleInventoryRefresh } from '../store.js';
 import { invPartKey } from '../part-keys.js';
+import { writeTarget, viewStateFrom } from './inv-source-logic.js';
+import { sourceStatusSignal } from '../signals.js';
 import { el } from '../dom/html.js';
 import { defineFormModal } from '../components/form-modal.js';
 import { createFetchController } from './fetch-controller.js';
@@ -108,11 +110,19 @@ export function initPriceModal() {
       const rawEp = parseFloat(values.ext);
       const ep = isNaN(rawEp) ? null : rawEp;
 
-      const result = await api("update_part_price", pk, up, ep);
+      // A price is a per-server fact, and a merged row shows a quantity-weighted
+      // mean of several (domain/federation.py). With one source the write is
+      // routed there; with two there is nothing honest to write, so this sends
+      // the user to Adjust, which can ask which server they mean.
+      const target = writeTarget(item, '', viewStateFrom(sourceStatusSignal.peek()));
+      if (!target.ok) { showToast(target.reason + " (use Adjust)"); return null; }
+
+      const result = await apiOn(target.sourceId, "update_part_price", pk, up, ep);
       if (!result) return null;
 
       lastPriceMeta = {
         partKey: pk,
+        sourceId: target.sourceId,
         oldUp: item.unit_price || 0,
         oldEp: item.ext_price  || 0,
         newUp: up,
@@ -130,6 +140,7 @@ export function initPriceModal() {
         return {
           _undoType: "price",
           partKey: invPartKey(item),
+          sourceId: writeTarget(item, '', viewStateFrom(sourceStatusSignal.peek())).sourceId,
           oldUp: item.unit_price || 0,
           oldEp: item.ext_price  || 0,
           newUp: isNaN(rawUp) ? null : rawUp,
@@ -178,13 +189,13 @@ export function initPriceModal() {
       return { _undoType: "price-none" };
     }
     if (data._undoType === "price") {
-      const result = await api("update_part_price", data.partKey, data.oldUp, data.oldEp);
+      const result = await apiOn(data.sourceId, "update_part_price", data.partKey, data.oldUp, data.oldEp);
       if (!result) throw new Error("Failed to undo price update");
       lastPriceMeta = null;
       scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Undid price update for " + data.partKey);
     } else if (data._undoType === "price-done") {
-      const result = await api("update_part_price", data.partKey, data.newUp, data.newEp);
+      const result = await apiOn(data.sourceId, "update_part_price", data.partKey, data.newUp, data.newEp);
       if (!result) throw new Error("Failed to redo price update");
       lastPriceMeta = { ...data };
       delete lastPriceMeta._undoType;

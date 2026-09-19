@@ -118,6 +118,9 @@ def test_hand_built_envelope_routes_resolve_to_detail_unwrap(spec: dict) -> None
     _, hand_built_envelope_op_ids = _scan_routes()
     assert hand_built_envelope_op_ids == {
         "create_saved_search", "delete_saved_search",
+        # Saves the default-source preference and publishes nothing, so it is
+        # deliberately not a finish_mutation route (server/routes/sources.py).
+        "set_active_source",
         "create_cart", "rename_cart", "delete_cart", "set_active_cart",
         "set_cart_board_count",
         "add_cart_item", "update_cart_item", "remove_cart_item", "clear_cart",

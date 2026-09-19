@@ -9,10 +9,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ── Mock all dependencies before importing the module under test ───────────
 
-vi.mock('../../js/api.js', () => ({
-  api: vi.fn(),
-  AppLog: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
+vi.mock('../../js/api.js', () => {
+  const api = vi.fn();
+  return {
+    api,
+    // Inline edit writes through apiOn() so a merged row's adjustment lands on
+    // the server that holds the stock. This mirrors the real function's
+    // pass-through: a falsy source id means "no routing needed", and the call is
+    // then identical to api()'s — which is every row in a single-server view,
+    // i.e. every row in this file's fixtures.
+    apiOn: vi.fn((sourceId, method, ...args) => api(method, ...args)),
+    AppLog: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  };
+});
 
 vi.mock('../../js/ui-helpers.js', () => ({
   showToast: vi.fn(),

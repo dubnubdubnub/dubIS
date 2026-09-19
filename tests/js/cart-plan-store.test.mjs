@@ -6,6 +6,7 @@ vi.mock('../../js/constants.js', () => ({
 
 const apiMock = vi.fn();
 vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {},
   api: (...args) => apiMock(...args),
   AppLog: { warn: vi.fn(), error: vi.fn() },
 }));

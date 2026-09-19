@@ -155,24 +155,14 @@
 #pref-server-new-name { flex: 0 0 var(--server-add-name-w); min-width: 0; }
 #pref-server-new-url  { flex: 1 1 auto; min-width: 0; }
 
-/* ── Footer ── */
+/* ── Footer ──
+   No apply button: selecting a row switches immediately (js/server-list.js ->
+   store.switchActiveSource), so the footer is only the live status line. */
 
 .server-footer {
   display: flex;
   gap: var(--server-row-gap);
   align-items: center;
-}
-
-#pref-restart {
-  padding: var(--server-row-pad-y) var(--server-row-pad-x);
-  font-size: 12px;
-}
-
-/* A selection only lands on the next launch, so the button that applies it is
-   highlighted while a change is outstanding. */
-#pref-restart.pending {
-  border-color: var(--color-yellow-border);
-  background: var(--color-yellow-bg);
 }
 
 #pref-server-status { font-size: 11px; color: var(--text-muted); }

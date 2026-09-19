@@ -123,6 +123,17 @@ function route(method, handler, { mutation = false } = {}) {
 const ROUTES = [
   route('load_preferences', (_a, ctx) => ctx.options.preferences || { thresholds: {} }),
   route('save_preferences', () => true),
+  // js/server-tabs.js asks for the source roster on every startup, so EVERY
+  // spec now issues this GET. Without a default the catch-all would 404 it,
+  // and js/api.js turns a 404 into an AppLog.error + a toast — which
+  // js/panel-collapse.js answers by force-reopening a collapsed console, i.e.
+  // a spec-visible side effect on pages that have nothing to do with servers.
+  // The default is an empty roster: one tab is not a switcher, so the strip
+  // stays hidden and no other spec's layout moves. A spec that actually
+  // exercises switching calls installSourcesRouteMocks, whose page.route
+  // handlers are registered later and therefore win over these.
+  route('list_sources', (_a, ctx) => ctx.options.sources || { default: 'local', active: 'local', sources: [] }),
+  route('set_active_source', (a) => ({ active: a.source }), { mutation: true }),
   route('rebuild_inventory', (_a, ctx) => ctx.inventory),
   route('get_warnings', () => ({
     migration: { inferred_count: 0, unknown_count: 0 },
@@ -909,4 +920,121 @@ export async function assertHttpExercised(state) {
       + 'the window.pywebview bridge instead of exercising the HTTP transport.',
     );
   }
+}
+
+// ── /v1/sources (the multi-server hub) ────────────────────────────────────
+//
+// `GET /v1/sources` and `PUT /v1/sources/active` are being added to the server
+// alongside this frontend (server/routes/sources.py, per
+// docs/plans/2026-09-19-multi-server-hub-design.md). Until they land they are
+// absent from docs/openapi-v1.json and therefore from js/api-map.js, so
+// `js/api.js`'s `api()` dispatches them to the client-shell bridge instead of
+// over HTTP.
+//
+// This installer therefore serves BOTH transports, on purpose. Today the bridge
+// stubs are what answer; the moment the routes land and js/api-map.js is
+// regenerated, `api()` will switch to `fetch` and the `page.route` handlers
+// below answer instead — with no change to the specs, and with the frontend
+// code under test identical either way. The one thing it cannot prove is the
+// wire format the real route settles on; that belongs to the server's own
+// tests.
+//
+// State lives in sessionStorage so the two transports cannot disagree, and so a
+// spec can read back which source the fake hub ended up on.
+//
+// The roster is read from the persisted preferences rather than held here,
+// mirroring the real hub: server/sources.py reads its registry out of
+// preferences.json, so a server added in the Preferences picker is a source the
+// hub knows about. Requires addPersistentPrefsRouteMock.
+
+/** sessionStorage keys shared by the two transports. */
+const SOURCES_ACTIVE_KEY = '__test_sources_active';
+const SOURCES_REACHABLE_KEY = '__test_sources_reachable';
+const SOURCES_PREFS_KEY = '__test_prefs_inv_view';
+
+/**
+ * Install a fake hub for the sources API.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {{active?: string, reachable?: Record<string, boolean>}} [options]
+ *   `active` is the source id the hub starts on; `reachable` maps a server URL
+ *   to what the hub's probe reports for it (omit a URL to leave it unprobed,
+ *   which must render as unknown rather than as down).
+ */
+export async function installSourcesRouteMocks(page, options = {}) {
+  const seed = {
+    activeKey: SOURCES_ACTIVE_KEY,
+    reachableKey: SOURCES_REACHABLE_KEY,
+    prefsKey: SOURCES_PREFS_KEY,
+    active: options.active || 'local',
+    reachable: options.reachable || {},
+  };
+
+  await page.addInitScript((cfg) => {
+    // Seeded once per page load; a switch performed by the app overwrites the
+    // active key, and a reload then starts from whatever it last wrote.
+    if (window.sessionStorage.getItem(cfg.activeKey) === null) {
+      window.sessionStorage.setItem(cfg.activeKey, cfg.active);
+    }
+    window.sessionStorage.setItem(cfg.reachableKey, JSON.stringify(cfg.reachable));
+
+    window.__sourcesRoster = () => {
+      const stored = window.sessionStorage.getItem(cfg.prefsKey);
+      const servers = stored ? (JSON.parse(stored).servers || []) : [];
+      const reachable = JSON.parse(window.sessionStorage.getItem(cfg.reachableKey) || '{}');
+      const saved = window.sessionStorage.getItem(cfg.activeKey) || 'local';
+      return {
+        // `default` is canonical — it is what a request with no X-Dubis-Source
+        // is served from, which is a saved preference and not a live "current
+        // server". `active` is the older alias, emitted by the real route too.
+        default: saved,
+        active: saved,
+        sources: servers.map((s) => {
+          const entry = { id: s.id, name: s.name, url: s.url, enabled: true };
+          if (Object.prototype.hasOwnProperty.call(reachable, s.url)) {
+            entry.reachable = reachable[s.url];
+          }
+          return entry;
+        }),
+      };
+    };
+    window.__sourcesSetActive = (id) => {
+      window.sessionStorage.setItem(cfg.activeKey, id);
+      return { active: id };
+    };
+
+    // Bridge transport: what `api()` uses while the routes are absent from
+    // js/api-map.js. Registered after addMockSetup's own init script, so it
+    // adds to the pywebview stub rather than being replaced by it.
+    window.pywebview = window.pywebview || {};
+    window.pywebview.api = window.pywebview.api || {};
+    window.pywebview.api.list_sources = async () => window.__sourcesRoster();
+    window.pywebview.api.set_active_source = async (id) => window.__sourcesSetActive(id);
+  }, seed);
+
+  // HTTP transport: takes over the moment the real routes exist and
+  // js/api-map.js maps them. Registered after installRouteMocks so these beat
+  // its `**/v1/**` catch-all (Playwright matches last-registered first).
+  await page.route('**/v1/sources/active', async (route) => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    const detail = await page.evaluate((id) => window.__sourcesSetActive(id), body.source);
+    // Enveloped like server/mutations.py's finish_mutation, which is what an
+    // `unwrap: "detail"` entry in js/api-map.js expects. A non-mutating route
+    // would read the same object raw, so this shape works either way.
+    await route.fulfill({ json: { ok: true, detail } });
+  });
+  await page.route('**/v1/sources', async (route) => {
+    await route.fulfill({ json: await page.evaluate(() => window.__sourcesRoster()) });
+  });
+}
+
+/**
+ * The hub's saved default source — what a request carrying no `X-Dubis-Source`
+ * would be served from. NOT "what the window is showing": the window names its
+ * own source on every request, which is the whole point of the header.
+ * @param {import('@playwright/test').Page} page
+ * @returns {Promise<string>}
+ */
+export function defaultSourceOnHub(page) {
+  return page.evaluate((k) => window.sessionStorage.getItem(k), SOURCES_ACTIVE_KEY);
 }

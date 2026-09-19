@@ -4,6 +4,7 @@
    bom-comparison.js, and bom-row-data.js. */
 
 import { bomKey, invPartKey } from '../part-keys.js';
+import { sourceNames } from './inv-source-logic.js';
 
 // ── Dimension fields by part type (for filter chips) ──
 
@@ -47,7 +48,12 @@ export function groupBySection(inventory) {
 export function filterByQuery(parts, query) {
   if (!query) return parts;
   return parts.filter(function (item) {
+    // Server names join the haystack so that, in a merged view, typing "bench"
+    // narrows to what is on the bench. They contribute nothing in a
+    // single-server view: sourceNames() is empty for a row that carries no
+    // provenance, so no existing search changes its result.
     var text = [item.lcsc, item.mpn, item.description, item.manufacturer, item.package, item.digikey, item.pololu, item.mouser]
+      .concat(sourceNames(item))
       .join(" ").toLowerCase();
     return text.includes(query);
   });

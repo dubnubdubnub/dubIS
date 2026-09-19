@@ -60,3 +60,6 @@ test-results/
 .venv
 scripts/ci_watcher/.venv/
 scripts/ci_watcher/*.db
+
+# Hypothesis example database (local counterexample cache; see docs/property-testing.md)
+.hypothesis/

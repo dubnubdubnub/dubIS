@@ -1,0 +1,159 @@
+/* inv-source.css — provenance on an inventory row in the merged ("All") view.
+
+     [Passives] [bench]  C1000  …            850
+     [Passives] [▸ 2 servers] [⚠]  C1001  …  1250
+       ├ bench  850
+       └ shop   400
+
+   Consumed by: js/inventory/inv-html-builders.js (the badges),
+   js/inventory/inv-source-view.js (the breakdown + the banner), index.html
+   (#inv-source-banner). Dimensions come from the --inv-source-* tokens in
+   css/tokens.css.
+
+   Why this is a separate file and not more rules in css/panels/inventory.css:
+   the layout-token guard's ignore list is keyed by FILE:LINE
+   (scripts/check-layout-tokens.ignore), so inserting rules into that file
+   renumbers every accepted hard-code below the insertion point. A new file
+   moves nothing. */
+
+/* ── The badge ──
+   Sits in the existing Group cell beside .inv-section-chip, which is the
+   established in-row provenance pattern: a real inventory COLUMN would have to
+   be registered in five hand-maintained lists that must agree, plus the two
+   e2e specs that hard-code the header-class ↔ row-selector pairs. */
+
+.inv-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--inv-source-badge-gap);
+  font-size: 9px;
+  padding: var(--inv-source-badge-pad-y) var(--inv-source-badge-pad-x);
+  border-radius: 8px;
+  background: var(--color-blue-bg);
+  color: var(--color-blue);
+  border: 1px solid var(--color-blue);
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: var(--inv-source-badge-max-w);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: inherit;
+}
+
+/* The multi-source badge is a <button>: it expands the breakdown, so it has to
+   be focusable and operable from the keyboard like every other in-row
+   expander. The single-source one is a <span> — it is a label, not a control. */
+button.inv-source-badge { cursor: pointer; }
+button.inv-source-badge:hover { background: var(--bg-hover); }
+button.inv-source-badge:focus-visible { outline: 2px solid var(--color-blue); outline-offset: 1px; }
+
+.inv-source-badge .chevron {
+  display: inline-block;
+  transition: transform 0.12s;
+}
+.inv-source-badge[aria-expanded="true"] .chevron { transform: rotate(90deg); }
+
+/* ── The conflict mark ──
+   Two servers held different non-empty values and the merge picked one
+   (first-non-empty in source order, domain/federation.py). Yellow, not red:
+   nothing is broken and no data was lost — the row is showing one server's
+   answer and this is it saying so. */
+
+.inv-conflict-chip {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--color-yellow);
+  cursor: help;
+}
+
+/* The cell that actually disagrees, so the mark can be traced to a value rather
+   than just to a row. Underline rather than a colour swap: the MPN and the
+   description already carry meaning through colour.
+
+   Keyed off `data-conflict` and not a class, because two tests match the exact
+   strings `class="part-mpn"` / `class="part-desc-inner"` in the row builder's
+   source (tests/js/style-audit.test.js pins the line-clamp contract that way),
+   and an appended class would break them for no gain. */
+.inv-part-row .part-mpn[data-conflict],
+.inv-part-row .part-desc-inner[data-conflict] {
+  text-decoration: underline dotted var(--color-yellow);
+  text-underline-offset: 2px;
+}
+
+/* ── The per-source breakdown ──
+   A SIBLING of the row, inserted after it by js/inventory/inv-source-view.js.
+   It cannot be a child: .inv-part-row is `max-height: 64px; overflow: hidden`
+   (css/panels/inventory.css), which would clip it away entirely. */
+
+.inv-source-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--inv-source-breakdown-gap);
+  padding: var(--inv-source-breakdown-pad-y) var(--inv-source-breakdown-pad-x);
+  padding-left: var(--inv-source-breakdown-indent);
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--bg-hover);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.inv-source-line {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--inv-source-badge-gap);
+}
+
+.inv-source-line-name { color: var(--text-secondary); }
+
+.inv-source-line-qty {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ── "These totals are incomplete" ──
+   A merged fetch answers 200 even when a source is unreachable: the fan-out
+   degrades rather than failing (server/fanout.py), so the rows below are a
+   plausible-looking view that is missing a whole machine's stock. This is the
+   only thing on screen that says so, which is why it sits between the panel
+   header and the scrolling body rather than inside the scroll.
+
+   Hidden whenever nothing failed — i.e. in every single-server view — so it
+   costs the three panels no height at all in the normal case, and cannot push
+   the Import button off an 800x600 viewport the way a permanent row would
+   (tests/js/e2e/resize-visibility.spec.mjs). */
+
+.inv-source-banner {
+  flex: 0 0 auto;
+  padding: var(--inv-source-banner-pad-y) var(--inv-source-banner-pad-x);
+  background: var(--color-yellow-bg);
+  color: var(--color-yellow);
+  border-bottom: 1px solid var(--color-yellow);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inv-source-banner.hidden { display: none; }
+
+/* The Adjust modal's "which server" chooser. Only rendered for a row whose
+   stock is split across servers — see js/inventory/adjust-modal.js. */
+.adj-source-select {
+  width: 100%;
+  padding: var(--inv-source-badge-pad-y) var(--inv-source-badge-pad-x);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+/* Why the chooser is open on a row that names only one server: the view is
+   degraded, so "one server" means "one server answered". */
+.adj-source-warn {
+  margin-top: var(--inv-source-badge-pad-y);
+  color: var(--color-yellow);
+  font-size: 11px;
+}

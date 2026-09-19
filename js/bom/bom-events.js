@@ -2,11 +2,13 @@
    Extracted from init() to keep bom-panel.js focused on core logic. */
 
 import { EventBus, Events } from '../event-bus.js';
-import { api, AppLog } from '../api.js';
+import { api, apiOn, AppLog } from '../api.js';
 import { showToast, escHtml, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
 import { store, setBomDirty, setBomResults, setBomMeta, scheduleInventoryRefresh, savePreferences } from '../store.js';
-import { bomAggKey } from '../part-keys.js';
+import { bomAggKey, invPartKey } from '../part-keys.js';
+import { writeTargetForAll, viewStateFrom } from '../inventory/inv-source-logic.js';
+import { sourceStatusSignal } from '../signals.js';
 import { generateCSV } from '../csv-parser.js';
 import { computeRows, prepareConsumption, buildMissingCartEntries } from './bom-logic.js';
 import { addBomMissing, setBoardCount } from '../cart/cart-store.js';
@@ -162,8 +164,27 @@ export function setupEvents(handlers) {
       return;
     }
 
+    // Which server this consume lands on. One request, one server: the hub
+    // serves a write from exactly one source and refuses a set (400,
+    // server/sources.py). So a consume whose parts are spread over two servers
+    // has to stop here — splitting it into two requests would mean two writes
+    // that can fail independently, i.e. a half-consumed BOM with no transaction
+    // to roll it back. The modal stays open so the user can switch to one
+    // server's tab and consume there.
+    const consumeKeys = new Set(matches.map((m) => m.part_key));
+    const consumeItems = (state.lastResults || [])
+      .filter((r) => r.inv && consumeKeys.has(invPartKey(r.inv)))
+      .map((r) => r.inv);
+    const target = writeTargetForAll(consumeItems, viewStateFrom(sourceStatusSignal.peek()));
+    if (!target.ok) {
+      showToast(target.reason);
+      AppLog.warn("Consume cancelled: " + target.reason);
+      return;
+    }
+
     UndoRedo.save("consume", {
       _undoType: "consume",
+      sourceId: target.sourceId,
       adjustmentCount: matches.length,
       matches: matches,
       mult: mult,
@@ -179,13 +200,14 @@ export function setupEvents(handlers) {
     // fallback (inventory_api.consume_bom / domain.api_inventory's
     // _ensure_parsed) already accepts either a list or a JSON string, so the
     // array works unchanged over both transports.
-    const result = await api("consume_bom", matches, mult, state.lastFileName, note);
+    const result = await apiOn(target.sourceId, "consume_bom", matches, mult, state.lastFileName, note);
     if (!result) {
       UndoRedo.popLast();
       return;
     }
     state.lastConsumeMeta = {
       matches: matches,
+      sourceId: target.sourceId,
       mult: mult,
       bomName: state.lastFileName,
       note: note,
@@ -296,16 +318,17 @@ export function setupEvents(handlers) {
       return { _undoType: "consume-none" };
     }
     if (data._undoType === "consume") {
-      const result = await api("remove_last_adjustments", data.adjustmentCount);
+      const result = await apiOn(data.sourceId, "remove_last_adjustments", data.adjustmentCount);
       if (!result) throw new Error("Failed to undo consume");
       state.lastConsumeMeta = null;
       scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Undid consume of " + data.adjustmentCount + " parts");
     } else if (data._undoType === "consume-done") {
-      const result = await api("consume_bom", data.matches, data.mult, data.bomName, data.note);
+      const result = await apiOn(data.sourceId, "consume_bom", data.matches, data.mult, data.bomName, data.note);
       if (!result) throw new Error("Failed to redo consume");
       state.lastConsumeMeta = {
         matches: data.matches,
+        sourceId: data.sourceId,
         mult: data.mult,
         bomName: data.bomName,
         note: data.note,

@@ -7,6 +7,8 @@
 
 ```mermaid
 graph LR
+    "app_launch.py" --> "dubis_errors.py"
+    "app_launch.py" --> "server/lockfile.py"
     "base_client.py" --> "dubis_errors.py"
     "cache_db.py" --> "domain/pricing.py"
     "cache_db.py" --> "domain/schema.py"
@@ -67,6 +69,8 @@ graph LR
     "domain/attributes.py" --> "domain/attribute_parse.py"
     "domain/attributes.py" --> "domain/pricing.py"
     "domain/cart_plan.py" --> "domain/purchase_candidates.py"
+    "domain/federation.py" --> "domain/schema.py"
+    "domain/federation.py" --> "dubis_errors.py"
     "domain/feeders.py" --> "csv_io.py"
     "domain/generic_parts.py" --> "csv_io.py"
     "domain/generic_parts.py" --> "dubis_errors.py"
@@ -161,6 +165,7 @@ graph LR
     "js/app-init.js" --> "js/part-preview.js"
     "js/app-init.js" --> "js/preferences-modal.js"
     "js/app-init.js" --> "js/resize-panels.js"
+    "js/app-init.js" --> "js/server-tabs.js"
     "js/app-init.js" --> "js/sse.js"
     "js/app-init.js" --> "js/store.js"
     "js/app-init.js" --> "js/text-popover.js"
@@ -177,7 +182,9 @@ graph LR
     "js/bom/bom-events.js" --> "js/cart/cart-store.js"
     "js/bom/bom-events.js" --> "js/csv-parser.js"
     "js/bom/bom-events.js" --> "js/event-bus.js"
+    "js/bom/bom-events.js" --> "js/inventory/inv-source-logic.js"
     "js/bom/bom-events.js" --> "js/part-keys.js"
+    "js/bom/bom-events.js" --> "js/signals.js"
     "js/bom/bom-events.js" --> "js/store.js"
     "js/bom/bom-events.js" --> "js/ui-helpers.js"
     "js/bom/bom-events.js" --> "js/undo-redo.js"
@@ -337,7 +344,9 @@ graph LR
     "js/import/mfg-direct/vendor-picker.js" --> "js/ui-helpers.js"
     "js/inventory/adjust-modal.js" --> "js/api.js"
     "js/inventory/adjust-modal.js" --> "js/inventory/fetch-controller.js"
+    "js/inventory/adjust-modal.js" --> "js/inventory/inv-source-logic.js"
     "js/inventory/adjust-modal.js" --> "js/part-keys.js"
+    "js/inventory/adjust-modal.js" --> "js/signals.js"
     "js/inventory/adjust-modal.js" --> "js/store.js"
     "js/inventory/adjust-modal.js" --> "js/ui-helpers.js"
     "js/inventory/adjust-modal.js" --> "js/undo-redo.js"
@@ -358,6 +367,7 @@ graph LR
     "js/inventory/filter-chips-bar.js" --> "js/store.js"
     "js/inventory/filter-chips-bar.js" --> "js/ui-zoom.js"
     "js/inventory/filter-chips-fields.js" --> "js/components/predicate-ui.js"
+    "js/inventory/filter-chips-fields.js" --> "js/inventory/inv-source-logic.js"
     "js/inventory/filter-chips-fields.js" --> "js/inventory/inventory-logic.js"
     "js/inventory/inv-bom-mode.js" --> "js/inventory/inv-events.js"
     "js/inventory/inv-bom-mode.js" --> "js/inventory/inv-html-builders.js"
@@ -396,13 +406,16 @@ graph LR
     "js/inventory/inv-groups-view.js" --> "js/ui-helpers.js"
     "js/inventory/inv-html-builders.js" --> "js/col-resize-logic.js"
     "js/inventory/inv-html-builders.js" --> "js/inventory/favicon-stack.js"
+    "js/inventory/inv-html-builders.js" --> "js/inventory/inv-source-logic.js"
     "js/inventory/inv-html-builders.js" --> "js/label-selection.js"
     "js/inventory/inv-html-builders.js" --> "js/part-keys.js"
     "js/inventory/inv-html-builders.js" --> "js/ui-helpers.js"
     "js/inventory/inv-import-markers.js" --> "js/inventory/inv-state.js"
     "js/inventory/inv-inline-edit.js" --> "js/api.js"
     "js/inventory/inv-inline-edit.js" --> "js/inventory/inv-events.js"
+    "js/inventory/inv-inline-edit.js" --> "js/inventory/inv-source-logic.js"
     "js/inventory/inv-inline-edit.js" --> "js/part-keys.js"
+    "js/inventory/inv-inline-edit.js" --> "js/signals.js"
     "js/inventory/inv-inline-edit.js" --> "js/store.js"
     "js/inventory/inv-inline-edit.js" --> "js/ui-helpers.js"
     "js/inventory/inv-inline-edit.js" --> "js/undo-redo.js"
@@ -425,10 +438,17 @@ graph LR
     "js/inventory/inv-row-build.js" --> "js/inventory/inv-inline-edit.js"
     "js/inventory/inv-row-build.js" --> "js/inventory/inv-modals.js"
     "js/inventory/inv-row-build.js" --> "js/inventory/inv-mutations.js"
+    "js/inventory/inv-row-build.js" --> "js/inventory/inv-source-view.js"
     "js/inventory/inv-row-build.js" --> "js/inventory/inv-state.js"
     "js/inventory/inv-row-build.js" --> "js/label-selection.js"
     "js/inventory/inv-row-build.js" --> "js/part-keys.js"
     "js/inventory/inv-row-build.js" --> "js/store.js"
+    "js/inventory/inv-source-view.js" --> "js/inventory/inv-source-logic.js"
+    "js/inventory/inv-source-view.js" --> "js/inventory/inv-state.js"
+    "js/inventory/inv-source-view.js" --> "js/part-keys.js"
+    "js/inventory/inv-source-view.js" --> "js/signals.js"
+    "js/inventory/inv-source-view.js" --> "js/store.js"
+    "js/inventory/inv-source-view.js" --> "js/ui-helpers.js"
     "js/inventory/inv-tree-render.js" --> "js/inventory/filter-chips-fields.js"
     "js/inventory/inv-tree-render.js" --> "js/inventory/inv-groups-view.js"
     "js/inventory/inv-tree-render.js" --> "js/inventory/inv-row-build.js"
@@ -437,6 +457,7 @@ graph LR
     "js/inventory/inv-tree-render.js" --> "js/inventory/inventory-logic.js"
     "js/inventory/inv-tree-render.js" --> "js/store.js"
     "js/inventory/inv-tree-render.js" --> "js/ui-helpers.js"
+    "js/inventory/inventory-logic.js" --> "js/inventory/inv-source-logic.js"
     "js/inventory/inventory-logic.js" --> "js/part-keys.js"
     "js/inventory/inventory-panel.js" --> "js/col-resize.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/filter-chips-bar.js"
@@ -445,6 +466,7 @@ graph LR
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-html-builders.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-import-markers.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-row-build.js"
+    "js/inventory/inventory-panel.js" --> "js/inventory/inv-source-view.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-state.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inv-tree-render.js"
     "js/inventory/inventory-panel.js" --> "js/inventory/inventory-logic.js"
@@ -455,7 +477,9 @@ graph LR
     "js/inventory/price-modal.js" --> "js/components/form-modal.js"
     "js/inventory/price-modal.js" --> "js/dom/html.js"
     "js/inventory/price-modal.js" --> "js/inventory/fetch-controller.js"
+    "js/inventory/price-modal.js" --> "js/inventory/inv-source-logic.js"
     "js/inventory/price-modal.js" --> "js/part-keys.js"
+    "js/inventory/price-modal.js" --> "js/signals.js"
     "js/inventory/price-modal.js" --> "js/store.js"
     "js/inventory/price-modal.js" --> "js/ui-helpers.js"
     "js/inventory/price-modal.js" --> "js/undo-redo.js"
@@ -500,15 +524,25 @@ graph LR
     "js/preferences-modal.js" --> "js/store.js"
     "js/preferences-modal.js" --> "js/ui-helpers.js"
     "js/resize-panels.js" --> "js/ui-zoom.js"
-    "js/server-list.js" --> "js/api.js"
     "js/server-list.js" --> "js/server-probe.js"
+    "js/server-list.js" --> "js/server-tabs.js"
     "js/server-list.js" --> "js/servers-logic.js"
     "js/server-list.js" --> "js/store.js"
     "js/server-list.js" --> "js/ui-helpers.js"
+    "js/server-tabs-logic.js" --> "js/servers-logic.js"
+    "js/server-tabs.js" --> "js/api.js"
+    "js/server-tabs.js" --> "js/inventory/inv-state.js"
+    "js/server-tabs.js" --> "js/inventory/saved-views.js"
+    "js/server-tabs.js" --> "js/server-tabs-logic.js"
+    "js/server-tabs.js" --> "js/signals.js"
+    "js/server-tabs.js" --> "js/store.js"
+    "js/server-tabs.js" --> "js/ui-helpers.js"
+    "js/server-tabs.js" --> "js/ui-zoom.js"
     "js/sse.js" --> "js/api.js"
     "js/store.js" --> "js/api.js"
     "js/store.js" --> "js/constants.js"
     "js/store.js" --> "js/event-bus.js"
+    "js/store.js" --> "js/server-tabs-logic.js"
     "js/store.js" --> "js/servers-logic.js"
     "js/store.js" --> "js/signals.js"
     "js/store.js" --> "js/sse.js"
@@ -571,6 +605,7 @@ graph LR
     "scripts/ci_watcher/worker.py" --> "scripts/ci_watcher/triage_payload.py"
     "scripts/gen-inventory-types.py" --> "domain/schema.py"
     "scripts/gen-openapi.py" --> "server/app.py"
+    "scripts/gen-property-schema.py" --> "domain/schema.py"
     "scripts/generate-test-fixtures.py" --> "csv_io.py"
     "scripts/generate-test-fixtures.py" --> "inventory_api.py"
     "scripts/generate-test-fixtures.py" --> "inventory_ops.py"
@@ -585,13 +620,26 @@ graph LR
     "server/__main__.py" --> "server/lockfile.py"
     "server/__main__.py" --> "server/run.py"
     "server/app.py" --> "server/auth.py"
+    "server/app.py" --> "server/dispatch.py"
     "server/app.py" --> "server/errors.py"
     "server/app.py" --> "server/routes/__init__.py"
+    "server/app.py" --> "server/sources.py"
+    "server/dispatch.py" --> "domain/federation.py"
+    "server/dispatch.py" --> "dubis_errors.py"
+    "server/dispatch.py" --> "server/__init__.py"
+    "server/dispatch.py" --> "server/errors.py"
+    "server/dispatch.py" --> "server/sources.py"
+    "server/errors.py" --> "domain/federation.py"
     "server/errors.py" --> "dubis_errors.py"
     "server/errors.py" --> "server/auth.py"
+    "server/fanout.py" --> "server/proxy.py"
+    "server/fanout.py" --> "server/sources.py"
     "server/lockfile.py" --> "dubis_errors.py"
     "server/models.py" --> "domain/schema.py"
     "server/mutations.py" --> "server/__init__.py"
+    "server/mutations.py" --> "server/sources.py"
+    "server/proxy.py" --> "dubis_errors.py"
+    "server/proxy.py" --> "server/sources.py"
     "server/routes/auth.py" --> "server/auth.py"
     "server/routes/carts.py" --> "server/__init__.py"
     "server/routes/events.py" --> "server/__init__.py"
@@ -608,10 +656,15 @@ graph LR
     "server/routes/pnp.py" --> "pnp_part_map.py"
     "server/routes/pnp.py" --> "server/__init__.py"
     "server/routes/pnp.py" --> "server/auth.py"
+    "server/routes/preferences.py" --> "server/sources.py"
+    "server/routes/sources.py" --> "server/__init__.py"
+    "server/routes/sources.py" --> "server/models.py"
+    "server/routes/sources.py" --> "server/mutations.py"
     "server/routes/vendors_pos.py" --> "purchase_orders.py"
     "server/routes/vendors_pos.py" --> "server/mutations.py"
     "server/run.py" --> "server/app.py"
     "server/run.py" --> "server/lockfile.py"
+    "server/sources.py" --> "dubis_errors.py"
     "spec_extractor.py" --> "categorize.py"
     "tests/js/api-client.test.js" --> "js/api.js"
     "tests/js/api-client.test.js" --> "js/ui-helpers.js"
@@ -772,26 +825,56 @@ graph LR
     "tests/python/server/test_main_flags.py" --> "tests/python/helpers.py"
     "tests/python/server/test_models.py" --> "domain/schema.py"
     "tests/python/server/test_models.py" --> "server/models.py"
+    "tests/python/server/test_multi_server_adversarial.py" --> "dubis_errors.py"
+    "tests/python/server/test_multi_server_adversarial.py" --> "server/__init__.py"
+    "tests/python/server/test_multi_server_adversarial.py" --> "server/app.py"
+    "tests/python/server/test_multi_server_adversarial.py" --> "server/proxy.py"
+    "tests/python/server/test_multi_server_adversarial.py" --> "tests/python/helpers.py"
+    "tests/python/server/test_multi_server_adversarial.py" --> "tests/python/strategies.py"
     "tests/python/server/test_mutation_publishes.py" --> "server/app.py"
     "tests/python/server/test_openpnp_routes.py" --> "domain/__init__.py"
     "tests/python/server/test_openpnp_routes.py" --> "server/app.py"
     "tests/python/server/test_openpnp_routes.py" --> "tests/python/helpers.py"
     "tests/python/server/test_parts_read.py" --> "tests/python/helpers.py"
     "tests/python/server/test_pnp_routes.py" --> "server/__init__.py"
+    "tests/python/server/test_source_dispatch.py" --> "domain/__init__.py"
+    "tests/python/server/test_source_dispatch.py" --> "domain/federation.py"
+    "tests/python/server/test_source_dispatch.py" --> "dubis_errors.py"
+    "tests/python/server/test_source_dispatch.py" --> "server/__init__.py"
+    "tests/python/server/test_source_dispatch.py" --> "server/app.py"
+    "tests/python/server/test_source_dispatch.py" --> "server/dispatch.py"
+    "tests/python/server/test_source_dispatch.py" --> "tests/python/helpers.py"
+    "tests/python/server/test_sources_registry.py" --> "app_launch.py"
+    "tests/python/server/test_sources_registry.py" --> "dubis_errors.py"
+    "tests/python/server/test_sources_registry.py" --> "remote_mode.py"
+    "tests/python/server/test_sources_registry.py" --> "server/__init__.py"
+    "tests/python/server/test_sources_registry.py" --> "server/proxy.py"
+    "tests/python/server/test_sources_registry.py" --> "tests/python/helpers.py"
+    "tests/python/server/test_sources_routes.py" --> "server/__init__.py"
+    "tests/python/server/test_sources_routes.py" --> "server/app.py"
+    "tests/python/server/test_sources_routes.py" --> "tests/python/helpers.py"
     "tests/python/server/test_static_serving.py" --> "server/app.py"
     "tests/python/server/test_v1_surface.py" --> "server/app.py"
     "tests/python/server/test_vendors_pos_routes.py" --> "purchase_orders.py"
     "tests/python/server/test_vendors_pos_routes.py" --> "server/__init__.py"
     "tests/python/server/test_vendors_pos_routes.py" --> "vendors.py"
+    "tests/python/strategies.py" --> "domain/__init__.py"
+    "tests/python/strategies.py" --> "domain/schema.py"
     "tests/python/test_api_mirror.py" --> "tests/python/helpers.py"
     "tests/python/test_api_surface.py" --> "client_shell.py"
     "tests/python/test_api_surface.py" --> "inventory_api.py"
+    "tests/python/test_app_launch.py" --> "app_launch.py"
+    "tests/python/test_app_launch.py" --> "remote_mode.py"
+    "tests/python/test_app_launch.py" --> "server/lockfile.py"
     "tests/python/test_app_mirror_hooks.py" --> "tests/python/helpers.py"
     "tests/python/test_app_restart.py" --> "app_restart.py"
     "tests/python/test_base_client.py" --> "base_client.py"
     "tests/python/test_base_client.py" --> "dubis_errors.py"
     "tests/python/test_browser_page.py" --> "browser_page.py"
     "tests/python/test_browser_page.py" --> "mouser_client.py"
+    "tests/python/test_cache_catchup_properties.py" --> "cache_db.py"
+    "tests/python/test_cache_catchup_properties.py" --> "domain/inventory.py"
+    "tests/python/test_cache_catchup_properties.py" --> "inventory_api.py"
     "tests/python/test_cache_db.py" --> "cache_db.py"
     "tests/python/test_cache_db.py" --> "carts.py"
     "tests/python/test_cache_db.py" --> "domain/pricing.py"
@@ -860,7 +943,14 @@ graph LR
     "tests/python/test_dubis_client.py" --> "tests/python/helpers.py"
     "tests/python/test_dubis_client.py" --> "tests/python/server/conftest.py"
     "tests/python/test_dubis_errors.py" --> "dubis_errors.py"
+    "tests/python/test_federation.py" --> "domain/federation.py"
+    "tests/python/test_federation.py" --> "domain/schema.py"
+    "tests/python/test_federation_properties.py" --> "domain/federation.py"
+    "tests/python/test_federation_properties.py" --> "domain/schema.py"
+    "tests/python/test_federation_properties.py" --> "tests/python/strategies.py"
     "tests/python/test_file_dialogs.py" --> "file_dialogs.py"
+    "tests/python/test_gen_property_schema.py" --> "domain/schema.py"
+    "tests/python/test_gen_property_schema.py" --> "tests/python/strategies.py"
     "tests/python/test_html_product_parser.py" --> "html_product_parser.py"
     "tests/python/test_install_tesseract.py" --> "inventory_api.py"
     "tests/python/test_install_tesseract.py" --> "ocr_engine.py"
@@ -964,6 +1054,11 @@ graph LR
 
 ## Per-file index
 
+### app_launch.py
+
+- **Imports:** `dubis_errors.py`, `server/lockfile.py`
+- **Imported by:** `tests/python/server/test_sources_registry.py`, `tests/python/test_app_launch.py`
+
 ### app_restart.py
 
 - **Imports:** —
@@ -987,7 +1082,7 @@ graph LR
 ### cache_db.py
 
 - **Imports:** `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`
-- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `server/routes/meta.py`, `tests/python/conftest.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_db.py`, `tests/python/test_carts.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_saved_searches.py`
+- **Imported by:** `domain/inventory.py`, `inventory_api.py`, `server/routes/meta.py`, `tests/python/conftest.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/domain/test_pricing.py`, `tests/python/test_cache_catchup_properties.py`, `tests/python/test_cache_db.py`, `tests/python/test_carts.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_saved_searches.py`
 
 ### cart_export.py
 
@@ -1062,7 +1157,7 @@ graph LR
 ### domain/__init__.py
 
 - **Imports:** —
-- **Imported by:** `domain/api_cart.py`, `domain/inventory.py`, `inventory_ops.py`, `server/routes/feeders.py`, `server/routes/openpnp.py`, `tests/python/domain/test_feeders.py`, `tests/python/domain/test_part_registry.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_openpnp_routes.py`
+- **Imported by:** `domain/api_cart.py`, `domain/inventory.py`, `inventory_ops.py`, `server/routes/feeders.py`, `server/routes/openpnp.py`, `tests/python/domain/test_feeders.py`, `tests/python/domain/test_part_registry.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/strategies.py`
 
 ### domain/api_attributes.py
 
@@ -1149,6 +1244,11 @@ graph LR
 - **Imports:** `domain/purchase_candidates.py`
 - **Imported by:** `tests/python/domain/test_cart_plan.py`
 
+### domain/federation.py
+
+- **Imports:** `domain/schema.py`, `dubis_errors.py`
+- **Imported by:** `server/dispatch.py`, `server/errors.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/test_federation.py`, `tests/python/test_federation_properties.py`
+
 ### domain/feeders.py
 
 - **Imports:** `csv_io.py`
@@ -1162,7 +1262,7 @@ graph LR
 ### domain/inventory.py
 
 - **Imports:** `cache_db.py`, `carts.py`, `csv_io.py`, `domain/__init__.py`, `domain/attributes.py`, `domain/generic_parts.py`, `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`, `saved_searches.py`
-- **Imported by:** `domain/api_inventory.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/test_concurrency_locks.py`
+- **Imported by:** `domain/api_inventory.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/test_cache_catchup_properties.py`, `tests/python/test_concurrency_locks.py`
 
 ### domain/packages.py
 
@@ -1202,12 +1302,12 @@ graph LR
 ### domain/schema.py
 
 - **Imports:** —
-- **Imported by:** `cache_db.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/inventory.py`, `inventory_ops.py`, `scripts/gen-inventory-types.py`, `server/models.py`, `tests/python/server/test_models.py`, `tests/python/test_cache_db.py`
+- **Imported by:** `cache_db.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/federation.py`, `domain/inventory.py`, `inventory_ops.py`, `scripts/gen-inventory-types.py`, `scripts/gen-property-schema.py`, `server/models.py`, `tests/python/server/test_models.py`, `tests/python/strategies.py`, `tests/python/test_cache_db.py`, `tests/python/test_federation.py`, `tests/python/test_federation_properties.py`, `tests/python/test_gen_property_schema.py`
 
 ### dubis_errors.py
 
 - **Imports:** —
-- **Imported by:** `base_client.py`, `carts.py`, `digikey_client.py`, `domain/generic_parts.py`, `domain/part_registry.py`, `server/__main__.py`, `server/errors.py`, `server/lockfile.py`, `server/routes/mirror.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/test_base_client.py`, `tests/python/test_carts.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_dubis_errors.py`
+- **Imported by:** `app_launch.py`, `base_client.py`, `carts.py`, `digikey_client.py`, `domain/federation.py`, `domain/generic_parts.py`, `domain/part_registry.py`, `server/__main__.py`, `server/dispatch.py`, `server/errors.py`, `server/lockfile.py`, `server/proxy.py`, `server/routes/mirror.py`, `server/sources.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/test_base_client.py`, `tests/python/test_carts.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_dubis_errors.py`
 
 ### file_dialogs.py
 
@@ -1222,7 +1322,7 @@ graph LR
 ### inventory_api.py
 
 - **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_attributes.py`, `domain/api_cart.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/api_mirror.py`, `domain/api_predicates.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`, `mirror_push.py`
-- **Imported by:** `client_shell.py`, `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `server/__main__.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/server/test_main_flags.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`, `tests/python/test_request_restart.py`
+- **Imported by:** `client_shell.py`, `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `server/__main__.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/server/test_main_flags.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_catchup_properties.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`, `tests/python/test_request_restart.py`
 
 ### inventory_mirror.py
 
@@ -1277,11 +1377,11 @@ graph LR
 ### js/api.js
 
 - **Imports:** `js/api-map.js`, `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-add.js`, `js/cart/cart-export.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/col-resize.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/hover-affordance.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-scan-session.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/server-list.js`, `js/sse.js`, `js/store.js`, `js/text-popover.js`, `js/ui-zoom-control.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/command-palette.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-add.js`, `js/cart/cart-export.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/col-resize.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/hover-affordance.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-scan-session.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/server-tabs.js`, `js/sse.js`, `js/store.js`, `js/text-popover.js`, `js/ui-zoom-control.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/command-palette.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`
 
 ### js/app-init.js
 
-- **Imports:** `js/a11y/keyboard-nav.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/api.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-header.js`, `js/cart/cart-store.js`, `js/col-resize.js`, `js/components/command-palette.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory/fetch-descriptions-command.js`, `js/inventory/inv-modals.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/panel-collapse.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/sse.js`, `js/store.js`, `js/text-popover.js`, `js/ui-helpers.js`, `js/ui-zoom-control.js`, `js/ui-zoom.js`, `js/undo-redo.js`, `js/vendors-modal.js`
+- **Imports:** `js/a11y/keyboard-nav.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/api.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-header.js`, `js/cart/cart-store.js`, `js/col-resize.js`, `js/components/command-palette.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory/fetch-descriptions-command.js`, `js/inventory/inv-modals.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-panel.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/matching.js`, `js/panel-collapse.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/resize-panels.js`, `js/server-tabs.js`, `js/sse.js`, `js/store.js`, `js/text-popover.js`, `js/ui-helpers.js`, `js/ui-zoom-control.js`, `js/ui-zoom.js`, `js/undo-redo.js`, `js/vendors-modal.js`
 - **Imported by:** —
 - **Emits:** `SAVE_AND_CLOSE`
 - **Listens:** `BOM_CLEARED`, `BOM_LOADED`, `CONFIRMED_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LABEL_MODE`, `LINKING_MODE`, `LINKS_CHANGED`, `PO_CHANGED`
@@ -1293,7 +1393,7 @@ graph LR
 
 ### js/bom/bom-events.js
 
-- **Imports:** `js/api.js`, `js/bom/bom-logic.js`, `js/bom/bom-state.js`, `js/cart/cart-store.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
+- **Imports:** `js/api.js`, `js/bom/bom-logic.js`, `js/bom/bom-state.js`, `js/cart/cart-store.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/inventory/inv-source-logic.js`, `js/part-keys.js`, `js/signals.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
 - **Imported by:** `js/app-init.js`, `js/bom/bom-panel.js`
 - **Emits:** `BOM_CLEARED`
 - **Listens:** `CONFIRMED_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LINKING_MODE`, `LINKS_CHANGED`, `SAVE_AND_CLOSE`
@@ -1561,7 +1661,7 @@ graph LR
 
 ### js/inventory/adjust-modal.js
 
-- **Imports:** `js/api.js`, `js/inventory/fetch-controller.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
+- **Imports:** `js/api.js`, `js/inventory/fetch-controller.js`, `js/inventory/inv-source-logic.js`, `js/part-keys.js`, `js/signals.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
 - **Imported by:** `js/inventory/inv-modals.js`
 
 ### js/inventory/distributor-fetch.js
@@ -1591,7 +1691,7 @@ graph LR
 
 ### js/inventory/filter-chips-fields.js
 
-- **Imports:** `js/components/predicate-ui.js`, `js/inventory/inventory-logic.js`
+- **Imports:** `js/components/predicate-ui.js`, `js/inventory/inv-source-logic.js`, `js/inventory/inventory-logic.js`
 - **Imported by:** `js/inventory/filter-chips-bar.js`, `js/inventory/inv-tree-render.js`, `tests/js/filter-chips.test.js`
 
 ### js/inventory/inv-bom-mode.js
@@ -1618,7 +1718,7 @@ graph LR
 
 ### js/inventory/inv-html-builders.js
 
-- **Imports:** `js/col-resize-logic.js`, `js/inventory/favicon-stack.js`, `js/label-selection.js`, `js/part-keys.js`, `js/ui-helpers.js`
+- **Imports:** `js/col-resize-logic.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-source-logic.js`, `js/label-selection.js`, `js/part-keys.js`, `js/ui-helpers.js`
 - **Imported by:** `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`, `tests/js/inventory-rendering.test.js`
 
 ### js/inventory/inv-import-markers.js
@@ -1628,7 +1728,7 @@ graph LR
 
 ### js/inventory/inv-inline-edit.js
 
-- **Imports:** `js/api.js`, `js/inventory/inv-events.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
+- **Imports:** `js/api.js`, `js/inventory/inv-events.js`, `js/inventory/inv-source-logic.js`, `js/part-keys.js`, `js/signals.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
 - **Imported by:** `js/inventory/inv-row-build.js`
 
 ### js/inventory/inv-modals.js
@@ -1643,7 +1743,7 @@ graph LR
 
 ### js/inventory/inv-row-build.js
 
-- **Imports:** `js/cart/cart-add.js`, `js/dom/delegate.js`, `js/group-flyout/flyout-panel.js`, `js/inventory/inv-events.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-modals.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-state.js`, `js/label-selection.js`, `js/part-keys.js`, `js/store.js`
+- **Imports:** `js/cart/cart-add.js`, `js/dom/delegate.js`, `js/group-flyout/flyout-panel.js`, `js/inventory/inv-events.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-modals.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-source-view.js`, `js/inventory/inv-state.js`, `js/label-selection.js`, `js/part-keys.js`, `js/store.js`
 - **Imported by:** `js/inventory/inv-groups-view.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`
 
 ### js/inventory/inv-sort-group.js
@@ -1651,10 +1751,20 @@ graph LR
 - **Imports:** —
 - **Imported by:** `js/inventory/inv-events.js`, `js/inventory/inv-tree-render.js`, `tests/js/inv-sort-group.test.js`
 
+### js/inventory/inv-source-logic.js
+
+- **Imports:** —
+- **Imported by:** `js/bom/bom-events.js`, `js/inventory/adjust-modal.js`, `js/inventory/filter-chips-fields.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-source-view.js`, `js/inventory/inventory-logic.js`, `js/inventory/price-modal.js`
+
+### js/inventory/inv-source-view.js
+
+- **Imports:** `js/inventory/inv-source-logic.js`, `js/inventory/inv-state.js`, `js/part-keys.js`, `js/signals.js`, `js/store.js`, `js/ui-helpers.js`
+- **Imported by:** `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`
+
 ### js/inventory/inv-state.js
 
 - **Imports:** —
-- **Imported by:** `js/app-init.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-import-markers.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`, `tests/js/inv-import-markers.test.js`
+- **Imported by:** `js/app-init.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-import-markers.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-source-view.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`, `js/server-tabs.js`, `tests/js/inv-import-markers.test.js`
 
 ### js/inventory/inv-tree-render.js
 
@@ -1663,12 +1773,12 @@ graph LR
 
 ### js/inventory/inventory-logic.js
 
-- **Imports:** `js/part-keys.js`
+- **Imports:** `js/inventory/inv-source-logic.js`, `js/part-keys.js`
 - **Imported by:** `js/inventory/filter-chips-fields.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`, `tests/js/inventory-logic.test.js`
 
 ### js/inventory/inventory-panel.js
 
-- **Imports:** `js/col-resize.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-events.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-import-markers.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-state.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-logic.js`, `js/inventory/saved-views-ui.js`, `js/layout-tokens.js`, `js/store.js`
+- **Imports:** `js/col-resize.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-events.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-import-markers.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-source-view.js`, `js/inventory/inv-state.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-logic.js`, `js/inventory/saved-views-ui.js`, `js/layout-tokens.js`, `js/store.js`
 - **Imported by:** `js/app-init.js`
 
 ### js/inventory/pick-description.js
@@ -1678,7 +1788,7 @@ graph LR
 
 ### js/inventory/price-modal.js
 
-- **Imports:** `js/api.js`, `js/components/form-modal.js`, `js/dom/html.js`, `js/inventory/fetch-controller.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
+- **Imports:** `js/api.js`, `js/components/form-modal.js`, `js/dom/html.js`, `js/inventory/fetch-controller.js`, `js/inventory/inv-source-logic.js`, `js/part-keys.js`, `js/signals.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
 - **Imported by:** `js/inventory/inv-modals.js`
 
 ### js/inventory/pricing-utils.js
@@ -1694,7 +1804,7 @@ graph LR
 ### js/inventory/saved-views.js
 
 - **Imports:** `js/api.js`, `js/inventory/filter-chips-bar.js`, `js/store.js`
-- **Imported by:** `js/app-init.js`, `js/inventory/saved-views-ui.js`, `tests/js/saved-views.test.js`
+- **Imported by:** `js/app-init.js`, `js/inventory/saved-views-ui.js`, `js/server-tabs.js`, `tests/js/saved-views.test.js`
 
 ### js/inventory/vendor-flyout.js
 
@@ -1741,7 +1851,7 @@ graph LR
 ### js/part-keys.js
 
 - **Imports:** `js/csv-parser.js`, `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom-row-data.js`, `js/bom/bom-events.js`, `js/bom/bom-logic.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/cart/cart-add.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/feeders-logic.js`, `js/feeders-modal.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory/adjust-modal.js`, `js/inventory/fetch-controller.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-logic.js`, `js/inventory/price-modal.js`, `js/label-selection.js`, `js/matching.js`, `tests/js/matching-perf.test.js`, `tests/js/matching.test.js`, `tests/js/part-keys.test.js`, `tests/js/real-data.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom-row-data.js`, `js/bom/bom-events.js`, `js/bom/bom-logic.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/cart/cart-add.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/feeders-logic.js`, `js/feeders-modal.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory/adjust-modal.js`, `js/inventory/fetch-controller.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-source-view.js`, `js/inventory/inventory-logic.js`, `js/inventory/price-modal.js`, `js/label-selection.js`, `js/matching.js`, `tests/js/matching-perf.test.js`, `tests/js/matching.test.js`, `tests/js/part-keys.test.js`, `tests/js/real-data.test.js`
 
 ### js/part-preview.js
 
@@ -1765,7 +1875,7 @@ graph LR
 
 ### js/server-list.js
 
-- **Imports:** `js/api.js`, `js/server-probe.js`, `js/servers-logic.js`, `js/store.js`, `js/ui-helpers.js`
+- **Imports:** `js/server-probe.js`, `js/server-tabs.js`, `js/servers-logic.js`, `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/preferences-modal.js`
 
 ### js/server-probe.js
@@ -1773,15 +1883,25 @@ graph LR
 - **Imports:** —
 - **Imported by:** `js/server-list.js`
 
+### js/server-tabs-logic.js
+
+- **Imports:** `js/servers-logic.js`
+- **Imported by:** `js/server-tabs.js`, `js/store.js`
+
+### js/server-tabs.js
+
+- **Imports:** `js/api.js`, `js/inventory/inv-state.js`, `js/inventory/saved-views.js`, `js/server-tabs-logic.js`, `js/signals.js`, `js/store.js`, `js/ui-helpers.js`, `js/ui-zoom.js`
+- **Imported by:** `js/app-init.js`, `js/server-list.js`
+
 ### js/servers-logic.js
 
 - **Imports:** —
-- **Imported by:** `js/server-list.js`, `js/store.js`
+- **Imported by:** `js/server-list.js`, `js/server-tabs-logic.js`, `js/store.js`
 
 ### js/signals.js
 
 - **Imports:** —
-- **Imported by:** `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/inventory/inv-events.js`, `js/store.js`, `js/ui-zoom-control.js`, `js/ui-zoom.js`, `tests/js/signals.test.js`
+- **Imported by:** `js/bom/bom-events.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/inventory/adjust-modal.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-source-view.js`, `js/inventory/price-modal.js`, `js/server-tabs.js`, `js/store.js`, `js/ui-zoom-control.js`, `js/ui-zoom.js`, `tests/js/signals.test.js`
 
 ### js/sse.js
 
@@ -1790,8 +1910,8 @@ graph LR
 
 ### js/store.js
 
-- **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/servers-logic.js`, `js/signals.js`, `js/sse.js`, `js/ui-helpers.js`
-- **Imported by:** `js/a11y/roving-grid.js`, `js/a11y/scrollable.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/col-resize.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/preferences-modal.js`, `js/server-list.js`, `js/text-popover.js`, `js/vendors-modal.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/inventory-rendering.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/saved-views.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
+- **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/server-tabs-logic.js`, `js/servers-logic.js`, `js/signals.js`, `js/sse.js`, `js/ui-helpers.js`
+- **Imported by:** `js/a11y/roving-grid.js`, `js/a11y/scrollable.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/col-resize.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-source-view.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/preferences-modal.js`, `js/server-list.js`, `js/server-tabs.js`, `js/text-popover.js`, `js/vendors-modal.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/inventory-rendering.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/saved-views.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
 - **Emits:** `CONFIRMED_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LINKING_MODE`, `LINKS_CHANGED`, `PO_CHANGED`, `VENDORS_CHANGED`
 - **Listens:** —
 
@@ -1808,7 +1928,7 @@ graph LR
 ### js/ui-helpers.js
 
 - **Imports:** `js/a11y/focus-trap.js`
-- **Imported by:** `js/a11y/shortcut-help.js`, `js/api.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/cart/cart-export.js`, `js/cart/cart-modal.js`, `js/components/form-modal.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-renderer.js`, `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-import-queue.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/mfg-direct-scan-session.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js`, `js/import/mfg-direct/scan-shell.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-tree-render.js`, `js/inventory/price-modal.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/server-list.js`, `js/store.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/ui-helpers.test.js`
+- **Imported by:** `js/a11y/shortcut-help.js`, `js/api.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/cart/cart-export.js`, `js/cart/cart-modal.js`, `js/components/form-modal.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-renderer.js`, `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-import-queue.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/mfg-direct-scan-session.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js`, `js/import/mfg-direct/scan-shell.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-source-view.js`, `js/inventory/inv-tree-render.js`, `js/inventory/price-modal.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/server-list.js`, `js/server-tabs.js`, `js/store.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/ui-helpers.test.js`
 
 ### js/ui-zoom-control.js
 
@@ -1823,7 +1943,7 @@ graph LR
 ### js/ui-zoom.js
 
 - **Imports:** `js/signals.js`, `js/ui-zoom-logic.js`
-- **Imported by:** `js/app-init.js`, `js/col-resize.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/vendor-flyout.js`, `js/part-preview.js`, `js/resize-panels.js`, `js/text-popover.js`, `js/ui-zoom-control.js`
+- **Imported by:** `js/app-init.js`, `js/col-resize.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/vendor-flyout.js`, `js/part-preview.js`, `js/resize-panels.js`, `js/server-tabs.js`, `js/text-popover.js`, `js/ui-zoom-control.js`
 
 ### js/undo-redo.js
 
@@ -1938,7 +2058,7 @@ graph LR
 ### remote_mode.py
 
 - **Imports:** —
-- **Imported by:** `tests/python/test_remote_mode.py`
+- **Imported by:** `tests/python/server/test_sources_registry.py`, `tests/python/test_app_launch.py`, `tests/python/test_remote_mode.py`
 
 ### saved_searches.py
 
@@ -2055,6 +2175,11 @@ graph LR
 - **Imports:** `server/app.py`
 - **Imported by:** —
 
+### scripts/gen-property-schema.py
+
+- **Imports:** `domain/schema.py`
+- **Imported by:** —
+
 ### scripts/generate-test-fixtures.py
 
 - **Imports:** `csv_io.py`, `inventory_api.py`, `inventory_ops.py`
@@ -2078,7 +2203,7 @@ graph LR
 ### server/__init__.py
 
 - **Imports:** —
-- **Imported by:** `pnp_server.py`, `scripts/spike-webview-loopback.py`, `server/mutations.py`, `server/routes/carts.py`, `server/routes/events.py`, `server/routes/pnp.py`, `tests/js/e2e/scan-server.py`, `tests/python/server/test_carts_routes.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
+- **Imported by:** `pnp_server.py`, `scripts/spike-webview-loopback.py`, `server/dispatch.py`, `server/mutations.py`, `server/routes/carts.py`, `server/routes/events.py`, `server/routes/pnp.py`, `server/routes/sources.py`, `tests/js/e2e/scan-server.py`, `tests/python/server/test_carts_routes.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
 
 ### server/__main__.py
 
@@ -2087,38 +2212,53 @@ graph LR
 
 ### server/app.py
 
-- **Imports:** `server/auth.py`, `server/errors.py`, `server/routes/__init__.py`
-- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_mutation_publishes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
+- **Imports:** `server/auth.py`, `server/dispatch.py`, `server/errors.py`, `server/routes/__init__.py`, `server/sources.py`
+- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_mutation_publishes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`
 
 ### server/auth.py
 
 - **Imports:** —
 - **Imported by:** `server/app.py`, `server/errors.py`, `server/routes/auth.py`, `server/routes/import_scan.py`, `server/routes/inventory_mut.py`, `server/routes/pnp.py`, `tests/python/server/test_auth.py`
 
+### server/dispatch.py
+
+- **Imports:** `domain/federation.py`, `dubis_errors.py`, `server/__init__.py`, `server/errors.py`, `server/sources.py`
+- **Imported by:** `server/app.py`, `tests/python/server/test_source_dispatch.py`
+
 ### server/errors.py
 
-- **Imports:** `dubis_errors.py`, `server/auth.py`
-- **Imported by:** `server/app.py`, `tests/python/server/test_error_mapping_exhaustive.py`
+- **Imports:** `domain/federation.py`, `dubis_errors.py`, `server/auth.py`
+- **Imported by:** `server/app.py`, `server/dispatch.py`, `tests/python/server/test_error_mapping_exhaustive.py`
 
 ### server/events.py
 
 - **Imports:** —
 - **Imported by:** —
 
+### server/fanout.py
+
+- **Imports:** `server/proxy.py`, `server/sources.py`
+- **Imported by:** —
+
 ### server/lockfile.py
 
 - **Imports:** `dubis_errors.py`
-- **Imported by:** `server/__main__.py`, `server/run.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`
+- **Imported by:** `app_launch.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/test_app_launch.py`
 
 ### server/models.py
 
 - **Imports:** `domain/schema.py`
-- **Imported by:** `server/routes/parts_read.py`, `tests/python/server/test_models.py`
+- **Imported by:** `server/routes/parts_read.py`, `server/routes/sources.py`, `tests/python/server/test_models.py`
 
 ### server/mutations.py
 
-- **Imports:** `server/__init__.py`
-- **Imported by:** `server/routes/generic_parts.py`, `server/routes/inventory_mut.py`, `server/routes/vendors_pos.py`
+- **Imports:** `server/__init__.py`, `server/sources.py`
+- **Imported by:** `server/routes/generic_parts.py`, `server/routes/inventory_mut.py`, `server/routes/sources.py`, `server/routes/vendors_pos.py`
+
+### server/proxy.py
+
+- **Imports:** `dubis_errors.py`, `server/sources.py`
+- **Imported by:** `server/fanout.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_sources_registry.py`
 
 ### server/routes/__init__.py
 
@@ -2197,7 +2337,12 @@ graph LR
 
 ### server/routes/preferences.py
 
-- **Imports:** —
+- **Imports:** `server/sources.py`
+- **Imported by:** —
+
+### server/routes/sources.py
+
+- **Imports:** `server/__init__.py`, `server/models.py`, `server/mutations.py`
 - **Imported by:** —
 
 ### server/routes/vendors_pos.py
@@ -2209,6 +2354,11 @@ graph LR
 
 - **Imports:** `server/app.py`, `server/lockfile.py`
 - **Imported by:** `scripts/spike-webview-loopback.py`, `server/__main__.py`, `tests/python/server/test_lifecycle.py`, `tests/python/test_dubis_client.py`
+
+### server/sources.py
+
+- **Imports:** `dubis_errors.py`
+- **Imported by:** `server/app.py`, `server/dispatch.py`, `server/fanout.py`, `server/mutations.py`, `server/proxy.py`, `server/routes/preferences.py`
 
 ### source_sanitizer.py
 
@@ -2659,7 +2809,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `distributor_manager.py`, `inventory_api.py`, `lcsc_client.py`
-- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_dubis_cli_commands.py`, `tests/python/test_dubis_client.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_dubis_cli_commands.py`, `tests/python/test_dubis_client.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/server/conftest.py
 
@@ -2751,6 +2901,11 @@ graph LR
 - **Imports:** `domain/schema.py`, `server/models.py`
 - **Imported by:** —
 
+### tests/python/server/test_multi_server_adversarial.py
+
+- **Imports:** `dubis_errors.py`, `server/__init__.py`, `server/app.py`, `server/proxy.py`, `tests/python/helpers.py`, `tests/python/strategies.py`
+- **Imported by:** —
+
 ### tests/python/server/test_mutation_publishes.py
 
 - **Imports:** `server/app.py`
@@ -2781,6 +2936,21 @@ graph LR
 - **Imports:** —
 - **Imported by:** —
 
+### tests/python/server/test_source_dispatch.py
+
+- **Imports:** `domain/__init__.py`, `domain/federation.py`, `dubis_errors.py`, `server/__init__.py`, `server/app.py`, `server/dispatch.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
+### tests/python/server/test_sources_registry.py
+
+- **Imports:** `app_launch.py`, `dubis_errors.py`, `remote_mode.py`, `server/__init__.py`, `server/proxy.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
+### tests/python/server/test_sources_routes.py
+
+- **Imports:** `server/__init__.py`, `server/app.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
 ### tests/python/server/test_sse_handlers.py
 
 - **Imports:** —
@@ -2801,6 +2971,11 @@ graph LR
 - **Imports:** `purchase_orders.py`, `server/__init__.py`, `vendors.py`
 - **Imported by:** —
 
+### tests/python/strategies.py
+
+- **Imports:** `domain/__init__.py`, `domain/schema.py`
+- **Imported by:** `tests/python/server/test_multi_server_adversarial.py`, `tests/python/test_federation_properties.py`, `tests/python/test_gen_property_schema.py`
+
 ### tests/python/test_api_mirror.py
 
 - **Imports:** `tests/python/helpers.py`
@@ -2810,6 +2985,11 @@ graph LR
 
 - **Imports:** `client_shell.py`, `inventory_api.py`
 - **Imported by:** `tests/python/test_client_shell.py`
+
+### tests/python/test_app_launch.py
+
+- **Imports:** `app_launch.py`, `remote_mode.py`, `server/lockfile.py`
+- **Imported by:** —
 
 ### tests/python/test_app_mirror_hooks.py
 
@@ -2829,6 +3009,11 @@ graph LR
 ### tests/python/test_browser_page.py
 
 - **Imports:** `browser_page.py`, `mouser_client.py`
+- **Imported by:** —
+
+### tests/python/test_cache_catchup_properties.py
+
+- **Imports:** `cache_db.py`, `domain/inventory.py`, `inventory_api.py`
 - **Imported by:** —
 
 ### tests/python/test_cache_db.py
@@ -3036,6 +3221,16 @@ graph LR
 - **Imports:** `dubis_errors.py`
 - **Imported by:** —
 
+### tests/python/test_federation.py
+
+- **Imports:** `domain/federation.py`, `domain/schema.py`
+- **Imported by:** —
+
+### tests/python/test_federation_properties.py
+
+- **Imports:** `domain/federation.py`, `domain/schema.py`, `tests/python/strategies.py`
+- **Imported by:** —
+
 ### tests/python/test_file_dialogs.py
 
 - **Imports:** `file_dialogs.py`
@@ -3049,6 +3244,11 @@ graph LR
 ### tests/python/test_gen_code_map.py
 
 - **Imports:** —
+- **Imported by:** —
+
+### tests/python/test_gen_property_schema.py
+
+- **Imports:** `domain/schema.py`, `tests/python/strategies.py`
 - **Imported by:** —
 
 ### tests/python/test_generate_test_fixtures.py

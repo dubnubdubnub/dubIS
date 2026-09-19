@@ -3,12 +3,14 @@
    Split from inv-modals.js (Task 3) so adjust and price modals can be
    maintained independently; inv-modals.js remains a thin barrel. */
 
-import { api, AppLog } from '../api.js';
+import { apiOn, AppLog } from '../api.js';
 import { showToast, Modal, linkPriceInputs, escHtml, formatMoney } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
 import { scheduleInventoryRefresh } from '../store.js';
 import { invPartKey } from '../part-keys.js';
 import { createFetchController } from './fetch-controller.js';
+import { sourceEntries, writeTarget, viewStateFrom } from './inv-source-logic.js';
+import { sourceStatusSignal } from '../signals.js';
 
 // ── Undo/redo tracking ──
 let lastAdjustMeta = null;
@@ -75,6 +77,41 @@ export function openAdjustModal(item) {
       html += '<tr><td></td><td><span class="no-dist-warn">⚠ Enter an LCSC, Digikey, Pololu, or Mouser PN</span></td></tr>';
     }
   }
+  // ── Which server this adjustment lands on ──
+  //
+  // Only present in a merged view, and only interactive when the row is
+  // genuinely ambiguous. A part with 850 on the bench and 400 in the shop has
+  // no "the" server: writing to the bigger one, or the first one, would move
+  // stock on a machine the user was not thinking about — and the hub refuses
+  // `merged` as a write target for exactly that reason (400,
+  // server/sources.py). So the modal asks, and Apply refuses until it is told.
+  var srcEntries = sourceEntries(item);
+  // A degraded view forces the chooser open even for a row that names ONE
+  // server, because "one server" then means "one server answered": the part may
+  // also be stocked on the one that is asleep, and this row cannot tell. Naming
+  // it flatly would be the modal asserting something the fetch never
+  // established.
+  var srcView = viewStateFrom(sourceStatusSignal.peek());
+  if (srcEntries.length === 1 && !srcView.degraded) {
+    html += "<tr><td>Server</td><td>" + escHtml(srcEntries[0].name) + "</td></tr>";
+  } else if (srcEntries.length > 1 || (srcView.degraded && srcEntries.length)) {
+    var opts = '<option value="">Choose a server…</option>' + srcEntries.map(function (s) {
+      return '<option value="' + escHtml(s.id) + '">' + escHtml(s.name) +
+        " — " + s.qty + " here</option>";
+    }).join("");
+    // NOT `.modal-field-input`: getChangedFields()/populateDetailFields() walk
+    // that class and read `dataset.field` off each hit, so a control with no
+    // `data-field` would post itself as a field update named `undefined`.
+    html += '<tr><td>Server</td><td><select class="adj-source-select">' +
+      opts + "</select>" +
+      (srcView.degraded
+        ? '<div class="adj-source-warn">\u26A0 ' +
+            escHtml(srcView.missing.join(', ') || 'A server') +
+            ' did not answer \u2014 this part may be stocked there too</div>'
+        : "") +
+      "</td></tr>";
+  }
+
   // Read-only rows
   if (item.section) html += "<tr><td>Section</td><td>" + escHtml(item.section) + "</td></tr>";
   html += "<tr><td>Qty</td><td>" + item.qty + "</td></tr>";
@@ -179,8 +216,15 @@ export function initAdjustModal() {
       deletePartBtn.classList.add("armed");
       return;
     }
-    const result = await api("delete_part", pk);
-    if (!result) return;   // api() already toasted the error
+    // Deleting a part that lives on two servers is the same ambiguity an adjust
+    // has, with a worse blast radius, so it asks the same question.
+    const delTarget = writeTarget(currentPart, (
+      /** @type {HTMLSelectElement|null} */ (modalDetailTable.querySelector(".adj-source-select"))
+      || { value: "" }
+    ).value, viewStateFrom(sourceStatusSignal.peek()));
+    if (!delTarget.ok) { showToast(delTarget.reason); return; }
+    const result = await apiOn(delTarget.sourceId, "delete_part", pk);
+    if (!result) return;   // apiOn() already toasted the error
     scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
     showToast("Deleted " + pk);
     adjModal.close();
@@ -200,6 +244,25 @@ export function initAdjustModal() {
     const origEp = currentPart.ext_price || 0;
     const priceChanged = (!isNaN(newUp) && newUp !== origUp) || (!isNaN(newEp) && newEp !== origEp);
 
+    // Where this write goes. Resolved BEFORE anything is sent and before undo
+    // state is saved: a refusal here must leave the modal exactly as the user
+    // left it, with nothing half-applied and nothing to undo.
+    const chooser = /** @type {HTMLSelectElement|null} */ (
+      modalDetailTable.querySelector(".adj-source-select")
+    );
+    // Re-read rather than reusing the value from open time: a refresh can land
+    // while the modal is open, and the state that matters is the one the write
+    // is being made from.
+    const target = writeTarget(
+      currentPart, chooser ? chooser.value : "", viewStateFrom(sourceStatusSignal.peek()),
+    );
+    if (!target.ok) {
+      showToast(target.reason);
+      if (chooser) chooser.focus();
+      return;
+    }
+    const src = target.sourceId;
+
     // Check if metadata fields changed
     const changedFields = getChangedFields();
     const fieldsChanged = Object.keys(changedFields).length > 0;
@@ -208,6 +271,10 @@ export function initAdjustModal() {
     UndoRedo.save("adjust", {
       _undoType: "adjust",
       partKey: pk,
+      // The server this landed on, so undo and redo go back to the same one.
+      // Undoing an adjustment on a DIFFERENT server than it was made on would
+      // silently move stock twice, in opposite directions, on two machines.
+      sourceId: src,
       adjType: type,
       qty: qty,
       note: note,
@@ -222,14 +289,14 @@ export function initAdjustModal() {
 
     // Apply metadata field updates first
     if (fieldsChanged) {
-      result = await api("update_part_fields", pk, changedFields);
+      result = await apiOn(src, "update_part_fields", pk, changedFields);
       if (!result) {
         AppLog.warn("Field update failed for " + pk);
       }
     }
 
     // Apply qty adjustment
-    const qtyResult = await api("adjust_part", type, pk, qty, note);
+    const qtyResult = await apiOn(src, "adjust_part", type, pk, qty, note);
     if (!qtyResult) {
       UndoRedo.popLast();
       return;
@@ -240,7 +307,7 @@ export function initAdjustModal() {
     if (priceChanged) {
       const up = !isNaN(newUp) ? newUp : null;
       const ep = !isNaN(newEp) ? newEp : null;
-      const priceResult = await api("update_part_price", pk, up, ep);
+      const priceResult = await apiOn(src, "update_part_price", pk, up, ep);
       if (!priceResult) {
         AppLog.warn("Qty adjusted, but price update failed for " + pk);
         UndoRedo._undo[UndoRedo._undo.length - 1].data.priceChanged = false;
@@ -254,7 +321,7 @@ export function initAdjustModal() {
     scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
 
     lastAdjustMeta = {
-      partKey: pk, adjType: type, qty: qty, note: note,
+      partKey: pk, sourceId: src, adjType: type, qty: qty, note: note,
       priceChanged: priceChanged,
       oldUp: origUp, oldEp: origEp,
       newUp: priceChanged ? (!isNaN(newUp) ? newUp : null) : null,
@@ -276,22 +343,22 @@ export function initAdjustModal() {
       return { _undoType: "adjust-none" };
     }
     if (data._undoType === "adjust") {
-      const fresh = await api("remove_last_adjustments", 1);
+      const fresh = await apiOn(data.sourceId, "remove_last_adjustments", 1);
       if (!fresh) throw new Error("Failed to undo adjustment");
       let result = fresh;
       if (data.priceChanged) {
-        result = await api("update_part_price", data.partKey, data.oldUp, data.oldEp);
+        result = await apiOn(data.sourceId, "update_part_price", data.partKey, data.oldUp, data.oldEp);
         if (!result) throw new Error("Failed to undo price change");
       }
       lastAdjustMeta = null;
       scheduleInventoryRefresh().catch(e => AppLog.warn("inventory refresh failed: " + e));
       showToast("Undid adjustment for " + data.partKey);
     } else if (data._undoType === "adjust-done") {
-      const qtyResult = await api("adjust_part", data.adjType, data.partKey, data.qty, data.note);
+      const qtyResult = await apiOn(data.sourceId, "adjust_part", data.adjType, data.partKey, data.qty, data.note);
       if (!qtyResult) throw new Error("Failed to redo adjustment");
       let result = qtyResult;
       if (data.priceChanged) {
-        result = await api("update_part_price", data.partKey, data.newUp, data.newEp);
+        result = await apiOn(data.sourceId, "update_part_price", data.partKey, data.newUp, data.newEp);
         if (!result) throw new Error("Failed to redo price change");
       }
       lastAdjustMeta = { ...data };

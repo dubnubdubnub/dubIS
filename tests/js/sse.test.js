@@ -137,7 +137,15 @@ describe('store.js: inventory.updated wiring (gating + debounce)', () => {
     const apiSpy = vi.fn().mockResolvedValue([{ part_key: 'A', qty: 1 }]);
     const AppLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), clear: vi.fn() };
     vi.doMock('../../js/api.js', () => ({
+      setSourceHeaderProvider: () => {},
       api: apiSpy,
+      // store.js fetches inventory through apiEnvelope() so it can read the
+      // per-source status a MERGED `GET /v1/parts` carries beside `inventory`.
+      // The same spy serves both: fetchInventory() accepts a bare array (the
+      // shape a client-shell transport returns) as well as the envelope, so the
+      // rebuild_inventory call still looks identical from here.
+      apiEnvelope: apiSpy,
+      apiOn: vi.fn((src, method, ...args) => apiSpy(method, ...args)),
       AppLog,
     }));
     const { connectEvents } = await import('../../js/sse.js');

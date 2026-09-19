@@ -1,17 +1,22 @@
-"""remote_mode.resolve_remote_base_url: the mode-resolution logic behind
-app.pyw's remote-server mode (Phase 1c Task 7,
+"""remote_mode.resolve_remote_base_url: which dubIS server's data the user
+asked for (Phase 1c Task 7,
 docs/plans/2026-07-16-phase1c-remote-deploy-design.md §7).
 
-app.pyw itself can't be imported in a test process (it imports `webview`,
-which requires a real GUI environment) — this is exactly why the resolution
-logic lives in the small, webview-free remote_mode.py module instead. app.pyw
-just calls resolve_remote_base_url(os.environ, api.load_preferences()) and
-branches on the result; that wiring is covered by inspection (see
-app.pyw's is_remote branch) plus the manual verify pass in
-.superpowers/sdd/task-7-report.md. The splash.html JS-side base-vs-port URL
-construction is pure JS with no test seam of its own; it's covered by the
-existing splash.html E2E/manual-verify pattern noted in the report, not a new
-unit test here.
+The precedence rules below are binding and unchanged. What changed is what the
+answer is used for (multi-server hub,
+docs/plans/2026-09-19-multi-server-hub-design.md): it used to select a launch
+*mode* — a URL meant app.pyw booted no local server and navigated the webview
+to that origin — and it now only seeds which source the always-local hub starts
+active on. So these tests still pin exactly what they always did, and the
+consequences of a non-None answer are tested in test_app_launch.py instead.
+
+app.pyw itself can't be imported in a test process (it imports `webview`, which
+requires a real GUI environment) — this is exactly why the resolution logic
+lives in the small, webview-free remote_mode.py module, and why the launch
+sequence it feeds lives in app_launch.py. app.pyw just calls
+resolve_remote_base_url(os.environ, api.load_preferences()) and hands the result
+to app_launch.seed_initial_active_source(); that one line of wiring is covered
+by inspection. splash.html no longer has a base-vs-port branch to cover at all.
 """
 
 from __future__ import annotations

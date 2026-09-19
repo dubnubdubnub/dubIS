@@ -302,7 +302,7 @@ jobs:
       - run: npx tsc --noEmit
       - name: Unit tests
         if: needs.parse-tags.outputs.run_js == 'true'
-        run: npx vitest run --project core
+        run: npx vitest run --project core --project property
 
   # ── JS: functional E2E (runs parallel to js-live on a separate runner) ─
   #   Not sharded: the suite's wall-time is dominated by a handful of slow
@@ -465,7 +465,7 @@ jobs:
       - run: npx eslint js/
       - run: npx tsc --noEmit
       - name: Unit tests
-        run: npx vitest run --project core
+        run: npx vitest run --project core --project property
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -511,7 +511,7 @@ jobs:
       - run: npx tsc --noEmit
       - name: Unit tests
         if: needs.parse-tags.outputs.run_js == 'true'
-        run: npx vitest run --project core
+        run: npx vitest run --project core --project property
 
   # ── Required-check gate ──────────────────────────────────────────────
   #   Keeps the "JS Lint & Test (ubuntu)" context that branch protection
@@ -609,6 +609,12 @@ jobs:
       - name: Verify inventory-record types are up to date
         if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/python scripts/gen-inventory-types.py --check
+      # The JS property tests generate inventory records from a committed copy of
+      # domain/schema.py, so it must not drift. Gated on run_js too: a JS-only PR
+      # still consumes the table, exactly like the fixtures guard above.
+      - name: Verify property-test schema table is up to date
+        if: needs.parse-tags.outputs.run_python == 'true' || needs.parse-tags.outputs.run_js == 'true'
+        run: ~/dubis-venv/bin/python scripts/gen-property-schema.py --check
       - name: Verify module manifests are accurate
         if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/python scripts/check-manifests.py

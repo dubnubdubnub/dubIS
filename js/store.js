@@ -4,9 +4,9 @@
    `window.store` is exposed in app-init.js for E2E tests and Python evaluate_js. */
 
 import { EventBus, Events } from './event-bus.js';
-import { signal } from './signals.js';
+import { signal, activeSourceSignal, sourceStatusSignal } from './signals.js';
 import { SECTION_ORDER } from './constants.js';
-import { api, AppLog } from './api.js';
+import { api, apiEnvelope, AppLog, setSourceHeaderProvider } from './api.js';
 import { onEvent } from './sse.js';
 import { formatMoney } from './ui-helpers.js';
 import {
@@ -17,6 +17,22 @@ import {
   updateServerEntry,
   removeServerEntry,
 } from './servers-logic.js';
+import {
+  normalizeSources,
+  sourcesFromRoster,
+  normalizeTabs,
+  seedTabs,
+  reconcileTabs,
+  resolveActiveTabId,
+  allSourceIds,
+  activeSourceValue,
+  addTab,
+  closeTab,
+  moveTab,
+  groupTabs,
+  tabForSource,
+  tabForSourceValue,
+} from './server-tabs-logic.js';
 
 // Debounce window for the SSE-driven inventory refresh (trailing debounce:
 // the timer resets on every event and fires once quiet). 250ms per Task 3
@@ -61,6 +77,22 @@ let preferences = {
   servers: [],
   // "" = local mode (spawn our own server). See remote_mode.py.
   server_url: "",
+  // The quick-switcher's open tabs: [{id, sources, name, view}]. A tab is a view
+  // instance, not a server — same server twice is legal, and `sources` holds
+  // several ids for a group — so this cannot be derived from `servers`.
+  server_tabs: [],
+  // Which of those tabs is in front.
+  active_tab: '',
+  // What the hub was last told to serve: "local", a source id, a comma-joined
+  // set, or "merged". Derived from the active tab and written for two readers
+  // that know nothing about tabs — the hub's own startup seed
+  // (app_launch.seed_initial_active_source) and anyone reading preferences.json
+  // by hand. `server_url` stays alongside it because it is the single answer to
+  // "which ONE server" that remote_mode.py, app_restart.py and tools/dubis-cli
+  // read, and a group has no honest answer for it. Empty means "nobody has ever
+  // chosen", which is NOT the same as an explicit "local" — the difference is
+  // what lets `server_url` seed a first-run window.
+  active_source: '',
 };
 
 // ── Signals ───────────────────────────────────────────────
@@ -342,6 +374,25 @@ export async function loadPreferences() {
     preferences.servers = normalizeServers(stored.servers, function (msg) {
       AppLog.warn('load_preferences: ' + msg);
     });
+    // And again for active_source — this is THE trap of this file. A new
+    // preference key that is not read here looks like it saved and reads back
+    // as its default, in both directions and without an error, because
+    // savePreferences() posts the whole in-memory object and this loader is
+    // the only thing that puts a stored value into it. Resolved against the
+    // roster (not trusted raw) so an id naming a server that has since been
+    // removed collapses to local rather than leaving the strip pointed at a
+    // tab that no longer exists.
+    // Three keys, all with the same trap: savePreferences() posts the WHOLE
+    // in-memory object and this loader copies known keys only, so a key that is
+    // NOT read here looks like it saved and reads back as its default, in both
+    // directions and without an error. For these that would mean every launch
+    // silently reopening the default tab set. Repair happens later, in
+    // hydrateSourcesFromPreferences, which resolves them against the roster that
+    // actually exists — a tab naming a deleted server must not survive.
+    preferences.server_tabs = Array.isArray(stored.server_tabs) ? stored.server_tabs : [];
+    preferences.active_tab = typeof stored.active_tab === 'string' ? stored.active_tab : '';
+    preferences.active_source = typeof stored.active_source === 'string'
+      ? stored.active_source : '';
     // Raw pass-through: both are validated by their own owning module —
     // ui_zoom by normalizePersistedZoom (js/ui-zoom-logic.js) and
     // panels_collapsed by normalizeCollapsed (js/panel-collapse-logic.js) —
@@ -384,6 +435,11 @@ export async function loadPreferences() {
       }
     }
   }
+  // Publish the roster + active source onto activeSourceSignal now that both
+  // have been read. Without this the strip would render from the signal's
+  // initial "local, no sources" until the first GET /v1/sources came back —
+  // i.e. the saved tab would visibly flip to Local on every launch.
+  hydrateSourcesFromPreferences();
 }
 
 export async function savePreferences() {
@@ -425,8 +481,36 @@ export function updateInventoryHeader() {
   document.getElementById("inv-total-value").textContent = formatMoney(total);
 }
 
+/**
+ * `GET /v1/parts`, keeping the part of the answer `api()` would throw away.
+ *
+ * A merged read answers `{inventory, sources}` — the rows, plus how the fetch
+ * went at each server (`server/fanout.py`'s per-source status). `api()` unwraps
+ * to `inventory` and the sibling is gone, which matters because the fan-out
+ * DEGRADES rather than fails: a server that is asleep costs its stock and
+ * nothing else, so a partial view is byte-for-byte a smaller complete one
+ * unless something carries the status across. This is that something.
+ *
+ * A single-server read has no `sources` key and clears the signal, so the
+ * "incomplete totals" marker cannot outlive the view that earned it.
+ *
+ * @returns {Promise<Array<Object>|null>} the inventory rows, or null on failure
+ */
+export async function fetchInventory() {
+  const body = await apiEnvelope("rebuild_inventory");
+  if (!body) return null;
+  // Tolerant of a bare array: the client-shell bridge (and any older transport)
+  // returns the rows with no envelope around them at all.
+  if (Array.isArray(body)) {
+    sourceStatusSignal.set([]);
+    return body;
+  }
+  sourceStatusSignal.set(Array.isArray(body.sources) ? body.sources : []);
+  return Array.isArray(body.inventory) ? body.inventory : null;
+}
+
 export async function loadInventory() {
-  const fresh = await api("rebuild_inventory");
+  const fresh = await fetchInventory();
   if (!fresh) return;
   inventory = fresh;
   updateInventoryHeader();
@@ -484,7 +568,7 @@ export function onInventoryUpdated(freshInventory) {
  * on every push would be redundant and noisy.
  */
 export async function loadInventoryQuiet() {
-  const fresh = await api("rebuild_inventory");
+  const fresh = await fetchInventory();
   if (!fresh) {
     AppLog.warn("inventory refresh failed");
     return;
@@ -564,9 +648,15 @@ export function getServerUrl() {
 }
 
 /**
- * Persist the remote server URL. Takes effect on the NEXT launch —
- * `app.pyw` resolves it once at startup to decide whether to spawn a local
- * server, which is not a decision that can be revisited on a live process.
+ * Persist the remote server URL.
+ *
+ * No longer a next-launch-only setting: the window is always served by the
+ * local hub, and other servers are data *sources* it fetches on our behalf, so
+ * `switchActiveSource` below applies a change immediately. This key is still
+ * written because three readers outside the frontend
+ * (`remote_mode.resolve_remote_base_url`, `app_restart.relaunch_env` and
+ * `tools/dubis-cli`) treat it as the single answer to "where does my data come
+ * from", and it is what seeds the hub's active source at the next launch.
  * @param {string} url "" for local mode
  */
 export function setServerUrl(url) {
@@ -605,6 +695,9 @@ export function addServer(name, url) {
   preferences.servers = result.servers;
   savePreferences();
   preferencesSignal.set(preferences);
+  // The strip is a view of the roster, so it has to move with the roster —
+  // otherwise a server you just added is switchable only after a reload.
+  syncTabsWithRoster();
   return { ok: true, entry: result.entry };
 }
 
@@ -626,6 +719,7 @@ export function updateServer(id, patch) {
   }
   savePreferences();
   preferencesSignal.set(preferences);
+  syncTabsWithRoster();
   return { ok: true, entry: result.entry };
 }
 
@@ -643,28 +737,418 @@ export function removeServer(id) {
   if (deselected) preferences.server_url = '';
   savePreferences();
   preferencesSignal.set(preferences);
+  // reconcileTabs (inside this) strips the removed source out of every tab and
+  // closes any tab left with nothing — so the strip can never keep offering a
+  // server that is no longer configured.
+  syncTabsWithRoster();
   return { removed: true, deselected };
 }
 
+// ── Tabs ──────────────────────────────────────────────────
+// The quick-switcher's tabs. A tab is a VIEW INSTANCE, not a server: it has its
+// own id, its own set of sources (one, or several for a group) and its own
+// inventory view state, which is why the same server can be open twice. All the
+// decisions live in js/server-tabs-logic.js; this section owns persistence, the
+// signal, and the one API call that changes what the hub serves.
+//
+// Everything cross-panel about it rides `activeSourceSignal` (js/signals.js):
+// the tab strip and the Preferences roster are two views of one piece of state,
+// and a panel that mounts after a switch has to see the switch, which an
+// EventBus message cannot give it.
+
+/** Ids are opaque and only need to be unique within one preferences file. */
+function newTabId() {
+  return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+/** @returns {Array<import('./server-tabs-logic.js').Tab>} a copy of the open tabs. */
+export function getTabs() {
+  return activeSourceSignal.peek().tabs.map((t) => ({ ...t, sources: t.sources.slice() }));
+}
+
+/** @returns {string} the id of the tab in front. */
+export function getActiveTabId() {
+  return activeSourceSignal.peek().activeTabId;
+}
+
+/** @returns {import('./server-tabs-logic.js').Tab | undefined} */
+export function getActiveTab() {
+  const { tabs, activeTabId } = activeSourceSignal.peek();
+  return tabs.find((t) => t.id === activeTabId);
+}
+
+/** @returns {Array<import('./signals.js').SourceEntry>} the hub's source roster. */
+export function getSources() {
+  return activeSourceSignal.peek().sources.map((s) => ({ ...s }));
+}
+
 /**
- * Select a roster entry (or `LOCAL_ID` for local mode) as the server to use.
+ * This window's `X-Dubis-Source` value: an id, a comma-joined set, or "merged".
  *
- * Takes effect on the NEXT launch, for the same reason setServerUrl does:
- * `app.pyw` resolves the URL once at startup to decide whether to spawn a
- * local server, and the webview is already navigated to whichever origin that
- * produced. js/server-list.js offers the restart.
- * @param {string} id
- * @returns {{ok: boolean, reason?: string, url?: string}}
+ * Empty until the tab signal is populated, and that emptiness is deliberate.
+ * server/dispatch.py serves a header-less request from the hub's persisted
+ * default, which is whatever window saved it last — so guessing "local" here
+ * would be worse than sending nothing: it would pin a brand-new window to local
+ * for its first requests instead of to the default the user launched with. The
+ * only request that goes out before hydration is `load_preferences`, whose route
+ * is local-only and never proxied.
+ * @returns {string}
  */
-export function selectServer(id) {
-  if (id === LOCAL_ID) {
-    setServerUrl('');
-    return { ok: true, url: '' };
+export function getActiveSource() {
+  const tab = getActiveTab();
+  return tab ? activeSourceValue(tab, allSourceIds(getSources())) : '';
+}
+
+// Installed at import time, before any panel can issue a call. The hub keeps no
+// mutable "current server", so every /v1 request has to name the one it wants —
+// that is what makes two windows on two different servers independent rather
+// than two views fighting over one saved default.
+setSourceHeaderProvider(getActiveSource);
+
+/**
+ * The preferences roster, re-using whatever the hub has already told us.
+ *
+ * Adding or renaming a server must move the strip immediately, but it must not
+ * throw away the reachability the hub reported for the servers that did not
+ * change — a roster edit is not evidence that the other servers went away. A
+ * re-pointed entry is the exception: its old probe result describes a different
+ * machine, so it drops back to unknown.
+ * @returns {Array<import('./signals.js').SourceEntry>}
+ */
+function rosterSyncedSources() {
+  const known = new Map(activeSourceSignal.peek().sources.map((s) => [s.id, s]));
+  return sourcesFromRoster(getServers()).map((s) => {
+    const prev = known.get(s.id);
+    return prev && prev.url === s.url ? { ...prev, name: s.name } : s;
+  });
+}
+
+/**
+ * Publish tabs + sources onto the signal and persist the tab set.
+ *
+ * `persist: false` is for a publish that only changed what the HUB told us
+ * (reachability, say) — writing preferences on every poll would turn a
+ * background probe into a disk write.
+ * @param {Array<import('./server-tabs-logic.js').Tab>} tabs
+ * @param {string} activeTabId
+ * @param {Array<import('./signals.js').SourceEntry>} sources
+ * @param {{persist?: boolean}} [opts]
+ */
+function publishTabs(tabs, activeTabId, sources, opts) {
+  const resolved = resolveActiveTabId(tabs, activeTabId);
+  activeSourceSignal.set({ tabs, activeTabId: resolved, sources });
+  if (!opts || opts.persist !== false) persistTabs();
+  return resolved;
+}
+
+/**
+ * Write the tab set into preferences, and — when what this window shows has
+ * changed — save it as the hub's header-less default too.
+ *
+ * Centralised here rather than in `switchToTab` because a switch is not the only
+ * thing that changes what is on screen: closing the front tab, grouping, and a
+ * roster edit that deletes the source a tab was showing all do. Doing it in one
+ * place is what stops the hub's saved default naming a server this window can no
+ * longer reach.
+ * @returns {boolean} whether the source value changed
+ */
+function persistTabs() {
+  const { tabs, activeTabId } = activeSourceSignal.peek();
+  const source = getActiveSource() || LOCAL_ID;
+  const changed = preferences.active_source !== source;
+  preferences.server_tabs = tabs.map((t) => ({
+    id: t.id, sources: t.sources.slice(), name: t.name, view: t.view,
+  }));
+  preferences.active_tab = activeTabId;
+  preferences.active_source = source;
+  savePreferences();
+  preferencesSignal.set(preferences);
+  if (changed) {
+    // Not awaited, and a failure is a warning rather than an error: this is the
+    // default for clients that send NO header (tools/dubis-cli, curl, the next
+    // launch). This window already names its own source on every request, so it
+    // is unaffected either way. `PUT /v1/sources/active` publishes no SSE for
+    // the same reason — announcing it would make every other window re-fetch
+    // data that did not move.
+    Promise.resolve(api('set_active_source', source)).then((r) => {
+      if (r === undefined) {
+        AppLog.warn('sources: could not save "' + source + '" as the default for new clients');
+      }
+    });
   }
-  const target = getServers().find((s) => s.id === id);
-  if (!target) return { ok: false, reason: 'That server is no longer in the list' };
-  setServerUrl(target.url);
-  return { ok: true, url: target.url };
+  return changed;
+}
+
+/**
+ * Re-point `server_url` at whatever single server the active tab shows.
+ *
+ * A group leaves it alone: that key answers "which ONE server", and there is no
+ * honest answer for a merged view — blanking it would silently re-point
+ * `tools/dubis-cli` and the next launch at local.
+ */
+function syncServerUrl() {
+  const tab = getActiveTab();
+  if (!tab || tab.sources.length !== 1) return;
+  const id = tab.sources[0];
+  if (id === LOCAL_ID) {
+    preferences.server_url = '';
+    return;
+  }
+  const target = getSources().find((s) => s.id === id) || getServers().find((s) => s.id === id);
+  if (target) preferences.server_url = normalizeServerUrl(target.url);
+}
+
+/**
+ * Bring the tab set in line with a roster that just changed, then republish.
+ * @param {Array<import('./signals.js').SourceEntry>} sources
+ * @param {{persist?: boolean}} [opts]
+ */
+function reconcileWithSources(sources, opts) {
+  const state = activeSourceSignal.peek();
+  const before = allSourceIds(state.sources);
+  const after = allSourceIds(sources);
+  let tabs = reconcileTabs(state.tabs, before, after);
+  if (!tabs.length) tabs = seedTabs(after, newTabId);
+  return publishTabs(tabs, state.activeTabId, sources, opts);
+}
+
+/**
+ * Re-run the roster → tabs reconciliation after a Preferences roster edit.
+ *
+ * Kept separate from `hydrateSourcesFromPreferences` because this one PERSISTS:
+ * an add/rename/remove is a change the user made, and the tab that lost its
+ * server has to stay lost across a restart.
+ * @returns {string} the resolved active tab id
+ */
+
+/**
+ * Seed the signal from what is already on disk, with no network call.
+ *
+ * Called at startup before `loadSources()` answers so the strip renders its tabs
+ * on the first frame instead of appearing a round trip later. Every dot reads
+ * "unknown" here, which is the truth: the preferences roster is a list of URLs
+ * somebody typed and nothing has contacted any of them.
+ */
+/**
+ * The source id whose URL is `url`, or "" — the bridge from `server_url` (a URL)
+ * to a tab (which names ids).
+ * @param {Array<import('./signals.js').SourceEntry>} sources
+ * @param {string} url
+ * @returns {string}
+ */
+function sourceIdForUrl(sources, url) {
+  const want = normalizeServerUrl(url);
+  if (!want) return '';
+  const match = (sources || []).find((s) => s.url === want);
+  return match ? match.id : '';
+}
+
+export function syncTabsWithRoster() {
+  return reconcileWithSources(rosterSyncedSources());
+}
+
+export function hydrateSourcesFromPreferences() {
+  const sources = rosterSyncedSources();
+  const ids = allSourceIds(sources);
+  let tabs = normalizeTabs(preferences.server_tabs, ids, function (msg) {
+    AppLog.warn('server_tabs: ' + msg);
+  });
+  // Nothing persisted — either a first run or an upgrade from the roster-derived
+  // strip. seedTabs reproduces exactly what that strip showed, so nobody's tabs
+  // change on upgrade.
+  if (!tabs.length) tabs = seedTabs(ids, newTabId);
+  // No `active_tab` means either a first run or an upgrade from the release
+  // that had no tabs at all — and that release persisted `active_source`. Honour
+  // it, or a user who was looking at `bench` would come back to Local and be
+  // told nothing about why.
+  const active = preferences.active_tab
+    || tabForSourceValue(tabs, ids, preferences.active_source)
+    // Last resort, and the case `active_source` cannot cover: a DUBIS_URL launch
+    // or a hand-edited preferences.json, where nobody ever recorded a choice but
+    // `server_url` demonstrably points somewhere.
+    || tabForSource(tabs, sourceIdForUrl(sources, preferences.server_url))
+    || '';
+  return publishTabs(tabs, active, sources, { persist: false });
+}
+
+/**
+ * Fetch the hub's source roster (`GET /v1/sources`) and publish it.
+ *
+ * Degrades to the preferences roster rather than to an empty strip. The route is
+ * newer than the roster it describes, so a hub that does not serve it yet (or a
+ * browser client pointed at an older deployment) must still get a working
+ * switcher — just one whose dots admit they know nothing.
+ * @returns {Promise<string>} the resolved active tab id
+ */
+export async function loadSources() {
+  const payload = await api('list_sources');
+  if (payload === undefined) {
+    AppLog.warn('sources: GET /v1/sources is unavailable — using the saved roster');
+    return hydrateSourcesFromPreferences();
+  }
+  const { sources, defaultSource } = normalizeSources(payload, function (msg) {
+    AppLog.warn('list_sources: ' + msg);
+  });
+  // persist: false — this is the hub telling us about reachability, which is not
+  // a change the user made to their tabs.
+  const active = reconcileWithSources(sources, { persist: false });
+  // Only for a window that has never chosen: land it on the hub's persisted
+  // default (a DUBIS_URL launch, say) instead of on whichever tab was seeded
+  // first. A window that HAS chosen ignores the default forever after — it
+  // names its own source on every request, which is what makes a second window
+  // attaching to this hub independent of it.
+  if (!preferences.active_tab && defaultSource) {
+    const state = activeSourceSignal.peek();
+    const wanted = tabForSourceValue(state.tabs, allSourceIds(state.sources), defaultSource);
+    if (wanted && wanted !== active) return switchToTab(wanted).then(() => wanted);
+  }
+  return active;
+}
+
+/**
+ * Bring a tab to the front.
+ *
+ * The switch is LOCAL, and that is the whole design. server/dispatch.py keeps no
+ * mutable "current server": every `/v1` request names its source with
+ * `X-Dubis-Source`, which js/api.js takes from `getActiveSource()` — so the
+ * moment this function moves the signal, every subsequent request is already
+ * being served from the new tab's sources. Nothing had to be negotiated with the
+ * hub for the switch itself.
+ *
+ * `PUT /v1/sources/active` is therefore *not* the switch. It saves the
+ * header-less default, for `tools/dubis-cli`, for curl, and for the next launch,
+ * and it publishes no SSE event on purpose — announcing it would make every
+ * OTHER window re-fetch data that did not move. It is fired without blocking,
+ * and a failure to save it is a warning, not a failed switch: this window has
+ * demonstrably switched either way, and refusing to believe that would leave the
+ * strip pointing at a tab whose data is already on screen.
+ *
+ * The refresh is `scheduleInventoryRefresh()`, the same debounced path every
+ * mutation and every `inventory.updated` push uses — and since the hub stays
+ * silent about a default write, this direct call is the ONLY thing that
+ * re-renders after a switch. That is correct: only the switching window's data
+ * moved.
+ *
+ * This is the ONE entry point for changing what the grid shows. The tab strip
+ * and the Preferences roster's `Use` button are two gestures for the same
+ * action, and routing both through here is what stops them drifting into
+ * meaning different things — which is exactly what happened while one of them
+ * offered a restart.
+ * @param {string} tabId
+ * @returns {Promise<{ok: boolean, reason?: string, tabId?: string, source?: string}>}
+ */
+export async function switchToTab(tabId) {
+  const state = activeSourceSignal.peek();
+  const tab = state.tabs.find((t) => t.id === tabId);
+  if (!tab) return { ok: false, reason: 'That tab is no longer open' };
+
+  const source = activeSourceValue(tab, allSourceIds(state.sources));
+  activeSourceSignal.set({ ...state, activeTabId: tabId });
+  syncServerUrl();
+  // Refetch only when the SOURCE changed, not merely the tab. Two tabs on the
+  // same server show the same rows through different filters, so a switch
+  // between them is a re-render (driven by the view the caller applies), never a
+  // round trip.
+  if (persistTabs()) {
+    scheduleInventoryRefresh().catch((e) =>
+      AppLog.warn('sources: refresh after switching to ' + source + ' failed: ' + e));
+  }
+  return { ok: true, tabId, source };
+}
+
+/**
+ * Open a tab, next to the active one, and switch to it.
+ * @param {string[]} [sources] defaults to the active tab's sources — `+` on a
+ *   server you are looking at gives you a second view of that same server,
+ *   which is the whole reason a tab id is not a source id.
+ * @returns {Promise<{ok: boolean, reason?: string, tabId?: string}>}
+ */
+export async function openTab(sources) {
+  const state = activeSourceSignal.peek();
+  const known = new Set(allSourceIds(state.sources));
+  const active = state.tabs.find((t) => t.id === state.activeTabId);
+  const want = (sources && sources.length ? sources : (active ? active.sources : [LOCAL_ID]))
+    .filter((id) => known.has(id));
+  if (!want.length) return { ok: false, reason: 'That server is no longer in the list' };
+  const tab = { id: newTabId(), sources: want, name: '', view: null };
+  publishTabs(addTab(state.tabs, tab, state.activeTabId), state.activeTabId, state.sources);
+  return switchToTab(tab.id);
+}
+
+/**
+ * Close a tab. Switches away first when it is the one in front, so the hub is
+ * never left serving a tab that no longer exists.
+ * @param {string} tabId
+ * @returns {Promise<{ok: boolean, reason?: string}>}
+ */
+export async function closeTabById(tabId) {
+  const state = activeSourceSignal.peek();
+  const result = closeTab(state.tabs, state.activeTabId, tabId);
+  if (!result.ok) return { ok: false, reason: result.reason };
+  const wasActive = state.activeTabId === tabId;
+  publishTabs(result.tabs, result.activeTabId, state.sources);
+  if (wasActive) return switchToTab(result.activeTabId).then(() => ({ ok: true }));
+  return { ok: true };
+}
+
+/**
+ * Reorder: move `tabId` so it sits before `beforeId` ("" = last).
+ * @param {string} tabId
+ * @param {string} beforeId
+ */
+export function moveTabBefore(tabId, beforeId) {
+  const state = activeSourceSignal.peek();
+  publishTabs(moveTab(state.tabs, tabId, beforeId), state.activeTabId, state.sources);
+}
+
+/**
+ * Merge several tabs into one group tab, and switch to it.
+ * @param {string[]} tabIds
+ * @returns {Promise<{ok: boolean, reason?: string, tabId?: string}>}
+ */
+export async function groupTabsById(tabIds) {
+  const state = activeSourceSignal.peek();
+  const result = groupTabs(state.tabs, tabIds, newTabId());
+  if (!result.ok) return { ok: false, reason: result.reason };
+  publishTabs(result.tabs, result.activeTabId, state.sources);
+  return switchToTab(result.activeTabId);
+}
+
+/**
+ * Record a tab's inventory view snapshot (search, chips, sort, grouping).
+ *
+ * Kept off the signal's change path on purpose: capturing the outgoing tab's
+ * view happens on every switch, and re-notifying every effect for it would
+ * re-render the strip in the middle of a switch for a change nothing renders.
+ * @param {string} tabId
+ * @param {object|null} view a `captureView()` snapshot
+ */
+export function setTabView(tabId, view) {
+  const state = activeSourceSignal.peek();
+  const tab = state.tabs.find((t) => t.id === tabId);
+  if (!tab) return;
+  tab.view = view;
+  persistTabs();
+}
+
+/**
+ * Switch to whichever tab shows this server, opening one if none does.
+ *
+ * The Preferences roster picks a *server*, not a tab, so it comes through here.
+ * It activates an existing plain tab rather than re-pointing the tab in front:
+ * re-pointing would silently change what a tab means, and that tab's saved view
+ * belongs to the server it was opened for.
+ * @param {string} sourceId `"local"` or a roster entry id
+ * @returns {Promise<{ok: boolean, reason?: string, tabId?: string}>}
+ */
+export async function switchActiveSource(sourceId) {
+  const state = activeSourceSignal.peek();
+  if (!allSourceIds(state.sources).includes(sourceId)) {
+    return { ok: false, reason: 'That server is no longer in the list' };
+  }
+  const existing = tabForSource(state.tabs, sourceId);
+  if (existing) return switchToTab(existing);
+  return openTab([sourceId]);
 }
 
 /**

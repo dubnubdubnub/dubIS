@@ -54,7 +54,7 @@ A part key that matches nothing exits 3, so a miss is never a silent success.
 
 ## Full surface
 
-Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 90 commands:
+Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 95 commands:
 
 - **adjustments**: remove-last, rollback-source
 - **bom**: consume, resolve-spec
@@ -71,6 +71,7 @@ Every /v1 route, generated. `dubis schema --json` dumps them all with their para
 - **purchases**: import, remove-last
 - **saved-search**: delete
 - **scan**: start-session
+- **sources**: create, delete, list, set-active, update
 - **spec**: extract-from-value
 - **vendors**: delete, fetch-favicon, list, merge, update
 - **warnings**: get

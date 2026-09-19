@@ -25,6 +25,7 @@ var _mockAppLogWarn = vi.fn();
 var _mockShowToast = vi.fn();
 
 vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {},
   apiVendors: {
     upsert: vi.fn((...args) => {
       _apiVendorsCalls.upsert.push(args);

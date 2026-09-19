@@ -15,6 +15,7 @@ vi.mock('../../js/label-selection.js', () => ({
 // Stub out the heavy collaborators the handler imports so the module loads
 // in isolation. None of these run for a checkbox click anyway.
 vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {},
   AppLog: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   api: vi.fn(),
 }));
