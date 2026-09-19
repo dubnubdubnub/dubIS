@@ -3130,6 +3130,11 @@ graph LR
 - **Imports:** `mirror_serialize.py`
 - **Imported by:** —
 
+### tests/python/test_no_tracked_symlinks.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### tests/python/test_normalizers.py
 
 - **Imports:** `digikey_normalizer.py`, `distributor_fixtures.py`, `domain/packaging.py`, `mouser_client.py`, `pololu_client.py`
