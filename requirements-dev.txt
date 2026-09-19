@@ -28,3 +28,8 @@ httpx>=0.27
 # unpinned floor let CI pull 2.0.0 and fail collection on an unrelated PR.
 # Migrating the servers to the 2.0 API is separate work.
 mcp>=1.26.0,<2
+# Property-based testing (docs/property-testing.md). A real dependency, not an
+# importorskip: tests/python/test_*_properties.py fail to collect without it,
+# which is the point -- a skipped property test reports success for a search
+# that never ran.
+hypothesis>=6.100

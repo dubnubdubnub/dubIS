@@ -20,9 +20,27 @@ def test_put_then_get_roundtrips(client):
     assert get_resp.json() == prefs
 
 
-def test_put_overwrites_previous_preferences(client):
+def test_put_merges_per_key_instead_of_replacing_the_file(client):
+    """Two dubIS windows now share one hub, and therefore one preferences file
+    (`app_launch.py`'s attached mode). Each posts the whole object it loaded at
+    startup, so a whole-file replace made every save a wholesale revert of the
+    other window's work — see server/routes/preferences.py."""
     client.put("/v1/preferences", json={"a": 1})
     client.put("/v1/preferences", json={"b": 2})
 
-    resp = client.get("/v1/preferences")
-    assert resp.json() == {"b": 2}
+    assert client.get("/v1/preferences").json() == {"a": 1, "b": 2}
+
+
+def test_put_overwrites_the_keys_it_does_send(client):
+    client.put("/v1/preferences", json={"a": 1, "b": 2})
+    client.put("/v1/preferences", json={"b": 3})
+
+    assert client.get("/v1/preferences").json() == {"a": 1, "b": 3}
+
+
+def test_a_key_is_cleared_by_sending_an_empty_value_not_by_omitting_it(client):
+    """The cost of merging, stated so it cannot be discovered by accident."""
+    client.put("/v1/preferences", json={"columns": ["a", "b"]})
+    client.put("/v1/preferences", json={"columns": []})
+
+    assert client.get("/v1/preferences").json() == {"columns": []}

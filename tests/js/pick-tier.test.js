@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 // Mock side-effecting imports so the pure pickTier export can be loaded in isolation.
 vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {},
   api: vi.fn(),
   AppLog: { warn: vi.fn(), error: vi.fn() },
 }));

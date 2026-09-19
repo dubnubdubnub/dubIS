@@ -18,6 +18,7 @@ import { renderBomComparison, renderRemainingInventory } from './inv-bom-mode.js
 import { refreshImportMarkers } from './inv-import-markers.js';
 import { initSavedViewsUI } from './saved-views-ui.js';
 import { initFilterChipsBar } from './filter-chips-bar.js';
+import { refreshSourceBreakdowns, initSourceBanner } from './inv-source-view.js';
 
 // ── Init ──
 
@@ -41,6 +42,12 @@ export function init() {
 
   // ── Filter chips bar ──
   initFilterChipsBar(state, render);
+
+  // ── "These totals are incomplete" banner ──
+  // Bound once; it renders itself from sourceStatusSignal whenever a merged
+  // fetch comes back with a source that did not answer, and stays hidden (and
+  // therefore costs no height) in every single-server view.
+  initSourceBanner();
 
   if (window.ResizeObserver && state.body) {
     new ResizeObserver(() => refreshImportMarkers()).observe(state.body);
@@ -165,6 +172,10 @@ function render() {
   // the container and survive on their own; the BOM table's live on its fresh
   // <th>s and do not.
   applyColWidths();
+  // After the tree exists, not during it: a breakdown is a SIBLING of its row
+  // (the row itself is `overflow: hidden`), and rows are appended from seven
+  // different places. One pass over the finished body beats seven call sites.
+  refreshSourceBreakdowns();
   refreshImportMarkers();
   // Restore the pre-rebuild scroll position (see note at top of render()).
   if (state.body.scrollTop !== prevScroll) state.body.scrollTop = prevScroll;

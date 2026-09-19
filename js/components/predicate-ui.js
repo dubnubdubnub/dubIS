@@ -54,6 +54,36 @@ function evaluateGroup(item, group) {
   throw new Error(`matchesPredicate: unknown group op "${op}"`);
 }
 
+/** Operators that have an "any member / no member" reading for a set-valued field. */
+const SET_AWARE_OPS = new Set([
+  'contains', 'not_contains', 'is', 'is_not', 'in', 'empty', 'not_empty',
+]);
+
+/**
+ * Evaluate one rule against a field whose value is a set.
+ *
+ * `empty` / `not_empty` ask about the set itself; everything else is evaluated
+ * member-by-member against the scalar rules, with the two negating operators
+ * answered as "no member matches the positive form" — which is the only reading
+ * under which `server is shop` and `server is not shop` cannot both be true of
+ * the same row.
+ *
+ * @param {Array<any>} values
+ * @param {{ field: string, operator: string, value?: any }} rule
+ * @returns {boolean}
+ */
+function evaluateSetRule(values, rule) {
+  const { field, operator } = rule;
+  if (operator === 'empty') return values.length === 0;
+  if (operator === 'not_empty') return values.length > 0;
+  const positive = operator === 'not_contains' ? 'contains'
+    : operator === 'is_not' ? 'is'
+    : operator;
+  const negated = positive !== operator;
+  const any = values.some((v) => evaluateRule({ [field]: v }, { ...rule, operator: positive }));
+  return negated ? !any : any;
+}
+
 /**
  * @param {Record<string, any>} item
  * @param {{ field: string, operator: string, value?: any }} rule
@@ -62,6 +92,19 @@ function evaluateGroup(item, group) {
 function evaluateRule(item, rule) {
   const { field, operator, value } = rule;
   const raw = item[field];
+
+  // A SET-VALUED field — one row, several values — matches when ANY of its
+  // values matches, and its negations when NONE does. The inventory's `server`
+  // field is the case this exists for: a merged row's stock can live on two
+  // servers at once (js/inventory/filter-chips-fields.js), and reporting one of
+  // them would make `server is shop` hide a part that is in the shop.
+  //
+  // Without this an array falls through to the scalar comparisons below as
+  // "bench,shop" — a value no rule ever asks for, so every operator quietly
+  // answers false and the filter looks broken rather than wrong.
+  if (Array.isArray(raw) && SET_AWARE_OPS.has(operator)) {
+    return evaluateSetRule(raw, rule);
+  }
 
   switch (operator) {
     // ── text ──────────────────────────────────────────────────────────────────

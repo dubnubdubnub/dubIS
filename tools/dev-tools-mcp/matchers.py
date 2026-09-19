@@ -73,11 +73,17 @@ def find_api_callers(
 ) -> list[dict]:
     """Return every JS line that calls a Python backend method.
 
-    Matches all three calling conventions present in this codebase:
+    Matches all four calling conventions present in this codebase:
 
     1. ``api("method_name", ...)``          — string-keyed (dominant convention)
-    2. ``api.method_name(...)``             — legacy direct dot-call
-    3. ``pywebview.api.method_name(...)``   — direct bridge access
+    2. ``apiOn(src, "method_name", ...)``   — the same call, routed to one dubIS
+       server (js/api.js).  A write in a merged view goes through this, so a
+       search that missed it would report a mutation as having no call sites at
+       all — the most misleading possible answer for a reverse-mapping tool.
+       ``apiEnvelope("method_name", ...)`` is the same shape as (1) and is
+       covered by that pattern.
+    3. ``api.method_name(...)``             — legacy direct dot-call
+    4. ``pywebview.api.method_name(...)``   — direct bridge access
 
     Args:
         method_name: Python method name, e.g. ``"adjust_part"``.
@@ -91,7 +97,12 @@ def find_api_callers(
     esc = re.escape(method_name)
     patterns = [
         # String-keyed convention: api("method_name", ...) or api('method_name', ...)
-        re.compile(rf"""api\(\s*['"]{esc}['"]"""),
+        # The leading `api` is matched loosely so apiEnvelope("method_name", ...)
+        # hits the same pattern.
+        re.compile(rf"""api\w*\(\s*['"]{esc}['"]"""),
+        # Routed write: apiOn(sourceId, "method_name", ...) — the method name is
+        # the SECOND argument, after the source the call is pinned to.
+        re.compile(rf"""apiOn\(\s*[^,()]+,\s*['"]{esc}['"]"""),
         # Legacy dot-call: api.method_name(
         re.compile(rf"api\.{esc}\s*\("),
         # Direct bridge access: pywebview.api.method_name(

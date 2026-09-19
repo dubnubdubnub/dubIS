@@ -168,20 +168,18 @@
 // its server-boot thread (see the comment at the top of this file for why
 // that was tried first and abandoned).
 //
-// Two query-param shapes, mutually exclusive (app.pyw picks exactly one —
-// see the is_remote branch in app.pyw's main()):
-//   ?port=<n>            — local mode (default, byte-identical to before
-//                           remote mode existed): health-poll/navigate to
-//                           http://127.0.0.1:<n>.
-//   ?base=<url-encoded>  — remote mode (Phase 1c Task 7, DUBIS_URL env or
-//                           preferences.json's server_url): health-poll/
-//                           navigate to the given base URL instead. No
-//                           Authorization header is attached to either the
-//                           poll or the navigation — browser auth for a
-//                           tailnet-fronted remote server is via tailnet
-//                           identity, not a bearer token (see app.pyw's
-//                           comment above the is_remote branch and
-//                           docs/plans/2026-07-16-phase1c-remote-deploy-design.md §7).
+// One query-param shape, and deliberately only one:
+//   ?port=<n>  — health-poll/navigate to http://127.0.0.1:<n>, the local /v1
+//                server app.pyw is booting on that port.
+//
+// There used to be a second, ?base=<url-encoded>, which pointed this window at
+// a REMOTE dubIS origin when the desktop app ran in remote mode (Phase 1c Task
+// 7). It is gone along with that mode: the local server is now a hub and other
+// dubIS servers are data sources it fetches from, so this window only ever
+// loads one origin (docs/plans/2026-09-19-multi-server-hub-design.md). app.pyw
+// was its only caller. Keep it that way — a second origin is precisely what the
+// navigation race below is about, and with one origin that race is unreachable
+// rather than merely mitigated.
 //
 // STARTUP_DELAY_MS below exists because of a second, independent race:
 // navigating this window AT ALL — even via this page-initiated
@@ -202,16 +200,11 @@
   "use strict";
   var STARTUP_DELAY_MS = 500;
   var params = new URLSearchParams(location.search);
-  var base = params.get("base");
   var port = params.get("port");
-  var origin;
-  if (base) {
-    origin = base.replace(/\/+$/, ""); // strip trailing slash(es) for consistent concatenation below
-  } else if (port) {
-    origin = "http://127.0.0.1:" + port;
-  } else {
-    return; // neither supplied (e.g. opened directly for visual inspection)
+  if (!port) {
+    return; // not supplied (e.g. opened directly for visual inspection)
   }
+  var origin = "http://127.0.0.1:" + port;
   var healthUrl = origin + "/v1/health";
   var targetUrl = origin + "/";
   var deadline = Date.now() + 15000;

@@ -1,5 +1,12 @@
 /* server-list.js — the server picker in the Preferences modal: the roster of
-   dubIS servers, a reachability dot per row, and the select-then-restart flow.
+   dubIS servers, a reachability dot per row, and selecting one.
+
+   Selecting used to save a preference and offer a restart, because which server
+   the app talked to was decided once, at launch. It is not any more: the window
+   is always served by the local hub and other servers are sources it fetches
+   from, so `Use` switches live through the same js/store.js call the tab strip
+   under the header makes (js/server-tabs.js). `client_shell.restart_app` still
+   exists — it is a frozen surface — but nothing here calls it.
 
    Split out of preferences-modal.js because it is the only section of that
    modal with a live component (a polling loop that has to start when the modal
@@ -9,14 +16,13 @@
 
 // @ts-check
 
-import { AppLog } from './api.js';
 import { showToast, escHtml } from './ui-helpers.js';
 import {
   getServers,
   addServer,
   updateServer,
   removeServer,
-  selectServer,
+  switchActiveSource,
   getServerUrl,
 } from './store.js';
 import {
@@ -27,6 +33,7 @@ import {
   selectionStatus,
 } from './servers-logic.js';
 import { probeServer } from './server-probe.js';
+import { refreshServerTabs } from './server-tabs.js';
 
 /* How often the dots re-check while the modal is open. Only runs while the
    section is visible, so this is a handful of requests during the seconds a
@@ -95,11 +102,8 @@ function rowHtml(row) {
 function syncSelectionStatus() {
   const status = document.getElementById('pref-server-status');
   if (!status) return;
-  const { pending, text } = selectionStatus(getServerUrl(), window.location.origin);
-  status.textContent = text;
-  status.style.color = pending ? 'var(--color-yellow)' : 'var(--text-muted)';
-  const restart = document.getElementById('pref-restart');
-  if (restart) restart.classList.toggle('pending', pending);
+  // Always current, never "pending": the selection is applied before this runs.
+  status.textContent = selectionStatus(getServerUrl()).text;
 }
 
 // ── Probing ───────────────────────────────────────────────
@@ -191,8 +195,6 @@ export function wireServerList() {
     });
   }
 
-  const restart = document.getElementById('pref-restart');
-  if (restart) restart.addEventListener('click', onRestart);
 }
 
 function onAdd() {
@@ -207,6 +209,10 @@ function onAdd() {
   urlInput.value = '';
   if (nameInput) nameInput.value = '';
   renderServerList();
+  // The hub keeps its source registry in the same preferences file, so a roster
+  // edit changes what GET /v1/sources answers — including the reachability the
+  // tab strip's dots show, which only the hub can know.
+  refreshServerTabs();
 }
 
 /** @param {Event} e */
@@ -221,14 +227,13 @@ function onRowClick(e) {
   const act = btn.dataset.act;
 
   if (act === 'select') {
-    const result = selectServer(id);
-    if (!result.ok) {
-      showToast(result.reason);
+    // Live: the switch lands before the roster is redrawn, so the badge only
+    // ever moves onto a server the hub actually adopted. A failure leaves the
+    // store untouched, and the re-render puts the badge back where it was.
+    switchActiveSource(id).then((result) => {
+      if (!result.ok) showToast(result.reason);
       renderServerList();
-      return;
-    }
-    renderServerList();
-    offerRestart(result.url);
+    });
     return;
   }
   if (act === 'remove') {
@@ -240,9 +245,15 @@ function onRowClick(e) {
     if (!window.confirm('Remove “' + target.name + '” from the server list?')) return;
     const { deselected } = removeServer(id);
     renderServerList();
+    refreshServerTabs();
     if (deselected) {
-      showToast('Removed the selected server — falling back to local on next launch');
-      offerRestart('');
+      // Removing the server we are reading from has to move us off it now —
+      // leaving the hub pointed at an entry the user just deleted would keep
+      // serving its inventory under a roster that no longer mentions it.
+      switchActiveSource(LOCAL_ID).then(() => {
+        showToast('Removed the selected server — now showing the local server');
+        renderServerList();
+      });
     }
     return;
   }
@@ -263,43 +274,5 @@ function onEdit(id) {
     return;
   }
   renderServerList();
-}
-
-/**
- * A selection only takes effect at launch, so say so and offer the restart
- * right where the choice was made — a "selected" badge that changes nothing
- * until the user finds the restart button on their own is the worse outcome.
- * @param {string} url "" for local
- */
-function offerRestart(url) {
-  const label = url || 'the local server';
-  if (!window.confirm('Restart dubIS now to connect to ' + label + '?')) {
-    showToast('Saved — restart dubIS to connect to ' + label);
-    return;
-  }
-  doRestart();
-}
-
-function onRestart() {
-  const target = getServerUrl() || 'the local server';
-  if (!window.confirm('Restart dubIS now to connect to ' + target + '?')) return;
-  doRestart();
-}
-
-async function doRestart() {
-  // `window.pywebview` is injected by the desktop host and has no ambient
-  // type; every other caller of it lives in a file without `// @ts-check`.
-  const shell = /** @type {any} */ (window).pywebview?.api;
-  if (!shell || typeof shell.restart_app !== 'function') {
-    // In a browser tab there is no desktop process to relaunch. Say so rather
-    // than appearing to do nothing.
-    showToast('Restart is only available in the desktop app — reopen it to apply');
-    return;
-  }
-  try {
-    await shell.restart_app();
-  } catch (e) {
-    AppLog.error('preferences: restart_app failed: ' + e.message);
-    showToast('Could not restart — close and reopen dubIS to apply');
-  }
+  refreshServerTabs();
 }

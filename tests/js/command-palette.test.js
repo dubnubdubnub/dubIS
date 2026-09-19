@@ -19,6 +19,7 @@ vi.mock('../../js/a11y/focus-trap.js', () => ({
 }));
 
 vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {},
   api: vi.fn(async () => ({})),
   AppLog: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
   whenPywebviewReady: vi.fn(async () => {}),

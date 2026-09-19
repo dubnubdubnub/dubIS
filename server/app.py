@@ -3,10 +3,17 @@
 The app wraps an existing InventoryApi instance (same object the pywebview
 bridge uses); endpoints are sync functions so FastAPI's thread pool +
 InventoryApi._lock serialize exactly like the bridge and PnP threads today.
+
+Since the multi-server work (docs/plans/2026-09-19-multi-server-hub-design.md)
+this app is also a *hub*: `SourceDispatchMiddleware` decides, per request,
+whether a `/v1` call is served in-process (today's path), proxied to another
+dubIS server, or fanned out and merged across several. See server/dispatch.py
+for why that is a middleware and why its position in the stack matters.
 """
 
 from __future__ import annotations
 
+import contextlib
 import os
 
 from fastapi import FastAPI
@@ -15,9 +22,18 @@ from fastapi.staticfiles import StaticFiles
 from server.errors import register_handlers
 
 
+@contextlib.asynccontextmanager
+async def _lifespan(app: FastAPI):
+    yield
+    # Close the per-source httpx clients the hub pooled (server/sources.py).
+    clients = getattr(app.state, "source_clients", None)
+    if clients is not None:
+        await clients.aclose()
+
+
 def create_app(api, static_dir: str | None = None) -> FastAPI:
     app = FastAPI(title="dubIS", version="1", docs_url="/v1/docs",
-                  openapi_url="/v1/openapi.json")
+                  openapi_url="/v1/openapi.json", lifespan=_lifespan)
     app.state.api = api
     register_handlers(app)
 
@@ -36,6 +52,7 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
         pnp,
         predicates,
         preferences,
+        sources,
         vendors_pos,
     )
     app.include_router(meta.router)
@@ -53,6 +70,19 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
     app.include_router(openpnp.router)
     app.include_router(feeders.router)
     app.include_router(mirror.router)
+    app.include_router(sources.router)
+
+    # The pooled httpx clients (one per source url+token) that the proxy and the
+    # fan-out share; closed by the lifespan above. Tests swap in a stub
+    # transport by replacing this attribute before the first request.
+    from server.dispatch import SourceDispatchMiddleware
+    from server.sources import SourceClients
+
+    app.state.source_clients = SourceClients()
+    # Added BEFORE AuthMiddleware on purpose: Starlette builds its stack so the
+    # LAST-added middleware is outermost, so auth still runs first and still
+    # gates every request, including the ones this one proxies.
+    app.add_middleware(SourceDispatchMiddleware)
 
     if os.environ.get("DUBIS_AUTH_MODE", "off") == "on":
         from server.auth import AuthConfig, AuthMiddleware
@@ -67,6 +97,8 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
         # Mounted last so API routers above always win on path collisions.
         # AuthMiddleware (added above, if `on`) wraps the whole ASGI app
         # regardless of mount order, so static assets are gated too.
+        # SourceDispatchMiddleware ignores anything not under /v1, so this
+        # mount is untouched by it.
         app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
     return app

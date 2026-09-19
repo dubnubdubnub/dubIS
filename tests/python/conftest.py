@@ -110,3 +110,54 @@ def data_dir(tmp_path):
     d = tmp_path / "data"
     d.mkdir()
     return str(d)
+
+
+# ── Hypothesis profiles ───────────────────────────────────────────────────────
+#
+# Property tests are only useful if a failure is reproducible, so the search is
+# configured here rather than per-test.  Three registered profiles, selected by
+# HYPOTHESIS_PROFILE, defaulting to "ci" whenever CI is set and "dev" otherwise:
+#
+#   dev      fast enough to live inside `bash scripts/verify.sh` -- a small,
+#            *randomly seeded* search.  Randomness is the point locally: over
+#            many runs the repo explores far more of the space than any fixed
+#            seed would, and a local flake costs one rerun.
+#   ci       the same search, deterministic.  derandomize=True makes the input
+#            sequence a pure function of the test, so a CI failure reproduces
+#            byte-for-byte with `HYPOTHESIS_PROFILE=ci pytest <nodeid>` and a
+#            green CI run never turns red on a rerun of the same commit.
+#   nightly  a deep search, randomly seeded -- for finding new counterexamples
+#            on purpose, never on the PR path.
+#
+# deadline=None everywhere: the per-example time limit measures the *runner*,
+# not the code, and a loaded self-hosted box would fail tests that are correct.
+# Timing belongs in a benchmark, not in a property.
+#
+# print_blob=True prints a @reproduce_failure(...) blob with every failure, so a
+# counterexample found on CI can be pasted straight into the test file and
+# pinned as a permanent regression case.  See docs/property-testing.md.
+
+import hypothesis  # noqa: E402
+
+hypothesis.settings.register_profile(
+    "dev",
+    max_examples=50,
+    deadline=None,
+    print_blob=True,
+)
+hypothesis.settings.register_profile(
+    "ci",
+    max_examples=100,
+    deadline=None,
+    derandomize=True,
+    print_blob=True,
+)
+hypothesis.settings.register_profile(
+    "nightly",
+    max_examples=2000,
+    deadline=None,
+    print_blob=True,
+)
+hypothesis.settings.load_profile(
+    os.environ.get("HYPOTHESIS_PROFILE") or ("ci" if os.environ.get("CI") else "dev")
+)

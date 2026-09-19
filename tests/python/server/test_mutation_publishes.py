@@ -43,6 +43,11 @@ EXEMPT = {
     "create_saved_search": "UI-scoped saved searches",
     "delete_saved_search": "UI-scoped saved searches",
     "start_scan_session": "opens a phone-scan session; not a data mutation",
+    # The hub holds no active source to switch (server/dispatch.py): every
+    # window names its own with X-Dubis-Source, so this route writes the DEFAULT
+    # for headerless clients and nothing any open window is showing changes.
+    # Publishing would make every other window re-fetch data that did not move.
+    "set_active_source": "saves the default source preference; changes no data any client is showing",
     # Credentials / session — not inventory-rendered state.
     "logout_digikey": "distributor credentials",
     "validate_digikey_session": "distributor credentials",

@@ -5,7 +5,8 @@
  * Builds the filterable-fields list for inventory items:
  *   - text: mpn, description, package, section
  *   - number: qty, unit_price, value (computed = qty × unit_price)
- *   - enum: distributor (derived from live inventory), section (derived)
+ *   - enum: distributor (derived from live inventory), section (derived),
+ *           server (derived; present only in a merged view)
  *
  * Exports:
  *   buildInventoryFields(inventory)  → FieldDef[]
@@ -15,6 +16,7 @@
 
 import { matchesPredicate } from '../components/predicate-ui.js';
 import { inferDistributor } from './inventory-logic.js';
+import { sourceNames, serverOptions } from './inv-source-logic.js';
 
 // ── Field definitions (static portion; options derived from live inventory) ──
 
@@ -29,6 +31,13 @@ const STATIC_FIELDS = [
   { key: 'distributor', label: 'Distributor',  type: 'enum'   },
   { key: 'section',     label: 'Section',      type: 'enum'   },
 ];
+
+/* The merged view's provenance field. Kept OUT of STATIC_FIELDS because, unlike
+   every field above, it does not exist in a single-server view: there, every
+   row is from the one server the window is pointed at, so a `server` chip could
+   only ever match everything or nothing. buildInventoryFields adds it exactly
+   when the rows carry provenance. */
+const SERVER_FIELD = { key: 'server', label: 'Server', type: 'enum' };
 
 const DISTRIBUTOR_OPTIONS = ['lcsc', 'digikey', 'mouser', 'pololu', 'direct'];
 
@@ -49,7 +58,7 @@ export function buildInventoryFields(inventory) {
   const sectionOptions = [...sectionSet].sort();
 
   // Build field list with enum options injected
-  return STATIC_FIELDS.map((f) => {
+  const fields = STATIC_FIELDS.map((f) => {
     if (f.key === 'distributor') {
       return { ...f, options: DISTRIBUTOR_OPTIONS };
     }
@@ -58,6 +67,15 @@ export function buildInventoryFields(inventory) {
     }
     return { ...f };
   });
+
+  // Options come from the rows, not from the server roster, for the same reason
+  // the section options do: the roster can name a server that contributed
+  // nothing to this view (disabled, or unreachable), and an option that can only
+  // ever match zero rows is a filter that looks broken.
+  const servers = serverOptions(inventory);
+  if (servers.length) fields.push({ ...SERVER_FIELD, options: servers });
+
+  return fields;
 }
 
 /**
@@ -78,6 +96,13 @@ export function extractInventoryField(item, key) {
   if (key === 'distributor') {
     return inferDistributor(item);
   }
+  if (key === 'server') {
+    // An ARRAY, not a name: a merged row can be stocked on two servers at once,
+    // and picking one of them to report would make `server is shop` hide a part
+    // that is, in fact, in the shop. matchesPredicate treats a set-valued field
+    // as "any member matches" (js/components/predicate-ui.js).
+    return sourceNames(item);
+  }
   return item[key];
 }
 
@@ -92,6 +117,7 @@ function flattenForPredicate(item) {
   return Object.assign({}, item, {
     value: extractInventoryField(item, 'value'),
     distributor: extractInventoryField(item, 'distributor'),
+    server: extractInventoryField(item, 'server'),
   });
 }
 
