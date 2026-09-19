@@ -4,9 +4,10 @@ import json
 
 import pytest
 
-from digikey_client import DigikeyClient
+from digikey_client import DigikeyClient, hidden_window_available
 from digikey_normalizer import normalize_result
 from digikey_session import check_cookies_logged_in, save_cookies_to_file
+from dubis_errors import DistributorError
 
 
 class TestDigikeyClient:
@@ -304,3 +305,109 @@ class TestDigikeyCookiePersistence:
         # Logout
         client.logout()
         assert not (tmp_path / "dk_cookies.json").exists()
+
+
+class TestHiddenWindowAvailability:
+    """The GUI-loop guard around DigiKey's hidden pywebview window.
+
+    Every test here monkeypatches `webview.windows` rather than relying on the
+    ambient state of the test process, so both halves — "no loop" and "the
+    desktop app's loop" — are exercised on every platform.
+
+    Background: pywebview only has a GUI loop after `webview.start()`, which
+    the desktop app calls and a headless `python -m server` (or the container)
+    does not. Without one, `create_window` still returns a Window and appends
+    it to the process-wide `webview.windows`, but nothing initializes it: the
+    first `load_url` blocks 20s and raises `WebViewException` — a plain
+    `Exception`, so it escaped `validate_session`'s `except (RuntimeError,
+    OSError)` and turned `POST /v1/distributors/digikey/session/validate`
+    (which the frontend calls at startup whenever cookies exist) into a 500,
+    35 seconds late.
+    """
+
+    def test_unavailable_without_a_gui_loop(self, monkeypatch):
+        import webview
+
+        monkeypatch.setattr(webview, "windows", [])
+        assert hidden_window_available() is False
+
+    def test_available_once_a_window_exists(self, monkeypatch):
+        import webview
+
+        monkeypatch.setattr(webview, "windows", [object()])
+        assert hidden_window_available() is True
+
+    def test_validate_session_is_inconclusive_without_a_window(self, monkeypatch):
+        """Answer truthfully instead of probing a window that cannot load.
+
+        Inconclusive, not expired: a session synced onto a headless server is
+        not dead just because nothing here can open a browser to check, and
+        `_invalidate_session` would delete its cookie file.
+        """
+        import webview
+
+        monkeypatch.setattr(webview, "windows", [])
+        client = DigikeyClient()
+        client._pending_cookies = [{"name": "dkuhint", "value": "test"}]
+
+        def _must_not_probe():
+            raise AssertionError("probed the window despite there being no GUI loop")
+
+        monkeypatch.setattr(client, "_probe_session", _must_not_probe)
+
+        result = client.validate_session()
+        assert result["logged_in"] is True      # session kept
+        assert result["changed"] is False       # ...and not invalidated
+        assert result["supported"] is False     # ...and says why
+        assert client._pending_cookies          # cookies untouched
+
+    def test_validate_session_still_probes_on_the_desktop(self, monkeypatch):
+        """The guard must not disable validation where it does work."""
+        import webview
+
+        monkeypatch.setattr(webview, "windows", [object()])
+        client = DigikeyClient()
+        client._pending_cookies = [{"name": "dkuhint", "value": "test"}]
+        monkeypatch.setattr(client, "_probe_session", lambda: True)
+
+        result = client.validate_session()
+        assert result == {
+            "logged_in": True, "changed": False, "message": "Session valid",
+        }
+
+    def test_ensure_window_raises_rather_than_making_a_phantom(self, monkeypatch):
+        """No loop means no window — not a window that can never load.
+
+        The phantom would be appended to `webview.windows`, which is exactly
+        what `hidden_window_available()` and `browser_page.available()` read
+        to decide a loop exists, so creating one makes both of them lie from
+        then on.
+        """
+        import webview
+
+        windows = []
+        monkeypatch.setattr(webview, "windows", windows)
+        client = DigikeyClient()
+        with pytest.raises(DistributorError, match="browser window"):
+            client._ensure_window()
+        assert windows == []
+        assert client._window is None
+
+    def test_failed_fetch_leaves_browser_page_unavailable(self, monkeypatch):
+        """The cross-module half: DigiKey must not poison `browser_page`.
+
+        Both read the same process-wide `webview.windows`, so a DigiKey fetch
+        that left a phantom window behind would make `browser_page.available()`
+        claim a renderer this process does not have — and Mouser's keyless
+        path would stop falling back.
+        """
+        import webview
+
+        import browser_page
+
+        monkeypatch.delenv("DUBIS_CDP_URL", raising=False)
+        monkeypatch.setattr(webview, "windows", [])
+        client = DigikeyClient()
+        with pytest.raises(DistributorError, match="browser window"):
+            client.fetch_product("296-1234-1-ND")
+        assert browser_page.available() is False
