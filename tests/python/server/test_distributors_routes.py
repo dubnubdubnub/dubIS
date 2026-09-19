@@ -74,6 +74,32 @@ def test_validate_digikey_session(api, client, monkeypatch):
     assert r.json() == {"valid": True}
 
 
+def test_validate_digikey_session_is_200_not_500_without_a_window(api, client, monkeypatch):
+    """The repro, with no facade mocking: a saved session on a headless server.
+
+    `js/app-init.js` POSTs this route at startup whenever `check_digikey_session`
+    reports cookies, so on a server with no GUI loop the probe used to wait 15s
+    on a window that never loads, 20s more inside `load_url`, and then raise
+    `WebViewException` — a plain `Exception`, straight past `validate_session`'s
+    `except (RuntimeError, OSError)` — for a 500.
+
+    Reaches into `_pending_cookies` deliberately: the point is to exercise the
+    real DigikeyClient, and that is the state `check_session` leaves behind
+    after loading `data/digikey_cookies.json`.
+    """
+    import webview
+
+    monkeypatch.setattr(webview, "windows", [])
+    api._distributors._digikey._pending_cookies = [{"name": "dkuhint", "value": "1"}]
+
+    r = client.post("/v1/distributors/digikey/session/validate")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["logged_in"] is True     # inconclusive never invalidates
+    assert body["changed"] is False
+    assert body["supported"] is False    # ...and says why
+
+
 def test_sync_digikey_cookies(api, client, monkeypatch):
     monkeypatch.setattr(api, "sync_digikey_cookies", lambda: {"synced": True})
     r = client.post("/v1/distributors/digikey/cookies/sync")
