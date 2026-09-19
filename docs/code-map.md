@@ -3276,6 +3276,11 @@ graph LR
 - **Imports:** `window_close.py`
 - **Imported by:** —
 
+### tests/python/test_worktree_guard.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### tests/vitest-global-setup.js
 
 - **Imports:** —
