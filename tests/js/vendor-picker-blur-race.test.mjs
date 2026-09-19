@@ -11,7 +11,8 @@
 import { describe, it, expect, vi } from 'vitest';
 
 const upsert = vi.fn();
-vi.mock('../../js/api.js', () => ({ apiVendors: { upsert: (...a) => upsert(...a) } }));
+vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {}, apiVendors: { upsert: (...a) => upsert(...a) } }));
 vi.mock('../../js/store.js', () => ({ store: { vendors: [] } }));
 
 const { createVendorPicker } = await import('../../js/import/mfg-direct/vendor-picker.js');

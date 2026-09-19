@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from domain.federation import MergeError, UnkeyablePartError
 from dubis_errors import (
     AlternateRejectedError,
     CacheError,
@@ -19,6 +20,10 @@ from dubis_errors import (
     DubISError,
     NotFoundError,
     PartRegistryCollisionError,
+    SourceConfigError,
+    SourceNotFoundError,
+    SourceProtocolError,
+    SourceUnavailableError,
 )
 from server.auth import LoopbackRequiredError
 
@@ -29,7 +34,20 @@ _MAPPING: list[tuple[type[Exception], int, str]] = [
     (LoopbackRequiredError, 403, "loopback_only"),
     (PartRegistryCollisionError, 409, "part_registry_collision"),
     (AlternateRejectedError, 409, "alternate_rejected"),
+    (SourceNotFoundError, 404, "source_not_found"),
     (NotFoundError, 404, "not_found"),
+    (SourceConfigError, 400, "source_config"),
+    (SourceUnavailableError, 502, "source_unavailable"),
+    (SourceProtocolError, 502, "source_protocol"),
+    # Raised while merging a fan-out (domain/federation.py). A peer that returns
+    # a record with no usable part number is a broken upstream, not a broken
+    # hub, hence 502 — and it is deliberately NOT swallowed: dropping the row
+    # would silently subtract that stock from the merged totals.
+    (UnkeyablePartError, 502, "unkeyable_part"),
+    # The merge's inputs were malformed (e.g. one source id twice). Nothing a
+    # caller can send produces this — it means the hub built the fan-out wrong,
+    # so it is a genuine 500.
+    (MergeError, 500, "merge_error"),
     (DistributorAuthError, 401, "distributor_auth"),
     (DistributorTimeout, 504, "distributor_timeout"),
     (DistributorError, 502, "distributor_error"),

@@ -9,6 +9,7 @@ import { isLabelMode, isSelected } from '../label-selection.js';
 /* col-resize-LOGIC, not col-resize.js: this module must stay store-free (see
    the header note), and the logic module imports nothing at all. */
 import { colResizeHandleHtml } from '../col-resize-logic.js';
+import { sourceBadge, conflictNote, hasConflict } from './inv-source-logic.js';
 
 /**
  * Build the label-mode selection checkbox HTML for a given part key.
@@ -65,6 +66,7 @@ export function renderSubSectionHeader(displayName, collapsed, count) {
  * @param {number} options.threshold - stock value threshold
  * @param {string} [options.sectionChip] - optional section name shown as a chip in flat mode
  * @param {number} [options.importOpacity] - >0 marks a recently-imported part (mirrors the scrollbar gutter dot's per-generation fade)
+ * @param {boolean} [options.sourcesExpanded] - whether this row's per-source breakdown is currently open (merged view only)
  * @returns {string}
  */
 /**
@@ -125,6 +127,44 @@ export function renderPartRowHtml(item, options) {
     ? '<span class="inv-section-chip">' + escHtml(options.sectionChip) + '</span>'
     : '';
 
+  // ── Provenance, in the Group cell beside the section chip ──
+  //
+  // A badge rather than a column, deliberately: an inventory COLUMN has to be
+  // registered in five hand-maintained lists that must agree (header HTML, row
+  // HTML, INV_RESIZE_COLS, a matching pair of CSS width rules, and the sort
+  // config) plus two e2e specs that hard-code the header-class ↔ row-selector
+  // pairs. The section chip is the established in-row provenance pattern and
+  // costs none of that. Rendered only when the row came from a merged view —
+  // a single-server view has no provenance to report, so this is empty.
+  var badge = sourceBadge(item);
+  var sourceBadgeHtml = '';
+  if (badge.show) {
+    sourceBadgeHtml = badge.multi
+      // A button, not a span: it opens the per-source breakdown, so it has to
+      // be reachable by keyboard like every other in-row expander.
+      ? '<button type="button" class="inv-source-badge multi" data-source-expand="' +
+          escHtml(invPartKey(item)) + '" aria-expanded="' +
+          (options.sourcesExpanded ? 'true' : 'false') + '" title="' + escHtml(badge.title) + '">' +
+          '<span class="chevron">\u25B8</span>' + escHtml(badge.label) + '</button>'
+      : '<span class="inv-source-badge" title="' + escHtml(badge.title) + '">' +
+          escHtml(badge.label) + '</span>';
+  }
+
+  // The merge already picked a value for a field two servers disagreed on
+  // (first non-empty in source order, domain/federation.py). This is the UI
+  // admitting that it did, rather than presenting one server's description as
+  // though it were the only one.
+  var conflictText = conflictNote(item);
+  var conflictChipHtml = conflictText
+    ? '<span class="inv-conflict-chip" title="' + escHtml(conflictText) + '">\u26A0</span>'
+    : '';
+  // A data attribute rather than an extra class, so `class="part-mpn"` and
+  // `class="part-desc-inner"` stay literal in this source: tests/js/style-audit.js
+  // and tests/js/inventory-rendering.test.js both match those exact strings, and
+  // the line-clamp contract they pin is not worth breaking for a marker.
+  var mpnConflictAttr = hasConflict(item, 'mpn') ? ' data-conflict="1"' : '';
+  var descConflictAttr = hasConflict(item, 'description') ? ' data-conflict="1"' : '';
+
   var partIdsHtml = '<span class="part-ids">';
   if (item.lcsc) partIdsHtml += '<span class="part-id-lcsc" data-lcsc="' + escHtml(item.lcsc) + '"><img class="vendor-icon" src="data/lcsc-icon.ico">' + escHtml(item.lcsc) + '</span>';
   if (item.digikey) partIdsHtml += '<span class="part-id-digikey" data-digikey="' + escHtml(item.digikey) + '"><img class="vendor-icon" src="data/digikey-icon.png">' + escHtml(item.digikey) + '</span>';
@@ -150,17 +190,19 @@ export function renderPartRowHtml(item, options) {
       leftCheckboxHtml +
       '<span class="inv-drag-handle" title="Drag to add to group">&#x2261;</span>' +
       sectionChipHtml +
+      sourceBadgeHtml +
+      conflictChipHtml +
     '</span>' +
     partIdsHtml +
     nearMissBadgeHtml +
-    '<span class="part-mpn" title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + '</span>' +
+    '<span class="part-mpn"' + mpnConflictAttr + ' title="' + escHtml(displayMpn) + '">' + escHtml(displayMpn) + '</span>' +
     '<span class="part-vendor">' + renderFanStack(item) + '</span>' +
     '<span class="part-unit-price">' + unitPriceStr + '</span>' +
     '<span class="part-value">' + valueStr + '</span>' +
     '<span class="part-qty" style="color:' + qtyColor + '">' + (showPriceWarn ? '<button class="price-warn-btn" title="No price data \u2014 click to set">\u26A0</button>' : '') + item.qty + '</span>' +
     (options.hideDescs
       ? '<span class="part-desc-pad" aria-hidden="true"></span>'
-      : '<span class="part-desc"><span class="part-desc-inner" title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
+      : '<span class="part-desc"><span class="part-desc-inner"' + descConflictAttr + ' title="' + escHtml(displayDesc) + '">' + escHtml(displayDesc) + '</span></span>') +
     '<span class="part-actions">' +
       (isLabelMode()
         ? labelCheckboxHtml(invPartKey(item))

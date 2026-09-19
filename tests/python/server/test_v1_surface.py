@@ -95,6 +95,11 @@ _NEW_OPERATIONS = {
     "unload_feeder",              # POST /v1/feeders/{tag_id}/unload — loading-station feeder entity, no bridge equivalent
     "get_feeder_tag_sheet",       # GET /v1/feeders/tags/sheet — AprilTag PDF sheet (fallback), fetched directly by the browser
     "get_feeder_tag_png",         # GET /v1/feeders/tags/{tag_id}.png — AprilTag PNG (primary, LabelWorks import), fetched directly by the browser
+    "list_sources",               # GET /v1/sources — multi-server hub roster + reachability, no bridge equivalent
+    "set_active_source",          # PUT /v1/sources/active — switch the active source, no bridge equivalent
+    "create_source",              # POST /v1/sources — roster CRUD, supersedes the JS-side roster writes
+    "update_source",              # PATCH /v1/sources/{source_id} — roster CRUD
+    "delete_source",              # DELETE /v1/sources/{source_id} — roster CRUD
 }
 
 # The complete, frozen (method, path, operation_id) surface of the /v1 app.
@@ -115,6 +120,7 @@ FROZEN_V1_SURFACE = [
     ("DELETE", "/v1/purchase-orders/{po_id}", "delete_purchase_order"),
     ("DELETE", "/v1/purchases/last", "remove_last_purchases"),
     ("DELETE", "/v1/saved-searches/{search_id}", "delete_saved_search"),
+    ("DELETE", "/v1/sources/{source_id}", "delete_source"),
     ("DELETE", "/v1/vendors/{vendor_id}", "delete_vendor"),
     ("GET", "/api/health", "legacy_health"),
     ("GET", "/api/parts", "legacy_parts"),
@@ -149,6 +155,7 @@ FROZEN_V1_SURFACE = [
     ("POST", "/v1/parts/{part_key}/evaluate", "evaluate_part_predicates"),
     ("GET", "/v1/parts/{part_key}/spec", "extract_spec"),
     ("GET", "/v1/preferences", "load_preferences"),
+    ("GET", "/v1/sources", "list_sources"),
     ("GET", "/v1/purchase-orders", "list_purchase_orders"),
     ("GET", "/v1/purchase-orders/{po_id}", "get_po_with_items"),
     ("GET", "/v1/purchase-orders/{po_id}/preview", "get_po_source_preview"),
@@ -158,6 +165,7 @@ FROZEN_V1_SURFACE = [
     ("PATCH", "/v1/carts/{cart_id}/items/{ref}", "update_cart_item"),
     ("PATCH", "/v1/parts/{part_key}", "update_part_fields"),
     ("PATCH", "/v1/purchase-orders/{po_id}", "update_purchase_order"),
+    ("PATCH", "/v1/sources/{source_id}", "update_source"),
     ("POST", "/api/consume", "legacy_consume"),
     ("POST", "/v1/bom/consume", "consume_bom"),
     ("POST", "/v1/bom/resolve-spec", "resolve_bom_spec"),
@@ -191,6 +199,7 @@ FROZEN_V1_SURFACE = [
     ("POST", "/v1/purchase-orders", "create_purchase_order_with_items"),
     ("POST", "/v1/purchases/import", "import_purchases"),
     ("POST", "/v1/scan/sessions", "start_scan_session"),
+    ("POST", "/v1/sources", "create_source"),
     ("POST", "/v1/spec/extract", "extract_spec_from_value"),
     ("POST", "/v1/vendors/favicon", "fetch_favicon"),
     ("POST", "/v1/vendors/merge", "merge_vendors"),
@@ -201,6 +210,7 @@ FROZEN_V1_SURFACE = [
     ("PUT", "/v1/generic-parts/{generic_part_id}/members/{part_id}/preferred", "set_preferred_member"),
     ("PUT", "/v1/parts/{part_key}/price", "update_part_price"),
     ("PUT", "/v1/preferences", "save_preferences"),
+    ("PUT", "/v1/sources/active", "set_active_source"),
     ("PUT", "/v1/vendors", "update_vendor"),
 ]
 

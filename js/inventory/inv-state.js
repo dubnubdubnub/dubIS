@@ -13,6 +13,10 @@ var state = {
   selectedVendorIds: new Set(),  // empty = show all direct vendors, or set of vendor IDs
   expandedAlts: new Set(),
   expandedMembers: new Set(),
+  // Part keys whose per-source breakdown is open (merged view only). Keyed by
+  // invPartKey like every other per-row set here, which the merge keeps unique
+  // by construction — one row per part key, whatever it is summed from.
+  expandedSources: new Set(),
   rowMap: new Map(),       // partKey -> r, rebuilt each render
 
   // Groups mode state

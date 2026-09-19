@@ -258,6 +258,29 @@ export const API_MAP = {
     "unwrap": "detail",
     "verb": "POST"
   },
+  "create_source": {
+    "argOrder": [
+      "url",
+      "id",
+      "name",
+      "token",
+      "enabled"
+    ],
+    "bodyParams": [
+      "enabled",
+      "id",
+      "name",
+      "token",
+      "url"
+    ],
+    "mutating": true,
+    "path": "/v1/sources",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "POST"
+  },
   "delete_cart": {
     "argOrder": [
       "cart_id"
@@ -323,6 +346,21 @@ export const API_MAP = {
     "path": "/v1/saved-searches/{search_id}",
     "pathParams": [
       "search_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "DELETE"
+  },
+  "delete_source": {
+    "argOrder": [
+      "source_id"
+    ],
+    "bodyParams": [],
+    "mutating": true,
+    "path": "/v1/sources/{source_id}",
+    "pathParams": [
+      "source_id"
     ],
     "queryParams": [],
     "rawBody": false,
@@ -912,6 +950,17 @@ export const API_MAP = {
     "unwrap": null,
     "verb": "GET"
   },
+  "list_sources": {
+    "argOrder": [],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/sources",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "GET"
+  },
   "list_vendors": {
     "argOrder": [],
     "bodyParams": [],
@@ -1371,6 +1420,21 @@ export const API_MAP = {
     "unwrap": "detail",
     "verb": "POST"
   },
+  "set_active_source": {
+    "argOrder": [
+      "source"
+    ],
+    "bodyParams": [
+      "source"
+    ],
+    "mutating": false,
+    "path": "/v1/sources/active",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "PUT"
+  },
   "set_cart_board_count": {
     "argOrder": [
       "cart_id",
@@ -1588,6 +1652,30 @@ export const API_MAP = {
     "path": "/v1/purchase-orders/{po_id}",
     "pathParams": [
       "po_id"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "PATCH"
+  },
+  "update_source": {
+    "argOrder": [
+      "source_id",
+      "name",
+      "url",
+      "token",
+      "enabled"
+    ],
+    "bodyParams": [
+      "enabled",
+      "name",
+      "token",
+      "url"
+    ],
+    "mutating": true,
+    "path": "/v1/sources/{source_id}",
+    "pathParams": [
+      "source_id"
     ],
     "queryParams": [],
     "rawBody": false,

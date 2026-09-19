@@ -12,12 +12,14 @@
      as inv-modals.js does (same code paths, same undo registration keys).
 */
 
-import { api, AppLog } from '../api.js';
+import { apiOn, AppLog } from '../api.js';
 import { showToast } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
 import { scheduleInventoryRefresh } from '../store.js';
 import { invPartKey } from '../part-keys.js';
 import { isFlyoutDragActive } from './inv-events.js';
+import { writeTarget, viewStateFrom } from './inv-source-logic.js';
+import { sourceStatusSignal } from '../signals.js';
 import { store } from '../store.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -174,9 +176,20 @@ async function commitQty(item, rawValue, restore) {
   }
   const pk = invPartKey(item);
 
+  // Inline edit has nowhere to ask a question, so a row whose stock is split
+  // across servers is sent to the Adjust modal, which does. Setting a merged
+  // TOTAL would be meaningless anyway: there is no single number to set.
+  const target = writeTarget(item, '', viewStateFrom(sourceStatusSignal.peek()));
+  if (!target.ok) {
+    showToast(target.reason + ' (use Adjust)');
+    restore();
+    return;
+  }
+
   UndoRedo.save('adjust', {
     _undoType: 'adjust',
     partKey: pk,
+    sourceId: target.sourceId,
     adjType: 'set',
     qty: newQty,
     note: 'inline-edit',
@@ -187,7 +200,7 @@ async function commitQty(item, rawValue, restore) {
     newEp: null,
   });
 
-  const result = await api('adjust_part', 'set', pk, newQty, 'inline-edit');
+  const result = await apiOn(target.sourceId, 'adjust_part', 'set', pk, newQty, 'inline-edit');
   if (!result) {
     UndoRedo.popLast();
     restore();
@@ -217,16 +230,27 @@ async function commitPrice(item, rawValue, restore) {
   const oldUp = item.unit_price || 0;
   const oldEp = item.ext_price  || 0;
 
+  // Same rule as the qty edit: a price is a per-server fact too, and the merged
+  // row shows a quantity-weighted mean (domain/federation.py) that belongs to no
+  // one server.
+  const target = writeTarget(item, '', viewStateFrom(sourceStatusSignal.peek()));
+  if (!target.ok) {
+    showToast(target.reason + ' (use Adjust)');
+    restore();
+    return;
+  }
+
   UndoRedo.save('price', {
     _undoType: 'price',
     partKey: pk,
+    sourceId: target.sourceId,
     oldUp,
     oldEp,
     newUp,
     newEp: null,
   });
 
-  const result = await api('update_part_price', pk, newUp, null);
+  const result = await apiOn(target.sourceId, 'update_part_price', pk, newUp, null);
   if (!result) {
     UndoRedo.popLast();
     restore();

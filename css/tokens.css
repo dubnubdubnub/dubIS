@@ -178,4 +178,40 @@
   --server-detail-w:         76px;  /* fixed lane for "12 ms" / "unreachable" */
   --server-add-name-w:       120px;  /* the optional-name field in the add row */
   --server-help-max-w:       460px;  /* explanatory text under the picker */
+
+  /* ── Server quick-switcher (css/components/server-tabs.css) ─────────────────
+     The tab strip under the header: Local, each source, then All. It is its own
+     row, so every value here is height the three panels do not get — which is
+     why the row is kept to roughly one button tall and why the strip is hidden
+     below the app's documented 1200x700 minimum rather than allowed to wrap.
+     Consumed by: css/components/server-tabs.css */
+  --server-tabs-pad-y:        3px;  /* vertical padding of the strip itself */
+  --server-tabs-pad-x:       24px;  /* aligns the first tab with the header buttons */
+  --server-tabs-gap:          4px;  /* between adjacent tabs */
+  --server-tabs-tab-pad-y:    3px;  /* vertical padding inside one tab */
+  --server-tabs-tab-pad-x:   10px;  /* horizontal padding inside one tab */
+  --server-tabs-tab-gap:      6px;  /* between a tab's dot and its name */
+  --server-tabs-dot-size:     7px;  /* the per-tab reachability dot */
+  --server-tabs-name-max-w:  160px;  /* a long server name ellipsises here */
+  --server-tabs-close-w:     14px;  /* the per-tab close affordance */
+  --server-tabs-add-w:       22px;  /* the + button that opens a tab */
+  --server-tabs-drop-w:       2px;  /* the insertion marker shown while dragging */
+
+  /* ── Merged-view provenance (css/components/inv-source.css) ─────────────────
+     The source badge in an inventory row's Group cell, the per-source breakdown
+     it expands, and the banner that admits a merged view is missing a server.
+     Everything here is INSIDE the inventory panel, so none of it competes with
+     the header for the height the three panels get — except the banner, which
+     is `hidden` unless a source actually failed.
+     Consumed by: css/components/inv-source.css */
+  --inv-source-badge-pad-y:        1px;  /* matches .inv-section-chip, its neighbour in the cell */
+  --inv-source-badge-pad-x:        6px;
+  --inv-source-badge-gap:          4px;  /* chevron ↔ label, and name ↔ qty in a breakdown line */
+  --inv-source-badge-max-w:       90px;  /* a long server name ellipsises inside the Group cell */
+  --inv-source-breakdown-gap:     16px;  /* between two servers' lines */
+  --inv-source-breakdown-pad-y:    3px;
+  --inv-source-breakdown-pad-x:   24px;
+  --inv-source-breakdown-indent:  40px;  /* indents the breakdown under its row's Group cell */
+  --inv-source-banner-pad-y:       4px;
+  --inv-source-banner-pad-x:      12px;
 }

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the api module the store calls.
 vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {},
   api: vi.fn(),
   AppLog: { warn() {}, error() {} },
 }));

@@ -370,6 +370,39 @@
         "title": "CreateSavedSearchBody",
         "type": "object"
       },
+      "CreateSourceBody": {
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "default": "",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "token": {
+            "default": "",
+            "title": "Token",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "CreateSourceBody",
+        "type": "object"
+      },
       "DetectColumnsBody": {
         "properties": {
           "headers": {
@@ -972,6 +1005,19 @@
         "title": "ReviewMemberBody",
         "type": "object"
       },
+      "SetActiveSourceBody": {
+        "properties": {
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "title": "SetActiveSourceBody",
+        "type": "object"
+      },
       "SetMouserKeyBody": {
         "properties": {
           "key": {
@@ -983,6 +1029,76 @@
           "key"
         ],
         "title": "SetMouserKeyBody",
+        "type": "object"
+      },
+      "SourceStatusModel": {
+        "description": "One roster entry as `GET /v1/sources` reports it.\n\nThe token is NEVER echoed \u2014 only `has_token`. It is a credential for another\nserver that this hub holds on the user's behalf; a GET that returned it\nwould hand it to anything that can read the roster.",
+        "properties": {
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "has_token": {
+            "title": "Has Token",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reachable": {
+            "title": "Reachable",
+            "type": "boolean"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "url",
+          "enabled",
+          "has_token",
+          "reachable"
+        ],
+        "title": "SourceStatusModel",
+        "type": "object"
+      },
+      "SourcesResponse": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "string"
+          },
+          "default": {
+            "title": "Default",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceStatusModel"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "default",
+          "active",
+          "sources"
+        ],
+        "title": "SourcesResponse",
         "type": "object"
       },
       "SplitBody": {
@@ -1169,6 +1285,57 @@
           }
         },
         "title": "UpdatePurchaseOrderBody",
+        "type": "object"
+      },
+      "UpdateSourceBody": {
+        "description": "Every field optional: `None` means \"leave this one alone\".",
+        "properties": {
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "title": "UpdateSourceBody",
         "type": "object"
       },
       "UpdateVendorBody": {
@@ -5128,6 +5295,210 @@
         "tags": [
           "import",
           "scan"
+        ]
+      }
+    },
+    "/v1/sources": {
+      "get": {
+        "operationId": "list_sources",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Sources",
+        "tags": [
+          "sources"
+        ]
+      },
+      "post": {
+        "description": "Add a source to the roster.\n\nPublishes like any other mutation, because in `merged` mode it *is* one: the\nmerged inventory is the union of the enabled sources, so adding one changes\nwhat `GET /v1/parts` answers on the very next request. The same reasoning\ncovers the PATCH and DELETE below (a token, a URL, or `enabled` flipping all\nchange the data served), which is why none of them is exempt from\n`tests/python/server/test_mutation_publishes.py`.",
+        "operationId": "create_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSourceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Source",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Source",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/v1/sources/active": {
+      "put": {
+        "description": "Save the DEFAULT source. This does NOT switch anything that is running.\n\nThe name invites the wrong reading, and it is kept only because\n`active_source` is already the persisted key, so say it plainly: this writes\na preference and stops. It changes nothing any open window is showing,\nbecause every window names its own source on every request\n(`X-Dubis-Source`, see server/dispatch.py) \u2014 which is exactly what lets two\nwindows sit on two different servers at the same time. What it changes is\nwhere a client that sends NO header lands: `tools/dubis-cli`, curl, and the\nnext page load before it has resolved its own source.\n\nIt publishes nothing, for the same reason: no data any client is currently\nlooking at has changed. Recorded as such in\n`tests/python/server/test_mutation_publishes.py`'s EXEMPT list.",
+        "operationId": "set_active_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetActiveSourceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Active Source",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Active Source",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/v1/sources/{source_id}": {
+      "delete": {
+        "description": "Remove a roster entry. Deleting the ACTIVE source falls back to `local`.",
+        "operationId": "delete_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Source",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Source",
+        "tags": [
+          "sources"
+        ]
+      },
+      "patch": {
+        "operationId": "update_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSourceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Source",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Source",
+        "tags": [
+          "sources"
         ]
       }
     },

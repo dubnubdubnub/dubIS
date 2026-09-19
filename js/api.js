@@ -77,7 +77,61 @@ function buildBody(entry, argMap) {
   return JSON.stringify(body);
 }
 
-async function callHttp(entry, args) {
+/* The header the hub reads to decide which server serves a request
+   (server/proxy.py's SOURCE_HEADER, server/dispatch.py's resolve_target).
+
+   Absent means "the hub's persisted default" — which is right for
+   tools/dubis-cli and curl, and WRONG for an app window, because several
+   windows are open on different servers on purpose and the default is whichever
+   one saved it last. server/dispatch.py states the contract: a dubIS window
+   sends this on every /v1 request, including the first of a page load. So every
+   call carries it, from the provider below; `apiOn` overrides it per call when
+   a write has to land on one specific server. */
+const SOURCE_HEADER = "X-Dubis-Source";
+
+/* Supplies this window's own source value. Installed by js/store.js at import
+   time — a function rather than a value so api.js never imports the store, which
+   imports api.js.
+
+   Returns "" until preferences have loaded and the tab signal is populated. The
+   only request that goes out in that window is `load_preferences`, whose route
+   is local-only and is never proxied, so the brief header-less period cannot
+   read another window's server. */
+let _sourceHeaderProvider = null;
+
+/**
+ * Install the provider of this window's `X-Dubis-Source` value.
+ * @param {() => string} fn returns "" when this window does not know yet
+ */
+export function setSourceHeaderProvider(fn) { _sourceHeaderProvider = fn; }
+
+function windowSource() {
+  if (!_sourceHeaderProvider) return "";
+  try {
+    return _sourceHeaderProvider() || "";
+  } catch (e) {
+    // A broken provider must not take the whole API surface down with it. A
+    // header-less request is served from the default: degraded, not wrong, and
+    // logged rather than silent.
+    AppLog.warn("api: source header provider failed: " + e.message);
+    return "";
+  }
+}
+
+/* The hub answers 400 to a write that names `merged` (server/sources.py's
+   Registry.resolve): a merged view has no single owner to write to. Caught
+   here as well so the mistake is named in the app log rather than surfacing as
+   a bare HTTP 400 from a route the user never asked about. */
+const MERGED_SOURCE = "merged";
+
+/**
+ * @param {Object} entry an API_MAP entry
+ * @param {Array<any>} args positional args, mapped onto entry.argOrder
+ * @param {{sourceId?: string, raw?: boolean}} [opts]
+ *   `sourceId` sets the X-Dubis-Source header; `raw` returns the whole response
+ *   body instead of the `entry.unwrap` key.
+ */
+async function callHttp(entry, args, opts = {}) {
   const argMap = {};
   entry.argOrder.forEach((name, i) => { argMap[name] = args[i]; });
 
@@ -90,6 +144,13 @@ async function callHttp(entry, args) {
   if (bodyStr !== undefined) {
     init.headers = { "Content-Type": "application/json" };
     init.body = bodyStr;
+  }
+  // An explicit per-call source (a routed write) outranks the window's own; when
+  // there is neither, the request goes out bare and the hub falls back to its
+  // persisted default.
+  const source = opts.sourceId || windowSource();
+  if (source) {
+    init.headers = Object.assign({}, init.headers, { [SOURCE_HEADER]: source });
   }
 
   const res = await fetch(url, init);
@@ -105,8 +166,28 @@ async function callHttp(entry, args) {
   }
 
   const data = await res.json();
+  if (opts.raw) return data;
   if (entry.unwrap) return data[entry.unwrap];
   return data;
+}
+
+/**
+ * Whether `api(method, ...)` has any transport for `method` at all.
+ *
+ * Mirrors the dispatch in `api()` below, deliberately — HTTP when the method is
+ * in the generated map, the client shell otherwise. Callers use it to decide
+ * whether a *capability* exists, not whether a call will succeed: a route that
+ * is mapped can still 500. It exists because `api()` reports a missing method
+ * the same way it reports a real failure (a logged error plus a toast), which
+ * is right for a call the user asked for and wrong for a feature probing
+ * whether it should render itself at all.
+ * @param {string} method
+ * @returns {boolean}
+ */
+export function apiSupports(method) {
+  if (API_MAP[method]) return true;
+  const bridge = window.pywebview && window.pywebview.api;
+  return !!(bridge && typeof bridge[method] === "function");
 }
 
 export async function api(method, ...args) {
@@ -116,6 +197,84 @@ export async function api(method, ...args) {
       return await callHttp(entry, args);
     }
     return await window.pywebview.api[method](...args);
+  } catch (e) {
+    AppLog.error(method + ": " + e.message);
+    showToast("Error: " + e.message);
+    return undefined;
+  }
+}
+
+/**
+ * `api(method, ...)`, but pinned to ONE dubIS server.
+ *
+ * The seam for writes in a merged view. A merged row's stock is the sum of
+ * several servers' stock, and an adjustment has to land on the server that
+ * actually holds it — so the caller names that server and this sets
+ * `X-Dubis-Source`, which the hub honours per request (server/dispatch.py).
+ *
+ * A header rather than an extra argument, and a separate function rather than a
+ * flag on `api()`, for one concrete reason: `api()` maps its args POSITIONALLY
+ * onto `entry.argOrder` across ~141 call sites, so a new positional parameter
+ * would silently become the first body field of every one of them. This touches
+ * only the handful of mutation sites that route.
+ *
+ * `sourceId` of `""`/`null`/`"local"`-when-not-merged is not an error: it means
+ * "no routing needed", and the call behaves exactly like `api()` — which is what
+ * lets a call site use this unconditionally instead of branching on whether the
+ * view happens to be merged.
+ *
+ * @param {string|null|undefined} sourceId roster source id, or falsy for "don't route"
+ * @param {string} method
+ * @param {...any} args
+ */
+export async function apiOn(sourceId, method, ...args) {
+  const id = typeof sourceId === "string" ? sourceId.trim() : "";
+  if (!id) return api(method, ...args);
+  try {
+    if (id === MERGED_SOURCE) {
+      // Loud rather than silent: guessing a server here is exactly the bug the
+      // whole routing seam exists to prevent.
+      throw new Error(
+        "cannot route a write to the merged view — it has no single owning server",
+      );
+    }
+    const entry = API_MAP[method];
+    if (!entry) {
+      throw new Error(
+        "cannot route " + method + " to source " + id +
+        ": it has no /v1 route, so there is no request to put a source header on",
+      );
+    }
+    return await callHttp(entry, args, { sourceId: id });
+  } catch (e) {
+    AppLog.error(method + " -> " + id + ": " + e.message);
+    showToast("Error: " + e.message);
+    return undefined;
+  }
+}
+
+/**
+ * `api(method, ...)` without the `entry.unwrap` step — the whole response body.
+ *
+ * Exists for exactly one thing today: `GET /v1/parts` answers a merged view with
+ * `{inventory, sources}`, where `sources` carries the per-source ok/error status.
+ * `api()` unwraps to `inventory` and drops the sibling, which would leave a view
+ * that is silently missing a whole server's stock looking indistinguishable from
+ * a complete one — the worst outcome this feature has.
+ *
+ * @param {string} method
+ * @param {...any} args
+ * @returns {Promise<any>} the response body, or undefined on failure
+ */
+export async function apiEnvelope(method, ...args) {
+  try {
+    const entry = API_MAP[method];
+    if (!entry) {
+      // The bridge has no envelope to speak of — it returns whatever the
+      // client-shell method returns, which is already "the whole thing".
+      return await window.pywebview.api[method](...args);
+    }
+    return await callHttp(entry, args, { raw: true });
   } catch (e) {
     AppLog.error(method + ": " + e.message);
     showToast("Error: " + e.message);

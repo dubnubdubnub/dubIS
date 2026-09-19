@@ -28,12 +28,14 @@ Does NOT own BOM match data (produced by `js/bom/`) or generic-parts definitions
 - `inv-groups-view.js`: `renderGroupedView`, `renderFilterRow`, `applyGroupFilters` — groups mode
 - `inventory-logic.js`: `groupBySection`, `filterByQuery`, `inferDistributor`, `countByDistributor`, `filterByDistributor`, `filterByVendor`, `computeMatchedInvKeys`, `sortBomRows`, `buildRowMap`, `groupPartsByGeneric`, `computeFilterDimensions`, `filterMembersByChips`, `bomRowDisplayData`, `BOM_STATUS_SORT_ORDER` — pure logic
 - `inv-html-builders.js`: `renderSectionHeader`, `renderSubSectionHeader`, `renderPartRowHtml`, `createBomRowElement`, `renderAltRows`, `renderMemberRows`, `renderFilterBarHtml`, `renderBomTableHeader`, `renderInvColHeader`, `countStatuses` — pure HTML builders
+- `inv-source-logic.js`: `sourceEntries`, `isMergedRow`, `sourceNames`, `sourceBadge`, `conflictFields`, `hasConflict`, `conflictNote`, `viewStateFrom`, `writeTarget`, `writeTargetForAll`, `partialViewNote`, `serverOptions` — pure merged-view provenance: what a row's badge claims, which fields two servers disagreed on, and which server a write may land on
+- `inv-source-view.js`: `toggleSourceBreakdown`, `refreshSourceBreakdowns`, `initSourceBanner` — the per-source breakdown inserted after an expanded row, and the "totals are incomplete" banner
 - `favicon-stack.js`: `renderFanStack`, `buildHoverFlyout` — vendor favicon fan-stack
 - `vendor-flyout.js`: `openVendorPopover`, `closeVendorPopover` — vendor management popover
 
 ## Imports from
 
-- `../event-bus.js`, `../store.js`, `../api.js`, `../ui-helpers.js`, `../part-keys.js`, `./inv-modals.js`, `../undo-redo.js`
+- `../event-bus.js`, `../store.js`, `../api.js`, `../ui-helpers.js`, `../part-keys.js`, `./inv-modals.js`, `../undo-redo.js`, `../signals.js`
 - `../group-flyout/flyout-panel.js` — openFlyout (also via dynamic import)
 - `../import/mfg-direct/mfg-direct-panel.js` — editPO (dynamic import)
 
@@ -45,3 +47,4 @@ Does NOT own BOM match data (produced by `js/bom/`) or generic-parts definitions
 - `inv-mutations.js` — match mutations + click handler; `inv-row-build.js` — row builder
 - `inv-groups-view.js` — groups mode; `inventory-logic.js` — pure logic
 - `inv-html-builders.js` — pure HTML; `favicon-stack.js` — favicons; `vendor-flyout.js` — vendor popover
+- `inv-source-logic.js` — merged-view provenance (pure); `inv-source-view.js` — its DOM half (breakdown insertion + partial-view banner)

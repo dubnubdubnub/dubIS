@@ -12,6 +12,7 @@ import { renderPartRowHtml } from './inv-html-builders.js';
 import { isFlyoutDragActive } from './inv-events.js';
 import state, { generationOpacityFor } from './inv-state.js';
 import { createReverseLink } from './inv-mutations.js';
+import { toggleSourceBreakdown } from './inv-source-view.js';
 import { toggleSelection } from '../label-selection.js';
 import { activateInlineEdit } from './inv-inline-edit.js';
 import * as cartAddMode from '../cart/cart-add.js';
@@ -47,6 +48,7 @@ export function createPartRow(item, sectionKey, sectionChip) {
     nearMiss: nearMiss || null,
     sectionChip: sectionChip,
     importOpacity: generationOpacityFor(pk),
+    sourcesExpanded: state.expandedSources.has(invPartKey(item)),
   });
   row.innerHTML = html;
 
@@ -93,11 +95,15 @@ export function setupRowDelegation(root) {
     var target = /** @type {Element} */ (e.target);
 
     var control = /** @type {HTMLElement|null} */ (target.closest(
-      ".adj-btn, .price-warn-btn, .no-dist-warn, .link-btn, .generic-group-badge, .near-miss-badge"
+      ".adj-btn, .price-warn-btn, .no-dist-warn, .link-btn, .generic-group-badge, .near-miss-badge, .inv-source-badge"
     ));
     if (control && rowEl.contains(control)) {
       e.stopPropagation();
-      if (control.classList.contains("adj-btn") || control.classList.contains("no-dist-warn")) {
+      if (control.classList.contains("inv-source-badge")) {
+        // Only the multi-source badge is a button; the single-source one is a
+        // span with no data attribute, so this is a no-op for it.
+        toggleSourceBreakdown(control.dataset.sourceExpand || "");
+      } else if (control.classList.contains("adj-btn") || control.classList.contains("no-dist-warn")) {
         openAdjustModal(item);
       } else if (control.classList.contains("price-warn-btn")) {
         openPriceModal(item);

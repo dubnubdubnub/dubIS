@@ -23,6 +23,7 @@ vi.mock('../../js/ui-helpers.js', () => ({
 const api = vi.fn().mockResolvedValue({ path: 'C:/out/file.csv' });
 const AppLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), clear: vi.fn() };
 vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {},
   api: (...a) => api(...a),
   AppLog: { info: (...a) => AppLog.info(...a), warn: (...a) => AppLog.warn(...a), error: (...a) => AppLog.error(...a), clear: (...a) => AppLog.clear(...a) },
 }));

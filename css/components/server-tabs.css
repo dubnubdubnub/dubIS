@@ -1,0 +1,204 @@
+/* server-tabs.css — the server quick-switcher: the strip of tabs under the
+   header that switches which dubIS server the inventory comes from.
+
+     [● Local] [● bench] [○ shop] [◐ All]
+
+   Consumed by: index.html (#server-tabs), js/server-tabs.js
+   Layout dimensions come from the --server-tabs-* tokens in css/tokens.css.
+   Dot colours are shared with the Preferences roster's dots in
+   css/components/servers.css — the same claim must not have two palettes. */
+
+.server-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--server-tabs-gap);
+  padding: var(--server-tabs-pad-y) var(--server-tabs-pad-x);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  /* Its own row, a sibling of .header rather than a child of it. .header is
+     flex-wrap: wrap, so a control inside it adds a whole header row at narrow
+     widths and shifts every panel down — far enough to shove the Import button
+     off an 800x600 viewport, which resize-visibility.spec.mjs catches. As a
+     sibling the cost is explicit and bounded: exactly this strip's height, and
+     only while the strip is shown. */
+  flex: 0 0 auto;
+  /* Never wrap. Ten servers must cost one row and a scroll, not ten rows —
+     wrapping here would reintroduce the very failure the row-below split
+     exists to avoid, just one element lower down the page. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+/* js/server-tabs.js sets `hidden` when there is nothing to switch between (no
+   remote source configured) and when the hub has no /v1/sources at all. The
+   `display: flex` above outranks the user-agent `[hidden]` rule, so it has to
+   be re-asserted here or a hidden strip would still take up its row. */
+.server-tabs[hidden] { display: none; }
+
+/* Below the app's documented minimum window width (1200x700) this row's height
+   is the difference between the Import button being on screen and off it, for
+   exactly the reason the header's own controls are: the panels below get
+   whatever vertical space the chrome leaves them. Same treatment, same
+   reasoning, same escape hatch as the zoom control in
+   css/components/ui-zoom.css — the capability stays reachable, here via the
+   server picker in Preferences, which switches live in the same way a tab
+   does. Do NOT answer a failing resize-visibility.spec.mjs by loosening that
+   spec (CLAUDE.md); this media query is the answer. */
+@media (max-width: 1199px) {
+  .server-tabs { display: none; }
+}
+
+.server-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--server-tabs-tab-gap);
+  flex: 0 0 auto;
+  padding: var(--server-tabs-tab-pad-y) var(--server-tabs-tab-pad-x);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.server-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+.server-tab:focus-visible { outline: 2px solid var(--color-blue); outline-offset: 1px; }
+
+/* The source being read right now. Filled rather than merely outlined: at a
+   glance, "which one am I looking at" has to win over "which ones exist". */
+.server-tab.selected {
+  color: var(--text-primary);
+  background: var(--color-blue-bg);
+  border-color: var(--color-blue);
+}
+
+.server-tab-name {
+  max-width: var(--server-tabs-name-max-w);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Reachability dot ──
+   Probed by the hub, not by this window: the hub is what fetches from these
+   servers now, so "can the hub reach it" is finally the question the dot is
+   actually answering. */
+
+.server-tab-dot {
+  flex: 0 0 auto;
+  width: var(--server-tabs-dot-size);
+  height: var(--server-tabs-dot-size);
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.server-tab-dot.active { background: var(--color-green); box-shadow: 0 0 0 3px var(--color-green-bg); }
+.server-tab-dot.live   { background: var(--color-green); }
+.server-tab-dot.down   { background: var(--color-red); }
+
+/* "All", while at least one enabled source is unreachable. The merged view
+   degrades rather than failing (server/fanout.py), so this is the only warning
+   a user gets that they are being shown less than everything. */
+.server-tab-dot.partial { background: var(--color-yellow); }
+
+/* Nothing has been probed. Hollow, never red: a red dot asserts that a server
+   is down, and "we have not asked yet" is not evidence of that. Same rule the
+   Preferences roster follows for the rows it cannot probe. */
+.server-tab-dot.unknown {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--text-muted);
+}
+
+/* ── Tab affordances ──
+   A tab is a view instance, so it carries the two things a browser tab does:
+   something to close it with, and a `+` to open another. */
+
+.server-tab-close {
+  flex: 0 0 auto;
+  width: var(--server-tabs-close-w);
+  height: var(--server-tabs-close-w);
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+  /* Hidden until the tab is hovered or in front, so a strip of eight tabs is a
+     row of names rather than a row of × glyphs. It stays in the layout either
+     way — appearing on hover would re-flow every tab to its right, and the
+     thing under the pointer would move out from under it. */
+  opacity: 0;
+}
+
+.server-tab:hover .server-tab-close,
+.server-tab.selected .server-tab-close,
+.server-tab-close:focus-visible { opacity: 1; }
+
+.server-tab-close:hover { background: var(--color-red-bg); color: var(--color-red); }
+.server-tab-close:focus-visible { outline: 2px solid var(--color-blue); outline-offset: 1px; }
+
+.server-tab-add,
+.server-tab-group {
+  flex: 0 0 auto;
+  padding: var(--server-tabs-tab-pad-y) var(--server-tabs-tab-pad-x);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.server-tab-add { min-width: var(--server-tabs-add-w); }
+
+.server-tab-add:hover,
+.server-tab-group:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+.server-tab-add:focus-visible,
+.server-tab-group:focus-visible { outline: 2px solid var(--color-blue); outline-offset: 1px; }
+
+/* Only present while two or more tabs are selected, so it is allowed to be loud:
+   it is the one control that says what the multi-selection is FOR. */
+.server-tab-group {
+  border-color: var(--color-blue);
+  color: var(--text-primary);
+  background: var(--color-blue-bg);
+}
+
+/* ── Multi-selection (ctrl/shift-click) ──
+   Distinct from `.selected`, which means "the grid is showing this one". A tab
+   can be picked for grouping without being the tab you are looking at, and the
+   two must not read the same. */
+
+.server-tab.multi {
+  border-style: dashed;
+  border-color: var(--color-blue);
+  color: var(--text-primary);
+}
+
+/* ── Drag to reorder ──
+   Native HTML5 drag: the browser draws the dragged tab, and these only mark
+   where it would land. Nothing here is positioned in px, which is what keeps the
+   root-zoom coordinate seam out of the drag entirely (see js/server-tabs.js). */
+
+.server-tab.dragging { opacity: 0.4; }
+
+/* The insertion marker: an inset box-shadow rather than a real border, so the
+   tab does not change width while the pointer moves across the strip — a
+   re-flow mid-drag would move the drop target out from under the cursor. */
+.server-tab.drop-before {
+  box-shadow: inset var(--server-tabs-drop-w) 0 0 0 var(--color-blue);
+}
+
+.server-tabs.drop-last .server-tab:last-of-type {
+  box-shadow: inset calc(-1 * var(--server-tabs-drop-w)) 0 0 0 var(--color-blue);
+}

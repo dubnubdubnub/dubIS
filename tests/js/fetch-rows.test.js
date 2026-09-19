@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../../js/api.js', () => ({
+  setSourceHeaderProvider: () => {},
   api: vi.fn(),
   AppLog: { warn: vi.fn(), error: vi.fn() },
 }));

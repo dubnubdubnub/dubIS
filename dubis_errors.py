@@ -76,3 +76,58 @@ class DataDirLockedError(DubISError):
         self.pid = pid
         self.port = port
         self.data_dir = data_dir
+
+
+class SourceConfigError(DubISError):
+    """A multi-server source registry operation was rejected as invalid.
+
+    Bad URL (no http(s) scheme), duplicate id or URL, a reserved id, editing or
+    removing the implicit `local` source, activating a disabled source, or
+    asking to proxy a path that is local-only. Mapped to HTTP 400 by
+    server/errors.py: every one of these is the caller describing a source
+    wrongly, not a server fault — see
+    docs/plans/2026-09-19-multi-server-hub-design.md.
+    """
+
+
+class SourceNotFoundError(NotFoundError):
+    """No source with that id is registered on this hub.
+
+    Subclasses NotFoundError deliberately, so it inherits that entry's 404 —
+    asking for a source id that was never added (or has just been removed) is
+    the same class of client error as asking for a missing cart.
+    """
+
+
+class SourceProtocolError(DubISError):
+    """A source answered, but not with something dubIS can use.
+
+    A captive portal, an SSO redirect, an nginx welcome page, a health-check
+    shim, or a dubIS that renamed its response envelope: all of them are up,
+    answer 200 and speak JSON. Mapped to HTTP 502 by server/errors.py, and —
+    more importantly — recorded per source by `server/fanout.py` as a source
+    that did NOT answer.
+
+    This exists because the alternative is the worst failure this feature has:
+    a merged total short by a whole machine is a *smaller perfectly plausible
+    number*, with no shape to it, that the user's next ordering decision is made
+    on. "Reachable" and "contributed" must never be allowed to disagree
+    silently.
+    """
+
+
+class SourceUnavailableError(DubISError):
+    """A remote source could not be reached, or answered unusably.
+
+    Mapped to HTTP 502 by server/errors.py: the hub itself is fine, the
+    upstream it was asked to speak to is not. NOTE this is raised only where a
+    single source IS the answer (active = that source). A source being
+    unreachable during a `merged` fan-out is expected and must DEGRADE the
+    merged view (server/fanout.py records a per-source error entry), never fail
+    it.
+    """
+
+    def __init__(self, message: str, *, source_id: str = "", url: str = "") -> None:
+        super().__init__(message)
+        self.source_id = source_id
+        self.url = url

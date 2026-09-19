@@ -67,11 +67,19 @@ Add a `[ci: <suite>]` tag to your commit message to override auto-detection:
 |-----|-----------|------------|
 | `[ci: all]` | Everything | ~3 min |
 | `[ci: lint]` | ESLint + tsc + ruff only (no tests) | ~8s |
-| `[ci: js]` | Full JS: lint + types + vitest core + Playwright E2E | ~55s |
+| `[ci: js]` | Full JS: lint + types + vitest core & property + Playwright E2E | ~55s |
 | `[ci: python]` | Full Python: ruff + fixture check + pytest | ~17s |
 | `[ci: pnp-e2e]` | PnP same-machine E2E (both runners) | ~28s |
 | `[ci: quality]` | Visual/a11y: contrast, style-audit, accessibility E2E (warns, never blocks) | ~49s |
 | `[ci: distributors]` | Real LCSC + Pololu fetches — network only, no secrets (advisory) | ~20s |
+
+Property-based tests (`docs/property-testing.md`) are not a suite of their own.
+The Python ones are ordinary pytest files and the JS ones are the `property`
+vitest project, which the js legs run alongside `core` — so they are selected by
+the same `run_python` / `run_js` routing as everything else. CI loads the
+derandomized `ci` Hypothesis profile (via the `CI` env var every runner sets) and
+pins fast-check's seed, so a red property job reproduces locally byte-for-byte;
+the guide has the exact commands.
 
 ### `[ci: hosted]` — GitHub-hosted fallback (emergency escape hatch)
 
@@ -83,7 +91,7 @@ checks can never start. With the tag present on the PR's head commit:
 - All self-hosted jobs are **skipped** (js, js-e2e, js-live, js-windows, python,
   vlm-gpu, pnp-e2e, quality — nothing queues on a dead runner).
 - The blocking lint/unit legs rerun on GitHub-hosted `ubuntu-latest` instead:
-  `js-hosted` (eslint + tsc + vitest core) and `python-hosted` (ruff + staleness
+  `js-hosted` (eslint + tsc + vitest core & property) and `python-hosted` (ruff + staleness
   guards + pytest, with tesseract installed via apt so the OCR tests still run).
 - The required gate contexts (`JS Lint & Test (ubuntu)`, `Python Lint & Test
   (ubuntu)`, `PnP E2E (required)`) aggregate the hosted jobs and go green/red on

@@ -5,7 +5,7 @@ import { api, AppLog, whenPywebviewReady } from './api.js';
 import { connectEvents, onEvent } from './sse.js';
 import { showToast, Modal, setEnterSubmitEnabled } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
-import { store, loadPreferences, savePreferences, loadInventory, scheduleInventoryRefresh, onInventoryUpdated, getShortcutPrefs } from './store.js';
+import { store, loadPreferences, savePreferences, loadInventory, fetchInventory, scheduleInventoryRefresh, onInventoryUpdated, getShortcutPrefs } from './store.js';
 import { processBOM } from './csv-parser.js';
 import { matchBOM } from './matching.js';
 import { colorizeRefs, REF_COLOR_MAP, invPartKey } from './part-keys.js';
@@ -25,6 +25,7 @@ import { enterLabelMode, isLabelMode, exitLabelMode } from './label-selection.js
 import { runFetchMissingDescriptions } from './inventory/fetch-descriptions-command.js';
 import { loadCarts } from './cart/cart-store.js';
 import { initCartHeader } from './cart/cart-header.js';
+import { initServerTabs, startServerTabs } from './server-tabs.js';
 
 // Explicit panel imports (no side effects until init() is called)
 import { init as initInventoryModals } from './inventory/inv-modals.js';
@@ -81,6 +82,7 @@ function mountPanels() {
   initLabelSelection();
   initLabelExportModal();
   initCartHeader();
+  initServerTabs();
   initZoomControl();
   initPanelCollapse(resizeHandles);
 }
@@ -194,7 +196,7 @@ function wireMiscButtons() {
   const rebuildBtn = document.getElementById("rebuild-inv");
   if (rebuildBtn) rebuildBtn.addEventListener("click", async () => {
     AppLog.info("Rebuilding inventory...");
-    const fresh = await api("rebuild_inventory");
+    const fresh = await fetchInventory();
     if (!fresh) return;
     onInventoryUpdated(fresh);
     showToast("Inventory rebuilt");
@@ -296,7 +298,7 @@ function wireCommandPaletteAndShortcuts(syncUndoRedoButtons) {
       keywords: ['refresh', 'reload', 'sync'],
       run: async () => {
         AppLog.info('Rebuilding inventory…');
-        const fresh = await api('rebuild_inventory');
+        const fresh = await fetchInventory();
         if (!fresh) return;
         onInventoryUpdated(fresh);
         showToast('Inventory rebuilt');
@@ -625,6 +627,12 @@ async function bootstrapData() {
   if (benchOn) api("bench_mark", "js_prefs_loaded");
   const { hydrateFromPreferences: hydrateInvView } = await import('./inventory/inv-state.js');
   hydrateInvView(store.preferences.inventory_view);
+  // Same reason again: the quick-switcher's tabs come from preferences, which do
+  // not exist at mount time. It runs AFTER hydrateInvView on purpose — the
+  // active tab carries its own view snapshot, which is more specific than the
+  // single global inventory_view and must win. Fire-and-forget: a hub that
+  // cannot answer GET /v1/sources must not hold up the inventory load.
+  startServerTabs().catch((e) => AppLog.warn("server tabs: " + e.message));
   loadInventory();
   api("check_digikey_session").then(function (r) {
     if (r && r.logged_in) {
