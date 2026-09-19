@@ -99,3 +99,23 @@ def test_mouser_api_key_roundtrip(client):
 
     r5 = client.get("/v1/distributors/mouser/key")
     assert r5.json()["configured"] is False
+
+
+def test_digikey_session_is_200_not_500_off_windows(api, client, monkeypatch):
+    """The exact repro: `GET .../digikey/session` with no facade mocking.
+
+    `digikey_session.find_default_browser_exe` reads the Windows registry, and
+    its `import winreg` used to raise ModuleNotFoundError past the OSError
+    handler, so this route answered 500 on every macOS/Linux launch — leaving
+    the Preferences modal unable to tell "not logged in" from "route crashed".
+    Platform is monkeypatched rather than skipped so it runs on Windows too.
+    """
+    import digikey_session
+
+    monkeypatch.setattr(digikey_session.sys, "platform", "darwin")
+    r = client.get("/v1/distributors/digikey/session")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["logged_in"] is False       # never a false positive
+    assert body["supported"] is False       # ...and says why
+    assert "Windows-only" in body["message"]
