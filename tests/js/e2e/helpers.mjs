@@ -221,20 +221,13 @@ export function addMockSetup(page, inventory, options = {}) {
           return opts.deleteLastResult || inv;
         },
         open_source_file: async () => ({ opened: true, path: '/dev/null' }),
-        get_inventory_mirror_info: async () => window.__mirrorState || ({
-          enabled: false, installed: false, running: false,
-          serve_url: "", read_port: 7893, allowlist: [],
-        }),
-        enable_inventory_mirror: async () => {
-          window.__mirrorState = { enabled: true, installed: true, running: true,
-            serve_url: "https://mauler.example.ts.net", read_port: 7893, allowlist: [] };
-          return window.__mirrorState;
-        },
-        disable_inventory_mirror: async () => {
-          window.__mirrorState = { enabled: false, installed: false, running: false,
-            serve_url: "", read_port: 7893, allowlist: [] };
-          return window.__mirrorState;
-        },
+        // The three inventory-mirror methods used to be stubbed here, on the
+        // bridge. That was wrong, and it hid a real bug: they had no /v1 route
+        // AND were not on the ~11-method ClientShell, so in the real app every
+        // call fell through js/api.js to a bridge that had no such method and
+        // failed silently. Only these mocks made the bridge path exist at all.
+        // They now have routes (server/routes/mirror.py), and their mocks live
+        // with every other /v1 mock in route-mocks.mjs.
       },
     };
   }, { inv: inventory, opts: options, colDetections: COLUMN_DETECTIONS });

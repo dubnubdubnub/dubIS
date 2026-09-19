@@ -57,6 +57,12 @@ EXEMPT = {
     "register_feeder": "feeder identity state, not inventory data",
     "load_feeder_reel": "feeder↔reel binding, not an inventory quantity change",
     "unload_feeder": "feeder↔reel binding, not an inventory quantity change",
+    # Host-level mirror daemon + tailscale serve. Installing or tearing down the
+    # mirror changes what the *mirror* exposes, never an inventory row, so an
+    # inventory refresh here would be pure noise. The Preferences modal re-reads
+    # GET /v1/inventory-mirror itself after either toggle.
+    "enable_inventory_mirror": "installs the mirror daemon; no inventory change",
+    "disable_inventory_mirror": "removes the mirror daemon; no inventory change",
 }
 
 # Routes that publish transitively via a shared helper the source-scan can't see.
