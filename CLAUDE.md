@@ -80,7 +80,7 @@ scripts/dubis spec-search capacitor 100nF --package 0402
 # generated surface — every /v1 route
 scripts/dubis parts adjust C1000 --adj-type add --quantity 50    # --source defaults to "cli"
 scripts/dubis parts adjust C1000 --adj-type add --quantity 50 --dry-run
-scripts/dubis schema --json                                      # all 87 generated commands + params
+scripts/dubis schema --json                                      # all 90 generated commands + params
 ```
 
 Path params are positional, everything else is a flag; global flags work before or after the subcommand. Exit codes: `2` bad usage, `3` server or precheck error, `4` no server found. Mutations are tagged `--source` so `dubis adjustments rollback-source <name>` undoes a session.
