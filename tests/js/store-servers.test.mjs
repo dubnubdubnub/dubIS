@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // constants.js has top-level fetch that crashes vitest; mock it first.
 vi.mock('../../js/constants.js', () => ({
@@ -33,6 +33,13 @@ async function lastSaved() {
 describe('server roster slice', () => {
   let store;
   beforeEach(async () => {
+    // Fake timers for the WHOLE describe, not just the refetch tests below.
+    // Every switch schedules js/store.js's 250ms debounced refresh, so a test
+    // that leaves one pending on the REAL clock fires it inside whichever test
+    // happens to be running 250ms later — which is invisible until something
+    // counts fetches, and then it is a flake that only shows up under load.
+    // A fake timer left pending is discarded by useRealTimers() below instead.
+    vi.useFakeTimers();
     vi.resetModules();
     const { api } = await import('../../js/api.js');
     // Reset, not just clear: a test that installs its own mockImplementation
@@ -46,6 +53,8 @@ describe('server roster slice', () => {
     // source at all so the hub falls back to its saved default.
     store.hydrateSourcesFromPreferences();
   });
+
+  afterEach(() => { vi.useRealTimers(); });
 
   it('starts empty with local selected', () => {
     expect(store.getServers()).toEqual([]);
@@ -437,6 +446,111 @@ describe('server roster slice', () => {
     store.setBehaviorPrefs({ autoCopySelection: true });
     expect((await lastSaved()).servers)
       .toEqual([{ id: 'a', name: 'A', url: 'https://a.example' }]);
+  });
+
+  // ── What refetches the grid ─────────────────────────────
+  // A gesture refetches when — and only when — the SOURCE behind the rows moved.
+  // The bug these pin: the decision used to be persistTabs()'s "did the saved
+  // default change", and every gesture that publishes TWICE answered it wrong.
+  // Closing the front tab publishes the surviving tab set (recording the new
+  // default) and then calls switchToTab, whose own persistTabs() truthfully says
+  // "nothing changed" — so nothing refetched and the grid went on showing the
+  // closed tab's server.
+
+  /** Let any refresh the debounce is still holding actually go out. */
+  const settle = () => vi.advanceTimersByTimeAsync(500);
+
+  /** Run the debounced refresh and report how many inventory fetches it made. */
+  async function refetches(fn) {
+    const { apiEnvelope } = await import('../../js/api.js');
+    const before = apiEnvelope.mock.calls.length;
+    await fn();
+    await settle();
+    return apiEnvelope.mock.calls.length - before;
+  }
+
+  /** Local + one tab per server, front tab last, with the setup's own refreshes spent. */
+  async function threeTabs() {
+    const a = store.addServer('A', 'https://a.example').entry;
+    const b = store.addServer('B', 'https://b.example').entry;
+    await store.switchActiveSource(a.id);
+    await store.switchActiveSource(b.id);
+    await settle();
+    return { a, b };
+  }
+
+  describe('refetching after a tab gesture', () => {
+    it('closing the front tab refetches from the tab that takes its place', async () => {
+      const { a, b } = await threeTabs();
+      const front = store.getTabs().find((t) => t.sources[0] === b.id);
+
+      const n = await refetches(() => store.closeTabById(front.id));
+      expect(store.getActiveSource()).toBe(a.id);
+      expect(n).toBe(1);
+    });
+
+    it('closing a background tab refetches nothing', async () => {
+      // The grid is still showing the same source, so a round trip would buy
+      // nothing and would flash the rows for a gesture that did not move them.
+      const { a, b } = await threeTabs();
+      const background = store.getTabs().find((t) => t.sources[0] === a.id);
+
+      const n = await refetches(() => store.closeTabById(background.id));
+      expect(store.getActiveSource()).toBe(b.id);
+      expect(n).toBe(0);
+    });
+
+    it('closing the front tab of two on the SAME server refetches nothing', async () => {
+      const { b } = await threeTabs();
+      await store.openTab();                       // a second view of B
+      await settle();
+      const front = store.getTabs()[store.getTabs().length - 1];
+      expect(store.getActiveSource()).toBe(b.id);
+
+      const n = await refetches(() => store.closeTabById(front.id));
+      expect(store.getActiveSource()).toBe(b.id);
+      expect(n).toBe(0);
+    });
+
+    it('grouping refetches once, on the merged selector', async () => {
+      const { a, b } = await threeTabs();
+      const tabs = store.getTabs();
+      const ids = [a.id, b.id].map((sid) => tabs.find((t) => t.sources[0] === sid).id);
+
+      const n = await refetches(() => store.groupTabsById(ids));
+      expect(store.getActiveSource()).toBe(a.id + ',' + b.id);
+      expect(n).toBe(1);
+    });
+
+    it('switching refetches once, not once per publish', async () => {
+      const { a } = await threeTabs();
+      const target = store.getTabs().find((t) => t.sources[0] === a.id);
+
+      const n = await refetches(() => store.switchToTab(target.id));
+      expect(n).toBe(1);
+    });
+
+    it('removing the server a background tab was showing leaves the grid alone', async () => {
+      const { a, b } = await threeTabs();
+      const n = await refetches(async () => {
+        store.removeServer(a.id);
+        store.syncTabsWithRoster();
+      });
+      expect(store.getActiveSource()).toBe(b.id);
+      expect(n).toBe(0);
+    });
+
+    it('removing the server the FRONT tab was showing refetches from its replacement', async () => {
+      // The tab is gone with its server, so the grid is now describing something
+      // else — and has to go and get it.
+      const { b } = await threeTabs();
+      const n = await refetches(async () => {
+        store.removeServer(b.id);
+        store.syncTabsWithRoster();
+      });
+      expect(store.getActiveSource()).not.toBe(b.id);
+      expect(n).toBe(1);
+    });
   });
 
   it('falls back to server_url when nothing recorded an active_source', async () => {

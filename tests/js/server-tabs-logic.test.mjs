@@ -32,6 +32,7 @@ import {
   shouldShowTabs,
   dropTarget,
   renderTabs,
+  newTabChoices,
   switchedMessage,
 } from '../../js/server-tabs-logic.js';
 
@@ -695,5 +696,54 @@ describe('switchedMessage', () => {
 
   it('degrades to something sayable for an unknown id', () => {
     expect(switchedMessage(tabs, TWO, 'gone')).toBe('Switched tab');
+  });
+});
+
+describe('newTabChoices', () => {
+  it('offers every source, then the whole set as one group', () => {
+    const choices = newTabChoices(TWO, tab('t1', [LOCAL_ID]));
+    expect(choices.map((c) => c.key)).toEqual([LOCAL_ID, 'bench', 'shop', MERGED_ID]);
+    expect(choices.map((c) => c.label)).toEqual([LOCAL_LABEL, 'bench', 'shop', ALL_LABEL]);
+    expect(choices[3].sources).toEqual(IDS);
+  });
+
+  it('offers no group when there is only one source to group', () => {
+    // A "group" of one is the same tab with extra words.
+    expect(newTabChoices([], tab('t1', [LOCAL_ID])).map((c) => c.key)).toEqual([LOCAL_ID]);
+  });
+
+  it('marks the active tab’s own source without removing it', () => {
+    // `+` on the server you are already looking at is the original gesture —
+    // a second view of it — so that row must stay offered.
+    const choices = newTabChoices(TWO, tab('t1', ['bench']));
+    expect(choices.find((c) => c.key === 'bench').current).toBe(true);
+    expect(choices.filter((c) => c.current)).toHaveLength(1);
+  });
+
+  it('marks the All row when the active tab covers everything', () => {
+    const choices = newTabChoices(TWO, tab('t1', IDS));
+    expect(choices.find((c) => c.key === MERGED_ID).current).toBe(true);
+    // And a group of everything is not "the bench row", even though bench is in it.
+    expect(choices.find((c) => c.key === 'bench').current).toBe(false);
+  });
+
+  it('marks nothing when a group covers only some of the sources', () => {
+    const choices = newTabChoices(TWO, tab('t1', ['bench', 'shop']));
+    expect(choices.some((c) => c.current)).toBe(false);
+  });
+
+  it('dots claim reachability, never “active”', () => {
+    // This is a list of places to go. Painting one green-because-you-are-there
+    // would borrow the strip's "reading from this now" vocabulary for a row
+    // that is not a tab.
+    const sources = [src('bench', { reachable: true }), src('shop', { reachable: false })];
+    const choices = newTabChoices(sources, tab('t1', ['bench']));
+    expect(choices.map((c) => c.dot.state)).toEqual(['live', 'live', 'down', 'partial']);
+  });
+
+  it('tolerates no active tab at all', () => {
+    const choices = newTabChoices(TWO, undefined);
+    expect(choices.some((c) => c.current)).toBe(false);
+    expect(choices).toHaveLength(4);
   });
 });
