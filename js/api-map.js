@@ -209,6 +209,17 @@ export const API_MAP = {
     "unwrap": "detail",
     "verb": "POST"
   },
+  "create_jlc_pairing": {
+    "argOrder": [],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/distributors/jlcpcb/pairing",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "POST"
+  },
   "create_purchase_order_with_items": {
     "argOrder": [
       "vendor_id",
@@ -558,6 +569,21 @@ export const API_MAP = {
     "rawBody": false,
     "unwrap": "path",
     "verb": "POST"
+  },
+  "fetch_jlc_library": {
+    "argOrder": [
+      "account"
+    ],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/distributors/jlcpcb/library",
+    "pathParams": [],
+    "queryParams": [
+      "account"
+    ],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "GET"
   },
   "fetch_lcsc_product": {
     "argOrder": [
@@ -913,6 +939,17 @@ export const API_MAP = {
     "unwrap": null,
     "verb": "GET"
   },
+  "list_jlc_sessions": {
+    "argOrder": [],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/distributors/jlcpcb/sessions",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "GET"
+  },
   "list_parts": {
     "argOrder": [],
     "bodyParams": [],
@@ -1204,6 +1241,27 @@ export const API_MAP = {
     "unwrap": "inventory",
     "verb": "GET"
   },
+  "receive_jlc_session": {
+    "argOrder": [
+      "nonce",
+      "account",
+      "cookies",
+      "label"
+    ],
+    "bodyParams": [
+      "account",
+      "cookies",
+      "label",
+      "nonce"
+    ],
+    "mutating": false,
+    "path": "/v1/distributors/jlcpcb/session",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "POST"
+  },
   "record_fetched_prices": {
     "argOrder": [
       "part_key",
@@ -1376,6 +1434,21 @@ export const API_MAP = {
     "rawBody": false,
     "unwrap": "detail",
     "verb": "POST"
+  },
+  "revoke_jlc_session": {
+    "argOrder": [
+      "account"
+    ],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/distributors/jlcpcb/sessions/{account}",
+    "pathParams": [
+      "account"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "DELETE"
   },
   "rollback_source": {
     "argOrder": [

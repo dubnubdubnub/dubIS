@@ -8,9 +8,20 @@ maps cleanly onto the generic `dubis_error`/`not_found` codes in
 than raising.
 
 None of the remaining routes mutate inventory-derived state (they manage
-DigiKey session cookies / the Mouser API key), so none of them call
-`finish_mutation`/publish — same rationale as `fetch_favicon` in
+DigiKey session cookies / the Mouser API key / JLC session cookies), so none of
+them call `finish_mutation`/publish — same rationale as `fetch_favicon` in
 `vendors_pos.py`.
+
+The two JLCPCB *credential intake* routes are the only ones here that are
+loopback-gated. A browser extension pushes a live JLC session cookie at
+`POST /v1/distributors/jlcpcb/session`, and a hub that forwarded that upstream
+would be handing a user's credential to a different machine — so both it and
+the pairing route that authorizes it call `auth.require_loopback` AND appear in
+`proxy.LOCAL_ONLY_PATHS`. Two mechanisms because they answer different
+questions: the allowlist stops the hub *forwarding* the request, the guard
+stops a remote caller *reaching* the handler. The extension talking to a remote
+dubIS is phase 2+ and needs its own deliberate, tested exception. Design:
+`docs/plans/2026-09-20-extension-credential-capture.md`.
 """
 
 from __future__ import annotations
@@ -18,6 +29,16 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+from server.auth import require_loopback
+from server.models import (
+    JlcLibraryResponse,
+    JlcPairingResponse,
+    JlcRevokeResponse,
+    JlcSessionAcceptedResponse,
+    JlcSessionBody,
+    JlcSessionsResponse,
+)
 
 router = APIRouter(prefix="/v1", tags=["distributors"])
 
@@ -109,3 +130,72 @@ def set_mouser_api_key(request: Request, body: SetMouserKeyBody) -> dict:
 def clear_mouser_api_key(request: Request) -> dict:
     api = request.app.state.api
     return api.clear_mouser_api_key()
+
+
+# ── JLCPCB session (browser-extension credential capture) ────────────────────
+
+
+@router.post(
+    "/distributors/jlcpcb/pairing",
+    response_model=JlcPairingResponse,
+    operation_id="create_jlc_pairing",
+)
+def create_jlc_pairing(request: Request) -> dict:
+    """Mint the single-use nonce the extension must present. Loopback only."""
+    require_loopback(request)
+    return request.app.state.api.create_jlc_pairing()
+
+
+@router.post(
+    "/distributors/jlcpcb/session",
+    response_model=JlcSessionAcceptedResponse,
+    operation_id="receive_jlc_session",
+)
+def receive_jlc_session(request: Request, body: JlcSessionBody) -> dict:
+    """Accept a pushed JLC session: consume the nonce, validate, store. Loopback only.
+
+    Answers with the account it resolved, its label and the library item count
+    — never the credential. `body.account` is a hint the extension read out of
+    the validation response; the stored key is whatever THIS server's own
+    validation call resolved.
+    """
+    require_loopback(request)
+    api = request.app.state.api
+    return api.receive_jlc_session(
+        body.nonce, body.account or "", body.cookies, body.label or ""
+    )
+
+
+@router.get(
+    "/distributors/jlcpcb/sessions",
+    response_model=JlcSessionsResponse,
+    operation_id="list_jlc_sessions",
+)
+def list_jlc_sessions(request: Request) -> dict:
+    """Which accounts are paired, and when each last worked. Never a cookie."""
+    return request.app.state.api.list_jlc_sessions()
+
+
+@router.delete(
+    "/distributors/jlcpcb/sessions/{account}",
+    response_model=JlcRevokeResponse,
+    operation_id="revoke_jlc_session",
+)
+def revoke_jlc_session(request: Request, account: str) -> dict:
+    """Forget one account's stored credential."""
+    return request.app.state.api.revoke_jlc_session(account)
+
+
+@router.get(
+    "/distributors/jlcpcb/library",
+    response_model=JlcLibraryResponse,
+    operation_id="fetch_jlc_library",
+)
+def fetch_jlc_library(request: Request, account: str = "") -> dict:
+    """One account's private JLC parts library as dubIS-shaped records.
+
+    Read-only: nothing here writes to inventory. Merging JLC stock into
+    inventory is phase 3 and carries its own decision (JLC parts are
+    PCBA-only, hence non-fungible with bench stock).
+    """
+    return request.app.state.api.fetch_jlc_library(account)

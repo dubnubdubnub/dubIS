@@ -81,6 +81,14 @@ LOCAL_ONLY_PATHS = frozenset({
     "/v1/events",
     "/v1/openapi.json",
     "/v1/docs",
+    # Credential intake. The browser extension pushes a live JLC session
+    # cookie here; forwarding it would hand a user's credential to a different
+    # machine, and forwarding the pairing nonce that authorizes it would let an
+    # upstream mint the token for that push. Both also call
+    # `auth.require_loopback` — the allowlist stops the hub forwarding, the
+    # guard stops a remote caller reaching the handler.
+    "/v1/distributors/jlcpcb/pairing",
+    "/v1/distributors/jlcpcb/session",
 })
 
 # Prefixes whose whole subtree is local-only. `/v1/sources` covers
