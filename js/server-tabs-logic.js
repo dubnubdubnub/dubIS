@@ -67,8 +67,18 @@ export const ALL_LABEL = 'All';
 const LABEL_NAME_LIMIT = 2;
 
 /**
+ * `has_token` / `auth` are carried straight through from `GET /v1/sources` in
+ * the hub's own snake_case, deliberately un-renamed: they are the wire fields,
+ * and a second spelling would be a second thing to keep in sync. `auth` is
+ * "ok" | "required" | "rejected" | "unknown", and only the hub can answer it —
+ * it is the hub's outbound client that authenticates to a source, never this
+ * window. Nothing in THIS module reads either field; the tab strip's dots mean
+ * reachability and nothing else. They are carried so `getSources()` can hand
+ * them to the Preferences picker (js/server-list.js), which is where a
+ * credential is shown and edited.
  * @typedef {{id: string, name: string, url: string, enabled: boolean,
- *            reachable: (boolean|undefined), detail: string}} Source
+ *            reachable: (boolean|undefined), detail: string,
+ *            has_token: boolean, auth: string}} Source
  */
 
 /** @typedef {{state: 'active'|'live'|'down'|'partial'|'unknown', detail: string}} DotClaim */
@@ -153,6 +163,12 @@ export function normalizeSources(raw, warn) {
         enabled: entry.enabled === undefined ? true : !!entry.enabled,
         reachable: typeof entry.reachable === 'boolean' ? entry.reachable : undefined,
         detail: typeof entry.detail === 'string' ? entry.detail : '',
+        // Both default to "we have not been told". A hub too old to report
+        // them must not read as "definitely no token, definitely fine" — that
+        // is the same false-confidence failure `reachable: undefined` avoids
+        // one line up.
+        has_token: entry.has_token === true,
+        auth: typeof entry.auth === 'string' && entry.auth ? entry.auth : 'unknown',
       });
     }
   }
@@ -183,6 +199,11 @@ export function sourcesFromRoster(servers) {
     enabled: true,
     reachable: undefined,
     detail: '',
+    // Same reasoning as `reachable` above: the preferences roster is a list of
+    // URLs somebody typed. It records no credential (see js/servers-logic.js on
+    // why it must not) and no auth outcome.
+    has_token: false,
+    auth: 'unknown',
   }));
 }
 
@@ -212,8 +233,10 @@ export function tabMembers(tab, sources) {
     out.push({
       id: LOCAL_ID, name: LOCAL_LABEL, url: '', enabled: true,
       // The hub answered, so the hub is up. There is no honest way for this to
-      // be anything else.
+      // be anything else. Nor is there an auth hop to fail: this IS the process
+      // serving the window, so it needs no credential and always passes.
       reachable: true, detail: 'always available — it serves this window',
+      has_token: false, auth: 'ok',
     });
   }
   for (const s of sources || []) if (want.has(s.id)) out.push(s);

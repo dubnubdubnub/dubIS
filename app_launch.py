@@ -25,6 +25,7 @@ permanently out of reach rather than merely avoided by timing.
 
 from __future__ import annotations
 
+import inspect
 import logging
 from typing import Callable
 
@@ -77,7 +78,7 @@ def _load_seeder() -> Callable[[str], None] | None:
     return getattr(module, SEAM_FUNCTION, None)
 
 
-def seed_initial_active_source(url: str | None, seeder=None) -> str:
+def seed_initial_active_source(url: str | None, seeder=None, token: str | None = None) -> str:
     """Tell the hub which source to start active on. Returns what happened:
 
       "local"       — no URL resolved (neither DUBIS_URL nor preferences'
@@ -93,6 +94,18 @@ def seed_initial_active_source(url: str | None, seeder=None) -> str:
 
     `seeder` is injectable so this is testable without `server/sources.py`
     existing (it is built in parallel with this module).
+
+    `token` is `DUBIS_TOKEN` — the bearer credential for that URL, travelling
+    with it because it has the same lifetime. `DUBIS_URL` is a one-off override
+    `app_restart.py` strips from a relaunch, and its credential must not outlive
+    it either, so neither is ever persisted. An env-launched session pointed at
+    a server running `DUBIS_AUTH_MODE=on` got no `Authorization` header at all
+    before this, and 401'd on everything but the health check.
+
+    Passed positionally-last and defaulted so the older two-argument shape (and
+    every test double with a one-parameter seeder) keeps working: a seeder that
+    does not accept a token is called without one rather than crashing the boot
+    thread.
     """
     if not url:
         return "local"
@@ -100,8 +113,44 @@ def seed_initial_active_source(url: str | None, seeder=None) -> str:
         seeder = _load_seeder()
     if seeder is None:
         return "unavailable"
+    if _accepts_token(seeder):
+        seeder(url, token)
+        return "seeded"
+    # A seeder from before tokens existed. Losing the credential is worth a loud
+    # log and a degraded session; refusing to seed the URL at all would silently
+    # start on the wrong server's data, which is worse.
+    #
+    # Decided by inspecting the signature, NOT by calling and catching
+    # `TypeError`: a real `seed_initial_active_source` that raised a TypeError
+    # somewhere inside itself would be indistinguishable from an arity mismatch,
+    # and we would call it a second time — hiding the bug and half-applying
+    # whatever it had already done.
+    if token:
+        logger.warning(
+            "%s does not accept a token — starting on %s without DUBIS_TOKEN. "
+            "Requests will 401 if that server has DUBIS_AUTH_MODE=on.",
+            ACTIVE_SOURCE_SEAM, url,
+        )
     seeder(url)
     return "seeded"
+
+
+def _accepts_token(seeder) -> bool:
+    """Can *seeder* be called with a second (token) argument?
+
+    An unintrospectable callable (a builtin like `list.append`, which is what
+    the tests inject) reports False — the conservative answer: it gets the URL,
+    which is the part that must not be lost.
+    """
+    try:
+        signature = inspect.signature(seeder)
+    except (TypeError, ValueError):
+        return False
+    try:
+        signature.bind("url", "token")
+    except TypeError:
+        return False
+    return True
 
 
 # ── second launch: attach to the running hub instead of dying ────────────────

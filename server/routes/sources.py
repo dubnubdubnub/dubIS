@@ -39,7 +39,7 @@ async def _status_payload(request: Request, registry: sources_mod.Registry) -> d
     """
     clients: sources_mod.SourceClients = request.app.state.source_clients
     remotes = registry.remotes
-    status: dict[str, tuple[bool, str]] = {}
+    status: dict[str, sources_mod.ProbeResult] = {}
 
     async def probe_one(source: sources_mod.Source) -> None:
         status[source.id] = await sources_mod.probe(source, clients)
@@ -47,6 +47,8 @@ async def _status_payload(request: Request, registry: sources_mod.Registry) -> d
     async with anyio.create_task_group() as tg:
         for source in remotes:
             tg.start_soon(probe_one, source)
+
+    unprobed = sources_mod.ProbeResult(reachable=False, detail="not probed")
 
     return {
         # `default` is the canonical name: it is what a request with no
@@ -62,9 +64,15 @@ async def _status_payload(request: Request, registry: sources_mod.Registry) -> d
                 "name": s.name,
                 "url": s.url,
                 "enabled": s.enabled,
+                # Whether a credential is held — never the credential. See
+                # server/token_store.py: the token does not travel to any
+                # client, and `has_token` is what lets the picker say "this
+                # server needs one" instead of leaving the user to infer it
+                # from a wall of 401s.
                 "has_token": bool(s.token),
-                "reachable": status.get(s.id, (False, "not probed"))[0],
-                "detail": status.get(s.id, (False, "not probed"))[1],
+                "reachable": status.get(s.id, unprobed).reachable,
+                "detail": status.get(s.id, unprobed).detail,
+                "auth": status.get(s.id, unprobed).auth,
             }
             for s in remotes
         ],

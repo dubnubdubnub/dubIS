@@ -29,6 +29,7 @@ import {
   addPersistentPrefsRouteMock,
   installSourcesRouteMocks,
   defaultSourceOnHub,
+  sourceTokensOnHub,
 } from './route-mocks.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -78,9 +79,10 @@ async function openPrefs(page) {
 }
 
 /** @param {import('@playwright/test').Page} page */
-async function addServer(page, name, url) {
+async function addServer(page, name, url, token) {
   await page.locator('#pref-server-new-name').fill(name);
   await page.locator('#pref-server-new-url').fill(url);
+  if (token) await page.locator('#pref-server-new-token').fill(token);
   await page.locator('#pref-server-add').click();
 }
 
@@ -277,6 +279,80 @@ test('the dots keep re-checking while the modal is open', async ({ page }) => {
 
   healthy = false;
   await expect(row(page, 'Cluster').locator('.server-dot')).toHaveClass(/down/, { timeout: 15000 });
+});
+
+/* ── Credentials ──
+   A server's API token is used SERVER-SIDE, by the local hub's outbound client,
+   which is why the browser can only write one and read it back as a boolean. */
+
+test('a server the hub cannot authenticate to is marked, green dot and all', async ({ page }) => {
+  // The bug this chip exists for: /v1/health is exempt from AuthMiddleware, so
+  // a server running DUBIS_AUTH_MODE=on that the hub holds no token for answers
+  // the reachability probe happily — a green dot next to a server whose every
+  // data request 401s.
+  // Re-installed over the beforeEach's copy: a later page.route wins, and the
+  // later init script redefines the roster builder with this `auth` map. The
+  // reload is what makes the new init script run.
+  await installSourcesRouteMocks(page, { auth: { [ALIVE]: 'required' } });
+  await page.reload();
+  await waitForInventoryRows(page);
+
+  await openPrefs(page);
+  await addServer(page, 'Cluster', ALIVE);
+
+  const cred = row(page, 'Cluster').locator('.server-cred');
+  await expect(cred).toBeVisible();
+  await expect(cred).toHaveText('needs a token');
+  await expect(cred).toHaveClass(/needs-token/);
+  // Reachable AND unusable, at the same time, in the same row. That pairing is
+  // the whole point — the dot is not wrong, it just cannot see this.
+  await expect(row(page, 'Cluster').locator('.server-dot')).toHaveClass(/live/);
+  // And no other row grows a chip it has nothing to say with.
+  await expect(row(page, 'Local').locator('.server-cred')).toHaveCount(0);
+});
+
+test('adding a server with a token PATCHes it to the hub and never into preferences', async ({ page }) => {
+  const SECRET = 'sekrit-token-9f3a';
+  /** @type {Array<{url: string, method: string, body: string}>} */
+  const writes = [];
+  page.on('request', (req) => {
+    const url = req.url();
+    if (!/\/v1\/(preferences|sources)/.test(url)) return;
+    writes.push({ url, method: req.method(), body: req.postData() || '' });
+  });
+
+  await openPrefs(page);
+  await addServer(page, 'Cluster', ALIVE, SECRET);
+  await expect(row(page, 'Cluster')).toBeVisible();
+
+  // The token reached the hub, on the route that exists to receive it.
+  await expect.poll(() => sourceTokensOnHub(page).then((t) => Object.values(t)))
+    .toEqual([SECRET]);
+  const patch = writes.filter((w) => w.method === 'PATCH' && /\/v1\/sources\//.test(w.url));
+  expect(patch).toHaveLength(1);
+  expect(JSON.parse(patch[0].body).token).toBe(SECRET);
+  // …and setting a token did not smuggle a rename or a re-point along with it.
+  expect(Object.keys(JSON.parse(patch[0].body))).toEqual(['token']);
+
+  // THE assertion. save_preferences posts the WHOLE preferences object into a
+  // hand-editable file, and does so again on every later unrelated change, so
+  // one leak would be a permanent one.
+  const prefWrites = writes.filter((w) => w.method === 'PUT' && /\/v1\/preferences/.test(w.url));
+  expect(prefWrites.length).toBeGreaterThan(0);
+  for (const w of prefWrites) expect(w.body).not.toContain(SECRET);
+
+  // Not even after an unrelated preference save reposts the whole object.
+  writes.length = 0;
+  await page.locator('#pref-auto-copy').click();
+  await expect
+    .poll(() => writes.filter((w) => w.method === 'PUT' && /\/v1\/preferences/.test(w.url)).length)
+    .toBeGreaterThan(0);
+  for (const w of writes) expect(w.body).not.toContain(SECRET);
+
+  // And the field is emptied the instant it is read — nothing can show a
+  // stored token again, so leaving it populated would display a secret that
+  // may not even be the one in force.
+  await expect(page.locator('#pref-server-new-token')).toHaveValue('');
 });
 
 test('closing the modal stops the probing', async ({ page }) => {
