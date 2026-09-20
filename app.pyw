@@ -396,7 +396,14 @@ class Launcher:
             # contract; a URL that can't be seeded is loud but not fatal, since
             # the hub is perfectly usable on local data and dying here would
             # only leave the user on a splash that times out.
-            seeded = app_launch.seed_initial_active_source(self.initial_source_url)
+            # DUBIS_TOKEN rides along with DUBIS_URL: it is the credential for
+            # that server, and CLAUDE.md documents the pair together for remote
+            # desktop mode. Read from the env here rather than inside the seam
+            # so the seam stays a pure function of its arguments — and never
+            # written to preferences, for the same reason DUBIS_URL is not.
+            seeded = app_launch.seed_initial_active_source(
+                self.initial_source_url, token=os.environ.get("DUBIS_TOKEN", ""),
+            )
             if seeded == "unavailable":
                 logger.error(
                     "Cannot start on %s: the hub's source registry (%s) is missing. "

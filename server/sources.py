@@ -72,13 +72,14 @@ import os
 import re
 import threading
 import urllib.parse
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
 import httpx
 
 from dubis_errors import SourceConfigError, SourceNotFoundError
+from server import token_store
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,10 @@ _write_lock = threading.Lock()
 # cannot be what moves one window's data because of what another window did —
 # the failure mode this whole module is arranged to make impossible.
 _boot_default_url: str = ""
+# `DUBIS_TOKEN`, the credential for `_boot_default_url`. Same lifecycle, same
+# reasoning: a one-off override `app_restart.py` strips from a relaunch, so it
+# has no home on disk either. Never logged.
+_boot_default_token: str = ""
 
 
 @dataclass(frozen=True)
@@ -187,7 +192,10 @@ def _id_from_url(url: str, taken: set[str]) -> str:
     return f"{base}-{n}"
 
 
-def _entry_to_source(entry: Any, seen_ids: set[str], seen_urls: set[str]) -> Source | None:
+def _entry_to_source(
+    entry: Any, seen_ids: set[str], seen_urls: set[str],
+    tokens: Mapping[str, str] | None = None,
+) -> Source | None:
     """Validate one persisted roster entry, or return None and warn.
 
     Same contract as `normalizeServers` in js/servers-logic.js: preferences.json
@@ -222,7 +230,11 @@ def _entry_to_source(entry: Any, seen_ids: set[str], seen_urls: set[str]) -> Sou
         logger.warning("sources: ignoring servers entry %r duplicating URL %s", source_id, url)
         return None
     name = str(entry.get("name") or "").strip() or name_from_url(url)
-    token = str(entry.get("token") or "")
+    # The bearer token lives in `<data_dir>/server_tokens.json`, never in the
+    # roster — see server/token_store.py for why. `entry["token"]` is still read
+    # as a fallback so a preferences file written by the build that DID store it
+    # there keeps working until `migrate_legacy_tokens` rewrites it.
+    token = str((tokens or {}).get(source_id) or entry.get("token") or "")
     enabled = entry.get("enabled")
     seen_ids.add(source_id)
     seen_urls.add(url)
@@ -238,13 +250,15 @@ def _entry_to_source(entry: Any, seen_ids: set[str], seen_urls: set[str]) -> Sou
 def _source_to_entry(source: Source) -> dict[str, Any]:
     """Serialize back to the persisted shape.
 
-    `token`/`enabled` are written only when they carry a non-default value so a
-    roster nobody has given a token stays byte-identical to what the existing JS
-    server picker writes.
+    **The token is deliberately not here.** It is written to
+    `<data_dir>/server_tokens.json` by `_persist`, so `preferences.json` — the
+    file `GET /v1/preferences` hands to the browser and `js/store.js` posts back
+    wholesale — never contains a credential at all. See server/token_store.py.
+
+    `enabled` is written only when false, so a roster nobody has disabled stays
+    byte-identical to what the JS server picker writes.
     """
     entry: dict[str, Any] = {"id": source.id, "name": source.name, "url": source.url}
-    if source.token:
-        entry["token"] = source.token
     if not source.enabled:
         entry["enabled"] = False
     return entry
@@ -436,13 +450,27 @@ class Registry:
         )
 
 
-def load_registry(prefs: dict[str, Any] | None, boot_default_url: str = "") -> Registry:
+def load_registry(
+    prefs: dict[str, Any] | None,
+    boot_default_url: str = "",
+    tokens: Mapping[str, str] | None = None,
+    boot_default_token: str = "",
+) -> Registry:
     """Build the registry from a preferences dict. Pure — no I/O.
 
     *boot_default_url* is the launch-time URL (`DUBIS_URL`, via
     `seed_initial_active_source`) that outranks both `server_url` and
     `active_source`. It is passed in rather than read off the module so this
     stays a pure function of its arguments.
+
+    *tokens* is `{source_id: bearer token}`, read from
+    `<data_dir>/server_tokens.json` by the caller (`load_registry_from_api`) —
+    passed in for the same reason, and kept out of *prefs* entirely so the file
+    the browser round-trips holds no credential. *boot_default_token* is
+    `DUBIS_TOKEN`, and belongs to the synthetic source a `DUBIS_URL` launch
+    conjures: without it, pointing the desktop app at an auth-on server with the
+    documented `DUBIS_URL`/`DUBIS_TOKEN` pair sent no `Authorization` header at
+    all and 401'd on every request.
     """
     prefs = prefs or {}
     raw_roster = prefs.get(ROSTER_KEY)
@@ -455,7 +483,7 @@ def load_registry(prefs: dict[str, Any] | None, boot_default_url: str = "") -> R
         logger.warning("sources: %r is not an array — ignoring", ROSTER_KEY)
     else:
         for entry in raw_roster:
-            source = _entry_to_source(entry, seen_ids, seen_urls)
+            source = _entry_to_source(entry, seen_ids, seen_urls, tokens)
             if source is not None:
                 sources.append(source)
 
@@ -470,8 +498,17 @@ def load_registry(prefs: dict[str, Any] | None, boot_default_url: str = "") -> R
             "sources: %s=%s names no roster entry — adopting it as source %r",
             SERVER_URL_KEY, server_url, synthetic_id,
         )
+        # A synthetic source has no roster entry, so its credential cannot come
+        # from the token file (which is keyed by roster id). It comes from
+        # `DUBIS_TOKEN`, alongside the `DUBIS_URL` that conjured it — or, when
+        # the url came from `server_url` rather than the env, from a token file
+        # entry under the id we just derived, so a hand-edited prefs file can
+        # still be given one.
+        synthetic_token = boot_default_token if boot_default_url else ""
+        if not synthetic_token:
+            synthetic_token = str((tokens or {}).get(synthetic_id) or "")
         sources.append(Source(id=synthetic_id, name=name_from_url(server_url),
-                              url=server_url, synthetic=True))
+                              url=server_url, token=synthetic_token, synthetic=True))
         seen_ids.add(synthetic_id)
         seen_urls.add(server_url)
 
@@ -507,11 +544,39 @@ def load_registry_from_api(api: Any) -> Registry:
     applies (and any future one) are never bypassed — and so tests can point the
     whole thing at a tmp dir by swapping the api, exactly as every other route
     does.
+
+    The bearer tokens come from `<data_dir>/server_tokens.json`, a second read
+    of a second file — deliberately, so the credential is absent from the object
+    `/v1/preferences` serves rather than merely redacted out of it. A
+    preferences file still carrying tokens from the build that stored them there
+    is migrated on the spot, once: the keys move to the token file and
+    preferences is rewritten without them.
     """
-    return load_registry(api.load_preferences(), boot_default_url=_boot_default_url)
+    prefs = api.load_preferences()
+    data_dir = _data_dir(api)
+    if data_dir and token_store.migrate_legacy_tokens(prefs, data_dir):
+        api.save_preferences(prefs)
+    tokens = token_store.load_tokens(data_dir) if data_dir else {}
+    return load_registry(
+        prefs,
+        boot_default_url=_boot_default_url,
+        tokens=tokens,
+        boot_default_token=_boot_default_token,
+    )
 
 
-def seed_initial_active_source(url: str | None) -> None:
+def _data_dir(api: Any) -> str:
+    """The data dir behind `api.prefs_json`, or "" when the api has none.
+
+    "" rather than a guess: a test double without `prefs_json` must read as "no
+    token file", not as "the process's cwd", which would make one test's tokens
+    visible to the next.
+    """
+    prefs_json = getattr(api, "prefs_json", "")
+    return os.path.dirname(prefs_json) if prefs_json else ""
+
+
+def seed_initial_active_source(url: str | None, token: str | None = None) -> None:
     """Set the launch-time DEFAULT source. The seam `app_launch.py` calls at boot.
 
     Called once, on the server-boot thread, BEFORE `create_app`, so a client that
@@ -529,8 +594,18 @@ def seed_initial_active_source(url: str | None) -> None:
     leave the user staring at a splash screen that times out — a worse message
     about the same mistake. The hub is fully usable on local data, which is what
     it falls back to.
+
+    *token* is `DUBIS_TOKEN` — the credential for that URL. It rides along with
+    the URL for exactly the same reason the URL cannot be persisted: it is a
+    one-off override that `app_restart.py` strips from a relaunch, so it has no
+    home on disk. Without it, the `DUBIS_URL`+`DUBIS_TOKEN` pair that CLAUDE.md
+    documents for remote desktop mode reached an auth-on server with no
+    `Authorization` header and 401'd on every request but `/v1/health` — the
+    green-dot-but-401 shape, straight out of the box.
+
+    Never logged, here or anywhere: the log line below names the URL only.
     """
-    global _boot_default_url
+    global _boot_default_url, _boot_default_token
     normalized = normalize_url(url)
     if not normalized:
         logger.error(
@@ -538,15 +613,20 @@ def seed_initial_active_source(url: str | None) -> None:
             "start with http:// or https://. Defaulting to local data instead.", url,
         )
         return
-    logger.info("sources: default source seeded from %s", normalized)
+    _boot_default_token = str(token or "").strip()
+    logger.info(
+        "sources: default source seeded from %s (%s)",
+        normalized, "with a token" if _boot_default_token else "no token",
+    )
     _boot_default_url = normalized
 
 
 def _reset_boot_default_for_tests() -> None:
     """Test-only. Nothing in the running server calls this: the boot default is
     written once, before `create_app`, and never again."""
-    global _boot_default_url
+    global _boot_default_url, _boot_default_token
     _boot_default_url = ""
+    _boot_default_token = ""
 
 
 # ── mutations ────────────────────────────────────────────────────────────────
@@ -624,6 +704,20 @@ def _persist(
         prefs[ACTIVE_KEY] = registry.default
         prefs[SERVER_URL_KEY] = registry.default_url
     api.save_preferences(prefs)
+
+    # The credentials go to their own file, keyed by the roster ids just
+    # written. Rebuilt from the registry rather than patched, so removing a
+    # source removes its token in the same breath — a token left behind under a
+    # dead id would be handed straight back to whoever next reuses that id.
+    #
+    # Synthetic sources are excluded along with the roster: their token is
+    # `DUBIS_TOKEN`, held in process precisely so it cannot be persisted.
+    data_dir = _data_dir(api)
+    if data_dir:
+        token_store.save_tokens(
+            data_dir,
+            {s.id: s.token for s in registry.remotes if s.token and not s.synthetic},
+        )
     return registry
 
 
@@ -835,30 +929,79 @@ class SourceClients:
             await client.aclose()
 
 
+@dataclass(frozen=True)
+class ProbeResult:
+    """What one reachability probe learned. `auth` is the load-bearing half.
+
+    `/v1/health` is exempt from `AuthMiddleware` on every dubIS server, which is
+    what makes it a usable reachability check — and is also exactly why
+    reachability alone is a **trap**. Point the app at a server running
+    `DUBIS_AUTH_MODE=on` without a credential and the health probe answers a
+    cheerful 200 while every real request 401s: a green dot on a server that
+    cannot serve a single row. Indistinguishable, from the dot, from working.
+
+    So the probe asks a second question the exempt route cannot answer — see
+    `probe` — and reports it here:
+
+      "ok"       — an authenticated route answered. This source will serve data.
+      "required" — it answered 401 and we hold no token for this source. The
+                   user has to supply one; nothing else will fix it.
+      "rejected" — it answered 401 and we DID send a token. The token is wrong,
+                   expired, or not in that server's `DUBIS_TOKENS`.
+      "unknown"  — not reachable at all, or the auth leg itself failed. Never
+                   guessed: an inconclusive probe must not claim a credential
+                   is missing any more than it may claim one is fine.
+    """
+
+    reachable: bool
+    detail: str = ""
+    auth: str = "unknown"
+
+
+AUTH_OK = "ok"
+AUTH_REQUIRED = "required"
+AUTH_REJECTED = "rejected"
+AUTH_UNKNOWN = "unknown"
+
+# The route the auth leg asks for. Requirements, all three load-bearing: present
+# on every dubIS server, cheap, and NOT in `server/auth.py`'s EXEMPT_PATHS —
+# the whole point is to ask something the middleware actually gates. `/v1/meta`
+# is a constant-ish read of already-loaded section orders.
+AUTH_PROBE_PATH = "/v1/meta"
+
+
 async def probe(
     source: Source, clients: SourceClients, timeout: float = PROBE_TIMEOUT_SECONDS,
-) -> tuple[bool, str]:
-    """Is *source* reachable from THIS hub? Returns `(reachable, detail)`; never raises.
+) -> ProbeResult:
+    """Is *source* reachable from THIS hub, and will it accept our credential?
 
-    `detail` is a short human-readable reason when it is not, so a red dot in
-    the tab strip can say *why* rather than just being red. Empty when it is.
+    Never raises: an unreachable source is the normal answer, not an error.
 
-    `/v1/health` is unauthenticated on every dubIS server (server/auth.py's
-    EXEMPT_PATHS), so a token-gated source still answers — a 401 would read as
-    "down" for a server that is perfectly fine.
+    `detail` is a short human-readable reason when it is not reachable, so a red
+    dot in the tab strip can say *why* rather than just being red. Empty when it
+    is. `auth` is documented on `ProbeResult`.
 
-    The local source is trivially reachable: this code is running inside it, so
-    a hub that were down could not have answered the request that asked.
+    Two requests, not one, and in this order: `/v1/health` first, because it is
+    the only route that answers on a server whose auth we cannot satisfy, and it
+    is what distinguishes "down" from "gated". Then the gated route, whose only
+    interesting outcome is 401 — any other status means the middleware let us
+    through, which is the question being asked. A non-401 failure (500, a
+    timeout on the second leg) leaves `auth` at "unknown" rather than inventing
+    an answer.
+
+    The local source is trivially reachable and trivially authorized: this code
+    is running inside it, so a hub that were down could not have answered the
+    request that asked, and loopback is `local` identity by definition.
     """
     if source.is_local:
-        return True, ""
+        return ProbeResult(reachable=True, detail="", auth=AUTH_OK)
     try:
         response = await clients.get(source).get("/v1/health", timeout=timeout)
     except Exception as exc:  # noqa: BLE001 — unreachable is expected, never fatal
         logger.info("sources: probe of %s (%s) failed: %s", source.id, source.url, exc)
-        return False, type(exc).__name__
+        return ProbeResult(reachable=False, detail=type(exc).__name__)
     if response.status_code != 200:
-        return False, f"HTTP {response.status_code}"
+        return ProbeResult(reachable=False, detail=f"HTTP {response.status_code}")
     # A 200 is not enough. Anything can answer 200 on a URL — a captive portal,
     # an SSO page, an nginx default, a load-balancer health shim — and a green
     # dot next to a server that cannot serve inventory is worse than a red one,
@@ -868,7 +1011,7 @@ async def probe(
     try:
         body = response.json()
     except ValueError:
-        return False, "not a dubIS server"
+        return ProbeResult(reachable=False, detail="not a dubIS server")
     # Exact equality, not `body.get("ok")`: `{"ok": true, "service": "..."}` is
     # the most common shape a load-balancer or k8s health shim answers with, so
     # a truthy-`ok` test hands the commonest impostor of all a green dot.
@@ -876,5 +1019,31 @@ async def probe(
     # `{"ok": true}` and says growing a field there needs re-deciding — this is
     # one of the places that would have to be re-decided with it.
     if body != {"ok": True}:
-        return False, "not a dubIS server"
-    return True, ""
+        return ProbeResult(reachable=False, detail="not a dubIS server")
+    return ProbeResult(reachable=True, detail="", auth=await _probe_auth(source, clients, timeout))
+
+
+async def _probe_auth(source: Source, clients: SourceClients, timeout: float) -> str:
+    """Will *source* let this hub past its `AuthMiddleware`? See `ProbeResult`.
+
+    Only 401 is interesting. Every other status — 200, 403, 404, even 500 —
+    means the middleware admitted us and something further in answered, which is
+    precisely the question. Reading more into those would be guessing: a 404
+    from an older dubIS without `/v1/meta` says nothing about auth, and turning
+    that into "credential required" would put a "needs a token" warning on a
+    server that needs nothing.
+    """
+    try:
+        response = await clients.get(source).get(AUTH_PROBE_PATH, timeout=timeout)
+    except Exception as exc:  # noqa: BLE001 — same contract as the health leg
+        logger.info(
+            "sources: auth probe of %s (%s) was inconclusive: %s",
+            source.id, source.url, type(exc).__name__,
+        )
+        return AUTH_UNKNOWN
+    if response.status_code != 401:
+        return AUTH_OK
+    # 401 with a token we actually sent means the token is wrong — a different
+    # message and a different fix from having none, which is the whole reason
+    # these are two states and not one "needs auth".
+    return AUTH_REJECTED if source.token else AUTH_REQUIRED
