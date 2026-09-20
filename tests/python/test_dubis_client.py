@@ -302,3 +302,105 @@ def test_precheck_adjust_allows_set_on_unknown_part(seeded_client):
 
 def test_precheck_adjust_canonicalizes_alias(seeded_client):
     assert precheck_adjust(seeded_client, "CL05B104KO5NNNC", "add") == "C1000"
+
+
+# ── Unix-domain-socket discovery ─────────────────────────────────────────────
+#
+# A `python -m server --uds <path>` instance has no port, so it writes no
+# `.v1_port`; it advertises `<data_dir>/.v1_uds` instead. Without the third
+# discovery step every CLI command against a perfectly healthy UDS server
+# would exit 4 — the "half-working" outcome this closes.
+
+
+def _serve_uds(api, sock_path):
+    import threading
+
+    import uvicorn
+
+    from server.app import create_app
+    from server.uds import PeerCredHTTPProtocol
+
+    config = uvicorn.Config(create_app(api), uds=sock_path, log_level="warning",
+                            http=PeerCredHTTPProtocol, timeout_graceful_shutdown=3)
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    assert _wait_until(lambda: server.started), "uvicorn did not start in time"
+    return server, thread
+
+
+def _stop_uds(server, thread, sock_path):
+    from server.uds import remove_socket_path
+
+    server.should_exit = True
+    thread.join(timeout=5)
+    remove_socket_path(sock_path)
+
+
+@pytest.fixture
+def short_socket_path():
+    """`sun_path` is ~104 bytes on macOS and pytest's tmp_path is far longer,
+    so a socket bound under it fails with `AF_UNIX path too long`."""
+    import os
+    import tempfile
+
+    with tempfile.TemporaryDirectory(dir="/tmp", prefix="dbc") as d:
+        yield os.path.join(d, "s")
+
+
+def test_connect_discovers_a_uds_server_via_the_uds_file(api, tmp_path, monkeypatch,
+                                                         short_socket_path):
+    monkeypatch.delenv("DUBIS_URL", raising=False)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)  # the `api` fixture already made it
+    server, thread = _serve_uds(api, short_socket_path)
+    try:
+        (data_dir / ".v1_uds").write_text(short_socket_path, encoding="utf-8")
+        client = connect(str(tmp_path))
+        assert client.discovered_via == "uds_file"
+        assert client.uds == short_socket_path
+        assert "inventory" in client.get("/v1/parts")
+        client.close()
+    finally:
+        _stop_uds(server, thread, short_socket_path)
+
+
+def test_connect_ignores_a_stale_uds_file(tmp_path, monkeypatch, short_socket_path):
+    """Same contract as the stale port file: a crashed `--uds` server leaves
+    both files behind, and a discovery file pointing at nothing must raise
+    rather than hand back a client pointed at a dead socket."""
+    monkeypatch.delenv("DUBIS_URL", raising=False)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / ".v1_uds").write_text(short_socket_path, encoding="utf-8")
+    with pytest.raises(NoServerFoundError):
+        connect(str(tmp_path))
+
+
+def test_no_server_error_names_both_discovery_files(tmp_path, monkeypatch):
+    monkeypatch.delenv("DUBIS_URL", raising=False)
+    (tmp_path / "data").mkdir()
+    with pytest.raises(NoServerFoundError) as exc_info:
+        connect(str(tmp_path))
+    message = str(exc_info.value)
+    assert ".v1_port" in message
+    assert ".v1_uds" in message
+
+
+def test_port_file_wins_over_a_uds_file(api, tmp_path, monkeypatch):
+    """Ordering is pinned: a TCP server the desktop app started is the more
+    likely thing a user means, and it is the cheaper probe."""
+    monkeypatch.delenv("DUBIS_URL", raising=False)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)  # the `api` fixture already made it
+    port = _free_port()
+    server = start_server(api, port=port, data_dir=str(data_dir))
+    try:
+        assert _wait_until((data_dir / ".v1_port").exists)
+        (data_dir / ".v1_uds").write_text("/tmp/definitely-not-a-socket", encoding="utf-8")
+        client = connect(str(tmp_path))
+        assert client.discovered_via == "port_file"
+        assert client.uds is None
+        client.close()
+    finally:
+        stop_server(server, data_dir=str(data_dir))

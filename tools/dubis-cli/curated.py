@@ -44,7 +44,9 @@ def _status(client: V1Client, args) -> dict:
     # count, so this derives one from a full fetch rather than a cheap count
     # endpoint that does not exist.
     return {
-        "server": client.base_url,
+        # For a Unix-socket server the base_url is only a Host header, so the
+        # socket path is the honest answer to "which server am I talking to".
+        "server": client.uds or client.base_url,
         "discovered_via": client.discovered_via,
         "schema_version": meta.get("schema_version"),
         "part_count": len(fetch_inventory(client)),
