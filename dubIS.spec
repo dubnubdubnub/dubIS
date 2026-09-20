@@ -11,13 +11,23 @@ a = Analysis(
     ['app.pyw'],
     pathex=[],
     binaries=[],
+    # Every source path here must be TRACKED IN GIT, not merely present on the
+    # machine that runs the build: PyInstaller aborts outright on a `datas`
+    # entry whose source is missing, so anything gitignored builds fine for its
+    # author and fails on every clean checkout. `data/preferences.json` was
+    # exactly that (see tests/python/test_pyinstaller_spec.py, which now fails
+    # instead of the build). It is not shipped: it is runtime state the app
+    # writes, `data/*.json` in .gitignore, and deliberately deleted by
+    # scripts/ci-scrub-workspace.sh. The defaults live in code — a missing file
+    # makes InventoryApi.load_preferences() return {}, which every reader
+    # already handles — so a seeded copy would only be a second set of defaults
+    # free to drift from the real ones.
     datas=[
         ('index.html', '.'),
         ('css', 'css'),
         ('js', 'js'),
         ('data/dubIS.png', 'data'),
         ('data/dubIS.ico', 'data'),
-        ('data/preferences.json', 'data'),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],
