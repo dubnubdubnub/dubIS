@@ -15,9 +15,20 @@ bench.mark("py_start")
 
 logger = logging.getLogger(__name__)
 
-# Ensure the app directory is on the path
+# Ensure the app directory is on the path.
+#
+# APP_DIR is the root everything bundled is resolved against: splash.html, the
+# window icons, and `static_dir=APP_DIR` for the /v1 server (so index.html,
+# css/ and js/ are served from it). Frozen, that is `sys._MEIPASS` — the
+# directory PyInstaller unpacks `Analysis(datas=...)` into — NOT
+# `dirname(sys.executable)`. They stopped being the same directory in
+# PyInstaller 6, which moved a onedir build's payload into `_internal/` beside
+# the launcher, and they were never the same inside a macOS .app (the launcher
+# lives in Contents/MacOS, the payload in Contents/Frameworks). Resolving
+# against the executable therefore pointed every bundled asset at a directory
+# holding nothing but the launcher: no splash to paint, no index.html to serve.
 if getattr(sys, 'frozen', False):
-    APP_DIR = os.path.dirname(sys.executable)
+    APP_DIR = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
 else:
     APP_DIR = os.path.dirname(os.path.abspath(__file__))
 ICON_PATH = os.path.join(APP_DIR, "data", "dubIS.ico")
@@ -396,7 +407,14 @@ class Launcher:
             # contract; a URL that can't be seeded is loud but not fatal, since
             # the hub is perfectly usable on local data and dying here would
             # only leave the user on a splash that times out.
-            seeded = app_launch.seed_initial_active_source(self.initial_source_url)
+            # DUBIS_TOKEN rides along with DUBIS_URL: it is the credential for
+            # that server, and CLAUDE.md documents the pair together for remote
+            # desktop mode. Read from the env here rather than inside the seam
+            # so the seam stays a pure function of its arguments — and never
+            # written to preferences, for the same reason DUBIS_URL is not.
+            seeded = app_launch.seed_initial_active_source(
+                self.initial_source_url, token=os.environ.get("DUBIS_TOKEN", ""),
+            )
             if seeded == "unavailable":
                 logger.error(
                     "Cannot start on %s: the hub's source registry (%s) is missing. "

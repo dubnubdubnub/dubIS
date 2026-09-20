@@ -177,7 +177,10 @@
   --server-dot-size:          8px;  /* the reachability dot */
   --server-detail-w:         76px;  /* fixed lane for "12 ms" / "unreachable" */
   --server-add-name-w:       120px;  /* the optional-name field in the add row */
+  --server-add-token-w:      140px;  /* the optional API-token field in the add row */
   --server-help-max-w:       460px;  /* explanatory text under the picker */
+  --server-cred-pad-x:         5px;  /* horizontal padding inside the credential chip */
+  --server-cred-max-w:        96px;  /* "needs a token" before it ellipsises */
 
   /* ── JLCPCB pairing panel (css/components/jlc.css) ──────────────────────────
      The JLC section of Preferences: one row per paired account, and the

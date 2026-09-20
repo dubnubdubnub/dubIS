@@ -409,6 +409,11 @@
       <div class="server-add">
         <input type="text" class="input-field" id="pref-server-new-name" spellcheck="false" placeholder="Name (optional)">
         <input type="text" class="input-field" id="pref-server-new-url" spellcheck="false" placeholder="https://dubis.example.ts.net">
+        <!-- type=password, and never read back: the token is stored server-side
+             by server/token_store.py for the hub's own outbound requests, so
+             this field is write-only and js/server-list.js clears it the
+             instant it is read. -->
+        <input type="password" class="input-field" id="pref-server-new-token" spellcheck="false" autocomplete="off" placeholder="API token (optional)">
         <button class="btn btn-sm" id="pref-server-add">Add server</button>
       </div>
       <div class="server-footer">
@@ -419,6 +424,9 @@
         server this one fetches from on your behalf. The dot is a live reachability
         check from this window. Choosing one switches immediately &mdash; no restart
         &mdash; and the tab strip under the header does the same thing in one click.
+        A server that requires an API token is marked &ldquo;needs a token&rdquo;; the
+        token is held by this machine&rsquo;s own server for its outgoing requests and
+        is never shown again.
       </span>
     </div>
     <div class="modal-divider"></div>

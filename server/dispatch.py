@@ -55,16 +55,18 @@ Ordering, which is load-bearing:
 |------------------|--------------------------|---------------------------------|
 | `local`          | local route              | local route                     |
 | `shop`           | proxied to `shop`        | proxied to `shop`               |
-| `bench,shop`     | merge of those two       | 400                             |
-| `merged`         | merge of every enabled   | header: 400 · default: local    |
+| `bench,shop`     | merge of those two       | read: local · write: 400        |
+| `merged`         | merge of every enabled   | read: local · write: 400        |
 | *(absent)*       | the persisted default    | the persisted default           |
 
 A set merges the inventory and *only* the inventory: it is a view of parts, and
-there is no sensible union of two servers' carts or preferences. The
-header/default asymmetry on the `merged` row is deliberate and lives in
-`Registry.resolve` — a caller that explicitly asked to merge on a write must hear
-that it has no answer, while a *default* of merged must not break every other
-route for a window sitting on the All tab.
+there is no sensible union of two servers' carts or preferences. The read/write
+asymmetry on those two rows is deliberate and lives in `Registry.resolve` — a
+caller that explicitly asked to merge on a **write** must hear that it has no
+answer (`js/api.js`'s `apiOn` names the owning server instead), while a *read*
+must not break for a window sitting on the All tab: that window sends the header
+on every request, so keying the refusal on the header alone refused its carts,
+vendors, purchase orders, warnings and generic-part groups too.
 """
 
 from __future__ import annotations
@@ -180,7 +182,13 @@ def resolve_target(registry: Registry, request: Request) -> Source | MergeSet:
     requested = proxy.parse_source_header(request.headers.get(proxy.SOURCE_HEADER))
     selectors = requested or registry.default_selectors
     return registry.resolve(
-        selectors, mergeable=is_mergeable(request), explicit=bool(requested),
+        selectors,
+        mergeable=is_mergeable(request),
+        explicit=bool(requested),
+        # Safe verb or not. A view has no answer for a write on any route but
+        # `GET /v1/parts`, and `Registry.resolve` refuses one rather than
+        # guessing an owner; a *read* off that route falls back to local.
+        mutating=request.method in _MUTATING_VERBS,
     )
 
 

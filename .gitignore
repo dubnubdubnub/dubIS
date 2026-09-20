@@ -7,19 +7,35 @@ data/*.json
 !data/constants.json
 !data/pnp_part_map.json
 !data/openpnp_families.json
+# Bearer tokens for remote dubIS sources (server/token_store.py). Already
+# covered by `data/*.json` above, and named explicitly anyway: this repo is
+# PUBLIC, the re-include list above is one `!data/*.json` typo away from
+# un-ignoring every config file in that directory, and this is the one file
+# where that mistake discloses a credential rather than a preference.
+# The trailing `*` is load-bearing, not lazy: save_tokens writes
+# `server_tokens.json.tmp` and renames it, and `data/*.json` does not match a
+# `.tmp` suffix — so without it a `git add -A` racing a write could commit a
+# live token. tests/python/server/test_secret_not_committed.py checks both.
+data/server_tokens.json*
 
-# Credential stores, ignored BY NAME as well as by location.
+# The same credential stores, ignored BY NAME as well as by location.
 #
-# `data/*.json` above only protects them where the data dir happens to be
-# `data/`. But `--data-dir` defaults to "." (server/__main__.py), so the
-# documented standalone path — `python -m server` / `dubis serve` from the repo
-# root — writes these to the repo root, where that rule does not reach. Found
-# live on 2026-09-20: a real JLC session cookie landed at the worktree root and
-# showed up as an untracked file, one `git add -A` from being committed.
-# All three are live credentials, so match them wherever they are written.
+# Everything above is anchored to `data/`, which only protects these where the
+# data dir happens to BE `data/`. But `--data-dir` defaults to "."
+# (server/__main__.py), so the documented standalone path — `python -m server`
+# / `dubis serve` from the repo root — writes them to the repo root, where the
+# anchored rules do not reach. Found live on 2026-09-20: a real JLC session
+# cookie landed at the worktree root and showed up as an untracked file, one
+# `git add -A` from being committed to a PUBLIC repo.
+#
+# `server_tokens.json*` is listed here too for the same reason, keeping its
+# load-bearing trailing `*`: the anchored rule added alongside it has exactly
+# this weakness. tests/python/test_credential_file_modes.py checks every name
+# at both the repo root and under `data/`.
 jlc_sessions.json
 digikey_cookies.json
 mouser_credentials.json
+server_tokens.json*
 # No trailing slash on purpose. `node_modules/` matches a DIRECTORY only, so
 # when a worktree carried `node_modules` as a *symlink* to the main checkout's
 # copy (a file, not a directory) the rule stopped matching and `git add -A`

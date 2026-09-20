@@ -318,6 +318,127 @@ describe('server roster slice', () => {
     expect(store.getActiveSource()).toBe('local');
   });
 
+  // ── Tokens ──────────────────────────────────────────────
+  // A remote server's API token is a credential the HUB uses, server-side, on
+  // its outbound httpx request. The browser may write one (PATCH
+  // /v1/sources/{id}) and read it back only as the boolean `has_token`. These
+  // tests exist to pin the half that cannot be seen by looking at the UI: that
+  // it never reaches preferences.json.
+
+  const SECRET = 'sekrit-token-9f3a';
+
+  it('sends a token to the hub as an update_source PATCH', async () => {
+    const { api } = await import('../../js/api.js');
+    const { entry } = store.addServer('Cluster', 'https://a.example');
+    expect(await store.setServerToken(entry.id, SECRET)).toEqual({ ok: true });
+    // Positional args per js/api-map.js's argOrder for update_source:
+    // [source_id, name, url, token, enabled]. name/url are undefined — JSON
+    // .stringify drops them and the route reads a missing field as "leave
+    // alone", so setting a token cannot silently rename or re-point a server.
+    expect(api.mock.calls).toContainEqual(['update_source', entry.id, undefined, undefined, SECRET]);
+  });
+
+  it('saves the roster BEFORE the PATCH, or the route has nothing to patch', async () => {
+    // addServer fires an un-awaited savePreferences(), and PATCH
+    // /v1/sources/{id} does a read-modify-write of preferences.json server-side
+    // to find the source. If the PATCH lands first the entry is not on disk yet
+    // and the route 404s — an added server that silently has no credential.
+    const { api } = await import('../../js/api.js');
+    const { entry } = store.addServer('Cluster', 'https://a.example');
+    await store.setServerToken(entry.id, SECRET);
+    const order = api.mock.calls.map((c) => c[0]);
+    expect(order.lastIndexOf('save_preferences')).toBeLessThan(order.indexOf('update_source'));
+  });
+
+  it('never writes a token into preferences — not on add, not on a later save', async () => {
+    // THE test. savePreferences() posts the whole in-memory preferences object
+    // into a hand-editable file, and does so again on every unrelated
+    // preference change, so one leak is a permanent one.
+    const r = store.addServer('Cluster', 'https://a.example', SECRET);
+    expect(r.ok).toBe(true);
+    // The roster the store kept is token-free…
+    expect(store.getServers()).toEqual([
+      { id: r.entry.id, name: 'Cluster', url: 'https://a.example' },
+    ]);
+    expect(JSON.stringify(await lastSaved())).not.toContain(SECRET);
+    // …and the token rode back on its own field for the caller to send on.
+    expect(r.token).toBe(SECRET);
+
+    await store.setServerToken(r.entry.id, SECRET);
+    expect(JSON.stringify(await lastSaved())).not.toContain(SECRET);
+
+    // The trap from the tests above, one key over: an unrelated preference
+    // change reposts the WHOLE object, so a token that got in anywhere would
+    // surface here even if the add-time save looked clean.
+    store.setBehaviorPrefs({ autoCopySelection: true });
+    expect(JSON.stringify(await lastSaved())).not.toContain(SECRET);
+  });
+
+  it('refuses a malformed token without making any api call', async () => {
+    // The token becomes an Authorization header value verbatim on the hub's
+    // outbound request; a newline in it is header injection. Caught before the
+    // wire, and reported as a reason rather than thrown.
+    const { api } = await import('../../js/api.js');
+    const { entry } = store.addServer('Cluster', 'https://a.example');
+    const before = api.mock.calls.length;
+    const r = await store.setServerToken(entry.id, 'ab\ncd');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/Authorization/);
+    expect(api.mock.calls.length).toBe(before);
+  });
+
+  it('rejects a whole add when its token is malformed, adding nothing', async () => {
+    const r = store.addServer('Cluster', 'https://a.example', 'ab cd');
+    expect(r.ok).toBe(false);
+    expect(store.getServers()).toEqual([]);
+  });
+
+  it('reports a failed token write as a reason that does not quote the token', async () => {
+    // `undefined` is how js/api.js reports a failed call.
+    const { api } = await import('../../js/api.js');
+    const { entry } = store.addServer('Cluster', 'https://a.example');
+    api.mockImplementation(async (method) => (method === 'update_source' ? undefined : {}));
+    const r = await store.setServerToken(entry.id, SECRET);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBeTruthy();
+    expect(r.reason).not.toContain(SECRET);
+  });
+
+  it('clears a token with an explicit empty string', async () => {
+    // "" is a deliberate "this server needs no credential any more" — distinct
+    // from never calling this at all, which leaves the stored one alone.
+    const { api } = await import('../../js/api.js');
+    const { entry } = store.addServer('Cluster', 'https://a.example');
+    expect(await store.setServerToken(entry.id, '')).toEqual({ ok: true });
+    expect(api.mock.calls).toContainEqual(['update_source', entry.id, undefined, undefined, '']);
+  });
+
+  it('leaves a no-token roster byte-identical, and addServer(name, url) unchanged', async () => {
+    // The server that needs no credential must be completely untouched by any
+    // of this — same three keys, same shape, no new fields.
+    const r = store.addServer('Cluster', 'https://a.example');
+    expect(r.ok).toBe(true);
+    expect(r.token).toBe('');
+    expect(r.entry).toEqual({ id: r.entry.id, name: 'Cluster', url: 'https://a.example' });
+    const saved = await lastSaved();
+    expect(saved.servers).toEqual([{ id: r.entry.id, name: 'Cluster', url: 'https://a.example' }]);
+    expect(Object.keys(saved.servers[0]).sort()).toEqual(['id', 'name', 'url']);
+  });
+
+  it('round-trips a no-token roster through load → unrelated save unchanged', async () => {
+    const { api } = await import('../../js/api.js');
+    api.mockImplementation(async (method) => {
+      if (method === 'load_preferences') {
+        return { servers: [{ id: 'a', name: 'A', url: 'https://a.example' }] };
+      }
+      return {};
+    });
+    await store.loadPreferences();
+    store.setBehaviorPrefs({ autoCopySelection: true });
+    expect((await lastSaved()).servers)
+      .toEqual([{ id: 'a', name: 'A', url: 'https://a.example' }]);
+  });
+
   it('falls back to server_url when nothing recorded an active_source', async () => {
     // A DUBIS_URL launch, or a hand-edited preferences.json.
     const { api } = await import('../../js/api.js');

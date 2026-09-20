@@ -676,6 +676,7 @@ graph LR
     "server/routes/pnp.py" --> "pnp_part_map.py"
     "server/routes/pnp.py" --> "server/__init__.py"
     "server/routes/pnp.py" --> "server/auth.py"
+    "server/routes/preferences.py" --> "server/__init__.py"
     "server/routes/preferences.py" --> "server/sources.py"
     "server/routes/sources.py" --> "server/__init__.py"
     "server/routes/sources.py" --> "server/models.py"
@@ -685,6 +686,7 @@ graph LR
     "server/run.py" --> "server/app.py"
     "server/run.py" --> "server/lockfile.py"
     "server/sources.py" --> "dubis_errors.py"
+    "server/sources.py" --> "server/__init__.py"
     "server/uds.py" --> "server/__init__.py"
     "spec_extractor.py" --> "categorize.py"
     "tests/js/api-client.test.js" --> "js/api.js"
@@ -871,6 +873,7 @@ graph LR
     "tests/python/server/test_peercred.py" --> "server/app.py"
     "tests/python/server/test_peercred.py" --> "tests/python/helpers.py"
     "tests/python/server/test_pnp_routes.py" --> "server/__init__.py"
+    "tests/python/server/test_secret_not_committed.py" --> "server/__init__.py"
     "tests/python/server/test_source_dispatch.py" --> "domain/__init__.py"
     "tests/python/server/test_source_dispatch.py" --> "domain/federation.py"
     "tests/python/server/test_source_dispatch.py" --> "dubis_errors.py"
@@ -888,6 +891,9 @@ graph LR
     "tests/python/server/test_sources_routes.py" --> "server/app.py"
     "tests/python/server/test_sources_routes.py" --> "tests/python/helpers.py"
     "tests/python/server/test_static_serving.py" --> "server/app.py"
+    "tests/python/server/test_token_store.py" --> "server/__init__.py"
+    "tests/python/server/test_token_store.py" --> "server/app.py"
+    "tests/python/server/test_token_store.py" --> "tests/python/helpers.py"
     "tests/python/server/test_v1_surface.py" --> "server/app.py"
     "tests/python/server/test_vendors_pos_routes.py" --> "purchase_orders.py"
     "tests/python/server/test_vendors_pos_routes.py" --> "server/__init__.py"
@@ -2294,7 +2300,7 @@ graph LR
 ### server/__init__.py
 
 - **Imports:** —
-- **Imported by:** `pnp_server.py`, `scripts/spike-webview-loopback.py`, `server/__main__.py`, `server/auth.py`, `server/dispatch.py`, `server/mutations.py`, `server/routes/carts.py`, `server/routes/events.py`, `server/routes/pnp.py`, `server/routes/sources.py`, `server/uds.py`, `tests/js/e2e/scan-server.py`, `tests/python/server/test_carts_routes.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
+- **Imported by:** `pnp_server.py`, `scripts/spike-webview-loopback.py`, `server/__main__.py`, `server/auth.py`, `server/dispatch.py`, `server/mutations.py`, `server/routes/carts.py`, `server/routes/events.py`, `server/routes/pnp.py`, `server/routes/preferences.py`, `server/routes/sources.py`, `server/sources.py`, `server/uds.py`, `tests/js/e2e/scan-server.py`, `tests/python/server/test_carts_routes.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_secret_not_committed.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
 
 ### server/__main__.py
 
@@ -2304,7 +2310,7 @@ graph LR
 ### server/app.py
 
 - **Imports:** `server/auth.py`, `server/dispatch.py`, `server/errors.py`, `server/routes/__init__.py`, `server/sources.py`
-- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_mutation_publishes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_v1_surface.py`, `tests/python/test_dubis_client.py`
+- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_mutation_publishes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_v1_surface.py`, `tests/python/test_dubis_client.py`
 
 ### server/auth.py
 
@@ -2433,7 +2439,7 @@ graph LR
 
 ### server/routes/preferences.py
 
-- **Imports:** `server/sources.py`
+- **Imports:** `server/__init__.py`, `server/sources.py`
 - **Imported by:** —
 
 ### server/routes/sources.py
@@ -2453,8 +2459,13 @@ graph LR
 
 ### server/sources.py
 
-- **Imports:** `dubis_errors.py`
+- **Imports:** `dubis_errors.py`, `server/__init__.py`
 - **Imported by:** `server/app.py`, `server/dispatch.py`, `server/fanout.py`, `server/mutations.py`, `server/proxy.py`, `server/routes/preferences.py`
+
+### server/token_store.py
+
+- **Imports:** —
+- **Imported by:** —
 
 ### server/uds.py
 
@@ -2920,7 +2931,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `distributor_manager.py`, `inventory_api.py`, `lcsc_client.py`
-- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_dubis_cli_commands.py`, `tests/python/test_dubis_client.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_token_store.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_dubis_cli_commands.py`, `tests/python/test_dubis_client.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/server/conftest.py
 
@@ -3062,6 +3073,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** —
 
+### tests/python/server/test_secret_not_committed.py
+
+- **Imports:** `server/__init__.py`
+- **Imported by:** —
+
 ### tests/python/server/test_source_dispatch.py
 
 - **Imports:** `domain/__init__.py`, `domain/federation.py`, `dubis_errors.py`, `server/__init__.py`, `server/app.py`, `server/dispatch.py`, `tests/python/helpers.py`
@@ -3085,6 +3101,11 @@ graph LR
 ### tests/python/server/test_static_serving.py
 
 - **Imports:** `server/app.py`
+- **Imported by:** —
+
+### tests/python/server/test_token_store.py
+
+- **Imports:** `server/__init__.py`, `server/app.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/server/test_v1_surface.py
@@ -3560,6 +3581,11 @@ graph LR
 ### tests/python/test_purchase_orders.py
 
 - **Imports:** `purchase_orders.py`
+- **Imported by:** —
+
+### tests/python/test_pyinstaller_spec.py
+
+- **Imports:** —
 - **Imported by:** —
 
 ### tests/python/test_real_data.py
