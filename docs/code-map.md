@@ -831,6 +831,7 @@ graph LR
     "tests/python/server/test_feeders_routes.py" --> "tests/python/helpers.py"
     "tests/python/server/test_generic_parts_routes.py" --> "server/__init__.py"
     "tests/python/server/test_health_cors.py" --> "server/app.py"
+    "tests/python/server/test_health_cors.py" --> "server/routes/distributors.py"
     "tests/python/server/test_health_cors.py" --> "tests/python/helpers.py"
     "tests/python/server/test_import_scan_routes.py" --> "pnp_server.py"
     "tests/python/server/test_inventory_mut.py" --> "server/__init__.py"
@@ -839,6 +840,7 @@ graph LR
     "tests/python/server/test_jlcpcb_routes.py" --> "jlc_session.py"
     "tests/python/server/test_jlcpcb_routes.py" --> "server/__init__.py"
     "tests/python/server/test_jlcpcb_routes.py" --> "server/app.py"
+    "tests/python/server/test_jlcpcb_routes.py" --> "server/routes/distributors.py"
     "tests/python/server/test_jlcpcb_routes.py" --> "tests/python/helpers.py"
     "tests/python/server/test_lifecycle.py" --> "dubis_errors.py"
     "tests/python/server/test_lifecycle.py" --> "server/__main__.py"
@@ -981,6 +983,7 @@ graph LR
     "tests/python/test_dubis_client.py" --> "tests/python/helpers.py"
     "tests/python/test_dubis_client.py" --> "tests/python/server/conftest.py"
     "tests/python/test_dubis_errors.py" --> "dubis_errors.py"
+    "tests/python/test_extension_manifest.py" --> "server/routes/__init__.py"
     "tests/python/test_federation.py" --> "domain/federation.py"
     "tests/python/test_federation.py" --> "domain/schema.py"
     "tests/python/test_federation_properties.py" --> "domain/federation.py"
@@ -2356,7 +2359,7 @@ graph LR
 ### server/routes/__init__.py
 
 - **Imports:** —
-- **Imported by:** `server/app.py`
+- **Imported by:** `server/app.py`, `tests/python/test_extension_manifest.py`
 
 ### server/routes/auth.py
 
@@ -2371,7 +2374,7 @@ graph LR
 ### server/routes/distributors.py
 
 - **Imports:** `server/auth.py`, `server/models.py`
-- **Imported by:** —
+- **Imported by:** `tests/python/server/test_health_cors.py`, `tests/python/server/test_jlcpcb_routes.py`
 
 ### server/routes/events.py
 
@@ -2971,7 +2974,7 @@ graph LR
 
 ### tests/python/server/test_health_cors.py
 
-- **Imports:** `server/app.py`, `tests/python/helpers.py`
+- **Imports:** `server/app.py`, `server/routes/distributors.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/server/test_import_scan_routes.py
@@ -2986,7 +2989,7 @@ graph LR
 
 ### tests/python/server/test_jlcpcb_routes.py
 
-- **Imports:** `domain/schema.py`, `jlc_session.py`, `server/__init__.py`, `server/app.py`, `tests/python/helpers.py`
+- **Imports:** `domain/schema.py`, `jlc_session.py`, `server/__init__.py`, `server/app.py`, `server/routes/distributors.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/server/test_lifecycle.py
@@ -3351,7 +3354,7 @@ graph LR
 
 ### tests/python/test_extension_manifest.py
 
-- **Imports:** —
+- **Imports:** `server/routes/__init__.py`
 - **Imported by:** —
 
 ### tests/python/test_federation.py

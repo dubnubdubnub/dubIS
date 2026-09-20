@@ -26,7 +26,7 @@ dubIS is phase 2+ and needs its own deliberate, tested exception. Design:
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -134,15 +134,84 @@ def clear_mouser_api_key(request: Request) -> dict:
 
 # ── JLCPCB session (browser-extension credential capture) ────────────────────
 
+# The one browser origin allowed to reach the two intake routes cross-origin.
+#
+# Why this exists at all: the extension's service worker POSTs
+# `Content-Type: application/json`, which is not a CORS-simple request, and the
+# dubIS origin is deliberately NOT in its `host_permissions` — so Chrome sends a
+# preflight, and a `/v1` that answers OPTIONS with 405 and no `Access-Control-*`
+# headers fails it. Verified live on 2026-09-20: the extension reported
+# "Failed to fetch" and dubIS never saw the request, on loopback as much as on
+# the tailnet.
+#
+# Why scoped to one origin rather than widening the extension: Chrome match
+# patterns cannot name a port, so `http://127.0.0.1/*` in `host_permissions`
+# would permanently grant fetch + cookie-read for EVERY service on loopback.
+# Naming the extension here is only possible because `manifest.json` pins `key`,
+# and `test_bridge_origin_matches_the_manifest_key` fails if the two ever drift.
+#
+# Why this is not a hole: CORS restrains browsers, not clients — it grants no
+# access a local process did not already have. `require_loopback` and the
+# single-use nonce remain the actual gate, and both still apply to the POST.
+BRIDGE_EXTENSION_ID = "fboadceadnhfhdkdmfjlhbicocbhbbpc"
+BRIDGE_EXTENSION_ORIGIN = f"chrome-extension://{BRIDGE_EXTENSION_ID}"
+
+_INTAKE_PREFLIGHT_HEADERS = {
+    "Access-Control-Allow-Origin": BRIDGE_EXTENSION_ORIGIN,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "content-type",
+    "Access-Control-Max-Age": "600",
+    # Chrome's Private Network Access check: a request from any other context to
+    # a loopback address needs this on the preflight or it is blocked before the
+    # CORS result is even consulted.
+    "Access-Control-Allow-Private-Network": "true",
+    "Vary": "Origin",
+}
+
+
+def _preflight(request: Request) -> Response:
+    """Answer a preflight for the pinned extension; refuse every other origin.
+
+    A non-matching Origin gets a bare 403 with no `Access-Control-*` headers at
+    all, which is what makes this an allowlist rather than an opening: the
+    browser then blocks the request exactly as it does today.
+    """
+    if request.headers.get("origin") != BRIDGE_EXTENSION_ORIGIN:
+        return Response(status_code=403)
+    return Response(status_code=204, headers=_INTAKE_PREFLIGHT_HEADERS)
+
+
+def _allow_bridge_origin(request: Request, response: Response) -> None:
+    """Echo the allow-origin onto the real response.
+
+    A preflight only authorizes the request; without the header on the actual
+    response the browser still refuses to hand the body back, so the extension
+    could not tell an accepted session from a rejected one.
+    """
+    if request.headers.get("origin") == BRIDGE_EXTENSION_ORIGIN:
+        response.headers["Access-Control-Allow-Origin"] = BRIDGE_EXTENSION_ORIGIN
+        response.headers["Vary"] = "Origin"
+
+
+@router.options("/distributors/jlcpcb/pairing", include_in_schema=False)
+def preflight_jlc_pairing(request: Request) -> Response:
+    return _preflight(request)
+
+
+@router.options("/distributors/jlcpcb/session", include_in_schema=False)
+def preflight_jlc_session(request: Request) -> Response:
+    return _preflight(request)
+
 
 @router.post(
     "/distributors/jlcpcb/pairing",
     response_model=JlcPairingResponse,
     operation_id="create_jlc_pairing",
 )
-def create_jlc_pairing(request: Request) -> dict:
+def create_jlc_pairing(request: Request, response: Response) -> dict:
     """Mint the single-use nonce the extension must present. Loopback only."""
     require_loopback(request)
+    _allow_bridge_origin(request, response)
     return request.app.state.api.create_jlc_pairing()
 
 
@@ -151,7 +220,9 @@ def create_jlc_pairing(request: Request) -> dict:
     response_model=JlcSessionAcceptedResponse,
     operation_id="receive_jlc_session",
 )
-def receive_jlc_session(request: Request, body: JlcSessionBody) -> dict:
+def receive_jlc_session(
+    request: Request, response: Response, body: JlcSessionBody
+) -> dict:
     """Accept a pushed JLC session: consume the nonce, validate, store. Loopback only.
 
     Answers with the account it resolved, its label and the library item count
@@ -160,6 +231,7 @@ def receive_jlc_session(request: Request, body: JlcSessionBody) -> dict:
     validation call resolved.
     """
     require_loopback(request)
+    _allow_bridge_origin(request, response)
     api = request.app.state.api
     return api.receive_jlc_session(
         body.nonce, body.account or "", body.cookies, body.label or ""

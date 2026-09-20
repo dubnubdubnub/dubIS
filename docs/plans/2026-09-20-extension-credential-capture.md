@@ -2,7 +2,8 @@
 
 **Date:** 2026-09-20
 **Branch:** `claude/extension-credential-capture`
-**Status:** design
+**Status:** phase 1 implemented; the whole JLC loop verified live 2026-09-20
+(pairing code -> extension -> 191 records / 170,627 units for account `12625901A`)
 
 ## What the user asked for
 
@@ -78,17 +79,36 @@ rules below are load-bearing, not hygiene.
    `{"configured": bool}` surface (`mouser_client.py:241`) is the precedent.
 5. **Local-only route.** The receive route goes in `proxy.LOCAL_ONLY_PATHS`
    (`server/proxy.py:77`) and calls `auth.require_loopback` (`server/auth.py:296`),
-   so a hub never forwards credentials to a remote source.
+   so a hub never forwards credentials to a remote source. Rule 10's CORS
+   exception does not touch this: CORS restrains browsers, not clients, so a
+   matching `Origin` still gets 403 `loopback_only` from a non-loopback peer
+   (`test_the_right_origin_does_not_let_a_remote_peer_in`). If the gate ever
+   becomes the header, this rule is gone.
 6. **Filter at the source.** The extension sends only the named session cookies for
    one domain, never the jar. DigiKey's current code harvests everything and filters
    in the caller (`digikey_session.py:111-181`); invert that.
 7. **Visible and revocable.** A preferences panel lists every stored session —
    account, captured-at, last-validated — each with Revoke.
-8. **`0600` at rest.** `digikey_cookies.json` and `mouser_credentials.json` are both
-   plaintext with default mode bits today. Fix while here.
+8. **`0600` at rest, and unstageable.** `digikey_cookies.json` and
+   `mouser_credentials.json` are both plaintext with default mode bits today; fix
+   while here. The second half was added on 2026-09-20 after a live JLC cookie
+   landed at the repo root: all three are ignored **by name** as well as by
+   location, because `--data-dir` defaults to `"."` and `data/*.json` does not
+   reach the root. `0600` stops the other users of the machine; the by-name rule
+   stops `git add -A`.
 9. **Watch the permission diff.** The realistic failure mode is not v1; it is an
    extension that grows `<all_urls>` in a routine change later. A test asserts the
    manifest's permission set exactly (see Guards).
+10. **One named CORS exception, and the id is derived, never retyped.** The two
+   credential-intake routes answer a preflight for exactly
+   `chrome-extension://<the pinned id>`; every other origin gets a bare 403 with
+   no `Access-Control-*` header, and every other `/v1` route stays closed (only
+   `/v1/health` carries `*`). This exists because widening `host_permissions`
+   was the worse trade — Chrome match patterns cannot name a port, so the
+   alternative grants fetch + cookie-read for every loopback service. The id is
+   *derived from the manifest's `key`* in a test rather than trusted, because a
+   mismatch fails silently in the browser with no server-side trace. Full
+   reasoning: "Resolved: the scoped CORS preflight" below.
 
 ## Architecture
 
@@ -274,15 +294,19 @@ Three things are genuinely lost, and only the first is likely to be noticed:
 
 Weighed, so a later phase starts from here rather than from zero:
 
-- **A second CORS exception plus bearer auth on the receive route.** Cheapest on
-  paper and the only option that serves loss 3. But it costs *two* deliberate
-  widenings, not one: `Access-Control-Allow-Origin` for the extension's origin
-  (`tests/python/server/test_health_cors.py` exists to fail when that spreads
-  beyond `/v1/health`) **and** a host permission in the manifest
+- **Widening the CORS exception plus bearer auth on the receive route.** Cheapest
+  on paper and the only option that serves loss 3. Note what did and did not get
+  cheaper when the local preflight landed (below): the *server* half already
+  exists and is already scoped to this extension, so a remote dubIS would only
+  need to serve it too. The **expensive** half is untouched — the extension still
+  needs a `host_permissions` entry for that remote origin
   (`tests/python/test_extension_manifest.py` pins the set exactly, and forbids
-  `optional_host_permissions`). It also means a live JLC cookie crossing a
-  network, which is the thing rule 5 exists to prevent — so it needs the receive
-  route to require a bearer token *and* keep the nonce, never one or the other.
+  `optional_host_permissions`), which is exactly the widening the local fix was
+  designed to avoid. And it still means a live JLC cookie crossing a network,
+  which is the thing rule 5 exists to prevent — so it needs the receive route to
+  require a bearer token *and* keep the nonce, never one or the other. The
+  enumerated surface in `tests/python/server/test_health_cors.py` would have to
+  grow a row, deliberately.
 - **The Unix-socket transport over `ssh -L`** (`server/uds.py`). Unforgeable and
   secret-free, and it is how a shared Linux box already works — but a UDS peer is
   *not* `local` (CLAUDE.md, trap (f)), so `require_loopback` refuses it today.
@@ -296,39 +320,114 @@ Weighed, so a later phase starts from here rather than from zero:
 - **Out of scope** — what phase 1 does, and the recommendation until someone
   actually wants loss 2 or 3.
 
-### Open blocker: the extension has no host permission for *any* dubIS
+### Resolved: the scoped CORS preflight (2026-09-20)
 
-Found while answering the above, unresolved, and it affects the **local** flow
-too:
+Was an open blocker; confirmed live, then fixed. It affected the **local** flow,
+not just the remote one, so phase 1 did not work at all until this landed.
 
-`host_permissions` is `*://*.jlcpcb.com/*` and nothing else
+**The failure.** `host_permissions` is `*://*.jlcpcb.com/*` and nothing else
 (`extension/jlc-bridge/manifest.json`), while `pushToDubis`
 (`extension/jlc-bridge/background.js`) POSTs `Content-Type: application/json` to
 the configured dubIS origin. Chrome's rule for an MV3 service worker is that a
 fetch to a host *outside* `host_permissions` is an ordinary cross-origin request
 ([Cross-origin network requests](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests)),
-so that POST needs a preflight — and `/v1` answers one with `405` and no
-`Access-Control-*` header at all (verified against `create_app`; only
-`/v1/health` carries CORS, by design). If that reading is right the push never
-reaches dubIS, on loopback as much as on the tailnet.
+and `application/json` is not a CORS-simple content type, so the POST
+preflights. `/v1` answered `OPTIONS` with `405` and no `Access-Control-*` header
+at all. **Verified live against a real Chrome on 2026-09-20:** the extension's
+service-worker console showed `Failed to fetch`, and dubIS logged *nothing* —
+the request never left the browser, which is what made it read as a dubIS bug
+for as long as it did.
 
-Two ways out, both deliberate manifest edits that must update
-`tests/python/test_extension_manifest.py` in the same change: a fixed loopback
-host permission (`http://127.0.0.1/*`, `http://localhost/*` — wide enough to
-cover the ephemeral port, narrow enough to stay off the public internet), or
-`optional_host_permissions` granted at runtime, which that guard currently
-forbids on purpose. **Confirm it live first** — load the unpacked extension,
-press Send, and read the service-worker console — because the fix is a widening
-of the one boundary this whole design rests on and should not be made on a
-documentation reading alone.
+**The decision: the server answers the preflight, scoped to one pinned
+extension id.** `server/routes/distributors.py` grew `BRIDGE_EXTENSION_ID` /
+`BRIDGE_EXTENSION_ORIGIN`, an `_INTAKE_PREFLIGHT_HEADERS` block, a `_preflight`
+handler on both intake routes, and `_allow_bridge_origin` echoing the grant onto
+the real POST response. A non-matching `Origin` — another extension, a web page,
+another loopback service, or none at all — gets a bare `403` with no
+`Access-Control-*` header whatsoever, so the browser blocks it exactly as it did
+before the exception existed.
 
-While there: `DEFAULT_BASE_URL` is `http://127.0.0.1:7897`
-(`extension/jlc-bridge/config.js`), which matches nothing. `dubis serve` defaults
-to `7891` (`server/__main__.py`) and the desktop app picks an **ephemeral** port
-per launch (`app.pyw`'s `_free_port`, written to `data/.v1_port`), so the options
-page would need re-typing after every launch. A stable, documented port for the
-desktop hub — or having the panel show the current one next to the pairing code —
-is part of whatever fixes the above.
+**Why it beat widening `host_permissions`.** That was the obvious fix and is the
+worse one. Chrome match patterns **cannot name a port**, so the narrowest
+workable permission is `http://127.0.0.1/*` (plus `http://localhost/*`) — which
+permanently grants this extension `fetch` *and* `chrome.cookies` access for
+**every service on loopback**, forever, for all users, to cover one port. Rule 1
+of the threat model is "enumerated hosts", and the whole safety argument of a
+cookie-reading extension is how little it can reach. Trading that for a server
+response header is not close. The three things that make the server-side version
+cheap:
+
+- It grants no *access*. CORS restrains browsers, not clients — anything that
+  speaks HTTP could already reach these routes and can set any `Origin` it
+  likes. `require_loopback` and the single-use nonce are still the entire gate,
+  and both still apply to the POST
+  (`test_the_right_origin_does_not_let_a_remote_peer_in`).
+- It names one origin, never `*`, and the id is only nameable because
+  `manifest.json` pins `key`.
+- `Access-Control-Allow-Private-Network: true` is on the preflight because
+  Chrome runs a Private Network Access check for *any* request into loopback,
+  **before** it consults the CORS result — without it the fetch fails with a
+  correct CORS answer sitting right there unread.
+
+**Drift is the real risk, so it is tested.** The pinned id lives in two places
+in two notations — `manifest.json`'s base64 `key` and the server constant — and
+if they ever disagree the handshake breaks *silently*, with "Failed to fetch" in
+the browser and no server-side trace at all. `test_bridge_origin_matches_the_manifest_key`
+(`tests/python/test_extension_manifest.py`) derives the id from the key the way
+Chrome does (sha256 the DER SPKI, first 16 bytes, hex, map `0-f` onto `a-p`) and
+asserts it equals `server.routes.distributors.BRIDGE_EXTENSION_ID`. Behaviour is
+in `tests/python/server/test_jlcpcb_routes.py` ("Rule 5's CORS exception"); the
+*enumerated* surface — health's `*`, these two preflights, and no CORS header on
+any other route — is `tests/python/server/test_health_cors.py`, which sweeps the
+whole route table rather than a sample and also refuses `CORSMiddleware` and any
+`Access-Control-*` written outside the three modules allowed to.
+
+**Known gap, pinned not fixed.** `_allow_bridge_origin` writes onto the injected
+`Response`, which FastAPI merges only into a value the handler *returns*. A
+raise — the common one being `DistributorAuthError` for an expired nonce — is
+rendered by `server/errors.py` into a fresh `JSONResponse` that never saw the
+header, so the extension cannot read the 401 body and shows a generic network
+failure where dubIS meant to say "your pairing code went stale". Nonce TTLs are
+short and users are slow, so this is the error path most likely to be hit.
+Fixing it means deciding that error bodies may be read cross-origin by that one
+extension. Pinned by `test_an_error_response_carries_no_allow_origin_today`.
+
+**Verified end to end, live, 2026-09-20.** Pairing code minted in dubIS →
+pasted into the extension popup → sign-in in the user's own Chrome profile with
+autofill → session POSTed and accepted → `191` records / `170,627` units read
+back for account `12625901A` (`impossible_hardware`), matching the appendix's
+independently-observed figures. `pytest tests/python/test_jlcpcb_client.py -m live`
+passes against that stored session. Requirement 3 and requirement 4 are both
+met: one click, and saved-password autofill never left the picture.
+
+**Still true, and unchanged by this:** `DEFAULT_BASE_URL` is
+`http://127.0.0.1:7897` (`extension/jlc-bridge/config.js`), which matches
+nothing. `dubis serve` defaults to `7891` (`server/__main__.py`) and the desktop
+app picks an **ephemeral** port per launch (`app.pyw`'s `_free_port`, written to
+`data/.v1_port`), so the Options page needs the real port typed in — read it from
+that file or the dubIS window's address bar. A stable documented port for the
+desktop hub, or showing the current one beside the pairing code, is still worth
+doing; it is a usability fix now rather than a blocker.
+
+### Found while fixing it: the credential stores were ignored by location only
+
+`.gitignore` protected all three credential files with `data/*.json`, which
+covers them only where the data dir happens to be `data/`. `--data-dir` defaults
+to `"."` (`server/__main__.py`), so the documented standalone path — `python -m
+server` or `dubis serve` from the repo root — writes them to the **repo root**,
+where that rule does not reach. Observed live on 2026-09-20: a real JLC session
+cookie sat at the root of a worktree as an untracked file, one `git add -A` away
+from a public commit.
+
+Fixed by ignoring `jlc_sessions.json`, `digikey_cookies.json` and
+`mouser_credentials.json` **by name** as well as by location. Rule 8 said `0600`
+because another user on the machine could read them; this is the same asset with
+a wider blast radius, so it gets the same treatment. Guarded by
+`test_credential_files_are_git_ignored_wherever_they_are_written`
+(`tests/python/test_credential_file_modes.py`), which shells out to `git
+check-ignore` for each filename at the repo root *and* under `data/`, plus a
+companion test that the by-name rules did not swallow the committed config files
+beside them.
 
 ## Phases
 
@@ -425,10 +524,18 @@ different class of asset, and `domain/federation.py`'s qty rule ("850 on the ben
   freeze the method/route surface — additions are deliberate edits, not drift.
 - A new test asserts the extension manifest's `permissions` and `host_permissions`
   match an expected set **exactly**, so a later widening fails CI (rule 9).
-- A test asserts the receive route is in `proxy.LOCAL_ONLY_PATHS` and that
-  `tests/python/server/test_health_cors.py`'s "only `/v1/health` carries CORS"
-  invariant still holds — the extension reaching a *remote* dubIS is phase 2+ and
-  needs its own deliberate, tested exception.
+- A test asserts the receive route is in `proxy.LOCAL_ONLY_PATHS`, and
+  `tests/python/server/test_health_cors.py` enumerates the *whole* cross-origin
+  surface: `*` on `/v1/health`, a preflight for one pinned extension origin on
+  the two intake routes, and no `Access-Control-*` header on anything else. It
+  sweeps the entire route table rather than a sample, refuses `CORSMiddleware`,
+  and fails on a CORS header written in any module outside the three allowed to.
+  The extension reaching a *remote* dubIS is still phase 2+.
+- `tests/python/test_extension_manifest.py` derives the extension id from
+  `manifest.json`'s `key` and asserts it equals the server's
+  `BRIDGE_EXTENSION_ID`, so the two halves of the handshake cannot drift apart.
+- The three credential filenames are asserted git-ignored at the repo root as
+  well as under `data/` (`tests/python/test_credential_file_modes.py`).
 - A test asserts no route response schema contains a cookie or key value.
 - Credential files are created `0600`; a test asserts the mode.
 - `bash scripts/verify.sh` green before PR.
