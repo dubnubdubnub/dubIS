@@ -134,6 +134,28 @@ npx eslint extension/
 (Before that block existed the command matched no configuration and silently
 linted these files with zero rules.)
 
+## Unverified before the first live run
+
+Two things nobody has yet confirmed against a real browser. Check both the first
+time you press **Send**, with the service-worker console open — the reasoning is
+in `docs/plans/2026-09-20-extension-credential-capture.md`, section "Open
+blocker".
+
+1. **The POST may be blocked by CORS.** `host_permissions` covers `jlcpcb.com`
+   only, and a fetch from an MV3 service worker to a host outside it is an
+   ordinary cross-origin request. This one sends `Content-Type: application/json`
+   so it needs a preflight, and `/v1` answers preflights with `405` and no
+   `Access-Control-*` headers — `/v1/health` is the only route carrying CORS, on
+   purpose. If the console shows a CORS failure, the fix is a deliberate manifest
+   widening (a loopback host permission) that must update
+   `tests/python/test_extension_manifest.py` in the same change — not a blanket
+   `Access-Control-Allow-Origin` on the receive route.
+2. **The default base URL's port is a guess.** `http://127.0.0.1:7897` matches
+   neither `dubis serve` (which defaults to `7891`) nor the desktop app, which
+   binds an *ephemeral* port per launch and writes it to `data/.v1_port`. Read
+   that file (or the address bar of the dubIS window) and set the real one on the
+   Options page.
+
 ## Known limitation
 
 An MV3 service worker can be evicted when idle. This extension has no `alarms`

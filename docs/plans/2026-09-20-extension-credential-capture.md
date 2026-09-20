@@ -185,6 +185,151 @@ already solved in-cluster by `DUBIS_CDP_URL`.
 
 The one change Mouser gets here is rule 8: write its credential file `0600`.
 
+## Reach: which browser runs this, and which dubIS it can reach
+
+Two questions this design keeps provoking. Answered here with evidence so
+neither gets re-litigated from scratch.
+
+### The cluster browser must not get this extension
+
+`DUBIS_CDP_URL` points `browser_page` at the shared Chrome in the cluster's
+`browser` namespace (`deploy/deployment.yaml`). Three independent reasons the
+extension does not belong there:
+
+1. **Nothing in the JLC path touches a browser.** `jlc_session.fetch_page`
+   (`jlc_session.py:174`) is plain `urllib`, because JLC puts no bot wall on the
+   library endpoint — the fact that made JLC the right first target, above.
+   `browser_page` is imported by `mouser_client.py` and two `scripts/`, never by
+   `jlc_session.py` or `jlcpcb_client.py`. Installing the extension in that
+   browser would not place it on any code path dubIS runs.
+2. **There is nobody there to click it.** Rule 2 makes the extension push-only
+   and gesture-initiated: a human signs in to JLC in *their own* profile — that
+   is the entire point, requirement 4 — and pastes a pairing code into the popup.
+   A shared automation browser has no JLC login, no saved passwords, no user.
+3. **It would be an exfiltration vector.** CDP is unauthenticated, which is
+   precisely why Isaac declined labelling `arc-runners` `browser-client=enabled`
+   (`docs/ci-reference.md`): anything that reaches port 9222 can drive that
+   browser. This extension's safety argument is *reachability* — no
+   `externally_connectable`, no content scripts, one human gesture — and an open
+   CDP port is a general-purpose reachability bypass for every extension in the
+   profile, at a fixed published ID since `manifest.json` pins `key`. It would
+   turn a shared page-renderer into a cookie-reading service for anything in the
+   cluster that can open a socket to it.
+
+**No**, therefore — in phase 2 as well. The cluster browser exists to render
+pages the server cannot fetch; JLC needs no rendering.
+
+### A remote dubis-server cannot be paired — verified, and deliberate
+
+Rule 5 in practice, both halves confirmed against the code:
+
+- `POST /v1/distributors/jlcpcb/pairing` and `POST /v1/distributors/jlcpcb/session`
+  are in `proxy.LOCAL_ONLY_PATHS` (`server/proxy.py:90-91`), so a hub serves them
+  itself and never forwards them to a source.
+- Both call `auth.require_loopback` (`server/routes/distributors.py:145,162`).
+  The deployed server runs `DUBIS_AUTH_MODE=on` (`docs/deploy-runbook.md`), so a
+  tailnet caller resolves to a token name or a tailnet login, neither of which is
+  `local`, and gets 403 `loopback_only`. Pinned by
+  `tests/python/server/test_jlcpcb_routes.py::test_credential_intake_refuses_a_remote_caller`.
+
+So the extension on a laptop can never hand a session to the tailnet server. That
+is the intended reading of rule 5 and not an oversight.
+
+**One caveat worth knowing:** `require_loopback` is a *no-op* when auth is off
+(`server/auth.py:296-315` — no middleware means no `request.state.identity`, and
+"everything is loopback by definition"). An `off`-mode server bound to anything
+but loopback therefore accepts a pushed credential from any peer that can reach
+it. That is the same trust model `/v1/import/parse` has always had, and the
+network boundary is the real guard; it is stated here because the phase-1 prose
+asserts the gate unconditionally. Pinned as behaviour by
+`test_credential_intake_is_gated_only_in_auth_on_mode`.
+
+### Decision: remote JLC credentials are out of scope
+
+The hub architecture makes this cost far less than it first appears. The desktop
+app always boots its own local `/v1` hub and treats remote servers as *sources*
+(CLAUDE.md, "Remote deployment"), so the machine holding the JLC cookie is the
+machine the user is sitting at, and `fetch_jlc_library` runs there over plain
+`urllib`. Nothing about reading a JLC library needs the credential to exist on
+the cluster.
+
+Three things are genuinely lost, and only the first is likely to be noticed:
+
+1. **Pairing writes local; status reads the active source.** `/sessions` and
+   `/library` are deliberately *not* local-only
+   (`test_the_read_only_jlc_paths_are_not_local_only`) and the preferences panel
+   calls them through plain `api()` (`js/jlc-sessions.js`), which stamps the
+   active tab's `X-Dubis-Source`. Pair while a remote tab is in front and the
+   write lands on your hub while the panel keeps reading the remote's empty store
+   — "No JLC account paired", forever. **Pair from a Local tab.** Making the
+   panel pin itself to `local` would fix the split-brain and forfeit the
+   asymmetry's whole point (a future remote that holds its own credential); it is
+   a phase-2 call, not a phase-1 patch.
+2. `dubis jlc library` against the deployed server from another machine answers
+   401 `distributor_auth`.
+3. A browser pointed straight at the tailnet server, with no local hub in the
+   picture, cannot pair at all and shows an empty JLC panel.
+
+### If that is revisited, the cost is two guarded edits, not one
+
+Weighed, so a later phase starts from here rather than from zero:
+
+- **A second CORS exception plus bearer auth on the receive route.** Cheapest on
+  paper and the only option that serves loss 3. But it costs *two* deliberate
+  widenings, not one: `Access-Control-Allow-Origin` for the extension's origin
+  (`tests/python/server/test_health_cors.py` exists to fail when that spreads
+  beyond `/v1/health`) **and** a host permission in the manifest
+  (`tests/python/test_extension_manifest.py` pins the set exactly, and forbids
+  `optional_host_permissions`). It also means a live JLC cookie crossing a
+  network, which is the thing rule 5 exists to prevent — so it needs the receive
+  route to require a bearer token *and* keep the nonce, never one or the other.
+- **The Unix-socket transport over `ssh -L`** (`server/uds.py`). Unforgeable and
+  secret-free, and it is how a shared Linux box already works — but a UDS peer is
+  *not* `local` (CLAUDE.md, trap (f)), so `require_loopback` refuses it today.
+  Admitting it would mean deciding that a named peer may push a credential, which
+  is a broader change than it looks.
+- **A CLI paste path** (`dubis jlc paste-session`) over the already-authenticated
+  `/v1` channel. Smallest honest option for losses 2 and 3, since the transport's
+  auth already exists and nothing new becomes cross-origin readable. Costs the
+  user a manual cookie copy, which requirement 4 was trying to avoid — but only
+  for the remote case, which is rare.
+- **Out of scope** — what phase 1 does, and the recommendation until someone
+  actually wants loss 2 or 3.
+
+### Open blocker: the extension has no host permission for *any* dubIS
+
+Found while answering the above, unresolved, and it affects the **local** flow
+too:
+
+`host_permissions` is `*://*.jlcpcb.com/*` and nothing else
+(`extension/jlc-bridge/manifest.json`), while `pushToDubis`
+(`extension/jlc-bridge/background.js`) POSTs `Content-Type: application/json` to
+the configured dubIS origin. Chrome's rule for an MV3 service worker is that a
+fetch to a host *outside* `host_permissions` is an ordinary cross-origin request
+([Cross-origin network requests](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests)),
+so that POST needs a preflight — and `/v1` answers one with `405` and no
+`Access-Control-*` header at all (verified against `create_app`; only
+`/v1/health` carries CORS, by design). If that reading is right the push never
+reaches dubIS, on loopback as much as on the tailnet.
+
+Two ways out, both deliberate manifest edits that must update
+`tests/python/test_extension_manifest.py` in the same change: a fixed loopback
+host permission (`http://127.0.0.1/*`, `http://localhost/*` — wide enough to
+cover the ephemeral port, narrow enough to stay off the public internet), or
+`optional_host_permissions` granted at runtime, which that guard currently
+forbids on purpose. **Confirm it live first** — load the unpacked extension,
+press Send, and read the service-worker console — because the fix is a widening
+of the one boundary this whole design rests on and should not be made on a
+documentation reading alone.
+
+While there: `DEFAULT_BASE_URL` is `http://127.0.0.1:7897`
+(`extension/jlc-bridge/config.js`), which matches nothing. `dubis serve` defaults
+to `7891` (`server/__main__.py`) and the desktop app picks an **ephemeral** port
+per launch (`app.pyw`'s `_free_port`, written to `data/.v1_port`), so the options
+page would need re-typing after every launch. A stable, documented port for the
+desktop hub — or having the panel show the current one next to the pairing code —
+is part of whatever fixes the above.
+
 ## Phases
 
 ### Phase 1 — JLC auth loop + library read (this branch)
