@@ -70,6 +70,9 @@ describe('normalizeSources', () => {
     expect(sources).toEqual([{
       id: 'bench', name: 'Bench', url: 'https://bench.example',
       enabled: true, reachable: true, detail: '9 ms',
+      // Carried through from the payload in the hub's own spelling. Absent here,
+      // so they take the same "nobody has told us" defaults `reachable` takes.
+      has_token: false, auth: 'unknown',
     }]);
   });
 
@@ -153,6 +156,10 @@ describe('sourcesFromRoster / allSourceIds / tabMembers', () => {
     expect(sourcesFromRoster([{ id: 'a', name: 'Bench', url: 'https://bench.example/' }])).toEqual([{
       id: 'a', name: 'Bench', url: 'https://bench.example',
       enabled: true, reachable: undefined, detail: '',
+      // Same reasoning, one field over: the preferences roster is a list of URLs
+      // somebody typed. It records no credential (deliberately — see
+      // js/servers-logic.js) and no auth outcome, so both read as "not known".
+      has_token: false, auth: 'unknown',
     }]);
   });
 

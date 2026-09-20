@@ -5,10 +5,13 @@ import {
   normalizeServerUrl,
   nameFromUrl,
   normalizeServers,
+  normalizeToken,
+  tokenRejection,
   addServerEntry,
   updateServerEntry,
   removeServerEntry,
   serverRows,
+  credentialState,
   probePlan,
   classifyProbe,
   selectionStatus,
@@ -46,6 +49,64 @@ describe('nameFromUrl', () => {
 
   it('is empty for an unusable URL', () => {
     expect(nameFromUrl('nope')).toBe('');
+  });
+});
+
+describe('normalizeToken', () => {
+  it('trims, because a pasted token arrives with whitespace around it', () => {
+    expect(normalizeToken('  abc123  ')).toBe('abc123');
+    expect(normalizeToken('abc123\n')).toBe('abc123');
+  });
+
+  it('collapses blank and non-string to "" — the one value meaning "no token"', () => {
+    // "cleared" and "never set" must produce the identical write, or clearing a
+    // token would depend on which gesture the user reached for.
+    for (const blank of ['', '   ', '\n', null, undefined, 42, {}]) {
+      expect(normalizeToken(blank)).toBe('');
+    }
+  });
+});
+
+describe('tokenRejection', () => {
+  it('accepts an ordinary token, punctuation included', () => {
+    // Real tokens carry -, _, . and = (base64url, JWTs, "dubis_pat_..." styles).
+    // Rejecting those would reject nearly every token anyone actually has.
+    for (const good of ['abc123', 'dubis_pat_AbC-123.xyz', 'eyJhbGci.eyJzdWIi.Sf-KxwRJ==']) {
+      expect(tokenRejection(good)).toBe('');
+    }
+  });
+
+  it('treats absent and blank as acceptable, not as rejections', () => {
+    // "No token" is a legitimate state — most servers need none.
+    for (const nothing of [undefined, null, '', '   ']) {
+      expect(tokenRejection(nothing)).toBe('');
+    }
+  });
+
+  it('rejects every whitespace and control character with a reason, never a throw', () => {
+    // This token becomes an `Authorization:` header value verbatim on the hub's
+    // outbound request, so a newline in it is header injection — everything
+    // after it is parsed as further headers by whatever is on the other end.
+    const bad = {
+      'inner space': 'ab cd',
+      newline: 'ab\ncd',
+      'carriage return': 'ab\rcd',
+      tab: 'ab\tcd',
+      'trailing CR inside': 'abc\r\nX-Evil: 1',
+      'NUL control char': 'ab\u0000cd',
+      'DEL control char': 'ab\u007fcd',
+      'vertical tab': 'ab\u000bcd',
+    };
+    for (const [label, token] of Object.entries(bad)) {
+      const reason = tokenRejection(token);
+      expect(reason, label).toBeTruthy();
+      expect(reason, label).toMatch(/Authorization/);
+    }
+  });
+
+  it('rejects a non-string with a reason rather than coercing it', () => {
+    expect(tokenRejection(42)).toBeTruthy();
+    expect(tokenRejection({})).toBeTruthy();
   });
 });
 
@@ -124,6 +185,39 @@ describe('addServerEntry', () => {
   it('rejects the reserved local id', () => {
     expect(addServerEntry([], { id: LOCAL_ID, url: 'https://x.example' }).ok).toBe(false);
   });
+
+  it('keeps an accepted token OFF the roster and OFF the entry', () => {
+    // THE structural guarantee of this feature. `preferences.servers` is posted
+    // verbatim into data/preferences.json by savePreferences(), so a token key
+    // surviving on an entry here is a credential written to a hand-editable
+    // file — and rewritten there by every later save of anything else.
+    const r = addServerEntry([], { id: 'b', url: 'https://x.example', token: 'sekrit' });
+    expect(r.ok).toBe(true);
+    expect(r.entry).toEqual({ id: 'b', name: 'x.example', url: 'https://x.example' });
+    expect(r.servers).toEqual([{ id: 'b', name: 'x.example', url: 'https://x.example' }]);
+    expect(JSON.stringify(r.servers)).not.toContain('sekrit');
+    expect(JSON.stringify(r.entry)).not.toContain('sekrit');
+    // It comes back on its own field instead, for the caller to send to the hub.
+    expect(r.token).toBe('sekrit');
+  });
+
+  it('normalizes the token it hands back, and says "" when none was given', () => {
+    // Adding is the one moment where "leave it alone" cannot mean anything —
+    // there is nothing yet to leave alone — so this is always a string.
+    expect(addServerEntry([], { id: 'b', url: 'https://x.example', token: '  t  ' }).token)
+      .toBe('t');
+    expect(addServerEntry([], { id: 'b', url: 'https://x.example' }).token).toBe('');
+    expect(addServerEntry([], { id: 'b', url: 'https://x.example', token: '  ' }).token).toBe('');
+  });
+
+  it('rejects a malformed token with a reason and adds nothing', () => {
+    // Returned, not thrown — same contract as every other rejection here.
+    const r = addServerEntry([A], { id: 'b', url: 'https://x.example', token: 'ab\ncd' });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/Authorization/);
+    expect(r.servers).toBeUndefined();
+    expect(r.entry).toBeUndefined();
+  });
 });
 
 describe('updateServerEntry', () => {
@@ -158,6 +252,33 @@ describe('updateServerEntry', () => {
 
   it('re-derives an emptied name from the URL', () => {
     expect(updateServerEntry([A], 'a', { name: '  ' }).entry.name).toBe('dubis.example.ts.net');
+  });
+
+  it('distinguishes an ABSENT token from an empty one', () => {
+    // `undefined` = leave the stored credential alone, `""` = clear it. Exactly
+    // the distinction PATCH /v1/sources/{id} makes server-side (None means
+    // "leave alone"), and flattening it would wipe a working token every time
+    // someone renamed a server.
+    expect(updateServerEntry([A], 'a', { name: 'Home' }).token).toBeUndefined();
+    expect(updateServerEntry([A], 'a', { token: '' }).token).toBe('');
+    expect(updateServerEntry([A], 'a', { token: '   ' }).token).toBe('');
+    expect(updateServerEntry([A], 'a', { token: ' t ' }).token).toBe('t');
+  });
+
+  it('keeps an accepted token OFF the roster and OFF the entry', () => {
+    const r = updateServerEntry([A, B], 'a', { name: 'Home', token: 'sekrit' });
+    expect(r.ok).toBe(true);
+    expect(r.entry).toEqual({ ...A, name: 'Home' });
+    expect(JSON.stringify(r.servers)).not.toContain('sekrit');
+    expect(JSON.stringify(r.entry)).not.toContain('sekrit');
+    expect(r.token).toBe('sekrit');
+  });
+
+  it('rejects a malformed token with a reason and changes nothing', () => {
+    const r = updateServerEntry([A], 'a', { name: 'Home', token: 'ab cd' });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/Authorization/);
+    expect(r.servers).toBeUndefined();
   });
 });
 
@@ -208,6 +329,93 @@ describe('serverRows', () => {
       const rows = serverRows([A, B], sel);
       expect(rows.filter((r) => r.selected)).toHaveLength(1);
     }
+  });
+
+  it('defaults hasToken/auth for a 2-arg caller instead of inventing a claim', () => {
+    // Every pre-existing call site passes two arguments. "Nobody has told us"
+    // has to read as unknown, not as "definitely no token, definitely fine".
+    const rows = serverRows([A, B], '');
+    expect(rows[1]).toMatchObject({ hasToken: false, auth: 'unknown' });
+    expect(rows[2]).toMatchObject({ hasToken: false, auth: 'unknown' });
+  });
+
+  it('carries the hub-reported has_token/auth onto the matching row', () => {
+    const rows = serverRows([A, B], '', {
+      a: { has_token: true, auth: 'ok' },
+      b: { has_token: false, auth: 'required' },
+    });
+    expect(rows[1]).toMatchObject({ id: 'a', hasToken: true, auth: 'ok' });
+    expect(rows[2]).toMatchObject({ id: 'b', hasToken: false, auth: 'required' });
+  });
+
+  it('leaves a row the status map does not mention at unknown', () => {
+    const rows = serverRows([A, B], '', { a: { has_token: true, auth: 'ok' } });
+    expect(rows[2]).toMatchObject({ id: 'b', hasToken: false, auth: 'unknown' });
+  });
+
+  it('never lets the Local row carry a credential question', () => {
+    // It is this process. There is no credential between a window and the
+    // server serving it, and no auth hop that could fail.
+    for (const status of [undefined, { local: { has_token: true, auth: 'rejected' } }]) {
+      expect(serverRows([A], '', status)[0]).toMatchObject({
+        id: LOCAL_ID, hasToken: false, auth: 'ok',
+      });
+    }
+  });
+
+  it('gives the synthesized unlisted row an unknown credential state', () => {
+    // It is not a roster entry, so the hub has no source id to report for it.
+    const rows = serverRows([A], 'https://surprise.example', { a: { has_token: true, auth: 'ok' } });
+    expect(rows[2]).toMatchObject({ unlisted: true, hasToken: false, auth: 'unknown' });
+  });
+});
+
+describe('credentialState', () => {
+  it('flags a server that needs a token the reachability dot calls fine', () => {
+    // THE bug this exists for: /v1/health is exempt from AuthMiddleware, so a
+    // server with auth on that we hold no token for answers the probe green
+    // while every data request 401s.
+    const cred = credentialState({ hasToken: false, auth: 'required' });
+    expect(cred.state).toBe('needs-token');
+    expect(cred.label).toBe('needs a token');
+    expect(cred.title).toMatch(/health/);
+  });
+
+  it('flags a token that was sent and refused', () => {
+    const cred = credentialState({ hasToken: true, auth: 'rejected' });
+    expect(cred.state).toBe('bad-token');
+    expect(cred.label).toBe('token rejected');
+    expect(cred.title).toBeTruthy();
+  });
+
+  it('confirms a stored token that the hub got in with', () => {
+    const cred = credentialState({ hasToken: true, auth: 'ok' });
+    expect(cred.state).toBe('ok');
+    expect(cred.label).toBe('token');
+  });
+
+  it('says nothing for the ordinary no-credential row', () => {
+    for (const row of [
+      { hasToken: false, auth: 'ok' },
+      { hasToken: false, auth: 'unknown' },
+      // A token we hold but nothing has been able to test — unreachable, or not
+      // probed yet. It must claim neither "fine" nor "broken".
+      { hasToken: true, auth: 'unknown' },
+      {},
+      undefined,
+    ]) {
+      const cred = credentialState(row);
+      expect(cred.state).toBe('none');
+      expect(cred.label).toBe('');
+    }
+  });
+
+  it('reads a row straight out of serverRows', () => {
+    // The two halves have to compose without a translation step, or the picker
+    // would need its own opinion about what a row means.
+    const rows = serverRows([A], '', { a: { has_token: false, auth: 'required' } });
+    expect(credentialState(rows[1]).state).toBe('needs-token');
+    expect(credentialState(rows[0]).state).toBe('none');
   });
 });
 

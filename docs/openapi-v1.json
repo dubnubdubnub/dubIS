@@ -1034,6 +1034,11 @@
       "SourceStatusModel": {
         "description": "One roster entry as `GET /v1/sources` reports it.\n\nThe token is NEVER echoed \u2014 only `has_token`. It is a credential for another\nserver that this hub holds on the user's behalf; a GET that returned it\nwould hand it to anything that can read the roster.",
         "properties": {
+          "auth": {
+            "default": "unknown",
+            "title": "Auth",
+            "type": "string"
+          },
           "detail": {
             "default": "",
             "title": "Detail",
@@ -4741,6 +4746,7 @@
     },
     "/v1/preferences": {
       "get": {
+        "description": "The whole preferences object \u2014 minus any source bearer token.\n\nTokens live in `<data_dir>/server_tokens.json` (server/token_store.py), so\nnormally there is nothing here to remove. The strip is the belt to that\nfile's braces, and it covers the one case the file cannot: a\n`preferences.json` written by the build that DID store tokens in the roster,\nread before anything has triggered the migration. Without it, that user's\ncredentials are handed to the browser \u2014 console-readable, and visible in the\nDevTools network pane \u2014 on the app's very first request.",
         "operationId": "load_preferences",
         "responses": {
           "200": {

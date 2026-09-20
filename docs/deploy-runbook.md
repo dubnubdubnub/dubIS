@@ -353,6 +353,38 @@ looking at. The CLI will not silently start a server of its own (that is
 `dubis serve`, explicitly), so the failure mode is a wrong-but-live answer from
 a local instance, not a second writer appearing behind your back.
 
+### Connecting the desktop app to this auth-on instance
+
+Two ways, and they differ in lifetime rather than in mechanism — either way it
+is the **local hub** that sends `Authorization: Bearer <token>` on its outbound
+request, never the browser (the window is always served by the local hub; other
+servers are *sources* it fetches from).
+
+1. **For this session only** — env, nothing written to disk:
+   ```bash
+   DUBIS_URL=https://dubis-server.<tailnet>.ts.net DUBIS_TOKEN=<a-token-from-DUBIS_TOKENS> python app.pyw
+   ```
+   `app_restart.py` strips both from a relaunch on purpose, so neither outlives
+   the session it was given for.
+
+2. **Permanently** — Preferences → Server → *Add server*, filling in the
+   optional **API token** field. The token goes straight to the local hub over
+   loopback (`PATCH /v1/sources/{id}`) and is stored in
+   `<data_dir>/server_tokens.json`, mode `0600`, gitignored. It is deliberately
+   **not** in `data/preferences.json`: that file is served whole to the page by
+   `GET /v1/preferences` and posted back wholesale on every preference change.
+   Nothing ever reads the token back — the picker shows only whether one is
+   held — so the Edit dialog's token box starts blank, and `-` clears it.
+
+**If you skip the token, the picker will tell you.** A row reading *needs a
+token* means the hub reached that server and was refused; *token rejected*
+means the token it holds is wrong or expired. This matters because the
+reachability dot cannot show it: `/v1/health` is exempt from auth (that is what
+makes `scripts/smoke-remote.sh`'s first check meaningful), so an auth-on server
+you have no credential for answers the probe happily while every request that
+carries data 401s. The hub therefore makes a second, deliberately
+*un*-exempt probe (`/v1/meta`) purely to distinguish the two.
+
 ## 7. Longhorn backup-group confirmation
 
 `deploy/pvc.yaml` labels the PVC

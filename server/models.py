@@ -88,6 +88,15 @@ class SourceStatusModel(BaseModel):
     # Why not, in a few words — so a red dot can say something rather than just
     # being red. Empty when `reachable`.
     detail: str = ""
+    # Whether this hub can get past that server's auth: "ok" | "required" |
+    # "rejected" | "unknown". See `server/sources.ProbeResult`.
+    #
+    # `reachable` cannot answer this and must not be read as if it does.
+    # `/v1/health` is exempt from `AuthMiddleware`, so a server running
+    # `DUBIS_AUTH_MODE=on` that we hold no token for is fully "reachable" while
+    # answering 401 to every request that carries data — a green dot on a
+    # server that will not serve a single row.
+    auth: str = "unknown"
 
 
 class SourcesResponse(BaseModel):
