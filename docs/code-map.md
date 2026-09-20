@@ -3416,6 +3416,11 @@ graph LR
 - **Imports:** `purchase_orders.py`
 - **Imported by:** —
 
+### tests/python/test_pyinstaller_spec.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### tests/python/test_real_data.py
 
 - **Imports:** `inventory_api.py`
