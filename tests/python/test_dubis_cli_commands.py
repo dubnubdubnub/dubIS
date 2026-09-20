@@ -374,6 +374,35 @@ def test_spec_search_routes_a_display_string_through_extract(cli):
     assert "match" in payload
 
 
+def test_jlc_library_without_an_account_lists_the_paired_ones(cli):
+    """No account named is a question about the roster, not an invitation to
+    guess which warehouse to fetch — so it answers from the sessions route and
+    makes no JLC round trip."""
+    payload, _ = cli("jlc", "library")
+    assert payload["accounts"] == []
+    assert payload["count"] == 0
+    assert "dubis jlc library" in payload["hint"]
+
+
+def test_jlc_library_response_can_never_carry_a_credential(cli):
+    """Threat-model rule 4 at the CLI: the sessions route is a projection, so
+    nothing the store holds can print here."""
+    payload, _ = cli("jlc", "library")
+    assert "cookie" not in json.dumps(payload).lower()
+
+
+def test_jlc_library_for_an_unpaired_account_exits_3(cli):
+    _, err = cli("jlc", "library", "NOT-AN-ACCOUNT", expect=3)
+    assert "NOT-AN-ACCOUNT" in err
+
+
+def test_jlc_rejects_an_unknown_sub_noun_with_argparse_exit_2(capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        dubis_cli.main(["jlc", "not-a-thing"])
+    assert exc_info.value.code == 2
+    assert "library" in capsys.readouterr().err
+
+
 def test_curated_dry_run_declines_to_run(cli):
     payload, err = cli("search", "capacitor", "--dry-run")
     assert payload == {"dry_run": True, "command": "search"}

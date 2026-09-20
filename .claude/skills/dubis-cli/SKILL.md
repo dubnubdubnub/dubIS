@@ -42,6 +42,7 @@ before the generated surface below.
 - `dubis prices` — per-distributor price aggregates + last PO quantity
 - `dubis history` — adjustment log for one part
 - `dubis generic-groups` — generic-part groups with member counts and best member
+- `dubis jlc` — JLCPCB: paired accounts, or one account's private parts library
 
 ```bash
 dubis search 100nF                 # substring over lcsc/mpn/description/mfr/package
