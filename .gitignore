@@ -7,6 +7,19 @@ data/*.json
 !data/constants.json
 !data/pnp_part_map.json
 !data/openpnp_families.json
+
+# Credential stores, ignored BY NAME as well as by location.
+#
+# `data/*.json` above only protects them where the data dir happens to be
+# `data/`. But `--data-dir` defaults to "." (server/__main__.py), so the
+# documented standalone path — `python -m server` / `dubis serve` from the repo
+# root — writes these to the repo root, where that rule does not reach. Found
+# live on 2026-09-20: a real JLC session cookie landed at the worktree root and
+# showed up as an untracked file, one `git add -A` from being committed.
+# All three are live credentials, so match them wherever they are written.
+jlc_sessions.json
+digikey_cookies.json
+mouser_credentials.json
 # No trailing slash on purpose. `node_modules/` matches a DIRECTORY only, so
 # when a worktree carried `node_modules` as a *symlink* to the main checkout's
 # copy (a file, not a directory) the rule stopped matching and `git add -A`
@@ -46,8 +59,13 @@ data/webview2/
 # Runtime files the server writes on startup and removes on clean shutdown
 # (see CLAUDE.md's Data row). Untracked but not ignored until now, so anyone
 # who ran the app got a dirty tree and would eventually commit one.
+# Listed unanchored as well, for the same reason as the credential files above:
+# `--data-dir` defaults to "." so a standalone `python -m server` from the repo
+# root writes them there, and a crash leaves them behind.
 data/.v1_port
 data/.dubis_lock
+.v1_port
+.dubis_lock
 data-backup-*/
 data_backup
 test-results/

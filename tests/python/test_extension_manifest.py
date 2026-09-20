@@ -13,11 +13,19 @@ below, never drift.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = REPO_ROOT / "extension" / "jlc-bridge" / "manifest.json"
+
+# The ID Chrome derives from the `key` below. Named in three other places —
+# extension/jlc-bridge/README.md, the plan doc, and the server's CORS allowlist
+# — so it is pinned here and *derived* rather than trusted (see the section at
+# the bottom of this file).
+EXPECTED_EXTENSION_ID = "fboadceadnhfhdkdmfjlhbicocbhbbpc"
 
 # Exactly these. Chrome scopes `cookies` by host_permissions, so the pair below
 # IS the security boundary: cookie reads anywhere but jlcpcb.com are refused by
@@ -118,3 +126,65 @@ def test_no_all_urls_anywhere_in_the_manifest():
     """Belt and braces: catches <all_urls> in a key this guard does not name."""
     text = MANIFEST_PATH.read_text(encoding="utf-8")
     assert "<all_urls>" not in text, "the manifest mentions <all_urls> somewhere"
+
+
+# ── The pinned ID, derived rather than retyped ───────────────────────────────
+#
+# `manifest.json`'s `key` and `server.routes.distributors.BRIDGE_EXTENSION_ID`
+# are two copies of one fact, written in different notations, in different
+# languages, in different halves of the repo. The server answers the
+# extension's CORS preflight for exactly that one origin, so if the two ever
+# disagree the handshake breaks *silently*: Chrome reports "Failed to fetch"
+# and dubIS never sees a request to log. That is a day of debugging (it already
+# was one, on 2026-09-20), so it gets a test rather than a comment.
+#
+# Chrome's derivation, which is what the tests below re-run: sha256 the DER
+# SubjectPublicKeyInfo the `key` field base64-encodes, keep the first 16 bytes,
+# hex them, then map each hex digit 0-f onto a-p — the "mpdecimal" alphabet
+# that makes an extension ID all letters.
+
+
+def _derive_extension_id(key_b64: str) -> str:
+    digest = hashlib.sha256(base64.b64decode(key_b64)).hexdigest()[:32]
+    return "".join(chr(ord("a") + int(char, 16)) for char in digest)
+
+
+def test_the_manifest_key_derives_the_documented_extension_id():
+    """The ID in the README and the plan is the one this `key` actually makes.
+
+    Guards the direction nothing else can: swap `key` for a different keypair's
+    public half and every *other* manifest test still passes, while the ID
+    every document names becomes fiction.
+    """
+    derived = _derive_extension_id(_manifest()["key"])
+    assert derived == EXPECTED_EXTENSION_ID, (
+        "manifest.json's `key` no longer derives the pinned extension ID.\n"
+        f"  documented: {EXPECTED_EXTENSION_ID}\n"
+        f"  derived:    {derived}\n"
+        "Either the key was replaced (then the ID changed for every installed "
+        "copy, and extension/jlc-bridge/README.md plus the server allowlist "
+        "need updating together), or this expectation drifted."
+    )
+
+
+def test_bridge_origin_matches_the_manifest_key():
+    """The server's allowlist and the manifest's key are the same extension.
+
+    `server/routes/distributors.py` answers the credential-intake preflight for
+    `BRIDGE_EXTENSION_ORIGIN` and 403s every other origin — that scoping is the
+    whole reason the extension did not need a loopback host permission. It is
+    only sound while the ID it names is the ID Chrome assigns this manifest.
+    """
+    from server.routes import distributors
+
+    derived = _derive_extension_id(_manifest()["key"])
+    assert distributors.BRIDGE_EXTENSION_ID == derived, (
+        "the server allowlists an extension ID that manifest.json's `key` does "
+        "not produce, so the JLC bridge's POST will fail its CORS preflight "
+        "with no server-side trace.\n"
+        f"  server BRIDGE_EXTENSION_ID: {distributors.BRIDGE_EXTENSION_ID}\n"
+        f"  derived from the manifest:  {derived}\n"
+        "See docs/plans/2026-09-20-extension-credential-capture.md, "
+        '"Resolved: the scoped CORS preflight".'
+    )
+    assert distributors.BRIDGE_EXTENSION_ORIGIN == f"chrome-extension://{derived}"

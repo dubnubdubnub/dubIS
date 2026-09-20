@@ -36,6 +36,14 @@ the folder path and a Store install derives it from the signing key, so the ID
 would change on the move and anything pinning it would break.
 `tests/python/test_extension_manifest.py` fails if the field goes missing.
 
+dubIS now pins it too: `/v1` answers this extension's CORS preflight for that
+exact id and no other (see "Verified live" below). So the same test also
+*derives* the id from `key` — sha256 the DER public key, first 16 bytes, hex,
+map `0-f` onto `a-p`, which is what Chrome does — and asserts it matches
+`server.routes.distributors.BRIDGE_EXTENSION_ID`. Replace the keypair and the
+handshake breaks with `Failed to fetch` in the browser and nothing in the server
+log, so the two halves are not allowed to drift.
+
 **The matching private key is not in this repo and must never be.** It is the
 Web Store upload key: whoever holds it can publish an update that every
 installed copy auto-accepts. It currently lives outside the repo at
@@ -134,27 +142,53 @@ npx eslint extension/
 (Before that block existed the command matched no configuration and silently
 linted these files with zero rules.)
 
-## Unverified before the first live run
+## Verified live, 2026-09-20
 
-Two things nobody has yet confirmed against a real browser. Check both the first
-time you press **Send**, with the service-worker console open — the reasoning is
-in `docs/plans/2026-09-20-extension-credential-capture.md`, section "Open
-blocker".
+The whole loop ran against a real Chrome and a real JLC account: pairing code
+minted in dubIS, pasted into the popup, sign-in in the normal profile with saved
+passwords, session pushed and accepted, `191` records / `170,627` units read
+back for account `12625901A`. What that run turned up, and how each half stands
+now:
 
-1. **The POST may be blocked by CORS.** `host_permissions` covers `jlcpcb.com`
-   only, and a fetch from an MV3 service worker to a host outside it is an
-   ordinary cross-origin request. This one sends `Content-Type: application/json`
-   so it needs a preflight, and `/v1` answers preflights with `405` and no
-   `Access-Control-*` headers — `/v1/health` is the only route carrying CORS, on
-   purpose. If the console shows a CORS failure, the fix is a deliberate manifest
-   widening (a loopback host permission) that must update
-   `tests/python/test_extension_manifest.py` in the same change — not a blanket
-   `Access-Control-Allow-Origin` on the receive route.
-2. **The default base URL's port is a guess.** `http://127.0.0.1:7897` matches
-   neither `dubis serve` (which defaults to `7891`) nor the desktop app, which
-   binds an *ephemeral* port per launch and writes it to `data/.v1_port`. Read
-   that file (or the address bar of the dubIS window) and set the real one on the
-   Options page.
+1. **CORS: answered, and fixed on the server side.** The POST *was* blocked. A
+   fetch from this service worker to a dubIS origin outside `host_permissions`
+   is an ordinary cross-origin request, `Content-Type: application/json` makes it
+   non-simple, and `/v1` answered the preflight with `405` and no
+   `Access-Control-*` headers — the console said `Failed to fetch` and dubIS
+   logged nothing at all.
+
+   The fix deliberately did **not** widen this manifest. Chrome match patterns
+   cannot name a port, so a loopback host permission means `http://127.0.0.1/*`
+   — fetch *and* cookie-read for every service on loopback, permanently, to
+   cover one port. Instead `/v1` answers the preflight for exactly this
+   extension's pinned id (`server/routes/distributors.py`,
+   `BRIDGE_EXTENSION_ID`), and refuses every other origin with a bare `403`
+   carrying no CORS header. It also sends
+   `Access-Control-Allow-Private-Network: true`, which Chrome requires for any
+   request into loopback and checks *before* the CORS result.
+
+   That grants no new access — CORS restrains browsers, not clients. The pairing
+   nonce and `require_loopback` are still the entire gate. `permissions` and
+   `host_permissions` here are unchanged, and
+   `tests/python/test_extension_manifest.py` still pins both sets exactly — plus
+   it now derives the extension id from `key` and asserts the server allowlists
+   that same id, because a drift between the two breaks the handshake with no
+   server-side trace.
+
+   **One rough edge that remains:** an error from dubIS (most likely an expired
+   pairing code) comes back without the CORS header, so the browser withholds
+   the body and you see a generic network failure instead of "your pairing code
+   went stale". If a Send fails immediately, try a fresh code before assuming
+   anything worse. Tracked in
+   `docs/plans/2026-09-20-extension-credential-capture.md`.
+
+2. **The default base URL's port is still a guess.** `http://127.0.0.1:7897`
+   matches neither `dubis serve` (which defaults to `7891`) nor the desktop app,
+   which binds an *ephemeral* port per launch and writes it to `data/.v1_port`.
+   **The fix is to set the real one on the Options page** — read the port from
+   that file, or from the address bar of the dubIS window — not to change
+   anything here. It needs re-checking after a desktop relaunch, since the
+   ephemeral port changes.
 
 ## Known limitation
 
