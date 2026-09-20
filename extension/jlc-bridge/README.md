@@ -175,12 +175,25 @@ now:
    that same id, because a drift between the two breaks the handshake with no
    server-side trace.
 
-   **One rough edge that remains:** an error from dubIS (most likely an expired
-   pairing code) comes back without the CORS header, so the browser withholds
-   the body and you see a generic network failure instead of "your pairing code
-   went stale". If a Send fails immediately, try a fresh code before assuming
-   anything worse. Tracked in
-   `docs/plans/2026-09-20-extension-credential-capture.md`.
+   **Errors are readable too, decided 2026-09-20.** The first version of the
+   fix wrote the header in the two handlers, which meant only a *returned*
+   response carried it: a raise — most often "your pairing code went stale" —
+   was re-rendered by `server/errors.py` without it, so the browser withheld
+   the body and the popup showed a generic network failure for the error dubIS
+   had written specifically for it to display. With a 10-minute nonce TTL and a
+   human-paced flow that is the error you are most likely to hit, so the
+   commonest failure looked exactly like "dubIS is unreachable".
+
+   It is now a path-scoped middleware (`BridgeCorsMiddleware`, same file),
+   registered outermost, so **every** response from those two paths carries the
+   grant — returned, raised, or a `422` from request validation. The trade,
+   made deliberately: those bodies are an error string, a `code` and an
+   optional structured `detail` — no credential, no inventory data — and only
+   this pinned extension id ever receives the header. CORS restrains browsers,
+   not clients, so it still grants no access a local process did not already
+   have, and `require_loopback` plus the single-use nonce remain the whole
+   gate. So a failed Send now tells you *why*: read the message before assuming
+   the port is wrong.
 
 2. **The default base URL's port is still a guess.** `http://127.0.0.1:7897`
    matches neither `dubis serve` (which defaults to `7891`) nor the desktop app,

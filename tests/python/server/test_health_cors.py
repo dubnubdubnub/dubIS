@@ -17,9 +17,13 @@ Three clauses, and the file exists to make the third one true:
    permission for any dubIS origin (Chrome match patterns cannot name a port,
    so `http://127.0.0.1/*` would grant fetch + cookie-read for every loopback
    service — a far worse trade), so its `application/json` POST preflights, and
-   a 405 with no headers made it fail as "Failed to fetch". The behavioural
-   tests for it live next door in `test_jlcpcb_routes.py`; what lives HERE is
-   the statement that those two paths are the only ones.
+   a 405 with no headers made it fail as "Failed to fetch". Those same two
+   paths — and only those two — also stamp the grant onto every *response*,
+   errors included, via `BridgeCorsMiddleware`; that is a path-scoped
+   middleware, not an app-wide one, which is why the sweeps below still find
+   nothing anywhere else. The behavioural tests for it live next door in
+   `test_jlcpcb_routes.py`; what lives HERE is the statement that those two
+   paths are the only ones.
 
 3. **Every other route carries no CORS header at all.** That is the clause with
    teeth. Every route but health serves real inventory data, and a `*` on any
@@ -59,6 +63,9 @@ SERVER_PKG = REPO_ROOT / "server"
 #   GET  /v1/health                          -> Access-Control-Allow-Origin: *
 #   OPTIONS /v1/distributors/jlcpcb/pairing  -> preflight, pinned extension only
 #   OPTIONS /v1/distributors/jlcpcb/session  -> preflight, pinned extension only
+#   ANY  those same two paths                -> allow-origin on EVERY response,
+#                                               errors included, pinned
+#                                               extension only
 #   everything else                          -> no Access-Control-* header
 WILDCARD_CORS_PATHS = {"/v1/health"}
 PREFLIGHT_PATHS = {
@@ -66,9 +73,12 @@ PREFLIGHT_PATHS = {
     "/v1/distributors/jlcpcb/session",
 }
 # Where a CORS header may be written in server/. meta.py holds health's `*`;
-# distributors.py holds the pinned-extension preflight. proxy.py is listed
-# because it STRIPS every `access-control-*` header an upstream sends, which is
-# the same invariant defended from the hub side.
+# distributors.py holds the pinned-extension preflight AND the path-scoped
+# `BridgeCorsMiddleware` that stamps the same grant onto that pair's real
+# responses — deliberately the same module, so opening this surface still costs
+# nothing but the two entries already here. proxy.py is listed because it
+# STRIPS every `access-control-*` header an upstream sends, which is the same
+# invariant defended from the hub side.
 CORS_WRITER_MODULES = {"routes/meta.py", "routes/distributors.py", "proxy.py"}
 
 _PLAN = (
@@ -296,6 +306,22 @@ def test_only_the_planned_modules_write_a_cors_header():
         f"{sorted(CORS_WRITER_MODULES)}: {offenders}\n"
         "If the new one is deliberate, add it to CORS_WRITER_MODULES in the "
         "same change that argues for it — and to the PLAN comment above."
+    )
+
+
+def test_the_only_cors_middleware_is_scoped_to_the_two_intake_paths():
+    """The pinned-extension grant is a middleware (it must see responses a
+    handler never returned), so the "no app-wide CORS" rule needs a second
+    clause: that middleware must decide on the path BEFORE anything else.
+
+    Read off the constant it matches against, not a copy of it — a widening
+    would have to change `INTAKE_PATHS`, and that is what this fails on.
+    """
+    from server.routes.distributors import INTAKE_PATHS as MIDDLEWARE_PATHS
+
+    assert set(MIDDLEWARE_PATHS) == PREFLIGHT_PATHS, (
+        f"{_PLAN}\nBridgeCorsMiddleware stamps paths outside the enumerated "
+        f"surface: {sorted(set(MIDDLEWARE_PATHS) - PREFLIGHT_PATHS)}"
     )
 
 
