@@ -15,9 +15,20 @@ bench.mark("py_start")
 
 logger = logging.getLogger(__name__)
 
-# Ensure the app directory is on the path
+# Ensure the app directory is on the path.
+#
+# APP_DIR is the root everything bundled is resolved against: splash.html, the
+# window icons, and `static_dir=APP_DIR` for the /v1 server (so index.html,
+# css/ and js/ are served from it). Frozen, that is `sys._MEIPASS` — the
+# directory PyInstaller unpacks `Analysis(datas=...)` into — NOT
+# `dirname(sys.executable)`. They stopped being the same directory in
+# PyInstaller 6, which moved a onedir build's payload into `_internal/` beside
+# the launcher, and they were never the same inside a macOS .app (the launcher
+# lives in Contents/MacOS, the payload in Contents/Frameworks). Resolving
+# against the executable therefore pointed every bundled asset at a directory
+# holding nothing but the launcher: no splash to paint, no index.html to serve.
 if getattr(sys, 'frozen', False):
-    APP_DIR = os.path.dirname(sys.executable)
+    APP_DIR = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
 else:
     APP_DIR = os.path.dirname(os.path.abspath(__file__))
 ICON_PATH = os.path.join(APP_DIR, "data", "dubIS.ico")
