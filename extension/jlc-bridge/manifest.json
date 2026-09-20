@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "dubIS JLC bridge",
+  "version": "0.1.0",
+  "description": "Pushes your JLCPCB session to a local dubIS server when you ask it to. Push-only: no web page can talk to it.",
+  "permissions": ["cookies", "storage"],
+  "host_permissions": ["*://*.jlcpcb.com/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "dubIS JLC bridge",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html"
+}
