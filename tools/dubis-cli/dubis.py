@@ -182,6 +182,10 @@ def build_parser() -> argparse.ArgumentParser:
                             help="start the /v1 server in the foreground")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", default="7891")
+    serve.add_argument("--uds", default=None,
+                       help="bind a Unix socket at this path instead of a TCP port; "
+                            "on Linux each caller is identified by their kernel uid "
+                            "(see server/peercred.py)")
 
     subs.add_parser("schema", parents=[common],
                     help="dump every command and its params")
@@ -316,8 +320,16 @@ def _run_serve(args: argparse.Namespace) -> int:
     .v1_port and .dubis_lock files.
     """
     data_dir = args.data_dir or default_data_dir(str(_REPO_ROOT))
-    cmd = [sys.executable, "-m", "server", "--host", args.host,
-           "--port", str(args.port), "--data-dir", data_dir]
+    cmd = [sys.executable, "-m", "server", "--data-dir", data_dir]
+    if args.uds:
+        # --host/--port must NOT be forwarded alongside --uds: `python -m
+        # server` treats the combination as a usage error precisely so that a
+        # socket request can never be silently served over TCP. Their argparse
+        # defaults here are just this parser's defaults, not something the
+        # user asked for.
+        cmd += ["--uds", args.uds]
+    else:
+        cmd += ["--host", args.host, "--port", str(args.port)]
     return subprocess.call(cmd, cwd=str(_REPO_ROOT))
 
 

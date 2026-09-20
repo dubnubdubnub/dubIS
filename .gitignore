@@ -7,6 +7,16 @@ data/*.json
 !data/constants.json
 !data/pnp_part_map.json
 !data/openpnp_families.json
+# Bearer tokens for remote dubIS sources (server/token_store.py). Already
+# covered by `data/*.json` above, and named explicitly anyway: this repo is
+# PUBLIC, the re-include list above is one `!data/*.json` typo away from
+# un-ignoring every config file in that directory, and this is the one file
+# where that mistake discloses a credential rather than a preference.
+# The trailing `*` is load-bearing, not lazy: save_tokens writes
+# `server_tokens.json.tmp` and renames it, and `data/*.json` does not match a
+# `.tmp` suffix — so without it a `git add -A` racing a write could commit a
+# live token. tests/python/server/test_secret_not_committed.py checks both.
+data/server_tokens.json*
 # No trailing slash on purpose. `node_modules/` matches a DIRECTORY only, so
 # when a worktree carried `node_modules` as a *symlink* to the main checkout's
 # copy (a file, not a directory) the rule stopped matching and `git add -A`

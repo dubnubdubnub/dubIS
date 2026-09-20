@@ -11,6 +11,7 @@ changes".
 
 from __future__ import annotations
 
+import logging
 import os
 
 import pytest
@@ -72,6 +73,43 @@ def test_a_missing_registry_is_reported_not_raised(monkeypatch):
 
 def test_seam_name_is_the_one_app_pyw_documents():
     assert app_launch.ACTIVE_SOURCE_SEAM == "server.sources.seed_initial_active_source"
+
+
+def test_the_token_rides_along_with_the_url():
+    """`DUBIS_TOKEN` is the credential for `DUBIS_URL`, and has exactly its
+    lifetime: `app_restart.py` strips both from a relaunch, so neither is ever
+    persisted. Without this, the env-launched remote mode CLAUDE.md documents
+    reached an auth-on server with no `Authorization` header at all and 401'd on
+    everything but the health check."""
+    calls = []
+    result = app_launch.seed_initial_active_source(
+        "https://dubis.example.ts.net", seeder=lambda u, t: calls.append((u, t)), token="t0k",
+    )
+    assert result == "seeded"
+    assert calls == [("https://dubis.example.ts.net", "t0k")]
+
+
+def test_a_seeder_from_before_tokens_still_gets_the_url():
+    """Losing the credential is a degraded session worth a loud log. Refusing to
+    seed the URL at all would silently start on the wrong server's data, which
+    is worse."""
+    calls = []
+    result = app_launch.seed_initial_active_source(
+        "https://dubis.example.ts.net", seeder=calls.append, token="t0k",
+    )
+    assert result == "seeded"
+    assert calls == ["https://dubis.example.ts.net"]
+
+
+def test_the_token_is_never_logged(caplog):
+    with caplog.at_level(logging.DEBUG):
+        app_launch.seed_initial_active_source(
+            "https://dubis.example.ts.net", seeder=lambda *_: None, token="sup3r-s3cret",
+        )
+        app_launch.seed_initial_active_source(
+            "https://dubis.example.ts.net", seeder=lambda u: None, token="sup3r-s3cret",
+        )
+    assert "sup3r-s3cret" not in caplog.text
 
 
 # ── the two halves together: precedence now feeds the seed, not a boot branch ─

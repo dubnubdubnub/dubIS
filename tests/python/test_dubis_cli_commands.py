@@ -430,3 +430,48 @@ def test_launcher_resolves_an_interpreter_on_its_own():
         assert "PYTHON=" in result.stderr  # names the way out
     else:
         assert "dubis" in result.stdout
+
+
+# ── `dubis serve --uds` ──────────────────────────────────────────────────────
+
+
+def _serve_argv(monkeypatch, argv):
+    """Run `dubis serve ...` with the subprocess stubbed, returning the
+    command line it would have run."""
+    captured = {}
+
+    def _fake_call(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return 0
+
+    monkeypatch.setattr(dubis_cli.subprocess, "call", _fake_call)
+    assert dubis_cli.main(argv) == 0
+    return captured["cmd"]
+
+
+def test_serve_defaults_to_tcp(monkeypatch):
+    cmd = _serve_argv(monkeypatch, ["serve"])
+    assert "--host" in cmd
+    assert "--port" in cmd
+    assert "--uds" not in cmd
+
+
+def test_serve_uds_does_not_forward_host_or_port(monkeypatch):
+    """`python -m server` treats --uds alongside --host/--port as a usage
+    error, on purpose — so forwarding this parser's own defaults would make
+    `dubis serve --uds` fail every time with an error about flags the user
+    never typed."""
+    cmd = _serve_argv(monkeypatch, ["serve", "--uds", "/tmp/dubis.sock"])
+    assert "--uds" in cmd
+    assert cmd[cmd.index("--uds") + 1] == "/tmp/dubis.sock"
+    assert "--host" not in cmd
+    assert "--port" not in cmd
+
+
+def test_serve_always_passes_an_explicit_data_dir(monkeypatch):
+    """Both transports: `python -m server`'s own --data-dir default is the
+    repo root, one level above the `<repo>/data` connect() probes."""
+    for argv in (["serve"], ["serve", "--uds", "/tmp/dubis.sock"]):
+        cmd = _serve_argv(monkeypatch, argv)
+        assert "--data-dir" in cmd
+        assert cmd[cmd.index("--data-dir") + 1].endswith("data")

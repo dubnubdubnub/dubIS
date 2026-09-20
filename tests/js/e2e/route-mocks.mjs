@@ -951,23 +951,37 @@ export async function assertHttpExercised(state) {
 const SOURCES_ACTIVE_KEY = '__test_sources_active';
 const SOURCES_REACHABLE_KEY = '__test_sources_reachable';
 const SOURCES_PREFS_KEY = '__test_prefs_inv_view';
+/* The fake hub's stand-in for server/token_store.py: source id -> token. It is
+   deliberately NOT the prefs store, mirroring the real split — a token is kept
+   in its own server-side file and never in preferences.json — which is what
+   lets a spec assert that no PUT /v1/preferences body ever carries one. */
+const SOURCES_TOKENS_KEY = '__test_sources_tokens';
 
 /**
  * Install a fake hub for the sources API.
  *
  * @param {import('@playwright/test').Page} page
- * @param {{active?: string, reachable?: Record<string, boolean>}} [options]
+ * @param {{active?: string, reachable?: Record<string, boolean>,
+ *          auth?: Record<string, string>}} [options]
  *   `active` is the source id the hub starts on; `reachable` maps a server URL
  *   to what the hub's probe reports for it (omit a URL to leave it unprobed,
- *   which must render as unknown rather than as down).
+ *   which must render as unknown rather than as down). `auth` maps a server URL
+ *   to the hub's verdict on getting past that server's AuthMiddleware —
+ *   "ok" | "required" | "rejected" — and is the one fact `reachable` cannot
+ *   carry, since /v1/health is exempt from auth. Omitted URLs report "unknown".
+ *   `has_token` is not injectable and is not a parameter: it is derived from
+ *   whatever token the app PATCHed, exactly as the real hub derives it from
+ *   server/token_store.py, so a spec cannot fake having sent one.
  */
 export async function installSourcesRouteMocks(page, options = {}) {
   const seed = {
     activeKey: SOURCES_ACTIVE_KEY,
     reachableKey: SOURCES_REACHABLE_KEY,
     prefsKey: SOURCES_PREFS_KEY,
+    tokensKey: SOURCES_TOKENS_KEY,
     active: options.active || 'local',
     reachable: options.reachable || {},
+    auth: options.auth || {},
   };
 
   await page.addInitScript((cfg) => {
@@ -977,11 +991,19 @@ export async function installSourcesRouteMocks(page, options = {}) {
       window.sessionStorage.setItem(cfg.activeKey, cfg.active);
     }
     window.sessionStorage.setItem(cfg.reachableKey, JSON.stringify(cfg.reachable));
+    window.__sourcesAuth = cfg.auth;
+    if (window.sessionStorage.getItem(cfg.tokensKey) === null) {
+      window.sessionStorage.setItem(cfg.tokensKey, '{}');
+    }
+
+    window.__sourcesTokens = () =>
+      JSON.parse(window.sessionStorage.getItem(cfg.tokensKey) || '{}');
 
     window.__sourcesRoster = () => {
       const stored = window.sessionStorage.getItem(cfg.prefsKey);
       const servers = stored ? (JSON.parse(stored).servers || []) : [];
       const reachable = JSON.parse(window.sessionStorage.getItem(cfg.reachableKey) || '{}');
+      const tokens = window.__sourcesTokens();
       const saved = window.sessionStorage.getItem(cfg.activeKey) || 'local';
       return {
         // `default` is canonical — it is what a request with no X-Dubis-Source
@@ -990,7 +1012,16 @@ export async function installSourcesRouteMocks(page, options = {}) {
         default: saved,
         active: saved,
         sources: servers.map((s) => {
-          const entry = { id: s.id, name: s.name, url: s.url, enabled: true };
+          const entry = {
+            id: s.id,
+            name: s.name,
+            url: s.url,
+            enabled: true,
+            // A BOOLEAN, exactly like the real route: /v1/sources never echoes
+            // the token, so a spec that wanted to read one back could not.
+            has_token: !!tokens[s.id],
+            auth: cfg.auth[s.url] || 'unknown',
+          };
           if (Object.prototype.hasOwnProperty.call(reachable, s.url)) {
             entry.reachable = reachable[s.url];
           }
@@ -1002,6 +1033,17 @@ export async function installSourcesRouteMocks(page, options = {}) {
       window.sessionStorage.setItem(cfg.activeKey, id);
       return { active: id };
     };
+    window.__sourcesPatch = (id, body) => {
+      // `token: null`/absent means "leave it alone" — the real route's None.
+      if (typeof body.token === 'string') {
+        const tokens = window.__sourcesTokens();
+        if (body.token) tokens[id] = body.token;
+        else delete tokens[id];
+        window.sessionStorage.setItem(cfg.tokensKey, JSON.stringify(tokens));
+      }
+      const source = (window.__sourcesRoster().sources || []).find((s) => s.id === id);
+      return source || { id, name: '', url: '', enabled: true, has_token: false };
+    };
 
     // Bridge transport: what `api()` uses while the routes are absent from
     // js/api-map.js. Registered after addMockSetup's own init script, so it
@@ -1010,6 +1052,8 @@ export async function installSourcesRouteMocks(page, options = {}) {
     window.pywebview.api = window.pywebview.api || {};
     window.pywebview.api.list_sources = async () => window.__sourcesRoster();
     window.pywebview.api.set_active_source = async (id) => window.__sourcesSetActive(id);
+    window.pywebview.api.update_source = async (id, name, url, token) =>
+      window.__sourcesPatch(id, { name, url, token });
   }, seed);
 
   // HTTP transport: takes over the moment the real routes exist and
@@ -1023,9 +1067,42 @@ export async function installSourcesRouteMocks(page, options = {}) {
     // would read the same object raw, so this shape works either way.
     await route.fulfill({ json: { ok: true, detail } });
   });
+  // Registered BEFORE the `**/v1/sources` handler below so it wins: Playwright
+  // matches last-registered first, and `**/v1/sources` would otherwise not
+  // match a sub-path anyway — but the ordering is what keeps that true if the
+  // pattern is ever widened.
+  await page.route('**/v1/sources/*', async (route) => {
+    if (route.request().method() !== 'PATCH') {
+      await route.fallback();
+      return;
+    }
+    const id = route.request().url().split('/').pop();
+    const body = JSON.parse(route.request().postData() || '{}');
+    const detail = await page.evaluate(
+      ([sourceId, patch]) => window.__sourcesPatch(sourceId, patch),
+      [id, body],
+    );
+    // Enveloped like server/mutations.py's finish_mutation, which is what the
+    // `unwrap: "detail"` entry for update_source in js/api-map.js expects.
+    await route.fulfill({ json: { ok: true, detail } });
+  });
   await page.route('**/v1/sources', async (route) => {
     await route.fulfill({ json: await page.evaluate(() => window.__sourcesRoster()) });
   });
+}
+
+/**
+ * The tokens the fake hub is holding, keyed by source id.
+ *
+ * Stands in for server/token_store.py. A spec reads it to prove a token
+ * reached the hub; nothing reads it back out through `GET /v1/sources`, which
+ * reports only the boolean `has_token`.
+ * @param {import('@playwright/test').Page} page
+ * @returns {Promise<Record<string, string>>}
+ */
+export function sourceTokensOnHub(page) {
+  return page.evaluate((k) => JSON.parse(window.sessionStorage.getItem(k) || '{}'),
+    SOURCES_TOKENS_KEY);
 }
 
 /**
