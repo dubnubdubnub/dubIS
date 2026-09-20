@@ -93,23 +93,30 @@ rules below are load-bearing, not hygiene.
 ## Architecture
 
 ```
-dubIS preferences                     user's real Chrome
-  "Sign in to JLC"                      (autofill, SSO, saved sessions)
-        │
-        │ 1. POST /v1/distributors/jlcpcb/pairing  -> {nonce, ttl}
-        ▼
-   dubIS server  ───2. open tab: passport.jlcpcb.com/#/login?dubis_nonce=…──►
-        ▲
-        │ 4. POST /v1/distributors/jlcpcb/session          3. extension: user
-        │    {nonce, cookies:[…]}   (loopback + nonce)        signs in; extension
-        │                                                      polls the library API
-        │ 5. validate: getCustomerComponentStock?pageSize=1     until code != 460
-        │    code 460 -> reject; 200 -> store + SSE push
+dubIS preferences                          user's real Chrome
+  "Sign in to JLC"  ──1. POST /pairing──►  (autofill, SSO, saved sessions)
+   shows pairing code   {nonce, ttl}
+        │                                   2. user opens JLC, signs in normally
+        │                                   3. user pastes the code into the
+        │                                      extension popup, clicks Send
+        ▲                                   4. extension polls the library API
+        │                                      until code != 460
+        │ 5. POST /v1/distributors/jlcpcb/session
+        │    {nonce, account, cookies}   (loopback + nonce)
+        │ 6. server re-validates, stores, SSE push
 ```
 
-The nonce rides in the opened tab's URL fragment so the extension's content-free
-service worker can associate *this* login attempt with *this* dubIS. It is consumed
-on first use and expires (60s suggested).
+**The nonce is pasted, not carried in a URL.** The original design had dubIS open
+`passport.jlcpcb.com/#/login?dubis_nonce=…` and the service worker read it from the
+tab — but seeing a tab's URL requires the `tabs` permission or a content script, and
+rules 1 and 2 forbid both. Paste-into-popup is the strictly smaller attack surface:
+the popup click *is* the gesture, and the extension needs no visibility into browsing
+at all. Adopted over the original.
+
+**Nonce TTL must cover the whole human flow**, not just the handshake: display →
+paste → sign in → up to ~2 minutes of polling → POST. It is consumed at step 5, which
+is minutes after step 1. **10 minutes**, single-use. (A 60s TTL was specified in an
+earlier draft of this plan and is wrong — it expires mid-login every time.)
 
 ### Validation is an API call, not a cookie check
 
