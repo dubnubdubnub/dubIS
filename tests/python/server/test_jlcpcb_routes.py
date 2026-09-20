@@ -324,6 +324,44 @@ def test_credential_intake_refuses_a_remote_caller(tmp_path, monkeypatch, path):
         api.shutdown()
 
 
+def test_credential_intake_is_gated_only_in_auth_on_mode(tmp_path, monkeypatch):
+    """The other side of rule 5, pinned so it is known rather than discovered.
+
+    `require_loopback` reads `request.state.identity`, which only exists when
+    `AuthMiddleware` is installed — i.e. when `DUBIS_AUTH_MODE=on`
+    (`server/auth.py:296-315`, `server/app.py`). With auth `off` (the default)
+    there is no identity to reject, so the guard passes everything and a
+    non-loopback peer CAN mint a pairing nonce and push a credential.
+
+    That is the house's existing semantics, identical to `/v1/import/parse`'s:
+    in `off` mode the network boundary is the guard, and the deployed server
+    sets `on` (`docs/deploy-runbook.md`). It is asserted here because the
+    phase-1 prose states the loopback gate unconditionally, and a reader who
+    believes that would mis-judge an `off`-mode server bound to `0.0.0.0`.
+    Tightening this later — refusing a non-loopback peer regardless of mode —
+    is a deliberate change that should start by editing this test.
+    """
+    from tests.python.helpers import make_api, make_part, write_ledger
+
+    monkeypatch.delenv("DUBIS_AUTH_MODE", raising=False)
+    api = make_api(tmp_path)
+    write_ledger(api, [make_part(lcsc="C100000", qty=10)])
+    try:
+        with TestClient(create_app(api), client=REMOTE) as c:
+            r = c.post(PAIRING_PATH)
+        assert r.status_code == 200, r.text
+        assert r.json()["nonce"]
+    finally:
+        api.shutdown()
+
+
+def test_the_hub_still_refuses_to_forward_intake_whatever_the_auth_mode():
+    """`LOCAL_ONLY_PATHS` is mode-independent, which is why rule 5 needs both
+    mechanisms: the allowlist holds even where `require_loopback` is a no-op."""
+    assert proxy.is_local_only(PAIRING_PATH)
+    assert proxy.is_local_only(SESSION_PATH)
+
+
 # ── The CORS invariant still holds ───────────────────────────────────────────
 
 
