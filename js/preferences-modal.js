@@ -1,10 +1,16 @@
 /* preferences-modal.js — Preferences modal with section threshold sliders,
-   Digikey login/logout flow, and Mouser API key management. */
+   Digikey login/logout flow, and Mouser API key management.
+
+   Two sections live in their own modules because they are live components with
+   a start/stop lifecycle, not static form controls: the server picker
+   (js/server-list.js) and the JLCPCB pairing panel (js/jlc-sessions.js). Both
+   are started when this modal opens and stopped when it closes. */
 
 import { api, AppLog } from './api.js';
 import { showToast, escHtml, Modal } from './ui-helpers.js';
 import { store, getThreshold, savePreferences, preferencesSignal, getShortcutPrefs, setShortcutPrefs, getBehaviorPrefs, setBehaviorPrefs } from './store.js';
 import { wireServerList, startServerList, stopServerList } from './server-list.js';
+import { wireJlcPanel, startJlcPanel, stopJlcPanel } from './jlc-sessions.js';
 
 var PREFS_MAX_THRESHOLD = 200;
 var PREFS_MIN_THRESHOLD = 5;
@@ -19,9 +25,10 @@ function stopDkPolling() {
 const prefsModal = Modal("prefs-modal", {
   cancelId: "prefs-cancel",
   confirmId: "prefs-save",
-  // The server picker polls /v1/health while it is on screen; a hidden modal
-  // has nothing to show, so the poll has to stop with it.
-  onClose: stopServerList,
+  // Two sections of this modal are live while it is on screen and must not be
+  // while it is not: the server picker polls /v1/health, and the JLC panel
+  // counts a pairing code down (and polls for the extension's delivery).
+  onClose: function () { stopServerList(); stopJlcPanel(); },
 });
 
 // ── Slider helpers ──
@@ -97,6 +104,7 @@ function wireKeyboardPrefs() {
   // non-positive value back to the default, so the field is re-read from the
   // store rather than trusting what was typed.
   wireServerList();
+  wireJlcPanel();
   document.getElementById('pref-reel-ceiling').addEventListener('change', (e) => {
     setBehaviorPrefs({ reelCeiling: Number(e.target.value) });
     e.target.value = String(getBehaviorPrefs().reelCeiling);
@@ -146,6 +154,9 @@ export function openPreferencesModal() {
 
   // Load Mirror status
   refreshMirrorStatus();
+
+  // Paired JLC accounts (no pairing code until the user asks for one)
+  startJlcPanel();
 
   // Sync keyboard prefs controls
   syncKeyboardPrefs();
