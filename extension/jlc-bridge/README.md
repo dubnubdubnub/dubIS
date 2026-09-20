@@ -18,8 +18,38 @@ and the threat model these files implement.
 4. Open the extension's **Options** and set the dubIS base URL if it is not the
    default `http://127.0.0.1:7897`.
 
-There is no Chrome Web Store listing and no auto-update; re-load the folder
+There is no Chrome Web Store listing and no auto-update yet; re-load the folder
 after pulling changes.
+
+### The extension ID is pinned
+
+`manifest.json` carries a `key` — the base64 public half of an RSA keypair — so
+this extension always loads as
+
+```
+fboadceadnhfhdkdmfjlhbicocbhbbpc
+```
+
+whether it is loaded unpacked from any folder or installed from an unlisted
+Chrome Web Store entry later. Without it, an unpacked load derives the ID from
+the folder path and a Store install derives it from the signing key, so the ID
+would change on the move and anything pinning it would break.
+`tests/python/test_extension_manifest.py` fails if the field goes missing.
+
+**The matching private key is not in this repo and must never be.** It is the
+Web Store upload key: whoever holds it can publish an update that every
+installed copy auto-accepts. It currently lives outside the repo at
+
+```
+<scratchpad>/jlc-bridge-key/jlc-bridge.pem      (mode 0600)
+```
+
+— ask Isaac for the current location; the scratchpad is session-scoped, so it
+needs moving into a password manager or a secrets store before the first Store
+upload. `.gitignore` refuses `*.pem` and `extension/**/*.crx` so a copy dropped
+next to the extension cannot be committed by accident. If the key is ever lost,
+the ID cannot be recovered: a new key means a new ID and a fresh install for
+everyone.
 
 ## Using it
 
@@ -86,11 +116,23 @@ so widening it later fails CI rather than passing review unnoticed.
 
 | File | Role |
 |---|---|
-| `manifest.json` | MV3 manifest; the permission set is the security boundary. |
+| `manifest.json` | MV3 manifest; the permission set is the security boundary, and `key` pins the extension ID. |
 | `background.js` | Service worker: the poll, the cookie filter, the single POST. |
 | `config.js` | dubIS base URL storage + validation, and the session route path. |
 | `popup.html` / `popup.js` | Status, pairing-code field, the button that starts a send. |
 | `options.html` / `options.js` | The dubIS base URL. |
+
+## Linting
+
+`eslint.config.mjs` has an `extension/**/*.js` block carrying the same rules as
+`js/`, plus the WebExtension globals:
+
+```bash
+npx eslint extension/
+```
+
+(Before that block existed the command matched no configuration and silently
+linted these files with zero rules.)
 
 ## Known limitation
 
