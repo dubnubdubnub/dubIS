@@ -351,7 +351,7 @@ class Registry:
         return source.url if source is not None else ""
 
     def resolve(
-        self, selectors: Sequence[str], *, mergeable: bool, explicit: bool,
+        self, selectors: Sequence[str], *, mergeable: bool, explicit: bool, mutating: bool,
     ) -> Source | MergeSet:
         """Selectors -> what serves this request.
 
@@ -396,16 +396,31 @@ class Registry:
 
         `mergeable` says whether this request has a merged answer at all — only
         `GET /v1/parts` does; there is no union of two servers' carts.
-        `explicit` says the selectors came from an `X-Dubis-Source` header rather
-        than the persisted default, and it is the difference between two
-        deliberately different behaviours:
+        `mutating` says the request *writes* (an unsafe verb). `explicit` says
+        the selectors came from an `X-Dubis-Source` header rather than the
+        persisted default. Together they decide what a view means on a route
+        that has no merged answer:
 
-        * explicit and not mergeable -> raise. A caller that asked to merge on a
-          write is asking for something with no answer, and quietly landing it on
-          one arbitrary server is the wrong-answer-that-looks-right this design
-          exists to remove.
-        * default and not mergeable -> `local`. A window sitting on the All tab
-          still has to be able to read its carts.
+        * explicit, mutating, not mergeable -> raise. A caller that asked to
+          merge on a **write** is asking for something with no answer, and
+          quietly landing it on one arbitrary server is the
+          wrong-answer-that-looks-right this design exists to remove. The window
+          has `apiOn(sourceId, ...)` (js/api.js) for exactly this: a merged row
+          knows which server owns it, so a write names that server.
+        * anything else, not mergeable -> `local`. A window sitting on the All
+          tab still has to be able to read its carts.
+
+        The read half of that used to key on `explicit` alone, and that was the
+        bug: **js/api.js sends `X-Dubis-Source` on every request by design**
+        (`server/dispatch.py`'s frontend contract), so for a real app window
+        `explicit` is always true and the `local` fallback below was reachable
+        only by `tools/dubis-cli` and curl. A window on the All tab therefore
+        could not read its carts, its vendors, its purchase orders, its
+        warnings, its generic-part groups or its DigiKey session — five 400s on
+        every startup, each one a red toast for a question the user never asked.
+        How the selector *arrived* is not information about whether a read has
+        an answer; it is only information about whether a write was deliberate.
+        A read is served the same way either way.
         """
         tokens = [str(sel).strip() for sel in selectors if str(sel).strip()]
         if not tokens:
@@ -416,10 +431,10 @@ class Registry:
             return self.require(tokens[0])
 
         if not mergeable:
-            if explicit:
+            if explicit and mutating:
                 raise SourceConfigError(
                     f"{SELECTOR_SEPARATOR.join(tokens)!r} names a merged view of parts, not a "
-                    "target — this request must name the single source that serves it"
+                    "target — this write must name the single source that serves it"
                 )
             return self.require(LOCAL_ID)
 
