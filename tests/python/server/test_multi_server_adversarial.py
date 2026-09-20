@@ -943,13 +943,21 @@ class TestWindowIndependence:
         import inspect
 
         source = inspect.getsource(sources_mod)
-        # `_boot_default_url` is written exactly once, by `seed_initial_active_source`,
-        # on the boot thread before `create_app`. Any *other* `global` write in
-        # this module would be a request path mutating shared state.
-        writers = [line.strip() for line in source.splitlines()
-                   if line.strip().startswith("global ")]
-        assert set(writers) <= {"global _boot_default_url"}, (
-            f"server/sources.py grew mutable module state: {writers}"
+        # `_boot_default_url` and its credential `_boot_default_token` are written
+        # exactly once, by `seed_initial_active_source`, on the boot thread before
+        # `create_app`. Any *other* `global` write in this module would be a
+        # request path mutating shared state.
+        #
+        # Compared per NAME, not per line: `global a, b` is one statement about
+        # two variables, and matching whole lines would make this invariant pass
+        # or fail on how the declaration happens to be formatted.
+        declared: set[str] = set()
+        for line in source.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("global "):
+                declared |= {n.strip() for n in stripped[len("global "):].split(",") if n.strip()}
+        assert declared <= {"_boot_default_url", "_boot_default_token"}, (
+            f"server/sources.py grew mutable module state: {sorted(declared)}"
         )
 
 

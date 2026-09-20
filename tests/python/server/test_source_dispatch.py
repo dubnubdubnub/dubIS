@@ -317,27 +317,59 @@ def test_merged_is_a_valid_header_for_the_one_path_it_means_something_on(hub, up
 
 
 @pytest.mark.parametrize(("verb", "path"), [
-    ("get", "/v1/carts"),
     ("post", "/v1/parts/C100000/adjust"),
+    ("put", "/v1/carts/c1"),
+    ("delete", "/v1/carts/c1"),
 ])
-def test_merged_is_rejected_where_it_has_no_answer(hub, verb, path):
+def test_merged_is_rejected_on_a_WRITE_where_it_has_no_answer(hub, verb, path):
     """A caller that explicitly asked for `merged` on a write is asking for
     something with no answer; landing it on one arbitrary server silently is the
-    wrong-answer-that-looks-right this design exists to remove."""
+    wrong-answer-that-looks-right this design exists to remove. The window's
+    `apiOn(sourceId, ...)` exists precisely so a write names its owner."""
     r = getattr(hub, verb)(path, headers={"X-Dubis-Source": "merged"},
-                           **({"json": {}} if verb == "post" else {}))
+                           **({"json": {}} if verb != "delete" else {}))
     assert r.status_code == 400
     assert r.json()["code"] == "source_config"
 
 
-def test_a_merged_DEFAULT_serves_everything_else_locally_instead_of_failing(hub, upstream):
-    """The asymmetry with the test above is deliberate: a window sitting on the
-    All tab still has to be able to read its carts."""
+@pytest.mark.parametrize("header", ["merged", None])
+def test_a_merged_view_still_READS_everything_else_locally(hub, upstream, header):
+    """A window sitting on the All tab still has to be able to read its carts —
+    and it says so with a header, because `js/api.js` sends `X-Dubis-Source` on
+    every request by design (see this module's frontend contract).
+
+    Parametrized over header-vs-default deliberately: how the selector *arrived*
+    is information about whether a WRITE was intended, never about whether a READ
+    has an answer. Keying the refusal on the header alone is what made every
+    non-`/v1/parts` startup read 400 for a real window."""
     sources_mod.add_source(hub.api, url=SHOP, source_id="shop")
     sources_mod.set_default(hub.api, "merged")
+    headers = {"X-Dubis-Source": header} if header else {}
 
-    assert hub.get("/v1/carts").status_code == 200
+    assert hub.get("/v1/carts", headers=headers).status_code == 200
     assert "/v1/carts" not in upstream.paths()
+
+
+# The exact five GETs an app window fires at startup while the All tab is in
+# front — each one landed as a 400 `source_config` and a red toast, because the
+# window names its source on every request and the refusal keyed on that alone.
+STARTUP_READS = [
+    "/v1/vendors",
+    "/v1/purchase-orders",
+    "/v1/warnings",
+    "/v1/generic-parts",
+    "/v1/distributors/digikey/session",
+]
+
+
+@pytest.mark.parametrize("path", STARTUP_READS)
+def test_a_window_on_the_All_tab_can_complete_its_startup_reads(hub, upstream, path):
+    sources_mod.add_source(hub.api, url=SHOP, source_id="shop")
+
+    r = hub.get(path, headers={"X-Dubis-Source": "merged"})
+
+    assert r.status_code == 200, f"{path} -> {r.status_code} {r.text}"
+    assert path not in upstream.paths(), "a view with no union is served by the hub"
 
 
 def test_the_callers_source_ids_are_replaced_by_the_hubs_own_pin(hub_on_shop, upstream):
@@ -723,17 +755,21 @@ def test_an_unreachable_member_still_only_degrades_the_group(five_sources, upstr
     assert {rec["lcsc"] for rec in r.json()["inventory"]} == {"C-3"}
 
 
-@pytest.mark.parametrize(("verb", "path"), [
-    ("get", "/v1/carts"),
-    ("post", "/v1/parts/C100000/adjust"),
-])
-def test_a_group_is_rejected_where_it_has_no_answer(five_sources, verb, path):
-    """There is no union of two servers' carts, and a write must land on exactly
-    one server."""
-    r = getattr(five_sources, verb)(path, headers={"X-Dubis-Source": "s0,s3"},
-                                    **({"json": {}} if verb == "post" else {}))
+def test_a_group_is_rejected_on_a_WRITE_where_it_has_no_answer(five_sources):
+    """A write must land on exactly one server, and a group does not name one."""
+    r = five_sources.post("/v1/parts/C100000/adjust",
+                          headers={"X-Dubis-Source": "s0,s3"}, json={})
     assert r.status_code == 400
     assert r.json()["code"] == "source_config"
+
+
+def test_a_group_still_READS_everything_else_locally(five_sources, upstream):
+    """There is no union of two servers' carts — but a tab group is a way of
+    looking at parts, not a reason to refuse every other panel on the page. Same
+    rule the All tab gets, for the same reason."""
+    r = five_sources.get("/v1/carts", headers={"X-Dubis-Source": "s0,s3"})
+    assert r.status_code == 200
+    assert "/v1/carts" not in upstream.paths()
 
 
 def test_merged_cannot_be_combined_with_named_sources(five_sources):

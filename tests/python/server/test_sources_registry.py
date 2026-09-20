@@ -12,12 +12,14 @@ module is mutable server-side, so no window can move another window's data.
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
 from dubis_errors import SourceConfigError, SourceNotFoundError
 from remote_mode import resolve_remote_base_url
 from server import sources as sources_mod
+from server import token_store
 from tests.python.helpers import make_api
 
 BENCH = "http://bench.local:7891"
@@ -155,15 +157,48 @@ def test_add_source_persists_the_js_compatible_shape(api):
     assert entries == [{"id": "bench", "name": "Bench", "url": BENCH}]
 
 
-def test_add_source_only_writes_token_and_enabled_when_non_default(api):
+def test_a_token_never_lands_in_preferences(api):
+    """preferences.json is served whole to the browser by `GET /v1/preferences`
+    and posted back whole by js/store.js. A credential in it is readable from
+    the page's console — and, because the JS roster loader knows only
+    `{id, name, url}`, was erased by the next save of any unrelated preference.
+    Both problems are gone by construction: the token is not in this file."""
     sources_mod.add_source(api, url=BENCH, source_id="bench", token="t0k", enabled=False)
     entry = _prefs(api)["servers"][0]
-    assert entry["token"] == "t0k"
+    assert "token" not in entry
+    assert "t0k" not in json.dumps(_prefs(api))
     assert entry["enabled"] is False
 
     sources_mod.add_source(api, url=SHOP, source_id="shop")
     plain = _prefs(api)["servers"][1]
     assert set(plain) == {"id", "name", "url"}, "a plain entry must stay byte-compatible with the JS shape"
+
+
+def test_the_token_is_still_loaded_back_onto_the_source(api):
+    """Keeping it out of preferences is only half the job — the registry still
+    has to hand it to the outbound client, or the source silently 401s."""
+    sources_mod.add_source(api, url=BENCH, source_id="bench", token="t0k")
+    assert sources_mod.load_registry_from_api(api).require("bench").token == "t0k"
+
+
+def test_removing_a_source_takes_its_token_with_it(api):
+    """A token left behind under a dead id would be handed straight to whoever
+    next reused that id."""
+    sources_mod.add_source(api, url=BENCH, source_id="bench", token="t0k")
+    sources_mod.remove_source(api, "bench")
+    assert token_store.load_tokens(os.path.dirname(api.prefs_json)) == {}
+
+
+def test_a_legacy_token_in_preferences_is_migrated_out(api):
+    """The upgrade path for anyone who ran the build that stored tokens in the
+    roster. Read once, moved, and the roster rewritten without it."""
+    prefs = api.load_preferences()
+    prefs["servers"] = [{"id": "bench", "name": "Bench", "url": BENCH, "token": "legacy"}]
+    api.save_preferences(prefs)
+
+    assert sources_mod.load_registry_from_api(api).require("bench").token == "legacy"
+    assert "legacy" not in json.dumps(_prefs(api))
+    assert token_store.load_tokens(os.path.dirname(api.prefs_json)) == {"bench": "legacy"}
 
 
 def test_add_source_derives_an_id_and_a_name_from_the_url(api):

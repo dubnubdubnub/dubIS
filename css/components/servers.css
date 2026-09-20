@@ -110,6 +110,50 @@
   white-space: nowrap;
 }
 
+/* ── Credential chip ──
+   What the hub can say about authenticating to this source, which the
+   reachability dot deliberately cannot: /v1/health is exempt from auth, so a
+   server running DUBIS_AUTH_MODE=on that we hold no token for answers the probe
+   and paints a green dot while every data request 401s. Only rendered when
+   there is something to say — see credentialState() in js/servers-logic.js. */
+
+.server-cred {
+  flex: 0 0 auto;
+  max-width: var(--server-cred-max-w);
+  padding: 1px var(--server-cred-pad-x);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A token is stored and the hub got past that server's auth with it. Quiet —
+   the working case is the one that needs the least attention. */
+.server-cred.ok {
+  color: var(--color-green);
+  background: var(--color-green-bg);
+  border-color: var(--color-green-border);
+}
+
+/* Reachable but unusable: the hub holds no credential for a server that wants
+   one. Yellow, like the "answered, but not dubIS" dot — the same shape of
+   problem, a server you can reach and cannot use. */
+.server-cred.needs-token {
+  color: var(--color-yellow);
+  background: var(--color-yellow-bg);
+  border-color: var(--color-yellow-border);
+}
+
+/* A token WAS sent and refused: wrong, expired, or issued by another server.
+   Red, because unlike "needs a token" this is a thing that used to work. */
+.server-cred.bad-token {
+  color: var(--color-red);
+  background: var(--color-red-bg);
+  border-color: var(--color-red);
+}
+
 /* Fixed lane so the action buttons stay in one column while the detail text
    changes between "checking", "12 ms" and "unreachable". */
 .server-detail {
@@ -152,8 +196,12 @@
    specific to a URL field. */
 .server-add input { font-family: monospace; font-size: 12px; }
 
-#pref-server-new-name { flex: 0 0 var(--server-add-name-w); min-width: 0; }
-#pref-server-new-url  { flex: 1 1 auto; min-width: 0; }
+#pref-server-new-name  { flex: 0 0 var(--server-add-name-w); min-width: 0; }
+#pref-server-new-url   { flex: 1 1 auto; min-width: 0; }
+/* Optional, and write-only: nothing ever reads a stored token back into it
+   (js/server-list.js clears it the instant it is read), so it is sized to be
+   typeable rather than to show what is there. */
+#pref-server-new-token { flex: 0 0 var(--server-add-token-w); min-width: 0; }
 
 /* ── Footer ──
    No apply button: selecting a row switches immediately (js/server-list.js ->

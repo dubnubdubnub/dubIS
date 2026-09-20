@@ -48,6 +48,7 @@ import logging
 
 from fastapi import APIRouter, Body, Request
 
+from server import token_store
 from server.sources import ACTIVE_KEY, ROSTER_KEY, SERVER_URL_KEY
 
 logger = logging.getLogger(__name__)
@@ -67,8 +68,32 @@ SOURCE_OWNED_KEYS = frozenset({ROSTER_KEY, ACTIVE_KEY, SERVER_URL_KEY})
 
 @router.get("/preferences", operation_id="load_preferences")
 def load_preferences(request: Request) -> dict:
+    """The whole preferences object — minus any source bearer token.
+
+    Tokens live in `<data_dir>/server_tokens.json` (server/token_store.py), so
+    normally there is nothing here to remove. The strip is the belt to that
+    file's braces, and it covers the one case the file cannot: a
+    `preferences.json` written by the build that DID store tokens in the roster,
+    read before anything has triggered the migration. Without it, that user's
+    credentials are handed to the browser — console-readable, and visible in the
+    DevTools network pane — on the app's very first request.
+    """
     api = request.app.state.api
-    return api.load_preferences()
+    prefs = dict(api.load_preferences() or {})
+    roster = prefs.get(ROSTER_KEY)
+    if isinstance(roster, list):
+        # Copy before stripping: `api.load_preferences()` may hand back a cached
+        # object, and mutating it would delete the token the registry needs to
+        # reach that source at all.
+        roster = [dict(entry) if isinstance(entry, dict) else entry for entry in roster]
+        if token_store.strip_tokens(roster):
+            logger.info(
+                "preferences: stripped source token(s) from GET /v1/preferences — a "
+                "credential is never served to a client. They will move to %s on the "
+                "next registry read.", token_store.TOKEN_FILENAME,
+            )
+        prefs[ROSTER_KEY] = roster
+    return prefs
 
 
 @router.put("/preferences", operation_id="save_preferences")
@@ -77,6 +102,24 @@ def save_preferences(request: Request, body: dict = Body(...)) -> dict:
     current = dict(api.load_preferences() or {})
 
     incoming = dict(body or {})
+    # The frontend posts its whole in-memory preferences object, and its roster
+    # loader (`normalizeServers` in js/servers-logic.js) knows only
+    # `{id, name, url}`. Before tokens moved to their own file, that round trip
+    # ERASED every one of them — a nudge of any unrelated slider was enough, and
+    # the symptom was a server that had worked yesterday 401ing today with
+    # nothing on screen to say why.
+    #
+    # They cannot be erased now, because they are not in this file to erase. The
+    # strip below closes the other direction: `/v1/sources` is the only writer
+    # of a credential, so one arriving here — from a stale client, or a hand
+    # rolled PUT — is dropped rather than persisted back into the file we just
+    # spent the effort keeping clean.
+    if token_store.strip_tokens(incoming.get(ROSTER_KEY)):
+        logger.warning(
+            "preferences: PUT /v1/preferences carried a source token in %r — dropped. "
+            "Tokens are written only by POST/PATCH /v1/sources, into %s.",
+            ROSTER_KEY, token_store.TOKEN_FILENAME,
+        )
     unvalidated = sorted(
         key for key in incoming
         if key in SOURCE_OWNED_KEYS and incoming[key] != current.get(key)
