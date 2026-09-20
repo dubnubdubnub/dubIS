@@ -92,6 +92,10 @@ ARG_ORDER: dict[str, list[str]] = {
     "add_cart_item": ["cart_id", "part_id", "raw", "qty", "target_distributor", "shortfall",
                       "target_packaging", "preset", "per_board_qty"],
     "add_generic_member": ["generic_part_id", "part_id"],
+    # Matches InventoryApi.receive_jlc_session(nonce, account, cookies, label):
+    # the nonce leads because it is what authorizes the call at all, and label
+    # is the one genuinely optional argument.
+    "receive_jlc_session": ["nonce", "account", "cookies", "label"],
     "consolidate_cart": ["cart_id", "distributor"],
     "export_cart": ["cart_id", "distributor", "format"],
     "remove_cart_item": ["cart_id", "ref"],

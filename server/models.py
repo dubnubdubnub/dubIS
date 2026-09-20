@@ -8,6 +8,8 @@ and js/inventory-record.d.ts are generated from.
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, create_model
 
 from domain.schema import INVENTORY_FIELDS
@@ -120,3 +122,69 @@ class UpdateSourceBody(BaseModel):
     url: str | None = None
     token: str | None = None
     enabled: bool | None = None
+
+
+# ── JLCPCB credential capture (docs/plans/2026-09-20-extension-credential-capture.md) ──
+#
+# Write-only by construction: `JlcSessionBody` is the ONLY model here with a
+# `cookies` field, and it is a *request* body. Every response model below is a
+# projection that cannot carry a credential — FastAPI filters the handler's
+# dict down to the declared fields, so a cookie cannot escape even if a future
+# facade change starts returning one. Guarded by
+# `tests/python/server/test_jlcpcb_routes.py`.
+
+
+class JlcPairingResponse(BaseModel):
+    nonce: str
+    ttl: int
+
+
+class JlcSessionBody(BaseModel):
+    nonce: str
+    # Nullable: the extension reads the account from `data.list[0].customerCode`
+    # and sends `null` when the validation response had no rows (an empty
+    # library). It is a HINT either way -- the server files the credential
+    # under the account IT resolves.
+    account: str | None = None
+    label: str | None = None
+    # Untyped values rather than a typed cookie model: this is whatever
+    # `chrome.cookies.getAll` returned (`secure`/`httpOnly` booleans, an
+    # `expirationDate` number), and the server filters it down to the named
+    # session cookies itself (`jlc_session.filter_cookies`). Declaring
+    # `dict[str, str]` here would 422 the real extension's body.
+    cookies: list[dict[str, Any]] = []
+
+
+class JlcSessionModel(BaseModel):
+    account: str
+    label: str
+    added_at: str
+    last_ok: str
+
+
+class JlcSessionsResponse(BaseModel):
+    logged_in: bool
+    supported: bool
+    message: str
+    accounts: list[JlcSessionModel]
+
+
+class JlcSessionAcceptedResponse(BaseModel):
+    account: str
+    label: str
+    added_at: str
+    last_ok: str
+    item_count: int
+    state: str
+
+
+class JlcRevokeResponse(BaseModel):
+    account: str
+    revoked: bool
+    accounts: list[JlcSessionModel]
+
+
+class JlcLibraryResponse(BaseModel):
+    account: str
+    total: int
+    records: list[InventoryItemModel]
