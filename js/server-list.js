@@ -19,9 +19,11 @@
 import { showToast, escHtml } from './ui-helpers.js';
 import {
   getServers,
+  getSources,
   addServer,
   updateServer,
   removeServer,
+  setServerToken,
   switchActiveSource,
   getServerUrl,
 } from './store.js';
@@ -30,6 +32,7 @@ import {
   serverRows,
   probePlan,
   classifyProbe,
+  credentialState,
   selectionStatus,
 } from './servers-logic.js';
 import { probeServer } from './server-probe.js';
@@ -69,18 +72,39 @@ export function renderServerList() {
   const host = listEl();
   if (!host) return;
   generation += 1;
-  const rows = serverRows(getServers(), getServerUrl());
+  const rows = serverRows(getServers(), getServerUrl(), sourceStatusById());
   host.innerHTML = rows.map(rowHtml).join('');
   syncSelectionStatus();
   probeAll();
 }
 
 /**
- * @param {{id: string, name: string, url: string, selected: boolean, removable: boolean, unlisted: boolean}} row
+ * The hub's per-source credential facts, keyed by source id.
+ *
+ * Only the hub can answer either of them: it is the hub's outbound client that
+ * holds a token and authenticates to a source, never this window. `has_token`
+ * is a boolean because `GET /v1/sources` does not echo the token itself.
+ * @returns {Record<string, {has_token: boolean, auth: string}>}
+ */
+function sourceStatusById() {
+  /** @type {Record<string, {has_token: boolean, auth: string}>} */
+  const out = {};
+  for (const s of getSources()) out[s.id] = { has_token: s.has_token, auth: s.auth };
+  return out;
+}
+
+/**
+ * @param {{id: string, name: string, url: string, selected: boolean, removable: boolean, unlisted: boolean, hasToken: boolean, auth: string}} row
  */
 function rowHtml(row) {
   const isLocal = row.id === LOCAL_ID;
   const urlText = isLocal ? 'spawned by this app' : row.url;
+  // Rendered only when there is something to say. Most rows have no credential
+  // question at all, and a chip reading "nothing" on every one of them would
+  // bury the one row that does.
+  const cred = credentialState(row);
+  const credHtml = cred.state === 'none' ? ''
+    : `<span class="server-cred ${cred.state}" data-role="cred" title="${escHtml(cred.title)}">${escHtml(cred.label)}</span>`;
   return `
     <div class="server-row${row.selected ? ' selected' : ''}" data-server-id="${escHtml(row.id)}" data-server-url="${escHtml(row.url)}">
       <span class="server-dot checking" data-role="dot" title="${escHtml(DOT_TITLES.checking)}"></span>
@@ -88,6 +112,7 @@ function rowHtml(row) {
         <span class="server-name" data-role="name">${escHtml(row.name)}</span>
         <span class="server-url">${escHtml(urlText)}</span>
       </span>
+      ${credHtml}
       <span class="server-detail" data-role="detail"></span>
       ${row.selected
         ? '<span class="server-badge">selected</span>'
@@ -148,6 +173,12 @@ function probeAll() {
 /** Start rendering + polling. Called when the Preferences modal opens. */
 export function startServerList() {
   renderServerList();
+  // Then again once the hub has re-answered `GET /v1/sources`. The dots are
+  // probed from this window, but the credential chips are not and cannot be:
+  // only the hub knows whether it holds a token for a source and whether that
+  // source let it in. Without this, a token that expired since the last roster
+  // edit would keep reading "token" until something else happened to refresh.
+  refreshServerTabs().then(() => { if (listEl()) renderServerList(); });
   stopPolling();
   pollTimer = setInterval(probeAll, POLL_MS);
 }
@@ -185,6 +216,15 @@ export function wireServerList() {
       }
     });
   }
+  const tokenInput = document.getElementById('pref-server-new-token');
+  if (tokenInput) {
+    tokenInput.addEventListener('keydown', (e) => {
+      if (/** @type {KeyboardEvent} */ (e).key === 'Enter') {
+        e.preventDefault();
+        onAdd();
+      }
+    });
+  }
   const nameInput = document.getElementById('pref-server-new-name');
   if (nameInput) {
     nameInput.addEventListener('keydown', (e) => {
@@ -197,12 +237,21 @@ export function wireServerList() {
 
 }
 
-function onAdd() {
+async function onAdd() {
   const nameInput = /** @type {HTMLInputElement | null} */ (document.getElementById('pref-server-new-name'));
   const urlInput = /** @type {HTMLInputElement | null} */ (document.getElementById('pref-server-new-url'));
+  const tokenInput = /** @type {HTMLInputElement | null} */ (document.getElementById('pref-server-new-token'));
   if (!urlInput) return;
-  const result = addServer(nameInput ? nameInput.value : '', urlInput.value);
+  // Read and clear in the same breath. The field is write-only by design —
+  // nothing can read the stored token back, so leaving it populated would show
+  // a secret that may not even be the one in force, and a second Add would
+  // re-send it to a different server.
+  const token = tokenInput ? tokenInput.value : '';
+  if (tokenInput) tokenInput.value = '';
+  const result = addServer(nameInput ? nameInput.value : '', urlInput.value, token);
   if (!result.ok) {
+    // `result.reason` may be a token rejection, which names the offending
+    // character CLASS and never the token.
     showToast(result.reason);
     return;
   }
@@ -211,8 +260,19 @@ function onAdd() {
   renderServerList();
   // The hub keeps its source registry in the same preferences file, so a roster
   // edit changes what GET /v1/sources answers — including the reachability the
-  // tab strip's dots show, which only the hub can know.
-  refreshServerTabs();
+  // tab strip's dots show and the credential facts the chips show, neither of
+  // which this window can work out for itself.
+  await refreshServerTabs();
+  if (result.token) {
+    // Separate call, and after the roster render: the roster is client state
+    // the user can see immediately, while the token is a server-side write that
+    // can fail on its own. A failure here leaves a listed server without a
+    // credential — which is what the "needs a token" chip is for.
+    const saved = await setServerToken(result.entry.id, result.token);
+    if (!saved.ok) showToast(saved.reason);
+    await refreshServerTabs();
+  }
+  renderServerList();
 }
 
 /** @param {Event} e */
@@ -261,18 +321,31 @@ function onRowClick(e) {
 }
 
 /** @param {string} id */
-function onEdit(id) {
+async function onEdit(id) {
   const target = getServers().find((s) => s.id === id);
   if (!target) return;
   const name = window.prompt('Name for this server:', target.name);
   if (name === null) return;
   const url = window.prompt('URL for this server:', target.url);
   if (url === null) return;
+  // Deliberately NOT pre-filled with the current token — this window does not
+  // have it and never will (it lives in server/token_store.py, for the hub's
+  // own outbound requests). Blank therefore has to mean "leave it alone", which
+  // is why removing one needs an explicit sentinel rather than an empty box.
+  const token = window.prompt('API token for this server (blank = leave unchanged, "-" = remove):', '');
+  if (token === null) return;
   const result = updateServer(id, { name, url });
   if (!result.ok) {
     showToast(result.reason);
     return;
   }
   renderServerList();
-  refreshServerTabs();
+  await refreshServerTabs();
+  const trimmed = token.trim();
+  if (trimmed) {
+    const saved = await setServerToken(id, trimmed === '-' ? '' : trimmed);
+    if (!saved.ok) showToast(saved.reason);
+    await refreshServerTabs();
+  }
+  renderServerList();
 }

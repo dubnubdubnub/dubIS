@@ -56,6 +56,54 @@ export function nameFromUrl(url) {
 }
 
 /**
+ * Coerce a typed API token to the form we would send, or "" for "no token".
+ *
+ * Trimmed because a token pasted out of a terminal or a password manager
+ * routinely arrives with a trailing newline, and "" because blank and absent
+ * have to mean the same thing everywhere — the caller that clears a token and
+ * the caller that never set one must produce the identical write.
+ * @param {any} raw
+ * @returns {string}
+ */
+export function normalizeToken(raw) {
+  if (typeof raw !== 'string') return '';
+  return raw.trim();
+}
+
+/* A token that cannot safely become an `Authorization:` header value.
+
+   This is not cosmetic validation. The hub sends the token verbatim as
+   `Authorization: Bearer <token>` on its outbound httpx request, so a newline
+   or carriage return inside it is header injection — the remainder of the line
+   is parsed as further headers by whatever is on the other end. Tabs and inner
+   spaces cannot appear in a real token either and are the usual sign of a
+   half-selected paste, and a control character is a paste accident that would
+   otherwise fail server-side with something unreadable. Reject all of them here,
+   with a reason, rather than letting any of them reach the wire. */
+const TOKEN_BAD_CHAR_RE = /[\s\u0000-\u001f\u007f]/;
+
+/**
+ * Why this token is unacceptable, or "" if it is fine.
+ *
+ * Returns a reason string rather than throwing, matching the rest of this
+ * module: every rejection here is a sentence to show the user in a toast, not
+ * a bug in the caller.
+ * @param {any} token
+ * @returns {string} "" when acceptable
+ */
+export function tokenRejection(token) {
+  if (token === undefined || token === null) return '';
+  if (typeof token !== 'string') return 'A token must be text';
+  const trimmed = token.trim();
+  if (!trimmed) return '';
+  if (TOKEN_BAD_CHAR_RE.test(trimmed)) {
+    return 'A token cannot contain spaces, tabs, newlines or control characters '
+      + '— it is sent verbatim as an Authorization header';
+  }
+  return '';
+}
+
+/**
  * Validate a persisted roster into a clean array, dropping what it cannot
  * repair and warning about each drop.
  *
@@ -116,6 +164,26 @@ export function normalizeServers(raw, warn) {
   return out;
 }
 
+/* ── Why a token never travels inside a roster entry ────────────────────────
+
+   Both transforms below accept an optional `token`, and both hand it back on
+   the result's OWN `token` field rather than on the entry they built. That is
+   the structural guarantee behind this whole feature.
+
+   `preferences.servers` is written to data/preferences.json by savePreferences(),
+   which posts the WHOLE in-memory preferences object — so anything that ends up
+   on a roster entry ends up on disk, in a file the user hand-edits, and in every
+   later save of any unrelated preference. A remote server's token is a
+   credential used SERVER-SIDE, by the hub's outbound httpx client; the browser
+   only ever writes it (PATCH /v1/sources/{id}) and reads it back as the boolean
+   `has_token`. It is stored by server/token_store.py, in its own file.
+
+   Returning it on a separate top-level field is what makes "the roster is
+   token-free" a property of the shape rather than of every caller remembering
+   to delete a key. A caller that forgets `result.token` simply fails to send a
+   credential; it cannot accidentally persist one.
+*/
+
 /**
  * Add an entry, returning the new roster or a rejection reason.
  *
@@ -125,9 +193,13 @@ export function normalizeServers(raw, warn) {
  * on `ok`, because this repo compiles with `strict: false` — without
  * strictNullChecks, tsc does not narrow a union by a boolean literal
  * discriminant, so `if (!r.ok) r.reason` is an error under a union type.
+ *
+ * `result.token` is ALWAYS a string here ("" when none was given) — adding a
+ * server is the one moment where "leave it alone" cannot mean anything, since
+ * there is nothing yet to leave alone.
  * @param {Array<{id: string, name: string, url: string}>} servers
- * @param {{id: string, name?: string, url: string}} entry
- * @returns {{ok: boolean, reason?: string, servers?: Array<{id: string, name: string, url: string}>, entry?: {id: string, name: string, url: string}}}
+ * @param {{id: string, name?: string, url?: string, token?: string}} entry
+ * @returns {{ok: boolean, reason?: string, servers?: Array<{id: string, name: string, url: string}>, entry?: {id: string, name: string, url: string}, token?: string}}
  */
 export function addServerEntry(servers, entry) {
   const list = Array.isArray(servers) ? servers : [];
@@ -140,19 +212,42 @@ export function addServerEntry(servers, entry) {
   if (id === LOCAL_ID || list.some((s) => s.id === id)) {
     return { ok: false, reason: 'internal: duplicate server id' };
   }
+  // Validated BEFORE the roster is built, so a bad token cannot half-apply: the
+  // server is either added with its credential or not added at all.
+  const badToken = tokenRejection(entry && entry.token);
+  if (badToken) return { ok: false, reason: badToken };
   const name = entry && typeof entry.name === 'string' && entry.name.trim()
     ? entry.name.trim()
     : nameFromUrl(url);
   const added = { id, name, url };
-  return { ok: true, servers: [...list, added], entry: added };
+  return {
+    ok: true,
+    servers: [...list, added],
+    entry: added,
+    token: normalizeToken(entry && entry.token),
+  };
 }
 
 /**
- * Rename / re-point an entry.
+ * Rename / re-point an entry, and optionally set or clear its token.
+ *
+ * Three distinct meanings for `patch.token`, and they must stay distinct:
+ *
+ *   - ABSENT   → `result.token` is `undefined`: leave whatever the hub holds
+ *                alone. This is the case for every plain rename, and getting
+ *                it wrong would silently wipe a working credential every time
+ *                someone fixed a typo in a name.
+ *   - `""`     → `result.token` is `""`: clear the stored token. A deliberate
+ *                "this server needs no credential any more".
+ *   - a string → `result.token` is that string: replace it.
+ *
+ * `undefined` vs `""` is exactly the distinction PATCH /v1/sources/{id} makes
+ * server-side (`None` means leave alone), which is why it survives to here
+ * rather than being flattened into a boolean.
  * @param {Array<{id: string, name: string, url: string}>} servers
  * @param {string} id
- * @param {{name?: string, url?: string}} patch
- * @returns {{ok: boolean, reason?: string, servers?: Array<{id: string, name: string, url: string}>, entry?: {id: string, name: string, url: string}}}
+ * @param {{name?: string, url?: string, token?: string}} patch
+ * @returns {{ok: boolean, reason?: string, servers?: Array<{id: string, name: string, url: string}>, entry?: {id: string, name: string, url: string}, token?: string}}
  */
 export function updateServerEntry(servers, id, patch) {
   const list = Array.isArray(servers) ? servers : [];
@@ -166,6 +261,11 @@ export function updateServerEntry(servers, id, patch) {
   if (!url) return { ok: false, reason: 'Server URL must start with http:// or https://' };
   const clash = list.find((s) => s.url === url && s.id !== id);
   if (clash) return { ok: false, reason: '“' + clash.name + '” already points at that URL' };
+  const hasToken = Object.prototype.hasOwnProperty.call(p, 'token');
+  if (hasToken) {
+    const badToken = tokenRejection(p.token);
+    if (badToken) return { ok: false, reason: badToken };
+  }
   let name = Object.prototype.hasOwnProperty.call(p, 'name')
     ? String(p.name ?? '').trim()
     : current.name;
@@ -173,7 +273,12 @@ export function updateServerEntry(servers, id, patch) {
   const next = { id, name, url };
   const out = list.slice();
   out[idx] = next;
-  return { ok: true, servers: out, entry: next };
+  return {
+    ok: true,
+    servers: out,
+    entry: next,
+    token: hasToken ? normalizeToken(p.token) : undefined,
+  };
 }
 
 /**
@@ -196,14 +301,31 @@ export function removeServerEntry(servers, id) {
  * list. Synthesizing a row for it means the selected server is always visible
  * and always the one marked selected, instead of the list quietly showing
  * "Local" as the choice while the app talks to something else.
+ *
+ * `statusById` is optional and is exactly the `GET /v1/sources` entries keyed
+ * by id — the hub is the only party that can say whether it holds a token for
+ * a source or whether that source's auth let it in, since it is the hub, not
+ * this window, that does the fetching. Omitting it (every pre-existing 2-arg
+ * caller) leaves every row at `hasToken: false, auth: 'unknown'`, which is the
+ * honest reading of "nobody has told us", not a claim that no token exists.
  * @param {Array<{id: string, name: string, url: string}>} servers
  * @param {string} selectedUrl "" for local
- * @returns {Array<{id: string, name: string, url: string, selected: boolean, removable: boolean, unlisted: boolean}>}
+ * @param {Record<string, {has_token?: boolean, auth?: string}>} [statusById]
+ * @returns {Array<{id: string, name: string, url: string, selected: boolean, removable: boolean, unlisted: boolean, hasToken: boolean, auth: string}>}
  */
-export function serverRows(servers, selectedUrl) {
+export function serverRows(servers, selectedUrl, statusById) {
   const list = normalizeServers(servers);
   const selected = normalizeServerUrl(selectedUrl);
-  /** @type {Array<{id: string, name: string, url: string, selected: boolean, removable: boolean, unlisted: boolean}>} */
+  const status = statusById && typeof statusById === 'object' ? statusById : {};
+  /** @param {string} id */
+  const credFor = (id) => {
+    const s = status[id];
+    return {
+      hasToken: !!(s && s.has_token),
+      auth: s && typeof s.auth === 'string' && s.auth ? s.auth : 'unknown',
+    };
+  };
+  /** @type {Array<{id: string, name: string, url: string, selected: boolean, removable: boolean, unlisted: boolean, hasToken: boolean, auth: string}>} */
   const rows = [{
     id: LOCAL_ID,
     name: 'Local',
@@ -211,9 +333,16 @@ export function serverRows(servers, selectedUrl) {
     selected: selected === '',
     removable: false,
     unlisted: false,
+    // This process. There is no credential between a window and the server
+    // serving it, and no auth hop that could fail — anything else here would
+    // be a chip on the one row that can never need one.
+    hasToken: false,
+    auth: 'ok',
   }];
   for (const s of list) {
-    rows.push({ ...s, selected: s.url === selected, removable: true, unlisted: false });
+    rows.push({
+      ...s, selected: s.url === selected, removable: true, unlisted: false, ...credFor(s.id),
+    });
   }
   if (selected && !list.some((s) => s.url === selected)) {
     rows.push({
@@ -223,9 +352,60 @@ export function serverRows(servers, selectedUrl) {
       selected: true,
       removable: false,
       unlisted: true,
+      // Not a roster entry, so the hub has no source id to report a token for.
+      ...credFor('unlisted'),
     });
   }
   return rows;
+}
+
+/**
+ * What a row may say about its credential.
+ *
+ * `auth` comes from the hub and answers the question `/v1/health` cannot: that
+ * route is exempt from AuthMiddleware, so a server running `DUBIS_AUTH_MODE=on`
+ * that we hold no token for answers the reachability probe happily and paints a
+ * green dot — while every actual data request from the hub 401s. A green dot
+ * next to an unusable server is the exact bug this chip exists to kill.
+ *
+ * Labels stay terse because they share the row's narrow lane with the probe
+ * detail (`--server-detail-w` in css/tokens.css); a truncated explanation is
+ * worse than a short one, so the sentence lives in the title instead.
+ * @param {{hasToken?: boolean, auth?: string}} row
+ * @returns {{state: 'none'|'ok'|'needs-token'|'bad-token', label: string, title: string}}
+ */
+export function credentialState(row) {
+  const r = row || {};
+  const auth = typeof r.auth === 'string' ? r.auth : 'unknown';
+  if (auth === 'required') {
+    return {
+      state: 'needs-token',
+      label: 'needs a token',
+      title: 'This server requires a credential and none is stored for it. '
+        + 'Its reachability dot cannot show this: /v1/health is exempt from '
+        + 'authentication, so the server answers the probe and refuses the data. '
+        + 'Use Edit to add an API token.',
+    };
+  }
+  if (auth === 'rejected') {
+    return {
+      state: 'bad-token',
+      label: 'token rejected',
+      title: 'This server refused the stored token — it is wrong, expired, or '
+        + 'was issued by a different server. Use Edit to replace it.',
+    };
+  }
+  if (r.hasToken && auth === 'ok') {
+    return {
+      state: 'ok',
+      label: 'token',
+      title: 'A token is stored for this server and it was accepted.',
+    };
+  }
+  // Includes the ordinary case: no token, no auth, nothing to say. Also the
+  // unreachable and not-yet-probed cases, where `auth` is "unknown" — a row
+  // nothing has contacted must not claim its credential is fine OR broken.
+  return { state: 'none', label: '', title: '' };
 }
 
 /**
