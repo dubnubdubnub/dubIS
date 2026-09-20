@@ -12,8 +12,11 @@ Three things this file is really guarding, all from the threat model in
 * **A CORS surface of exactly one origin.** The intake routes answer a
   preflight for the pinned `chrome-extension://…` id and refuse every other
   origin with a bare 403 — the allowlist the extension's push needs, and
-  nothing wider. Read routes stay closed, `/v1/health` keeps its `*`, and the
-  extension reaching a *remote* dubIS is still phase 2+. The enumerating
+  nothing wider. Every response from those two paths carries the grant,
+  including error ones (`BridgeCorsMiddleware`), so the extension can read the
+  401 dubIS wrote for it to display; that is a decided trade, argued where it
+  is asserted below. Read routes stay closed, `/v1/health` keeps its `*`, and
+  the extension reaching a *remote* dubIS is still phase 2+. The enumerating
   version of this invariant lives in `test_health_cors.py`; the behavioural
   half is the "Rule 5's CORS exception" section at the bottom of this file.
 
@@ -25,6 +28,7 @@ the handlers call — so nothing here touches the network, matching the style of
 from __future__ import annotations
 
 import json
+import types
 
 import pytest
 from fastapi.testclient import TestClient
@@ -32,7 +36,7 @@ from fastapi.testclient import TestClient
 import jlc_session
 from server import proxy
 from server.app import create_app
-from server.routes.distributors import BRIDGE_EXTENSION_ID
+from server.routes.distributors import BRIDGE_EXTENSION_ID, BridgeCorsMiddleware
 
 COOKIE_VALUE = "uuid-that-must-never-come-back"
 COOKIE = {"name": "JLCPCB_SESSION_ID", "value": COOKIE_VALUE, "domain": ".jlcpcb.com"}
@@ -300,6 +304,62 @@ def test_credential_intake_paths_are_never_proxied(path):
     assert proxy.is_local_only(path)
 
 
+def test_every_copy_of_the_two_intake_paths_agrees():
+    """The two path strings are written down four times; a rename that updates
+    only some of them breaks the handshake SILENTLY.
+
+    Where they live:
+      1. the `@router.post` / `@router.options` decorators in
+         `server/routes/distributors.py` — what the app actually serves;
+      2. `distributors.INTAKE_PATHS` — what `BridgeCorsMiddleware` matches, so
+         a stale copy means no allow-origin header on any response, which the
+         extension reports as "Failed to fetch" with NO server-side trace at
+         all. That exact failure mode already cost an hour once;
+      3. `proxy.LOCAL_ONLY_PATHS` — a stale copy means the hub starts
+         FORWARDING a live JLC cookie upstream (rule 5);
+      4. `PAIRING_PATH` / `SESSION_PATH` here, which every other test in this
+         file is written against.
+
+    Deliberately an assertion over four copies rather than a derivation from
+    one. The two candidate single sources are both worse: deriving
+    `INTAKE_PATHS` from `LOCAL_ONLY_PATHS` would not notice (1) drifting, which
+    is the copy a rename actually touches; and deriving it from the router's
+    own table (every POST under `/v1/distributors/jlcpcb/`) would make a
+    security allowlist grow BY DEFAULT — a third intake-shaped route would join
+    the cross-origin surface without anyone deciding to. An allowlist that must
+    be enumerated is the point; this test is what keeps the enumerations equal.
+    """
+    from collections import defaultdict
+
+    from server.routes.distributors import INTAKE_PATHS, router
+
+    # Read off the decorators themselves — the OPTIONS handlers are
+    # `include_in_schema=False`, so the OpenAPI document cannot see them.
+    served = defaultdict(set)
+    for route in router.routes:
+        served[route.path] |= set(getattr(route, "methods", ()) or ())
+
+    hint = (
+        "A rename must update every copy: the route decorators in "
+        "server/routes/distributors.py, its INTAKE_PATHS, "
+        "server/proxy.py's LOCAL_ONLY_PATHS, and the constants in this file. "
+        "Miss the INTAKE_PATHS copy and the extension's POST loses its "
+        "allow-origin header, which shows up as 'Failed to fetch' in the "
+        "browser and nothing at all in the server log; miss the "
+        "LOCAL_ONLY_PATHS copy and the hub forwards a live JLC cookie upstream."
+    )
+
+    assert INTAKE_PATHS == {PAIRING_PATH, SESSION_PATH}, hint
+    assert INTAKE_PATHS == {
+        p for p in proxy.LOCAL_ONLY_PATHS if p.startswith("/v1/distributors/")
+    }, hint
+    for path in sorted(INTAKE_PATHS):
+        assert {"POST", "OPTIONS"} <= served[path], (
+            f"{path} is matched by BridgeCorsMiddleware but the router serves "
+            f"it with {sorted(served[path])}. {hint}"
+        )
+
+
 def test_the_read_only_jlc_paths_are_not_local_only():
     # Deliberate asymmetry: listing accounts and reading a library are ordinary
     # data reads and may be served from whichever source is active.
@@ -324,6 +384,9 @@ def test_credential_intake_refuses_a_remote_caller(tmp_path, monkeypatch, path):
                        headers={"Authorization": "Bearer secret"})
         assert r.status_code == 403
         assert r.json()["code"] == "loopback_only"
+        # No Origin on the request, so no grant on the refusal: the stamp is
+        # conditional on the pinned Origin even here.
+        assert "access-control-allow-origin" not in r.headers
     finally:
         api.shutdown()
 
@@ -525,26 +588,85 @@ def test_a_post_from_another_origin_gets_no_allow_origin(client, path):
     assert "access-control-allow-origin" not in r.headers
 
 
-def test_an_error_response_carries_no_allow_origin_today(client):
-    """Known gap, pinned so it is a decision rather than a discovery.
+def test_an_error_response_is_readable_by_the_pinned_extension(client):
+    """Decided 2026-09-20: error bodies on these two paths ARE cross-origin
+    readable, by exactly one extension.
 
-    `_allow_bridge_origin` writes onto the injected `Response`, and FastAPI
-    only merges that into a value the handler *returned*. A raise — the common
-    one being `DistributorAuthError` for an expired nonce — is rendered by
-    `server/errors.py` into a fresh `JSONResponse` that never saw it. So the
-    extension cannot read the 401 body and shows a generic network failure
-    where dubIS meant to say "your pairing code went stale".
+    This was a known gap and is now closed. The old handler-level helper wrote
+    onto FastAPI's injected `Response`, which is merged only into a value the
+    handler *returns*; a raise — the common one being `DistributorAuthError`
+    for an expired nonce — is rendered by `server/errors.py` into a fresh
+    `JSONResponse` that never saw the header. The browser therefore withheld
+    the body and the extension showed "Failed to fetch" where dubIS meant to
+    say "your pairing code went stale". A nonce TTL is short and users are
+    slow, so that is the error path most likely to be hit: the commonest error
+    masqueraded as a connectivity failure.
 
-    A nonce TTL is short and users are slow, so this is the error path most
-    likely to be hit. Fixing it means deciding that error bodies may be read
-    cross-origin by that one extension — worth doing, but a deliberate change
-    that starts by rewriting this test, not a silent one.
+    What the grant costs, recorded so it stays a decision: these bodies carry
+    an error string, a `code` and an optional structured `detail` — no
+    credential, no inventory data — and only the pinned origin ever receives
+    the header. CORS restrains browsers, not clients, so it grants no access a
+    local process did not already have. `require_loopback` and the single-use
+    nonce remain the entire gate.
+
+    `BridgeCorsMiddleware` (server/routes/distributors.py, registered outermost
+    in server/app.py) is what makes it true for every response shape.
     """
     r = client.post(SESSION_PATH, json={"nonce": "stale", "cookies": [COOKIE]},
                     headers={"Origin": EXTENSION_ORIGIN})
     assert r.status_code == 401
     assert r.json()["code"] == "distributor_auth"
-    assert "access-control-allow-origin" not in r.headers
+    assert r.headers["access-control-allow-origin"] == EXTENSION_ORIGIN
+    assert r.headers["vary"] == "Origin"
+
+
+def test_an_error_response_is_not_readable_by_any_other_origin(client):
+    """The grant above is an allowlist of one, on the error path too — the
+    same request from another extension still hands back nothing."""
+    r = client.post(SESSION_PATH, json={"nonce": "stale", "cookies": [COOKIE]},
+                    headers={"Origin": OTHER_EXTENSION_ORIGIN})
+    assert r.status_code == 401
+    assert not [h for h in r.headers if h.lower().startswith("access-control-")]
+
+
+def test_a_validation_error_is_readable_by_the_pinned_extension(client):
+    """The other raise-path: a malformed body is rejected by Pydantic BEFORE
+    the handler runs at all, so no header a handler could write would ever have
+    reached it. A middleware outside the whole stack does.
+    """
+    r = client.post(SESSION_PATH, json={"cookies": [COOKIE]},
+                    headers={"Origin": EXTENSION_ORIGIN})
+    assert r.status_code == 422
+    assert r.json()["code"] == "validation_error"
+    assert r.headers["access-control-allow-origin"] == EXTENSION_ORIGIN
+
+
+def test_the_allow_origin_is_never_sent_twice(client):
+    """The preflight handler sets the header and so does the middleware; two
+    `Access-Control-Allow-Origin` values is a CORS failure, which is why the
+    middleware assigns rather than appends."""
+    r = client.options(SESSION_PATH, headers={"Origin": EXTENSION_ORIGIN})
+    assert r.headers.get_list("access-control-allow-origin") == [EXTENSION_ORIGIN]
+    assert r.headers.get_list("vary") == ["Origin"]
+
+
+def test_the_bridge_cors_middleware_is_outermost(monkeypatch):
+    """Ordering is the whole mechanism, so it is asserted rather than assumed.
+
+    Starlette builds its stack so the LAST-added middleware is outermost, and
+    `user_middleware[0]` is that one. Outermost is required: anything inside it
+    can raise, and an error rendered by `server/errors.py` — or a refusal from
+    `AuthMiddleware` itself — must still carry the header.
+    """
+    assert create_app(types.SimpleNamespace()).user_middleware[0].cls is (
+        BridgeCorsMiddleware)
+
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TOKENS", "ci:secret")
+    stack = [m.cls.__name__ for m in create_app(types.SimpleNamespace()).user_middleware]
+    assert stack[0] == "BridgeCorsMiddleware", (
+        f"AuthMiddleware must sit INSIDE the CORS stamp, not outside it: {stack}")
+    assert "AuthMiddleware" in stack
 
 
 @pytest.mark.parametrize("path", INTAKE_PATHS)
@@ -555,6 +677,14 @@ def test_the_right_origin_does_not_let_a_remote_peer_in(tmp_path, monkeypatch, p
     credential (rule 5). Anything that speaks HTTP can set `Origin` to the
     pinned extension's; a curl from the tailnet does it in one flag. If this
     ever passes, the exception stopped being cosmetic and became access.
+
+    The 403 now carries the allow-origin header when the Origin matches, and
+    that is deliberate rather than the accident of ordering it used to be: the
+    stamp is a middleware outside the whole stack, so it sees this response
+    too. The body is a fixed constant naming the gate, and a browser that
+    somehow provokes it is better off reading the real reason than an opaque
+    failure. What must never change is the pair of assertions above it — the
+    status, and the refusal.
     """
     from tests.python.helpers import make_api, make_part, write_ledger
 
@@ -570,6 +700,34 @@ def test_the_right_origin_does_not_let_a_remote_peer_in(tmp_path, monkeypatch, p
             })
         assert r.status_code == 403
         assert r.json()["code"] == "loopback_only"
+        # Only the header changed; the gate did not. See the docstring.
+        assert r.headers["access-control-allow-origin"] == EXTENSION_ORIGIN
+    finally:
+        api.shutdown()
+
+
+def test_an_auth_refusal_is_readable_by_the_pinned_extension(tmp_path, monkeypatch):
+    """Outermost means outside `AuthMiddleware` too, so its 401 is stamped.
+
+    One hop wider than the `403 loopback_only` next door, and signed off on the
+    same reasoning: the body is the same class of fixed constant, only the
+    pinned origin can read it, and CORS changes *readability*, not
+    *reachability* — the request happened either way. Pinned here so the extra
+    hop is a decision on record rather than something a later reader discovers.
+    """
+    from tests.python.helpers import make_api, make_part, write_ledger
+
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TOKENS", "ci:secret")
+    api = make_api(tmp_path)
+    write_ledger(api, [make_part(lcsc="C100000", qty=10)])
+    try:
+        with TestClient(create_app(api), client=REMOTE) as c:
+            # No Authorization at all: refused by auth, not by require_loopback.
+            r = c.post(SESSION_PATH, json={"nonce": "x", "cookies": []},
+                       headers={"Origin": EXTENSION_ORIGIN})
+        assert r.status_code == 401
+        assert r.headers["access-control-allow-origin"] == EXTENSION_ORIGIN
     finally:
         api.shutdown()
 

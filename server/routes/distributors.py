@@ -22,6 +22,12 @@ questions: the allowlist stops the hub *forwarding* the request, the guard
 stops a remote caller *reaching* the handler. The extension talking to a remote
 dubIS is phase 2+ and needs its own deliberate, tested exception. Design:
 `docs/plans/2026-09-20-extension-credential-capture.md`.
+
+Those same two paths carry this package's only per-origin CORS grant, in two
+halves: `_preflight` answers their OPTIONS, and `BridgeCorsMiddleware` — an ASGI
+middleware that lives here, beside the id it pins, and is registered outermost
+by `server/app.py` — stamps the grant onto every response they produce,
+including ones raised rather than returned.
 """
 
 from __future__ import annotations
@@ -29,6 +35,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from starlette.datastructures import Headers, MutableHeaders
 
 from server.auth import require_loopback
 from server.models import (
@@ -181,16 +188,80 @@ def _preflight(request: Request) -> Response:
     return Response(status_code=204, headers=_INTAKE_PREFLIGHT_HEADERS)
 
 
-def _allow_bridge_origin(request: Request, response: Response) -> None:
-    """Echo the allow-origin onto the real response.
+# The two paths the extension POSTs to, and the only two `/v1` paths that may
+# answer it cross-origin at all. `BridgeCorsMiddleware` matches the exact path
+# string, so these must stay byte-identical to the route decorators below (and
+# to the `proxy.LOCAL_ONLY_PATHS` entries naming the same two routes).
+INTAKE_PATHS = frozenset({
+    "/v1/distributors/jlcpcb/pairing",
+    "/v1/distributors/jlcpcb/session",
+})
 
-    A preflight only authorizes the request; without the header on the actual
-    response the browser still refuses to hand the body back, so the extension
-    could not tell an accepted session from a rejected one.
+
+class BridgeCorsMiddleware:
+    """Stamp the allow-origin onto EVERY response from the two intake paths.
+
+    A passed preflight only authorizes the request; without the header on the
+    *actual* response the browser withholds the body, so the extension cannot
+    tell an accepted session from a rejected one.
+
+    **Why a middleware and not a header written in the handler.** The
+    handler-level version (an `_allow_bridge_origin` helper, removed
+    2026-09-20) wrote onto FastAPI's injected `Response`, which is merged only
+    into a value the handler *returns*. A raise — the common one being
+    `DistributorAuthError` for an expired nonce — is rendered by
+    `server/errors.py` into a fresh `JSONResponse` that never saw that header,
+    and a 422 from Pydantic never reaches the handler at all. So the browser
+    withheld the 401 body and the extension reported a generic "Failed to
+    fetch" for the error dubIS had written specifically for it to display —
+    with a short nonce TTL and a human-paced flow, the error users hit most.
+    Registered outermost (`server/app.py`), this sees the final response
+    whatever produced it.
+
+    **Error bodies on these two paths are readable by the pinned extension, on
+    purpose.** They carry an error string, a `code` and an optional structured
+    `detail` — no credential, no inventory data — and only the one pinned
+    origin ever receives the header. CORS restrains browsers, not clients, so
+    this grants no access a local process did not already have;
+    `require_loopback` and the single-use nonce remain the entire gate.
+
+    That includes the refusals: the `403 loopback_only` from `require_loopback`
+    and, in `DUBIS_AUTH_MODE=on`, a `401` from `AuthMiddleware` — which this
+    middleware wraps, being outermost — are both stamped when the Origin
+    matches. Intentional, not an accident of ordering (the handler-level
+    version made the 403 opaque by accident, because it ran after the guard).
+    Both bodies are fixed constants, only the pinned extension origin can read
+    them, and CORS changes *readability*, not *reachability*: the request
+    happened either way, and whoever controlled that extension would have far
+    better options than reading a 401. A browser that provokes one is better
+    off seeing the real reason than a generic failure. Only the header changes:
+    the status is still 403, and the request is still refused
+    (`test_the_right_origin_does_not_let_a_remote_peer_in`).
     """
-    if request.headers.get("origin") == BRIDGE_EXTENSION_ORIGIN:
-        response.headers["Access-Control-Allow-Origin"] = BRIDGE_EXTENSION_ORIGIN
-        response.headers["Vary"] = "Origin"
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http" or scope.get("path") not in INTAKE_PATHS:
+            await self.app(scope, receive, send)
+            return
+        if Headers(scope=scope).get("origin") != BRIDGE_EXTENSION_ORIGIN:
+            # Echoed per-request, never set unconditionally: any other origin
+            # (or none at all) gets a response with no `Access-Control-*` on it.
+            await self.app(scope, receive, send)
+            return
+
+        async def stamp(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                # Assigned, not appended: `_preflight` already sets both on the
+                # 204, and two allow-origin values is a CORS failure.
+                headers["Access-Control-Allow-Origin"] = BRIDGE_EXTENSION_ORIGIN
+                headers["Vary"] = "Origin"
+            await send(message)
+
+        await self.app(scope, receive, stamp)
 
 
 @router.options("/distributors/jlcpcb/pairing", include_in_schema=False)
@@ -208,10 +279,14 @@ def preflight_jlc_session(request: Request) -> Response:
     response_model=JlcPairingResponse,
     operation_id="create_jlc_pairing",
 )
-def create_jlc_pairing(request: Request, response: Response) -> dict:
+def create_jlc_pairing(request: Request) -> dict:
     """Mint the single-use nonce the extension must present. Loopback only."""
+    # No CORS header written here, deliberately: `BridgeCorsMiddleware` stamps
+    # it for both intake routes, so a raise carries it too. See its docstring.
+    # Kept as a comment rather than added to the docstring above on purpose —
+    # a handler docstring on a `/v1` route is PUBLIC API text: it becomes the
+    # OpenAPI `description` and, through `scripts/gen-cli.py`, the CLI's help.
     require_loopback(request)
-    _allow_bridge_origin(request, response)
     return request.app.state.api.create_jlc_pairing()
 
 
@@ -220,9 +295,7 @@ def create_jlc_pairing(request: Request, response: Response) -> dict:
     response_model=JlcSessionAcceptedResponse,
     operation_id="receive_jlc_session",
 )
-def receive_jlc_session(
-    request: Request, response: Response, body: JlcSessionBody
-) -> dict:
+def receive_jlc_session(request: Request, body: JlcSessionBody) -> dict:
     """Accept a pushed JLC session: consume the nonce, validate, store. Loopback only.
 
     Answers with the account it resolved, its label and the library item count
@@ -231,7 +304,6 @@ def receive_jlc_session(
     validation call resolved.
     """
     require_loopback(request)
-    _allow_bridge_origin(request, response)
     api = request.app.state.api
     return api.receive_jlc_session(
         body.nonce, body.account or "", body.cookies, body.label or ""

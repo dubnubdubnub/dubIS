@@ -101,7 +101,9 @@ rules below are load-bearing, not hygiene.
    manifest's permission set exactly (see Guards).
 10. **One named CORS exception, and the id is derived, never retyped.** The two
    credential-intake routes answer a preflight for exactly
-   `chrome-extension://<the pinned id>`; every other origin gets a bare 403 with
+   `chrome-extension://<the pinned id>` and stamp the same grant onto *every*
+   response they produce, errors included, so the extension can display the
+   error dubIS wrote for it; every other origin gets a bare 403 with
    no `Access-Control-*` header, and every other `/v1` route stays closed (only
    `/v1/health` carries `*`). This exists because widening `host_permissions`
    was the worse trade — Chrome match patterns cannot name a port, so the
@@ -382,15 +384,91 @@ any other route — is `tests/python/server/test_health_cors.py`, which sweeps t
 whole route table rather than a sample and also refuses `CORSMiddleware` and any
 `Access-Control-*` written outside the three modules allowed to.
 
-**Known gap, pinned not fixed.** `_allow_bridge_origin` writes onto the injected
-`Response`, which FastAPI merges only into a value the handler *returns*. A
-raise — the common one being `DistributorAuthError` for an expired nonce — is
-rendered by `server/errors.py` into a fresh `JSONResponse` that never saw the
-header, so the extension cannot read the 401 body and shows a generic network
-failure where dubIS meant to say "your pairing code went stale". Nonce TTLs are
-short and users are slow, so this is the error path most likely to be hit.
-Fixing it means deciding that error bodies may be read cross-origin by that one
-extension. Pinned by `test_an_error_response_carries_no_allow_origin_today`.
+**The error-response gap: found, then closed, 2026-09-20.** The first cut wrote
+the header in the handlers, via an `_allow_bridge_origin` helper, onto FastAPI's
+injected `Response` — which FastAPI merges only into a value the handler
+*returns*. A raise (the common one being `DistributorAuthError` for an expired
+nonce) is rendered by `server/errors.py` into a fresh `JSONResponse` that never
+saw the header, and a `422` from request validation never reaches the handler at
+all. Confirmed live: the 401 body `{"error": "Pairing nonce is unknown or
+expired — click Sign in again to start a new pairing.", "code":
+"distributor_auth"}` arrived with no `Access-Control-Allow-Origin`, the browser
+withheld it, and the extension reported "Failed to fetch". With a 10-minute
+nonce TTL and a human-paced flow that is the error users hit *most*, so shipping
+it would have meant the commonest error masquerading as a connectivity failure —
+the exact symptom that had already cost an hour of misdiagnosis.
+
+**The decision: error responses on the two intake paths MAY be read
+cross-origin by the pinned extension origin.** Those bodies carry an error
+string, a `code` and an optional structured `detail` — no credential, no
+inventory data — and only `chrome-extension://<the pinned id>` ever receives the
+header. CORS restrains browsers, not clients, so this grants no access a local
+process did not already have; `require_loopback` and the single-use nonce remain
+the gate.
+
+**The mechanism: a path-scoped middleware, outermost.** `BridgeCorsMiddleware`
+(`server/routes/distributors.py`, registered last in `server/app.py` so it wraps
+everything) matches `INTAKE_PATHS` and the pinned `Origin`, and stamps
+allow-origin + `Vary: Origin` onto the outgoing `http.response.start` — so it
+sees the final response whatever produced it: a handler's return value, an
+exception rendered by `server/errors.py`, a validation `422`, or a refusal from
+`AuthMiddleware`. It is a pure-ASGI class rather than a `BaseHTTPMiddleware`, so
+`/v1/events`'s SSE stream is untouched, and it *assigns* rather than appends, so
+the `@router.options` preflight (unchanged) still answers with exactly one
+allow-origin value. It lives in `routes/distributors.py` deliberately: that
+module is already the only non-`meta` CORS writer `test_health_cors.py` permits,
+so closing this gap widened the allowed-writer set by nothing.
+
+**A deliberate consequence.** The `403 loopback_only` a remote peer gets now
+also carries the header when its `Origin` matches. Under the old ordering
+(`_allow_bridge_origin` after `require_loopback`) it did not, by accident;
+under the new one it does, on purpose. It is arguably better — a browser that
+somehow provokes it reads the real reason instead of an opaque failure, and the
+body is a fixed constant. `require_loopback` still *refuses* the request: only
+the header changed, never the status or the gate
+(`test_the_right_origin_does_not_let_a_remote_peer_in`).
+
+Being outermost, the middleware also wraps `AuthMiddleware`, so in
+`DUBIS_AUTH_MODE=on` a `401` from *auth itself* on those two paths is readable
+by the pinned extension too. One hop wider than the 403, signed off on the same
+reasoning and landing in the same place: the body is the same class of fixed
+constant, only that one origin can read it, and **CORS changes readability, not
+reachability** — the request already happened either way. Anyone who controlled
+that extension would have far better options available than reading a 401.
+
+**Trap, learned while fixing this.** A handler docstring on a `/v1` route is
+*public API text*, not an internal note: FastAPI puts it in the OpenAPI
+`description`, so it lands in `docs/openapi-v1.json` (whose staleness guard
+then fails) and in the help output `scripts/gen-cli.py` generates for
+`tools/dubis-cli`. The first draft of this fix explained the middleware in
+`create_jlc_pairing`'s docstring and shipped that explanation into the CLI.
+Internal reasoning goes in a comment, or in the middleware's own docstring —
+that class is not a route, so nothing publishes it.
+
+**Four copies of two path strings, guarded rather than derived.** The intake
+paths are now written in the route decorators, in `INTAKE_PATHS` (what the
+middleware matches), in `proxy.LOCAL_ONLY_PATHS`, and in the test module's
+constants. A rename that updates only some of them fails *silently* in exactly
+the way this whole section is about — no allow-origin header, "Failed to fetch"
+in the browser, nothing in the server log — or, worse, leaves the hub
+forwarding a live cookie upstream. `test_every_copy_of_the_two_intake_paths_agrees`
+asserts all four are the same set. Deliberately an assertion, not a derivation:
+deriving `INTAKE_PATHS` from `LOCAL_ONLY_PATHS` would not notice the decorators
+drifting, which is the copy a rename actually touches, and deriving it from the
+router's table (every POST under `/v1/distributors/jlcpcb/`) would make a
+security allowlist grow *by default* — a third intake-shaped route would join
+the cross-origin surface with nobody deciding to.
+
+Asserted by `test_an_error_response_is_readable_by_the_pinned_extension`,
+`test_an_error_response_is_not_readable_by_any_other_origin`,
+`test_a_validation_error_is_readable_by_the_pinned_extension`,
+`test_the_allow_origin_is_never_sent_twice` and
+`test_the_bridge_cors_middleware_is_outermost` and
+`test_every_copy_of_the_two_intake_paths_agrees`
+(`tests/python/server/test_jlcpcb_routes.py`), with
+`test_the_only_cors_middleware_is_scoped_to_the_two_intake_paths`
+(`tests/python/server/test_health_cors.py`) reading `INTAKE_PATHS` back against
+the enumerated surface so the middleware cannot quietly grow a third path.
 
 **Verified end to end, live, 2026-09-20.** Pairing code minted in dubIS →
 pasted into the extension popup → sign-in in the user's own Chrome profile with
@@ -526,10 +604,12 @@ different class of asset, and `domain/federation.py`'s qty rule ("850 on the ben
   match an expected set **exactly**, so a later widening fails CI (rule 9).
 - A test asserts the receive route is in `proxy.LOCAL_ONLY_PATHS`, and
   `tests/python/server/test_health_cors.py` enumerates the *whole* cross-origin
-  surface: `*` on `/v1/health`, a preflight for one pinned extension origin on
-  the two intake routes, and no `Access-Control-*` header on anything else. It
-  sweeps the entire route table rather than a sample, refuses `CORSMiddleware`,
-  and fails on a CORS header written in any module outside the three allowed to.
+  surface: `*` on `/v1/health`, a preflight plus an every-response allow-origin
+  for one pinned extension origin on the two intake routes, and no
+  `Access-Control-*` header on anything else. It sweeps the entire route table
+  rather than a sample, refuses `CORSMiddleware`, reads `BridgeCorsMiddleware`'s
+  own `INTAKE_PATHS` back against the enumerated pair, and fails on a CORS
+  header written in any module outside the three allowed to.
   The extension reaching a *remote* dubIS is still phase 2+.
 - `tests/python/test_extension_manifest.py` derives the extension id from
   `manifest.json`'s `key` and asserts it equals the server's
