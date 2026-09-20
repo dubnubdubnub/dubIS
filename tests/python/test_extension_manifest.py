@@ -72,6 +72,30 @@ def test_host_permissions_match_exactly():
     )
 
 
+def test_manifest_pins_the_extension_id():
+    """`key` fixes the extension ID across the move to the Web Store.
+
+    Unpacked dev-mode loads derive the ID from the folder path; a Web Store
+    upload derives it from the signing key. Shipping the public half here makes
+    both produce the same ID, so anything pinning it survives the migration.
+    Drop this field and the ID silently changes — which is exactly the kind of
+    "it still loads fine locally" breakage nothing else catches.
+
+    The matching PRIVATE key is deliberately not in the repo; see
+    extension/jlc-bridge/README.md for where it lives.
+    """
+    key = _manifest().get("key")
+    assert isinstance(key, str) and key.strip(), (
+        "manifest.json lost its `key` field, so the extension ID is no longer "
+        "stable across an unpacked load and a Web Store upload. Restore the "
+        "base64 public key — see extension/jlc-bridge/README.md."
+    )
+    # A base64 DER SPKI for RSA-2048 is ~392 chars; anything much shorter is a
+    # placeholder, not a key.
+    assert len(key) > 100, f"`key` looks too short to be a public key ({len(key)} chars)"
+    assert "PRIVATE" not in key.upper(), "that is a PRIVATE key — only the public half belongs here"
+
+
 def test_forbidden_keys_are_absent():
     manifest = _manifest()
     present = [key for key in FORBIDDEN_KEYS if key in manifest]
