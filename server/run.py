@@ -38,6 +38,41 @@ def _remove_port_file(data_dir: str) -> None:
         pass
 
 
+# ── Unix-domain-socket discovery ─────────────────────────────────────────────
+#
+# A `python -m server --uds <path>` instance has no port, so it writes no
+# `.v1_port` — writing one would be a lie, and `tools/dubis_client` health-
+# checks that file against a TCP port that does not exist. It writes the
+# absolute socket path to `<data_dir>/.v1_uds` instead, and `connect()` probes
+# that file after `.v1_port`. Same atomic-write and best-effort-removal
+# contract as the port file above, for the same reason (a reader must never
+# see a half-written path).
+#
+# `start_server()` below deliberately gains no `uds` parameter: it is the
+# desktop app's path, the desktop's pywebview window navigates to an `http://`
+# URL, and a Unix socket has no URL a browser can load. See server/uds.py.
+
+
+def _uds_file_path(data_dir: str) -> str:
+    return os.path.join(data_dir, ".v1_uds")
+
+
+def _write_uds_file(data_dir: str, uds_path: str) -> None:
+    """Atomically write the bound socket's absolute path to `<data_dir>/.v1_uds`."""
+    path = _uds_file_path(data_dir)
+    tmp_path = f"{path}.tmp-{os.getpid()}"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        f.write(os.path.abspath(uds_path))
+    os.replace(tmp_path, path)
+
+
+def _remove_uds_file(data_dir: str) -> None:
+    try:
+        os.remove(_uds_file_path(data_dir))
+    except OSError:
+        pass
+
+
 def wait_until_started(server: "uvicorn.Server", timeout: float, poll: float = 0.02) -> bool:
     """Poll until *server* has actually bound its socket, or *timeout* elapses.
 

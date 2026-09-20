@@ -6,6 +6,14 @@ Discovery order:
      returning exactly ``{"ok": true}`` (JSON-validated, not status-only — a
      stale file left behind by a crashed server points at a dead or unrelated
      port and must be ignored, not trusted).
+  3. Socket file ``<data_dir>/.v1_uds`` — the path of a Unix-domain-socket
+     server (``python -m server --uds``), health-checked the same way over an
+     ``httpx`` UDS transport. A UDS server has no port, so it writes no
+     ``.v1_port``; without this step every CLI command against one would exit
+     4 while a perfectly healthy server sat there. Connecting over the socket
+     is also what makes the CLI's own mutations carry the invoking user's
+     name — the kernel reports *this* process's uid to the server (see
+     server/peercred.py).
 
 There is deliberately NO third "spawn a server" step. The retired
 tools/dubis-mcp had one, and it was correct there: an MCP server is one
@@ -57,7 +65,8 @@ class NoServerFoundError(Exception):
     def __init__(self, data_dir: str):
         super().__init__(
             "no /v1 server found. start one with `dubis serve`, or set DUBIS_URL "
-            f"(probed {os.path.join(data_dir, '.v1_port')})"
+            f"(probed {os.path.join(data_dir, '.v1_port')} and "
+            f"{os.path.join(data_dir, '.v1_uds')})"
         )
         self.data_dir = data_dir
 
@@ -78,11 +87,17 @@ class V1Client:
         discovered_via: str = "env",
         timeout: float = 10.0,
         token: str | None = None,
+        uds: str | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.discovered_via = discovered_via
+        self.uds = uds
         headers = {"Authorization": f"Bearer {token}"} if token else None
-        self._client = httpx.Client(base_url=self.base_url, timeout=timeout, headers=headers)
+        # Over a Unix socket the base_url's host is a formality httpx needs for
+        # the Host header; the transport ignores it and connects to *uds*.
+        transport = httpx.HTTPTransport(uds=uds) if uds else None
+        self._client = httpx.Client(base_url=self.base_url, timeout=timeout,
+                                    headers=headers, transport=transport)
 
     def get(self, path: str, **params):
         resp = self._client.get(path, params=params or None)
@@ -123,9 +138,13 @@ def _unwrap(resp: httpx.Response):
     return resp.json()
 
 
-def _is_healthy(base_url: str, timeout: float = 1.0) -> bool:
+def _is_healthy(base_url: str, timeout: float = 1.0, uds: str | None = None) -> bool:
     try:
-        resp = httpx.get(f"{base_url}/v1/health", timeout=timeout)
+        if uds:
+            with httpx.Client(transport=httpx.HTTPTransport(uds=uds), timeout=timeout) as c:
+                resp = c.get(f"{base_url}/v1/health")
+        else:
+            resp = httpx.get(f"{base_url}/v1/health", timeout=timeout)
     except httpx.TransportError:
         return False
     if resp.status_code != 200:
@@ -160,12 +179,28 @@ def _read_port_file(data_dir: str) -> int | None:
         return None
 
 
+def _uds_file_path(data_dir: str) -> Path:
+    return Path(data_dir) / ".v1_uds"
+
+
+def _read_uds_file(data_dir: str) -> str | None:
+    """The socket path a `--uds` server advertised, or None.
+
+    Written by server/__main__.py via server/run.py's `_write_uds_file`.
+    """
+    try:
+        path = _uds_file_path(data_dir).read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return path or None
+
+
 def connect(repo_root: str, data_dir: str | None = None) -> V1Client:
     """Discover a running /v1 server and return a connected V1Client.
 
-    Order: ``DUBIS_URL`` env -> ``<data_dir>/.v1_port`` (health-checked).
-    Raises NoServerFoundError if neither resolves — this never starts a
-    server; see the module docstring for why.
+    Order: ``DUBIS_URL`` env -> ``<data_dir>/.v1_port`` -> ``<data_dir>/.v1_uds``
+    (both health-checked). Raises NoServerFoundError if none resolves — this
+    never starts a server; see the module docstring for why.
 
     *data_dir* defaults to ``<repo_root>/data``, and is overridable so
     ``dubis --data-dir X`` probes the same directory it would serve.
@@ -184,5 +219,15 @@ def connect(repo_root: str, data_dir: str | None = None) -> V1Client:
             return V1Client(base_url, discovered_via="port_file", token=token)
         # Stale port file (dead port, or a crashed server's leftover) — ignore
         # it rather than handing back a client pointed at nothing.
+
+    uds = _read_uds_file(resolved_dir)
+    if uds is not None:
+        # `http://localhost` is only the Host header; the transport dials the
+        # socket. Health-checked for the same reason the port file is: a
+        # crashed `--uds` server leaves both its socket file and this
+        # discovery file behind.
+        if _is_healthy("http://localhost", uds=uds):
+            return V1Client("http://localhost", discovered_via="uds_file",
+                            token=token, uds=uds)
 
     raise NoServerFoundError(resolved_dir)
