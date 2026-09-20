@@ -205,27 +205,56 @@ fetch question stays open (below).
 
 Blocked on a decision (below). Not scoped here.
 
-## Open decisions for Isaac
+## Decisions (settled with Isaac, 2026-09-20)
 
-1. **How JLC stock enters inventory.** Three shapes, from an earlier investigation:
-   (a) a read-only *source* via a `kind` on `Source` — federation already sums `qty`
-   and renders a per-source breakdown, and `Registry.resolve` needs no change;
-   (b) a real *location* dimension on `stock` — correct but re-keys five replay paths
-   pinned by differential property tests; (c) an *allocation* ledger — parts that
-   exist, are yours, and are unavailable for a bench build.
-   Phase 1 is deliberately independent of this, and produces the overlap data needed
-   to choose (how many of the 191 JLC parts already exist in local inventory).
-2. **Cart-plan semantics.** `cart_plan.requirement` (`domain/cart_plan.py:36-56`)
-   treats all on-hand as fungible and *here*, so 170k units in Shenzhen would zero out
-   a bench build's requirement. Today this is accidentally safe — `domain/api_cart.py:128`
-   reads the local `stock` table, so merged source qty never reaches the planner. That
-   is a coincidence to rely on for phase 1 and to fix deliberately in phase 3.
-3. **Phase 2 fetch.** Keep extension-harvest + WebView2-fetch (small, keeps DigiKey
-   desktop-only), or let the extension fetch too (kills the WebView2 dependency, fixes
-   Mouser's keyless path as a side effect, and is a materially larger capability that
-   needs its own allowlist and review).
-4. **Extension distribution.** Unpacked dev-mode load (no auto-update, no review) vs
-   Chrome Web Store. Dev-mode is right for now.
+**The fact that drives 1 and 2:** JLC's own docs state that private-library parts are
+*exclusively for PCBA orders and will not ship separately*. They can never be
+hand-soldered. So JLC stock is not "the same parts in another drawer" — it is a
+different class of asset, and `domain/federation.py`'s qty rule ("850 on the bench plus
+400 in the shop is 1250 parts") is simply false for it.
+
+1. **JLC enters inventory as a read-only source carrying a `fungible: false` flag.**
+   Merged `qty` sums only fungible sources; the `sources` breakdown carries every
+   source including non-fungible ones, so the inventory row reads as bench stock with
+   a "+1010 at JLC" badge — the *provenance-is-a-badge-not-a-column* pattern already
+   established in `docs/plans/2026-09-19-multi-server-hub-design.md`.
+
+   *Accepted cost:* `domain/federation.py` currently guarantees that entries in
+   `sources` sum to the row's `qty`, and that invariant is property-tested. It becomes
+   "*fungible* entries sum to `qty`". Deliberate weakening of a pure module's
+   invariant — update the property test with a comment naming this decision.
+
+2. **No JLC-assembly planning mode. JLC stock is display-only and never enters
+   planning.** Isaac plans assembly orders in JLC's own BOM tool.
+
+   This makes `cart_plan.requirement` (`domain/cart_plan.py:36-56`) correct as written:
+   it reads the *local* `stock` table via `domain/api_cart.py:128`, so non-fungible
+   source stock is structurally excluded. **Add a permanent regression test asserting
+   JLC stock does not reduce a bench requirement**, so nobody later "helpfully" wires
+   merged qty into `_on_hand`. That test is a guard forever, not a phase-3 placeholder.
+
+   Consequence: the planner never needs per-source stock queries, so the non-fungible
+   flag stays purely a merge/display concern. Phase 3 is smaller than originally scoped.
+
+3. **Phase 2 harvests cookies only; DigiKey keeps its WebView2 fetch.** Rule 2
+   (push-only, gesture-initiated) is the single property that makes this extension
+   safe, and a fetch proxy requires an inbound command channel from dubIS — even a
+   poll-for-work design spends it semantically. DigiKey's *fetch* works where people
+   use it; only its *login* is broken, and that is what phase 2 repairs.
+
+   Revisit only if DigiKey pricing in the container stops being an acceptable gap
+   (today it is a documented deliberate one). Note the second-order cost that decided
+   this: extension-fetch would make the extension load-bearing for core pricing, not
+   just onboarding — "no extension, no DigiKey prices" is a far bigger commitment than
+   "no extension, paste a cookie".
+
+4. **Unpacked dev-mode now; Chrome Web Store *unlisted* before anyone but Isaac
+   installs it.** Auto-update is a security property for a credential-handling
+   extension, and Developer Mode nags make unpacked unpleasant for non-developers.
+
+   **Add a `key` field to `manifest.json` from the start** so the extension ID is
+   stable across the move — otherwise the ID changes on migration and anything pinning
+   it breaks.
 
 ## What this deliberately does not do
 
