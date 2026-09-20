@@ -13,6 +13,8 @@ import {
   LOCAL_ID,
   normalizeServerUrl,
   normalizeServers,
+  normalizeToken,
+  tokenRejection,
   addServerEntry,
   updateServerEntry,
   removeServerEntry,
@@ -371,6 +373,15 @@ export async function loadPreferences() {
     // by the next save of any unrelated preference, so the roster has to be
     // loaded here or adding a server would survive exactly until the user
     // touched a slider.
+    //
+    // Note what is NOT here, and never will be: a server's API token. The
+    // roster is `{id, name, url}` and nothing else, because savePreferences()
+    // posts this whole object into data/preferences.json — a hand-editable
+    // file that every unrelated preference change rewrites. A source's
+    // credential is used server-side, by the hub's outbound httpx client, and
+    // is stored by server/token_store.py in its own file; this window only
+    // ever writes one (PATCH /v1/sources/{id}, see setServerToken below) and
+    // reads it back as the boolean `has_token`.
     preferences.servers = normalizeServers(stored.servers, function (msg) {
       AppLog.warn('load_preferences: ' + msg);
     });
@@ -685,12 +696,20 @@ function newServerId() {
 
 /**
  * Add a server to the roster. Does NOT select it.
+ *
+ * Stays synchronous — the roster is in-memory state and every caller renders
+ * off it immediately. The optional `token` is therefore NOT sent here: it comes
+ * back on `result.token` for the caller to hand to `setServerToken`, which is
+ * async because it has to order two writes (see there). `addServerEntry`
+ * guarantees the roster it returns carries no token key, so nothing a
+ * credential was typed into can reach `preferences.servers`.
  * @param {string} name blank derives a name from the URL's host
  * @param {string} url
- * @returns {{ok: boolean, reason?: string, entry?: {id: string, name: string, url: string}}}
+ * @param {string} [token] validated here, sent by the caller via setServerToken
+ * @returns {{ok: boolean, reason?: string, entry?: {id: string, name: string, url: string}, token?: string}}
  */
-export function addServer(name, url) {
-  const result = addServerEntry(getServers(), { id: newServerId(), name, url });
+export function addServer(name, url, token) {
+  const result = addServerEntry(getServers(), { id: newServerId(), name, url, token });
   if (!result.ok) return result;
   preferences.servers = result.servers;
   savePreferences();
@@ -698,7 +717,42 @@ export function addServer(name, url) {
   // The strip is a view of the roster, so it has to move with the roster —
   // otherwise a server you just added is switchable only after a reload.
   syncTabsWithRoster();
-  return { ok: true, entry: result.entry };
+  return { ok: true, entry: result.entry, token: result.token };
+}
+
+/**
+ * Store (or clear) the API token the hub uses when it fetches from a source.
+ *
+ * The token never touches `preferences`, never reaches an AppLog line and never
+ * reaches a toast — the only places it may appear are this function's argument
+ * and the PATCH body. What comes back from the hub afterwards is the boolean
+ * `has_token`, never the secret.
+ *
+ * The await ordering is load-bearing, not stylistic. `addServer` fires an
+ * UN-awaited `savePreferences()`, and `PATCH /v1/sources/{id}` does a
+ * read-modify-write of preferences.json server-side to find the source it is
+ * patching. If the PATCH lands first, the roster entry does not exist on disk
+ * yet and the route 404s — an added server that silently has no credential.
+ * Awaiting our own save first is what makes the entry visible to the route.
+ * @param {string} id a roster entry id
+ * @param {string} token "" clears the stored token
+ * @returns {Promise<{ok: boolean, reason?: string}>}
+ */
+export async function setServerToken(id, token) {
+  // Before any network call: a token that cannot become an Authorization header
+  // is a thing to tell the user about, not a request to make and have refused.
+  const reason = tokenRejection(token);
+  if (reason) return { ok: false, reason };
+  await savePreferences();
+  // `undefined` for name and url means "leave them alone" — JSON.stringify
+  // drops undefined body fields, and the route reads a missing field as None.
+  const result = await api('update_source', id, undefined, undefined, normalizeToken(token));
+  if (result === undefined) {
+    // How js/api.js reports a failed call. Deliberately says nothing about the
+    // token's content.
+    return { ok: false, reason: 'Could not save the token for that server' };
+  }
+  return { ok: true };
 }
 
 /**

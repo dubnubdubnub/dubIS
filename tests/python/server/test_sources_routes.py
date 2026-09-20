@@ -99,7 +99,62 @@ def test_reachability_is_probed_per_source_from_the_hub(hub, upstream):
     assert by_id["bench"]["detail"] == "ConnectError", "a red dot must be able to say why"
     assert by_id["shop"]["reachable"] is True
     assert by_id["shop"]["detail"] == ""
-    assert upstream.paths_for(SHOP) == ["/v1/health"], "the probe uses the unauthenticated route"
+    # Reachability is decided by the unauthenticated route — a token-gated
+    # source must not read as "down". The second leg answers the question that
+    # route cannot: whether this hub gets past that server's AuthMiddleware.
+    assert upstream.paths_for(SHOP) == ["/v1/health", "/v1/meta"]
+    assert by_id["shop"]["auth"] == "ok"
+    # An unreachable source's auth is never guessed at.
+    assert by_id["bench"]["auth"] == "unknown"
+
+
+def test_an_auth_on_source_with_no_token_reads_as_needing_one(hub, upstream):
+    """The whole point. `/v1/health` is exempt from AuthMiddleware, so a server
+    running `DUBIS_AUTH_MODE=on` that we hold no credential for is genuinely
+    *reachable* while answering 401 to everything that carries data. Reachable
+    alone would paint it green and leave the user to infer the problem from a
+    wall of failed requests."""
+    sources_mod.add_source(hub.api, url=SHOP, source_id="shop")
+    upstream.responses[(SHOP, "/v1/meta")] = httpx.Response(401, json={"code": "unauthorized"})
+
+    shop = {s["id"]: s for s in hub.get("/v1/sources").json()["sources"]}["shop"]
+    assert shop["reachable"] is True, "health is exempt, so it really does answer"
+    assert shop["auth"] == "required"
+    assert shop["has_token"] is False
+
+
+def test_a_rejected_token_is_distinguished_from_a_missing_one(hub, upstream):
+    """Different fix, different message: one says "give me a credential", the
+    other says "the one you gave me is wrong"."""
+    sources_mod.add_source(hub.api, url=SHOP, source_id="shop", token="stale")
+    upstream.responses[(SHOP, "/v1/meta")] = httpx.Response(401, json={"code": "unauthorized"})
+
+    shop = {s["id"]: s for s in hub.get("/v1/sources").json()["sources"]}["shop"]
+    assert shop["auth"] == "rejected"
+    assert shop["has_token"] is True
+
+
+def test_a_non_401_answer_never_claims_a_credential_is_missing(hub, upstream):
+    """An older dubIS without `/v1/meta` answers 404, and a broken one 500.
+    Neither says anything about auth, and reading them as "needs a token" would
+    put a credential warning on a server that needs none."""
+    sources_mod.add_source(hub.api, url=SHOP, source_id="shop")
+    upstream.responses[(SHOP, "/v1/meta")] = httpx.Response(404, json={"error": "nope"})
+
+    shop = {s["id"]: s for s in hub.get("/v1/sources").json()["sources"]}["shop"]
+    assert shop["auth"] == "ok"
+
+
+def test_the_probe_sends_the_source_token(hub, upstream):
+    """The credential has to actually go out, or none of the above means
+    anything. It is attached by the pooled client's default headers
+    (server/sources.SourceClients), so no call site can forget it."""
+    sources_mod.add_source(hub.api, url=SHOP, source_id="shop", token="sup3r-s3cret")
+    hub.get("/v1/sources")
+
+    sent = [r for r in upstream.requests if r.url.path == "/v1/meta"]
+    assert sent, "the auth leg must have run"
+    assert sent[0].headers["Authorization"] == "Bearer sup3r-s3cret"
 
 
 def test_the_token_is_never_echoed_back(hub):

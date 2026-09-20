@@ -152,8 +152,18 @@ export const cartsSignal = signal(/** @type {CartsState} */ ({ carts: [], active
 // `js/store.js` owns every write.
 
 /**
+ * One entry of `GET /v1/sources`, as normalized by js/server-tabs-logic.js.
+ *
+ * `has_token` is a BOOLEAN on purpose and the route never echoes the token
+ * itself: a remote server's credential is used server-side by the hub's
+ * outbound client and lives in server/token_store.py, so the browser can write
+ * one (PATCH /v1/sources/{id}) but must never hold one. `auth` is the hub's
+ * verdict on getting past that server's AuthMiddleware — "ok" | "required" |
+ * "rejected" | "unknown" — and "required" is the one `reachable` cannot tell
+ * you, since /v1/health is exempt from auth.
  * @typedef {{id: string, name: string, url: string, enabled: boolean,
- *            reachable: (boolean|undefined), detail: string}} SourceEntry
+ *            reachable: (boolean|undefined), detail: string,
+ *            has_token: boolean, auth: string}} SourceEntry
  */
 /**
  * A quick-switcher tab: a view INSTANCE, not a server. `sources` holds one id
