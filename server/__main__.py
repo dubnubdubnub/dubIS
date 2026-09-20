@@ -10,6 +10,15 @@ server instance is tagged with --test-source (overriding whatever source the
 caller supplies), so a single `rollback_source` call — run on exit, or via
 the test-only /v1/_test/reset route — cleans up everything a test session
 touched.
+
+Two transports, not one. `--host`/`--port` is the usual TCP bind. `--uds
+<path>` binds a Unix domain socket instead, and on Linux every request over
+it is attributed to the connecting user by the kernel's SO_PEERCRED uid
+(server/peercred.py, server/uds.py). That is what makes a shared box usable:
+teammates reach the server with `ssh -L <port>:<path>`, sshd connects to the
+socket as *them*, and their mutations are stamped with their own username
+instead of every session collapsing into `local`. The two transports are
+mutually exclusive and saying so is a hard error, never a silent preference.
 """
 
 from __future__ import annotations
@@ -17,6 +26,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import os
+import socket
 import sys
 import threading
 
@@ -25,9 +35,19 @@ import uvicorn
 from distributor_manager import DistributorManager
 from dubis_errors import DataDirLockedError
 from inventory_api import InventoryApi
+from server import peercred, uds
 from server.app import create_app
 from server.lockfile import acquire_lock
-from server.run import _remove_port_file, _write_port_file, wait_until_started
+from server.run import (
+    _remove_port_file,
+    _remove_uds_file,
+    _write_port_file,
+    _write_uds_file,
+    wait_until_started,
+)
+
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 7891
 
 
 def _build_api(data_dir: str) -> InventoryApi:
@@ -129,7 +149,11 @@ def _mount_test_routes(app, api: InventoryApi, test_source: str) -> None:
 
 
 def _print_ready_when_started(
-    server: "uvicorn.Server", port_arg: int, data_dir: str | None = None, lock=None,
+    server: "uvicorn.Server",
+    port_arg: int | None,
+    data_dir: str | None = None,
+    lock=None,
+    uds_path: str | None = None,
 ) -> None:
     """Print READY:<port> once uvicorn has actually bound its socket, and
     (when data_dir is given) write the bound port to <data_dir>/.v1_port —
@@ -143,8 +167,21 @@ def _print_ready_when_started(
     Mirrors the tests/e2e-server.py contract that Playwright's global-setup
     parses to learn the port when --port 0 is used. Runs in a daemon thread
     started before server.run() blocks the main thread.
+
+    With *uds_path* the whole port half of that is wrong, not merely absent:
+    a Unix-socket server's `sockets[0].getsockname()` is the path *string*,
+    so the usual `[1]` would silently yield the path's second character, and
+    the lockfile/`.v1_port` would advertise a TCP port nothing is listening
+    on. So it writes `<data_dir>/.v1_uds` instead and prints
+    `READY:uds:<path>`, leaving the lock's port as the `None` it was
+    acquired with — the lock's pid is still what a contention message needs.
     """
     if not wait_until_started(server, timeout=10, poll=0.01):
+        return
+    if uds_path is not None:
+        if data_dir is not None:
+            _write_uds_file(data_dir, uds_path)
+        print(f"READY:uds:{os.path.abspath(uds_path)}", flush=True)
         return
     port = port_arg
     if port == 0:
@@ -159,8 +196,18 @@ def _print_ready_when_started(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Standalone dubIS /v1 server")
     parser.add_argument("--data-dir", default=".", help="Directory with CSV data")
-    parser.add_argument("--host", default="127.0.0.1", help="Host to bind")
-    parser.add_argument("--port", type=int, default=7891, help="Port to bind (0 = auto-assign)")
+    # --host/--port default to None, not to their values, purely so that
+    # "was this flag given?" is answerable below. Resolved to DEFAULT_HOST /
+    # DEFAULT_PORT once --uds has been ruled out.
+    parser.add_argument("--host", default=None,
+                        help=f"Host to bind (default {DEFAULT_HOST}; TCP only)")
+    parser.add_argument("--port", type=int, default=None,
+                        help=f"Port to bind (default {DEFAULT_PORT}, 0 = auto-assign; TCP only)")
+    parser.add_argument("--uds", default=None,
+                        help="Bind a Unix domain socket at this path instead of a TCP "
+                             "port. On Linux each caller is identified by the kernel's "
+                             "SO_PEERCRED uid (see server/peercred.py), so `ssh -L "
+                             "<port>:<path>` attributes mutations to the logged-in user.")
     parser.add_argument("--static-dir", default=None, help="Directory to serve as the frontend")
     parser.add_argument("--test-source", default="",
                          help="Tag all adjustments made through this instance with this source")
@@ -170,6 +217,34 @@ def main() -> None:
 
     if args.rollback_on_exit and not args.test_source:
         parser.error("--rollback-on-exit requires --test-source")
+
+    # --uds and --host/--port are two different transports, and silently
+    # honouring one while ignoring the other is precisely the failure this
+    # refuses: an operator who typed both would otherwise get a TCP server
+    # they believed was a socket, with every caller resolving to `local`
+    # again and no sign anything was wrong.
+    if args.uds is not None:
+        given = [flag for flag, value in (("--host", args.host), ("--port", args.port))
+                 if value is not None]
+        if given:
+            parser.error(f"--uds cannot be combined with {' or '.join(given)} — "
+                         "a Unix socket has no host or port")
+        if getattr(socket, "AF_UNIX", None) is None:
+            parser.error("--uds is not supported on this platform: it has no AF_UNIX sockets")
+        if not peercred.available():
+            # Not fatal: the socket itself works fine here, callers just
+            # resolve to `local` exactly as a loopback TCP caller does today.
+            # Said once, loudly, so the degradation is never a mystery.
+            print(
+                f"[server] warning: --uds peer-credential identity is unavailable "
+                f"({peercred.unavailable_reason()}). Unix-socket callers will resolve "
+                f"to {peercred.LOCAL_IDENTITY!r}, the same identity a loopback TCP "
+                f"caller gets — mutation sources will not name individual users.",
+                file=sys.stderr, flush=True,
+            )
+
+    host = DEFAULT_HOST if args.host is None else args.host
+    port = DEFAULT_PORT if args.port is None else args.port
 
     data_dir = os.path.abspath(args.data_dir)
 
@@ -216,9 +291,18 @@ def main() -> None:
         except Exception as exc:
             print(f"[server] teardown: rollback failed: {exc}", file=sys.stderr, flush=True)
         try:
-            _remove_port_file(data_dir)
+            if args.uds is None:
+                _remove_port_file(data_dir)
+            else:
+                # Both halves: the discovery file AND the socket file itself.
+                # uvicorn creates the socket but never unlinks it, so without
+                # this every hard-killed run leaves a file that the next
+                # `--uds` start has to reason about (see uds.prepare_socket_path).
+                _remove_uds_file(data_dir)
+                uds.remove_socket_path(args.uds)
         except Exception as exc:
-            print(f"[server] teardown: port-file removal failed: {exc}", file=sys.stderr, flush=True)
+            print(f"[server] teardown: discovery-file removal failed: {exc}",
+                  file=sys.stderr, flush=True)
         try:
             api.shutdown()  # best-effort internally; never raises
         finally:
@@ -230,13 +314,28 @@ def main() -> None:
     # -- without a bound, a connected SSE client stalls Server.shutdown() for
     # uvicorn's 30s default on every container rollout. Matches the value
     # tests/python/server/conftest.py's start_live_server() defaults to.
-    config = uvicorn.Config(
-        app, host=args.host, port=args.port, log_level="info", timeout_graceful_shutdown=5,
-    )
+    if args.uds is not None:
+        # Raises (SocketPathInUseError / OSError) rather than letting uvicorn
+        # fail with a bare EADDRINUSE that says nothing about which of the
+        # two cases — live server vs. a crashed one's leftover file — applies.
+        uds.prepare_socket_path(args.uds)
+        config = uvicorn.Config(
+            app, uds=args.uds, log_level="info", timeout_graceful_shutdown=5,
+            # The one line that makes the whole feature work: uvicorn's HTTP
+            # protocol, subclassed to record the connecting user per
+            # connection. `http=` is public uvicorn API; see server/uds.py.
+            http=uds.PeerCredHTTPProtocol,
+        )
+    else:
+        config = uvicorn.Config(
+            app, host=host, port=port, log_level="info", timeout_graceful_shutdown=5,
+        )
     server = uvicorn.Server(config)
 
     threading.Thread(
-        target=_print_ready_when_started, args=(server, args.port, data_dir, lock), daemon=True,
+        target=_print_ready_when_started,
+        args=(server, port, data_dir, lock, args.uds),
+        daemon=True,
     ).start()
 
     server.run()

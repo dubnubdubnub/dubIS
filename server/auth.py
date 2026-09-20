@@ -1,4 +1,5 @@
-"""Auth layer: loopback trust + bearer tokens + tailnet allowlist header.
+"""Auth layer: Unix-socket peer credentials + loopback trust + bearer tokens
++ tailnet allowlist header.
 
 Configured entirely by env (12-factor; container-friendly), read once at
 `create_app()` time (see server/app.py):
@@ -12,6 +13,12 @@ Configured entirely by env (12-factor; container-friendly), read once at
 | `DUBIS_TRUSTED_PROXY_IPS`          | comma-separated IPs/CIDRs allowed to assert the header below     |
 
 Resolution order per request, when mode is `on`:
+0. Unix-domain-socket peer (`python -m server --uds <path>`) -> identity is
+   the connecting user's *username*, straight from the kernel's
+   `SO_PEERCRED` — see server/peercred.py and server/uds.py. This is what
+   makes `ssh -L <port>:/path/to.sock` attribute each teammate's mutations
+   to them instead of collapsing every one into `local`. Unforgeable and
+   secret-free: the uid comes from the OS, not from the request.
 1. Loopback peer (`request.client.host` in `127.0.0.0/8`, `::1`) -> identity
    `local`, allowed.
 2. `Authorization: Bearer <token>` or `Authorization: Token <token>` (the
@@ -47,6 +54,8 @@ from dataclasses import dataclass, field
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
+
+from server import peercred
 
 logger = logging.getLogger(__name__)
 
@@ -201,6 +210,27 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
     def _resolve(self, request: Request) -> str | None:
+        # 0. Unix-socket peer credentials. FIRST, and for two reasons.
+        #
+        # Correctness: `request.client` is None for a UDS connection (uvicorn
+        # only fills it from a `(host, port)` peername, which AF_UNIX never
+        # has), so the loopback branch below cannot match and the request
+        # would fall through token/cookie/tailscale to a 401 — the whole
+        # feature would look like a broken server. See
+        # tests/python/server/test_peercred.py::test_uds_scope_does_not_401.
+        #
+        # Precedence: the kernel's answer is the strongest evidence available
+        # here. It is supplied by the OS rather than the wire, so nothing a
+        # caller can send should be able to override it with a different
+        # identity.
+        #
+        # This branch is reachable ONLY through `server/uds.py`, which sets
+        # the scope-state key exclusively for AF_UNIX transports — a TCP
+        # client cannot get here regardless of what it sends.
+        peer = peercred.identity_from_scope(request.scope)
+        if peer is not None:
+            return peer
+
         client = request.client
         if client is not None and _is_loopback(client.host):
             return "local"
