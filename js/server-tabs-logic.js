@@ -76,9 +76,16 @@ const LABEL_NAME_LIMIT = 2;
  * reachability and nothing else. They are carried so `getSources()` can hand
  * them to the Preferences picker (js/server-list.js), which is where a
  * credential is shown and edited.
+ *
+ * `tunnel` is the hub's ssh tunnel behind an `ssh://` source (null for every
+ * other source, and when the hub did not say): `{state, kind, error}` from
+ * server/ssh_tunnel.py. The tab dot needs none of it — the hub already folds a
+ * tunnel failure into `reachable`/`detail` — but the picker's `hubDot` uses
+ * `kind` for its terse label.
  * @typedef {{id: string, name: string, url: string, enabled: boolean,
  *            reachable: (boolean|undefined), detail: string,
- *            has_token: boolean, auth: string}} Source
+ *            has_token: boolean, auth: string,
+ *            tunnel: ({state: string, kind: string, error: string}|null)}} Source
  */
 
 /** @typedef {{state: 'active'|'live'|'down'|'partial'|'unknown', detail: string}} DotClaim */
@@ -169,6 +176,7 @@ export function normalizeSources(raw, warn) {
         // one line up.
         has_token: entry.has_token === true,
         auth: typeof entry.auth === 'string' && entry.auth ? entry.auth : 'unknown',
+        tunnel: normalizeTunnel(entry.tunnel),
       });
     }
   }
@@ -204,7 +212,21 @@ export function sourcesFromRoster(servers) {
     // why it must not) and no auth outcome.
     has_token: false,
     auth: 'unknown',
+    tunnel: null,
   }));
+}
+
+/**
+ * @param {any} raw
+ * @returns {({state: string, kind: string, error: string}|null)}
+ */
+function normalizeTunnel(raw) {
+  if (!raw || typeof raw !== 'object' || typeof raw.state !== 'string') return null;
+  return {
+    state: raw.state,
+    kind: typeof raw.kind === 'string' ? raw.kind : '',
+    error: typeof raw.error === 'string' ? raw.error : '',
+  };
 }
 
 /**
@@ -236,7 +258,7 @@ export function tabMembers(tab, sources) {
       // be anything else. Nor is there an auth hop to fail: this IS the process
       // serving the window, so it needs no credential and always passes.
       reachable: true, detail: 'always available — it serves this window',
-      has_token: false, auth: 'ok',
+      has_token: false, auth: 'ok', tunnel: null,
     });
   }
   for (const s of sources || []) if (want.has(s.id)) out.push(s);

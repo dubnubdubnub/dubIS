@@ -24,6 +24,150 @@
 /** The id of the implicit, undeletable local entry. Never persisted. */
 export const LOCAL_ID = 'local';
 
+/* ── ssh:// sources ──────────────────────────────────────────────────────────
+
+   `ssh://[user@]host[:sshport]/<remote target>` — a server the HUB reaches
+   through an ssh tunnel it spawns and supervises itself (server/ssh_tunnel.py,
+   which documents the grammar in full). The target is a remote Unix socket
+   path (`ssh://me@box/run/dubis/dubis.sock`) or, when it contains a colon, a
+   remote TCP `host:port` (`ssh://me@box/127.0.0.1:7891`).
+
+   This is the same grammar as the Python parser, character for character, and
+   both are pinned against tests/fixtures/ssh/url-cases.json — so the roster's
+   two validators cannot disagree about which entries exist. */
+
+const SSH_SCHEME_RE = /^ssh:\/\//i;
+const SSH_NAME_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
+const SSH_HOST_RE = /^[A-Za-z0-9][A-Za-z0-9.-]*$/;
+const SSH_BAD_PATH_CHAR_RE = /[\s\u0000-\u001f\u007f:]/;
+
+/** @param {any} raw */
+export function isSshUrl(raw) {
+  return SSH_SCHEME_RE.test(String(raw ?? '').trim());
+}
+
+/**
+ * @param {string} text @param {string} what
+ * @returns {number}
+ */
+function sshPort(text, what) {
+  if (!/^[0-9]+$/.test(text)) throw new Error(what + ' must be a number (got \'' + text + '\')');
+  const port = Number(text);
+  if (port < 1 || port > 65535) throw new Error(what + ' must be between 1 and 65535 (got ' + port + ')');
+  return port;
+}
+
+/* A loose IPv6 literal check — enough to refuse garbage in brackets; the hub's
+   ipaddress.IPv6Address is the strict one and runs on every write. */
+const IPV6_RE = /^[0-9A-Fa-f:.]+$/;
+
+/**
+ * @param {string} text @param {string} what
+ * @returns {[string, string|null]}
+ */
+function sshHostPort(text, what) {
+  if (text.startsWith('[')) {
+    const end = text.indexOf(']');
+    if (end === -1) throw new Error(what + " has an unclosed '['");
+    const host = text.slice(1, end);
+    const rest = text.slice(end + 1);
+    if (!IPV6_RE.test(host) || !host.includes(':')) throw new Error(what + ' [' + host + '] is not an IPv6 address');
+    if (!rest) return [host, null];
+    if (!rest.startsWith(':')) throw new Error("unexpected '" + rest + "' after [" + host + '] in ' + what);
+    return [host, rest.slice(1)];
+  }
+  if ((text.match(/:/g) || []).length > 1) {
+    throw new Error(what + ' ' + text + ': write an IPv6 address in brackets, e.g. [::1]');
+  }
+  const i = text.indexOf(':');
+  return i === -1 ? [text, null] : [text.slice(0, i), text.slice(i + 1)];
+}
+
+/**
+ * Parse an `ssh://` URL. Never throws: `{ok: false, reason}` for a URL that
+ * breaks the grammar, so the reason can go straight into a toast.
+ * @param {any} raw
+ * @returns {{ok: boolean, reason?: string, canonical?: string, user?: string, host?: string, port?: number|null, remote?: string, kind?: 'socket'|'tcp'}}
+ */
+export function parseSshUrl(raw) {
+  try {
+    return { ok: true, ...parseSshUrlOrThrow(raw) };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** @param {any} raw */
+function parseSshUrlOrThrow(raw) {
+  const text = String(raw ?? '').trim();
+  if (!SSH_SCHEME_RE.test(text)) throw new Error('not an ssh:// URL');
+  const rest = text.slice('ssh://'.length);
+  if (rest.includes('?') || rest.includes('#')) {
+    throw new Error('an ssh:// source URL cannot have a query string or fragment');
+  }
+  const slash = rest.indexOf('/');
+  let authority = slash === -1 ? rest : rest.slice(0, slash);
+  let target = slash === -1 ? '' : rest.slice(slash + 1);
+  if (slash === -1 || !target.replace(/\/+/g, '')) {
+    throw new Error('an ssh:// URL needs a remote target after the host: a socket path '
+      + '(ssh://user@host/run/dubis/dubis.sock) or host:port (ssh://user@host/127.0.0.1:7891)');
+  }
+  let user = '';
+  const at = authority.lastIndexOf('@');
+  if (at !== -1) {
+    user = authority.slice(0, at);
+    authority = authority.slice(at + 1);
+    if (user.includes(':')) {
+      throw new Error('an ssh:// URL cannot carry a password — the hub runs ssh with '
+        + 'BatchMode and authenticates with your key or ssh-agent');
+    }
+    if (!SSH_NAME_RE.test(user)) throw new Error("invalid ssh user name '" + user + "'");
+  }
+  if (!authority) throw new Error('an ssh:// URL needs a host');
+  const [host, portText] = sshHostPort(authority, 'the ssh host');
+  if (!host.includes(':') && !SSH_HOST_RE.test(host)) throw new Error("invalid ssh host '" + host + "'");
+  const port = portText === null ? null : sshPort(portText, 'the ssh port');
+
+  const bracket = (/** @type {string} */ h) => (h.includes(':') ? '[' + h + ']' : h);
+  const auth = (user ? user + '@' : '') + bracket(host) + (port === null ? '' : ':' + port);
+  target = target.replace(/\/+$/, '');
+  if (target.includes(':')) {
+    if (target.includes('/')) {
+      throw new Error("remote target '" + target + "' has a ':' so it is read as host:port, but it "
+        + "also contains '/'. A socket path cannot contain ':' (ssh -L cannot forward one), "
+        + "and host:port has no '/'");
+    }
+    const [rhost, rportText] = sshHostPort(target, 'the remote target');
+    if (!rportText) throw new Error("remote target '" + target + "' needs a port, e.g. 127.0.0.1:7891");
+    if (!rhost.includes(':') && !SSH_HOST_RE.test(rhost)) throw new Error("invalid remote host '" + rhost + "'");
+    const remote = bracket(rhost) + ':' + sshPort(rportText, 'the remote port');
+    return { canonical: 'ssh://' + auth + '/' + remote, user, host, port, remote, kind: /** @type {'tcp'} */ ('tcp') };
+  }
+  const socketPath = '/' + target;
+  if (SSH_BAD_PATH_CHAR_RE.test(socketPath) || socketPath.includes('//')) {
+    throw new Error("invalid remote socket path '" + socketPath + "'");
+  }
+  return { canonical: 'ssh://' + auth + socketPath, user, host, port, remote: socketPath, kind: /** @type {'socket'} */ ('socket') };
+}
+
+/** The rule every "bad URL" rejection states. */
+export const URL_RULE = 'Server URL must start with http://, https:// or ssh://';
+
+/**
+ * Why *raw* is not a usable server URL, or "" if it is. An ssh:// URL gets the
+ * grammar's own reason ("needs a remote target after the host", ...), which
+ * says far more than the generic rule.
+ * @param {any} raw
+ * @returns {string}
+ */
+export function urlRejection(raw) {
+  if (isSshUrl(raw)) {
+    const parsed = parseSshUrl(raw);
+    return parsed.ok ? '' : 'Invalid ssh:// URL: ' + parsed.reason;
+  }
+  return normalizeServerUrl(raw) ? '' : URL_RULE;
+}
+
 /**
  * Coerce a stored/typed server URL to a canonical form, or "" if unusable.
  *
@@ -31,12 +175,19 @@ export const LOCAL_ID = 'local';
  * origin by the webview, silently pointing at the local server instead of the
  * remote one — a wrong answer that looks like a working one. Trailing slashes
  * are stripped so `https://x` and `https://x/` are one entry, not two.
+ *
+ * An `ssh://` URL is validated against the grammar above and returned in its
+ * canonical form — the same string server/sources.py stores.
  * @param {any} raw
  * @returns {string}
  */
 export function normalizeServerUrl(raw) {
   const text = String(raw ?? '').trim();
   if (!text) return '';
+  if (isSshUrl(text)) {
+    const parsed = parseSshUrl(text);
+    return parsed.ok ? parsed.canonical : '';
+  }
   if (!/^https?:\/\//i.test(text)) return '';
   return text.replace(/\/+$/, '');
 }
@@ -49,6 +200,8 @@ export function normalizeServerUrl(raw) {
 export function nameFromUrl(url) {
   const normalized = normalizeServerUrl(url);
   if (!normalized) return '';
+  // An ssh:// server is named for the box it lives on, not the tunnel.
+  if (isSshUrl(normalized)) return parseSshUrl(normalized).host || '';
   // Deliberately string surgery rather than `new URL()`: this module is
   // imported by tests that run outside a DOM, and the scheme is already known
   // to be http(s) by the time we get here.
@@ -147,7 +300,7 @@ export function normalizeServers(raw, warn) {
     }
     const url = normalizeServerUrl(entry.url);
     if (!url) {
-      log('ignoring servers entry "' + id + '" with a URL that is not http(s)');
+      log('ignoring servers entry "' + id + '" with a URL that is not http(s) or a valid ssh://');
       continue;
     }
     if (seenUrls.has(url)) {
@@ -204,7 +357,7 @@ export function normalizeServers(raw, warn) {
 export function addServerEntry(servers, entry) {
   const list = Array.isArray(servers) ? servers : [];
   const url = normalizeServerUrl(entry && entry.url);
-  if (!url) return { ok: false, reason: 'Server URL must start with http:// or https://' };
+  if (!url) return { ok: false, reason: urlRejection(entry && entry.url) || URL_RULE };
   const existing = list.find((s) => s.url === url);
   if (existing) return { ok: false, reason: '“' + existing.name + '” already points at that URL' };
   const id = String((entry && entry.id) || '').trim();
@@ -258,7 +411,7 @@ export function updateServerEntry(servers, id, patch) {
   const url = Object.prototype.hasOwnProperty.call(p, 'url')
     ? normalizeServerUrl(p.url)
     : current.url;
-  if (!url) return { ok: false, reason: 'Server URL must start with http:// or https://' };
+  if (!url) return { ok: false, reason: urlRejection(p.url) || URL_RULE };
   const clash = list.find((s) => s.url === url && s.id !== id);
   if (clash) return { ok: false, reason: '“' + clash.name + '” already points at that URL' };
   const hasToken = Object.prototype.hasOwnProperty.call(p, 'token');
@@ -424,9 +577,15 @@ export function credentialState(row) {
  *    blocks that request as mixed content before it reaches the network, so a
  *    failure says nothing about the server.
  *
+ * And one case the page cannot probe but the hub can:
+ *
+ *  - `hub`: an `ssh://` server. There is no URL a browser can fetch — the
+ *    server is only reachable through the ssh tunnel the HUB runs — so the dot
+ *    defers to the hub's own answer (`hubDot`), which is the truthful one.
+ *
  * @param {{url: string}} row
  * @param {string} pageOrigin `window.location.origin`
- * @returns {{state: 'active'|'dormant'|'blocked'|'probe', url?: string, detail?: string}}
+ * @returns {{state: 'active'|'dormant'|'blocked'|'probe'|'hub', url?: string, detail?: string}}
  */
 export function probePlan(row, pageOrigin) {
   const origin = normalizeServerUrl(pageOrigin);
@@ -439,6 +598,7 @@ export function probePlan(row, pageOrigin) {
     if (originIsLoopback) return { state: 'active', url: origin };
     return { state: 'dormant', detail: 'starts with the app' };
   }
+  if (isSshUrl(target)) return { state: 'hub', detail: 'checked by the hub' };
   if (target === origin) return { state: 'active', url: target };
   if (/^https:/i.test(origin) && /^http:/i.test(target)) {
     return { state: 'blocked', detail: 'cannot be checked from an https page' };
@@ -472,6 +632,45 @@ export function classifyProbe(result) {
   if (!r.dubis) return { state: 'foreign', detail: 'not dubIS' };
   return { state: 'live', detail: 'reachable' };
 }
+
+/**
+ * The dot for a row whose reachability only the hub can know (an `ssh://`
+ * server — see `probePlan`'s `hub` case), from that source's
+ * `GET /v1/sources` entry.
+ *
+ * Tri-state like every other dot: no entry, or no `reachable` boolean yet,
+ * reads `unknown` — never red. A failed tunnel's `detail` is the hub's
+ * sentence from ssh's own stderr ("ssh key authentication to box was refused
+ * ..."), so it is passed through whole; it goes in the dot's title too, since
+ * the detail lane truncates.
+ * @param {{reachable?: boolean, detail?: string, tunnel?: {state?: string, kind?: string, error?: string}|null}|undefined} status
+ * @returns {{state: 'live'|'down'|'unknown', detail: string, title: string}}
+ */
+export function hubDot(status) {
+  const s = status || {};
+  const tunnel = s.tunnel || null;
+  if (s.reachable === true) {
+    return { state: 'live', detail: 'via ssh', title: 'reachable from the hub through its ssh tunnel' };
+  }
+  if (s.reachable === false) {
+    const why = (tunnel && tunnel.error) || s.detail || 'unreachable from the hub';
+    const short = tunnel && tunnel.kind ? SSH_KIND_LABELS[tunnel.kind] || 'ssh failed' : 'unreachable';
+    return { state: 'down', detail: short, title: why };
+  }
+  return { state: 'unknown', detail: 'not checked yet', title: 'the hub has not checked this server yet' };
+}
+
+/** Terse labels for `tunnel.kind` — the full sentence lives in the title. */
+const SSH_KIND_LABELS = {
+  no_ssh: 'no ssh client',
+  auth: 'ssh key refused',
+  host_key: 'host key changed',
+  dns: 'unknown host',
+  unreachable: 'host unreachable',
+  remote_target: 'dubIS not running',
+  timeout: 'ssh timed out',
+  exited: 'ssh failed',
+};
 
 /** Dot states that mean "you can connect to this". @type {ReadonlySet<string>} */
 export const GOOD_STATES = new Set(['active', 'live', 'dormant']);

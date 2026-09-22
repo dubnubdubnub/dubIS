@@ -68,6 +68,21 @@ class FeederListResponse(BaseModel):
     feeders: list[FeederModel]
 
 
+class TunnelStatusModel(BaseModel):
+    """The hub-managed ssh tunnel behind an `ssh://` source (server/ssh_tunnel.py).
+
+    `state`: idle (not used yet) | starting | up | failed. `kind` names a
+    failure: no_ssh | auth | host_key | dns | unreachable | remote_target |
+    timeout | exited. `error` is the human sentence, built from ssh's stderr.
+    """
+
+    state: str
+    local_url: str = ""
+    error: str = ""
+    kind: str = ""
+    restarts: int = 0
+
+
 class SourceStatusModel(BaseModel):
     """One roster entry as `GET /v1/sources` reports it.
 
@@ -97,6 +112,8 @@ class SourceStatusModel(BaseModel):
     # answering 401 to every request that carries data — a green dot on a
     # server that will not serve a single row.
     auth: str = "unknown"
+    # Only for an `ssh://` source: the tunnel the hub runs to reach it.
+    tunnel: TunnelStatusModel | None = None
 
 
 class SourcesResponse(BaseModel):

@@ -11,6 +11,11 @@ This is **PR 1's** deploy (code + manifests already merged to `main`). The
 local inventory mirror daemon is retired in a **separate, later** PR — do not
 touch it as part of this runbook (step 9).
 
+Not on the cluster? A dubIS on a plain shared Linux box needs no ingress, token
+or Tailscale operator: teammates add it as an `ssh://` server and their desktop
+hub runs the tunnel for them. See `docs/ssh-sources.md` for the three-step
+onboarding.
+
 ## 0. Prereqs
 
 - `kubectl` access via `C:/Users/isaac/.kube/dubcluster-vip.yaml` (the cluster
