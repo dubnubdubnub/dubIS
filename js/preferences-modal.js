@@ -120,6 +120,19 @@ export function openPreferencesModal() {
     }
   });
 
+  // The other shape of "heading with nothing under it": SECTION_HIERARCHY is
+  // derived once from data/constants.json's SECTION_ORDER, so an empty one
+  // renders an empty box and says nothing. Per the error policy, say it out
+  // loud instead of leaving the user to guess whether the category colour
+  // sliders are missing or merely collapsed. (The *layout* half of that
+  // symptom is css/modals.css's .prefs-sliders flex-shrink:0.)
+  if (!container.childElementCount) {
+    AppLog.error(
+      "Preferences: no category sliders to render — SECTION_ORDER from "
+      + "data/constants.json parsed to an empty hierarchy."
+    );
+  }
+
   // Load Digikey login status
   var dkStatus = document.getElementById("dk-status");
   var dkLoginBtn = document.getElementById("dk-login");
