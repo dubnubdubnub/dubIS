@@ -64,7 +64,7 @@ export function vendorIconSrc(path) {
  *
  * The static `data/...` URL that vendorIconSrc builds only resolves when the
  * page's static root and the data dir are the same directory — true for the
- * desktop app (both are the repo), false for dubis-server, which serves /app
+ * desktop app (both are the repo), false for fremont, which serves /app
  * and keeps user data in /data. Favicons fetched for a vendor land in the data
  * dir (`sources/favicons/<hash>.png`), so on a remote client that URL is always
  * a 404; `favicon_data_uri`, which /v1/vendors already returns for every vendor

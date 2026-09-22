@@ -5,7 +5,7 @@
 # operator provisions its own tailnet cert/hostname and a plain
 # `networking.k8s.io/v1` Ingress with `ingressClassName: tailscale` plus a
 # `defaultBackend` is the shape shown in the operator's docs. This yields
-# https://dubis-server.<tailnet>.ts.net.
+# https://fremont.<tailnet>.ts.net.
 #
 # UNVERIFIED (design doc §7 open question): whether the tailscale operator
 # injects a tailnet-identity header (e.g. Tailscale-User-Login) into
@@ -17,16 +17,16 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: dubis-server
+  name: fremont
   annotations:
-    tailscale.com/hostname: dubis-server
+    tailscale.com/hostname: fremont
 spec:
   ingressClassName: tailscale
   defaultBackend:
     service:
-      name: dubis-server
+      name: fremont
       port:
         number: 80
   tls:
     - hosts:
-        - dubis-server
+        - fremont

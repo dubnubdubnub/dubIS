@@ -1,6 +1,6 @@
 """Guard: every data/ asset the frontend loads as a static URL is in the image.
 
-The desktop app and dubis-server disagree about what "data/" means. On the
+The desktop app and fremont disagree about what "data/" means. On the
 desktop the static root *is* the repo, so `<img src="data/lcsc-icon.ico">`
 resolves to the same file the backend reads. In the container the static root
 is /app and the data dir is /data (a PVC), so that same URL resolves to

@@ -103,7 +103,7 @@ jobs:
       - name: Refresh the stale Mouser product block (via the deployed server)
         continue-on-error: true
         env:
-          DUBIS_URL: http://dubis-server.dubis.svc.cluster.local
+          DUBIS_URL: http://fremont.dubis.svc.cluster.local
           DUBIS_TOKEN: ${{ secrets.DUBIS_CI_TOKEN }}
         run: ~/dubis-venv/bin/python scripts/capture-distributor-fixtures.py --refresh-if-stale --server-only
 
