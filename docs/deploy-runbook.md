@@ -1,7 +1,7 @@
-# dubis-server deploy runbook (Phase 1c)
+# fremont deploy runbook (Phase 1c)
 
-Deploying the always-on `dubis-server` to the k3s cluster, so humans reach the
-web UI at `https://dubis-server.<tailnet>.ts.net` and agents/OpenPnP reach
+Deploying the always-on `fremont` to the k3s cluster, so humans reach the
+web UI at `https://fremont.<tailnet>.ts.net` and agents/OpenPnP reach
 `/v1` with a bearer token or tailnet identity. Written for a reader who has
 cluster context (kubectl, Argo, Longhorn, Tailscale operator) but not dubIS
 internals — see `CLAUDE.md` and `docs/plans/2026-07-16-phase1c-remote-deploy-design.md`
@@ -10,6 +10,156 @@ for the code-side design.
 This is **PR 1's** deploy (code + manifests already merged to `main`). The
 local inventory mirror daemon is retired in a **separate, later** PR — do not
 touch it as part of this runbook (step 9).
+
+## Cutover: renaming `dubis-server` to `fremont` (one-time, 2026-09)
+
+The deployment used to be called `dubis-server`. Its Deployment, Service,
+Ingress, labels, container, image (`ghcr.io/dubnubdubnub/fremont`), Argo
+`Application` and tailnet hostname are now `fremont`. The in-cluster DNS name
+is now `fremont.dubis.svc.cluster.local`. Three things keep their old names
+**on purpose**, and each manifest says so beside the name:
+
+| Kept name | Why it is not renamed |
+|---|---|
+| PVC `dubis-server-data` | A PVC with a new name is a new, empty volume. The inventory would be orphaned on the old one. |
+| Secret `dubis-server-auth` (plus the bootstrap Role's `resourceNames`) | The tokens exist only in this Secret. A new name means the bootstrap Job mints fresh tokens that no client (CI, OpenPnP, desktop) holds. |
+| Namespace `dubis` | Unchanged. The `ghcr-pull` / `browser-client` labels and the Secret and PVC all live there. |
+
+A cluster that already runs `dubis-server` is **not** migrated by merging the
+rename PR. The live cluster is managed out-of-band, so a human has to run
+these steps. They are ordered so the PVC is never at risk and there is only
+one short outage (step 4 to step 5).
+
+**Hazards this order avoids**
+
+- **A cascading Application delete prunes the PVC.** Per the Argo CD docs
+  (<https://argo-cd.readthedocs.io/en/stable/user-guide/app_deletion/>),
+  `argocd app delete APP` does a **cascade** delete by default. So does
+  `kubectl delete app` when the Application carries the
+  `resources-finalizer.argocd.argoproj.io` finalizer. A cascade deletes every
+  resource the app manages, and that includes `dubis-server-data`. Delete the
+  old app **only** with `--cascade=false`, or strip its finalizers first.
+  Without the finalizer, `kubectl delete app` removes only the Application
+  object. `deploy/argocd-application.yaml` has never declared the finalizer,
+  but the live object may have gained one (for example from an
+  `argocd app create` or a UI edit), so check it.
+- **Merging the PR is enough to start a sync.** The old Application tracks
+  `deploy/` on `main` with automated sync and `prune: false`. Once the rename
+  merges, it would create `fremont` Deployment, Service and Ingress **beside**
+  the old ones. The new pod would sit in `ImagePullBackOff`, because the
+  pinned tag has only been pushed to `dubis-server`, never to `fremont`. And
+  once a `fremont` image exists, a second pod would contend for `/data`.
+  That is why auto-sync is turned off before the merge.
+- **RWO is per node, not per pod.** Longhorn `ReadWriteOnce` refuses a second
+  *node*. Two pods on the *same* node can both mount the volume. The only
+  thing then keeping the second pod from writing is `/data/.dubis_lock`: the
+  loser exits 1 and crash-loops. Make sure the old Deployment is fully gone
+  before the new one starts.
+- **The new GHCR package starts out private.** Per GitHub's docs
+  (<https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility>),
+  a newly published package starts **private**. A package linked to a repo
+  inherits its *permissions*, not its *visibility*. The old
+  `ghcr.io/dubnubdubnub/dubis-server` can be pulled anonymously (checked
+  2026-09-22: the anonymous token grants `tags/list`, HTTP 200). So the cluster
+  may never have needed the Kyverno-cloned pull secret for it. Pick one:
+  make `fremont` public too, which matches today's behavior; or confirm that
+  the credential behind the Kyverno-cloned `ghcr` secret (defined in the infra
+  repo, not here) can read a *new* private package. A classic PAT with
+  `read:packages` from the owning account can. A fine-grained token or a
+  per-package grant has to be extended to `fremont`.
+- **The tailnet hostname is first-come.** Per Tailscale's machine-name docs
+  (<https://tailscale.com/kb/1098/machine-names>), if a device with the same
+  name already exists, the new one is named `<hostname>-1`. It **keeps that
+  name even after the other device is renamed**. The operator does the same
+  to a `tailscale.com/hostname` it cannot claim
+  (<https://github.com/tailscale/tailscale/issues/10604>). So `fremont` must
+  be free on the tailnet **before** the new Ingress comes up. The old
+  `dubis-server` device does not clash with `fremont`. Remove it anyway, so a
+  stale node does not keep answering at the old name.
+
+**Steps**
+
+```bash
+export KUBECONFIG=C:/Users/isaac/.kube/dubcluster-vip.yaml
+
+# --- before merging the rename PR ---------------------------------------
+# 1. Belt and braces for the data: keep the PV's reclaim policy at Retain and
+#    take a Longhorn snapshot/backup of the volume (Longhorn UI).
+PV=$(kubectl -n dubis get pvc dubis-server-data -o jsonpath='{.spec.volumeName}')
+kubectl patch pv "$PV" -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+
+# 2. Stop the old app auto-syncing, so the merge does not half-apply the rename.
+kubectl -n argocd patch app dubis-server --type json \
+  -p '[{"op":"remove","path":"/spec/syncPolicy/automated"}]'
+#    and record whether it carries the resources finalizer (see step 5):
+kubectl -n argocd get app dubis-server -o jsonpath='{.metadata.finalizers}'; echo
+
+# 3. Tailnet admin console -> Machines: make sure nothing is already named
+#    `fremont` (a leftover from a test, another host). Delete or rename it now.
+
+# --- merge the rename PR --------------------------------------------------
+# 4. build-image.yml pushes ghcr.io/dubnubdubnub/fremont:<sha>, which is the
+#    first image in the new package. Set its visibility (see hazard above),
+#    then merge the deploy-bump PR that pins that sha. Check that it pulls
+#    the way the cluster will pull it:
+grep newTag deploy/kustomization.yaml    # on main, after the bump PR
+#    (anonymous check if you made it public)
+curl -s "https://ghcr.io/token?scope=repository:dubnubdubnub/fremont:pull"
+
+# --- the cutover (outage starts at 6, ends when 7 is Ready) ---------------
+# 5. Delete the OLD Application WITHOUT cascading. Either:
+argocd app delete dubis-server --cascade=false
+#    or, with kubectl only:
+kubectl -n argocd patch app dubis-server -p '{"metadata":{"finalizers":null}}' --type merge
+kubectl -n argocd delete app dubis-server
+kubectl -n dubis get pvc dubis-server-data   # must still be Bound
+
+# 6. Remove the old workload by hand (nothing prunes it now). Wait until the
+#    pod is gone before step 7, so only one pod ever holds /data.
+kubectl -n dubis delete deployment dubis-server --wait
+kubectl -n dubis wait --for=delete pod -l app=dubis-server --timeout=120s
+kubectl -n dubis delete service dubis-server
+kubectl -n dubis delete ingress dubis-server
+#    Then check the tailnet admin console: the `dubis-server` machine should
+#    disappear once the operator tears its proxy down. If it lingers, remove it.
+
+# 7. Apply the renamed AppProject (description only) and the new Application.
+kubectl apply -f deploy/argocd-appproject.yaml
+kubectl apply -f deploy/argocd-application.yaml     # metadata.name: fremont
+#    It auto-syncs (or run `argocd app sync fremont`). It creates the fremont
+#    Deployment/Service/Ingress. It re-labels and adopts the PVC and the
+#    bootstrap SA/Role/RoleBinding, which the deleted app left behind. The
+#    PostSync bootstrap Job finds dubis-server-auth and exits 0 untouched.
+kubectl -n dubis rollout status deployment/fremont
+kubectl -n dubis get ingress fremont    # ADDRESS must read fremont.<tailnet>.ts.net, not fremont-1
+```
+
+If the Ingress came up as `fremont-1`: delete the conflicting `fremont`
+machine in the admin console. Then delete the `fremont` Ingress and let Argo
+re-create it. The suffix does not go away on its own.
+
+**8. Verify, then move every client to the new URL.**
+`bash scripts/smoke-remote.sh http://fremont.dubis.svc:80 <ci-token>`, then
+the same against `https://fremont.<tailnet>.ts.net`. Both must print
+`SMOKE PASS`. Also compare the part count against what the old server showed,
+to prove the same volume is mounted. After that, everything that knew the old
+URL needs updating. Nothing redirects from the old name:
+
+- **OpenPnP:** its dubIS base URL (in the machine's config) becomes
+  `https://fremont.<tailnet>.ts.net`. It keeps the same `openpnp` token.
+- **Desktop apps:** Preferences → Server → **edit** the existing row's URL.
+  Do not add a new row. Tokens in `server_tokens.json` are keyed by source
+  id, so editing keeps the stored token and a new row would not have it.
+- **`DUBIS_URL` users:** shell profiles, agent configs, MCP/CLI env,
+  `tools/dubis-cli` users.
+- **CI:** `refresh-fixtures.yml` already points at
+  `fremont.dubis.svc.cluster.local` in this PR, so nothing to change.
+- **The old GHCR package** `dubis-server` holds every pre-rename image. Keep
+  it until you no longer want to roll back to one, then delete it by hand.
+
+The `fremont` Application comes from the manifest, so it already has
+`automated` sync, with `prune: false` and `selfHeal: false`. Step 2 turned off
+auto-sync only on the old app, and the old app is gone after step 5.
 
 ## 0. Prereqs
 
@@ -21,7 +171,7 @@ touch it as part of this runbook (step 9).
   ```
 - The container image must already be built and pushed. This happens
   automatically: `.github/workflows/build-image.yml` builds
-  `ghcr.io/dubnubdubnub/dubis-server:<sha>` on every push to `main` that
+  `ghcr.io/dubnubdubnub/fremont:<sha>` on every push to `main` that
   touches backend/frontend/`Dockerfile`/`deploy/`, then commits the resulting
   sha back into `deploy/kustomization.yaml`'s `images[].newTag`. Confirm the
   tag isn't still the placeholder before applying anything:
@@ -43,7 +193,7 @@ objects. That makes this step the owner of the label, not Argo:
 kubectl apply -f deploy/namespace.yaml
 ```
 Then confirm the label triggered Kyverno's
-pull-secret clone into the namespace (this is what lets the `dubis-server`
+pull-secret clone into the namespace (this is what lets the `fremont`
 Pod actually pull the private `ghcr.io/dubnubdubnub/*` image):
 ```bash
 kubectl get ns dubis --show-labels
@@ -140,12 +290,12 @@ token working. Test on the path a bearer client actually uses — in-cluster, to
 the ClusterIP, where no proxy header is set:
 
 ```bash
-kubectl -n dubis exec deploy/dubis-server -- python -c "..."   # -> 200 with, 401 without
+kubectl -n dubis exec deploy/fremont -- python -c "..."   # -> 200 with, 401 without
 ```
 
 **Then restart with `rollout restart`, not a rolling update.** `envFrom` env
 vars are read once at start, so the Deployment must restart to see a changed
-Secret. Use `kubectl -n dubis rollout restart deployment/dubis-server`: a
+Secret. Use `kubectl -n dubis rollout restart deployment/fremont`: a
 default rolling update briefly runs two pods against one `/data`, the new one
 loses the race for `/data/.dubis_lock`, exits 1, and only succeeds on the
 retry after the old pod is gone. It self-heals, but it looks like a crash loop
@@ -215,7 +365,7 @@ The PVC (`dubis-server-data`) starts empty. Two options:
 
   # 3. IMPORTANT: chown everything to the container's uid (10001) — the
   #    pod above ran as root (busybox default), so files land root-owned.
-  #    The dubis-server container runs as uid 10001 (Dockerfile) and cannot
+  #    The fremont container runs as uid 10001 (Dockerfile) and cannot
   #    write to root-owned files, which breaks the very next adjustment/import.
   kubectl exec -n dubis dubis-seed -- chown -R 10001:10001 /data
 
@@ -228,7 +378,7 @@ The PVC (`dubis-server-data`) starts empty. Two options:
   only fixes *group* ownership at mount time for the app's own Pod, not for
   files a different, root-running seed Pod already wrote).
 
-  After seeding, do a `kubectl rollout restart deployment/dubis-server -n
+  After seeding, do a `kubectl rollout restart deployment/fremont -n
   dubis` (or just let the Deployment start naturally if it hasn't yet) so it
   picks up the seeded CSVs on first boot / cache rebuild.
 
@@ -250,11 +400,11 @@ humans can authenticate to the web UI by tailnet identity, or need a bearer
 token / the cookie-session fallback.
 
 Once the Service/Ingress are up and the tailnet hostname resolves
-(`dubis-server.<tailnet>.ts.net` per `deploy/ingress.yaml`), from a machine on
+(`fremont.<tailnet>.ts.net` per `deploy/ingress.yaml`), from a machine on
 the tailnet:
 
 ```bash
-curl -sS -D - -o /dev/null https://dubis-server.<tailnet>.ts.net/v1/health
+curl -sS -D - -o /dev/null https://fremont.<tailnet>.ts.net/v1/health
 ```
 
 `/v1/health` is unauthenticated so this always returns 200 regardless of the
@@ -265,8 +415,8 @@ temporarily add a debug log line / use `kubectl logs` on the Pod while
 curling a real route:
 
 ```bash
-curl -sS -D - -o /dev/null https://dubis-server.<tailnet>.ts.net/v1/parts
-kubectl logs -n dubis deployment/dubis-server --tail=20
+curl -sS -D - -o /dev/null https://fremont.<tailnet>.ts.net/v1/parts
+kubectl logs -n dubis deployment/fremont --tail=20
 ```
 
 Cross-reference against the raw request the operator's sidecar forwards —
@@ -295,7 +445,7 @@ presence in its unauthorized response during this check).
     --from-literal=DUBIS_TRUST_TAILSCALE_HEADER=1 \
     --from-literal=DUBIS_TRUSTED_PROXY_IPS='10.42.2.176' \
     --dry-run=client -o yaml | kubectl apply -f -
-  kubectl rollout restart deployment/dubis-server -n dubis
+  kubectl rollout restart deployment/fremont -n dubis
   ```
   Fail-safe: if `DUBIS_TRUST_TAILSCALE_HEADER=1` is set but
   `DUBIS_TRUSTED_PROXY_IPS` is left empty, the header is ignored entirely
@@ -307,10 +457,10 @@ presence in its unauthorized response during this check).
 
   Because the proxy pod IP churns on restart, treat the IP allowlist as a
   belt, not the only belt: the robust complement is a **NetworkPolicy**
-  restricting ingress to the `dubis-server` pod to the `tailscale` namespace
+  restricting ingress to the `fremont` pod to the `tailscale` namespace
   (or wherever the operator's proxy pods live), so even a same-cluster pod
   that happens to spoof or reuse the current trusted IP still can't reach
-  `dubis-server` on the network layer at all. Add/verify that NetworkPolicy
+  `fremont` on the network layer at all. Add/verify that NetworkPolicy
   alongside this change rather than relying on the pod-IP allowlist alone.
 - **Header is ABSENT or unverifiable** → leave `DUBIS_TRUST_TAILSCALE_HEADER`
   at `0` (and `DUBIS_TRUSTED_PROXY_IPS` empty). Humans and headless clients
@@ -331,11 +481,11 @@ just configured), and `/v1/parts` with a token is 200.
 - **From an ARC pod (or any in-cluster pod)** — cluster DNS, no tailnet
   needed:
   ```bash
-  bash scripts/smoke-remote.sh http://dubis-server.dubis.svc:80 <ci-token>
+  bash scripts/smoke-remote.sh http://fremont.dubis.svc:80 <ci-token>
   ```
 - **From the tailnet** (proves the ingress + identity story end to end):
   ```bash
-  bash scripts/smoke-remote.sh https://dubis-server.<tailnet>.ts.net <ci-token>
+  bash scripts/smoke-remote.sh https://fremont.<tailnet>.ts.net <ci-token>
   ```
 
 Both must print `SMOKE PASS` and exit 0. If the no-token check doesn't come
@@ -362,7 +512,7 @@ servers are *sources* it fetches from).
 
 1. **For this session only** — env, nothing written to disk:
    ```bash
-   DUBIS_URL=https://dubis-server.<tailnet>.ts.net DUBIS_TOKEN=<a-token-from-DUBIS_TOKENS> python app.pyw
+   DUBIS_URL=https://fremont.<tailnet>.ts.net DUBIS_TOKEN=<a-token-from-DUBIS_TOKENS> python app.pyw
    ```
    `app_restart.py` strips both from a relaunch on purpose, so neither outlives
    the session it was given for.

@@ -190,3 +190,25 @@ def test_argocd_application_shape():
     assert doc["spec"]["source"]["path"] == "deploy"
     assert doc["spec"]["destination"]["namespace"] == "dubis"
     assert doc["spec"]["syncPolicy"]["automated"]["prune"] is False
+
+
+def test_rename_to_fremont_kept_the_stateful_names(manifests):
+    """The deployment is named fremont, but the PVC and the auth Secret keep
+    their pre-rename `dubis-server-*` names on purpose: a renamed PVC is a new,
+    empty volume (the inventory is orphaned), and a renamed Secret is a fresh
+    one whose tokens no client holds. See docs/deploy-runbook.md, "Cutover"."""
+    deployment = _by_kind(manifests, "Deployment")
+    assert deployment["metadata"]["name"] == "fremont"
+    pod = deployment["spec"]["template"]["spec"]
+    assert pod["containers"][0]["image"].startswith("ghcr.io/dubnubdubnub/fremont:")
+    claims = [v["persistentVolumeClaim"]["claimName"] for v in pod["volumes"]
+              if "persistentVolumeClaim" in v]
+    assert claims == ["dubis-server-data"]
+    pvc = _by_kind(manifests, "PersistentVolumeClaim")
+    assert pvc["metadata"]["name"] == "dubis-server-data"
+    assert _by_kind(manifests, "Service")["metadata"]["name"] == "fremont"
+    ingress = _by_kind(manifests, "Ingress")
+    assert ingress["metadata"]["annotations"]["tailscale.com/hostname"] == "fremont"
+    assert ingress["spec"]["tls"][0]["hosts"] == ["fremont"]
+    app = yaml.safe_load((DEPLOY_DIR / "argocd-application.yaml").read_text(encoding="utf-8"))
+    assert app["metadata"]["name"] == "fremont"

@@ -1,4 +1,4 @@
-# Build + push the dubis-server image to GHCR (Phase 1c).
+# Build + push the fremont image to GHCR (Phase 1c).
 #
 # Build-and-push ONLY. This workflow deliberately does NOT write the built sha
 # back into deploy/kustomization.yaml. The infra deploy standard
@@ -56,7 +56,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  IMAGE: ghcr.io/dubnubdubnub/dubis-server
+  IMAGE: ghcr.io/dubnubdubnub/fremont
 
 jobs:
   build-and-push:
@@ -85,7 +85,7 @@ jobs:
       - name: Report built image + pin instructions
         run: |
           {
-            echo "### dubis-server image built"
+            echo "### fremont image built"
             echo ""
             echo '```'
             echo "${IMAGE}:${GITHUB_SHA}"

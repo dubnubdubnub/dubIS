@@ -27,7 +27,7 @@ from server import token_store
 from server.app import create_app
 from tests.python.helpers import make_api, make_part, write_ledger
 
-SHOP = "https://dubis-server.example.ts.net"
+SHOP = "https://fremont.example.ts.net"
 SECRET = "sup3r-s3cret-t0ken"
 
 

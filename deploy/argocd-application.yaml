@@ -1,4 +1,4 @@
-# Argo CD Application for dubis-server. Applied by Isaac out-of-band per
+# Argo CD Application for fremont. Applied by Isaac out-of-band per
 # docs/deploy-runbook.md (not itself managed by this kustomization).
 #
 # project: dubis, not default. The `default` AppProject on this cluster is
@@ -21,7 +21,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: dubis-server
+  name: fremont
   namespace: argocd
 spec:
   project: dubis

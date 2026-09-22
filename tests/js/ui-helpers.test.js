@@ -47,7 +47,7 @@ describe('vendorIconFor', () => {
   it('prefers the data URI the backend inlines', () => {
     // The static data/ URL only resolves where the page's static root and the
     // data dir are the same directory — true on the desktop, false for
-    // dubis-server (/app vs /data), where a fetched favicon 404s.
+    // fremont (/app vs /data), where a fetched favicon 404s.
     expect(vendorIconFor({
       favicon_path: 'sources/favicons/abc.png',
       favicon_data_uri: 'data:image/png;base64,AAAA',

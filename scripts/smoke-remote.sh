@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Post-deploy smoke check for a running dubis-server instance.
+# Post-deploy smoke check for a running fremont instance.
 #
 # Usage: scripts/smoke-remote.sh <base_url> [token]
 #
 #   scripts/smoke-remote.sh http://localhost:8080
-#   scripts/smoke-remote.sh https://dubis-server.<tailnet>.ts.net testtoken123
+#   scripts/smoke-remote.sh https://fremont.<tailnet>.ts.net testtoken123
 #
 # ASSUMPTION: this script targets the remote-deploy scenario, where the
 # server always runs with DUBIS_AUTH_MODE=on (see server/auth.py). It does

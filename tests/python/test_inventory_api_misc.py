@@ -283,7 +283,7 @@ def test_list_vendors_reads_a_windows_authored_favicon_path(api, tmp_path):
     """vendors.json travels between the Windows desktop app and Linux.
 
     A vendor added on Windows stores `sources\\favicons\\<hash>.png`; the same
-    file is later read by dubis-server on Linux off the PVC. Joining those
+    file is later read by fremont on Linux off the PVC. Joining those
     backslashes onto a POSIX base_dir makes the file look missing, and the
     vendor renders with no icon at all rather than an error.
     """
