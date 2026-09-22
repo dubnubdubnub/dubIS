@@ -44,16 +44,26 @@
       exactly the zoom factor, and looks flawless at 100% where the two spaces
       coincide. Two defences here: the drop position is decided by
       `dropTarget()`, which is handed BOTH numbers already converted to authored
-      px (`toInnerPx(e.clientX)` and `innerRect(el)`), and nothing in this file
-      writes a px value anywhere — the browser draws the drag image, and the
-      drop indicator is a CSS class. `tests/js/zoom-geometry-guard.test.js`
-      enforces the first half across all of js/.
+      px (`toInnerPx(e.clientX)` and `innerRect(el)`), and the drag itself writes
+      no px at all — the browser draws the drag image, and the drop indicator is
+      a CSS class. The ONE place this file writes px is `positionMenu()`, and it
+      is in authored space end to end (`innerRect` for the anchor,
+      `zoomedViewport` for the clamp), exactly as js/text-popover.js does it — a
+      raw `getBoundingClientRect()` or `window.innerWidth` there would put the
+      menu a zoom factor away from the `+` it belongs to.
+      `tests/js/zoom-geometry-guard.test.js` enforces both halves across js/.
+
+   5. **The `+` menu lives on `document.body`, not in the strip.** The strip is
+      `overflow-x: auto; overflow-y: hidden`, so a dropdown parented inside it
+      would be clipped to the strip's own height — a menu you could see the top
+      1px of. That is also why it cannot borrow the CSS-only anchoring the saved
+      views menu uses, and why it is positioned instead.
 */
 
 import { apiSupports, AppLog } from './api.js';
 import { escHtml, showToast } from './ui-helpers.js';
 import { activeSourceSignal, effect } from './signals.js';
-import { innerRect, toInnerPx } from './ui-zoom.js';
+import { innerRect, toInnerPx, zoomedViewport } from './ui-zoom.js';
 import {
   switchToTab,
   openTab,
@@ -74,6 +84,7 @@ import {
   selectionAfterClick,
   allSourceIds,
   dropTarget,
+  newTabChoices,
 } from './server-tabs-logic.js';
 import invState from './inventory/inv-state.js';
 import { captureView, applyView } from './inventory/saved-views.js';
@@ -117,6 +128,10 @@ let selected = [];
 let anchor = '';
 /** During a drag: the id the dragged tab would land before, "" for last. */
 let dropBefore = '';
+
+/** Gap between the `+` and its menu, and the window margin the menu keeps. */
+const MENU_GAP_PX = 4;
+const MENU_EDGE_PX = 8;
 
 function stripEl() {
   return document.getElementById('server-tabs');
@@ -204,12 +219,155 @@ function render() {
     return;
   }
   host.innerHTML = models.map(tabHtml).join('')
-    + '<button type="button" class="server-tab-add" data-act="add"'
-    + ' aria-label="Open a new tab" title="Open another tab on this server">+</button>'
+    + '<button type="button" class="server-tab-add" data-act="add" aria-haspopup="menu"'
+    + ' aria-expanded="' + (menuOpen() ? 'true' : 'false') + '"'
+    + ' aria-label="Open a new tab" title="Open a new tab on a server">+</button>'
     + (selected.length > 1
       ? '<button type="button" class="server-tab-group" data-act="group">Group '
         + selected.length + '</button>'
       : '');
+}
+
+// ── The + menu ────────────────────────────────────────────
+// `+` asks WHICH server before opening a tab. It used to open a second view of
+// whatever was in front and nothing else, which meant the strip could not reach
+// a server that had no tab yet — the roster lived in Preferences, three clicks
+// away, for the one thing a tab strip exists to do.
+//
+// On document.body rather than inside the strip: the strip scrolls sideways
+// (`overflow-x: auto; overflow-y: hidden`), so a child dropdown would be clipped
+// to the strip's own height. That rules out the CSS-only anchoring
+// js/inventory/saved-views-ui.js gets to use, so this one is positioned — in
+// authored px, the js/text-popover.js way (see the header comment).
+
+/** @type {HTMLElement|null} */
+let menuEl = null;
+
+function menuOpen() {
+  return !!menuEl;
+}
+
+/** @param {import('./server-tabs-logic.js').TabChoice} choice */
+function choiceHtml(choice) {
+  return `
+    <button type="button" class="server-tab-menu-item${choice.current ? ' current' : ''}"
+            role="menuitem" data-choice="${escHtml(choice.key)}"
+            title="${escHtml(choice.title)}">
+      <span class="server-tab-dot ${escHtml(choice.dot.state)}"></span>
+      <span class="server-tab-menu-name">${escHtml(choice.label)}</span>
+      ${choice.current ? '<span class="server-tab-menu-hint">in front</span>' : ''}
+    </button>`;
+}
+
+/**
+ * Put the menu under the `+`, in authored px throughout.
+ *
+ * `innerRect` and `zoomedViewport` (js/ui-zoom.js), never a raw rect or
+ * `window.innerWidth`: under `html { zoom: z }` those report post-zoom px while
+ * the `style.left` written here is authored, and mixing the two puts the menu a
+ * zoom factor away from the button it is supposed to hang off — invisibly
+ * correct at 100%, wrong everywhere else.
+ * @param {HTMLElement} anchorEl
+ */
+function positionMenu(anchorEl) {
+  if (!menuEl) return;
+  const rect = innerRect(anchorEl);
+  const vp = zoomedViewport();
+  const w = menuEl.offsetWidth || 180;
+  const h = menuEl.offsetHeight || 120;
+  let left = rect.left;
+  let top = rect.bottom + MENU_GAP_PX;
+  if (left + w > vp.w - MENU_EDGE_PX) left = vp.w - w - MENU_EDGE_PX;
+  if (left < MENU_EDGE_PX) left = MENU_EDGE_PX;
+  // Above the button when there is no room below — the strip sits at the top of
+  // the window, so this is the rare case, but a menu hanging off the bottom of a
+  // short window is unusable rather than merely ugly.
+  if (top + h > vp.h - MENU_EDGE_PX) top = Math.max(MENU_EDGE_PX, rect.top - h - MENU_GAP_PX);
+  menuEl.style.left = left + 'px';
+  menuEl.style.top = top + 'px';
+}
+
+/** @param {HTMLElement} anchorEl the `+` button */
+function openMenu(anchorEl) {
+  closeMenu();
+  const { sources } = activeSourceSignal.peek();
+  const choices = newTabChoices(sources, getActiveTab());
+  // One choice is not a choice: opening the menu would ask a question with a
+  // single answer. Open the tab and be done.
+  if (choices.length <= 1) {
+    openNewTab(choices.length ? choices[0].sources : undefined);
+    return;
+  }
+  menuEl = document.createElement('div');
+  menuEl.className = 'server-tab-menu';
+  menuEl.setAttribute('role', 'menu');
+  menuEl.setAttribute('aria-label', 'Open a new tab on');
+  menuEl.innerHTML = '<div class="server-tab-menu-head">New tab on</div>'
+    + choices.map(choiceHtml).join('');
+  menuEl.addEventListener('click', onMenuClick);
+  document.body.appendChild(menuEl);
+  positionMenu(anchorEl);
+  anchorEl.setAttribute('aria-expanded', 'true');
+  const first = /** @type {HTMLElement|null} */ (menuEl.querySelector('.server-tab-menu-item'));
+  if (first) first.focus();
+}
+
+function closeMenu() {
+  if (menuEl) menuEl.remove();
+  menuEl = null;
+  const host = stripEl();
+  const add = host && host.querySelector('.server-tab-add');
+  if (add) add.setAttribute('aria-expanded', 'false');
+}
+
+/**
+ * Open a tab and put the tab's own (empty) view on screen.
+ * @param {string[]} [sources] omitted = another view of the tab in front
+ */
+function openNewTab(sources) {
+  const restore = carryView();
+  return openTab(sources).then((r) => {
+    if (!r.ok) { showToast(r.reason); return; }
+    restore();
+  });
+}
+
+/** @param {MouseEvent} e */
+function onMenuClick(e) {
+  const item = /** @type {HTMLElement|null} */ (
+    /** @type {HTMLElement} */ (e.target).closest('[data-choice]')
+  );
+  if (!item || !menuEl) return;
+  const key = item.dataset.choice || '';
+  const choice = newTabChoices(activeSourceSignal.peek().sources, getActiveTab())
+    .find((c) => c.key === key);
+  closeMenu();
+  if (!choice) { showToast('That server is no longer in the list'); return; }
+  openNewTab(choice.sources);
+}
+
+/** Arrow-key roving plus the two ways out. @param {KeyboardEvent} e */
+function onMenuKeydown(e) {
+  if (!menuEl) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    const host = stripEl();
+    const add = /** @type {HTMLElement|null} */ (host && host.querySelector('.server-tab-add'));
+    closeMenu();
+    if (add) add.focus();
+    return;
+  }
+  const items = [...menuEl.querySelectorAll('.server-tab-menu-item')];
+  if (!items.length) return;
+  const at = items.indexOf(/** @type {Element} */ (document.activeElement));
+  let next = -1;
+  if (e.key === 'ArrowDown') next = (at + 1) % items.length;
+  else if (e.key === 'ArrowUp') next = (at - 1 + items.length) % items.length;
+  else if (e.key === 'Home') next = 0;
+  else if (e.key === 'End') next = items.length - 1;
+  if (next === -1) return;
+  e.preventDefault();
+  /** @type {HTMLElement} */ (items[next]).focus();
 }
 
 // ── Clicking ──────────────────────────────────────────────
@@ -219,18 +377,20 @@ function onClick(e) {
   const target = /** @type {HTMLElement} */ (e.target);
   const action = /** @type {HTMLElement | null} */ (target.closest('[data-act]'));
   const tabEl = /** @type {HTMLElement | null} */ (target.closest('[data-tab-id]'));
+  // Any gesture other than the `+` itself dismisses its menu, including a
+  // switch — a menu left hanging over a strip that has moved underneath it is
+  // offering choices about a state that is gone.
+  if (!action || action.dataset.act !== 'add') closeMenu();
 
   if (action && action.dataset.act === 'add') {
-    // No argument: the new tab shows whatever the active one shows. That is the
-    // gesture "another view of this", which is what a browser's + does for the
-    // current window and what makes per-tab view state worth having. Its VIEW,
-    // though, starts clean — inheriting the filters would make + a duplicate
-    // button, when the reason to open one server twice is to see it two ways.
-    const restore = carryView();
-    openTab().then((r) => {
-      if (!r.ok) { showToast(r.reason); return; }
-      restore();
-    });
+    // A menu, not an immediate open: `+` asks which server first. Picking the
+    // one already in front is still "another view of this" — the gesture the
+    // button used to be, now one of the answers rather than the only one. Either
+    // way the new tab's VIEW starts clean; inheriting the filters would make
+    // `+` a duplicate button, when the reason to open one server twice is to see
+    // it two ways.
+    if (menuOpen()) closeMenu();
+    else openMenu(/** @type {HTMLElement} */ (action));
     return;
   }
   if (action && action.dataset.act === 'group') {
@@ -430,6 +590,24 @@ export function initServerTabs() {
     const related = /** @type {Node | null} */ (/** @type {DragEvent} */ (e).relatedTarget);
     if (!related || !host.contains(related)) clearDragMarks();
   });
+
+  // The `+` menu is on document.body, so its listeners are too. Capture on the
+  // outside click, or a handler that stops propagation somewhere in the page
+  // would leave the menu open over content it no longer describes.
+  document.addEventListener('mousedown', (e) => {
+    if (!menuEl) return;
+    const t = /** @type {Node} */ (e.target);
+    if (menuEl.contains(t) || host.contains(t)) return;
+    closeMenu();
+  }, true);
+  document.addEventListener('keydown', onMenuKeydown);
+  // The strip scrolls sideways and the window resizes; either moves the `+` out
+  // from under a menu positioned against it. Re-anchoring on every scroll frame
+  // would be the other answer, and a menu that follows a strip the user is
+  // scrolling is not what they are asking for.
+  host.addEventListener('scroll', closeMenu, { passive: true });
+  window.addEventListener('resize', closeMenu);
+
   effect(render);
 }
 

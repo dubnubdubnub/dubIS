@@ -83,6 +83,9 @@ describe('root-zoom geometry seam', () => {
       'js/group-flyout/flyout-panel.js',
       'js/group-flyout/flyout-events.js',
       'js/resize-panels.js',
+      // The `+` menu: on document.body (the strip would clip it), so it is
+      // positioned rather than CSS-anchored.
+      'js/server-tabs.js',
     ];
     for (const path of POSITIONERS) {
       const f = FILES.find(x => x.path === path);

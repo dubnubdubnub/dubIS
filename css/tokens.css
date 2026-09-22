@@ -199,6 +199,13 @@
   --server-tabs-close-w:     14px;  /* the per-tab close affordance */
   --server-tabs-add-w:       22px;  /* the + button that opens a tab */
   --server-tabs-drop-w:       2px;  /* the insertion marker shown while dragging */
+  /* The `+` menu: which server a new tab opens on. On document.body, not in the
+     strip — the strip scrolls sideways and would clip a child dropdown. */
+  --server-tabs-menu-min-w: 180px;  /* narrow enough not to cover the strip */
+  --server-tabs-menu-max-w: 320px;  /* a long server name ellipsises instead */
+  --server-tabs-menu-pad-y:   4px;  /* above the first row and below the last */
+  --server-tabs-menu-item-pad-y: 5px;
+  --server-tabs-menu-item-pad-x: 10px;
 
   /* ── Merged-view provenance (css/components/inv-source.css) ─────────────────
      The source badge in an inventory row's Group cell, the per-source breakdown
