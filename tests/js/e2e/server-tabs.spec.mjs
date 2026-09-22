@@ -47,6 +47,26 @@ const SHOP = 'https://shop.example';
 /** Every `X-Dubis-Source` this page has sent, oldest first. */
 let sent = [];
 
+/** The `X-Dubis-Source` of every inventory fetch (`GET /v1/parts`), oldest first. */
+let gridFetches = [];
+
+/**
+ * Wait until the debounced inventory refresh has gone quiet.
+ *
+ * The header is read when a request goes OUT, not when it was scheduled, so a
+ * refresh still sitting in js/store.js's 250ms debounce when the next gesture
+ * lands is indistinguishable — after the fact — from a refresh that gesture
+ * caused. Draining first is what makes "did closing this tab refetch" a
+ * question about the close.
+ */
+async function quietGrid(page) {
+  let seen = -1;
+  while (seen !== gridFetches.length) {
+    seen = gridFetches.length;
+    await page.waitForTimeout(400);
+  }
+}
+
 /** @param {import('@playwright/test').Page} page */
 async function openPrefs(page) {
   await page.keyboard.press('Control+,');
@@ -75,6 +95,22 @@ async function openTabsFor(page, servers) {
   await page.keyboard.press('Escape');
 }
 
+/** The roster id the `X-Dubis-Source` header carries for a named server. */
+async function sourceIdFor(page, name) {
+  return page.evaluate((n) => {
+    const entry = (window.store.preferences.servers || []).find((s) => s.name === n);
+    return entry ? entry.id : '';
+  }, name);
+}
+
+/** Open the `+` menu and pick a server by name. */
+async function addTabOn(page, label) {
+  await page.locator('.server-tab-add').click();
+  await page.locator('.server-tab-menu-item', {
+    has: page.locator(`.server-tab-menu-name:text-is("${label}")`),
+  }).click();
+}
+
 const tabs = (page) => page.locator('.server-tab');
 function tab(page, label) {
   return page.locator('.server-tab', { has: page.locator(`.server-tab-name:text-is("${label}")`) });
@@ -86,9 +122,12 @@ const loadId = (page) => page.evaluate(() => window.__loadId);
 
 test.beforeEach(async ({ page }) => {
   sent = [];
+  gridFetches = [];
   page.on('request', (r) => {
     const h = r.headers()['x-dubis-source'];
-    if (r.url().includes('/v1/') && h !== undefined) sent.push(h);
+    if (!r.url().includes('/v1/') || h === undefined) return;
+    sent.push(h);
+    if (r.method() === 'GET' && /\/v1\/parts(\?|$)/.test(r.url())) gridFetches.push(h);
   });
   await installRouteMocks(page, MOCK_INVENTORY);
   await addPersistentPrefsRouteMock(page);
@@ -128,13 +167,29 @@ test('every /v1 request names this window’s own source', async ({ page }) => {
 
 // ── Opening tabs ──────────────────────────────────────────
 
-test('+ opens another tab on the same server, so one server can be open twice', async ({ page }) => {
+test('+ asks which server, and every server is on the menu', async ({ page }) => {
+  // The bug this pins: `+` used to open a second view of whatever was in front
+  // and offer nothing else, so the strip could not reach a server that had no
+  // tab yet — the roster was three clicks away in Preferences.
   await openTabsFor(page, [['Bench', BENCH]]);
   await tab(page, 'Bench').click();
   await expect(tabs(page)).toHaveCount(2);
 
-  const before = await loadId(page);
   await page.locator('.server-tab-add').click();
+  const menu = page.locator('.server-tab-menu');
+  await expect(menu).toBeVisible();
+  await expect(menu.locator('.server-tab-menu-name')).toHaveText(['Local', 'Bench', 'All']);
+  // The server in front is marked, not withheld.
+  await expect(menu.locator('.server-tab-menu-item.current .server-tab-menu-name'))
+    .toHaveText('Bench');
+});
+
+test('+ opens another tab on the same server, so one server can be open twice', async ({ page }) => {
+  await openTabsFor(page, [['Bench', BENCH]]);
+  await tab(page, 'Bench').click();
+
+  const before = await loadId(page);
+  await addTabOn(page, 'Bench');
   await expect(tabs(page)).toHaveCount(3);
   // Two tabs, same label, same server — which is exactly the point: a tab id is
   // not a source id.
@@ -142,6 +197,46 @@ test('+ opens another tab on the same server, so one server can be open twice', 
   expect(await loadId(page)).toBe(before);
   // The new one opens next to the tab it came from and takes the front.
   await expect(tabs(page).nth(2)).toHaveClass(/selected/);
+});
+
+test('+ opens a tab on a server that had none, and the grid follows', async ({ page }) => {
+  await openTabsFor(page, [['Bench', BENCH]]);
+  await tab(page, 'Local').click();
+  await expect(tabs(page)).toHaveCount(2);
+
+  const before = sent.length;
+  await addTabOn(page, 'Bench');
+  await expect(tabs(page)).toHaveCount(3);
+  await expect(tabs(page).nth(1)).toHaveClass(/selected/);
+  // Not just highlighted: the next request is served from the new source.
+  await expect.poll(() => sent.length).toBeGreaterThan(before);
+  expect(sent[sent.length - 1]).toBe(await sourceIdFor(page, 'Bench'));
+});
+
+test('+ can open a merged view of everything', async ({ page }) => {
+  await openTabsFor(page, [['Bench', BENCH]]);
+  await tab(page, 'Local').click();
+  await addTabOn(page, 'All');
+  await expect(labels(page)).toHaveText(['Local', 'All', 'Bench']);
+  await expect(tab(page, 'All')).toHaveClass(/selected/);
+  await expect.poll(() => sent[sent.length - 1]).toBe('merged');
+});
+
+test('the + menu closes on Escape and on a click elsewhere', async ({ page }) => {
+  await openTabsFor(page, [['Bench', BENCH]]);
+  const menu = page.locator('.server-tab-menu');
+
+  await page.locator('.server-tab-add').click();
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+
+  await page.locator('.server-tab-add').click();
+  await expect(menu).toBeVisible();
+  await page.locator('#inv-search').click();
+  await expect(menu).toBeHidden();
+  // And nothing was opened by any of that.
+  await expect(tabs(page)).toHaveCount(2);
 });
 
 test('each tab keeps its own search, filter and sort state', async ({ page }) => {
@@ -152,7 +247,7 @@ test('each tab keeps its own search, filter and sort state', async ({ page }) =>
 
   const search = page.locator('#inv-search');
   await search.fill('capacitor');
-  await page.locator('.server-tab-add').click();      // second Bench tab, clean view
+  await addTabOn(page, 'Bench');                      // second Bench tab, clean view
   await expect(search).toHaveValue('');
 
   await search.fill('resistor');
@@ -288,6 +383,24 @@ test('a tab closes, and the last one cannot', async ({ page }) => {
   await expect(page.locator('.server-tab-close')).toHaveCount(0);
 });
 
+test('closing the front tab refetches the grid from the tab that takes over', async ({ page }) => {
+  /* The bug this pins. Closing publishes the surviving tab set — which records
+     the new source as the saved default — and only THEN switches, so the
+     switch's own "did the default change" answer was already "no" and nothing
+     refetched. The strip moved, the highlight moved, and the rows stayed the
+     closed tab's. Asserting the header on the LAST request is not enough to see
+     it: `PUT /v1/sources/active` carries the new header too. Only a GET
+     /v1/parts proves the grid went and got the new server's rows. */
+  await openTabsFor(page, [['Bench', BENCH]]);
+  await tab(page, 'Bench').click();
+  await quietGrid(page);
+  const before = gridFetches.length;
+
+  await tab(page, 'Bench').locator('.server-tab-close').click();
+  await expect(tab(page, 'Local')).toHaveClass(/selected/);
+  await expect.poll(() => gridFetches.slice(before)).toEqual(['local']);
+});
+
 test('closing a background tab leaves the front one alone', async ({ page }) => {
   await openTabsFor(page, [['Bench', BENCH], ['Shop', SHOP]]);
   await tab(page, 'Shop').click();
@@ -338,7 +451,7 @@ test('many tabs scroll sideways instead of wrapping into more rows', async ({ pa
   // in its own row exists to avoid, one element further down the page.
   await openTabsFor(page, [['Bench', BENCH]]);
   await tab(page, 'Bench').click();
-  for (let i = 0; i < 10; i++) await page.locator('.server-tab-add').click();
+  for (let i = 0; i < 10; i++) await addTabOn(page, 'Bench');
   await expect(tabs(page)).toHaveCount(12);
 
   const strip = page.locator('#server-tabs');
