@@ -24,6 +24,13 @@ _SRC_EXTS = (".py", ".pyw", ".js", ".mjs", ".ts", ".css", ".html", ".json",
 _SKIP_PREFIXES = ("data/", "events/", "memory/", "~", "claude/", "/v1", ".superpowers/")
 _SKIP_EXACT = {
     ".mcp.json",  # gitignored local MCP config; documented but not checked in
+    # Hypothesis' example database. Gitignored and created by the first pytest
+    # run, so on a clean checkout it does not exist — and CLAUDE.md documents it
+    # precisely BECAUSE it is local-only and therefore not a regression test.
+    # Without this entry the guard fails on unmodified main whenever pytest has
+    # not run yet, which makes `bash scripts/verify.sh` — the one command the
+    # repo asks for before every PR — red by default.
+    ".hypothesis/",
 }
 
 
