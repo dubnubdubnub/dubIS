@@ -1,0 +1,26 @@
+{
+  "_comment": "The ssh:// source URL grammar, pinned for BOTH implementations: server/ssh_tunnel.py (tests/python/server/test_ssh_tunnel.py) and js/servers-logic.js (tests/js/servers-logic-ssh.test.js). A valid case gives the canonical URL and the -L remote; an invalid one gives a substring of the reason.",
+  "valid": [
+    {"url": "ssh://isaac@infra.uwrealitylabs.com/run/dubis/dubis.sock", "canonical": "ssh://isaac@infra.uwrealitylabs.com/run/dubis/dubis.sock", "host": "infra.uwrealitylabs.com", "user": "isaac", "port": null, "remote": "/run/dubis/dubis.sock", "kind": "socket"},
+    {"url": "ssh://isaac@infra.uwrealitylabs.com/127.0.0.1:7891", "canonical": "ssh://isaac@infra.uwrealitylabs.com/127.0.0.1:7891", "host": "infra.uwrealitylabs.com", "user": "isaac", "port": null, "remote": "127.0.0.1:7891", "kind": "tcp"},
+    {"url": "  SSH://box:2222/localhost:7891/ ", "canonical": "ssh://box:2222/localhost:7891", "host": "box", "user": "", "port": 2222, "remote": "localhost:7891", "kind": "tcp"},
+    {"url": "ssh://me@box/[::1]:7891", "canonical": "ssh://me@box/[::1]:7891", "host": "box", "user": "me", "port": null, "remote": "[::1]:7891", "kind": "tcp"},
+    {"url": "ssh://me@[fe80::1]:22/tmp/d.sock", "canonical": "ssh://me@[fe80::1]:22/tmp/d.sock", "host": "fe80::1", "user": "me", "port": 22, "remote": "/tmp/d.sock", "kind": "socket"},
+    {"url": "ssh://first.last@10.0.0.5/srv/dubis.sock", "canonical": "ssh://first.last@10.0.0.5/srv/dubis.sock", "host": "10.0.0.5", "user": "first.last", "port": null, "remote": "/srv/dubis.sock", "kind": "socket"}
+  ],
+  "invalid": [
+    {"url": "ssh://box", "reason": "remote target"},
+    {"url": "ssh://box/", "reason": "remote target"},
+    {"url": "ssh://me:secret@box/127.0.0.1:7891", "reason": "password"},
+    {"url": "ssh://-oProxyCommand=x/127.0.0.1:7891", "reason": "host"},
+    {"url": "ssh://-me@box/127.0.0.1:7891", "reason": "user"},
+    {"url": "ssh://box:99999/127.0.0.1:7891", "reason": "between 1 and 65535"},
+    {"url": "ssh://box:ab/127.0.0.1:7891", "reason": "number"},
+    {"url": "ssh://box/127.0.0.1:", "reason": "port"},
+    {"url": "ssh://box/run/a:b.sock", "reason": "':'"},
+    {"url": "ssh://box/run/my socket", "reason": "socket path"},
+    {"url": "ssh://box/127.0.0.1:7891?x=1", "reason": "query"},
+    {"url": "ssh:///127.0.0.1:7891", "reason": "host"},
+    {"url": "ssh://box/::1:7891", "reason": "brackets"}
+  ]
+}

@@ -77,8 +77,15 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
     # transport by replacing this attribute before the first request.
     from server.dispatch import SourceDispatchMiddleware
     from server.sources import SourceClients
+    from server.ssh_tunnel import TunnelManager
 
-    app.state.source_clients = SourceClients()
+    # The tunnel supervisor records the ssh processes it owns in the data dir,
+    # so the next hub start can reap any a hard-killed hub left behind
+    # (server/ssh_tunnel.py, "Reaped"). Built lazily by SourceClients when the
+    # api has no data dir (test doubles).
+    prefs_json = getattr(api, "prefs_json", "")
+    tunnels = TunnelManager(state_dir=os.path.dirname(prefs_json)) if prefs_json else None
+    app.state.source_clients = SourceClients(tunnels=tunnels)
     # Added BEFORE AuthMiddleware on purpose: Starlette builds its stack so the
     # LAST-added middleware is outermost, so auth still runs first and still
     # gates every request, including the ones this one proxies.

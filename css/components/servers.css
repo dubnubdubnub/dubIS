@@ -62,10 +62,12 @@
 .server-dot.foreign { background: var(--color-yellow); }
 
 /* States the page cannot check from where it is: the Local row while we are
-   remote, and an http:// target on an https page. Hollow, not red — a red dot
+   remote, an http:// target on an https page, and an ssh:// server the hub has
+   not answered for yet. Hollow, not red — a red dot
    would assert "down" about a server that may be perfectly fine. */
 .server-dot.blocked,
-.server-dot.dormant {
+.server-dot.dormant,
+.server-dot.unknown {
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--text-muted);
 }

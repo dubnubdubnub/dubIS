@@ -73,7 +73,22 @@ describe('normalizeSources', () => {
       // Carried through from the payload in the hub's own spelling. Absent here,
       // so they take the same "nobody has told us" defaults `reachable` takes.
       has_token: false, auth: 'unknown',
+      // Not an ssh:// source, so the hub reports no tunnel behind it.
+      tunnel: null,
     }]);
+  });
+
+  it('carries an ssh:// source\'s tunnel status through', () => {
+    const { sources } = normalizeSources({
+      sources: [{
+        id: 'box', url: 'ssh://me@box/run/dubis/dubis.sock', reachable: false,
+        detail: 'ssh key authentication to box was refused',
+        tunnel: { state: 'failed', kind: 'auth', error: 'refused', local_url: '', restarts: 0 },
+      }],
+    });
+    expect(sources[0].url).toBe('ssh://me@box/run/dubis/dubis.sock');
+    expect(sources[0].name).toBe('box');
+    expect(sources[0].tunnel).toEqual({ state: 'failed', kind: 'auth', error: 'refused' });
   });
 
   it('accepts a bare array, so a caller can pass a roster it already has', () => {
@@ -159,7 +174,7 @@ describe('sourcesFromRoster / allSourceIds / tabMembers', () => {
       // Same reasoning, one field over: the preferences roster is a list of URLs
       // somebody typed. It records no credential (deliberately — see
       // js/servers-logic.js) and no auth outcome, so both read as "not known".
-      has_token: false, auth: 'unknown',
+      has_token: false, auth: 'unknown', tunnel: null,
     }]);
   });
 
