@@ -745,12 +745,22 @@ class TunnelManager:
 
 
 def _command_of(pid: int) -> str:
-    """The command line of *pid*, or "" if unknowable (Windows, gone)."""
+    """The command line of *pid*, or "" if unknowable (Windows, gone).
+
+    `/proc` where there is one; otherwise `ps -ww` — the `ww` matters, since
+    procps truncates to 80 columns when stdout is not a terminal, which cuts
+    off exactly the `-L` spec the match depends on.
+    """
     if os.name != "posix":
         return ""
     try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            return f.read().replace(b"\0", b" ").decode("utf-8", "replace").strip()
+    except OSError:
+        pass
+    try:
         out = subprocess.run(  # noqa: S603
-            ["ps", "-o", "command=", "-p", str(pid)],
+            ["ps", "-ww", "-o", "command=", "-p", str(pid)],
             capture_output=True, text=True, timeout=2.0, check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
