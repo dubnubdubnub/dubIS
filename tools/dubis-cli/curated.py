@@ -12,6 +12,11 @@ Two of the original ten are absent because the generated table already covers
 them exactly: `adjust_stock` is `dubis parts adjust` (with the same precheck,
 via _PRECHECKS) and `consume_bom` is `dubis bom consume`.
 
+`jlc` is the one command here that was never an MCP tool: it is a composition
+over two unrelated JLCPCB routes ("which accounts are paired" and "that
+account's library"), and it projects the inventory-shaped library records down
+to the five fields a library listing is about.
+
 Behaviour change from the MCP versions: a part_key that matches nothing raises
 PartNotFoundError (exit 3) instead of returning the string "Part not found:
 <key>" as a successful result. A tool result is read by a model that can
@@ -186,6 +191,54 @@ def _generic_groups(client: V1Client, args) -> dict:
     return {"groups": result}
 
 
+def _jlc(client: V1Client, args) -> dict:
+    """`dubis jlc library [ACCOUNT]` — the JLCPCB private parts library.
+
+    A composition, not a route alias, for the same reason `get` is: with no
+    account named this answers the *roster* (GET .../sessions) rather than
+    guessing which warehouse to fetch, and with one named it projects the
+    inventory-shaped records down to the five fields a library listing is
+    about. /v1 exposes those as two unrelated routes; "show me my JLC parts"
+    is one question.
+
+    No response here can carry a credential: `sessions` returns account, label
+    and two timestamps by construction (threat-model rule 4), and `library`
+    returns parts.
+    """
+    account = (args.account or "").strip()
+    if not account:
+        status = client.get("/v1/distributors/jlcpcb/sessions")
+        accounts = status.get("accounts", []) if isinstance(status, dict) else []
+        return {
+            "accounts": accounts,
+            "count": len(accounts),
+            # Named rather than implied even when exactly one account is
+            # paired: a library read is a live JLC round trip, and `jlc
+            # library` with no argument is how someone asks what is paired.
+            "hint": "name an account to print its library: dubis jlc library <account>",
+        }
+
+    library = client.get("/v1/distributors/jlcpcb/library", account=account)
+    records = library.get("records", []) if isinstance(library, dict) else []
+    if args.limit is not None:
+        records = records[: args.limit]
+    return {
+        "account": library.get("account", account),
+        "total": library.get("total", len(records)),
+        "returned": len(records),
+        "parts": [
+            {
+                "lcsc": r.get("lcsc", ""),
+                "mpn": r.get("mpn", ""),
+                "qty": r.get("qty", 0),
+                "package": r.get("package", ""),
+                "description": r.get("description", ""),
+            }
+            for r in records
+        ],
+    }
+
+
 # ── argparse wiring ──────────────────────────────────────────────────────────
 
 
@@ -218,6 +271,22 @@ def _args_history(parser):
 
 def _args_generic_groups(parser):
     parser.add_argument("--part-type", dest="part_type", default="")
+
+
+def _args_jlc(parser):
+    """`jlc` is the only curated command with a verb of its own.
+
+    The sub-noun is spelled as a positional with `choices` rather than a nested
+    subparser so the one dispatch rule in dubis.py (`CURATED[args.resource]`)
+    keeps holding; a bad verb is still argparse's own exit 2, naming what is
+    valid.
+    """
+    parser.add_argument("what", choices=["library"],
+                        help="library: the private parts library (paired accounts if none named)")
+    parser.add_argument("account", nargs="?", default="",
+                        help="JLC account number; omit to list the paired accounts")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="print at most this many parts (default: all of them)")
 
 
 CURATED: dict[str, dict[str, Any]] = {
@@ -260,6 +329,11 @@ CURATED: dict[str, dict[str, Any]] = {
         "help": "generic-part groups with member counts and best member",
         "add_args": _args_generic_groups,
         "run": _generic_groups,
+    },
+    "jlc": {
+        "help": "JLCPCB: paired accounts, or one account's private parts library",
+        "add_args": _args_jlc,
+        "run": _jlc,
     },
 }
 

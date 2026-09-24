@@ -1,0 +1,58 @@
+{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "total": 2,
+    "pages": 1,
+    "pageNum": 1,
+    "pageSize": 100,
+    "list": [
+      {
+        "lcscComponentId": 1525,
+        "minImage": "https://assets.lcsc.com/images/c1525.jpg",
+        "minImageAccessId": "a1",
+        "description": "50V 100nF X7R ±10% 0402 Multilayer Ceramic Capacitors MLCC - SMD/SMT ROHS",
+        "customerCode": "12625901A",
+        "componentCode": "C1525",
+        "componentModel": "CL05B104KO5NNNC",
+        "privateStockCount": 4820,
+        "overseasStockCount": 0,
+        "postStockCount": 0,
+        "idleStockCount": 0,
+        "customerPresaleStockKeyId": "k1",
+        "componentType": "Capacitors",
+        "componentSpecification": "0402",
+        "componentBrand": "Samsung Electro-Mechanics",
+        "componentStatus": "Normal",
+        "buyPrivateFlag": true,
+        "stockStatus": 1,
+        "urlSuffix": "C1525",
+        "rohsFlag": 1,
+        "overseasComponentCatalogBizKey": "b1"
+      },
+      {
+        "lcscComponentId": 25804,
+        "minImage": null,
+        "minImageAccessId": null,
+        "description": "10kΩ ±1% 1/16W 0402 Chip Resistor - Surface Mount ROHS",
+        "customerCode": "12625901A",
+        "componentCode": "C25804",
+        "componentModel": "0402WGF1002TCE",
+        "privateStockCount": 9750,
+        "overseasStockCount": 0,
+        "postStockCount": 0,
+        "idleStockCount": 0,
+        "customerPresaleStockKeyId": "k2",
+        "componentType": "Resistors",
+        "componentSpecification": "0402",
+        "componentBrand": "UNI-ROYAL(Uniroyal Elec)",
+        "componentStatus": "Normal",
+        "buyPrivateFlag": true,
+        "stockStatus": 1,
+        "urlSuffix": "C25804",
+        "rohsFlag": 1,
+        "overseasComponentCatalogBizKey": "b2"
+      }
+    ]
+  }
+}

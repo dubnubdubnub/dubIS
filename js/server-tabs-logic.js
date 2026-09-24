@@ -102,6 +102,13 @@ const LABEL_NAME_LIMIT = 2;
  *            closable: boolean, dot: DotClaim}} TabView
  */
 
+/**
+ * One row of the `+` menu: a server (or the whole set) a new tab could be
+ * opened on.
+ * @typedef {{key: string, sources: string[], label: string, title: string,
+ *            dot: DotClaim, current: boolean}} TabChoice
+ */
+
 // ══ Sources ════════════════════════════════════════════════════════════════
 
 /**
@@ -815,6 +822,58 @@ export function renderTabs(tabs, sources, activeTabId, selected) {
     closable: list.length > 1,
     dot: tabDot(tab, sources, tab.id === active),
   }));
+}
+
+/**
+ * What `+` may open a tab on: every source, then the whole set as one group.
+ *
+ * `+` used to take no argument at all — it opened another view of whatever the
+ * active tab showed. That is a useful gesture and it is still the top of this
+ * list, but it was the ONLY one, so the strip could not open a tab on a server
+ * that had no tab: the roster was reachable only through Preferences, three
+ * clicks away, for the single most common thing a tab strip is for.
+ *
+ * Every row opens a NEW tab, including one naming the server already in front —
+ * that is the whole point of a tab id not being a source id, and it is why a row
+ * is never disabled. `current` marks which row is the active tab's own source so
+ * the menu can say so; it does not take the row away.
+ *
+ * The dots deliberately claim reachability, never `active`: this menu is a list
+ * of places to go, and painting one of them green-because-you-are-there would
+ * use the strip's "reading from this now" vocabulary for a row that is not a tab.
+ *
+ * @param {Array<Source>} sources
+ * @param {Tab} [activeTab] the tab in front, for the `current` mark
+ * @returns {Array<TabChoice>}
+ */
+export function newTabChoices(sources, activeTab) {
+  const ids = allSourceIds(sources);
+  const active = new Set((activeTab && activeTab.sources) || []);
+  /** @type {Array<TabChoice>} */
+  const out = ids.map((id) => {
+    const tab = { id: '', sources: [id], name: '', view: null };
+    const member = tabMembers(tab, sources)[0];
+    return {
+      key: id,
+      sources: [id],
+      label: tabLabel(tab, sources),
+      title: tabTitle(tab, sources),
+      dot: sourceDot(member, false),
+      current: active.size === 1 && active.has(id),
+    };
+  });
+  if (ids.length > 1) {
+    const all = { id: '', sources: ids.slice(), name: '', view: null };
+    out.push({
+      key: MERGED_ID,
+      sources: ids.slice(),
+      label: ALL_LABEL,
+      title: tabTitle(all, sources),
+      dot: mergedDot(tabMembers(all, sources), false),
+      current: coversAll(activeTab, ids),
+    });
+  }
+  return out;
 }
 
 /**

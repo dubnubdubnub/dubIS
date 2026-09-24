@@ -100,8 +100,22 @@
    becomes unreachable. Bites whenever the content exceeds 80% of the window —
    a short window, or a high zoom level, which shrinks the authored viewport. */
 .prefs-modal-wide { min-width: 420px; max-width: 520px; max-height: calc(80 * var(--vh)); display: flex; flex-direction: column; overflow-y: auto; }
+/* flex-shrink:0 is load-bearing, not tidying. This box is the ONLY child of the
+   flex column above that sets `overflow-y: auto`, and a scrollable flex item's
+   automatic minimum size is 0 instead of its content height. Every sibling
+   (Digikey/Mouser/Mirror/servers/keyboard/actions) overflows `visible`, so its
+   min-height stays at its content size and it cannot give any ground — which
+   means the whole deficit against the modal's max-height cap is taken out of
+   this one box, and it collapses to 0px. All 33 slider rows stay in the DOM
+   with the right widths, so the symptom is a section heading with nothing
+   under it and not one error anywhere, and any test that only measures a
+   row's left/right edges still passes. The modal is the scroll container for
+   whatever exceeds the cap (see its own overflow-y above), so this box must
+   not be shrunk at all. Guarded by the zero-height assertions in
+   tests/js/e2e/resize-visibility.spec.mjs. */
 .prefs-sliders {
   overflow-y: auto;
+  flex-shrink: 0;
   max-height: calc(50 * var(--vh));
   margin-bottom: var(--space-md);
   padding-right: var(--space-xs);

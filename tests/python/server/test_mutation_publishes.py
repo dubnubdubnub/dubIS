@@ -54,6 +54,13 @@ EXEMPT = {
     "sync_digikey_cookies": "distributor credentials",
     "set_mouser_api_key": "distributor credentials",
     "clear_mouser_api_key": "distributor credentials",
+    # Same class: pairing/holding/revoking a JLC login changes no inventory
+    # row. Phase 1 deliberately stops short of merging the JLC warehouse into
+    # inventory (docs/plans/2026-09-20-extension-credential-capture.md); when
+    # phase 3 does, THAT write publishes — not these.
+    "create_jlc_pairing": "mints a pairing nonce; touches no stored data at all",
+    "receive_jlc_session": "distributor credentials",
+    "revoke_jlc_session": "distributor credentials",
     # Downloads an image to disk; doesn't change inventory rows.
     "fetch_favicon": "fetches a favicon file, no inventory change",
     # Feeder-loading-station state (tag↔feeder↔reel bindings); doesn't change

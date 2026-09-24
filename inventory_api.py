@@ -406,6 +406,23 @@ class InventoryApi:
     def clear_mouser_api_key(self) -> dict[str, bool]:
         return self._dist.clear_mouser_api_key()
 
+    def create_jlc_pairing(self) -> dict[str, Any]:
+        return self._dist.create_jlc_pairing()
+
+    def receive_jlc_session(
+        self, nonce: str, account: str = "", cookies: Any = None, label: str = "",
+    ) -> dict[str, Any]:
+        return self._dist.receive_jlc_session(nonce, account, cookies, label)
+
+    def list_jlc_sessions(self) -> dict[str, Any]:
+        return self._dist.list_jlc_sessions()
+
+    def revoke_jlc_session(self, account: str) -> dict[str, Any]:
+        return self._dist.revoke_jlc_session(account)
+
+    def fetch_jlc_library(self, account: str = "") -> dict[str, Any]:
+        return self._dist.fetch_jlc_library(account)
+
     # ── Inventory mirror ──────────────────────────────────────────────────
 
     def enable_inventory_mirror(self) -> dict[str, Any]:
