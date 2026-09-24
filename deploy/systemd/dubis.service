@@ -1,0 +1,28 @@
+# Reference copy of /etc/systemd/system/dubis.service on the shared box
+# (infra.uwrealitylabs.com). See deploy/systemd/README.md -- especially why
+# /run/dubis comes from tmpfiles.d (dubis.conf) and not RuntimeDirectory=.
+[Unit]
+Requires=systemd-tmpfiles-setup.service
+Description=dubIS /v1 server (Unix socket; peer uid = identity)
+After=network.target systemd-tmpfiles-setup.service
+
+[Service]
+Type=simple
+User=isaac
+Group=isaac
+WorkingDirectory=/home/isaac/dubis
+Environment=PYTHONUNBUFFERED=1
+# Required for per-user identity: with `off` the AuthMiddleware is never
+# installed and every caller is `local`, even over the socket.
+Environment=DUBIS_AUTH_MODE=on
+ExecStart=/home/isaac/dubis/.venv/bin/python -m server \
+  --uds /run/dubis/dubis.sock \
+  --data-dir /data \
+  --static-dir /home/isaac/dubis
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
