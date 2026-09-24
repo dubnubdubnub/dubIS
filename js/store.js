@@ -883,28 +883,82 @@ function rosterSyncedSources() {
  * `persist: false` is for a publish that only changed what the HUB told us
  * (reachability, say) — writing preferences on every poll would turn a
  * background probe into a disk write.
+ *
+ * `refresh: false` is for the startup seed alone: hydration is not a change the
+ * user made, and `loadInventory()` is about to fetch with exactly this source
+ * anyway, so refreshing here would cost every launch a duplicate round trip.
  * @param {Array<import('./server-tabs-logic.js').Tab>} tabs
  * @param {string} activeTabId
  * @param {Array<import('./signals.js').SourceEntry>} sources
- * @param {{persist?: boolean}} [opts]
+ * @param {{persist?: boolean, refresh?: boolean}} [opts]
  */
 function publishTabs(tabs, activeTabId, sources, opts) {
   const resolved = resolveActiveTabId(tabs, activeTabId);
   activeSourceSignal.set({ tabs, activeTabId: resolved, sources });
-  if (!opts || opts.persist !== false) persistTabs();
+  if (!opts || opts.persist !== false) {
+    // Before persistTabs(), which writes preferences: server_url is one of the
+    // keys it saves. Here rather than in `switchToTab` because a switch is not
+    // the only gesture that changes which single server is in front — closing
+    // the front tab does too, and a stale server_url re-points tools/dubis-cli
+    // and the next launch at a server this window is no longer showing.
+    syncServerUrl();
+    persistTabs();
+  }
+  syncShownSource({ refetch: !opts || opts.refresh !== false });
   return resolved;
+}
+
+/**
+ * The `X-Dubis-Source` value the rows currently on screen were fetched with.
+ *
+ * Starts as the empty string, which is exactly what `getActiveSource()` answers
+ * before the tabs are hydrated — so the startup seed is a no-op change and only
+ * a real move costs a fetch.
+ */
+let shownSource = '';
+
+/**
+ * Refetch the inventory when — and only when — the source behind the grid moved.
+ *
+ * This lives here, in the one place that publishes what the window shows,
+ * because "which source are the rows from" is the only honest trigger for a
+ * refetch. It used to be `persistTabs()`'s return value — "did the saved default
+ * change" — and that answered the wrong question for every gesture that
+ * publishes twice. Closing the front tab publishes the surviving tab set (which
+ * records the new default) and THEN calls `switchToTab`, whose own
+ * `persistTabs()` truthfully reports "nothing changed" — so nothing refetched
+ * and the grid went on showing the closed tab's server. Grouping had the same
+ * shape, and so did a roster edit that deleted the server a tab was showing.
+ *
+ * Two tabs on the same server still cost no round trip: they serialize to the
+ * same header value, so the switch between them is a re-render driven by the
+ * view the caller applies.
+ * @param {{refetch: boolean}} opts
+ */
+function syncShownSource(opts) {
+  const source = getActiveSource();
+  if (source === shownSource) return false;
+  shownSource = source;
+  if (!opts.refetch) return false;
+  scheduleInventoryRefresh().catch((e) =>
+    AppLog.warn('sources: refresh after moving to ' + source + ' failed: ' + e));
+  return true;
 }
 
 /**
  * Write the tab set into preferences, and — when what this window shows has
  * changed — save it as the hub's header-less default too.
  *
- * Centralised here rather than in `switchToTab` because a switch is not the only
- * thing that changes what is on screen: closing the front tab, grouping, and a
- * roster edit that deletes the source a tab was showing all do. Doing it in one
- * place is what stops the hub's saved default naming a server this window can no
- * longer reach.
- * @returns {boolean} whether the source value changed
+ * Called from `publishTabs` rather than from `switchToTab` because a switch is
+ * not the only thing that changes what is on screen: closing the front tab,
+ * grouping, and a roster edit that deletes the source a tab was showing all do.
+ * Doing it in one place is what stops the hub's saved default naming a server
+ * this window can no longer reach.
+ *
+ * Its `changed` answer is about the SAVED DEFAULT, not about the grid — see
+ * `syncShownSource` above, which is what decides a refetch. Conflating the two
+ * is the bug that left a closed tab's rows on screen.
+ * @returns {boolean} whether the saved default changed
  */
 function persistTabs() {
   const { tabs, activeTabId } = activeSourceSignal.peek();
@@ -1022,7 +1076,10 @@ export function hydrateSourcesFromPreferences() {
     // `server_url` demonstrably points somewhere.
     || tabForSource(tabs, sourceIdForUrl(sources, preferences.server_url))
     || '';
-  return publishTabs(tabs, active, sources, { persist: false });
+  // refresh: false — hydration is the startup seed, not a move. loadInventory()
+  // is about to fetch with exactly this source; refetching here would cost every
+  // launch a duplicate round trip.
+  return publishTabs(tabs, active, sources, { persist: false, refresh: false });
 }
 
 /**
@@ -1097,16 +1154,12 @@ export async function switchToTab(tabId) {
   if (!tab) return { ok: false, reason: 'That tab is no longer open' };
 
   const source = activeSourceValue(tab, allSourceIds(state.sources));
-  activeSourceSignal.set({ ...state, activeTabId: tabId });
-  syncServerUrl();
-  // Refetch only when the SOURCE changed, not merely the tab. Two tabs on the
-  // same server show the same rows through different filters, so a switch
-  // between them is a re-render (driven by the view the caller applies), never a
-  // round trip.
-  if (persistTabs()) {
-    scheduleInventoryRefresh().catch((e) =>
-      AppLog.warn('sources: refresh after switching to ' + source + ' failed: ' + e));
-  }
+  // Through publishTabs like every other gesture: it re-points server_url,
+  // persists, and refetches only when the SOURCE moved. Two tabs on the same
+  // server show the same rows through different filters, so a switch between
+  // them is a re-render (driven by the view the caller applies), never a round
+  // trip.
+  publishTabs(state.tabs, tabId, state.sources);
   return { ok: true, tabId, source };
 }
 
