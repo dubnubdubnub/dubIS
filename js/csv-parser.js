@@ -49,11 +49,13 @@ export function parseCSV(text) {
 }
 
 // ── Auto-detect BOM columns ──
+// `lcsc` is the first LCSC-like column; `lcscCols` lists every one of them
+// (e.g. KiCad BOMs carrying both `LCSC` and `LCSC ID`), read in header order.
 export function detectBOMColumns(headers) {
-  const cols = { lcsc: -1, mpn: -1, qty: -1, ref: -1, desc: -1, value: -1, footprint: -1, dnp: -1 };
+  const cols = { lcsc: -1, lcscCols: [], mpn: -1, qty: -1, ref: -1, desc: -1, value: -1, footprint: -1, dnp: -1 };
   const lower = headers.map(h => h.toLowerCase());
   lower.forEach((h, i) => {
-    if (cols.lcsc === -1 && (/lcsc/.test(h) || /jlcpcb/.test(h) || /supplier.*part/.test(h) || (h.includes("part") && (h.includes("#") || h.includes("number")) && !h.includes("manufactur")))) cols.lcsc = i;
+    if (/lcsc/.test(h) || /jlcpcb/.test(h) || /supplier.*part/.test(h) || (h.includes("part") && (h.includes("#") || h.includes("number")) && !h.includes("manufactur"))) cols.lcscCols.push(i);
     if (cols.ref === -1 && (/designator/.test(h) || /reference/.test(h))) cols.ref = i;
     if (cols.qty === -1 && (/^qty$/.test(h) || /quantity/.test(h))) cols.qty = i;
     if (cols.desc === -1 && (/description/.test(h) || /^desc$/.test(h) || /^comment$/.test(h))) cols.desc = i;
@@ -62,7 +64,9 @@ export function detectBOMColumns(headers) {
     if (cols.footprint === -1 && /footprint/.test(h)) cols.footprint = i;
     if (cols.dnp === -1 && (/^dnp$/.test(h) || /exclude.*bom/.test(h) || /^procurement/.test(h))) cols.dnp = i;
   });
+  if (cols.lcscCols.length) cols.lcsc = cols.lcscCols[0];
   // If no explicit MPN column but there is a Value column, use Value as MPN fallback
+  // (a blank MPN cell also falls back to Value per row, in extractPartIds)
   if (cols.mpn === -1 && cols.value !== -1) cols.mpn = cols.value;
   return cols;
 }
@@ -82,8 +86,16 @@ export function isDnp(val) {
 
 // ── Extract LCSC + MPN from a raw BOM row using detected column indices ──
 export function extractPartIds(row, cols) {
-  let lcsc = cols.lcsc !== -1 ? (row[cols.lcsc] || "").trim() : "";
-  const mpn  = cols.mpn  !== -1 ? (row[cols.mpn]  || "").trim() : "";
+  // Hand-built cols (tests, older callers) may carry only `lcsc`.
+  const lcscCols = cols.lcscCols || (cols.lcsc !== -1 ? [cols.lcsc] : []);
+  let lcsc = "";
+  for (const ci of lcscCols) {
+    lcsc = (row[ci] || "").trim();
+    if (lcsc) break;
+  }
+  let mpn = cols.mpn !== -1 ? (row[cols.mpn] || "").trim() : "";
+  // KiCad exports an MPN column even when every cell is blank: use Value then
+  if (!mpn && cols.value !== -1) mpn = (row[cols.value] || "").trim();
   if (!lcsc && mpn) {
     const extracted = extractLCSC(mpn);
     if (extracted) lcsc = extracted;

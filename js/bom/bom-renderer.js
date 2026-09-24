@@ -168,7 +168,7 @@ export function renderStagingRow(row, ri, bomCols, headers, status, isLinkTarget
     // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
     const val = (row[ci] != null) ? row[ci] : "";
     let lcscAttr = "";
-    if (ci === bomCols.lcsc) {
+    if ((bomCols.lcscCols || [bomCols.lcsc]).includes(ci)) {
       const cellVal = (val || "").trim().toUpperCase();
       if (/^C\d{4,}$/.test(cellVal)) {
         lcscAttr = ` data-lcsc="${escHtml(cellVal)}"`;
