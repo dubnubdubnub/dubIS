@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>dubIS JLC bridge — options</title>
+    <style>
+      body {
+        font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 24px;
+        max-width: 560px;
+        color: #1a1a1a;
+        background: #fafafa;
+      }
+      h1 { font-size: 16px; margin: 0 0 4px; }
+      p.sub { margin: 0 0 20px; color: #555; }
+      label { display: block; font-weight: 600; margin-bottom: 6px; }
+      input[type="text"] { width: 100%; box-sizing: border-box; padding: 7px 9px; font: inherit; border: 1px solid #bbb; border-radius: 4px; }
+      button { margin-top: 12px; padding: 7px 14px; font: inherit; border: 1px solid #888; border-radius: 4px; background: #fff; cursor: pointer; }
+      button:hover { background: #f0f0f0; }
+      .hint { color: #666; margin-top: 6px; }
+      .line { margin-top: 14px; min-height: 1.5em; }
+      .line.ok { color: #14622c; }
+      .line.err { color: #a11; }
+      .note { margin-top: 28px; padding-top: 16px; border-top: 1px solid #ddd; color: #555; }
+    </style>
+  </head>
+  <body>
+    <h1>dubIS JLC bridge</h1>
+    <p class="sub">Which dubIS may this extension send a JLCPCB session to.</p>
+
+    <label for="base-url">dubIS base URL</label>
+    <input id="base-url" type="text" spellcheck="false" autocomplete="off" placeholder="http://127.0.0.1:7897" />
+    <div class="hint">The server dubIS runs on. Default: <code>http://127.0.0.1:7897</code>.</div>
+    <button id="save" type="button">Save</button>
+    <div id="line" class="line" role="status"></div>
+
+    <p class="note">
+      A session is only ever sent when you click <strong>Send session to dubIS</strong>
+      in the toolbar popup and paste the pairing code dubIS showed you. No web page
+      can make this extension do anything.
+    </p>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

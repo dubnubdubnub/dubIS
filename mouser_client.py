@@ -22,6 +22,7 @@ import urllib.request
 from typing import Any
 
 import browser_page
+import secret_store
 from base_client import BaseProductClient
 from domain.packaging import carrier_of
 from domain.product import build_product
@@ -252,8 +253,10 @@ class MouserClient(BaseProductClient):
         if not key:
             self.clear_api_key()
             return
-        with open(self._credentials_file, "w", encoding="utf-8") as f:
-            json.dump({"api_key": key}, f)
+        # `0600`: a Mouser API key is a durable credential, and this file used
+        # to be written world-readable. One rule, one helper, three files —
+        # `docs/plans/2026-09-20-extension-credential-capture.md` rule 8.
+        secret_store.write_private_json(self._credentials_file, {"api_key": key})
 
     def clear_api_key(self) -> None:
         """Remove the credentials file. Idempotent."""

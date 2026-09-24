@@ -93,6 +93,15 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
         app.add_middleware(AuthMiddleware, config=auth_config)
         app.include_router(auth_routes.router)
 
+    # Added LAST of all, so it is OUTERMOST: it must see the response whatever
+    # produced it — a handler's return value, an exception rendered by
+    # server/errors.py, a 422 raised before the handler ran, or a refusal from
+    # AuthMiddleware above. That is the whole reason it is a middleware rather
+    # than a header written in the two handlers; the trade it makes (the pinned
+    # extension may read the error BODY on exactly those two paths) is argued
+    # in its own docstring. It touches nothing outside those two paths.
+    app.add_middleware(distributors.BridgeCorsMiddleware)
+
     if static_dir is not None and os.path.isdir(static_dir):
         # Mounted last so API routers above always win on path collisions.
         # AuthMiddleware (added above, if `on`) wraps the whole ASGI app

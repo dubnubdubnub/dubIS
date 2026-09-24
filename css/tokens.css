@@ -182,6 +182,23 @@
   --server-cred-pad-x:         5px;  /* horizontal padding inside the credential chip */
   --server-cred-max-w:        96px;  /* "needs a token" before it ellipsises */
 
+  /* ── JLCPCB pairing panel (css/components/jlc.css) ──────────────────────────
+     The JLC section of Preferences: one row per paired account, and the
+     pairing code the jlc-bridge extension needs. The code is read by eye and
+     retyped into another window, so it gets its own padding rather than
+     borrowing the account rows'.
+     Consumed by: css/components/jlc.css */
+  --jlc-gap:                  8px;  /* between a row's identity, stamps and Revoke */
+  --jlc-list-max-h:         160px;  /* the account list scrolls past ~4 accounts */
+  --jlc-row-pad-y:            5px;  /* vertical padding in an account row */
+  --jlc-row-pad-x:            8px;  /* horizontal padding in an account row */
+  --jlc-stamps-w:           140px;  /* fixed lane for "added 3 d ago - last ok ..." */
+  --jlc-code-pad-y:           4px;  /* vertical padding around the pairing code */
+  --jlc-code-pad-x:          10px;  /* horizontal padding around the pairing code */
+  --jlc-steps-indent:        16px;  /* the numbered instruction list's hanging indent */
+  --jlc-step-gap:             3px;  /* between two instruction steps */
+  --jlc-help-max-w:         460px;  /* explanatory text under the panel */
+
   /* ── Server quick-switcher (css/components/server-tabs.css) ─────────────────
      The tab strip under the header: Local, each source, then All. It is its own
      row, so every value here is height the three panels do not get — which is

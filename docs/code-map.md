@@ -26,8 +26,11 @@ graph LR
     "digikey_normalizer.py" --> "domain/product.py"
     "digikey_session.py" --> "digikey_cdp.py"
     "digikey_session.py" --> "digikey_client.py"
+    "digikey_session.py" --> "secret_store.py"
     "distributor_manager.py" --> "base_client.py"
     "distributor_manager.py" --> "digikey_client.py"
+    "distributor_manager.py" --> "jlc_session.py"
+    "distributor_manager.py" --> "jlcpcb_client.py"
     "distributor_manager.py" --> "lcsc_client.py"
     "distributor_manager.py" --> "mouser_client.py"
     "distributor_manager.py" --> "pololu_client.py"
@@ -93,6 +96,9 @@ graph LR
     "domain/pricing.py" --> "domain/packaging.py"
     "domain/product.py" --> "domain/packaging.py"
     "domain/purchase_candidates.py" --> "domain/predicates.py"
+    "extension/jlc-bridge/background.js" --> "extension/jlc-bridge/config.js"
+    "extension/jlc-bridge/options.js" --> "extension/jlc-bridge/config.js"
+    "extension/jlc-bridge/popup.js" --> "extension/jlc-bridge/config.js"
     "file_dialogs.py" --> "csv_io.py"
     "file_dialogs.py" --> "domain/pricing.py"
     "inventory_api.py" --> "bench.py"
@@ -125,6 +131,11 @@ graph LR
     "inventory_ops.py" --> "domain/pricing.py"
     "inventory_ops.py" --> "domain/schema.py"
     "inventory_ops.py" --> "vendors.py"
+    "jlc_session.py" --> "dubis_errors.py"
+    "jlc_session.py" --> "secret_store.py"
+    "jlcpcb_client.py" --> "domain/schema.py"
+    "jlcpcb_client.py" --> "dubis_errors.py"
+    "jlcpcb_client.py" --> "jlc_session.py"
     "js/a11y/keyboard-nav.js" --> "js/a11y/activate-on-key.js"
     "js/a11y/keyboard-nav.js" --> "js/a11y/roving-grid.js"
     "js/a11y/keyboard-nav.js" --> "js/a11y/scrollable.js"
@@ -495,6 +506,9 @@ graph LR
     "js/inventory/vendor-flyout.js" --> "js/store.js"
     "js/inventory/vendor-flyout.js" --> "js/ui-helpers.js"
     "js/inventory/vendor-flyout.js" --> "js/ui-zoom.js"
+    "js/jlc-sessions.js" --> "js/api.js"
+    "js/jlc-sessions.js" --> "js/jlc-logic.js"
+    "js/jlc-sessions.js" --> "js/ui-helpers.js"
     "js/label-export-modal.js" --> "js/api.js"
     "js/label-export-modal.js" --> "js/constants.js"
     "js/label-export-modal.js" --> "js/dom/html.js"
@@ -520,6 +534,7 @@ graph LR
     "js/part-preview.js" --> "js/ui-helpers.js"
     "js/part-preview.js" --> "js/ui-zoom.js"
     "js/preferences-modal.js" --> "js/api.js"
+    "js/preferences-modal.js" --> "js/jlc-sessions.js"
     "js/preferences-modal.js" --> "js/server-list.js"
     "js/preferences-modal.js" --> "js/store.js"
     "js/preferences-modal.js" --> "js/ui-helpers.js"
@@ -580,6 +595,7 @@ graph LR
     "mouser_client.py" --> "domain/packaging.py"
     "mouser_client.py" --> "domain/product.py"
     "mouser_client.py" --> "html_product_parser.py"
+    "mouser_client.py" --> "secret_store.py"
     "ocr_layout.py" --> "distributor_profiles.py"
     "ocr_layout.py" --> "ocr_engine.py"
     "ocr_layout.py" --> "ocr_table.py"
@@ -644,6 +660,8 @@ graph LR
     "server/proxy.py" --> "server/sources.py"
     "server/routes/auth.py" --> "server/auth.py"
     "server/routes/carts.py" --> "server/__init__.py"
+    "server/routes/distributors.py" --> "server/auth.py"
+    "server/routes/distributors.py" --> "server/models.py"
     "server/routes/events.py" --> "server/__init__.py"
     "server/routes/feeders.py" --> "domain/__init__.py"
     "server/routes/feeders.py" --> "server/routes/openpnp.py"
@@ -708,6 +726,7 @@ graph LR
     "tests/js/inventory-logic.test.js" --> "js/inventory/inventory-logic.js"
     "tests/js/inventory-rendering.test.js" --> "js/inventory/inv-html-builders.js"
     "tests/js/inventory-rendering.test.js" --> "js/store.js"
+    "tests/js/jlc-logic.test.js" --> "js/jlc-logic.js"
     "tests/js/label-export-modal.test.js" --> "js/constants.js"
     "tests/js/label-export-modal.test.js" --> "js/label-export-modal.js"
     "tests/js/label-export-modal.test.js" --> "js/label-export.js"
@@ -814,10 +833,17 @@ graph LR
     "tests/python/server/test_feeders_routes.py" --> "tests/python/helpers.py"
     "tests/python/server/test_generic_parts_routes.py" --> "server/__init__.py"
     "tests/python/server/test_health_cors.py" --> "server/app.py"
+    "tests/python/server/test_health_cors.py" --> "server/routes/distributors.py"
     "tests/python/server/test_health_cors.py" --> "tests/python/helpers.py"
     "tests/python/server/test_import_scan_routes.py" --> "pnp_server.py"
     "tests/python/server/test_inventory_mut.py" --> "server/__init__.py"
     "tests/python/server/test_inventory_mut.py" --> "tests/python/helpers.py"
+    "tests/python/server/test_jlcpcb_routes.py" --> "domain/schema.py"
+    "tests/python/server/test_jlcpcb_routes.py" --> "jlc_session.py"
+    "tests/python/server/test_jlcpcb_routes.py" --> "server/__init__.py"
+    "tests/python/server/test_jlcpcb_routes.py" --> "server/app.py"
+    "tests/python/server/test_jlcpcb_routes.py" --> "server/routes/distributors.py"
+    "tests/python/server/test_jlcpcb_routes.py" --> "tests/python/helpers.py"
     "tests/python/server/test_lifecycle.py" --> "dubis_errors.py"
     "tests/python/server/test_lifecycle.py" --> "server/__main__.py"
     "tests/python/server/test_lifecycle.py" --> "server/lockfile.py"
@@ -928,6 +954,10 @@ graph LR
     "tests/python/test_concurrency_locks.py" --> "domain/inventory.py"
     "tests/python/test_concurrency_locks.py" --> "domain/pricing.py"
     "tests/python/test_concurrency_locks.py" --> "tests/python/helpers.py"
+    "tests/python/test_credential_file_modes.py" --> "digikey_session.py"
+    "tests/python/test_credential_file_modes.py" --> "jlc_session.py"
+    "tests/python/test_credential_file_modes.py" --> "mouser_client.py"
+    "tests/python/test_credential_file_modes.py" --> "secret_store.py"
     "tests/python/test_csv_io.py" --> "csv_io.py"
     "tests/python/test_digikey_cdp.py" --> "digikey_cdp.py"
     "tests/python/test_digikey_normalizer.py" --> "digikey_normalizer.py"
@@ -959,6 +989,7 @@ graph LR
     "tests/python/test_dubis_client.py" --> "tests/python/helpers.py"
     "tests/python/test_dubis_client.py" --> "tests/python/server/conftest.py"
     "tests/python/test_dubis_errors.py" --> "dubis_errors.py"
+    "tests/python/test_extension_manifest.py" --> "server/routes/__init__.py"
     "tests/python/test_federation.py" --> "domain/federation.py"
     "tests/python/test_federation.py" --> "domain/schema.py"
     "tests/python/test_federation_properties.py" --> "domain/federation.py"
@@ -987,6 +1018,11 @@ graph LR
     "tests/python/test_inventory_mirror_read.py" --> "inventory_mirror.py"
     "tests/python/test_inventory_mirror_store.py" --> "inventory_mirror.py"
     "tests/python/test_inventory_ops.py" --> "inventory_ops.py"
+    "tests/python/test_jlc_session.py" --> "jlc_session.py"
+    "tests/python/test_jlcpcb_client.py" --> "domain/schema.py"
+    "tests/python/test_jlcpcb_client.py" --> "dubis_errors.py"
+    "tests/python/test_jlcpcb_client.py" --> "jlc_session.py"
+    "tests/python/test_jlcpcb_client.py" --> "jlcpcb_client.py"
     "tests/python/test_last_po_quantity.py" --> "inventory_ops.py"
     "tests/python/test_mfg_direct_import.py" --> "distributor_manager.py"
     "tests/python/test_mfg_direct_import.py" --> "mfg_direct_import.py"
@@ -1152,8 +1188,8 @@ graph LR
 
 ### digikey_session.py
 
-- **Imports:** `digikey_cdp.py`, `digikey_client.py`
-- **Imported by:** `digikey_client.py`, `tests/python/server/test_distributors_routes.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_digikey_session.py`, `tests/python/test_distributor_api.py`
+- **Imports:** `digikey_cdp.py`, `digikey_client.py`, `secret_store.py`
+- **Imported by:** `digikey_client.py`, `tests/python/server/test_distributors_routes.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_credential_file_modes.py`, `tests/python/test_digikey_session.py`, `tests/python/test_distributor_api.py`
 
 ### distributor_fixtures.py
 
@@ -1162,7 +1198,7 @@ graph LR
 
 ### distributor_manager.py
 
-- **Imports:** `base_client.py`, `digikey_client.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`
+- **Imports:** `base_client.py`, `digikey_client.py`, `jlc_session.py`, `jlcpcb_client.py`, `lcsc_client.py`, `mouser_client.py`, `pololu_client.py`
 - **Imported by:** `inventory_api.py`, `server/__main__.py`, `tests/python/helpers.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_contract.py`, `tests/python/test_distributor_live.py`, `tests/python/test_distributor_manager.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_mfg_direct_import.py`
 
 ### distributor_profiles.py
@@ -1318,12 +1354,32 @@ graph LR
 ### domain/schema.py
 
 - **Imports:** —
-- **Imported by:** `cache_db.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/federation.py`, `domain/inventory.py`, `inventory_ops.py`, `scripts/gen-inventory-types.py`, `scripts/gen-property-schema.py`, `server/models.py`, `tests/python/server/test_models.py`, `tests/python/strategies.py`, `tests/python/test_cache_db.py`, `tests/python/test_federation.py`, `tests/python/test_federation_properties.py`, `tests/python/test_gen_property_schema.py`
+- **Imported by:** `cache_db.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/federation.py`, `domain/inventory.py`, `inventory_ops.py`, `jlcpcb_client.py`, `scripts/gen-inventory-types.py`, `scripts/gen-property-schema.py`, `server/models.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_models.py`, `tests/python/strategies.py`, `tests/python/test_cache_db.py`, `tests/python/test_federation.py`, `tests/python/test_federation_properties.py`, `tests/python/test_gen_property_schema.py`, `tests/python/test_jlcpcb_client.py`
 
 ### dubis_errors.py
 
 - **Imports:** —
-- **Imported by:** `app_launch.py`, `base_client.py`, `carts.py`, `digikey_client.py`, `domain/federation.py`, `domain/generic_parts.py`, `domain/part_registry.py`, `server/__main__.py`, `server/dispatch.py`, `server/errors.py`, `server/lockfile.py`, `server/proxy.py`, `server/routes/mirror.py`, `server/sources.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/test_base_client.py`, `tests/python/test_carts.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_dubis_errors.py`
+- **Imported by:** `app_launch.py`, `base_client.py`, `carts.py`, `digikey_client.py`, `domain/federation.py`, `domain/generic_parts.py`, `domain/part_registry.py`, `jlc_session.py`, `jlcpcb_client.py`, `server/__main__.py`, `server/dispatch.py`, `server/errors.py`, `server/lockfile.py`, `server/proxy.py`, `server/routes/mirror.py`, `server/sources.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/test_base_client.py`, `tests/python/test_carts.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_dubis_errors.py`, `tests/python/test_jlcpcb_client.py`
+
+### extension/jlc-bridge/background.js
+
+- **Imports:** `extension/jlc-bridge/config.js`
+- **Imported by:** —
+
+### extension/jlc-bridge/config.js
+
+- **Imports:** —
+- **Imported by:** `extension/jlc-bridge/background.js`, `extension/jlc-bridge/options.js`, `extension/jlc-bridge/popup.js`
+
+### extension/jlc-bridge/options.js
+
+- **Imports:** `extension/jlc-bridge/config.js`
+- **Imported by:** —
+
+### extension/jlc-bridge/popup.js
+
+- **Imports:** `extension/jlc-bridge/config.js`
+- **Imported by:** —
 
 ### file_dialogs.py
 
@@ -1349,6 +1405,16 @@ graph LR
 
 - **Imports:** `categorize.py`, `csv_io.py`, `domain/__init__.py`, `domain/pricing.py`, `domain/schema.py`, `vendors.py`
 - **Imported by:** `cache_db.py`, `domain/api_inventory.py`, `domain/api_pricing.py`, `domain/inventory.py`, `inventory_api.py`, `scripts/generate-test-fixtures.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_ops.py`, `tests/python/test_last_po_quantity.py`
+
+### jlc_session.py
+
+- **Imports:** `dubis_errors.py`, `secret_store.py`
+- **Imported by:** `distributor_manager.py`, `jlcpcb_client.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/test_credential_file_modes.py`, `tests/python/test_jlc_session.py`, `tests/python/test_jlcpcb_client.py`
+
+### jlcpcb_client.py
+
+- **Imports:** `domain/schema.py`, `dubis_errors.py`, `jlc_session.py`
+- **Imported by:** `distributor_manager.py`, `tests/python/test_jlcpcb_client.py`
 
 ### js/a11y/activate-on-key.js
 
@@ -1393,7 +1459,7 @@ graph LR
 ### js/api.js
 
 - **Imports:** `js/api-map.js`, `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-add.js`, `js/cart/cart-export.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/col-resize.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/hover-affordance.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-scan-session.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/server-tabs.js`, `js/sse.js`, `js/store.js`, `js/text-popover.js`, `js/ui-zoom-control.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/command-palette.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-add.js`, `js/cart/cart-export.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/col-resize.js`, `js/components/command-palette.js`, `js/components/data-grid.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-drag.js`, `js/group-flyout/flyout-events.js`, `js/group-flyout/flyout-panel.js`, `js/hover-affordance.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-scan-session.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views-ui.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/jlc-sessions.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/server-tabs.js`, `js/sse.js`, `js/store.js`, `js/text-popover.js`, `js/ui-zoom-control.js`, `js/undo-redo.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/command-palette.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/part-preview-history.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`
 
 ### js/app-init.js
 
@@ -1827,6 +1893,16 @@ graph LR
 - **Imports:** `js/api.js`, `js/store.js`, `js/ui-helpers.js`, `js/ui-zoom.js`
 - **Imported by:** `js/inventory/inv-events.js`, `tests/js/vendor-flyout.test.js`
 
+### js/jlc-logic.js
+
+- **Imports:** —
+- **Imported by:** `js/jlc-sessions.js`, `tests/js/jlc-logic.test.js`
+
+### js/jlc-sessions.js
+
+- **Imports:** `js/api.js`, `js/jlc-logic.js`, `js/ui-helpers.js`
+- **Imported by:** `js/preferences-modal.js`
+
 ### js/label-export-modal.js
 
 - **Imports:** `js/api.js`, `js/constants.js`, `js/dom/html.js`, `js/label-export.js`, `js/label-selection.js`, `js/ui-helpers.js`
@@ -1881,7 +1957,7 @@ graph LR
 
 ### js/preferences-modal.js
 
-- **Imports:** `js/api.js`, `js/server-list.js`, `js/store.js`, `js/ui-helpers.js`
+- **Imports:** `js/api.js`, `js/jlc-sessions.js`, `js/server-list.js`, `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/app-init.js`
 
 ### js/resize-panels.js
@@ -1944,7 +2020,7 @@ graph LR
 ### js/ui-helpers.js
 
 - **Imports:** `js/a11y/focus-trap.js`
-- **Imported by:** `js/a11y/shortcut-help.js`, `js/api.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/cart/cart-export.js`, `js/cart/cart-modal.js`, `js/components/form-modal.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-renderer.js`, `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-import-queue.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/mfg-direct-scan-session.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js`, `js/import/mfg-direct/scan-shell.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-source-view.js`, `js/inventory/inv-tree-render.js`, `js/inventory/price-modal.js`, `js/inventory/vendor-flyout.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/server-list.js`, `js/server-tabs.js`, `js/store.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/ui-helpers.test.js`
+- **Imported by:** `js/a11y/shortcut-help.js`, `js/api.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/cart/cart-export.js`, `js/cart/cart-modal.js`, `js/components/form-modal.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-renderer.js`, `js/import/import-panel.js`, `js/import/import-renderer.js`, `js/import/mfg-direct/mfg-direct-import-queue.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/mfg-direct-renderer.js`, `js/import/mfg-direct/mfg-direct-scan-session.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-panel.js`, `js/import/mfg-direct/ocr-overlay/ocr-overlay-renderer.js`, `js/import/mfg-direct/scan-shell.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-source-view.js`, `js/inventory/inv-tree-render.js`, `js/inventory/price-modal.js`, `js/inventory/vendor-flyout.js`, `js/jlc-sessions.js`, `js/label-export-modal.js`, `js/label-selection.js`, `js/part-keys.js`, `js/part-preview.js`, `js/preferences-modal.js`, `js/server-list.js`, `js/server-tabs.js`, `js/store.js`, `js/vendors-modal.js`, `tests/js/api-client.test.js`, `tests/js/api.test.js`, `tests/js/ui-helpers.test.js`
 
 ### js/ui-zoom-control.js
 
@@ -2028,8 +2104,8 @@ graph LR
 
 ### mouser_client.py
 
-- **Imports:** `base_client.py`, `browser_page.py`, `domain/packaging.py`, `domain/product.py`, `html_product_parser.py`
-- **Imported by:** `distributor_manager.py`, `tests/python/test_browser_page.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_browser.py`, `tests/python/test_distributor_contract.py`, `tests/python/test_normalizers.py`, `tests/python/test_packaging_clients.py`
+- **Imports:** `base_client.py`, `browser_page.py`, `domain/packaging.py`, `domain/product.py`, `html_product_parser.py`, `secret_store.py`
+- **Imported by:** `distributor_manager.py`, `tests/python/test_browser_page.py`, `tests/python/test_clients_base.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_credential_file_modes.py`, `tests/python/test_distributor_api.py`, `tests/python/test_distributor_browser.py`, `tests/python/test_distributor_contract.py`, `tests/python/test_normalizers.py`, `tests/python/test_packaging_clients.py`
 
 ### ocr_engine.py
 
@@ -2216,10 +2292,15 @@ graph LR
 - **Imports:** `server/__init__.py`, `server/__main__.py`, `server/run.py`
 - **Imported by:** —
 
+### secret_store.py
+
+- **Imports:** —
+- **Imported by:** `digikey_session.py`, `jlc_session.py`, `mouser_client.py`, `tests/python/test_credential_file_modes.py`
+
 ### server/__init__.py
 
 - **Imports:** —
-- **Imported by:** `pnp_server.py`, `scripts/spike-webview-loopback.py`, `server/__main__.py`, `server/auth.py`, `server/dispatch.py`, `server/mutations.py`, `server/routes/carts.py`, `server/routes/events.py`, `server/routes/pnp.py`, `server/routes/preferences.py`, `server/routes/sources.py`, `server/sources.py`, `server/uds.py`, `tests/js/e2e/scan-server.py`, `tests/python/server/test_carts_routes.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_secret_not_committed.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
+- **Imported by:** `pnp_server.py`, `scripts/spike-webview-loopback.py`, `server/__main__.py`, `server/auth.py`, `server/dispatch.py`, `server/mutations.py`, `server/routes/carts.py`, `server/routes/events.py`, `server/routes/pnp.py`, `server/routes/preferences.py`, `server/routes/sources.py`, `server/sources.py`, `server/uds.py`, `tests/js/e2e/scan-server.py`, `tests/python/server/test_carts_routes.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_secret_not_committed.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
 
 ### server/__main__.py
 
@@ -2229,12 +2310,12 @@ graph LR
 ### server/app.py
 
 - **Imports:** `server/auth.py`, `server/dispatch.py`, `server/errors.py`, `server/routes/__init__.py`, `server/sources.py`
-- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_mutation_publishes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_v1_surface.py`, `tests/python/test_dubis_client.py`
+- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_mutation_publishes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_v1_surface.py`, `tests/python/test_dubis_client.py`
 
 ### server/auth.py
 
 - **Imports:** `server/__init__.py`
-- **Imported by:** `server/app.py`, `server/errors.py`, `server/routes/auth.py`, `server/routes/import_scan.py`, `server/routes/inventory_mut.py`, `server/routes/pnp.py`, `tests/python/server/test_auth.py`
+- **Imported by:** `server/app.py`, `server/errors.py`, `server/routes/auth.py`, `server/routes/distributors.py`, `server/routes/import_scan.py`, `server/routes/inventory_mut.py`, `server/routes/pnp.py`, `tests/python/server/test_auth.py`
 
 ### server/dispatch.py
 
@@ -2264,7 +2345,7 @@ graph LR
 ### server/models.py
 
 - **Imports:** `domain/schema.py`
-- **Imported by:** `server/routes/parts_read.py`, `server/routes/sources.py`, `tests/python/server/test_models.py`
+- **Imported by:** `server/routes/distributors.py`, `server/routes/parts_read.py`, `server/routes/sources.py`, `tests/python/server/test_models.py`
 
 ### server/mutations.py
 
@@ -2284,7 +2365,7 @@ graph LR
 ### server/routes/__init__.py
 
 - **Imports:** —
-- **Imported by:** `server/app.py`
+- **Imported by:** `server/app.py`, `tests/python/test_extension_manifest.py`
 
 ### server/routes/auth.py
 
@@ -2298,8 +2379,8 @@ graph LR
 
 ### server/routes/distributors.py
 
-- **Imports:** —
-- **Imported by:** —
+- **Imports:** `server/auth.py`, `server/models.py`
+- **Imported by:** `tests/python/server/test_health_cors.py`, `tests/python/server/test_jlcpcb_routes.py`
 
 ### server/routes/events.py
 
@@ -2559,6 +2640,16 @@ graph LR
 ### tests/js/inventory-rendering.test.js
 
 - **Imports:** `js/inventory/inv-html-builders.js`, `js/store.js`
+- **Imported by:** —
+
+### tests/js/jlc-logic.test.js
+
+- **Imports:** `js/jlc-logic.js`
+- **Imported by:** —
+
+### tests/js/jlc-sessions.test.js
+
+- **Imports:** —
 - **Imported by:** —
 
 ### tests/js/label-export-modal.test.js
@@ -2840,7 +2931,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `distributor_manager.py`, `inventory_api.py`, `lcsc_client.py`
-- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_token_store.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_dubis_cli_commands.py`, `tests/python/test_dubis_client.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_token_store.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_dubis_cli_commands.py`, `tests/python/test_dubis_client.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/server/conftest.py
 
@@ -2894,7 +2985,7 @@ graph LR
 
 ### tests/python/server/test_health_cors.py
 
-- **Imports:** `server/app.py`, `tests/python/helpers.py`
+- **Imports:** `server/app.py`, `server/routes/distributors.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/server/test_import_scan_routes.py
@@ -2905,6 +2996,11 @@ graph LR
 ### tests/python/server/test_inventory_mut.py
 
 - **Imports:** `server/__init__.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
+### tests/python/server/test_jlcpcb_routes.py
+
+- **Imports:** `domain/schema.py`, `jlc_session.py`, `server/__init__.py`, `server/app.py`, `server/routes/distributors.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/server/test_lifecycle.py
@@ -3187,6 +3283,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** —
 
+### tests/python/test_credential_file_modes.py
+
+- **Imports:** `digikey_session.py`, `jlc_session.py`, `mouser_client.py`, `secret_store.py`
+- **Imported by:** —
+
 ### tests/python/test_csv_io.py
 
 - **Imports:** `csv_io.py`
@@ -3270,6 +3371,11 @@ graph LR
 ### tests/python/test_dubis_errors.py
 
 - **Imports:** `dubis_errors.py`
+- **Imported by:** —
+
+### tests/python/test_extension_manifest.py
+
+- **Imports:** `server/routes/__init__.py`
 - **Imported by:** —
 
 ### tests/python/test_federation.py
@@ -3370,6 +3476,16 @@ graph LR
 ### tests/python/test_inventory_ops.py
 
 - **Imports:** `inventory_ops.py`
+- **Imported by:** —
+
+### tests/python/test_jlc_session.py
+
+- **Imports:** `jlc_session.py`
+- **Imported by:** —
+
+### tests/python/test_jlcpcb_client.py
+
+- **Imports:** `domain/schema.py`, `dubis_errors.py`, `jlc_session.py`, `jlcpcb_client.py`
 - **Imported by:** —
 
 ### tests/python/test_last_po_quantity.py
