@@ -1275,6 +1275,16 @@
             "title": "Reachable",
             "type": "boolean"
           },
+          "tunnel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TunnelStatusModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "url": {
             "title": "Url",
             "type": "string"
@@ -1349,6 +1359,40 @@
           }
         },
         "title": "StartScanSessionBody",
+        "type": "object"
+      },
+      "TunnelStatusModel": {
+        "description": "The hub-managed ssh tunnel behind an `ssh://` source (server/ssh_tunnel.py).\n\n`state`: idle (not used yet) | starting | up | failed. `kind` names a\nfailure: no_ssh | auth | host_key | dns | unreachable | remote_target |\ntimeout | exited. `error` is the human sentence, built from ssh's stderr.",
+        "properties": {
+          "error": {
+            "default": "",
+            "title": "Error",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "local_url": {
+            "default": "",
+            "title": "Local Url",
+            "type": "string"
+          },
+          "restarts": {
+            "default": 0,
+            "title": "Restarts",
+            "type": "integer"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "TunnelStatusModel",
         "type": "object"
       },
       "UpdateGenericPartBody": {
