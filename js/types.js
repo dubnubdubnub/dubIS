@@ -26,6 +26,7 @@
  * @property {BomAggregatedRow} bom - The aggregated BOM row
  * @property {InventoryItem|null} inv - Matched inventory item, or null
  * @property {InventoryItem[]} alts - Alternative inventory items
+ * @property {InventoryItem[]} [altsUnverified] - Subset of alts whose package is unknown, so their fit to the BOM footprint was not checked
  * @property {string|null} matchType - "exact"|"confirmed"|"manual"|"value"|"fuzzy"|"prefix"|null
  * @property {string} status - Raw status from matchBOM
  * @property {number} effectiveQty - Qty after multiplier

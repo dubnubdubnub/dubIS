@@ -87,6 +87,9 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
       badgeText: badgeText,
       covered: covered,
       expanded: expandedAlts.has(partKey),
+      // Alts whose package is unknown: counted in altQty, but their fit to the
+      // BOM footprint was never checked.
+      unverifiedCount: (r.altsUnverified || []).length,
     };
   }
 
