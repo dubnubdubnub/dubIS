@@ -17,6 +17,25 @@ data/*.json
 # `.tmp` suffix — so without it a `git add -A` racing a write could commit a
 # live token. tests/python/server/test_secret_not_committed.py checks both.
 data/server_tokens.json*
+
+# The same credential stores, ignored BY NAME as well as by location.
+#
+# Everything above is anchored to `data/`, which only protects these where the
+# data dir happens to BE `data/`. But `--data-dir` defaults to "."
+# (server/__main__.py), so the documented standalone path — `python -m server`
+# / `dubis serve` from the repo root — writes them to the repo root, where the
+# anchored rules do not reach. Found live on 2026-09-20: a real JLC session
+# cookie landed at the worktree root and showed up as an untracked file, one
+# `git add -A` from being committed to a PUBLIC repo.
+#
+# `server_tokens.json*` is listed here too for the same reason, keeping its
+# load-bearing trailing `*`: the anchored rule added alongside it has exactly
+# this weakness. tests/python/test_credential_file_modes.py checks every name
+# at both the repo root and under `data/`.
+jlc_sessions.json
+digikey_cookies.json
+mouser_credentials.json
+server_tokens.json*
 # No trailing slash on purpose. `node_modules/` matches a DIRECTORY only, so
 # when a worktree carried `node_modules` as a *symlink* to the main checkout's
 # copy (a file, not a directory) the rule stopped matching and `git add -A`
@@ -56,8 +75,13 @@ data/webview2/
 # Runtime files the server writes on startup and removes on clean shutdown
 # (see CLAUDE.md's Data row). Untracked but not ignored until now, so anyone
 # who ran the app got a dirty tree and would eventually commit one.
+# Listed unanchored as well, for the same reason as the credential files above:
+# `--data-dir` defaults to "." so a standalone `python -m server` from the repo
+# root writes them there, and a crash leaves them behind.
 data/.v1_port
 data/.dubis_lock
+.v1_port
+.dubis_lock
 data-backup-*/
 data_backup
 test-results/
@@ -73,3 +97,11 @@ scripts/ci_watcher/*.db
 
 # Hypothesis example database (local counterexample cache; see docs/property-testing.md)
 .hypothesis/
+
+# Browser-extension signing keys. The jlc-bridge private key lives OUTSIDE the
+# repo on purpose (see extension/jlc-bridge/README.md) — only the base64 public
+# half belongs in manifest.json's "key". These patterns exist so a private key
+# dropped next to the extension can never be committed by accident.
+*.pem
+extension/**/*.pem
+extension/**/*.crx

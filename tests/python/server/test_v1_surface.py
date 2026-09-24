@@ -48,6 +48,12 @@ _INVENTORY_API_METHOD_NAMES = {
     'fetch_pololu_product', 'get_cart', 'get_digikey_login_status', 'get_generic_group_names',
     'get_inventory_mirror_info', 'get_last_po_quantity', 'get_mouser_api_key_status',
     'get_part_attributes', 'get_part_history', 'get_po_source_preview', 'get_po_with_items',
+    # JLCPCB browser-extension credential capture + private-library read
+    # (docs/plans/2026-09-20-extension-credential-capture.md, phase 1b). Real
+    # InventoryApi methods, added after Task 8 — hence listed here rather than
+    # in _NEW_OPERATIONS.
+    'create_jlc_pairing', 'receive_jlc_session', 'list_jlc_sessions',
+    'revoke_jlc_session', 'fetch_jlc_library',
     'get_price_summary', 'get_sourced_distributors', 'get_warnings',
     'has_purchase_history', 'import_purchases', 'install_tesseract',
     'list_carts', 'list_generic_member_reviews', 'list_generic_parts', 'list_purchase_orders', 'list_saved_searches',
@@ -113,6 +119,7 @@ FROZEN_V1_SURFACE = [
     ("DELETE", "/v1/carts/{cart_id}", "delete_cart"),
     ("DELETE", "/v1/carts/{cart_id}/items/{ref}", "remove_cart_item"),
     ("DELETE", "/v1/distributors/digikey/session", "logout_digikey"),
+    ("DELETE", "/v1/distributors/jlcpcb/sessions/{account}", "revoke_jlc_session"),
     ("DELETE", "/v1/distributors/mouser/key", "clear_mouser_api_key"),
     ("DELETE", "/v1/generic-parts/{generic_part_id}/members/{part_id}", "remove_generic_member"),
     ("DELETE", "/v1/parts/{part_key}", "delete_part"),
@@ -129,6 +136,8 @@ FROZEN_V1_SURFACE = [
     ("GET", "/v1/carts/{cart_id}/export", "export_cart"),
     ("GET", "/v1/carts/{cart_id}/plan", "plan_cart"),
     ("GET", "/v1/distributors/digikey/session", "get_digikey_session"),
+    ("GET", "/v1/distributors/jlcpcb/library", "fetch_jlc_library"),
+    ("GET", "/v1/distributors/jlcpcb/sessions", "list_jlc_sessions"),
     ("GET", "/v1/distributors/mouser/key", "get_mouser_api_key_status"),
     ("GET", "/v1/distributors/{name}/product/{code}", "fetch_distributor_product"),
     ("GET", "/v1/events", "events_stream"),
@@ -178,6 +187,8 @@ FROZEN_V1_SURFACE = [
     ("POST", "/v1/carts/{cart_id}/split", "split_cart"),
     ("POST", "/v1/distributors/digikey/cookies/sync", "sync_digikey_cookies"),
     ("POST", "/v1/distributors/digikey/session/validate", "validate_digikey_session"),
+    ("POST", "/v1/distributors/jlcpcb/pairing", "create_jlc_pairing"),
+    ("POST", "/v1/distributors/jlcpcb/session", "receive_jlc_session"),
     ("POST", "/v1/feeders/{tag_id}/load", "load_feeder_reel"),
     ("POST", "/v1/feeders/{tag_id}/register", "register_feeder"),
     ("POST", "/v1/feeders/{tag_id}/unload", "unload_feeder"),

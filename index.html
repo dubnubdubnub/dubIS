@@ -90,6 +90,7 @@
 <link rel="stylesheet" href="css/components/ui-zoom.css">
 <link rel="stylesheet" href="css/components/panel-collapse.css">
 <link rel="stylesheet" href="css/components/servers.css">
+<link rel="stylesheet" href="css/components/jlc.css">
 <link rel="stylesheet" href="css/components/server-tabs.css">
 <link rel="stylesheet" href="css/components/inv-source.css">
 <link rel="stylesheet" href="css/components/col-resize.css">
@@ -353,6 +354,27 @@
         <button class="btn-lg btn btn-apply" id="mouser-save" style="padding:4px 14px;font-size:12px">Save</button>
         <button class="btn-lg btn btn-cancel hidden" id="mouser-clear" style="padding:4px 14px;font-size:12px">Clear</button>
       </div>
+    </div>
+    <div class="modal-divider"></div>
+    <div class="modal-subtitle" style="margin-bottom:4px">
+      <strong>JLCPCB</strong>
+      <span style="font-size:11px;font-weight:normal;margin-left:6px;color:var(--text-muted)">
+        Your private parts library, via the jlc-bridge browser extension.
+      </span>
+    </div>
+    <div class="jlc-panel">
+      <div class="jlc-head">
+        <span id="jlc-status"></span>
+        <button class="btn btn-sm" id="jlc-signin">Sign in to JLC</button>
+      </div>
+      <div id="jlc-accounts" class="jlc-accounts"></div>
+      <div id="jlc-pairing" class="jlc-pairing hidden"></div>
+      <span class="jlc-help">
+        dubIS never logs in for you and never shows a stored session back:
+        you sign in to JLC in your own browser, and the extension hands the
+        session over once, when you paste a code and click Send. Revoke forgets
+        that account&rsquo;s credential here.
+      </span>
     </div>
     <div class="modal-divider"></div>
     <div style="margin-bottom:16px;">

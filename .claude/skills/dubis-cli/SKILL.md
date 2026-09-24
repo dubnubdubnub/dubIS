@@ -42,6 +42,7 @@ before the generated surface below.
 - `dubis prices` — per-distributor price aggregates + last PO quantity
 - `dubis history` — adjustment log for one part
 - `dubis generic-groups` — generic-part groups with member counts and best member
+- `dubis jlc` — JLCPCB: paired accounts, or one account's private parts library
 
 ```bash
 dubis search 100nF                 # substring over lcsc/mpn/description/mfr/package
@@ -54,12 +55,12 @@ A part key that matches nothing exits 3, so a miss is never a silent success.
 
 ## Full surface
 
-Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 95 commands:
+Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 100 commands:
 
 - **adjustments**: remove-last, rollback-source
 - **bom**: consume, resolve-spec
 - **carts**: add-bom-missing, add-item, clear, consolidate, create, delete, export, get, list, plan, remove-item, rename, set-active, set-board-count, split, update-item
-- **distributors**: clear-mouser-api-key, fetch-product, get-digikey-session, get-mouser-api-key-status, logout-digikey, set-mouser-api-key, sync-digikey-cookies, validate-digikey-session
+- **distributors**: clear-mouser-api-key, create-jlc-pairing, fetch-jlc-library, fetch-product, get-digikey-session, get-mouser-api-key-status, list-jlc-sessions, logout-digikey, receive-jlc-session, revoke-jlc-session, set-mouser-api-key, sync-digikey-cookies, validate-digikey-session
 - **feeders**: get, list, load-reel, register, unload
 - **generic**: add-member, create, create-saved-search, exclude-member, list, list-member-reviews, list-saved-searches, remove-member, review-member, set-preferred-member, update
 - **import**: detect-columns, match-part, ocr-engine-available, ocr-overlay, parse-source

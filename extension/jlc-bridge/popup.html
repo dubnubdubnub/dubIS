@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>dubIS JLC bridge</title>
+    <style>
+      body {
+        font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 14px;
+        width: 320px;
+        color: #1a1a1a;
+        background: #fafafa;
+      }
+      h1 { font-size: 14px; margin: 0 0 2px; }
+      .target { color: #555; margin: 0 0 12px; word-break: break-all; }
+      label { display: block; font-weight: 600; margin-bottom: 5px; }
+      input[type="text"] { width: 100%; box-sizing: border-box; padding: 6px 8px; font: inherit; border: 1px solid #bbb; border-radius: 4px; }
+      .row { display: flex; gap: 8px; margin-top: 10px; }
+      button { flex: 1 1 auto; padding: 7px 10px; font: inherit; border: 1px solid #888; border-radius: 4px; background: #fff; cursor: pointer; }
+      button:hover:enabled { background: #f0f0f0; }
+      button:disabled { color: #999; cursor: default; }
+      #status { margin-top: 12px; min-height: 3em; }
+      #status.ok { color: #14622c; }
+      #status.err { color: #a11; }
+      #status.busy { color: #444; }
+      .foot { margin-top: 12px; padding-top: 10px; border-top: 1px solid #ddd; color: #666; }
+      .foot a { color: #26c; }
+    </style>
+  </head>
+  <body>
+    <h1>dubIS JLC bridge</h1>
+    <p class="target">Sends to <span id="target">…</span></p>
+
+    <label for="nonce">Pairing code from dubIS</label>
+    <input id="nonce" type="text" spellcheck="false" autocomplete="off" placeholder="paste it here" />
+
+    <div class="row">
+      <button id="send" type="button">Send session to dubIS</button>
+      <button id="cancel" type="button" disabled>Cancel</button>
+    </div>
+
+    <div id="status" role="status">Idle.</div>
+
+    <div class="foot">
+      Sign in to JLCPCB in this browser; this waits until JLCPCB confirms you are
+      signed in, then sends only the session cookie.
+      <a id="options-link" href="#">Options</a>
+    </div>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
