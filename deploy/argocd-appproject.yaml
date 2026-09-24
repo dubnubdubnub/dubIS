@@ -1,4 +1,4 @@
-# AppProject for dubis-server. Applied out-of-band alongside
+# AppProject for fremont. Applied out-of-band alongside
 # argocd-application.yaml per docs/deploy-runbook.md — AppProjects on this
 # cluster are hand-applied (every existing one carries only
 # kubectl.kubernetes.io/last-applied-configuration, no Argo tracking labels),
@@ -21,7 +21,7 @@ metadata:
   namespace: argocd
 spec:
   description: >-
-    Personal electronics-parts inventory (dubis-server). Confined to ns dubis,
+    Personal electronics-parts inventory (fremont). Confined to ns dubis,
     no cluster-scoped resources.
   sourceRepos:
     - https://github.com/dubnubdubnub/dubIS.git

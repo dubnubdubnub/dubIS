@@ -1,4 +1,4 @@
-# dubis-server — headless /v1 API + static frontend, for remote/tailnet deployment.
+# fremont — headless /v1 API + static frontend, for remote/tailnet deployment.
 #
 # Desktop-only features (DigiKey WebView2/CDP scraping, OS file dialogs, OCR via
 # tesseract) are NOT wired up in this image. Their API methods already fail with

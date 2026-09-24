@@ -23,7 +23,7 @@ from server import token_store
 from tests.python.helpers import make_api
 
 BENCH = "http://bench.local:7891"
-SHOP = "https://dubis-server.example.ts.net"
+SHOP = "https://fremont.example.ts.net"
 
 
 @pytest.fixture
@@ -203,8 +203,8 @@ def test_a_legacy_token_in_preferences_is_migrated_out(api):
 
 def test_add_source_derives_an_id_and_a_name_from_the_url(api):
     _registry, source = sources_mod.add_source(api, url=SHOP)
-    assert source.id == "dubis-server-example-ts-net"
-    assert source.name == "dubis-server.example.ts.net"
+    assert source.id == "fremont-example-ts-net"
+    assert source.name == "fremont.example.ts.net"
 
 
 def test_add_source_rejects_a_url_without_a_scheme(api):
@@ -394,7 +394,7 @@ def test_an_unusable_boot_default_is_loud_but_not_fatal(api, caplog):
     """Dying on the boot thread would leave the user staring at a splash that
     times out — a worse message about the same typo."""
     with caplog.at_level("ERROR"):
-        sources_mod.seed_initial_active_source("dubis-server.example.ts.net")
+        sources_mod.seed_initial_active_source("fremont.example.ts.net")
     assert "must start with http" in caplog.text
     assert sources_mod.load_registry_from_api(api).default == "local"
 

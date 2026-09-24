@@ -16,7 +16,7 @@ def _to_native_path(rel: str) -> str:
 
     favicon_path is persisted in vendors.json, which travels: a vendor added on
     the Windows desktop app stores ``sources\\favicons\\<hash>.png``, and that
-    same file is later read by dubis-server on Linux (the data dir is a PVC, or
+    same file is later read by fremont on Linux (the data dir is a PVC, or
     a mirrored copy). ``os.path.join`` would treat those backslashes as part of
     the filename, so the file "goes missing" and the vendor renders with no
     icon at all. Forward slashes are legal separators on Windows too, so
