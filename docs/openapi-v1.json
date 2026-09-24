@@ -639,6 +639,217 @@
         "title": "InventoryItemModel",
         "type": "object"
       },
+      "JlcLibraryResponse": {
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryItemModel"
+            },
+            "title": "Records",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "account",
+          "total",
+          "records"
+        ],
+        "title": "JlcLibraryResponse",
+        "type": "object"
+      },
+      "JlcPairingResponse": {
+        "properties": {
+          "nonce": {
+            "title": "Nonce",
+            "type": "string"
+          },
+          "ttl": {
+            "title": "Ttl",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nonce",
+          "ttl"
+        ],
+        "title": "JlcPairingResponse",
+        "type": "object"
+      },
+      "JlcRevokeResponse": {
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/JlcSessionModel"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "revoked": {
+            "title": "Revoked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "account",
+          "revoked",
+          "accounts"
+        ],
+        "title": "JlcRevokeResponse",
+        "type": "object"
+      },
+      "JlcSessionAcceptedResponse": {
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "added_at": {
+            "title": "Added At",
+            "type": "string"
+          },
+          "item_count": {
+            "title": "Item Count",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_ok": {
+            "title": "Last Ok",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account",
+          "label",
+          "added_at",
+          "last_ok",
+          "item_count",
+          "state"
+        ],
+        "title": "JlcSessionAcceptedResponse",
+        "type": "object"
+      },
+      "JlcSessionBody": {
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account"
+          },
+          "cookies": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Cookies",
+            "type": "array"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "nonce": {
+            "title": "Nonce",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nonce"
+        ],
+        "title": "JlcSessionBody",
+        "type": "object"
+      },
+      "JlcSessionModel": {
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "added_at": {
+            "title": "Added At",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_ok": {
+            "title": "Last Ok",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account",
+          "label",
+          "added_at",
+          "last_ok"
+        ],
+        "title": "JlcSessionModel",
+        "type": "object"
+      },
+      "JlcSessionsResponse": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/JlcSessionModel"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "logged_in": {
+            "title": "Logged In",
+            "type": "boolean"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "supported": {
+            "title": "Supported",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "logged_in",
+          "supported",
+          "message",
+          "accounts"
+        ],
+        "title": "JlcSessionsResponse",
+        "type": "object"
+      },
       "LoadFeederBody": {
         "properties": {
           "part_key": {
@@ -2575,6 +2786,179 @@
           }
         },
         "summary": "Validate Digikey Session",
+        "tags": [
+          "distributors"
+        ]
+      }
+    },
+    "/v1/distributors/jlcpcb/library": {
+      "get": {
+        "description": "One account's private JLC parts library as dubIS-shaped records.\n\nRead-only: nothing here writes to inventory. Merging JLC stock into\ninventory is phase 3 and carries its own decision (JLC parts are\nPCBA-only, hence non-fungible with bench stock).",
+        "operationId": "fetch_jlc_library",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "account",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Account",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JlcLibraryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch Jlc Library",
+        "tags": [
+          "distributors"
+        ]
+      }
+    },
+    "/v1/distributors/jlcpcb/pairing": {
+      "post": {
+        "description": "Mint the single-use nonce the extension must present. Loopback only.",
+        "operationId": "create_jlc_pairing",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JlcPairingResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Create Jlc Pairing",
+        "tags": [
+          "distributors"
+        ]
+      }
+    },
+    "/v1/distributors/jlcpcb/session": {
+      "post": {
+        "description": "Accept a pushed JLC session: consume the nonce, validate, store. Loopback only.\n\nAnswers with the account it resolved, its label and the library item count\n\u2014 never the credential. `body.account` is a hint the extension read out of\nthe validation response; the stored key is whatever THIS server's own\nvalidation call resolved.",
+        "operationId": "receive_jlc_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JlcSessionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JlcSessionAcceptedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Receive Jlc Session",
+        "tags": [
+          "distributors"
+        ]
+      }
+    },
+    "/v1/distributors/jlcpcb/sessions": {
+      "get": {
+        "description": "Which accounts are paired, and when each last worked. Never a cookie.",
+        "operationId": "list_jlc_sessions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JlcSessionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Jlc Sessions",
+        "tags": [
+          "distributors"
+        ]
+      }
+    },
+    "/v1/distributors/jlcpcb/sessions/{account}": {
+      "delete": {
+        "description": "Forget one account's stored credential.",
+        "operationId": "revoke_jlc_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account",
+            "required": true,
+            "schema": {
+              "title": "Account",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JlcRevokeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Jlc Session",
         "tags": [
           "distributors"
         ]

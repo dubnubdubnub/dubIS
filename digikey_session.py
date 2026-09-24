@@ -12,6 +12,7 @@ import urllib.error
 import urllib.request
 from typing import TYPE_CHECKING, Any
 
+import secret_store
 from digikey_cdp import cdp_get_cookies
 
 if TYPE_CHECKING:
@@ -82,12 +83,18 @@ def check_cookies_logged_in(cookies: list[dict]) -> bool:
 
 
 def save_cookies_to_file(cookies: list[dict], cookies_file: str | None) -> None:
-    """Persist Digikey cookies to disk."""
+    """Persist Digikey cookies to disk, owner-readable only (`0600`).
+
+    This file IS a live DigiKey session — anyone who can read it is logged in
+    as the user. It used to be written at the process umask's default, i.e.
+    world-readable; `secret_store.write_private_json` is the one place all
+    three credential files now get their mode from
+    (`docs/plans/2026-09-20-extension-credential-capture.md` rule 8).
+    """
     if not cookies_file:
         return
     try:
-        with open(cookies_file, "w", encoding="utf-8") as f:
-            json.dump(cookies, f)
+        secret_store.write_private_json(cookies_file, cookies)
     except Exception as exc:
         logger.warning("Failed to save cookies: %s", exc)
 
