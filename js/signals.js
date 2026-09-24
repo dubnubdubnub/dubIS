@@ -163,7 +163,8 @@ export const cartsSignal = signal(/** @type {CartsState} */ ({ carts: [], active
  * you, since /v1/health is exempt from auth.
  * @typedef {{id: string, name: string, url: string, enabled: boolean,
  *            reachable: (boolean|undefined), detail: string,
- *            has_token: boolean, auth: string}} SourceEntry
+ *            has_token: boolean, auth: string,
+ *            tunnel: ({state: string, kind: string, error: string}|null)}} SourceEntry
  */
 /**
  * A quick-switcher tab: a view INSTANCE, not a server. `sources` holds one id

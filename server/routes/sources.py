@@ -73,6 +73,10 @@ async def _status_payload(request: Request, registry: sources_mod.Registry) -> d
                 "reachable": status.get(s.id, unprobed).reachable,
                 "detail": status.get(s.id, unprobed).detail,
                 "auth": status.get(s.id, unprobed).auth,
+                # The hub-managed ssh tunnel behind an `ssh://` source, or null.
+                # `detail` above already carries its failure sentence; this is
+                # the structured half (state, kind) the picker can branch on.
+                "tunnel": clients.tunnel_status(s),
             }
             for s in remotes
         ],

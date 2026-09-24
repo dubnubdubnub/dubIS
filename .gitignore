@@ -82,6 +82,8 @@ data/.v1_port
 data/.dubis_lock
 .v1_port
 .dubis_lock
+# The hub's ssh:// tunnel pidfile (server/ssh_tunnel.py) and its atomic-write .tmp.
+data/.ssh_tunnels.json*
 data-backup-*/
 data_backup
 test-results/
