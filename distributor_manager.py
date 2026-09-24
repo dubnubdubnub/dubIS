@@ -8,6 +8,8 @@ from typing import Any
 
 from base_client import BaseProductClient
 from digikey_client import DigikeyClient
+from jlc_session import store_path as jlc_store_path
+from jlcpcb_client import JlcpcbClient
 from lcsc_client import LcscClient
 from mouser_client import MouserClient
 from pololu_client import PololuClient
@@ -35,6 +37,7 @@ class DistributorManager:
         self._mouser = MouserClient(
             credentials_file=os.path.join(base_dir, "mouser_credentials.json"),
         )
+        self._jlcpcb = JlcpcbClient(sessions_file=jlc_store_path(base_dir))
         self._get_cache = get_cache
 
     # ── Distributor inference ─────────────────────────────────────────────
@@ -111,6 +114,30 @@ class DistributorManager:
         """Delegate to MouserClient."""
         self._mouser.clear_api_key()
         return self._mouser.get_api_key_status()
+
+    # ── JLCPCB session + private library ──────────────────────────────────
+
+    def create_jlc_pairing(self) -> dict[str, Any]:
+        """Delegate to JlcpcbClient."""
+        return self._jlcpcb.mint_pairing_nonce()
+
+    def receive_jlc_session(
+        self, nonce: str, account: str = "", cookies: Any = None, label: str = "",
+    ) -> dict[str, Any]:
+        """Delegate to JlcpcbClient."""
+        return self._jlcpcb.receive_session(nonce, account, cookies, label)
+
+    def list_jlc_sessions(self) -> dict[str, Any]:
+        """Delegate to JlcpcbClient."""
+        return self._jlcpcb.list_sessions()
+
+    def revoke_jlc_session(self, account: str) -> dict[str, Any]:
+        """Delegate to JlcpcbClient."""
+        return self._jlcpcb.revoke_session(account)
+
+    def fetch_jlc_library(self, account: str = "") -> dict[str, Any]:
+        """Delegate to JlcpcbClient."""
+        return self._jlcpcb.fetch_library(account)
 
     # ── Product fetching ─────────────────────────────────────────────────
 

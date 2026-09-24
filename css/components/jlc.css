@@ -1,0 +1,139 @@
+/* jlc.css — the JLCPCB section of the Preferences modal (js/jlc-sessions.js).
+   One row per paired account (account, label, stamps, Revoke), plus the
+   pairing code the jlc-bridge extension needs. Layout dimensions come from the
+   --jlc-* tokens in css/tokens.css.
+
+   Nothing here styles a credential, because none is ever rendered: the panel
+   paints js/jlc-logic.js's four-field projection and nothing else. */
+
+.jlc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jlc-gap);
+  align-items: stretch;
+  width: 100%;
+}
+
+.jlc-head {
+  display: flex;
+  gap: var(--jlc-gap);
+  align-items: center;
+  justify-content: space-between;
+}
+
+#jlc-status { font-size: 12px; color: var(--text-muted); }
+
+/* ── Paired accounts ── */
+
+.jlc-accounts {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  /* Scrolls rather than growing: this is one section of a modal with several,
+     and "as many JLC accounts as I want" must not push Save off the bottom. */
+  max-height: var(--jlc-list-max-h);
+  overflow-y: auto;
+}
+
+.jlc-row {
+  display: flex;
+  align-items: center;
+  gap: var(--jlc-gap);
+  padding: var(--jlc-row-pad-y) var(--jlc-row-pad-x);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.jlc-row:last-child { border-bottom: none; }
+
+.jlc-empty {
+  padding: var(--jlc-row-pad-y) var(--jlc-row-pad-x);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.jlc-ident {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.jlc-account {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.jlc-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Fixed lane so Revoke stays in one column while the ages tick over. */
+.jlc-stamps {
+  flex: 0 0 var(--jlc-stamps-w);
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jlc-row .btn { flex: 0 0 auto; }
+
+/* ── Pairing code ── */
+
+.jlc-pairing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jlc-gap);
+  padding: var(--jlc-row-pad-x);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-blue-bg);
+}
+
+.jlc-code-row {
+  display: flex;
+  gap: var(--jlc-gap);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* The one thing on screen the user has to read character by character and
+   retype into another window, so it is the largest text in the section. */
+.jlc-code {
+  font-family: monospace;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+  padding: var(--jlc-code-pad-y) var(--jlc-code-pad-x);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-base);
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
+.jlc-countdown { font-size: 11px; color: var(--text-muted); }
+
+.jlc-steps {
+  margin: 0;
+  padding-left: var(--jlc-steps-indent);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.jlc-steps li { margin-bottom: var(--jlc-step-gap); }
+
+.jlc-note,
+.jlc-help {
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: var(--jlc-help-max-w);
+}
