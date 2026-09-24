@@ -85,6 +85,8 @@ scripts/dubis parts adjust C1000 --adj-type add --quantity 50 --dry-run
 scripts/dubis schema --json                                      # all 90 generated commands + params
 ```
 
+`--server <id|name>` (or `DUBIS_SERVER`; the flag wins) picks which configured server *source* the hub serves the command from — generated and curated alike — by sending `X-Dubis-Source` on every request: `scripts/dubis --server reality-labs search 100nF`. Names resolve to ids via `GET /v1/sources` (`tools/dubis_client/servers.py`); `local`, `merged` and comma lists pass through; an unknown name exits 3 and never falls back to the hub's saved default. It writes no preference, unlike `dubis sources set-active`. It is unrelated to `--source`, the mutation tag. `dubis status` reports the answering source under `source` — derived, not echoed: the hub sends back no served-by header.
+
 Path params are positional, everything else is a flag; global flags work before or after the subcommand. Exit codes: `2` bad usage, `3` server or precheck error, `4` no server found. Mutations are tagged `--source` so `dubis adjustments rollback-source <name>` undoes a session.
 
 `parts adjust --adj-type add|remove` against a part that does not exist exits 3 rather than letting `/v1` silently no-op it; `set` creates parts on purpose and is exempt. A part key that matches nothing exits 3 everywhere, so a miss is never a silent success. `--dry-run` never contacts the server, so it will not catch an unknown key. Full detail lives in the generated `.claude/skills/dubis-cli/SKILL.md`.
