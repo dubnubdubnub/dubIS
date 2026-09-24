@@ -59,4 +59,4 @@ caching stale JS, fixture regeneration after backend changes).
 
 - [CLAUDE.md](CLAUDE.md) — the canonical codebase guide (architecture, data flow, policies, traps)
 - [docs/](docs/) — design docs and references
-- [docs/deploy-runbook.md](docs/deploy-runbook.md) — deploying `dubis-server` remotely (k3s/tailnet)
+- [docs/deploy-runbook.md](docs/deploy-runbook.md) — deploying `fremont` remotely (k3s/tailnet)

@@ -15,6 +15,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  # deliberately legacy name (pre-rename to fremont) — renaming it creates a new, empty volume and orphans the data.
   name: dubis-server-data
   labels:
     recurring-job-group.longhorn.io/app-data: enabled

@@ -49,7 +49,7 @@ LIBRARY_PATH = "/v1/distributors/jlcpcb/library"
 
 # A simulated non-loopback peer, i.e. a browser on another machine.
 REMOTE = ("100.64.0.7", 51234)
-ORIGIN = "https://dubis-server.example.ts.net"
+ORIGIN = "https://fremont.example.ts.net"
 
 
 @pytest.fixture(autouse=True)

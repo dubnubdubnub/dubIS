@@ -5,20 +5,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dubis-server
+  name: fremont
   labels:
-    app: dubis-server
+    app: fremont
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app: dubis-server
+      app: fremont
   template:
     metadata:
       labels:
-        app: dubis-server
+        app: fremont
     spec:
       # uid/gid 10001 matches the non-root `appuser` baked into the image
       # (Dockerfile: `useradd -m -u 10001 appuser` + `USER appuser`). fsGroup
@@ -32,12 +32,12 @@ spec:
         runAsGroup: 10001
         fsGroup: 10001
       containers:
-        - name: dubis-server
+        - name: fremont
           # newTag is rewritten to a real content digest/sha by the Task 6
           # CI workflow after each image build — sha-PLACEHOLDER must never
           # reach a live cluster. Kyverno also independently blocks `:latest`
           # cluster-wide as a second line of defense.
-          image: ghcr.io/dubnubdubnub/dubis-server:sha-PLACEHOLDER
+          image: ghcr.io/dubnubdubnub/fremont:sha-PLACEHOLDER
           ports:
             - name: http
               containerPort: 8080
@@ -69,6 +69,7 @@ spec:
             # DUBIS_TRUST_TAILSCALE_HEADER. Not created by this kustomization;
             # the Deployment will fail to start until the Secret exists.
             - secretRef:
+                # deliberately legacy name (pre-rename to fremont) — renaming it breaks auth (the tokens live only in this Secret).
                 name: dubis-server-auth
           volumeMounts:
             - name: data
@@ -106,4 +107,5 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
+            # deliberately legacy name (pre-rename to fremont) — renaming it mounts a new, empty volume.
             claimName: dubis-server-data

@@ -51,7 +51,7 @@ from tests.python.helpers import make_api, make_part, write_ledger
 
 # A simulated non-loopback peer, i.e. a browser on another machine.
 REMOTE = ("100.64.0.7", 51234)
-ORIGIN = "https://dubis-server.example.ts.net"
+ORIGIN = "https://fremont.example.ts.net"
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SERVER_PKG = REPO_ROOT / "server"

@@ -150,7 +150,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -C "$BRANCH"
           git add "$KUSTOMIZATION"
-          git commit -m "deploy: pin dubis-server to ${TARGET:0:12}"
+          git commit -m "deploy: pin fremont to ${TARGET:0:12}"
           git push --force-with-lease origin "$BRANCH"
 
           # What the cluster would gain, so the PR says what is being shipped
@@ -191,7 +191,7 @@ jobs:
           done
 
           gh pr create --base main --head "$BRANCH" \
-            --title "deploy: pin dubis-server to ${TARGET:0:12}" --body "$body"
+            --title "deploy: pin fremont to ${TARGET:0:12}" --body "$body"
 
           if [[ "$HAVE_PAT" == "true" ]]; then
             # Only meaningful with a PAT: a GITHUB_TOKEN PR never starts the
