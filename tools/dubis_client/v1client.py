@@ -98,6 +98,20 @@ class V1Client:
         transport = httpx.HTTPTransport(uds=uds) if uds else None
         self._client = httpx.Client(base_url=self.base_url, timeout=timeout,
                                     headers=headers, transport=transport)
+        # The server source the hub was told to serve from (a
+        # servers.ServerSelection), or None — the hub's persisted default.
+        self.source = None
+
+    def use_source(self, selection) -> None:
+        """Send ``X-Dubis-Source: <selection.selector>`` on every later request.
+
+        Set on the httpx client's DEFAULT headers rather than per call, so no
+        call site — generated route, curated composition, precheck — can forget
+        it and quietly read the hub's default source instead. See
+        tools/dubis_client/servers.py for how a name becomes that selector.
+        """
+        self._client.headers["X-Dubis-Source"] = selection.selector
+        self.source = selection
 
     def get(self, path: str, **params):
         resp = self._client.get(path, params=params or None)

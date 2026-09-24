@@ -5,6 +5,7 @@
     dubis parts list
     dubis parts adjust C1234 --adj-type add --quantity 50
     dubis carts plan 3 --preset min
+    dubis --server reality-labs search 100nF       read another configured source
     dubis schema --json                            the whole surface, machine-readable
 
 Command dispatch is driven by the generated table in commands.py (see
@@ -19,12 +20,17 @@ a 2 (fix your arguments) will loop forever:
     2  bad usage (argparse's own convention, kept)
     3  the server rejected the request, or a precheck did
     4  no /v1 server found
+
+`--server` / `DUBIS_SERVER` pick which configured server SOURCE the hub serves
+the request from (`X-Dubis-Source`); `--source` is unrelated — it tags
+mutations. An unknown server exits 3; it never falls back to the hub default.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -45,6 +51,7 @@ from curated import CURATED  # noqa: E402
 from tools.dubis_client import (  # noqa: E402
     NoServerFoundError,
     PartNotFoundError,
+    ServerSelectionError,
     V1Error,
     connect,
     default_data_dir,
@@ -52,6 +59,7 @@ from tools.dubis_client import (  # noqa: E402
     find_part,
     precheck_adjust,
     resolve_canonical_key,
+    select_server,
 )
 
 EXIT_OK = 0
@@ -114,6 +122,13 @@ def _add_command_args(parser: argparse.ArgumentParser, cmd: dict) -> None:
         # already means exactly this, and adding both would collide on the
         # same dest. _build_request feeds args.source into the body.
         if name in _GLOBAL_DESTS:
+            if name not in _ROUTE_MAPPED_GLOBALS:
+                # A route param spelled like a global flag would be swallowed
+                # by the global and never sent. Fail generation-time loud.
+                raise RuntimeError(
+                    f"{cmd['resource']} {cmd['verb']}: route param {name!r} collides "
+                    "with a global CLI flag"
+                )
             continue
         spec = params.get(name, {"type": "string", "required": False})
         required = bool(spec.get("required", False))
@@ -154,19 +169,58 @@ def _global_parser() -> argparse.ArgumentParser:
     common.add_argument("--source", default=argparse.SUPPRESS,
                         help="tag mutations with this source (default: cli), so "
                              "`dubis adjustments rollback-source <source>` can undo them")
+    common.add_argument("--server", default=argparse.SUPPRESS, metavar="ID|NAME",
+                        help="serve this request from that configured server source "
+                             "(a /v1/sources id or name, `local`, `merged`, or a comma "
+                             "list); sends X-Dubis-Source. Overrides $DUBIS_SERVER. "
+                             "Default: the hub's saved default source")
     common.add_argument("--dry-run", action="store_true", default=argparse.SUPPRESS,
                         help="on a writing command, print the request instead of sending it")
     return common
 
 
-_GLOBAL_DEFAULTS = {"json": False, "data_dir": None, "source": "cli", "dry_run": False}
+_GLOBAL_DEFAULTS = {"json": False, "data_dir": None, "source": "cli", "dry_run": False,
+                    "server": None}
 _GLOBAL_DESTS = frozenset(_GLOBAL_DEFAULTS)
+# Globals that deliberately stand in for a same-named route param (see
+# _add_command_args); any other collision is an error.
+_ROUTE_MAPPED_GLOBALS = frozenset({"source"})
+
+SERVER_ENV = "DUBIS_SERVER"
 
 
 def _apply_global_defaults(args: argparse.Namespace) -> None:
+    flag_server = getattr(args, "server", None)
     for dest, default in _GLOBAL_DEFAULTS.items():
         if not hasattr(args, dest):
             setattr(args, dest, default)
+    # --server beats $DUBIS_SERVER; a blank env var counts as unset.
+    args.server_via = None
+    if flag_server is not None:
+        args.server_via = "flag"
+    else:
+        env_server = (os.environ.get(SERVER_ENV) or "").strip()
+        if env_server:
+            args.server, args.server_via = env_server, "env"
+
+
+def _connect(args: argparse.Namespace):
+    """connect(), then pin the client to the requested server source, if any.
+
+    Resolution happens against the live hub's roster before the command's own
+    request, so an unknown name exits 3 without anything having been read from
+    (or written to) the hub's default source.
+    """
+    client = connect(str(_REPO_ROOT), data_dir=args.data_dir)
+    if args.server is not None:
+        selection = select_server(client, args.server, args.server_via)
+        if selection.is_view:
+            print(
+                f"note: {selection.selector!r} is a merged view; the hub merges only "
+                "GET /v1/parts and serves every other read from local",
+                file=sys.stderr,
+            )
+    return client
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -347,7 +401,7 @@ def _dispatch_curated(args: argparse.Namespace) -> int:
         _emit({"dry_run": True, "command": args.resource}, args.json)
         return EXIT_OK
 
-    client = connect(str(_REPO_ROOT), data_dir=args.data_dir)
+    client = _connect(args)
     _emit(CURATED[args.resource]["run"](client, args), args.json)
     return EXIT_OK
 
@@ -362,10 +416,14 @@ def _dispatch(cmd: dict, args: argparse.Namespace) -> int:
                 "(read-only); --dry-run has nothing to withhold",
                 file=sys.stderr,
             )
+        if args.server is not None:
+            # Unresolved: --dry-run never contacts the hub, so it cannot look
+            # the name up (or reject it).
+            request = {**request, "server": args.server}
         _emit({"dry_run": True, **request}, args.json)
         return EXIT_OK
 
-    client = connect(str(_REPO_ROOT), data_dir=args.data_dir)
+    client = _connect(args)
 
     hook = _PRECHECKS.get(f"{cmd['resource']} {cmd['verb']}")
     if hook is not None:
@@ -392,6 +450,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return EXIT_USAGE
     if args.resource == "serve":
+        if args.server_via == "flag":
+            print("error: --server picks a source on a running hub; `serve` starts one "
+                  "and has no source to pick", file=sys.stderr)
+            return EXIT_USAGE
         return _run_serve(args)
     if args.resource == "schema":
         _emit(COMMANDS, args.json)
@@ -403,7 +465,7 @@ def main(argv: list[str] | None = None) -> int:
         except NoServerFoundError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return EXIT_NO_SERVER
-        except (V1Error, PartNotFoundError) as exc:
+        except (V1Error, PartNotFoundError, ServerSelectionError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return EXIT_SERVER
 
@@ -419,7 +481,7 @@ def main(argv: list[str] | None = None) -> int:
     except NoServerFoundError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_NO_SERVER
-    except (V1Error, PartNotFoundError) as exc:
+    except (V1Error, PartNotFoundError, ServerSelectionError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_SERVER
 

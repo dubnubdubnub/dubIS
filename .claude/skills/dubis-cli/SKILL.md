@@ -23,6 +23,13 @@ without one, commands exit 4 and say so. `DUBIS_URL` overrides discovery.
   the server, so it will not catch an unknown part key.
 - `--source NAME` tags mutations (default `cli`), so
   `dubis adjustments rollback-source NAME` undoes a whole session.
+- `--server ID|NAME` (or `DUBIS_SERVER`; the flag wins) serves the command
+  from that configured server source instead of the hub's saved default —
+  e.g. `dubis --server reality-labs search 100nF`. A name is resolved to its
+  id via `GET /v1/sources`; `local`, `merged` and comma lists pass through.
+  It sends `X-Dubis-Source` and changes no preference (`dubis sources
+  set-active` does). An unknown name exits 3, never falls back.
+  `dubis status` reports which source answered. Unrelated to `--source`.
 - Exit codes: 2 bad usage, 3 server or precheck error, 4 no server found.
 
 `parts adjust` rejects `--adj-type add|remove` against a part that does not
@@ -34,7 +41,7 @@ creates parts on purpose and is exempt.
 Hand-written commands covering the common questions. Reach for these
 before the generated surface below.
 
-- `dubis status` — which /v1 server this session talks to, and its part count
+- `dubis status` — which /v1 server and server source answer this session, and its part count
 - `dubis search` — substring search over inventory, compact projection
 - `dubis get` — aggregated detail card for one part
 - `dubis spec-search` — find the generic group matching a BOM spec
