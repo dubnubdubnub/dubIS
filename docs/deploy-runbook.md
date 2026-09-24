@@ -137,6 +137,14 @@ kubectl apply -f deploy/argocd-application.yaml     # metadata.name: fremont
 #    PostSync bootstrap Job finds dubis-server-auth and exits 0 untouched.
 kubectl -n dubis rollout status deployment/fremont
 kubectl -n dubis get ingress fremont    # ADDRESS must read fremont.<tailnet>.ts.net, not fremont-1
+#    The new Ingress has a NEW proxy (new pod, new IP, new headless Service),
+#    so the trusted proxy in dubis-server-auth is now stale. Missing this step
+#    is what 401'd every tailnet request after the real rename. Find the new
+#    Service and put it in DUBIS_TRUSTED_PROXY_HOSTS (section 5 "Identity-header
+#    verification" has the full command; re-supply every key), then restart:
+kubectl -n tailscale get svc \
+  -l tailscale.com/parent-resource=fremont,tailscale.com/parent-resource-ns=dubis
+kubectl -n dubis rollout restart deployment/fremont
 ```
 
 If the Ingress came up as `fremont-1`: delete the conflicting `fremont`
@@ -232,7 +240,8 @@ Every env the Deployment's `envFrom` expects (see `server/auth.py` and
 | `DUBIS_TOKENS` | `name:token,name2:token2` — one entry per bearer client (CI, OpenPnP, MCP) |
 | `DUBIS_TAILNET_ALLOWLIST` | leave empty for now |
 | `DUBIS_TRUST_TAILSCALE_HEADER` | `0` — **leave unset/0 until step 6 confirms** the tailscale operator ingress actually injects the identity header. Flipping this on before verifying just trusts a header nobody is proving. |
-| `DUBIS_TRUSTED_PROXY_IPS` | leave empty for now — see step 5's source-IP gate note before ever setting `DUBIS_TRUST_TAILSCALE_HEADER=1` |
+| `DUBIS_TRUSTED_PROXY_HOSTS` | leave empty for now — see step 5's source-IP gate note before ever setting `DUBIS_TRUST_TAILSCALE_HEADER=1` |
+| `DUBIS_TRUSTED_PROXY_IPS` | leave empty — IPs/CIDRs; still honored, but a pod IP goes stale on restart, so prefer `DUBIS_TRUSTED_PROXY_HOSTS` |
 
 Generate tokens with e.g. `openssl rand -hex 32`. Re-running the whole
 `create ... --dry-run=client -o yaml | kubectl apply -f -` command later
@@ -437,25 +446,46 @@ presence in its unauthorized response during this check).
   own is no longer enough — the pod is still reachable via ClusterIP, so any
   other in-cluster pod that discovers a valid tailnet login name could
   otherwise forge the header directly, bypassing the proxy entirely. You
-  **must** also set `DUBIS_TRUSTED_PROXY_IPS` to the tailscale operator
-  proxy's pod IP (find it with `kubectl get pods -n tailscale -o wide`, or
-  whatever namespace the operator's proxy pod runs in on this cluster —
-  currently `10.42.2.176`, but **this churns**: it's a pod IP, and the pod
-  gets a new one on every restart/reschedule):
+  **must** also tell dubIS which peer is the proxy. Set
+  `DUBIS_TRUSTED_PROXY_HOSTS` to the DNS name of the headless Service the
+  operator creates for the Ingress's proxy StatefulSet. That name always
+  resolves to the current proxy pod. **Do not pin the proxy's pod IP** in
+  `DUBIS_TRUSTED_PROXY_IPS`: the pod gets a new IP on every restart or
+  reschedule, and a stale IP silently turns every tailnet login into a 401.
+  Find the Service:
+  ```bash
+  kubectl -n tailscale get svc \
+    -l tailscale.com/parent-resource=fremont,tailscale.com/parent-resource-ns=dubis
+  # NAME                TYPE        CLUSTER-IP   ...
+  # ts-fremont-hlclt    ClusterIP   None         ...
+  ```
+  The name is `ts-<ingress>-<random suffix>`. It survives pod restarts and
+  changes **only if the Ingress is recreated** (then update the Secret; see
+  step 7 of the rename Cutover above). Only the operator can create Services in the
+  `tailscale` namespace, so another workload cannot claim the name.
   ```bash
   kubectl create secret generic dubis-server-auth --namespace dubis \
     --from-literal=DUBIS_AUTH_MODE=on \
     --from-literal=DUBIS_TOKENS='ci:<token>,openpnp:<token>' \
     --from-literal=DUBIS_TAILNET_ALLOWLIST='isaac@github' \
     --from-literal=DUBIS_TRUST_TAILSCALE_HEADER=1 \
-    --from-literal=DUBIS_TRUSTED_PROXY_IPS='10.42.2.176' \
+    --from-literal=DUBIS_TRUSTED_PROXY_HOSTS='ts-fremont-hlclt.tailscale.svc.cluster.local' \
     --dry-run=client -o yaml | kubectl apply -f -
   kubectl rollout restart deployment/fremont -n dubis
   ```
-  Fail-safe: if `DUBIS_TRUST_TAILSCALE_HEADER=1` is set but
-  `DUBIS_TRUSTED_PROXY_IPS` is left empty, the header is ignored entirely
-  (one warning logged, not a crash) — so a stale/missing proxy IP degrades to
-  "tailnet-header login doesn't work", never to "the gate silently opens."
+  dubIS resolves the name (A and AAAA) without blocking, caches it for 30s,
+  and when an unknown peer sends the header it re-resolves early, at most
+  once per 5s. `DUBIS_TRUSTED_PROXY_IPS` (IPs/CIDRs) still works, and a peer
+  matching either list is trusted.
+
+  Fail-safe: if `DUBIS_TRUST_TAILSCALE_HEADER=1` is set but both lists are
+  empty, the header is ignored entirely (one warning logged, not a crash). A
+  name that does not resolve trusts nothing. So a stale or missing proxy
+  degrades to "tailnet-header login doesn't work", never to "the gate
+  silently opens." To diagnose that, look for this in the pod log:
+  `Ignoring Tailscale-User-Login from untrusted peer <ip>: ... DUBIS_TRUSTED_PROXY_HOSTS: <name> -> [<addrs>]`
+  (at most once a minute). It names the peer that actually sent the header
+  and what each configured name resolves to right now.
   Humans then get transparent browser access via tailnet identity — no token
   needed in the browser (see `app.pyw`'s remote-mode navigation comment,
   §7 of the design doc).
@@ -466,7 +496,7 @@ presence in its unauthorized response during this check).
   (or wherever the operator's proxy pods live), so even a same-cluster pod
   that happens to spoof or reuse the current trusted IP still can't reach
   `fremont` on the network layer at all. Add/verify that NetworkPolicy
-  alongside this change rather than relying on the pod-IP allowlist alone.
+  alongside this change rather than relying on the proxy allowlist alone.
 - **Header is ABSENT or unverifiable** → leave `DUBIS_TRUST_TAILSCALE_HEADER`
   at `0` (and `DUBIS_TRUSTED_PROXY_IPS` empty). Humans and headless clients
   alike use bearer tokens; the browser falls back to the `POST
