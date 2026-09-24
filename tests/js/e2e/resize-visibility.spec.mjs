@@ -730,6 +730,61 @@ test.describe('Modal dialogs at narrow viewports', () => {
     }
   });
 
+  // Regression: the category-colour sliders rendered into the DOM with correct
+  // widths but ZERO height — .prefs-sliders is the only `overflow-y: auto`
+  // child of the .prefs-modal-wide flex column, so its automatic minimum size
+  // is 0 and flex-shrink handed it the whole deficit against the modal's
+  // max-height cap. The user saw the section heading with nothing under it and
+  // no error. The edge-alignment test above cannot catch this: left/right are
+  // still correct on a 0px-tall row. Measure HEIGHT, at every viewport the app
+  // supports (the documented minimum is 1200x700) and at the sub-minimum sizes
+  // the rest of this file exercises.
+  for (const { width, height } of [
+    { width: 1440, height: 1000 },
+    { width: 1200, height: 700 },
+    { width: 800, height: 600 },
+  ]) {
+    test(`preferences category sliders have non-zero height at ${width}x${height}`, async ({ page }) => {
+      await installRouteMocks(page, MOCK_INVENTORY);
+      await page.setViewportSize({ width, height });
+      await page.goto('/index.html');
+      await waitForInventoryRows(page);
+
+      await page.click('#prefs-btn');
+      await page.waitForSelector('#prefs-modal:not(.hidden)', { timeout: 5000 });
+      // The server-roster rows render asynchronously and grow the modal; the
+      // collapse only appears once they are in, so measure after they land.
+      await page.waitForTimeout(500);
+
+      const info = await page.evaluate(() => {
+        const box = document.getElementById('prefs-sliders');
+        const rows = Array.from(box.querySelectorAll('.prefs-row'));
+        const boxRect = box.getBoundingClientRect();
+        const firstRow = rows[0] ? rows[0].getBoundingClientRect() : null;
+        return {
+          rowCount: rows.length,
+          boxHeight: Math.round(boxRect.height),
+          // A row is only really on screen if the scroll box it sits in shows
+          // that band of it, so clip the row against the box.
+          firstRowVisibleHeight: firstRow
+            ? Math.round(Math.min(firstRow.bottom, boxRect.bottom) - Math.max(firstRow.top, boxRect.top))
+            : 0,
+        };
+      });
+
+      console.log(`Prefs sliders at ${width}x${height}:`, info);
+      expect(info.rowCount, 'No slider rows rendered at all').toBeGreaterThan(0);
+      expect(
+        info.boxHeight,
+        `#prefs-sliders collapsed to ${info.boxHeight}px — the rows are in the DOM but invisible`
+      ).toBeGreaterThan(0);
+      expect(
+        info.firstRowVisibleHeight,
+        `First slider row shows ${info.firstRowVisibleHeight}px inside #prefs-sliders`
+      ).toBeGreaterThan(0);
+    });
+  }
+
   test('adjustment modal fits within 800px viewport — with BOM + PO', async ({ page }) => {
     await installRouteMocks(page, MOCK_INVENTORY);
     await page.setViewportSize({ width: 800, height: 600 });
