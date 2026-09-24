@@ -11,7 +11,9 @@ restarts it after sleep, and kills it when you quit. Implementation:
 1. **Box side, once per person.** Give them a Unix account on the box and put
    their public key in `~/.ssh/authorized_keys`. For the per-person
    attribution described below they also need permission to connect to the
-   server's socket (e.g. group membership on its directory).
+   server's socket (e.g. group membership on its directory). The shared box's
+   setup (systemd unit, tmpfiles.d socket directory, group, traps) is in
+   [deploy/systemd/README.md](../deploy/systemd/README.md).
 2. **Their machine.** Check key auth works non-interactively:
    `ssh -o BatchMode=yes you@box true`. If the key has a passphrase, load it
    into the agent first (`ssh-add`; on macOS `ssh-add --apple-use-keychain`
