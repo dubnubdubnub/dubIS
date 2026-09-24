@@ -233,7 +233,12 @@ export function createBomRowElement(d) {
   if (d.altBadge) {
     var coveredCls = d.altBadge.covered ? " covered" : "";
     var expandedCls = d.altBadge.expanded ? " expanded" : "";
-    haveHtml += '<br><span class="alt-badge' + coveredCls + expandedCls + '" data-part-key="' + escHtml(d.partKey) + '"><span class="chevron">\u25B8</span>+' + d.altBadge.altQty + ' (' + d.altBadge.badgeText + ')</span>';
+    var unverified = d.altBadge.unverifiedCount || 0;
+    var unverifiedTitle = unverified
+      ? ' title="' + unverified + ' alt' + (unverified === 1 ? '' : 's') + ' with unknown package: footprint fit not verified"'
+      : '';
+    var unverifiedMark = unverified ? ' <span class="alt-pkg-unverified">pkg?</span>' : '';
+    haveHtml += '<br><span class="alt-badge' + coveredCls + expandedCls + '" data-part-key="' + escHtml(d.partKey) + '"' + unverifiedTitle + '><span class="chevron">\u25B8</span>+' + d.altBadge.altQty + ' (' + d.altBadge.badgeText + ')' + unverifiedMark + '</span>';
   }
   if (d.memberBadge) {
     var mbExpandedCls = d.memberBadge.expanded ? " expanded" : "";
