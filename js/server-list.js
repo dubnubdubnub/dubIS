@@ -34,6 +34,7 @@ import {
   classifyProbe,
   credentialState,
   selectionStatus,
+  hubDot,
 } from './servers-logic.js';
 import { probeServer } from './server-probe.js';
 import { refreshServerTabs } from './server-tabs.js';
@@ -56,6 +57,7 @@ const DOT_TITLES = {
   blocked: 'cannot be checked from an https page',
   dormant: 'starts with the app',
   checking: 'checking…',
+  unknown: 'not checked yet',
 };
 
 // ── Render ────────────────────────────────────────────────
@@ -133,26 +135,45 @@ function syncSelectionStatus() {
 
 // ── Probing ───────────────────────────────────────────────
 
-function setDot(rowEl, state, detail) {
+function setDot(rowEl, state, detail, title) {
   const dot = rowEl.querySelector('[data-role="dot"]');
   const detailEl = rowEl.querySelector('[data-role="detail"]');
   if (dot) {
     dot.className = 'server-dot ' + state;
-    dot.setAttribute('title', DOT_TITLES[state] || state);
+    dot.setAttribute('title', title || DOT_TITLES[state] || state);
   }
   if (detailEl) detailEl.textContent = detail || '';
 }
 
-/** Probe every rendered row, in parallel, ignoring results from a stale render. */
-function probeAll() {
+/**
+ * Probe every rendered row, in parallel, ignoring results from a stale render.
+ * @param {boolean} [askHub] also re-ask the hub (`GET /v1/sources`) when a row
+ *   depends on its answer — the poll does, a render does not (its caller has
+ *   just refreshed the hub's answer, or is about to).
+ */
+function probeAll(askHub) {
   const host = listEl();
   if (!host) return;
   const round = generation;
   const rows = /** @type {NodeListOf<HTMLElement>} */ (host.querySelectorAll('.server-row'));
+  /** @type {HTMLElement[]} */
+  const hubRows = [];
+  const setHubDot = (/** @type {HTMLElement} */ rowEl) => {
+    const status = getSources().find((s) => s.id === (rowEl.dataset.serverId || ''));
+    const dot = hubDot(status);
+    setDot(rowEl, dot.state, dot.detail, dot.title);
+  };
   rows.forEach((rowEl) => {
     // From the data attribute, not the visible text: the local row displays
     // prose ("spawned by this app") where its URL would be.
     const plan = probePlan({ url: rowEl.dataset.serverUrl || '' }, window.location.origin);
+    if (plan.state === 'hub') {
+      // An ssh:// server: this window has no URL it could fetch, so the dot is
+      // the hub's answer — it is the hub that runs the tunnel.
+      setHubDot(rowEl);
+      hubRows.push(rowEl);
+      return;
+    }
     if (plan.state !== 'probe') {
       setDot(rowEl, plan.state, plan.detail || '');
       return;
@@ -166,6 +187,12 @@ function probeAll() {
       setDot(rowEl, state, state === 'live' ? result.ms + ' ms' : detail);
     });
   });
+  if (askHub && hubRows.length) {
+    refreshServerTabs().then(() => {
+      if (round !== generation) return;
+      hubRows.forEach(setHubDot);
+    });
+  }
 }
 
 // ── Lifecycle ─────────────────────────────────────────────
@@ -180,7 +207,7 @@ export function startServerList() {
   // edit would keep reading "token" until something else happened to refresh.
   refreshServerTabs().then(() => { if (listEl()) renderServerList(); });
   stopPolling();
-  pollTimer = setInterval(probeAll, POLL_MS);
+  pollTimer = setInterval(() => probeAll(true), POLL_MS);
 }
 
 /** Stop polling. Called when the modal closes — nothing to check when hidden. */

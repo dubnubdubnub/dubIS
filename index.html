@@ -408,7 +408,7 @@
       <div id="pref-server-list" class="server-list"></div>
       <div class="server-add">
         <input type="text" class="input-field" id="pref-server-new-name" spellcheck="false" placeholder="Name (optional)">
-        <input type="text" class="input-field" id="pref-server-new-url" spellcheck="false" placeholder="https://dubis.example.ts.net">
+        <input type="text" class="input-field" id="pref-server-new-url" spellcheck="false" placeholder="https://dubis.example.ts.net or ssh://you@box/run/dubis/dubis.sock">
         <!-- type=password, and never read back: the token is stored server-side
              by server/token_store.py for the hub's own outbound requests, so
              this field is write-only and js/server-list.js clears it the
@@ -426,7 +426,9 @@
         &mdash; and the tab strip under the header does the same thing in one click.
         A server that requires an API token is marked &ldquo;needs a token&rdquo;; the
         token is held by this machine&rsquo;s own server for its outgoing requests and
-        is never shown again.
+        is never shown again. An <code>ssh://you@host/&lt;socket path or host:port&gt;</code>
+        server is reached through an ssh tunnel this machine opens and keeps alive
+        for you, using your ssh key (or ssh-agent); its dot is the tunnel&rsquo;s status.
       </span>
     </div>
     <div class="modal-divider"></div>

@@ -76,10 +76,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
+import anyio
 import httpx
 
 from dubis_errors import SourceConfigError, SourceNotFoundError
-from server import token_store
+from server import ssh_tunnel, token_store
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +157,12 @@ class Source:
 LOCAL_SOURCE = Source(id=LOCAL_ID, name="Local", url="", token="", enabled=True)
 
 
+URL_RULE = (
+    "a source URL must start with http:// or https://, or be "
+    "ssh://[user@]host[:port]/<socket path or host:port>"
+)
+
+
 def normalize_url(raw: Any) -> str:
     """Canonicalize a source url, or return "" if it is unusable.
 
@@ -164,20 +171,53 @@ def normalize_url(raw: Any) -> str:
     scheme is mandatory (a scheme-less url would resolve against the hub's own
     origin, silently pointing back at the hub), and trailing slashes are
     stripped so `https://x` and `https://x/` are one entry, not two.
+
+    `ssh://` URLs are the hub-managed tunnels of server/ssh_tunnel.py; they are
+    validated against that grammar and returned in its canonical form.
     """
     text = str(raw or "").strip()
     if not text:
         return ""
+    if ssh_tunnel.is_ssh_url(text):
+        return ssh_tunnel.normalize_ssh_url(text)
     if not re.match(r"^https?://", text, re.IGNORECASE):
         return ""
     return text.rstrip("/")
 
 
+def require_url(raw: Any) -> str:
+    """`normalize_url`, but raising `SourceConfigError` with the actual reason.
+
+    For an `ssh://` URL the reason is the grammar's own ("needs a remote
+    target after the host", ...), which says far more than "invalid URL".
+    """
+    text = str(raw or "").strip()
+    if ssh_tunnel.is_ssh_url(text):
+        try:
+            return ssh_tunnel.parse_ssh_url(text).canonical
+        except ssh_tunnel.SshUrlError as exc:
+            raise SourceConfigError(f"invalid ssh:// source URL {text!r}: {exc}") from exc
+    normalized = normalize_url(text)
+    if not normalized:
+        raise SourceConfigError(f"{URL_RULE} (got {raw!r})")
+    return normalized
+
+
+def is_ssh_source(source: Source) -> bool:
+    return ssh_tunnel.is_ssh_url(source.url)
+
+
 def name_from_url(url: str) -> str:
-    """The host (with port) of a normalized url — the default display name."""
+    """The host (with port) of a normalized url — the default display name.
+
+    For an `ssh://` URL that is the ssh host: the box the user thinks of the
+    server as living on, not the loopback address the tunnel happens to use.
+    """
     normalized = normalize_url(url)
     if not normalized:
         return ""
+    if ssh_tunnel.is_ssh_url(normalized):
+        return ssh_tunnel.parse_ssh_url(normalized).host
     return re.sub(r"^https?://", "", normalized, flags=re.IGNORECASE).split("/")[0]
 
 
@@ -224,7 +264,8 @@ def _entry_to_source(
         return None
     url = normalize_url(entry.get("url"))
     if not url:
-        logger.warning("sources: ignoring servers entry %r whose URL is not http(s)", source_id)
+        logger.warning("sources: ignoring servers entry %r whose URL is not http(s) "
+                       "or a valid ssh:// URL", source_id)
         return None
     if url in seen_urls:
         logger.warning("sources: ignoring servers entry %r duplicating URL %s", source_id, url)
@@ -624,8 +665,8 @@ def seed_initial_active_source(url: str | None, token: str | None = None) -> Non
     normalized = normalize_url(url)
     if not normalized:
         logger.error(
-            "sources: refusing to take the default source from %r — a source URL must "
-            "start with http:// or https://. Defaulting to local data instead.", url,
+            "sources: refusing to take the default source from %r — %s. "
+            "Defaulting to local data instead.", url, URL_RULE,
         )
         return
     _boot_default_token = str(token or "").strip()
@@ -682,19 +723,36 @@ def _reject_self_reference(api: Any, url: str) -> None:
     port = _own_port(api)
     if port is None:
         return
+    if ssh_tunnel.is_ssh_url(url):
+        # An ssh tunnel to THIS machine's own port is the same cycle one hop
+        # longer: `ssh://me@localhost/127.0.0.1:<our port>`.
+        target = ssh_tunnel.parse_ssh_url(url)
+        if (target.remote_socket or not _is_loopback_host(target.host)
+                or not _is_loopback_host(target.remote_host)):
+            return
+        if target.remote_port == port:
+            raise SourceConfigError(
+                f"{url} tunnels back to this server — a hub cannot be its own source; "
+                "every merged read would ask itself for its own inventory"
+            )
+        return
     parsed = urllib.parse.urlsplit(url)
-    host = (parsed.hostname or "").lower()
-    is_loopback = host in {"localhost", "::1"}
-    if not is_loopback:
-        try:
-            is_loopback = ipaddress.ip_address(host).is_loopback
-        except ValueError:
-            is_loopback = False
+    is_loopback = _is_loopback_host(parsed.hostname or "")
     if is_loopback and (parsed.port or (443 if parsed.scheme == "https" else 80)) == port:
         raise SourceConfigError(
             f"{url} is this server — a hub cannot be its own source; every merged "
             "read would ask itself for its own inventory"
         )
+
+
+def _is_loopback_host(host: str) -> bool:
+    host = host.lower()
+    if host in {"localhost", "::1"}:
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def _persist(
@@ -742,9 +800,7 @@ def add_source(
 ) -> tuple[Registry, Source]:
     with _write_lock:
         registry = load_registry_from_api(api)
-        normalized = normalize_url(url)
-        if not normalized:
-            raise SourceConfigError(f"source URL must start with http:// or https:// (got {url!r})")
+        normalized = require_url(url)
         _reject_self_reference(api, normalized)
         for existing in registry.sources:
             if existing.url and existing.url == normalized:
@@ -790,11 +846,7 @@ def update_source(
             )
         changes: dict[str, Any] = {}
         if url is not None:
-            normalized = normalize_url(url)
-            if not normalized:
-                raise SourceConfigError(
-                    f"source URL must start with http:// or https:// (got {url!r})"
-                )
+            normalized = require_url(url)
             for other in registry.sources:
                 if other.id != source_id and other.url and other.url == normalized:
                     raise SourceConfigError(f"{other.name!r} already points at {normalized}")
@@ -901,17 +953,50 @@ class SourceClients:
 
     `transport` is the injection seam the tests use (`httpx.MockTransport`);
     production leaves it None and gets httpx's real transport.
+
+    An `ssh://` source gets a client whose transport is
+    `ssh_tunnel.TunnelTransport`: it starts (or restarts) the source's ssh
+    tunnel on first use and rewrites each request onto the tunnel's loopback
+    port, so every caller — proxy, fan-out, probe — reaches an ssh source with
+    exactly the code it uses for an http one. The tunnels belong to *this*
+    object's `tunnels` manager and die with it (`aclose`). An attached second
+    window never builds one: it has no hub of its own (`app_launch.resolve_launch`).
     """
 
     def __init__(
         self,
         transport: httpx.AsyncBaseTransport | None = None,
         timeout: float = REQUEST_TIMEOUT_SECONDS,
+        tunnels: ssh_tunnel.TunnelManager | None = None,
     ) -> None:
         self._transport = transport
         self._timeout = timeout
         self._clients: dict[tuple[str, str], httpx.AsyncClient] = {}
         self._lock = threading.Lock()
+        self._tunnels = tunnels
+
+    @property
+    def tunnels(self) -> ssh_tunnel.TunnelManager:
+        """The ssh tunnel supervisor, created on first need — a hub with no
+        ssh:// source never touches it, never reads the pidfile."""
+        with self._lock:
+            if self._tunnels is None:
+                self._tunnels = ssh_tunnel.TunnelManager()
+            return self._tunnels
+
+    def tunnel_status(self, source: Source) -> dict | None:
+        """The `tunnel` field of `GET /v1/sources` — None for a non-ssh source.
+
+        An ssh source nothing has used yet reports `idle`, never `failed`: no
+        attempt is not a failed attempt.
+        """
+        if not is_ssh_source(source):
+            return None
+        status = self.tunnels.status(source.url)
+        if status is None:
+            return {"state": ssh_tunnel.STATE_IDLE, "local_url": "", "error": "",
+                    "kind": "", "restarts": 0}
+        return status
 
     def get(self, source: Source) -> httpx.AsyncClient:
         if source.is_local or not source.url:
@@ -932,6 +1017,14 @@ class SourceClients:
                     kwargs["headers"] = {"Authorization": f"Bearer {source.token}"}
                 if self._transport is not None:
                     kwargs["transport"] = self._transport
+                if ssh_tunnel.is_ssh_url(source.url):
+                    kwargs["base_url"] = ssh_tunnel.PLACEHOLDER_BASE_URL
+                    tunnels = self._tunnels
+                    if tunnels is None:
+                        tunnels = self._tunnels = ssh_tunnel.TunnelManager()
+                    kwargs["transport"] = ssh_tunnel.TunnelTransport(
+                        tunnels.get(source.url), inner=self._transport,
+                    )
                 client = httpx.AsyncClient(**kwargs)
                 self._clients[key] = client
             return client
@@ -940,8 +1033,12 @@ class SourceClients:
         with self._lock:
             clients = list(self._clients.values())
             self._clients.clear()
+            tunnels = self._tunnels
         for client in clients:
             await client.aclose()
+        if tunnels is not None:
+            # Off the event loop: terminating ssh waits up to 2s per process.
+            await anyio.to_thread.run_sync(tunnels.close_all)
 
 
 @dataclass(frozen=True)
@@ -1012,6 +1109,12 @@ async def probe(
         return ProbeResult(reachable=True, detail="", auth=AUTH_OK)
     try:
         response = await clients.get(source).get("/v1/health", timeout=timeout)
+    except ssh_tunnel.TunnelError as exc:
+        # The tunnel's reason IS the detail — "ssh key authentication to box
+        # was refused ..." — not the class name, which would say "TunnelError"
+        # about every one of them.
+        logger.info("sources: probe of %s (%s) failed: %s", source.id, source.url, exc)
+        return ProbeResult(reachable=False, detail=str(exc))
     except Exception as exc:  # noqa: BLE001 — unreachable is expected, never fatal
         logger.info("sources: probe of %s (%s) failed: %s", source.id, source.url, exc)
         return ProbeResult(reachable=False, detail=type(exc).__name__)
