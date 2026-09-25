@@ -22,7 +22,7 @@ export function getMult(c) {
 export function parseEEValue(str) {
   if (!str) return null;
   str = str.split(/[\/\u00b1%]/)[0].trim();
-  str = str.replace(/[FH\u03a9\u2126]+$/i, '').replace(/ohm$/i, '').trim();
+  str = str.replace(/[FH\u03a9\u2126]+$/i, '').replace(/\s*ohms?$/i, '').trim();
   let m = str.match(/^(\d+\.?\d*)([pnumkMGR\u00b5\u03bc])(\d+)$/);
   // eslint-disable-next-line eqeqeq -- intentional: catches both null and undefined
   if (m) { const mul = getMult(m[2]); return mul != null ? parseFloat(m[1]+'.'+m[3]) * mul : null; }
@@ -32,9 +32,14 @@ export function parseEEValue(str) {
   return null;
 }
 
+// Unit group accepts the symbols (F, Ω, H) and the spelled-out "OHM"/"OHMS"
+// word form distributors use in all-caps descriptions ("RES SMD 330 OHM 0.5%").
+// The trailing lookahead keeps "OHM" from matching inside a longer word.
+// The multiplier keeps its case even under /i: getMult maps "M" to mega and
+// "m" to milli, so "1 MOHM" is 1e6 and "10 mOhm" is 1e-2.
 export function extractValueFromDesc(desc) {
   if (!desc) return null;
-  const m = desc.match(/(\d+\.?\d*)\s*([pnumkMG\u00b5\u03bc])?\s*(F|\u03a9|\u2126|H)/i);
+  const m = desc.match(/(\d+\.?\d*)\s*([pnumkMG\u00b5\u03bc])?\s*(OHMS?(?![A-Za-z])|F|\u03a9|\u2126|H)/i);
   if (!m) return null;
   const num = parseFloat(m[1]);
   const mul = m[2] ? (getMult(m[2]) || 1) : 1;
@@ -156,8 +161,11 @@ export function invFootprintCode(invItem) {
  */
 export function footprintsCompatible(bom, invItem) {
   const bomCode = extractFootprintCode(bom.footprint);
+  // Short-circuit before touching invItem: callers filter whole value groups
+  // with this, and a BOM line with no footprint code must stay O(1) per item.
+  if (!bomCode) return true;
   const invCode = invFootprintCode(invItem);
-  if (!bomCode || !invCode) return true;
+  if (!invCode) return true;
   return bomCode === invCode;
 }
 
@@ -273,6 +281,10 @@ export function findValueMatch(bom, inventory, invByValue) {
 
 // ── Find alternatives (same type + value, different part) ──
 
+// Alternates must physically fit the BOM footprint: filter with
+// footprintsCompatible, same as findValueMatch. When either side's package code
+// is unknown the check is permissive, so callers that need to tell verified
+// alternates from unverified ones use altFootprintUnverified.
 export function findAlternatives(bom, primaryInv, invByValue) {
   if (!primaryInv) return [];
   let bomType = componentTypeFromRefs(bom.refs);
@@ -283,7 +295,19 @@ export function findAlternatives(bom, primaryInv, invByValue) {
   if (val == null) return [];
   const key = valueKey(bomType, val);
   const candidates = invByValue[key] || [];
-  return candidates.filter(function(c) { return c !== primaryInv; });
+  return candidates.filter(function(c) { return c !== primaryInv && footprintsCompatible(bom, c); });
+}
+
+/**
+ * True when the BOM line has a known footprint code but the alternate's package
+ * could not be determined, so it passed findAlternatives without its fit being
+ * checked.
+ * @param {object} bom
+ * @param {import('./types.js').InventoryItem} alt
+ * @returns {boolean}
+ */
+export function altFootprintUnverified(bom, alt) {
+  return !!extractFootprintCode(bom.footprint) && !invFootprintCode(alt);
 }
 
 // ── 5-step BOM matching ──
@@ -483,9 +507,10 @@ export function matchBOM(aggregated, inventory, manualLinks, confirmedMatches, g
     }
 
     const alts = findAlternatives(bom, inv, invByValue);
+    const altsUnverified = alts.filter(a => altFootprintUnverified(bom, a));
 
     results.push({
-      bom, inv, status, matchType, alts,
+      bom, inv, status, matchType, alts, altsUnverified,
       matchSignals,
       genericPartId: genericPartId || null,
       genericPartName: genericPartName || null,

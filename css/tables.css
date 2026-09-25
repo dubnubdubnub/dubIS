@@ -176,6 +176,7 @@ td.inv-qty-cell,
 .alt-badge.covered:hover { background: var(--color-green-bg-strong); border-color: var(--color-green); }
 .alt-badge .chevron { display: inline-block; font-size: var(--text-2xs); margin-right: 2px; transition: transform var(--dur-base); }
 .alt-badge.expanded .chevron { transform: rotate(90deg); }
+.alt-badge .alt-pkg-unverified { color: var(--color-yellow); }
 
 tr.alt-row { background: var(--bg-surface); }
 tr.alt-row td { font-size: var(--text-sm); color: var(--text-secondary); padding: 3px var(--space-md); border-bottom: 1px solid var(--bg-hover); }

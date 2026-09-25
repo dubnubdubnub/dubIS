@@ -734,6 +734,10 @@ graph LR
     "tests/js/label-export.test.js" --> "js/label-export.js"
     "tests/js/label-selection.test.js" --> "js/event-bus.js"
     "tests/js/label-selection.test.js" --> "js/label-selection.js"
+    "tests/js/matching-alt-package-ohm.test.js" --> "js/bom-row-data.js"
+    "tests/js/matching-alt-package-ohm.test.js" --> "js/bom/bom-logic.js"
+    "tests/js/matching-alt-package-ohm.test.js" --> "js/matching.js"
+    "tests/js/matching-alt-package-ohm.test.js" --> "js/part-keys.js"
     "tests/js/matching-footprint.test.js" --> "js/matching.js"
     "tests/js/matching-perf.test.js" --> "js/matching.js"
     "tests/js/matching-perf.test.js" --> "js/part-keys.js"
@@ -1482,7 +1486,7 @@ graph LR
 ### js/bom-row-data.js
 
 - **Imports:** `js/matching.js`, `js/part-keys.js`
-- **Imported by:** `tests/js/bom-row-display.test.js`
+- **Imported by:** `tests/js/bom-row-display.test.js`, `tests/js/matching-alt-package-ohm.test.js`
 
 ### js/bom/bom-events.js
 
@@ -1494,7 +1498,7 @@ graph LR
 ### js/bom/bom-logic.js
 
 - **Imports:** `js/csv-parser.js`, `js/part-keys.js`
-- **Imported by:** `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `tests/js/bom-logic.test.js`
+- **Imported by:** `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `tests/js/bom-logic.test.js`, `tests/js/matching-alt-package-ohm.test.js`
 
 ### js/bom/bom-panel.js
 
@@ -1939,7 +1943,7 @@ graph LR
 ### js/matching.js
 
 - **Imports:** `js/part-keys.js`
-- **Imported by:** `js/app-init.js`, `js/bom-row-data.js`, `js/bom/bom-panel.js`, `tests/js/matching-footprint.test.js`, `tests/js/matching-perf.test.js`, `tests/js/matching-resistor-values.test.js`, `tests/js/matching.test.js`, `tests/js/real-data.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom-row-data.js`, `js/bom/bom-panel.js`, `tests/js/matching-alt-package-ohm.test.js`, `tests/js/matching-footprint.test.js`, `tests/js/matching-perf.test.js`, `tests/js/matching-resistor-values.test.js`, `tests/js/matching.test.js`, `tests/js/real-data.test.js`
 
 ### js/panel-collapse-logic.js
 
@@ -1954,7 +1958,7 @@ graph LR
 ### js/part-keys.js
 
 - **Imports:** `js/csv-parser.js`, `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom-row-data.js`, `js/bom/bom-events.js`, `js/bom/bom-logic.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/cart/cart-add.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/feeders-logic.js`, `js/feeders-modal.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory/adjust-modal.js`, `js/inventory/fetch-controller.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-source-view.js`, `js/inventory/inventory-logic.js`, `js/inventory/price-modal.js`, `js/label-selection.js`, `js/matching.js`, `tests/js/matching-perf.test.js`, `tests/js/matching.test.js`, `tests/js/part-keys.test.js`, `tests/js/real-data.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom-row-data.js`, `js/bom/bom-events.js`, `js/bom/bom-logic.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/cart/cart-add.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/feeders-logic.js`, `js/feeders-modal.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory/adjust-modal.js`, `js/inventory/fetch-controller.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-source-view.js`, `js/inventory/inventory-logic.js`, `js/inventory/price-modal.js`, `js/label-selection.js`, `js/matching.js`, `tests/js/matching-alt-package-ohm.test.js`, `tests/js/matching-perf.test.js`, `tests/js/matching.test.js`, `tests/js/part-keys.test.js`, `tests/js/real-data.test.js`
 
 ### js/part-preview.js
 
@@ -2689,6 +2693,11 @@ graph LR
 - **Imported by:** —
 - **Emits:** —
 - **Listens:** `LABEL_MODE`, `LABEL_SELECTION_CHANGED`
+
+### tests/js/matching-alt-package-ohm.test.js
+
+- **Imports:** `js/bom-row-data.js`, `js/bom/bom-logic.js`, `js/matching.js`, `js/part-keys.js`
+- **Imported by:** —
 
 ### tests/js/matching-footprint.test.js
 

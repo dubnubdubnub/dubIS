@@ -259,6 +259,7 @@ describe('bomRowDisplayData — alt badge', () => {
       badgeText: '1 alt',
       covered: true,
       expanded: false,
+      unverifiedCount: 0,
     });
   });
 
