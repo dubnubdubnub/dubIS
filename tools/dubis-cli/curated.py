@@ -53,8 +53,42 @@ def _status(client: V1Client, args) -> dict:
         # socket path is the honest answer to "which server am I talking to".
         "server": client.uds or client.base_url,
         "discovered_via": client.discovered_via,
+        "source": _answering_source(client),
         "schema_version": meta.get("schema_version"),
         "part_count": len(fetch_inventory(client)),
+    }
+
+
+def _answering_source(client: V1Client) -> dict:
+    """Which configured server source the hub served this session from.
+
+    The hub echoes no "served by" header (server/dispatch.py and
+    server/proxy.py forward the upstream's headers and add none), so this is
+    derived rather than echoed — but it is not a guess. With `--server` /
+    `DUBIS_SERVER` the hub either serves exactly the resolved selector or
+    rejects the request (an unknown id is its 404), and the CLI already
+    resolved it against the roster. With neither, a request carrying no
+    `X-Dubis-Source` is served from the roster's `default`, read here from the
+    same `GET /v1/sources` the hub resolves it from.
+    """
+    selection = client.source
+    if selection is not None:
+        return {
+            "selector": selection.selector,
+            "names": [name for _, name in selection.names],
+            "requested": selection.requested,
+            "via": selection.via,
+        }
+    roster = client.get("/v1/sources")
+    default = roster.get("default", "")
+    names = {s.get("id"): s.get("name") for s in roster.get("sources", [])}
+    names.setdefault("local", "Local")
+    ids = [part.strip() for part in default.split(",") if part.strip()]
+    return {
+        "selector": default,
+        "names": [names.get(i, i) for i in ids],
+        "requested": None,
+        "via": "hub-default",
     }
 
 
@@ -291,7 +325,7 @@ def _args_jlc(parser):
 
 CURATED: dict[str, dict[str, Any]] = {
     "status": {
-        "help": "which /v1 server this session talks to, and its part count",
+        "help": "which /v1 server and server source answer this session, and its part count",
         "add_args": lambda p: None,
         "run": _status,
     },

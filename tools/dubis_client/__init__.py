@@ -16,6 +16,12 @@ from .curate import (
     precheck_adjust,
     resolve_canonical_key,
 )
+from .servers import (
+    ServerSelection,
+    ServerSelectionError,
+    resolve_server,
+    select_server,
+)
 from .v1client import (
     NoServerFoundError,
     V1Client,
@@ -27,6 +33,8 @@ from .v1client import (
 __all__ = [
     "NoServerFoundError",
     "PartNotFoundError",
+    "ServerSelection",
+    "ServerSelectionError",
     "V1Client",
     "V1Error",
     "compact_part",
@@ -38,4 +46,6 @@ __all__ = [
     "matches_part",
     "precheck_adjust",
     "resolve_canonical_key",
+    "resolve_server",
+    "select_server",
 ]
