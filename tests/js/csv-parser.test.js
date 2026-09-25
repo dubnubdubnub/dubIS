@@ -233,3 +233,61 @@ describe('processBOM', () => {
     expect(parts[0].qty).toBe(3);
   });
 });
+
+// Shape of `kicad-cli sch export bom --fields
+// 'Reference,Value,Footprint,${QUANTITY},${DNP},MPN,Manufacturer,LCSC,LCSC ID,Description'`
+// (KiCad 10). The MPN column is present but blank on every row, and the LCSC
+// number lives in either `LCSC` or `LCSC ID` depending on the symbol.
+describe('KiCad BOM export with blank MPN and two LCSC columns', () => {
+  const csv = [
+    '"Reference","Value","Footprint","Qty","DNP","MPN","Manufacturer","LCSC","LCSC ID","Description"',
+    '"U1","STM32G473RCT6","Package_QFP:LQFP-64_10x10mm_P0.5mm","1","","","ST","","","MCU"',
+    '"U2","MT6701QT","Package_DFN_QFN:QFN-16","1","","","MagnTek","","","Encoder"',
+    '"Q1","AO3401A","Package_TO_SOT_SMD:SOT-23","1","","","AOS","","","P-MOSFET"',
+    '"U3","TPS62933","Package_TO_SOT_SMD:SOT-583","1","","","TI","","C20615829","Buck"',
+    '"R1,R2","10k","Resistor_SMD:R_0402_1005Metric","2","","","","C25744","","Resistor"',
+    '"C1","100nF","Capacitor_SMD:C_0402_1005Metric","1","","","","C1525","C9999999","Cap"',
+  ].join('\n');
+
+  it('detects every LCSC-like column, in header order', () => {
+    const headers = parseCSV(csv)[0];
+    const cols = detectBOMColumns(headers);
+    expect(cols.lcsc).toBe(7);
+    expect(cols.lcscCols).toEqual([7, 8]);
+    expect(cols.mpn).toBe(5);
+    expect(cols.value).toBe(1);
+  });
+
+  it('falls back to Value per row when the MPN cell is blank', () => {
+    const result = processBOM(csv, 'kicad10.csv');
+    expect(result.warnings).toEqual([]);
+    for (const mpn of ['STM32G473RCT6', 'MT6701QT', 'AO3401A']) {
+      const part = result.aggregated.get(mpn);
+      expect(part, mpn).toBeDefined();
+      expect(part.mpn).toBe(mpn);
+      expect(part.lcsc).toBe('');
+    }
+  });
+
+  it('reads the LCSC number from a later LCSC-like column when the first is blank', () => {
+    const result = processBOM(csv, 'kicad10.csv');
+    const part = result.aggregated.get('C20615829');
+    expect(part).toBeDefined();
+    expect(part.lcsc).toBe('C20615829');
+    expect(part.mpn).toBe('TPS62933');
+  });
+
+  it('prefers the first non-empty LCSC-like column', () => {
+    const result = processBOM(csv, 'kicad10.csv');
+    expect(result.aggregated.get('C1525')).toBeDefined();
+    expect(result.aggregated.has('C9999999')).toBe(false);
+    expect(result.aggregated.get('C25744').qty).toBe(2);
+    expect(result.aggregated.size).toBe(6);
+  });
+
+  it('an explicit MPN cell still wins over Value', () => {
+    const cols = detectBOMColumns(['Value', 'MPN', 'LCSC']);
+    expect(extractPartIds(['10k', 'RC0402FR-0710KL', ''], cols).mpn).toBe('RC0402FR-0710KL');
+    expect(extractPartIds(['10k', '', ''], cols).mpn).toBe('10k');
+  });
+});

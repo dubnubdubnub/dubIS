@@ -7,7 +7,7 @@ import { bomAggKey, invPartKey } from '../part-keys.js';
 /**
  * Classify a single BOM row as ok | warn | dnp | subtotal.
  * @param {string[]} row
- * @param {{ lcsc: number, mpn: number, qty: number, ref: number, desc: number, value: number, footprint: number, dnp: number }} bomCols
+ * @param {{ lcsc: number, lcscCols?: number[], mpn: number, qty: number, ref: number, desc: number, value: number, footprint: number, dnp: number }} bomCols
  * @returns {"ok" | "warn" | "dnp" | "subtotal"}
  */
 export function classifyBomRow(row, bomCols) {
