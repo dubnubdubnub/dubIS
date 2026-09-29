@@ -300,7 +300,11 @@ const DIGIKEY_COOKIE_DOMAIN = "digikey.com";
  * A signed-out request here redirects to DigiKey's sign-in page, so the final
  * URL answers "am I signed in?" without reading any account data.
  */
-const DIGIKEY_ACCOUNT_URL = "https://www.digikey.com/MyDigiKey/Account";
+// Signed in: 200 "Index - My DigiKey". Signed out: redirected to
+// auth.digikey.com. Verified live 2026-09-29; /MyDigiKey/Account, the old
+// probe, now 404s for a signed-in user, so a real session never read as signed
+// in. Must match `digikey_session.ACCOUNT_URL` (a test compares the two).
+const DIGIKEY_ACCOUNT_URL = "https://www.digikey.com/MyDigiKey";
 
 /**
  * One DigiKey probe. The body is read only to spot a Cloudflare interstitial

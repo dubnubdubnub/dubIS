@@ -38,7 +38,7 @@ export function isCloudflareInterstitial(body) {
 /**
  * Whether a URL is where DigiKey sends someone who is not signed in.
  *
- * Verified live on 2026-09-29: a signed-out visit to /MyDigiKey/Account ends on
+ * Verified live on 2026-09-29: a signed-out visit to /MyDigiKey ends on
  * `https://auth.digikey.com/as/authorization.oauth2?...`, which contains
  * neither "/login" nor "/signin". Mirrors `digikey_session.is_login_url`.
  *

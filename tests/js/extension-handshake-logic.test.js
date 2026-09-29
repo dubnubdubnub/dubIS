@@ -11,7 +11,7 @@ import {
   toPushedCookie,
 } from "../../extension/jlc-bridge/handshake-logic.js";
 
-const ACCOUNT = "https://www.digikey.com/MyDigiKey/Account";
+const ACCOUNT = "https://www.digikey.com/MyDigiKey";
 
 describe("routeForCode", () => {
   it("sends DK- codes to DigiKey", () => {

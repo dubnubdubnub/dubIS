@@ -42,6 +42,14 @@ NONCE_PREFIX = "DK-"
 #: property that makes it safe, not its length.
 NONCE_TTL_SECONDS = 600
 
+#: The signed-in-only page every sign-in probe asks for. Verified live on
+#: 2026-09-29: signed in, this answers 200 "Index - My DigiKey"; signed out, a
+#: browser is redirected to auth.digikey.com and a plain request gets 401. The
+#: probes used to ask for /MyDigiKey/Account, which now 404s (via
+#: /MyDigiKey/Error) for a signed-in user, so a real session never read as
+#: signed in. The extension's `DIGIKEY_ACCOUNT_URL` must match this.
+ACCOUNT_URL = "https://www.digikey.com/MyDigiKey"
+
 #: The site the extension may push cookies for. Anything else in a request is
 #: dropped here, whatever the sender claims.
 COOKIE_DOMAIN_SUFFIX = "digikey.com"
@@ -119,7 +127,7 @@ def filter_cookies(cookies: Any) -> list[dict[str, Any]]:
 def is_login_url(url: str) -> bool:
     """Whether *url* is where DigiKey sends someone who is not signed in.
 
-    Verified live on 2026-09-29: a signed-out visit to /MyDigiKey/Account ends on
+    Verified live on 2026-09-29: a signed-out visit to /MyDigiKey ends on
     ``https://auth.digikey.com/as/authorization.oauth2?...`` (title "Login"),
     which contains neither ``/login`` nor ``/signin``. The older rule matched
     only those two, so it read every signed-out session as signed in.
@@ -227,7 +235,7 @@ def validate_session_http(cookies: list[dict]) -> bool:
         return False
     cookie_header = "; ".join(pairs)
 
-    url = "https://www.digikey.com/MyDigiKey/Account"
+    url = ACCOUNT_URL
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Cookie": cookie_header,
@@ -283,14 +291,14 @@ def check_session(client: "DigikeyClient") -> dict[str, Any]:
 
 
 def _probe_session(client: "DigikeyClient") -> bool:
-    """Navigate to MyDigiKey/Account and check we don't end up at /login.
+    """Navigate to the MyDigiKey page and check we don't end up at sign-in.
 
     Returns True if the session is usable (lands on the account page),
     False if redirected to login or the Cloudflare challenge persists.
     """
     with client._lock:
         client._ensure_window()
-        probe_url = "https://www.digikey.com/MyDigiKey/Account"
+        probe_url = ACCOUNT_URL
         client._loaded.clear()
         client._window.load_url(probe_url)
         if not client._loaded.wait(timeout=15):
