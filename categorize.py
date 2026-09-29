@@ -35,6 +35,9 @@ def parse_inductance(desc: str) -> float:
 
 # Each rule: first match wins.  Within a rule, keywords in the same field
 # are OR'd; different fields (desc + mfr) are AND'd.  exclude_desc vetoes.
+# desc_prefix matches only at the start of the description, for DigiKey's
+# terse category prefixes ("RES ", "TRIMMER ") that would be noise anywhere
+# else in the string.
 CATEGORY_RULES: list[dict[str, Any]] = [
     # Connectors
     {"category": "Connectors", "desc": [
@@ -73,11 +76,13 @@ CATEGORY_RULES: list[dict[str, Any]] = [
     {"category": "Passives - Inductors", "desc": [
         "inductor", "ferrite bead", "common mode choke",
     ]},
-    {"category": "Passives - Resistors", "desc": ["resistor"]},
-    # An ohm figure is also how FETs quote Rds(on) and ideal-diode
-    # controllers quote their pass element, so it cannot stand alone.
-    {"category": "Passives - Resistors", "desc": ["\u03c9", "\u03a9", "\u2126", "ohm"],
-     "exclude_desc": ["mosfet", "fet", "ideal diode"]},
+    # Resistors are recognised by what they say they are, never by an ohm
+    # figure alone: switches quote on-resistance, FETs Rds(on), ferrites
+    # impedance and chokes DCR, all in ohms.
+    {"category": "Passives - Resistors", "desc": [
+        "resistor", "potentiometer", "trimpot",
+    ]},
+    {"category": "Passives - Resistors", "desc_prefix": ["res ", "trimmer "]},
     {"category": "Passives - Resistors", "mfr": ["uni-royal"]},
     {"category": "Passives - Resistors", "mfr": ["ta-i tech"], "desc": ["m\u03c9"]},
     {"category": "Passives - Capacitors", "desc": ["capacitor", "electrolytic", "cap cer"]},
@@ -167,10 +172,14 @@ def categorize(row: dict[str, str]) -> str:
             continue
         matched = True
         has_condition = False
-        for field, text in [("desc", desc), ("mpn", mpn), ("mfr", mfr)]:
+        for field, text in [("desc", desc), ("desc_prefix", desc), ("mpn", mpn), ("mfr", mfr)]:
             if field in rule:
                 has_condition = True
-                if not any(kw in text for kw in rule[field]):
+                if field == "desc_prefix":
+                    hit = text.startswith(tuple(rule[field]))
+                else:
+                    hit = any(kw in text for kw in rule[field])
+                if not hit:
                     matched = False
                     break
         if has_condition and matched:
