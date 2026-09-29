@@ -530,6 +530,35 @@ warehouse parts.* Deliberately stops short of merging into inventory.
 Add `*://*.digikey.com/*`, reuse the handshake, retire the dead CDP launch path. The
 fetch question stays open (below).
 
+**Built 2026-09-29.** As planned, plus three findings that changed details:
+
+- **The routes.** `POST /v1/distributors/digikey/pairing` mints a `DK-` code, which
+  is how the popup tells a DigiKey code from a JLC one. `POST
+  /v1/distributors/digikey/push` takes the cookies. Both are intake paths under
+  rules 3, 5 and 10, exactly like JLC's. The push is not at
+  `/v1/distributors/digikey/session`, because that path's GET and DELETE follow the
+  active source and `LOCAL_ONLY_PATHS` matches whole paths.
+- **Rule 6 has a DigiKey exception.** The extension sends every digikey.com cookie,
+  not a named allowlist. Nobody has recorded which cookies make a DigiKey session,
+  and guessing wrong would make sign-in "succeed" while fetching stayed anonymous.
+  It is still one domain, never the jar, and Chrome enforces that through
+  `host_permissions`. The server logs the names it receives (never the values), so
+  the allowlist can be narrowed after the first real sign-in.
+- **The sign-in check was wrong, on both sides.** Verified live: a signed-out visit
+  to /MyDigiKey/Account ends on `auth.digikey.com/as/authorization.oauth2?…`, which
+  contains neither "/login" nor "/signin", and a plain request with no session gets a
+  401 rather than a redirect. The old `validate_session_http` matched only the two
+  path fragments, so it read every signed-out session as signed in.
+  `digikey_session.is_login_url` and the 401 branch now decide, and the extension's
+  `handshake-logic.js` mirrors them.
+- **Server-side verification is three-state, but accepts "inconclusive".** JLC
+  rejects an unverifiable push, because an anonymous JLC request mints its own
+  session cookie. DigiKey has no such trap, and `cf_clearance` is bound to the
+  browser that earned it, so a urllib probe from the server is often refused with a
+  403 even for a good session. The push is accepted as `"unverified"`, since the
+  extension already saw the account page in the user's browser.
+- **Decision 3's premise was false on macOS; see the amendment under it.**
+
 ### Phase 3 — inventory integration
 
 Blocked on a decision (below). Not scoped here.
@@ -576,6 +605,20 @@ different class of asset, and `domain/federation.py`'s qty rule ("850 on the ben
    this: extension-fetch would make the extension load-bearing for core pricing, not
    just onboarding — "no extension, no DigiKey prices" is a far bigger commitment than
    "no extension, paste a cookie".
+
+   **Amended 2026-09-29, and the decision itself stands.** "DigiKey's fetch works
+   where people use it" was only ever true on Windows, where the hidden window is
+   WebView2, i.e. Chromium. On macOS pywebview is WKWebView, and DigiKey's Cloudflare
+   challenge on product pages never clears in it, hidden or visible (verified live).
+   A normal Chromium window clears it in about four seconds. A headless one never
+   does, and neither does a minimised one. So macOS and Linux now fetch through
+   `digikey_browser.py`: dubIS's own Chromium, on a non-default profile under the
+   data dir, driven over CDP, visible, launched on first use and reused. Nobody signs
+   in there by hand, so the profile losing autofill costs nothing. Rule 2 is
+   untouched, because the extension still only pushes. The one cost is visible: a
+   browser window appears the first time a Mac previews a DigiKey part. A related
+   fact: none of this needs the login. Product pages scrape anonymously, and a
+   pushed session is injected when there is one.
 
 4. **Unpacked dev-mode now; Chrome Web Store *unlisted* before anyone but Isaac
    installs it.** Auto-update is a security property for a credential-handling

@@ -309,7 +309,7 @@ test.describe('Part preview tooltip — data loading', () => {
     await expect(page.locator('.part-preview-card')).toHaveClass(/provider-mouser/);
   });
 
-  test('DigiKey tooltip shows login prompt when not logged in', async ({ page }) => {
+  test('DigiKey tooltip suggests signing in when not logged in', async ({ page }) => {
     const el = page.locator('[data-digikey="DK-CONN-123"]').first();
     await expect(el).toBeVisible();
     await el.hover();
@@ -317,7 +317,7 @@ test.describe('Part preview tooltip — data loading', () => {
     const card = page.locator('.part-preview-card');
     await expect(card).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.part-preview-error')).toContainText(
-      'Login to Digikey in Preferences to enable preview',
+      'Could not load product data — signing in to DigiKey in Preferences may help',
     );
   });
 

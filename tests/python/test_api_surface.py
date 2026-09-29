@@ -74,7 +74,6 @@ FROZEN_SURFACE = {
     'restart_app': '()',
     'save_file_dialog': "(content, default_name='export.csv', default_dir=None, links_json=None)",
     'set_bom_dirty': '(dirty)',
-    'start_digikey_login': '()',
 }
 
 

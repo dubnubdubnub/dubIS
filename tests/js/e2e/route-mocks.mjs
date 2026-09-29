@@ -11,7 +11,7 @@
  *   - `addMockSetup` is reused UNCHANGED as the shim layer: dialog/window
  *     methods (`open_file_dialog`, `save_file_dialog`, `load_file`,
  *     `set_bom_dirty`, `confirm_close`, `bench_mark`, `install_tesseract`,
- *     `start_digikey_login`, `open_source_file`) are the only methods
+ *     `open_source_file`) are the only methods
  *     actually still reachable through `window.pywebview.api` (the
  *     ~9-method ClientShell). The inventory-mirror endpoints were stubbed
  *     there too, described as "deliberately NOT on /v1" — they were in fact
@@ -142,7 +142,9 @@ const ROUTES = [
   })),
   route('get_digikey_session', (_a, ctx) => ctx.options.digikeyStatus || { logged_in: false }),
   route('validate_digikey_session', () => null),
-  route('sync_digikey_cookies', (_a, ctx) => ctx.options.digikeyStatus || { logged_in: false }),
+  // DigiKey sign-in pairing code (js/digikey-pairing.js). A spec that wants a
+  // different code or TTL passes `digikeyPairing` in the options bag.
+  route('create_digikey_pairing', (_a, ctx) => ctx.options.digikeyPairing || { nonce: 'DK-TESTCODE', ttl: 600 }),
   route('logout_digikey', () => null),
   route('get_mouser_api_key_status', (_a, ctx) => ctx.options.mouserKeyStatus || { configured: false }),
   route('set_mouser_api_key', () => null),

@@ -45,11 +45,11 @@ class DistributorFacade:
     def check_digikey_session(self) -> dict[str, Any]:
         return self._api._distributors.check_digikey_session()
 
-    def start_digikey_login(self) -> dict[str, Any]:
-        return self._api._distributors.start_digikey_login()
+    def create_digikey_pairing(self) -> dict[str, Any]:
+        return self._api._distributors.create_digikey_pairing()
 
-    def sync_digikey_cookies(self) -> dict[str, Any]:
-        return self._api._distributors.sync_digikey_cookies()
+    def receive_digikey_session(self, nonce: str, cookies: Any = None) -> dict[str, Any]:
+        return self._api._distributors.receive_digikey_session(nonce, cookies)
 
     def get_digikey_login_status(self) -> dict[str, bool]:
         return self._api._distributors.get_digikey_login_status()

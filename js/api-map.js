@@ -188,6 +188,17 @@ export const API_MAP = {
     "unwrap": "detail",
     "verb": "POST"
   },
+  "create_digikey_pairing": {
+    "argOrder": [],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/distributors/digikey/pairing",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "POST"
+  },
   "create_generic_part": {
     "argOrder": [
       "name",
@@ -1241,6 +1252,23 @@ export const API_MAP = {
     "unwrap": "inventory",
     "verb": "GET"
   },
+  "receive_digikey_session": {
+    "argOrder": [
+      "nonce",
+      "cookies"
+    ],
+    "bodyParams": [
+      "cookies",
+      "nonce"
+    ],
+    "mutating": false,
+    "path": "/v1/distributors/digikey/push",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "POST"
+  },
   "receive_jlc_session": {
     "argOrder": [
       "nonce",
@@ -1589,17 +1617,6 @@ export const API_MAP = {
     ],
     "mutating": false,
     "path": "/v1/scan/sessions",
-    "pathParams": [],
-    "queryParams": [],
-    "rawBody": false,
-    "unwrap": null,
-    "verb": "POST"
-  },
-  "sync_digikey_cookies": {
-    "argOrder": [],
-    "bodyParams": [],
-    "mutating": false,
-    "path": "/v1/distributors/digikey/cookies/sync",
     "pathParams": [],
     "queryParams": [],
     "rawBody": false,

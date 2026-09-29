@@ -51,7 +51,8 @@ EXEMPT = {
     # Credentials / session — not inventory-rendered state.
     "logout_digikey": "distributor credentials",
     "validate_digikey_session": "distributor credentials",
-    "sync_digikey_cookies": "distributor credentials",
+    "create_digikey_pairing": "mints a pairing nonce; touches no stored data at all",
+    "receive_digikey_session": "distributor credentials",
     "set_mouser_api_key": "distributor credentials",
     "clear_mouser_api_key": "distributor credentials",
     # Same class: pairing/holding/revoking a JLC login changes no inventory

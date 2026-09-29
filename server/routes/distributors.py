@@ -12,8 +12,8 @@ DigiKey session cookies / the Mouser API key / JLC session cookies), so none of
 them call `finish_mutation`/publish — same rationale as `fetch_favicon` in
 `vendors_pos.py`.
 
-The two JLCPCB *credential intake* routes are the only ones here that are
-loopback-gated. A browser extension pushes a live JLC session cookie at
+The credential-intake routes (JLCPCB's pairing + session, DigiKey's pairing +
+push) are the only ones here that are loopback-gated. A browser extension pushes a live JLC session cookie at
 `POST /v1/distributors/jlcpcb/session`, and a hub that forwarded that upstream
 would be handing a user's credential to a different machine — so both it and
 the pairing route that authorizes it call `auth.require_loopback` AND appear in
@@ -23,7 +23,7 @@ stops a remote caller *reaching* the handler. The extension talking to a remote
 dubIS is phase 2+ and needs its own deliberate, tested exception. Design:
 `docs/plans/2026-09-20-extension-credential-capture.md`.
 
-Those same two paths carry this package's only per-origin CORS grant, in two
+Those same intake paths carry this package's only per-origin CORS grant, in two
 halves: `_preflight` answers their OPTIONS, and `BridgeCorsMiddleware` — an ASGI
 middleware that lives here, beside the id it pins, and is registered outermost
 by `server/app.py` — stamps the grant onto every response they produce,
@@ -39,6 +39,9 @@ from starlette.datastructures import Headers, MutableHeaders
 
 from server.auth import require_loopback
 from server.models import (
+    DigikeyPairingResponse,
+    DigikeySessionAcceptedResponse,
+    DigikeySessionBody,
     JlcLibraryResponse,
     JlcPairingResponse,
     JlcRevokeResponse,
@@ -112,10 +115,44 @@ def validate_digikey_session(request: Request) -> dict:
     return api.validate_digikey_session()
 
 
-@router.post("/distributors/digikey/cookies/sync", operation_id="sync_digikey_cookies")
-def sync_digikey_cookies(request: Request) -> dict:
-    api = request.app.state.api
-    return api.sync_digikey_cookies()
+@router.options("/distributors/digikey/pairing", include_in_schema=False)
+def preflight_digikey_pairing(request: Request) -> Response:
+    return _preflight(request)
+
+
+@router.options("/distributors/digikey/push", include_in_schema=False)
+def preflight_digikey_push(request: Request) -> Response:
+    return _preflight(request)
+
+
+@router.post(
+    "/distributors/digikey/pairing",
+    response_model=DigikeyPairingResponse,
+    operation_id="create_digikey_pairing",
+)
+def create_digikey_pairing(request: Request) -> dict:
+    """Mint the single-use pairing code the bridge extension must present. Loopback only."""
+    # Same gate and the same CORS middleware as the JLC intake routes below.
+    require_loopback(request)
+    return request.app.state.api.create_digikey_pairing()
+
+
+@router.post(
+    "/distributors/digikey/push",
+    response_model=DigikeySessionAcceptedResponse,
+    operation_id="receive_digikey_session",
+)
+def receive_digikey_session(request: Request, body: DigikeySessionBody) -> dict:
+    """Accept a DigiKey session pushed by the bridge extension. Loopback only.
+
+    Consumes the pairing code, checks the session, and stores it. Answers with
+    whether it was verified and how many cookies were kept, never the cookies.
+    """
+    # Not `/distributors/digikey/session`: that path's GET and DELETE are served
+    # by the active source, and `proxy.LOCAL_ONLY_PATHS` matches whole paths, so
+    # sharing it would pin the status read to the local hub as well.
+    require_loopback(request)
+    return request.app.state.api.receive_digikey_session(body.nonce, body.cookies)
 
 
 # ── Mouser API key ───────────────────────────────────────────────────────────
@@ -188,13 +225,16 @@ def _preflight(request: Request) -> Response:
     return Response(status_code=204, headers=_INTAKE_PREFLIGHT_HEADERS)
 
 
-# The two paths the extension POSTs to, and the only two `/v1` paths that may
-# answer it cross-origin at all. `BridgeCorsMiddleware` matches the exact path
-# string, so these must stay byte-identical to the route decorators below (and
-# to the `proxy.LOCAL_ONLY_PATHS` entries naming the same two routes).
+# The paths the extension POSTs to, and the only `/v1` paths that may answer it
+# cross-origin at all: a pairing route and an intake route per distributor.
+# `BridgeCorsMiddleware` matches the exact path string, so these must stay
+# byte-identical to the route decorators (and to the `proxy.LOCAL_ONLY_PATHS`
+# entries naming the same routes).
 INTAKE_PATHS = frozenset({
     "/v1/distributors/jlcpcb/pairing",
     "/v1/distributors/jlcpcb/session",
+    "/v1/distributors/digikey/pairing",
+    "/v1/distributors/digikey/push",
 })
 
 

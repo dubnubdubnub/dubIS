@@ -1,34 +1,39 @@
 /* preferences-modal.js — Preferences modal with section threshold sliders,
-   Digikey login/logout flow, and Mouser API key management.
+   Mouser API key management, and the wiring for three live sections.
 
-   Two sections live in their own modules because they are live components with
-   a start/stop lifecycle, not static form controls: the server picker
-   (js/server-list.js) and the JLCPCB pairing panel (js/jlc-sessions.js). Both
-   are started when this modal opens and stopped when it closes. */
+   Three sections live in their own modules because they are live components
+   with a start/stop lifecycle, not static form controls: the server picker
+   (js/server-list.js), the JLCPCB pairing panel (js/jlc-sessions.js) and the
+   DigiKey sign-in panel (js/digikey-pairing.js). All three are started when
+   this modal opens and stopped when it closes. */
 
 import { api, AppLog } from './api.js';
 import { showToast, escHtml, Modal } from './ui-helpers.js';
 import { store, getThreshold, savePreferences, preferencesSignal, getShortcutPrefs, setShortcutPrefs, getBehaviorPrefs, setBehaviorPrefs } from './store.js';
 import { wireServerList, startServerList, stopServerList } from './server-list.js';
 import { wireJlcPanel, startJlcPanel, stopJlcPanel } from './jlc-sessions.js';
+import { wireDigikeyPanel, startDigikeyPanel, stopDigikeyPanel } from './digikey-pairing.js';
 
 var PREFS_MAX_THRESHOLD = 200;
 var PREFS_MIN_THRESHOLD = 5;
 
-// ── Digikey login polling ──
-var _dkPollTimer = null;
+// ── Digikey sign-in polling ──
+// Stops the pairing-code countdown and the login-status poll and drops any
+// live code (js/digikey-pairing.js). Must run on every way the modal closes.
 function stopDkPolling() {
-  if (_dkPollTimer) { clearTimeout(_dkPollTimer); _dkPollTimer = null; }
+  stopDigikeyPanel();
 }
 
 // ── Modal instance ──
 const prefsModal = Modal("prefs-modal", {
   cancelId: "prefs-cancel",
   confirmId: "prefs-save",
-  // Two sections of this modal are live while it is on screen and must not be
-  // while it is not: the server picker polls /v1/health, and the JLC panel
-  // counts a pairing code down (and polls for the extension's delivery).
-  onClose: function () { stopServerList(); stopJlcPanel(); },
+  // Three sections of this modal are live while it is on screen and must not
+  // be while it is not: the server picker polls /v1/health, and the JLC and
+  // DigiKey panels count a pairing code down (and poll for the extension's
+  // delivery). Cancel, Escape and a backdrop click all land here, not in
+  // closePreferencesModal, so the DigiKey poll has to stop here too.
+  onClose: function () { stopServerList(); stopJlcPanel(); stopDkPolling(); },
 });
 
 // ── Slider helpers ──
@@ -141,26 +146,8 @@ export function openPreferencesModal() {
     );
   }
 
-  // Load Digikey login status
-  var dkStatus = document.getElementById("dk-status");
-  var dkLoginBtn = document.getElementById("dk-login");
-  var dkLogoutBtn = document.getElementById("dk-logout");
-  dkStatus.textContent = "Checking...";
-  dkStatus.style.color = "var(--text-muted)";
-  api("get_digikey_login_status").then(function (result) {
-    if (result && result.logged_in) {
-      dkStatus.textContent = "Logged in";
-      dkStatus.style.color = "var(--color-green)";
-      dkLoginBtn.classList.add("hidden");
-      dkLogoutBtn.classList.remove("hidden");
-    } else {
-      dkStatus.textContent = "Not logged in";
-      dkStatus.style.color = "var(--text-muted)";
-      dkLoginBtn.classList.remove("hidden");
-      dkLogoutBtn.classList.add("hidden");
-      if (result && result.message) AppLog.info("DK: " + result.message);
-    }
-  });
+  // Digikey sign-in status (no pairing code until the user asks for one)
+  startDigikeyPanel();
 
   // Load Mouser API key status
   refreshMouserStatus();
@@ -241,64 +228,10 @@ export function applyPreferences() {
   preferencesSignal.set(store.preferences);
 }
 
-// ── Digikey login/logout button wiring ──
+// ── Digikey sign-in + Mouser key button wiring ──
 
 export function wireDigikeyButtons() {
-  var dkLoginBtn = document.getElementById("dk-login");
-  var dkLogoutBtn = document.getElementById("dk-logout");
-
-  if (dkLoginBtn) dkLoginBtn.addEventListener("click", async () => {
-    await api("start_digikey_login");
-    var dkStatus = document.getElementById("dk-status");
-    dkStatus.textContent = "Browser opened — waiting for login...";
-    dkStatus.style.color = "var(--text-muted)";
-    dkLoginBtn.classList.add("hidden");
-
-    stopDkPolling();
-    function pollDkLogin() {
-      _dkPollTimer = setTimeout(async () => {
-        var result = await api("sync_digikey_cookies");
-        if (result && result.debug) {
-          result.debug.forEach(function (line) { AppLog.info("  DK: " + line); });
-        }
-        if (result && result.logged_in) {
-          stopDkPolling();
-          var label = "Logged in" + (result.browser ? " (via " + result.browser + ")" : "");
-          dkStatus.textContent = label;
-          dkStatus.style.color = "var(--color-green)";
-          dkLogoutBtn.classList.remove("hidden");
-          showToast(label);
-          AppLog.info("DK login success: " + label);
-        } else if (result && result.status === "browser_running") {
-          stopDkPolling();
-          dkStatus.textContent = result.message;
-          dkStatus.style.color = "var(--color-red)";
-          dkLoginBtn.classList.remove("hidden");
-        } else if (result && result.status === "error") {
-          stopDkPolling();
-          dkStatus.textContent = result.message;
-          dkStatus.style.color = "var(--color-red)";
-          dkLoginBtn.classList.remove("hidden");
-          AppLog.warn("DK: " + result.message);
-        } else {
-          dkStatus.textContent = (result && result.message) || "Waiting for login...";
-          pollDkLogin();
-        }
-      }, 1500);
-    }
-    pollDkLogin();
-  });
-
-  if (dkLogoutBtn) dkLogoutBtn.addEventListener("click", async () => {
-    stopDkPolling();
-    await api("logout_digikey");
-    var dkStatus = document.getElementById("dk-status");
-    dkStatus.textContent = "Not logged in";
-    dkStatus.style.color = "var(--text-muted)";
-    dkLoginBtn.classList.remove("hidden");
-    dkLogoutBtn.classList.add("hidden");
-    showToast("Digikey logged out");
-  });
+  wireDigikeyPanel();
 
   // Mouser API key save/clear
   var mouserSaveBtn = document.getElementById("mouser-save");

@@ -196,7 +196,7 @@ def test_non_finish_mutation_post_routes_do_not_default_to_detail_unwrap(spec: d
     for op_id in (
         "detect_columns", "match_part", "ocr_overlay", "parse_import_source",
         "start_scan_session", "extract_spec_from_value",
-        "validate_digikey_session", "sync_digikey_cookies",
+        "validate_digikey_session", "create_digikey_pairing", "receive_digikey_session",
         "set_mouser_api_key", "clear_mouser_api_key", "logout_digikey",
         "save_preferences", "pnp_consume",
     ):

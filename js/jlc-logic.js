@@ -140,17 +140,22 @@ export function pairingFromResponse(result, nowMs) {
  * ~2 minutes of the extension polling JLC, then the POST — so the panel shows
  * the time left rather than a bare "expires in 10 minutes" that stops being
  * true the moment it is printed.
+ *
+ * Shared with the DigiKey pairing panel (js/digikey-logic.js), which runs the
+ * same nonce handshake; `signInLabel` names the button that mints a new code,
+ * so the expired line points at the right one.
  * @param {number} expiresAtMs
  * @param {number} nowMs
+ * @param {string} [signInLabel]
  * @returns {{expired: boolean, secondsLeft: number, text: string}}
  */
-export function countdown(expiresAtMs, nowMs) {
+export function countdown(expiresAtMs, nowMs, signInLabel = 'Sign in to JLC') {
   const secondsLeft = Math.ceil((expiresAtMs - nowMs) / 1000);
   if (!(secondsLeft > 0)) {
     return {
       expired: true,
       secondsLeft: 0,
-      text: 'This code has expired — click Sign in to JLC for a new one.',
+      text: 'This code has expired — click ' + signInLabel + ' for a new one.',
     };
   }
   const mins = Math.floor(secondsLeft / 60);

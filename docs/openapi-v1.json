@@ -419,6 +419,69 @@
         "title": "DetectColumnsBody",
         "type": "object"
       },
+      "DigikeyPairingResponse": {
+        "properties": {
+          "nonce": {
+            "title": "Nonce",
+            "type": "string"
+          },
+          "ttl": {
+            "title": "Ttl",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nonce",
+          "ttl"
+        ],
+        "title": "DigikeyPairingResponse",
+        "type": "object"
+      },
+      "DigikeySessionAcceptedResponse": {
+        "properties": {
+          "cookie_count": {
+            "title": "Cookie Count",
+            "type": "integer"
+          },
+          "logged_in": {
+            "title": "Logged In",
+            "type": "boolean"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "logged_in",
+          "state",
+          "cookie_count"
+        ],
+        "title": "DigikeySessionAcceptedResponse",
+        "type": "object"
+      },
+      "DigikeySessionBody": {
+        "properties": {
+          "cookies": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Cookies",
+            "type": "array"
+          },
+          "nonce": {
+            "title": "Nonce",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nonce",
+          "cookies"
+        ],
+        "title": "DigikeySessionBody",
+        "type": "object"
+      },
       "EvaluateBody": {
         "additionalProperties": false,
         "properties": {
@@ -2745,24 +2808,65 @@
         ]
       }
     },
-    "/v1/distributors/digikey/cookies/sync": {
+    "/v1/distributors/digikey/pairing": {
       "post": {
-        "operationId": "sync_digikey_cookies",
+        "description": "Mint the single-use pairing code the bridge extension must present. Loopback only.",
+        "operationId": "create_digikey_pairing",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Sync Digikey Cookies",
-                  "type": "object"
+                  "$ref": "#/components/schemas/DigikeyPairingResponse"
                 }
               }
             },
             "description": "Successful Response"
           }
         },
-        "summary": "Sync Digikey Cookies",
+        "summary": "Create Digikey Pairing",
+        "tags": [
+          "distributors"
+        ]
+      }
+    },
+    "/v1/distributors/digikey/push": {
+      "post": {
+        "description": "Accept a DigiKey session pushed by the bridge extension. Loopback only.\n\nConsumes the pairing code, checks the session, and stores it. Answers with\nwhether it was verified and how many cookies were kept, never the cookies.",
+        "operationId": "receive_digikey_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DigikeySessionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigikeySessionAcceptedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Receive Digikey Session",
         "tags": [
           "distributors"
         ]

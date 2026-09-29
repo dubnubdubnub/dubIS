@@ -96,6 +96,8 @@ ARG_ORDER: dict[str, list[str]] = {
     # the nonce leads because it is what authorizes the call at all, and label
     # is the one genuinely optional argument.
     "receive_jlc_session": ["nonce", "account", "cookies", "label"],
+    # Matches InventoryApi.receive_digikey_session(nonce, cookies).
+    "receive_digikey_session": ["nonce", "cookies"],
     "consolidate_cart": ["cart_id", "distributor"],
     "export_cart": ["cart_id", "distributor", "format"],
     "remove_cart_item": ["cart_id", "ref"],
@@ -155,7 +157,8 @@ ARG_ORDER: dict[str, list[str]] = {
 # state-changing-verb routes are pure lookups/config toggles that return
 # their payload raw, un-enveloped (detect_columns, match_part, ocr_overlay,
 # parse_import_source, start_scan_session, extract_spec_from_value,
-# validate_digikey_session, sync_digikey_cookies, set/clear_mouser_api_key,
+# validate_digikey_session, create_digikey_pairing, receive_digikey_session,
+# set/clear_mouser_api_key,
 # logout_digikey, save_preferences, pnp_consume, resolve_bom_spec,
 # fetch_favicon, create_saved_search, delete_saved_search — none of these
 # call finish_mutation). Getting this wrong makes `unwrap` default to

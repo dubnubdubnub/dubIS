@@ -640,7 +640,7 @@ async function bootstrapData() {
       // Cookie presence isn't enough — validate the session is actually live.
       // Hits a logged-in-only Digikey page in the hidden webview; on failure
       // the backend invalidates the session so the next preview tooltip
-      // shows the "Login to Digikey in Preferences" message.
+      // suggests signing in to DigiKey in Preferences.
       api("validate_digikey_session").then(function (v) {
         if (!v) return;
         if (v.changed && !v.logged_in) {

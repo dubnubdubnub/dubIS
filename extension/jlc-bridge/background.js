@@ -1,20 +1,29 @@
-// dubIS JLC bridge — service worker.
+// dubIS bridge — service worker.
 //
 // The whole extension is one push: on a user click in the popup, wait until
-// the user is genuinely signed in to JLCPCB, then hand exactly the named
-// session cookie(s) to the dubIS the user configured, together with the
-// pairing nonce dubIS displayed.
+// the user is genuinely signed in to JLCPCB or DigiKey, then hand that site's
+// session cookies to the dubIS the user configured, together with the pairing
+// nonce dubIS displayed. The nonce itself picks the site: DigiKey codes start
+// with "DK-" (handshake-logic.js), everything else is JLC.
 //
 // Load-bearing properties (docs/plans/2026-09-20-extension-credential-capture.md):
 //   * No `externally_connectable` and no content scripts, so no web page can
 //     reach this worker. The only senders are this extension's own pages.
 //   * There is no "fetch this URL" message. The only outbound URLs are the one
-//     JLC validation endpoint below and the configured dubIS session route.
-//   * Cookies are filtered HERE, by name, against one domain. The jar is never
-//     sent, and a cookie value is never stored in extension storage or logged.
+//     JLC validation endpoint, the one DigiKey account page, and the configured
+//     dubIS intake routes.
+//   * JLC cookies are filtered HERE, by name, against one domain. DigiKey sends
+//     its whole digikey.com jar, deliberately — see DIGIKEY_COOKIE_DOMAIN.
+//     A cookie value is never stored in extension storage or logged.
 //   * Nothing runs without a nonce the user pasted in from dubIS.
 
-import { getBaseUrl, SESSION_PATH } from "./config.js";
+import { DIGIKEY_PUSH_PATH, getBaseUrl, SESSION_PATH } from "./config.js";
+import {
+  classifyDigikeyProbe,
+  describeRejection,
+  routeForCode,
+  toPushedCookie,
+} from "./handshake-logic.js";
 
 /**
  * The only cookies that may ever leave this extension. A short allowlist, not
@@ -274,6 +283,187 @@ async function runHandshake(nonceRaw) {
   }
 }
 
+// ── DigiKey (phase 2) ────────────────────────────────────────────────────────
+
+/**
+ * Every digikey.com cookie is sent, not a named allowlist — a deliberate
+ * departure from rule 6 of docs/plans/2026-09-20-extension-credential-capture.md.
+ * Nobody has yet recorded which DigiKey cookies make up a session (it sits
+ * behind Cloudflare and rotates several), and guessing short would push a
+ * session that silently fails. dubIS logs the cookie *names* it receives, so
+ * the list can be narrowed to a JLC-style allowlist once it is known. Still one
+ * domain only, and host_permissions stops Chrome reading any other.
+ */
+const DIGIKEY_COOKIE_DOMAIN = "digikey.com";
+
+/**
+ * A signed-out request here redirects to DigiKey's sign-in page, so the final
+ * URL answers "am I signed in?" without reading any account data.
+ */
+const DIGIKEY_ACCOUNT_URL = "https://www.digikey.com/MyDigiKey/Account";
+
+/**
+ * One DigiKey probe. The body is read only to spot a Cloudflare interstitial
+ * and is never stored or logged.
+ *
+ * @returns {Promise<{state: "signed_in"|"signed_out"|"inconclusive", reason: string}>}
+ */
+async function probeDigikeySignedIn() {
+  let response;
+  try {
+    response = await fetch(DIGIKEY_ACCOUNT_URL, {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+      redirect: "follow",
+    });
+  } catch (err) {
+    return { state: "inconclusive", reason: `network error: ${err.message}` };
+  }
+  let body = "";
+  try {
+    body = await response.text();
+  } catch {
+    body = "";
+  }
+  return classifyDigikeyProbe({
+    ok: response.ok,
+    status: response.status,
+    url: response.url,
+    body,
+  });
+}
+
+/**
+ * Wait until the DigiKey account page loads as a signed-in user. Same cadence,
+ * keep-alive and cancel support as the JLC wait.
+ */
+async function waitForDigikeySignIn(run) {
+  let lastReason = "never ran";
+  let everConclusive = false;
+  for (let attempt = 1; attempt <= POLL_ATTEMPTS; attempt += 1) {
+    if (run.cancelled) throw new Error("Cancelled.");
+    await keepAlive();
+    await setStatus({
+      state: "polling",
+      attempt,
+      message: `Waiting for you to sign in to DigiKey (check ${attempt}/${POLL_ATTEMPTS})…`,
+    });
+
+    const { state, reason } = await probeDigikeySignedIn();
+    lastReason = reason;
+    if (state === "signed_in") return;
+    if (state === "signed_out") everConclusive = true;
+
+    if (attempt < POLL_ATTEMPTS) await sleep(POLL_INTERVAL_MS);
+  }
+  const span = `${POLL_ATTEMPTS} checks over ${Math.round((POLL_ATTEMPTS * POLL_INTERVAL_MS) / 1000)}s`;
+  if (!everConclusive) {
+    throw new Error(
+      `Gave up after ${span} — no check could tell whether you are signed in ` +
+        `(last: ${lastReason}). DigiKey may be showing a Cloudflare check that needs a ` +
+        `real visit: open digikey.com in a tab, sign in, then try again.`
+    );
+  }
+  throw new Error(
+    `Gave up after ${span} — DigiKey still says not signed in (${lastReason}). ` +
+      `Sign in at digikey.com in this browser, then try again.`
+  );
+}
+
+/**
+ * Read every digikey.com cookie (see DIGIKEY_COOKIE_DOMAIN for why all of them).
+ * Values live only for the single POST that follows.
+ */
+async function readDigikeyCookies() {
+  const jar = await chrome.cookies.getAll({ domain: DIGIKEY_COOKIE_DOMAIN });
+  if (jar.length === 0) {
+    throw new Error(
+      `Signed in, but this browser holds no cookies for ${DIGIKEY_COOKIE_DOMAIN}. Nothing was sent.`
+    );
+  }
+  return jar.map(toPushedCookie);
+}
+
+/**
+ * POST the DigiKey session to the configured dubIS. Write-only, like the JLC
+ * push: the response is read for the verdict, never for a credential.
+ *
+ * @returns {Promise<{url: string, state: string, cookieCount: number|null}>}
+ */
+async function pushDigikeyToDubis(nonce, cookies) {
+  const base = await getBaseUrl();
+  const url = `${base}${DIGIKEY_PUSH_PATH}`;
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      credentials: "omit",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nonce, cookies }),
+    });
+  } catch (err) {
+    throw new Error(`Could not reach dubIS at ${url} — ${err.message}`);
+  }
+
+  if (!response.ok) {
+    let text = "";
+    try {
+      text = await response.text();
+    } catch {
+      text = "";
+    }
+    throw new Error(describeRejection(response.status, text));
+  }
+
+  let body = null;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+  return {
+    url,
+    state: body && typeof body.state === "string" ? body.state : "valid",
+    cookieCount: body && typeof body.cookie_count === "number" ? body.cookie_count : null,
+  };
+}
+
+/**
+ * The DigiKey flow: same shape, same single-run guard and nonce check as JLC.
+ * @param {string} nonceRaw
+ */
+async function runDigikeyHandshake(nonceRaw) {
+  if (activeRun && !activeRun.cancelled) {
+    throw new Error("A send is already running.");
+  }
+  const nonce = requireNonce(nonceRaw);
+  const run = { cancelled: false };
+  activeRun = run;
+
+  try {
+    await waitForDigikeySignIn(run);
+    await setStatus({ state: "pushing", message: "Signed in — sending the DigiKey session to dubIS…" });
+    const cookies = await readDigikeyCookies();
+    const result = await pushDigikeyToDubis(nonce, cookies);
+    await setStatus({
+      state: "ok",
+      message:
+        result.state === "unverified"
+          ? "Sent. dubIS accepted the DigiKey session (dubIS could not double-check it; " +
+            "the extension saw you signed in)."
+          : "Sent. dubIS accepted the DigiKey session.",
+    });
+    return result;
+  } catch (err) {
+    await setStatus({ state: "error", message: err.message });
+    throw err;
+  } finally {
+    if (activeRun === run) activeRun = null;
+  }
+}
+
 /**
  * Answer a popup message, tolerating the one benign failure: the popup closed
  * while a run was still going, so the port is gone. Everything else about a
@@ -286,7 +476,7 @@ function respond(sendResponse, payload) {
   try {
     sendResponse(payload);
   } catch (err) {
-    console.debug("dubIS JLC bridge: popup closed before the reply landed —", err.message);
+    console.debug("dubIS bridge: popup closed before the reply landed —", err.message);
   }
 }
 
@@ -303,8 +493,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (type === "start") {
-    // The nonce lives only for the duration of this run, in this worker.
-    runHandshake(message.nonce)
+    // The nonce lives only for the duration of this run, in this worker, and
+    // its own prefix picks the site. Anything not "DK-" takes the JLC path
+    // exactly as before.
+    const nonceText = String(message.nonce ?? "").trim();
+    const handshake = routeForCode(nonceText) === "digikey" ? runDigikeyHandshake : runHandshake;
+    handshake(message.nonce)
       .then((result) => respond(sendResponse, { ok: true, result }))
       .catch((err) => respond(sendResponse, { ok: false, error: err.message }));
     return true;

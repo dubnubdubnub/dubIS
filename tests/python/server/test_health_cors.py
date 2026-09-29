@@ -63,7 +63,11 @@ SERVER_PKG = REPO_ROOT / "server"
 #   GET  /v1/health                          -> Access-Control-Allow-Origin: *
 #   OPTIONS /v1/distributors/jlcpcb/pairing  -> preflight, pinned extension only
 #   OPTIONS /v1/distributors/jlcpcb/session  -> preflight, pinned extension only
-#   ANY  those same two paths                -> allow-origin on EVERY response,
+#   OPTIONS /v1/distributors/digikey/pairing -> preflight, pinned extension only
+#   OPTIONS /v1/distributors/digikey/push    -> preflight, pinned extension only
+#                                               (phase 2: the same extension
+#                                               pushing a DigiKey session)
+#   ANY  those same four paths               -> allow-origin on EVERY response,
 #                                               errors included, pinned
 #                                               extension only
 #   everything else                          -> no Access-Control-* header
@@ -71,6 +75,8 @@ WILDCARD_CORS_PATHS = {"/v1/health"}
 PREFLIGHT_PATHS = {
     "/v1/distributors/jlcpcb/pairing",
     "/v1/distributors/jlcpcb/session",
+    "/v1/distributors/digikey/pairing",
+    "/v1/distributors/digikey/push",
 }
 # Where a CORS header may be written in server/. meta.py holds health's `*`;
 # distributors.py holds the pinned-extension preflight AND the path-scoped

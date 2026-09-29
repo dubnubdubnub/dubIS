@@ -6,6 +6,7 @@ import { formatMoney } from './ui-helpers.js';
 import { html, el } from './dom/html.js';
 import { innerRect, zoomedViewport, toInnerPx } from './ui-zoom.js';
 import { copyText, inHoverCorridor } from './hover-affordance.js';
+import { digikeyPreviewError } from './digikey-logic.js';
 
 var HOVER_DELAY_MS = 300;
 /* The tooltip is anchored GAP_PX below (or above) the part number, so the
@@ -205,9 +206,7 @@ async function showTooltip(code, provider, triggerEl) {
     var errMsg = "Product not found";
     if (provider === "digikey") {
       var dkStatus = await api("get_digikey_login_status");
-      errMsg = (dkStatus && dkStatus.logged_in)
-        ? "Could not load product data"
-        : "Login to Digikey in Preferences to enable preview";
+      errMsg = digikeyPreviewError(dkStatus);
     } else if (provider === "mouser") {
       var moStatus = await api("get_mouser_api_key_status");
       errMsg = (moStatus && moStatus.configured)

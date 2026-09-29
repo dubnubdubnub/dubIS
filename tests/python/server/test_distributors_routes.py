@@ -6,6 +6,8 @@ no test here ever touches the network — mirrors the fixture-free mocking
 style in `tests/python/test_distributor_manager.py`.
 """
 
+import pytest
+
 
 def test_fetch_lcsc_product_happy_path(api, client, monkeypatch):
     monkeypatch.setattr(api, "fetch_lcsc_product", lambda code: {"code": code, "price": 0.01})
@@ -83,14 +85,16 @@ def test_validate_digikey_session_is_200_not_500_without_a_window(api, client, m
     `WebViewException` — a plain `Exception`, straight past `validate_session`'s
     `except (RuntimeError, OSError)` — for a 500.
 
-    Reaches into `_pending_cookies` deliberately: the point is to exercise the
+    Reaches into `_session` deliberately: the point is to exercise the
     real DigikeyClient, and that is the state `check_session` leaves behind
     after loading `data/digikey_cookies.json`.
     """
     import webview
 
+    # The Windows backend is the one with a hidden window to be missing.
+    monkeypatch.setattr("digikey_client.fetch_backend", lambda: "webview")
     monkeypatch.setattr(webview, "windows", [])
-    api._distributors._digikey._pending_cookies = [{"name": "dkuhint", "value": "1"}]
+    api._distributors._digikey._session = [{"name": "dkuhint", "value": "1"}]
 
     r = client.post("/v1/distributors/digikey/session/validate")
     assert r.status_code == 200
@@ -98,13 +102,6 @@ def test_validate_digikey_session_is_200_not_500_without_a_window(api, client, m
     assert body["logged_in"] is True     # inconclusive never invalidates
     assert body["changed"] is False
     assert body["supported"] is False    # ...and says why
-
-
-def test_sync_digikey_cookies(api, client, monkeypatch):
-    monkeypatch.setattr(api, "sync_digikey_cookies", lambda: {"synced": True})
-    r = client.post("/v1/distributors/digikey/cookies/sync")
-    assert r.status_code == 200
-    assert r.json() == {"synced": True}
 
 
 def test_mouser_api_key_roundtrip(client):
@@ -127,21 +124,17 @@ def test_mouser_api_key_roundtrip(client):
     assert r5.json()["configured"] is False
 
 
-def test_digikey_session_is_200_not_500_off_windows(api, client, monkeypatch):
-    """The exact repro: `GET .../digikey/session` with no facade mocking.
+@pytest.mark.parametrize("platform", ["win32", "darwin", "linux"])
+def test_digikey_session_is_a_truthful_200_on_every_platform(client, monkeypatch, platform):
+    """The exact repro of two earlier 500s, with no facade mocking.
 
-    `digikey_session.find_default_browser_exe` reads the Windows registry, and
-    its `import winreg` used to raise ModuleNotFoundError past the OSError
-    handler, so this route answered 500 on every macOS/Linux launch — leaving
-    the Preferences modal unable to tell "not logged in" from "route crashed".
-    Platform is monkeypatched rather than skipped so it runs on Windows too.
+    `GET .../digikey/session` runs on every startup. It used to import `winreg`
+    (a 500 off Windows) and then answered "Windows-only". Now nothing about it
+    is platform-specific: with no saved session it says how to sign in.
     """
-    import digikey_session
-
-    monkeypatch.setattr(digikey_session.sys, "platform", "darwin")
+    monkeypatch.setattr("sys.platform", platform)
     r = client.get("/v1/distributors/digikey/session")
     assert r.status_code == 200
     body = r.json()
     assert body["logged_in"] is False       # never a false positive
-    assert body["supported"] is False       # ...and says why
-    assert "Windows-only" in body["message"]
+    assert "extension" in body["message"]   # ...and says what to do

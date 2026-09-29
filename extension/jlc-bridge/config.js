@@ -1,4 +1,4 @@
-// Shared configuration for the dubIS JLC bridge.
+// Shared configuration for the dubIS bridge (JLCPCB + DigiKey).
 //
 // The only thing configurable is *which dubIS* a session may be pushed to.
 // Everything else (which cookies, which validation endpoint) is a constant
@@ -9,6 +9,9 @@ export const DEFAULT_BASE_URL = "http://127.0.0.1:7897";
 
 /** Where the session is POSTed, relative to the configured dubIS base URL. */
 export const SESSION_PATH = "/v1/distributors/jlcpcb/session";
+
+/** Where a DigiKey session (a "DK-" pairing code) is POSTed instead. */
+export const DIGIKEY_PUSH_PATH = "/v1/distributors/digikey/push";
 
 const BASE_URL_KEY = "dubisBaseUrl";
 

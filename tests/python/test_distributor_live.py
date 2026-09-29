@@ -174,23 +174,21 @@ def test_mouser_live(live_data):
 def test_digikey_session_live(live_data):
     """Validate the cached DigiKey session — requires cached cookies.
 
-    This is a SESSION SMOKE only: a DigiKey product fetch needs a WebView2 GUI
-    loop that isn't feasible in pytest, so we only validate that the cached
-    session is live. A warm cache returns instantly with no browser; a stale
-    cache opens a browser to re-login (the intended behavior of this tier).
+    This is a SESSION SMOKE only: a DigiKey product fetch needs a real browser
+    (WebView2 on Windows, dubIS's Chromium window elsewhere), so we only
+    validate that the cached session is live.
     """
     cookies_path = live_data._digikey._cookies_file
     if not cookies_path or not os.path.exists(cookies_path):
         pytest.fail(
             "no DigiKey session cached (data/digikey_cookies.json) — "
-            "log into DigiKey via the app first"
+            "sign in to DigiKey via Preferences and the dubIS bridge extension first"
         )
-    # interactive=True is the intended "re-login when the cache is stale" behavior:
-    # a WARM cached session validates instantly with NO browser; a STALE/missing one
-    # opens a browser and polls up to ~120s for manual login. This test is opt-in only
-    # (deselected by default via the `live` marker), so it never runs/hangs in CI.
+    # A warm cached session validates over plain HTTP with no browser. A stale
+    # one fails here: re-sign-in happens in your own browser through the dubIS
+    # bridge extension (Preferences > DigiKey > Sign in), not from a test.
     with record_latency("digikey", "session"):
-        live = live_data._digikey.ensure_session(interactive=True)
+        live = live_data._digikey.ensure_session()
     assert live is True, (
         "DigiKey session is not live — re-login via the app (cached cookies "
         "may be expired/invalid)"

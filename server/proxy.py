@@ -81,7 +81,7 @@ LOCAL_ONLY_PATHS = frozenset({
     "/v1/events",
     "/v1/openapi.json",
     "/v1/docs",
-    # Credential intake. The browser extension pushes a live JLC session
+    # Credential intake. The browser extension pushes a live JLC or DigiKey session
     # cookie here; forwarding it would hand a user's credential to a different
     # machine, and forwarding the pairing nonce that authorizes it would let an
     # upstream mint the token for that push. Both also call
@@ -89,6 +89,10 @@ LOCAL_ONLY_PATHS = frozenset({
     # guard stops a remote caller reaching the handler.
     "/v1/distributors/jlcpcb/pairing",
     "/v1/distributors/jlcpcb/session",
+    # Same thing for DigiKey. The push path is not `.../digikey/session`, whose
+    # GET/DELETE must keep following the active source.
+    "/v1/distributors/digikey/pairing",
+    "/v1/distributors/digikey/push",
 })
 
 # Prefixes whose whole subtree is local-only. `/v1/sources` covers

@@ -1,11 +1,25 @@
-"""Digikey session management helpers — cookie I/O, CDP polling, window injection."""
+"""DigiKey session helpers: pairing nonces, cookie intake and I/O, validation.
+
+HOW A SESSION ARRIVES
+The user signs in to DigiKey in their own browser, so saved-password autofill
+and SSO work, and the dubIS bridge extension (`extension/jlc-bridge/`) pushes
+that session here. dubIS mints a single-use pairing code, the user pastes it
+into the extension popup, the extension waits until DigiKey's account page
+stops redirecting to login, and then POSTs the digikey.com cookies with the
+code. The receive route is loopback-only, and the code is what proves a human
+started the push (threat-model rules 3 and 5 in
+docs/plans/2026-09-20-extension-credential-capture.md).
+
+This replaced launching a browser with `--remote-debugging-port`. Chrome 136+
+ignores that switch on the default profile, so the old flow waited forever, and
+a dedicated profile would have lost autofill.
+"""
 
 from __future__ import annotations
 
 import json
 import logging
-import os
-import sys
+import secrets
 import threading
 import time
 import urllib.error
@@ -13,73 +27,113 @@ import urllib.request
 from typing import TYPE_CHECKING, Any
 
 import secret_store
-from digikey_cdp import cdp_get_cookies
 
 if TYPE_CHECKING:
     from digikey_client import DigikeyClient
 
 logger = logging.getLogger(__name__)
 
+#: Pairing codes carry this prefix so the extension popup can tell a DigiKey
+#: code from a JLC one without asking the user which distributor it is for.
+NONCE_PREFIX = "DK-"
 
-def cdp_login_available() -> bool:
-    """Whether this process can drive a CDP-enabled browser for DigiKey.
+#: Ten minutes, for the same reason as JLC's: the TTL spans a human sign-in
+#: (paste, autofill, maybe 2FA), not a machine handshake. Single-use is the
+#: property that makes it safe, not its length.
+NONCE_TTL_SECONDS = 600
 
-    Resolving the default browser goes through the Windows registry
-    (`find_default_browser_exe`), so the whole launch-a-browser-with-CDP path
-    — the interactive login and the headless session probe alike — is
-    Windows-only. Mirrors `browser_page.available()`: a platform that
-    structurally cannot host the feature is a queryable state callers branch
-    on, not an error to raise on every startup.
+#: The site the extension may push cookies for. Anything else in a request is
+#: dropped here, whatever the sender claims.
+COOKIE_DOMAIN_SUFFIX = "digikey.com"
+
+# Indirection so tests can drive expiry without sleeping.
+_monotonic = time.monotonic
+
+# In-memory only: a nonce that outlived its process would be a durable bearer
+# token for pushing credentials at this server.
+_nonces: dict[str, float] = {}
+_nonce_lock = threading.Lock()
+
+
+def mint_nonce(ttl: float = NONCE_TTL_SECONDS) -> str:
+    """Mint a single-use pairing nonce valid for *ttl* seconds."""
+    nonce = NONCE_PREFIX + secrets.token_urlsafe(24)
+    with _nonce_lock:
+        _prune_locked()
+        _nonces[nonce] = _monotonic() + ttl
+    return nonce
+
+
+def consume_nonce(nonce: str) -> bool:
+    """Redeem *nonce*. True exactly once, for an unexpired nonce."""
+    if not nonce:
+        return False
+    with _nonce_lock:
+        _prune_locked()
+        return _nonces.pop(nonce, None) is not None
+
+
+def _prune_locked() -> None:
+    now = _monotonic()
+    for nonce, expiry in list(_nonces.items()):
+        if expiry <= now:
+            del _nonces[nonce]
+
+
+def filter_cookies(cookies: Any) -> list[dict[str, Any]]:
+    """Keep only well-formed digikey.com cookies, normalized.
+
+    Accepts what `chrome.cookies.getAll` returns (`expirationDate`, `httpOnly`)
+    and emits the shape the rest of this module has always stored (`expires`).
+    A cookie for any other domain is dropped, so a buggy or hostile sender
+    cannot park an arbitrary jar in the data dir.
     """
-    return sys.platform == "win32"
+    if not isinstance(cookies, list):
+        return []
+    kept: list[dict[str, Any]] = []
+    for c in cookies:
+        if not isinstance(c, dict):
+            continue
+        name, value = c.get("name"), c.get("value")
+        domain = str(c.get("domain") or "")
+        if not isinstance(name, str) or not name or not isinstance(value, str):
+            continue
+        bare = domain.lstrip(".").lower()
+        if bare != COOKIE_DOMAIN_SUFFIX and not bare.endswith("." + COOKIE_DOMAIN_SUFFIX):
+            continue
+        out: dict[str, Any] = {
+            "name": name,
+            "value": value,
+            "domain": domain,
+            "path": str(c.get("path") or "/"),
+            "secure": bool(c.get("secure")),
+            "httpOnly": bool(c.get("httpOnly") or c.get("httponly")),
+        }
+        expires = c.get("expirationDate", c.get("expires"))
+        if isinstance(expires, (int, float)) and not isinstance(expires, bool) and expires > 0:
+            out["expires"] = float(expires)
+        kept.append(out)
+    return kept
 
 
-def find_default_browser_exe() -> str | None:
-    """Find the default browser executable on Windows via registry.
+def is_login_url(url: str) -> bool:
+    """Whether *url* is where DigiKey sends someone who is not signed in.
 
-    Returns ``None`` when no browser can be resolved — which off Windows is
-    every time, since there is no registry to read. That is the same answer
-    the Windows path gives when the UserChoice key or the exe is missing, so
-    callers need no platform branch of their own. (The `import winreg` below
-    used to raise `ModuleNotFoundError` straight past the `OSError` handler
-    on macOS/Linux, turning `GET /v1/distributors/digikey/session` into a
-    500.)
+    Verified live on 2026-09-29: a signed-out visit to /MyDigiKey/Account ends on
+    ``https://auth.digikey.com/as/authorization.oauth2?...`` (title "Login"),
+    which contains neither ``/login`` nor ``/signin``. The older rule matched
+    only those two, so it read every signed-out session as signed in.
     """
-    if not cdp_login_available():
-        return None
-    try:
-        import winreg
+    from urllib.parse import urlsplit
 
-        with winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice",
-        ) as key:
-            prog_id = winreg.QueryValueEx(key, "ProgId")[0]
-        with winreg.OpenKey(
-            winreg.HKEY_CLASSES_ROOT,
-            rf"{prog_id}\shell\open\command",
-        ) as key:
-            cmd = winreg.QueryValueEx(key, "")[0]
-        exe = cmd.split('"')[1] if cmd.startswith('"') else cmd.split()[0]
-        return exe if os.path.exists(exe) else None
-    except OSError:
-        return None
-    except ImportError as exc:
-        # Unreachable behind the guard above, so reaching it means a Windows
-        # build without `winreg` — genuinely unexpected, hence a warning
-        # rather than the debug line the known non-Windows case gets.
-        logger.warning("winreg unavailable on %s: %s", sys.platform, exc)
-        return None
-
-
-def check_cookies_logged_in(cookies: list[dict]) -> bool:
-    """Check whether cookies indicate a logged-in Digikey session.
-
-    Looks for session cookies that are only present after login.
-    """
-    cookie_names = {c.get("name", "") for c in cookies}
-    # dkuhint = "digikey user hint", only set after login
-    return "dkuhint" in cookie_names
+    lowered = (url or "").lower()
+    host = urlsplit(lowered).hostname or ""
+    return (
+        host == "auth.digikey.com"
+        or "authorization.oauth2" in lowered
+        or "/login" in lowered
+        or "/signin" in lowered
+    )
 
 
 def save_cookies_to_file(cookies: list[dict], cookies_file: str | None) -> None:
@@ -106,86 +160,13 @@ def load_cookies_from_file(cookies_file: str | None) -> list[dict] | None:
     try:
         with open(cookies_file, "r", encoding="utf-8") as f:
             cookies = json.load(f)
-        if cookies and check_cookies_logged_in(cookies):
+        if isinstance(cookies, list) and cookies:
             return cookies
     except FileNotFoundError:
         logger.debug("No saved cookies file found")
     except json.JSONDecodeError as exc:
         logger.warning("Corrupt cookies file: %s", exc)
     return None
-
-
-def poll_cdp_for_cookies(
-    port: int,
-    poll_stop: threading.Event,
-    on_logged_in: Any,
-    sync_result: dict[str, Any],
-) -> None:
-    """Poll CDP for cookies until logged in, stopped, or timed out.
-
-    Does NOT touch the UI thread at all — no webview creation, no Invoke.
-    Calls ``on_logged_in(cookies)`` when a valid session is detected.
-    Updates ``sync_result`` in-place with status throughout polling.
-
-    Broad exception catching in the loop body is intentional: CDP polling may
-    raise a variety of network/JSON errors. We log and retry rather than abort.
-    """
-    for attempt in range(1, 41):  # max ~2 minutes at 3s intervals
-        if poll_stop.is_set():
-            return
-
-        debug_log = []
-        try:
-            all_cdp = cdp_get_cookies(port)
-            cdp_cookies = [c for c in all_cdp if "digikey.com" in c.get("domain", "")]
-            debug_log.append(
-                f"cdp(port={port}): {len(cdp_cookies)} digikey cookies "
-                f"(of {len(all_cdp)} total)"
-            )
-            logger.debug("Poll #%d: %d digikey cookies", attempt, len(cdp_cookies))
-
-            if cdp_cookies and check_cookies_logged_in(cdp_cookies):
-                # Logged in — invoke callback
-                on_logged_in(cdp_cookies)
-                cookie_names = [c["name"] for c in cdp_cookies[:20]]
-                sync_result["debug"] = debug_log + [f"names={cookie_names}"]
-                logger.debug("Poll #%d: logged in!", attempt)
-                return  # done
-
-        except ConnectionRefusedError:
-            debug_log.append(f"cdp(port={port}): ConnectionRefusedError")
-            sync_result.update({
-                "status": "browser_running",
-                "message": "Close your browser and click Login again.",
-                "logged_in": False,
-                "cookies_injected": 0,
-                "debug": debug_log,
-            })
-            logger.debug("Poll #%d: connection refused", attempt)
-            return  # stop polling — browser was already running
-
-        except Exception as exc:
-            debug_log.append(f"cdp(port={port}): {type(exc).__name__}: {exc}")
-            sync_result.update({
-                "status": "waiting",
-                "message": "Waiting for login...",
-                "logged_in": False,
-                "cookies_injected": 0,
-                "debug": debug_log,
-            })
-            logger.debug("Poll #%d: %s: %s", attempt, type(exc).__name__, exc)
-
-        # Wait 3s before next attempt, but check stop flag
-        if poll_stop.wait(timeout=3):
-            return
-
-    # Timed out
-    sync_result.update({
-        "status": "error",
-        "message": "Timed out waiting for login.",
-        "logged_in": False,
-        "cookies_injected": 0,
-    })
 
 
 def _await_cf_clearance(window: Any, timeout: float = 25.0) -> str | None:
@@ -225,10 +206,12 @@ def validate_session_http(cookies: list[dict]) -> bool:
     "expired":
 
     - Returns ``True`` when the response lands on the account page
-      (HTTP 200 and the FINAL url is not a login/signin page).
-    - Returns ``False`` ONLY on a definitive expiry signal: the final url
-      contains ``/login`` or ``/signin`` (DigiKey redirects unauthenticated
-      users there, served as 200). Empty/no cookies also returns ``False``.
+      (HTTP 200 and the FINAL url is not a sign-in page, see `is_login_url`).
+    - Returns ``False`` ONLY on a definitive expiry signal: the final url is a
+      sign-in page, or DigiKey answers HTTP 401. Verified live on 2026-09-29:
+      a plain request with no session gets 401 on the account page itself,
+      while Cloudflare's refusals are 403. Empty/no cookies also returns
+      ``False``.
     - RAISES on inconclusive cases — HTTP 403 / other ``HTTPError``,
       ``URLError``, ``TimeoutError``, socket errors — rather than swallowing
       them into ``False``. The caller decides how to treat "don't know".
@@ -251,12 +234,19 @@ def validate_session_http(cookies: list[dict]) -> bool:
     }
     req = urllib.request.Request(url, headers=headers)
     # Inconclusive errors (HTTPError incl. 403, URLError, TimeoutError,
-    # socket errors) propagate to the caller — do NOT catch them here.
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        final_url = (resp.geturl() or "").lower()
-        status = getattr(resp, "status", None)
+    # socket errors) propagate to the caller — do NOT catch them here. The
+    # one HTTPError that is an answer rather than a failure is 401.
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            final_url = (resp.geturl() or "").lower()
+            status = getattr(resp, "status", None)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 401:
+            logger.debug("DK http validate: 401 from the account page — session expired")
+            return False
+        raise
 
-    if "/login" in final_url or "/signin" in final_url:
+    if is_login_url(final_url):
         logger.debug("DK http validate: redirected to %s — session expired", final_url)
         return False
     if status == 200:
@@ -268,128 +258,28 @@ def validate_session_http(cookies: list[dict]) -> bool:
 
 
 def check_session(client: "DigikeyClient") -> dict[str, Any]:
-    """Check if there's an existing Digikey session.
+    """Report the saved DigiKey session at startup.
 
-    Tries saved cookies first, then launches the browser headless
-    with CDP to read fresh cookies. Called on app startup.
+    The only source is the cookie file the extension's push wrote. Validated
+    over plain HTTP so an expired session does not masquerade as logged-in;
+    an inconclusive probe (offline, Cloudflare 403) keeps it, because a probe
+    that could not run is not evidence of expiry.
     """
-    # 1. Try saved cookies from disk (instant). Validate them over plain
-    #    HTTP so an expired session doesn't masquerade as logged-in.
     saved = client._load_cookies()
-    if saved:
-        try:
-            validated = client.validate_session_http(saved)
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            # Inconclusive (offline / Cloudflare 403) — never downgrade a
-            # saved session just because the network was unreachable.
-            logger.debug("Startup: session validation inconclusive: %s", exc)
-            client._set_logged_in(saved)
-            return {"logged_in": True, "message": "Loaded saved session"}
-        if validated:
-            client._set_logged_in(saved)
-            logger.debug("Startup: validated saved session (%d cookies)", len(saved))
-            return {"logged_in": True, "message": "Validated saved session"}
-        # Definitively expired — fall through to the headless CDP fallback
-        # so a fresh browser session can still be discovered.
-        logger.debug("Startup: saved session expired, trying headless CDP")
-
-    # 2. Try headless browser CDP — Windows-only, since the browser is found
-    #    through the registry. Answer truthfully instead of launching nothing:
-    #    "not logged in because this platform cannot look" is a different fact
-    #    from "not logged in", and neither is a server fault.
-    if not cdp_login_available():
-        logger.debug("Startup: DigiKey CDP session check unsupported on %s", sys.platform)
-        return {
-            "logged_in": False,
-            "supported": False,
-            "message": f"DigiKey browser login is Windows-only (this is {sys.platform})",
-        }
-
-    import random
-    import subprocess
-
-    exe = find_default_browser_exe()
-    if not exe:
-        logger.debug("Startup: no browser found for session check")
-        return {"logged_in": False, "message": "No browser found"}
-
-    port = random.randint(19200, 19299)
-    proc = subprocess.Popen(
-        [exe, "--headless=new", f"--remote-debugging-port={port}", "about:blank"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+    if not saved:
+        return {"logged_in": False, "message": "Not signed in — pair the dubIS extension in Preferences"}
     try:
-        # Give headless browser a moment to start
-        time.sleep(1.5)
-        cookies = cdp_get_cookies(port)
-        dk_cookies = [c for c in cookies if "digikey.com" in c.get("domain", "")]
-        if dk_cookies and check_cookies_logged_in(dk_cookies):
-            client._set_logged_in(dk_cookies)
-            logger.debug("Startup: found browser session (%d cookies)", len(dk_cookies))
-            return {"logged_in": True, "message": "Found browser session"}
-        logger.debug("Startup: no existing session (%d digikey cookies)", len(dk_cookies))
-        return {"logged_in": False, "message": "No existing session"}
-    except (OSError, TimeoutError) as exc:
-        logger.debug("Startup: session check failed: %s", exc)
-        return {"logged_in": False, "message": f"Session check failed: {exc}"}
-    finally:
-        try:
-            proc.terminate()
-        except OSError:
-            pass
-
-
-def start_login(client: "DigikeyClient") -> dict[str, Any]:
-    """Launch the default browser with CDP enabled and open the login page.
-
-    Starts a background thread that polls CDP for cookies so that
-    ``sync_cookies`` can return instantly with no I/O.
-    """
-    import random
-    import subprocess
-
-    client._poll_stop.set()  # stop any previous poll thread
-
-    url = "https://www.digikey.com/MyDigiKey/Login"
-    exe = find_default_browser_exe()
-    logger.debug("Login: browser exe=%s", exe)
-    if not exe:
-        import webbrowser
-        webbrowser.open(url)
-        client._cdp_port = None
-        client._sync_result = {
-            "status": "error",
-            # True on both paths that land here: a Windows registry that
-            # resolved nothing, and every non-Windows platform, where
-            # `webbrowser` just opened the real default browser — with no CDP
-            # port to read its cookies back out of.
-            "message": "Browser opened without CDP — cookie sync unavailable.",
-            "logged_in": False,
-            "cookies_injected": 0,
-        }
-        return {"status": "opened", "cdp": False, "message": "Browser opened (no CDP)"}
-
-    port = random.randint(19200, 19299)
-    logger.debug("Login: launching with CDP port %d", port)
-    subprocess.Popen(
-        [exe, f"--remote-debugging-port={port}", url],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    client._cdp_port = port
-    client._sync_result = {
-        "status": "waiting",
-        "message": "Browser opened — waiting for login...",
-        "logged_in": False,
-        "cookies_injected": 0,
-    }
-
-    # Start background CDP poll thread
-    client._poll_stop = threading.Event()
-    thread = threading.Thread(target=client._poll_loop, args=(port,), daemon=True)
-    thread.start()
-
-    logger.debug("Login: browser launched, poll thread started")
-    return {"status": "opened", "cdp": True, "port": port, "message": "Browser opened — waiting for login"}
+        validated = client.validate_session_http(saved)
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        logger.debug("Startup: session validation inconclusive: %s", exc)
+        client._set_logged_in(saved)
+        return {"logged_in": True, "message": "Loaded saved session"}
+    if validated:
+        client._set_logged_in(saved)
+        logger.debug("Startup: validated saved session (%d cookies)", len(saved))
+        return {"logged_in": True, "message": "Validated saved session"}
+    logger.debug("Startup: saved session expired")
+    return {"logged_in": False, "message": "Saved DigiKey session expired — sign in again"}
 
 
 def _probe_session(client: "DigikeyClient") -> bool:
@@ -417,7 +307,7 @@ def _probe_session(client: "DigikeyClient") -> bool:
             return False
 
         url_lower = final_url.lower()
-        if "/login" in url_lower or "/signin" in url_lower:
+        if is_login_url(url_lower):
             logger.warning("DK probe: redirected to %s — session expired", final_url)
             return False
 

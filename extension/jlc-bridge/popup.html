@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>dubIS JLC bridge</title>
+    <title>dubIS bridge</title>
     <style>
       body {
         font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -26,14 +26,16 @@
       #status.busy { color: #444; }
       .foot { margin-top: 12px; padding-top: 10px; border-top: 1px solid #ddd; color: #666; }
       .foot a { color: #26c; }
+      .hint { color: #666; margin: 4px 0 0; }
     </style>
   </head>
   <body>
-    <h1>dubIS JLC bridge</h1>
+    <h1>dubIS bridge</h1>
     <p class="target">Sends to <span id="target">…</span></p>
 
-    <label for="nonce">Pairing code from dubIS</label>
+    <label for="nonce">Pairing code from dubIS (JLCPCB or DigiKey)</label>
     <input id="nonce" type="text" spellcheck="false" autocomplete="off" placeholder="paste it here" />
+    <p class="hint" id="code-kind">The code itself says which site: DigiKey codes start with DK-.</p>
 
     <div class="row">
       <button id="send" type="button">Send session to dubIS</button>
@@ -43,8 +45,8 @@
     <div id="status" role="status">Idle.</div>
 
     <div class="foot">
-      Sign in to JLCPCB in this browser; this waits until JLCPCB confirms you are
-      signed in, then sends only the session cookie.
+      Sign in to JLCPCB or DigiKey in this browser; this waits until that site
+      confirms you are signed in, then sends its session cookies.
       <a id="options-link" href="#">Options</a>
     </div>
 

@@ -145,16 +145,6 @@ class TestWebviewReadySignal:
 
 
 class TestDigikeyAndPoAndTesseractDelegation:
-    def test_start_digikey_login_delegates(self, api, monkeypatch):
-        mock = MagicMock(return_value={"status": "started"})
-        monkeypatch.setattr(api, "start_digikey_login", mock)
-        shell = ClientShell(api)
-
-        result = shell.start_digikey_login()
-
-        mock.assert_called_once_with()
-        assert result == {"status": "started"}
-
     def test_open_source_file_delegates(self, api, monkeypatch):
         mock = MagicMock(return_value={"path": "/po/1.csv"})
         monkeypatch.setattr(api, "open_source_file", mock)

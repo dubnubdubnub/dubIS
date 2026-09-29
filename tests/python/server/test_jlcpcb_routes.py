@@ -45,6 +45,11 @@ ACCOUNT = "12625901A"
 PAIRING_PATH = "/v1/distributors/jlcpcb/pairing"
 SESSION_PATH = "/v1/distributors/jlcpcb/session"
 SESSIONS_PATH = "/v1/distributors/jlcpcb/sessions"
+# DigiKey's intake pair (phase 2). Named here too because the four-copy guard
+# below asserts the WHOLE intake allowlist, not just JLC's half of it; the
+# DigiKey behaviour tests live in test_digikey_routes.py.
+DK_PAIRING_PATH = "/v1/distributors/digikey/pairing"
+DK_PUSH_PATH = "/v1/distributors/digikey/push"
 LIBRARY_PATH = "/v1/distributors/jlcpcb/library"
 
 # A simulated non-loopback peer, i.e. a browser on another machine.
@@ -304,8 +309,8 @@ def test_credential_intake_paths_are_never_proxied(path):
     assert proxy.is_local_only(path)
 
 
-def test_every_copy_of_the_two_intake_paths_agrees():
-    """The two path strings are written down four times; a rename that updates
+def test_every_copy_of_the_intake_paths_agrees():
+    """The intake path strings (JLC's pair, DigiKey's pair) are written down four times; a rename that updates
     only some of them breaks the handshake SILENTLY.
 
     Where they live:
@@ -349,7 +354,7 @@ def test_every_copy_of_the_two_intake_paths_agrees():
         "LOCAL_ONLY_PATHS copy and the hub forwards a live JLC cookie upstream."
     )
 
-    assert INTAKE_PATHS == {PAIRING_PATH, SESSION_PATH}, hint
+    assert INTAKE_PATHS == {PAIRING_PATH, SESSION_PATH, DK_PAIRING_PATH, DK_PUSH_PATH}, hint
     assert INTAKE_PATHS == {
         p for p in proxy.LOCAL_ONLY_PATHS if p.startswith("/v1/distributors/")
     }, hint
