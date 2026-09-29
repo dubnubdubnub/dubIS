@@ -46,6 +46,13 @@ CATEGORY_RULES: list[dict[str, Any]] = [
         "xt60", "xt30", "sm04b", "sm05b", "sm06b",
         "svh-21t", "nv-", "df40", "bwipx", "xy-sh", "type-c",
     ]},
+    # Analog switches / muxes (DigiKey "IC SW ...").  Ahead of Switches and
+    # the passives: the on-resistance ("8.4OHM") would otherwise read as a
+    # resistor value.
+    {"category": "ICs - Interface", "desc": [
+        "ic sw ", "analog switch", "multiplexer",
+    ]},
+    {"category": "ICs - Interface", "mpn": ["tmux"]},
     # Switches (mechanical/tactile — not power ICs or switching regulators)
     {"category": "Switches", "desc": ["switch", "tactile"],
      "exclude_desc": ["switching regulator", "pwr switch", "load switch",
@@ -63,9 +70,14 @@ CATEGORY_RULES: list[dict[str, Any]] = [
     {"category": "LEDs", "desc": ["led", "emitter", "emit"]},
     {"category": "LEDs", "mpn": ["ws2812", "sk6812", "apa102"]},
     # Passives
-    {"category": "Passives - Inductors", "desc": ["inductor"]},
+    {"category": "Passives - Inductors", "desc": [
+        "inductor", "ferrite bead", "common mode choke",
+    ]},
     {"category": "Passives - Resistors", "desc": ["resistor"]},
-    {"category": "Passives - Resistors", "desc": ["\u03c9", "\u03a9", "\u2126", "ohm"]},
+    # An ohm figure is also how FETs quote Rds(on) and ideal-diode
+    # controllers quote their pass element, so it cannot stand alone.
+    {"category": "Passives - Resistors", "desc": ["\u03c9", "\u03a9", "\u2126", "ohm"],
+     "exclude_desc": ["mosfet", "fet", "ideal diode"]},
     {"category": "Passives - Resistors", "mfr": ["uni-royal"]},
     {"category": "Passives - Resistors", "mfr": ["ta-i tech"], "desc": ["m\u03c9"]},
     {"category": "Passives - Capacitors", "desc": ["capacitor", "electrolytic", "cap cer"]},
@@ -73,7 +85,7 @@ CATEGORY_RULES: list[dict[str, Any]] = [
     # Crystals
     {"category": "Crystals & Oscillators", "desc": ["crystal", "oscillator"]},
     # Diodes (not ESD)
-    {"category": "Diodes", "desc": ["diode"], "exclude_desc": ["esd"]},
+    {"category": "Diodes", "desc": ["diode"], "exclude_desc": ["esd", "ideal diode"]},
     {"category": "ICs - ESD Protection", "desc": ["esd"]},
     # Discrete
     {"category": "Discrete Semiconductors", "desc": ["transistor", "bjt", "mosfet"]},
@@ -81,7 +93,7 @@ CATEGORY_RULES: list[dict[str, Any]] = [
     # Power (includes load/power switch ICs)
     {"category": "ICs - Power / Voltage Regulators", "desc": [
         "voltage regulator", "buck", "ldo", "linear voltage", "switching regulator",
-        "pwr switch", "load switch", "power switch",
+        "pwr switch", "load switch", "power switch", "ideal diode",
     ]},
     # References
     {"category": "ICs - Voltage References", "desc": ["voltage reference"]},
