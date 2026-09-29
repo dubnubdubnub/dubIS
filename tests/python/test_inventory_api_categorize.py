@@ -203,6 +203,27 @@ class TestCategorize:
                               "3.2x2.5mm 5.1k\u03a9@10MHz 150mA DCR 1.5\u03a9"}
         assert categorize(row) == "Passives - Inductors"
 
+    def test_ohm_figure_alone_is_not_a_resistor(self):
+        # No exclusion list to outgrow: an unknown part quoting ohms stays Other.
+        row = {"Manufacture Part Number": "XYZ123",
+               "Description": "Heating element 12\u03a9 5W"}
+        assert categorize(row) == "Other"
+
+    def test_digikey_res_prefix(self):
+        row = {"Manufacture Part Number": "RC0402FR-0710KL",
+               "Description": "RES SMD 10K OHM 1% 1/10W 0402"}
+        assert categorize(row) == "Passives - Resistors > Chip Resistors"
+
+    def test_res_prefix_only_counts_at_start(self):
+        row = {"Manufacture Part Number": "XYZ123",
+               "Description": "USB-to-UART bridge, features 3.3V IO"}
+        assert categorize(row) != "Passives - Resistors"
+
+    def test_digikey_trimmer_prefix(self):
+        row = {"Manufacture Part Number": "3006P-1-100LF",
+               "Description": "TRIMMER 10 OHM 0.75W PC PIN SIDE"}
+        assert categorize(row) == "Passives - Resistors > Variable / Trimmers"
+
     def test_plain_ohm_resistor_still_a_resistor(self):
         row = {"Manufacture Part Number": "0603WAF1002T5E",
                "Description": "10k\u03a9 \u00b11% 100mW 0603 Thick Film Resistors"}
