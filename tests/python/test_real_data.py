@@ -169,7 +169,7 @@ class TestRealPipelineRebuild:
             "C633619": "ICs - USB", "C7437027": "ICs - Microcontrollers",
             "C7471904": "ICs - USB", "C76947": "Passives - Capacitors > MLCC",
             "C85960": "Passives - Capacitors > MLCC", "C86295": "Passives - Capacitors > MLCC",
-            "C879894": "Passives - Capacitors > Tantalum", "C88982": "Passives - Resistors > Chip Resistors",
+            "C879894": "Passives - Capacitors > Tantalum", "C88982": "Passives - Inductors",
             "C9002": "Crystals & Oscillators",
             "C96151": "Passives - Inductors", "C962978": "ICs - ESD Protection",
             "C963223": "Connectors > High Speed", "C963349": "Switches",
