@@ -175,6 +175,39 @@ class TestCategorize:
         row = {"Manufacture Part Number": "PI3CH3257ZTAEX", "Description": ""}
         assert categorize(row) == "ICs - Interface"
 
+    # An on-resistance / Rds(on) figure in a spec string is not a resistor.
+    def test_analog_switch_on_resistance_is_not_a_resistor(self):
+        row = {"Manufacture Part Number": "TMUXHS4212RKSR",
+               "Description": "IC SW DPST, SPDTX2 8.4OHM 20VQFN"}
+        assert categorize(row) == "ICs - Interface"
+
+    def test_mosfet_rds_on_is_not_a_resistor(self):
+        row = {"Manufacture Part Number": "WSD3066DN33",
+               "Description": "30V 50A 45W 5.7m\u03a9@4.5V 2.5V@250uA 1 N-Channel "
+                              "DFN-8(3.3x3.3) Single FETs, MOSFETs ROHS"}
+        assert categorize(row) == "Discrete Semiconductors > MOSFETs"
+
+    def test_ideal_diode_controller_is_power(self):
+        row = {"Manufacture Part Number": "LM66100DCKR",
+               "Description": "95m\u03a9 1 SC-70-6 OR Controllers, Ideal Diodes RoHS"}
+        assert categorize(row) == "ICs - Power / Voltage Regulators"
+
+    def test_ferrite_bead_impedance_is_not_a_resistor(self):
+        row = {"Manufacture Part Number": "MMZ1608B601CTAH0",
+               "Description": "600\u03a9@100MHz 1 Line Ferrite Bead 0603 500mA 400m\u03a9"}
+        assert categorize(row) == "Passives - Inductors"
+
+    def test_common_mode_choke_is_not_a_resistor(self):
+        row = {"Manufacture Part Number": "PSCIAQ3225-101Z",
+               "Description": "100uH@100kHz 2Line Common Mode Choke Surface Mount-4P "
+                              "3.2x2.5mm 5.1k\u03a9@10MHz 150mA DCR 1.5\u03a9"}
+        assert categorize(row) == "Passives - Inductors"
+
+    def test_plain_ohm_resistor_still_a_resistor(self):
+        row = {"Manufacture Part Number": "0603WAF1002T5E",
+               "Description": "10k\u03a9 \u00b11% 100mW 0603 Thick Film Resistors"}
+        assert categorize(row) == "Passives - Resistors > Chip Resistors"
+
 
 class TestParseResistance:
     def test_kilo_ohm(self):
