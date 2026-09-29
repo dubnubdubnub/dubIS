@@ -1,9 +1,30 @@
 import { defineConfig } from '@playwright/test';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cpus } from 'node:os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const servePort = parseInt(process.env.SERVE_PORT || '3123', 10);
+
+// Playwright's default worker count is '50%' of os.cpus().length. os.cpus() is
+// cgroup-unaware, so inside the arc-dubis runner pod it reports the cores of
+// whichever k3s node the pod landed on -- blhx370 24 -> 12 workers, y740 12 -> 6,
+// ux430 8 -> 4, mauler-vm 4 -> 2. Peak memory tracks that count at roughly
+// 370 MiB/worker, which made the job's footprint a lottery on pod placement: the
+// functional leg OOM-killed twice at ~3.9 GiB against a 4 GiB container limit on
+// 2026-08-28 (12 workers on blhx370), while the quality leg in the same CI run
+// used 2 workers and a few hundred MiB because it landed on mauler-vm.
+//
+// This CAPS the default rather than pinning it: every runner keeps the 50%
+// heuristic it has today (macos 5, ux430 4, mauler-vm 2, the win11 VM likewise)
+// and only the 24-core case is clamped, 12 -> 6. Capping rather than pinning
+// matters -- a flat `workers: 6` would *raise* the count on the 4-core nodes and
+// oversubscribe them. 6 workers bounds the peak near 2.6 GiB on any node.
+//
+// Note a CPU limit on the runner pod would NOT substitute for this: os.cpus()
+// ignores cgroup CPU quota too, so the fix has to live here.
+const MAX_CI_WORKERS = 6;
+const halfTheCores = Math.max(1, Math.floor(cpus().length / 2));
 
 export default defineConfig({
   testDir: 'tests/js/e2e',
@@ -11,6 +32,7 @@ export default defineConfig({
   // Absorb transient timing flakes on the self-hosted GUI runners without masking
   // hard failures locally. Local runs get no retries so flakes stay visible.
   retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? Math.min(MAX_CI_WORKERS, halfTheCores) : '50%',
   // Bounded auto-retrying assertion timeout (Playwright has no default expect timeout).
   expect: { timeout: 5000 },
   globalSetup: join(__dirname, 'tests/js/e2e/live/global-setup.mjs'),
