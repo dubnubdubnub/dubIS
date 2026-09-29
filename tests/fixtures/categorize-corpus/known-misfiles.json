@@ -1,0 +1,77 @@
+{
+  "296-TPD4S201TRGRRQ1CT-ND": {
+    "distributor": "digikey",
+    "lands_in": "Connectors",
+    "why": "DigiKey truncates the description before it says 'protection', leaving a USB Type-C connector"
+  },
+  "742-DG2750DN1-T1-GE4TR-ND": {
+    "distributor": "digikey",
+    "lands_in": "Switches",
+    "why": "DigiKey's own typo: 'ANALAOG SWITCH'"
+  },
+  "IPC0230-S-ND": {
+    "distributor": "digikey",
+    "lands_in": "LEDs",
+    "why": "a solder stencil whose description names only the LED footprint it is for"
+  },
+  "IPC0224-S-ND": {
+    "distributor": "digikey",
+    "lands_in": "LEDs",
+    "why": "a solder stencil whose description names only the LED footprint it is for"
+  },
+  "C7497415": {
+    "distributor": "lcsc",
+    "lands_in": "ICs - Microcontrollers",
+    "why": "JLC files this microcontroller (FU6522L) under Programmers; the description is right"
+  },
+  "C6653278": {
+    "distributor": "lcsc",
+    "lands_in": "ICs - Power / Voltage Regulators",
+    "why": "JLC files this power-distribution switch under Surge Protectors; the description is right"
+  },
+  "C7495014": {
+    "distributor": "lcsc",
+    "lands_in": "LEDs",
+    "why": "an Ethernet controller whose feature list includes 'Programmable LED indication'"
+  },
+  "C7458807": {
+    "distributor": "lcsc",
+    "lands_in": "ICs - Power / Voltage Regulators",
+    "why": "an I/O expander whose feature list includes 'Built-in LED driver'"
+  },
+  "C17213633": {
+    "distributor": "lcsc",
+    "lands_in": "ICs - Microcontrollers",
+    "why": "JLC files this microcontroller under Interface - Specialized; the description is right"
+  },
+  "C6917032": {
+    "distributor": "lcsc",
+    "lands_in": "Connectors",
+    "why": "a LoRa module whose feature list names its 'IPEX interface' antenna connector"
+  },
+  "C17916842": {
+    "distributor": "lcsc",
+    "lands_in": "Connectors",
+    "why": "a LoRa module whose feature list names its 'IPEX interface' antenna connector"
+  },
+  "C7456744": {
+    "distributor": "lcsc",
+    "lands_in": "ICs - Interface",
+    "why": "JLC files this analog switch under Laser Drivers; the description is right"
+  },
+  "C6904269": {
+    "distributor": "lcsc",
+    "lands_in": "Switches",
+    "why": "JLC files this reed switch under Linear Hall Sensors; the description is right"
+  },
+  "C7544189": {
+    "distributor": "lcsc",
+    "lands_in": "ICs - Power / Voltage Regulators",
+    "why": "JLC files this LED driver under LCD Drivers; the description is right"
+  },
+  "C17444835": {
+    "distributor": "lcsc",
+    "lands_in": "ICs - Interface",
+    "why": "JLC files this interface IC under Motor Driver ICs; the description is right"
+  }
+}

@@ -185,7 +185,7 @@ class TestRealPipelineRebuild:
             "RC0402FR-071K5L": "Passives - Resistors > Chip Resistors",
             "STM32G491CCU6": "ICs - Microcontrollers",
             "TCAN1044AEVDRQ1": "ICs - Interface",
-            "TPD2EUSB30DRTR": "Diodes",
+            "TPD2EUSB30DRTR": "ICs - ESD Protection",
             "UCS2114-1-V/LX": "ICs - Power / Voltage Regulators > Load Switches",
             "UTC2000-I/MG": "ICs - USB",
         }
