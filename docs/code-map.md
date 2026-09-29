@@ -634,6 +634,7 @@ graph LR
     "scripts/generate-test-fixtures.py" --> "csv_io.py"
     "scripts/generate-test-fixtures.py" --> "inventory_api.py"
     "scripts/generate-test-fixtures.py" --> "inventory_ops.py"
+    "scripts/score-categorize-corpus.py" --> "categorize.py"
     "scripts/seed-bom-prices.py" --> "browser_page.py"
     "scripts/spike-webview-loopback.py" --> "server/__init__.py"
     "scripts/spike-webview-loopback.py" --> "server/__main__.py"
@@ -953,6 +954,7 @@ graph LR
     "tests/python/test_carts.py" --> "cache_db.py"
     "tests/python/test_carts.py" --> "carts.py"
     "tests/python/test_carts.py" --> "dubis_errors.py"
+    "tests/python/test_categorize_corpus.py" --> "categorize.py"
     "tests/python/test_ci_watcher_audit.py" --> "scripts/ci_watcher/audit.py"
     "tests/python/test_ci_watcher_listener.py" --> "scripts/ci_watcher/listener.py"
     "tests/python/test_ci_watcher_listener.py" --> "scripts/ci_watcher/state.py"
@@ -1183,7 +1185,7 @@ graph LR
 ### categorize.py
 
 - **Imports:** —
-- **Imported by:** `inventory_ops.py`, `spec_extractor.py`, `tests/python/test_inventory_api_categorize.py`
+- **Imported by:** `inventory_ops.py`, `scripts/score-categorize-corpus.py`, `spec_extractor.py`, `tests/python/test_categorize_corpus.py`, `tests/python/test_inventory_api_categorize.py`
 
 ### client_shell.py
 
@@ -2236,6 +2238,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** —
 
+### scripts/build-categorize-corpus.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### scripts/capture-distributor-fixtures.py
 
 - **Imports:** `browser_page.py`, `distributor_fixtures.py`
@@ -2324,6 +2331,11 @@ graph LR
 ### scripts/regen-layout-ignore.py
 
 - **Imports:** —
+- **Imported by:** —
+
+### scripts/score-categorize-corpus.py
+
+- **Imports:** `categorize.py`
 - **Imported by:** —
 
 ### scripts/seed-bom-prices.py
@@ -2932,6 +2944,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** —
 
+### tests/python/categorize_corpus_labels.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### tests/python/conftest.py
 
 - **Imports:** `cache_db.py`, `digikey_browser.py`, `distributor_fixtures.py`, `inventory_api.py`
@@ -3280,6 +3297,11 @@ graph LR
 ### tests/python/test_carts.py
 
 - **Imports:** `cache_db.py`, `carts.py`, `dubis_errors.py`
+- **Imported by:** —
+
+### tests/python/test_categorize_corpus.py
+
+- **Imports:** `categorize.py`
 - **Imported by:** —
 
 ### tests/python/test_check_claude_md.py

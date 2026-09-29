@@ -1,233 +1,233 @@
-"""Tests for InventoryApi — categorization and spec parsing."""
+"""Tests for categorize.py -- examples and spec parsing.
+
+Every description here is a real one, copied verbatim from a distributor
+catalogue or from the inventory it came from; none is written to fit a rule.
+The broad check -- thousands of real parts scored against their distributor's
+own category -- is tests/python/test_categorize_corpus.py.  These are the
+cases worth naming: each rule, and each trap a rule once fell into.
+"""
 
 import pytest
 
 from categorize import categorize, parse_capacitance, parse_resistance
 
+REAL_PARTS = [
+    # LCSC C7305761
+    pytest.param("MR10X1801FTL", "Walsin Tech Corp",
+                 "1.8kΩ ±1% 1210 Chip Resistor - Surface Mount ROHS",
+                 "Passives - Resistors > Chip Resistors", id="resistor_chip_lcsc"),
+    # live inventory (bought from DigiKey)
+    pytest.param("", "",
+                 "RES SMD 10K OHM 1% 1/10W 0402",
+                 "Passives - Resistors > Chip Resistors", id="resistor_chip_digikey_res_prefix"),
+    # fixture purchase_ledger.csv (DigiKey)
+    pytest.param("3006P-1-100LF", "Bourns Inc.",
+                 "TRIMMER 10 OHM 0.75W PC PIN SIDE",
+                 "Passives - Resistors > Variable / Trimmers", id="resistor_trimmer_digikey"),
+    # LCSC C6674958
+    pytest.param("3362W-1-201", "BOURNS",
+                 "1 200Ω 500mW ±10% ±100ppm/℃ 插件 Potentiometers, Variable Resistors",
+                 "Passives - Resistors > Variable / Trimmers", id="resistor_potentiometer"),
+    # live inventory, description blanked (as manufacturer-direct rows arrive)
+    pytest.param("0402WGF1002TCE", "UNI-ROYAL",
+                 "",
+                 "Passives - Resistors", id="resistor_by_manufacturer_blank_description"),
+    # fixture inventory.csv C393094
+    pytest.param("RLM12FTCMR020", "TA-I Tech",
+                 "20mΩ ±1% 1W",
+                 "Passives - Resistors > Chip Resistors", id="resistor_ta_i_milliohm_shunt"),
+    # LCSC C7226974
+    pytest.param("MKT1820447404", "Vishay Intertech",
+                 "-55℃~+125℃ 400V 470nF Metallized Polyester ±5% - Film Capacitors ROHS",
+                 "Passives - Capacitors", id="capacitor_film_stays_at_parent"),
+    # LCSC C7386379
+    pytest.param("VJ0805Y822MXBAC", "Vishay Intertech",
+                 "100V 8.2nF X7R ±20% 0805 Multilayer Ceramic Capacitors MLCC - SMD/SMT "
+                 "ROHS",
+                 "Passives - Capacitors > MLCC", id="capacitor_mlcc_lcsc"),
+    # live inventory (bought from DigiKey)
+    pytest.param("GRM155R61C224KA12D", "",
+                 "CAP CER 0.22UF 16V X5R 0402",
+                 "Passives - Capacitors > MLCC", id="capacitor_mlcc_digikey_cap_cer"),
+    # LCSC C7469982
+    pytest.param("FVH010ADA221M0654", "FOSAN",
+                 "-55℃~+105℃ 10V 220uF 5.4mm 6.3mm ±20% 6.3x5.4 Aluminum Electrolytic "
+                 "Capacitors - SMD ROHS",
+                 "Passives - Capacitors > Aluminum Polymer", id="capacitor_aluminum_lcsc"),
+    # DigiKey P124837CT-ND
+    pytest.param("EEE-FTV151XAV", "Panasonic Industry",
+                 "CAP ALUM 150UF 20% 35V SMD",
+                 "Passives - Capacitors > Aluminum Polymer", id="capacitor_aluminum_digikey"),
+    # LCSC C7062428
+    pytest.param("TAP336K006SCS", "Kyocera AVX",
+                 "-55℃~+125℃ 33uF 3Ω 6.3V ±10% - Tantalum Capacitors ROHS",
+                 "Passives - Capacitors > Tantalum", id="capacitor_tantalum_quoting_esr_ohms"),
+    # LCSC C17573699
+    pytest.param("ATP203-TL-H", "SANYO DENKI",
+                 "13.5mΩ@4.5V 2.6V 2.75nF 265pF 30V 44nC@10V 450pF 50W 75A N-Channel - "
+                 "MOSFETs ROHS",
+                 "Discrete Semiconductors > MOSFETs", id="mosfet"),
+    # LCSC C7085361
+    pytest.param("BC846CW RFG", "Taiwan Semiconductor",
+                 "-55℃~+150℃ 100MHz 100mA 100nA 200mW 420 600mV 65V NPN SOT-323 Bipolar "
+                 "(BJT) ROHS",
+                 "Discrete Semiconductors", id="bjt"),
+    # LCSC C7450547
+    pytest.param("SS56C", "",
+                 "5A 60V 700mV@5A SMC Schottky Diodes ROHS",
+                 "Diodes", id="schottky_diode"),
+    # LCSC C17386447
+    pytest.param("CDSV4148-G", "",
+                 "1.25V@150mA 150mA 1uA@75V 4ns SOD-323 Switching Diodes ROHS",
+                 "Diodes", id="switching_diode_is_not_a_switch"),
+    # live inventory C19077518
+    pytest.param("SMF30A", "",
+                 "48.4VC Clamp 4.1A Ipp TVS DIODE SOD-123FL",
+                 "ICs - ESD Protection", id="tvs_diode_is_esd_protection"),
+    # fixture inventory.csv C20615829
+    pytest.param("SRV05-4A", "R+O",
+                 "15VC Clamp 4A@8/20us Ipp ESD DIODE SOT-23-6L",
+                 "ICs - ESD Protection", id="esd_diode_is_esd_protection"),
+    # live inventory
+    pytest.param("TPS7A4700RGWR", "TI",
+                 "1.4V~20.5V Positive Adjustable VQFN-20-EP(5x5) Voltage Regulators - "
+                 "Linear, Low Drop Out (LDO) Regulators RoHS",
+                 "ICs - Power / Voltage Regulators > LDOs", id="ldo"),
+    # live inventory
+    pytest.param("TPS564242DRLR", "TI",
+                 "1.2MHz Buck 4A Adjustable 600mV~7V 1 SOT-563 Voltage Regulators - DC "
+                 "DC Switching Regulators ROHS",
+                 "ICs - Power / Voltage Regulators > Switchers", id="buck_switching_regulator_is_not_a_switch"),
+    # live inventory (bought from DigiKey)
+    pytest.param("MP2229GQ-Z", "",
+                 "IC REG BUCK ADJ 6A 14QFN",
+                 "ICs - Power / Voltage Regulators > Switchers", id="buck_digikey_ic_reg"),
+    # LCSC C6671398
+    pytest.param("S-8353H33UA-IWST2U", "ABLIC",
+                 "-40℃~+85℃@(TA) 1 250kHz 3.3V 300mA 900mV~10V Boost Boost Built-in No "
+                 "SOT-89-3 DC-DC Converters ROHS",
+                 "ICs - Power / Voltage Regulators > Switchers", id="boost"),
+    # LCSC C17514180
+    pytest.param("DML3012LDC-7A", "Diodes Incorporated",
+                 "-40℃~+85℃ 1 4.8mΩ 500mV~20V Active High Load Switch VDFN3030-12 Power "
+                 "Distribution Switches ROHS",
+                 "ICs - Power / Voltage Regulators > Load Switches", id="load_switch"),
+    # live inventory C2158037
+    pytest.param("AP22653W6-7", "",
+                 "1 Active High 2.1A High Side Switch SOT-26 Power Distribution "
+                 "Switches, Load Drivers RoHS",
+                 "ICs - Power / Voltage Regulators", id="high_side_switch_is_not_a_switch"),
+    # live inventory
+    pytest.param("SM04B-SRSS-TB(LF)(SN)", "JST",
+                 "4P 1x4P SH Tin -25℃~+85℃ White 1mm 50V 4 1A 1 Surface Mount, Right "
+                 "Angle SMD,P=1mm,Surface Mount,Right Angle Headers, Male Pins ROHS",
+                 "Connectors > SMD", id="connector_smd_header"),
+    # LCSC C7463258
+    pytest.param("TYPE-C-31-D-09", "Korean Hroparts Elec",
+                 "-25℃~+85℃ 1 10,000 cycles 16P 5A 6.5mm Female Through Hole Type-C 插件 "
+                 "USB Connectors ROHS",
+                 "Connectors > High Speed", id="connector_usb_c"),
+    # live inventory (bought from DigiKey)
+    pytest.param("SFW15R-1STE1LF", "",
+                 "CONN FFC FPC BOTTOM 15POS 1MM RA",
+                 "Connectors", id="connector_digikey_conn_prefix"),
+    # live inventory
+    pytest.param("TCPP02-M18", "",
+                 "USB TYPE-C PORT PROTECTION FOR S",
+                 "ICs - USB", id="usb_c_port_protection_is_not_a_connector"),
+    # live inventory
+    pytest.param("STM32G474RBT3", "ST",
+                 "ARM Cortex-M Series 170MHz 52 LQFP-64(10x10) Microcontrollers ROHS",
+                 "ICs - Microcontrollers", id="mcu"),
+    # live inventory (bought from DigiKey)
+    pytest.param("STM32H7A3VIT6", "",
+                 "IC MCU 32BIT 2MB FLASH 100LQFP",
+                 "ICs - Microcontrollers", id="mcu_digikey"),
+    # DigiKey DG411LDY-T1TR-ND
+    pytest.param("DG411LDY-T1", "Vishay Siliconix",
+                 "IC SWITCH SPST-NCX4 17OHM 16SOIC",
+                 "ICs - Interface", id="analog_switch_digikey_ic_switch"),
+    # LCSC C7021756 ("Voltage-Contro-lled" once read as LED)
+    pytest.param("SVC53C3B07A2-125.000M", "Suntsu Electronics Inc",
+                 "0℃~+70℃ 125MHz 25mA 3.3V CMOS ±25ppm SMD5032-6P Voltage-Controlled "
+                 "Crystal Oscillators (VCXOs) ROHS",
+                 "Crystals & Oscillators", id="vcxo_is_not_an_led"),
+    # LCSC C17487427
+    pytest.param("AD404-02E", "NVE",
+                 "SOIC-8 Hall Switches ROHS",
+                 "ICs - Sensors", id="hall_switch_is_a_sensor"),
+    # LCSC C17209540 (Seeed XIAO nRF52840)
+    pytest.param("102010448", "Seeed",
+                 "Seeed Studio XIAO nRF52840 is an ultra-compact, low-power wireless "
+                 "development board powered by the Nordic Semiconductor nRF52840 SoC. "
+                 "It features a 64 MHz Arm Cortex-M4F processor with a floating-point "
+                 "unit, 256 KB of RAM, 1 MB of on-chip Flash, and an additional 2 MB of "
+                 "onboard Flash, providing sufficient processing and storage capacity "
+                 "for wireless, sensing, and embedded applications.\nThe board supports "
+                 "Bluetooth Low Energy, Bluetooth Mesh, NFC, and 2.4 GHz wireless "
+                 "communication through an onboard antenna. It provides UART, I²C, SPI, "
+                 "ADC, PWM, NFC, and SWD interfaces, together with USB Type-C "
+                 "connectivity and onboard lithium-battery charging management.\nWith a "
+                 "compact size of only 21 × 17.8 mm, single-sided component placement, "
+                 "and castellated pads, XIAO nRF52840 is suitable for both rapid "
+                 "prototyping and surface-mount integration into custom PCBs.",
+                 "Development Boards, Kits, Programmers", id="dev_board_listing_its_usb_c_is_a_dev_board"),
+    # ST's product title for STLINK-V3SET
+    pytest.param("STLINK-V3SET", "STMicroelectronics",
+                 "STLINK-V3 modular in-circuit debugger and programmer",
+                 "Development Boards, Kits, Programmers", id="stlink_is_dev_tools"),
+    # LCSC C7423113
+    pytest.param("SK6812MINI-HS-RVA", "OPSCO Optoelectronics",
+                 "-40℃~+85℃ 0.25mA 1.95mm 120° 160mcd~320mcd 18ns、22ns 2000V "
+                 "240mcd~450mcd 3.5mm 3.7V~5.5V 3.7mm 465nm~475nm 4kHz 520nm~530nm "
+                 "620nm~625nm 75ns、110ns 800Kbit/s 815mcd~1275mcd 82ns Built-in "
+                 "power-on reset circuit Semi-transparent lens SMD3535-4P RGB "
+                 "LEDs(Built-in IC) ROHS",
+                 "LEDs", id="addressable_rgb_led"),
+    # DigiKey 119-228BDVAAWFLMSD-ND
+    pytest.param("228BDVAAWFLMSD", "CTS Electrocomponents",
+                 "SWITCH TACTILE SPST-NO 0.05A 12V",
+                 "Switches", id="tactile_switch_digikey"),
+    # LCSC C18039838
+    pytest.param("MPM12A05I12BF02", "NorComp",
+                 "- New Arrivals ROHS",
+                 "Other", id="uninformative_description_is_other"),
+    # LCSC C6953916
+    pytest.param("G6K-2F-RF-S DC4.5", "Omron Electronics",
+                 "-40℃~+70℃ 1A 2 Form C: 2C (DPDT-CO) 3ms 3ms 4.5V 60V@DC、125V@AC - "
+                 "Signal Relays ROHS",
+                 "Other", id="relay_is_other"),
+    # LCSC C17443318 (a balun: "50Ω:100Ω")
+    pytest.param("2450BL14C0100001T", "",
+                 "-40℃~+125℃ 1.2dB 1.5dB 180°@±10° 2.4GHz~2.5GHz 50Ω:100Ω 9.5dB 0603 "
+                 "Balun ROHS",
+                 "Other", id="ohm_figure_alone_is_not_a_resistor"),
+]
 
-class TestCategorize:
-    def test_resistor_chip_by_description(self):
-        row = {"Description": "Resistor 10kΩ ±1%", "Package": "0402", "Manufacture Part Number": ""}
-        assert categorize(row) == "Passives - Resistors > Chip Resistors"
 
-    def test_resistor_chip_by_ohm(self):
-        row = {"Description": "RES 1.5K OHM 1% 1/16W 0402", "Package": "0402", "Manufacture Part Number": ""}
-        assert categorize(row) == "Passives - Resistors > Chip Resistors"
+@pytest.mark.parametrize(("mpn", "manufacturer", "description", "expected"), REAL_PARTS)
+def test_real_part(mpn, manufacturer, description, expected):
+    row = {"Description": description, "Manufacture Part Number": mpn, "Manufacturer": manufacturer}
+    assert categorize(row) == expected
 
-    def test_resistor_trimmer(self):
-        row = {"Description": "TRIMMER 10 OHM 0.75W PC PIN SIDE", "Manufacture Part Number": "3006P-1-100LF", "Manufacturer": "Bourns Inc."}
-        assert categorize(row) == "Passives - Resistors > Variable / Trimmers"
 
-    def test_resistor_potentiometer(self):
-        row = {"Description": "Potentiometer 10kΩ Linear", "Manufacture Part Number": ""}
-        assert categorize(row) == "Passives - Resistors > Variable / Trimmers"
-
-    def test_resistor_by_manufacturer_no_subcategory(self):
-        """Resistor matched by manufacturer alone without subcategory keywords stays at parent."""
-        row = {"Description": "Chip component", "Manufacture Part Number": "", "Manufacturer": "UNI-ROYAL"}
-        assert categorize(row) == "Passives - Resistors"
-
-    def test_capacitor_by_description(self):
-        """Generic capacitor without subcategory keywords stays at parent level."""
-        row = {"Description": "Capacitor 100nF 25V", "Package": "0402", "Manufacture Part Number": ""}
-        assert categorize(row) == "Passives - Capacitors"
-
-    def test_capacitor_mlcc(self):
-        row = {"Description": "Cap Cer 100nF 25V X7R", "Package": "0402", "Manufacture Part Number": ""}
-        assert categorize(row) == "Passives - Capacitors > MLCC"
-
-    def test_capacitor_mlcc_keyword(self):
-        row = {"Description": "MLCC Capacitor 10uF", "Package": "0805", "Manufacture Part Number": ""}
-        assert categorize(row) == "Passives - Capacitors > MLCC"
-
-    def test_capacitor_ceramic_is_mlcc(self):
-        row = {"Description": "100nF ±10% 50V Ceramic Capacitor X7R 0402", "Package": "0402", "Manufacture Part Number": ""}
-        assert categorize(row) == "Passives - Capacitors > MLCC"
-
-    def test_capacitor_aluminum_polymer(self):
-        row = {"Description": "Aluminum Electrolytic Capacitor 100uF 25V", "Package": "", "Manufacture Part Number": ""}
-        assert categorize(row) == "Passives - Capacitors > Aluminum Polymer"
-
-    def test_capacitor_tantalum(self):
-        row = {"Description": "Tantalum Capacitor 10uF 16V", "Package": "", "Manufacture Part Number": ""}
-        assert categorize(row) == "Passives - Capacitors > Tantalum"
-
-    def test_mosfet_subcategory(self):
-        row = {"Description": "N-Channel MOSFET 30V 5A", "Manufacture Part Number": ""}
-        assert categorize(row) == "Discrete Semiconductors > MOSFETs"
-
-    def test_discrete_without_mosfet(self):
-        row = {"Description": "NPN Transistor BJT 40V", "Manufacture Part Number": ""}
-        assert categorize(row) == "Discrete Semiconductors"
-
-    def test_ldo_subcategory(self):
-        row = {"Description": "LDO Voltage Regulator 3.3V 500mA", "Manufacture Part Number": ""}
-        assert categorize(row) == "ICs - Power / Voltage Regulators > LDOs"
-
-    def test_buck_switcher_subcategory(self):
-        row = {"Description": "Buck Switching Regulator IC 5V 2A", "Manufacture Part Number": ""}
-        assert categorize(row) == "ICs - Power / Voltage Regulators > Switchers"
-
-    def test_boost_switcher_subcategory(self):
-        row = {"Description": "Boost Voltage Regulator IC 12V", "Manufacture Part Number": ""}
-        assert categorize(row) == "ICs - Power / Voltage Regulators > Switchers"
-
-    def test_load_switch_subcategory(self):
-        row = {"Description": "Load Switch IC 3.3V 1A", "Manufacture Part Number": ""}
-        assert categorize(row) == "ICs - Power / Voltage Regulators > Load Switches"
-
-    def test_pwr_switch_subcategory(self):
-        row = {"Description": "IC PWR SWITCH 1:1 20VQFN", "Manufacture Part Number": ""}
-        assert categorize(row) == "ICs - Power / Voltage Regulators > Load Switches"
-
-    def test_generic_voltage_regulator(self):
-        """Voltage regulator without subcategory keywords stays at parent."""
-        row = {"Description": "Voltage Regulator IC 3.3V", "Manufacture Part Number": ""}
-        assert categorize(row) == "ICs - Power / Voltage Regulators"
-
-    def test_connector_by_keyword(self):
-        row = {"Description": "USB-C Connector", "Package": "", "Manufacture Part Number": ""}
-        assert categorize(row) == "Connectors > High Speed"
-
-    def test_mcu(self):
-        row = {"Description": "Microcontroller ARM Cortex-M4", "Package": "LQFP-64", "Manufacture Part Number": ""}
-        assert categorize(row) == "ICs - Microcontrollers"
-
-    def test_other_fallback(self):
-        row = {"Description": "Something unknown", "Package": "", "Manufacture Part Number": ""}
-        assert categorize(row) == "Other"
-
-    def test_switching_regulator_not_switch(self):
-        row = {"Description": "Switching Regulator IC", "Manufacture Part Number": ""}
-        assert categorize(row) == "ICs - Power / Voltage Regulators > Switchers"
-
-    def test_tactile_switch(self):
-        row = {"Description": "Tactile switch 6x6mm", "Manufacture Part Number": ""}
-        assert categorize(row) == "Switches"
-
-    def test_esd_diode_not_diodes(self):
-        row = {"Description": "ESD Protection Diode", "Manufacture Part Number": ""}
-        assert categorize(row) == "ICs - ESD Protection"
-
-    def test_diode_without_esd(self):
-        row = {"Description": "Schottky Diode 40V", "Manufacture Part Number": ""}
-        assert categorize(row) == "Diodes"
-
-    def test_connector_by_mpn(self):
-        row = {"Description": "something", "Manufacture Part Number": "SM04B-GHS"}
-        assert categorize(row) == "Connectors"
-
-    def test_motor_driver_by_mpn(self):
-        row = {"Description": "IC chip", "Manufacture Part Number": "DRV8353"}
-        assert categorize(row) == "ICs - Motor Drivers"
-
-    def test_resistor_by_mfr_and_desc(self):
-        row = {"Description": "100mω shunt", "Manufacture Part Number": "", "Manufacturer": "TA-I Tech"}
-        assert categorize(row) == "Passives - Resistors > Chip Resistors"
-
-    def test_voltage_reference_by_mpn(self):
-        row = {"Description": "Voltage ref IC", "Manufacture Part Number": "REF3033"}
-        assert categorize(row) == "ICs - Voltage References"
-
-    def test_sensor_by_mpn(self):
-        row = {"Description": "Magnetic encoder", "Manufacture Part Number": "MT6835"}
-        assert categorize(row) == "ICs - Sensors"
-
-    def test_tmr_magnetic_sensor_by_description(self):
-        row = {"Description": "Low Power Large Range TMR Linear Magnetic Sensor ±500Gs",
-               "Manufacture Part Number": ""}
-        assert categorize(row) == "ICs - Sensors"
-
-    def test_tmr_sensor_by_mpn_without_description(self):
-        """MDT manufacturer-direct parts arrive with no description; MPN must still sort it."""
-        row = {"Description": "", "Manufacture Part Number": "TMR2615F-AAC-1.500-500",
-               "Manufacturer": "MultiDimension Technology Co., Ltd."}
-        assert categorize(row) == "ICs - Sensors"
-
-    def test_stlink_is_dev_tools(self):
-        row = {"Manufacture Part Number": "STLINK-V3SET",
-               "Description": "STLINK-V3 modular in-circuit debugger and programmer"}
-        assert categorize(row) == "Development Boards, Kits, Programmers"
-
-    def test_programmer_by_description(self):
-        row = {"Manufacture Part Number": "XYZ", "Description": "in-circuit debugger programmer"}
-        assert categorize(row) == "Development Boards, Kits, Programmers"
-
-    def test_dev_tools_does_not_match_led(self):
-        # an LED part must not be captured by the dev-tools rule
-        row = {"Manufacture Part Number": "WS2812B-V5/W",
-               "Description": "LED RGB addressable"}
-        assert categorize(row) == "LEDs"
-
-    def test_ws2812_by_mpn_fallback(self):
-        row = {"Manufacture Part Number": "WS2812B-V5/W", "Description": ""}
-        assert categorize(row) == "LEDs"
-
-    def test_murata_grm_cap_by_mpn_fallback(self):
-        row = {"Manufacture Part Number": "GRM21BR61A476ME15L", "Description": ""}
-        assert categorize(row) == "Passives - Capacitors"
-
-    def test_tcpp_usb_by_mpn_fallback(self):
-        row = {"Manufacture Part Number": "TCPP02-M18", "Description": ""}
-        assert categorize(row) == "ICs - USB"
-
-    def test_pi3ch_mux_by_mpn_fallback(self):
-        row = {"Manufacture Part Number": "PI3CH3257ZTAEX", "Description": ""}
-        assert categorize(row) == "ICs - Interface"
-
-    # An on-resistance / Rds(on) figure in a spec string is not a resistor.
-    def test_analog_switch_on_resistance_is_not_a_resistor(self):
-        row = {"Manufacture Part Number": "TMUXHS4212RKSR",
-               "Description": "IC SW DPST, SPDTX2 8.4OHM 20VQFN"}
-        assert categorize(row) == "ICs - Interface"
-
-    def test_mosfet_rds_on_is_not_a_resistor(self):
-        row = {"Manufacture Part Number": "WSD3066DN33",
-               "Description": "30V 50A 45W 5.7m\u03a9@4.5V 2.5V@250uA 1 N-Channel "
-                              "DFN-8(3.3x3.3) Single FETs, MOSFETs ROHS"}
-        assert categorize(row) == "Discrete Semiconductors > MOSFETs"
-
-    def test_ideal_diode_controller_is_power(self):
-        row = {"Manufacture Part Number": "LM66100DCKR",
-               "Description": "95m\u03a9 1 SC-70-6 OR Controllers, Ideal Diodes RoHS"}
-        assert categorize(row) == "ICs - Power / Voltage Regulators"
-
-    def test_ferrite_bead_impedance_is_not_a_resistor(self):
-        row = {"Manufacture Part Number": "MMZ1608B601CTAH0",
-               "Description": "600\u03a9@100MHz 1 Line Ferrite Bead 0603 500mA 400m\u03a9"}
-        assert categorize(row) == "Passives - Inductors"
-
-    def test_common_mode_choke_is_not_a_resistor(self):
-        row = {"Manufacture Part Number": "PSCIAQ3225-101Z",
-               "Description": "100uH@100kHz 2Line Common Mode Choke Surface Mount-4P "
-                              "3.2x2.5mm 5.1k\u03a9@10MHz 150mA DCR 1.5\u03a9"}
-        assert categorize(row) == "Passives - Inductors"
-
-    def test_ohm_figure_alone_is_not_a_resistor(self):
-        # No exclusion list to outgrow: an unknown part quoting ohms stays Other.
-        row = {"Manufacture Part Number": "XYZ123",
-               "Description": "Heating element 12\u03a9 5W"}
-        assert categorize(row) == "Other"
-
-    def test_digikey_res_prefix(self):
-        row = {"Manufacture Part Number": "RC0402FR-0710KL",
-               "Description": "RES SMD 10K OHM 1% 1/10W 0402"}
-        assert categorize(row) == "Passives - Resistors > Chip Resistors"
-
-    def test_res_prefix_only_counts_at_start(self):
-        row = {"Manufacture Part Number": "XYZ123",
-               "Description": "USB-to-UART bridge, features 3.3V IO"}
-        assert categorize(row) != "Passives - Resistors"
-
-    def test_digikey_trimmer_prefix(self):
-        row = {"Manufacture Part Number": "3006P-1-100LF",
-               "Description": "TRIMMER 10 OHM 0.75W PC PIN SIDE"}
-        assert categorize(row) == "Passives - Resistors > Variable / Trimmers"
-
-    def test_plain_ohm_resistor_still_a_resistor(self):
-        row = {"Manufacture Part Number": "0603WAF1002T5E",
-               "Description": "10k\u03a9 \u00b11% 100mW 0603 Thick Film Resistors"}
-        assert categorize(row) == "Passives - Resistors > Chip Resistors"
+# Manufacturer-direct rows (MDT, JST, Murata reels bought outright) arrive
+# with no description at all; the MPN is the only thing left to sort on.
+@pytest.mark.parametrize(("mpn", "manufacturer", "expected"), [
+    ("SM04B-GHS-TB", "JST", "Connectors"),
+    ("DRV8353RSRGZR", "Texas Instruments", "ICs - Motor Drivers"),
+    ("REF3033AIDBZR", "Texas Instruments", "ICs - Voltage References"),
+    ("MT6835GT-STD", "MagnTek", "ICs - Sensors"),
+    ("TMR2615F-AAC-1.500-500", "MultiDimension Technology Co., Ltd.", "ICs - Sensors"),
+    ("WS2812B-V5/W", "Worldsemi", "LEDs"),
+    ("GRM21BR61A476ME15L", "Murata", "Passives - Capacitors"),
+    ("TCPP02-M18", "STMicroelectronics", "ICs - USB"),
+    ("PI3CH3257ZTAEX", "Diodes Incorporated", "ICs - Interface"),
+    ("STLINK-V3SET", "STMicroelectronics", "Development Boards, Kits, Programmers"),
+])
+def test_mpn_fallback_with_blank_description(mpn, manufacturer, expected):
+    row = {"Description": "", "Manufacture Part Number": mpn, "Manufacturer": manufacturer}
+    assert categorize(row) == expected
 
 
 class TestParseResistance:
