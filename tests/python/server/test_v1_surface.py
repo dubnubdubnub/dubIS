@@ -54,6 +54,9 @@ _INVENTORY_API_METHOD_NAMES = {
     # in _NEW_OPERATIONS.
     'create_jlc_pairing', 'receive_jlc_session', 'list_jlc_sessions',
     'revoke_jlc_session', 'fetch_jlc_library',
+    # DigiKey through the same extension (phase 2), replacing the retired
+    # start_digikey_login / sync_digikey_cookies CDP-launch pair.
+    'create_digikey_pairing', 'receive_digikey_session',
     'get_price_summary', 'get_sourced_distributors', 'get_warnings',
     'has_purchase_history', 'import_purchases', 'install_tesseract',
     'list_carts', 'list_generic_member_reviews', 'list_generic_parts', 'list_purchase_orders', 'list_saved_searches',
@@ -68,7 +71,7 @@ _INVENTORY_API_METHOD_NAMES = {
     'set_active_cart', 'set_bom_dirty', 'set_cart_board_count', 'set_mouser_api_key',
     'set_preferred_member',
     'shutdown', 'split_cart',
-    'start_digikey_login', 'start_scan_session', 'sync_digikey_cookies',
+    'start_scan_session',
     'update_cart_item', 'update_generic_part', 'update_part_fields', 'update_part_price',
     'update_purchase_order', 'update_vendor', 'validate_digikey_session',
 }
@@ -185,7 +188,8 @@ FROZEN_V1_SURFACE = [
     ("POST", "/v1/carts/{cart_id}/consolidate", "consolidate_cart"),
     ("POST", "/v1/carts/{cart_id}/items", "add_cart_item"),
     ("POST", "/v1/carts/{cart_id}/split", "split_cart"),
-    ("POST", "/v1/distributors/digikey/cookies/sync", "sync_digikey_cookies"),
+    ("POST", "/v1/distributors/digikey/pairing", "create_digikey_pairing"),
+    ("POST", "/v1/distributors/digikey/push", "receive_digikey_session"),
     ("POST", "/v1/distributors/digikey/session/validate", "validate_digikey_session"),
     ("POST", "/v1/distributors/jlcpcb/pairing", "create_jlc_pairing"),
     ("POST", "/v1/distributors/jlcpcb/session", "receive_jlc_session"),

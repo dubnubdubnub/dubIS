@@ -382,11 +382,11 @@ class InventoryApi:
     def check_digikey_session(self) -> dict[str, Any]:
         return self._dist.check_digikey_session()
 
-    def start_digikey_login(self) -> dict[str, Any]:
-        return self._dist.start_digikey_login()
+    def create_digikey_pairing(self) -> dict[str, Any]:
+        return self._dist.create_digikey_pairing()
 
-    def sync_digikey_cookies(self) -> dict[str, Any]:
-        return self._dist.sync_digikey_cookies()
+    def receive_digikey_session(self, nonce: str, cookies: Any = None) -> dict[str, Any]:
+        return self._dist.receive_digikey_session(nonce, cookies)
 
     def get_digikey_login_status(self) -> dict[str, bool]:
         return self._dist.get_digikey_login_status()

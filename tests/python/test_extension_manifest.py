@@ -28,10 +28,13 @@ MANIFEST_PATH = REPO_ROOT / "extension" / "jlc-bridge" / "manifest.json"
 EXPECTED_EXTENSION_ID = "fboadceadnhfhdkdmfjlhbicocbhbbpc"
 
 # Exactly these. Chrome scopes `cookies` by host_permissions, so the pair below
-# IS the security boundary: cookie reads anywhere but jlcpcb.com are refused by
-# the browser itself.
+# IS the security boundary: cookie reads anywhere but jlcpcb.com and digikey.com
+# are refused by the browser itself.
 EXPECTED_PERMISSIONS = {"cookies", "storage"}
-EXPECTED_HOST_PERMISSIONS = {"*://*.jlcpcb.com/*"}
+# digikey.com was added deliberately by phase 2 (DigiKey login via the same
+# extension, docs/plans/2026-09-20-extension-credential-capture.md). It is the
+# one widening that phase argued for; nothing else rides along with it.
+EXPECTED_HOST_PERMISSIONS = {"*://*.jlcpcb.com/*", "*://*.digikey.com/*"}
 
 # Keys whose mere presence changes what can reach the extension:
 #   externally_connectable -> a web page could message the service worker
@@ -75,8 +78,9 @@ def test_host_permissions_match_exactly():
         "the extension's `host_permissions` changed.\n"
         f"  expected: {sorted(EXPECTED_HOST_PERMISSIONS)}\n"
         f"  found:    {sorted(hosts)}\n"
-        "Enumerated hosts only, never <all_urls>. Adding digikey.com is phase 2 "
-        "and updates this expectation explicitly."
+        "Enumerated hosts only, never <all_urls>. Any new host is a reviewed "
+        "decision that updates this expectation explicitly, as phase 2 did for "
+        "digikey.com."
     )
 
 

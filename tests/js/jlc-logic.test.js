@@ -185,6 +185,11 @@ describe('countdown', () => {
     expect(state.text).toContain('expired');
     expect(state.text).toContain('Sign in to JLC');
   });
+
+  it('names whichever button mints a new code', () => {
+    expect(countdown(NOW - 1, NOW, 'Sign in to DigiKey').text).toContain('Sign in to DigiKey');
+    expect(countdown(NOW - 1, NOW, 'Sign in to DigiKey').text).not.toContain('JLC');
+  });
 });
 
 describe('newAccounts', () => {

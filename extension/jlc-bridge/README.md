@@ -1,7 +1,9 @@
-# dubIS JLC bridge (MV3 extension)
+# dubIS bridge (MV3 extension)
 
-Hands your **JLCPCB session** to a local dubIS server, once, when you click a
-button. That is the entire feature.
+Hands your **JLCPCB** or **DigiKey** session to a local dubIS server, once, when
+you click a button. That is the entire feature. (The folder is still
+`extension/jlc-bridge/`: renaming it would change nothing about the pinned ID,
+but every doc and test names the path.)
 
 It exists because JLC's `JLCPCB_SESSION_ID` cookie is `HttpOnly; Secure;
 SameSite=None`, so a dubIS page at `http://127.0.0.1:<port>` can never read it,
@@ -78,13 +80,50 @@ that endpoint *already mints* a fresh `JLCPCB_SESSION_ID`. Waiting for the
 cookie to appear therefore succeeds immediately and captures an anonymous
 session, every time. The API response code is the only honest signal.
 
+### DigiKey (phase 2)
+
+Same popup, same box, same button. **The pairing code decides the site**:
+dubIS mints every DigiKey code with the literal prefix `DK-`, and no JLC code
+ever starts with it, so the extension routes on the code alone
+(`routeForCode` in `handshake-logic.js`) and there is no site picker to get
+wrong. Anything that is not `DK-…` takes the JLC path exactly as before.
+
+1. In dubIS, start a DigiKey sign-in; it shows a `DK-…` pairing code.
+2. Sign in at [digikey.com](https://www.digikey.com/) in this browser.
+3. Paste the code into the popup and press **Send session to dubIS**.
+4. The extension polls `https://www.digikey.com/MyDigiKey/Account` (same 40 x
+   3s cadence) and reads each answer (`classifyDigikeyProbe`):
+   - **signed in** — a 2xx whose final, post-redirect URL contains neither
+     `/login` nor `/signin`, and whose body is not a Cloudflare interstitial;
+   - **signed out** — redirected to a `/login` or `/signin` URL: keep waiting;
+   - **inconclusive** — network error, 403/5xx, or a Cloudflare "Just a
+     moment…" / "Performing security verification" page: keep waiting, and
+     never treat it as signed in. If *every* check was inconclusive, the error
+     says so and suggests opening digikey.com in a tab first, since a
+     Cloudflare check may need a real visit.
+5. It POSTs `{nonce, cookies}` to `POST /v1/distributors/digikey/push` and
+   reports dubIS's verdict. When dubIS answers `state: "unverified"` the
+   message says dubIS could not double-check the session itself, only that the
+   extension saw you signed in.
+
+**Every `digikey.com` cookie is sent — a deliberate departure from rule 6.**
+JLC's session is one known cookie, so the JLC path sends an allowlist of one.
+Nobody has yet recorded which DigiKey cookies make up a session (it sits behind
+Cloudflare and uses several), and guessing short would push a session that
+fails silently. So the DigiKey path sends the whole `digikey.com` jar — still
+one domain, still gated by `host_permissions` — and dubIS logs the cookie
+*names* it receives, so the list can be narrowed to an allowlist like JLC's
+once it is known. Values are never logged, stored in extension storage or put in
+a status message, exactly as for JLC.
+
 ## Permissions, and why each one is here
 
 | Permission | Why |
 |---|---|
-| `cookies` | The one capability page JS lacks: reading the `HttpOnly` session cookie. Chrome scopes it to the hosts below, so it cannot read cookies for any other site. |
+| `cookies` | The one capability page JS lacks: reading `HttpOnly` session cookies. Chrome scopes it to the hosts below, so it cannot read cookies for any other site. |
 | `storage` | `chrome.storage.local` keeps the dubIS base URL; `chrome.storage.session` keeps the in-progress status line. Neither ever holds a cookie value. |
-| `*://*.jlcpcb.com/*` (host) | The only site whose cookies may be read, and the only site the validation request goes to. |
+| `*://*.jlcpcb.com/*` (host) | JLCPCB: whose cookies may be read, and where the JLC validation request goes. |
+| `*://*.digikey.com/*` (host) | DigiKey, added by phase 2: whose cookies may be read, and where the account-page probe goes. |
 
 Deliberately **not** requested: `tabs`, `scripting`, `webRequest`, `downloads`,
 `<all_urls>`, and no `externally_connectable` or `content_scripts` keys.
@@ -94,11 +133,13 @@ so widening it later fails CI rather than passing review unnoticed.
 ## What it can do
 
 - Read **only** the cookies named in `SESSION_COOKIE_NAMES` (`JLCPCB_SESSION_ID`)
-  for `jlcpcb.com`.
-- Call one fixed JLC URL to ask "am I signed in?".
-- POST `{nonce, account, cookies}` to `POST /v1/distributors/jlcpcb/session` on
-  the dubIS base URL you configured — and only after you clicked the button and
-  supplied a pairing code from that dubIS.
+  for `jlcpcb.com`, or — for a `DK-` code — the `digikey.com` cookies (all of
+  them; see above).
+- Call one fixed JLC URL, or one fixed DigiKey URL, to ask "am I signed in?".
+- POST `{nonce, account, cookies}` to `POST /v1/distributors/jlcpcb/session`, or
+  `{nonce, cookies}` to `POST /v1/distributors/digikey/push`, on the dubIS base
+  URL you configured — and only after you clicked the button and supplied a
+  pairing code from that dubIS.
 
 ## What it cannot do
 
@@ -108,11 +149,10 @@ so widening it later fails CI rather than passing review unnoticed.
 - **Act on its own.** Nothing happens without your click plus a pairing code.
   The code pins *which* dubIS receives the session, so a "dubIS" someone else
   points you at cannot silently collect one.
-- **Fetch arbitrary URLs.** There is no "fetch this URL" message. The two
-  outbound URLs are both compile-time constants (plus your configured dubIS
-  origin).
-- **Touch any other site.** With `host_permissions` limited to `jlcpcb.com`,
-  Chrome itself refuses cookie reads elsewhere.
+- **Fetch arbitrary URLs.** There is no "fetch this URL" message. Every
+  outbound URL is a compile-time constant (plus your configured dubIS origin).
+- **Touch any other site.** With `host_permissions` limited to `jlcpcb.com` and
+  `digikey.com`, Chrome itself refuses cookie reads elsewhere.
 - **Read anything back out of dubIS.** The flow is push-only; no dubIS route
   returns a stored credential.
 - **Store or log a cookie value.** Values exist only in memory for the single
@@ -125,8 +165,9 @@ so widening it later fails CI rather than passing review unnoticed.
 | File | Role |
 |---|---|
 | `manifest.json` | MV3 manifest; the permission set is the security boundary, and `key` pins the extension ID. |
-| `background.js` | Service worker: the poll, the cookie filter, the single POST. |
-| `config.js` | dubIS base URL storage + validation, and the session route path. |
+| `background.js` | Service worker: routes a code to the JLC or DigiKey handshake; the poll, the cookie read, the single POST. |
+| `handshake-logic.js` | Pure decisions, no `chrome`: code routing, DigiKey probe classification, cookie field shape, rejection text. Tested by `tests/js/extension-handshake-logic.test.js`. |
+| `config.js` | dubIS base URL storage + validation, and the two intake route paths. |
 | `popup.html` / `popup.js` | Status, pairing-code field, the button that starts a send. |
 | `options.html` / `options.js` | The dubIS base URL. |
 

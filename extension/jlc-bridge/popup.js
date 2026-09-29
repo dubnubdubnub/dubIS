@@ -4,13 +4,17 @@
 // service worker acts on nothing else, and nothing outside this extension can
 // send it a message.
 
-import { getBaseUrl, SESSION_PATH } from "./config.js";
+import { DIGIKEY_PUSH_PATH, getBaseUrl, SESSION_PATH } from "./config.js";
+import { routeForCode } from "./handshake-logic.js";
 
 const nonceInput = document.getElementById("nonce");
 const sendButton = document.getElementById("send");
 const cancelButton = document.getElementById("cancel");
 const statusLine = document.getElementById("status");
 const targetLine = document.getElementById("target");
+const codeKindLine = document.getElementById("code-kind");
+
+const DEFAULT_CODE_HINT = codeKindLine.textContent;
 
 const BUSY_STATES = new Set(["polling", "pushing"]);
 
@@ -51,10 +55,22 @@ async function refresh() {
   }
 }
 
+/**
+ * Show which site the pasted code will send for, and where. The worker makes
+ * the same call from the same code (handshake-logic.js), so this is a preview,
+ * not a choice.
+ */
 async function showTarget() {
+  const code = nonceInput.value.trim();
+  const site = routeForCode(code);
+  codeKindLine.textContent = !code
+    ? DEFAULT_CODE_HINT
+    : site === "digikey"
+      ? "DigiKey code: sign in at digikey.com."
+      : "JLCPCB code: sign in at jlcpcb.com.";
   try {
     const base = await getBaseUrl();
-    targetLine.textContent = `${base}${SESSION_PATH}`;
+    targetLine.textContent = `${base}${site === "digikey" ? DIGIKEY_PUSH_PATH : SESSION_PATH}`;
   } catch (err) {
     targetLine.textContent = err.message;
   }
@@ -75,6 +91,7 @@ sendButton.addEventListener("click", async () => {
       say(reply.error, "err");
     } else {
       nonceInput.value = "";
+      showTarget();
     }
   } catch (err) {
     say(err.message, "err");
@@ -90,6 +107,8 @@ cancelButton.addEventListener("click", async () => {
   }
   await refresh();
 });
+
+nonceInput.addEventListener("input", showTarget);
 
 document.getElementById("options-link").addEventListener("click", (event) => {
   event.preventDefault();

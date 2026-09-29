@@ -42,12 +42,6 @@ class TestInventoryApiDelegation:
         api = InventoryApi()
         assert api.get_digikey_login_status() == {"logged_in": False}
 
-    def test_sync_cookies_delegates(self):
-        from inventory_api import InventoryApi
-        api = InventoryApi()
-        result = api.sync_digikey_cookies()
-        assert result["logged_in"] is False
-
     def test_logout_delegates(self):
         from inventory_api import InventoryApi
         api = InventoryApi()

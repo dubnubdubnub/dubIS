@@ -1,6 +1,5 @@
 """Tests for DistributorManager product fetching and Digikey session."""
 
-import sys
 
 import pytest
 
@@ -78,41 +77,22 @@ class TestDigikeySession:
     def test_get_login_status(self, dist_mgr):
         assert dist_mgr.get_digikey_login_status() == {"logged_in": False}
 
-    def test_sync_cookies(self, dist_mgr):
-        result = dist_mgr.sync_digikey_cookies()
-        assert result["logged_in"] is False
+    def test_create_pairing_delegates(self, dist_mgr):
+        result = dist_mgr.create_digikey_pairing()
+        assert result["nonce"].startswith("DK-")
+        assert result["ttl"] == 600
 
     def test_logout(self, dist_mgr):
         result = dist_mgr.logout_digikey()
         assert result == {"status": "ok"}
 
-    @pytest.mark.live
-    @pytest.mark.credentials
-    @pytest.mark.skipif(sys.platform != "win32", reason="winreg only available on Windows")
-    def test_check_session(self, dist_mgr):
-        result = dist_mgr.check_digikey_session()
-        assert "logged_in" in result
-
-    def test_check_session_off_windows_is_truthful_not_a_crash(self, dist_mgr, monkeypatch):
-        """The counterpart to the win32-only test above, monkeypatched so it
-        runs everywhere: no registry means no session check, which has to
-        report itself rather than raise ModuleNotFoundError out of
-        `import winreg` (that escaped as a 500 from
-        `GET /v1/distributors/digikey/session`)."""
-        import digikey_session
-
-        monkeypatch.setattr(digikey_session.sys, "platform", "darwin")
+    def test_check_session_without_a_saved_session_is_truthful(self, dist_mgr):
+        """Every platform answers the same dict now: signing in happens in the
+        user's own browser through the bridge extension, so nothing launches
+        and nothing is platform-gated."""
         result = dist_mgr.check_digikey_session()
         assert result["logged_in"] is False
-        assert result["supported"] is False
-
-    @pytest.mark.live
-    @pytest.mark.credentials
-    @pytest.mark.skipif(sys.platform != "win32", reason="winreg only available on Windows")
-    def test_start_login(self, dist_mgr):
-        # start_login launches a browser process; it returns a dict with status
-        result = dist_mgr.start_digikey_login()
-        assert isinstance(result, dict)
+        assert "supported" not in result
 
 
 class TestGetCacheCallback:

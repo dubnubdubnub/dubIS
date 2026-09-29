@@ -79,13 +79,13 @@ class DistributorManager:
         """Delegate to DigikeyClient."""
         return self._digikey.check_session()
 
-    def start_digikey_login(self) -> dict[str, Any]:
+    def create_digikey_pairing(self) -> dict[str, Any]:
         """Delegate to DigikeyClient."""
-        return self._digikey.start_login()
+        return self._digikey.mint_pairing_nonce()
 
-    def sync_digikey_cookies(self) -> dict[str, Any]:
+    def receive_digikey_session(self, nonce: str, cookies: Any = None) -> dict[str, Any]:
         """Delegate to DigikeyClient."""
-        return self._digikey.sync_cookies()
+        return self._digikey.receive_session(nonce, cookies)
 
     def get_digikey_login_status(self) -> dict[str, bool]:
         """Delegate to DigikeyClient."""

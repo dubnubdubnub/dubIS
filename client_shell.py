@@ -79,9 +79,6 @@ class ClientShell:
 
     # ── Client-machine actions with no HTTP equivalent ───────────────────────
 
-    def start_digikey_login(self) -> dict[str, Any]:
-        return self._api.start_digikey_login()
-
     def open_source_file(self, po_id: str) -> dict[str, str]:
         return self._api.open_source_file(po_id)
 

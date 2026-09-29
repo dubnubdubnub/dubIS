@@ -160,6 +160,27 @@ class UpdateSourceBody(BaseModel):
 # `tests/python/server/test_jlcpcb_routes.py`.
 
 
+class DigikeyPairingResponse(BaseModel):
+    nonce: str
+    ttl: int
+
+
+class DigikeySessionBody(BaseModel):
+    nonce: str
+    # Untyped for the same reason as `JlcSessionBody.cookies`: this is what
+    # `chrome.cookies.getAll` returned, and `digikey_session.filter_cookies`
+    # does the narrowing.
+    cookies: list[dict[str, Any]]
+
+
+class DigikeySessionAcceptedResponse(BaseModel):
+    logged_in: bool
+    # "valid" (the server's own check passed) or "unverified" (it could not
+    # run, usually a Cloudflare 403; the extension already saw the sign-in).
+    state: str
+    cookie_count: int
+
+
 class JlcPairingResponse(BaseModel):
     nonce: str
     ttl: int

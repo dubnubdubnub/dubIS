@@ -137,3 +137,23 @@
   color: var(--text-muted);
   max-width: var(--jlc-help-max-w);
 }
+
+/* ── DigiKey section (js/digikey-pairing.js) ──
+   DigiKey signs in through the same extension handshake, so its panel reuses
+   the classes above (.jlc-panel/.jlc-head/.jlc-pairing/.jlc-code…) and adds
+   only what has no JLC counterpart: a single status line, a Sign in / Logout
+   pair, and a one-line instruction in place of the numbered steps. */
+
+#dk-status { font-size: 12px; color: var(--text-muted); }
+
+.dk-actions {
+  display: flex;
+  gap: var(--jlc-gap);
+  flex: 0 0 auto;
+}
+
+.dk-instruction {
+  font-size: 11px;
+  color: var(--text-secondary);
+  max-width: var(--jlc-help-max-w);
+}

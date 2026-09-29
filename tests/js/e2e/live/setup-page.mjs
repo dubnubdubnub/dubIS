@@ -119,7 +119,6 @@ export async function setupPage(page) {
       load_file:         () => null,
       confirm_close:     () => null,
       set_bom_dirty:     () => null,
-      start_digikey_login: () => null,
     };
 
     window.pywebview = {

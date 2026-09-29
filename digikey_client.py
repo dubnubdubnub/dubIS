@@ -1,28 +1,41 @@
-"""Digikey product-fetching client — session management and public API."""
+"""Digikey product-fetching client — session management and public API.
+
+Two fetch backends, picked by platform (`fetch_backend()`):
+
+* ``webview`` (Windows): a hidden pywebview window. It is WebView2, i.e.
+  Chromium, and passes DigiKey's Cloudflare check.
+* ``cdp`` (macOS, Linux): dubIS's own Chromium window, driven over CDP
+  (`digikey_browser.py`). pywebview there is WKWebView or WebKitGTK, and the
+  Cloudflare challenge on product pages never clears in WKWebView — verified
+  live, hidden and visible alike — while a normal Chromium window clears it in
+  seconds.
+
+Neither needs a DigiKey login to read a product page. A session pushed by the
+bridge extension is injected into whichever backend is active.
+"""
 
 from __future__ import annotations
 
 import logging
 import os
+import sys
 import threading
-import time
 import urllib.error
 from typing import Any
 from urllib.parse import quote
 
 import digikey_session
 from base_client import BaseProductClient
+from digikey_browser import DigikeyBrowser, default_profile_dir
 from digikey_normalizer import normalize_result
 from digikey_scrape_js import SCRAPE_JS
 from digikey_session import (
     _await_cf_clearance,
-    check_cookies_logged_in,
     inject_cookies_to_window,
     load_cookies_from_file,
-    poll_cdp_for_cookies,
     save_cookies_to_file,
 )
-from dubis_errors import DistributorError, DistributorTimeout
+from dubis_errors import DistributorAuthError, DistributorError, DistributorTimeout
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +63,17 @@ def hidden_window_available() -> bool:
     return bool(getattr(webview, "windows", None))
 
 
+def fetch_backend() -> str:
+    """``"webview"`` on Windows, ``"cdp"`` everywhere else. See the module docstring."""
+    return "webview" if sys.platform == "win32" else "cdp"
+
+
+# Cookies Cloudflare binds to the browser fingerprint that earned them. Carried
+# into a *different* browser they are at best useless, so the CDP backend leaves
+# them out and earns its own.
+_FINGERPRINT_BOUND_COOKIES = frozenset({"cf_clearance", "__cf_bm"})
+
+
 class DigikeyClient(BaseProductClient):
     """Manages Digikey browser session, cookie sync, and product scraping."""
 
@@ -60,11 +84,12 @@ class DigikeyClient(BaseProductClient):
         self._window = None
         self._loaded = threading.Event()
         self._lock = threading.Lock()
-        self._cdp_port: int | None = None
-        self._sync_result: dict[str, Any] = {}
-        self._poll_stop = threading.Event()
+        # The active session's cookies, or None when not signed in.
+        self._session: list[dict] | None = None
+        # Cookies not yet injected into the active fetch backend.
         self._pending_cookies: list[dict] | None = None
         self._cookies_file: str | None = cookies_file
+        self._browser = DigikeyBrowser(default_profile_dir(cookies_file))
 
     # ── Internal helpers ──────────────────────────────────────────────────
 
@@ -125,14 +150,8 @@ class DigikeyClient(BaseProductClient):
 
     def _set_logged_in(self, cookies: list[dict]) -> None:
         """Store cookies as the active Digikey session and persist to disk."""
+        self._session = cookies
         self._pending_cookies = cookies
-        self._sync_result = {
-            "status": "ok",
-            "message": "Logged in",
-            "logged_in": True,
-            "cookies_injected": len(cookies),
-            "browser": "cdp",
-        }
         save_cookies_to_file(cookies, self._cookies_file)
 
     def _invalidate_session(self, *, delete_cookies_file: bool) -> None:
@@ -146,13 +165,8 @@ class DigikeyClient(BaseProductClient):
         alone — they live for the WebView session and will be replaced when
         the user re-logs in.
         """
+        self._session = None
         self._pending_cookies = None
-        self._sync_result = {
-            "status": "expired",
-            "message": "Session expired — please re-login",
-            "logged_in": False,
-            "cookies_injected": 0,
-        }
         if delete_cookies_file and self._cookies_file:
             try:
                 os.remove(self._cookies_file)
@@ -165,15 +179,6 @@ class DigikeyClient(BaseProductClient):
         """Load persisted Digikey cookies from disk."""
         return load_cookies_from_file(self._cookies_file)
 
-    def _poll_loop(self, port: int) -> None:
-        """Background thread: poll CDP for cookies, store when found."""
-        poll_cdp_for_cookies(
-            port=port,
-            poll_stop=self._poll_stop,
-            on_logged_in=self._set_logged_in,
-            sync_result=self._sync_result,
-        )
-
     # ── Public API ────────────────────────────────────────────────────────
 
     def validate_session_http(self, cookies: list[dict]) -> bool:
@@ -185,88 +190,90 @@ class DigikeyClient(BaseProductClient):
         """
         return digikey_session.validate_session_http(cookies)
 
-    def ensure_session(self, interactive: bool = False) -> bool:
-        """Cache-first session orchestrator.
+    def ensure_session(self) -> bool:
+        """Whether the saved session validates over plain HTTP (no browser).
 
-        1. Validate saved cookies over plain HTTP (no webview). If they
-           validate, mark them as the active session and return ``True``.
-           Inconclusive probe errors (offline / Cloudflare) are treated as
-           "not validated" — fall through rather than crash.
-        2. If ``not interactive``, return ``False`` without opening a browser.
-        3. Interactive: launch the visible login browser and poll
-           ``sync_cookies`` for up to ~120s until login succeeds.
+        Inconclusive probe errors (offline / Cloudflare) count as not
+        validated; there is no interactive fallback, because signing in now
+        happens in the user's own browser through the bridge extension.
         """
         saved = self._load_cookies()
-        if saved:
-            try:
-                if self.validate_session_http(saved):
-                    self._set_logged_in(saved)
-                    return True
-            except (urllib.error.URLError, TimeoutError, OSError) as exc:
-                # Inconclusive (offline / Cloudflare) — not validated, but do
-                # not crash. Fall through to the interactive path if allowed.
-                logger.debug("DK ensure_session: validation inconclusive: %s", exc)
-
-        if not interactive:
+        if not saved:
             return False
-
-        self.start_login()
-        deadline = time.time() + 120.0
-        while time.time() < deadline:
-            if self.sync_cookies().get("logged_in"):
+        try:
+            if self.validate_session_http(saved):
+                self._set_logged_in(saved)
                 return True
-            time.sleep(2)
-        return bool(self.sync_cookies().get("logged_in"))
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            logger.debug("DK ensure_session: validation inconclusive: %s", exc)
+        return False
 
     def check_session(self) -> dict[str, Any]:
-        """Check if there's an existing Digikey session.
+        """Report the saved DigiKey session. Called on app startup.
 
-        Tries saved cookies first, then launches the browser headless
-        with CDP to read fresh cookies. Called on app startup.
         See ``digikey_session.check_session`` for the full flow.
         """
         return digikey_session.check_session(self)
 
-    def start_login(self) -> dict[str, Any]:
-        """Launch the default browser with CDP enabled and open the login page.
-
-        Starts a background thread that polls CDP for cookies so that
-        ``sync_cookies`` can return instantly with no I/O.
-        See ``digikey_session.start_login`` for the full flow.
-        """
-        return digikey_session.start_login(self)
-
-    def sync_cookies(self) -> dict[str, Any]:
-        """Return the latest cookie sync status from the background poll thread.
-
-        Does zero I/O — just reads cached state set by ``_poll_loop``.
-        """
-        return dict(self._sync_result) if self._sync_result else {
-            "status": "error",
-            "message": "Login not started.",
-            "logged_in": False,
-            "cookies_injected": 0,
+    def mint_pairing_nonce(self) -> dict[str, Any]:
+        """Mint the single-use code the bridge extension must present."""
+        return {
+            "nonce": digikey_session.mint_nonce(),
+            "ttl": int(digikey_session.NONCE_TTL_SECONDS),
         }
 
-    def get_login_status(self) -> dict[str, bool]:
-        """Check whether user is logged into Digikey.
+    def receive_session(self, nonce: str, cookies: Any) -> dict[str, Any]:
+        """Consume *nonce*, check *cookies*, and make them the active session.
 
-        Uses the fastest available check: pending cookies from CDP, cached
-        sync result from the poll thread, or the hidden webview as last resort.
+        The extension only pushes once DigiKey's account page stops redirecting
+        to login in the user's own browser, so the sign-in was checked where it
+        can be. The server repeats the check over plain HTTP. A definite
+        "redirected to login" rejects the push. An inconclusive probe is
+        accepted and reported as ``"unverified"``: Cloudflare binds
+        ``cf_clearance`` to the browser that earned it, so a urllib request
+        from here is often refused with a 403 even for a perfectly good
+        session. JLC rejects on inconclusive instead, because an anonymous JLC
+        request mints a session cookie of its own. DigiKey has no such trap.
         """
-        if self._pending_cookies:
-            return {"logged_in": check_cookies_logged_in(self._pending_cookies)}
-        if self._sync_result.get("logged_in"):
-            return {"logged_in": True}
-        return {"logged_in": False}
+        if not digikey_session.consume_nonce(nonce):
+            raise DistributorAuthError(
+                "Pairing code is unknown or expired — click Sign in again to get a new one.",
+                provider=self.provider,
+            )
+        kept = digikey_session.filter_cookies(cookies)
+        if not kept:
+            raise ValueError("No digikey.com cookies in the request")
+        try:
+            state = "valid" if self.validate_session_http(kept) else "expired"
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            logger.info("DK push: server-side check inconclusive (%s); accepting", exc)
+            state = "unverified"
+        if state == "expired":
+            raise DistributorAuthError(
+                "DigiKey says this session is not signed in — sign in at digikey.com, then send again.",
+                provider=self.provider,
+            )
+        # Names only, never values: nobody has recorded which cookies make a
+        # DigiKey session, and this is how the extension's allowlist gets narrowed.
+        logger.info("DK push accepted (%s): %d cookies: %s",
+                    state, len(kept), sorted({c["name"] for c in kept}))
+        self._set_logged_in(kept)
+        return {"logged_in": True, "state": state, "cookie_count": len(kept)}
+
+    def get_login_status(self) -> dict[str, bool]:
+        """Whether a DigiKey session is active in this process. No I/O."""
+        return {"logged_in": bool(self._session)}
 
     def validate_session(self) -> dict[str, Any]:
         """Test whether the current Digikey session actually works.
 
-        Navigates the hidden webview to a logged-in-only page and checks
-        whether we land there or get redirected to login / stuck on a
-        Cloudflare challenge. On failure, invalidates the in-memory session
-        so subsequent ``get_login_status`` calls return ``logged_in=False``.
+        On Windows this navigates the hidden webview to a logged-in-only page
+        and checks whether it lands there or is redirected to login or stuck
+        on a Cloudflare challenge. Elsewhere it probes over plain HTTP
+        instead: the CDP backend's window is visible, and opening one on every
+        app start just to check a session would be worse than the check is
+        worth. On failure, invalidates the in-memory session so subsequent
+        ``get_login_status`` calls return ``logged_in=False``.
 
         Cookie-presence is not enough to know the session is live: cf_clearance
         is fingerprint-bound and dkuhint can be stale on the server side.
@@ -274,14 +281,15 @@ class DigikeyClient(BaseProductClient):
         Intended to be called at startup (after ``check_session`` reports
         a session is found) and any other time the UI wants to confirm.
         """
-        was_logged_in = bool(self._pending_cookies) or self._sync_result.get(
-            "logged_in", False,
-        )
+        was_logged_in = bool(self._session)
         if not was_logged_in:
             return {
                 "logged_in": False, "changed": False,
                 "message": "No saved session to validate",
             }
+
+        if fetch_backend() == "cdp":
+            return self._validate_session_over_http()
 
         if not hidden_window_available():
             # No GUI loop, so the probe cannot navigate anywhere. Inconclusive
@@ -320,6 +328,24 @@ class DigikeyClient(BaseProductClient):
             "message": "Session valid",
         }
 
+    def _validate_session_over_http(self) -> dict[str, Any]:
+        """Three-state HTTP validation; only a definite login redirect invalidates."""
+        try:
+            ok = self.validate_session_http(self._session or [])
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            logger.debug("DK session validation inconclusive: %s", exc)
+            return {
+                "logged_in": True, "changed": False,
+                "message": f"Could not check the session ({exc}) — left as-is",
+            }
+        if not ok:
+            self._invalidate_session(delete_cookies_file=True)
+            return {
+                "logged_in": False, "changed": True,
+                "message": "Session expired — please sign in again",
+            }
+        return {"logged_in": True, "changed": False, "message": "Session valid"}
+
     def _probe_session(self) -> bool:
         """Navigate to MyDigiKey/Account and check we don't end up at /login.
 
@@ -331,15 +357,19 @@ class DigikeyClient(BaseProductClient):
 
     def logout(self) -> dict[str, str]:
         """Log out of Digikey and clear the product cache."""
-        self._poll_stop.set()  # stop any running poll thread
-        self._sync_result = {}
+        self._session = None
         self._pending_cookies = None
+        if fetch_backend() == "cdp":
+            try:
+                self._browser.clear_cookies()
+            except Exception as exc:  # noqa: BLE001 - logout must still finish
+                logger.warning("Digikey logout: clearing the browser's cookies failed: %s", exc)
         if self._cookies_file:
             try:
                 os.remove(self._cookies_file)
             except FileNotFoundError:
                 pass
-        if self._window is not None:
+        if self._window is not None and fetch_backend() == "webview":
             try:
                 import System
                 from webview.platforms.winforms import BrowserView
@@ -379,13 +409,46 @@ class DigikeyClient(BaseProductClient):
         if not part_number:
             raise ValueError("Part number must not be empty")
 
+        search_url = (
+            "https://www.digikey.com/en/products/result?keywords="
+            + quote(part_number, safe="")
+        )
+        if fetch_backend() == "cdp":
+            result = self._scrape_over_cdp(part_number, search_url)
+        else:
+            result = self._scrape_in_webview(part_number, search_url)
+
+        if not result or not isinstance(result, dict):
+            logger.debug("DK fetch: no product data for %s", part_number)
+            return None
+
+        # Diagnostic envelope — log details and return None
+        if result.get("_source") == "diag":
+            logger.warning(
+                "DK fetch: scrape failed for %s — %s (url=%s, title=%r, "
+                "has_jsonld=%s, has_next_data=%s, scripts=%s)",
+                part_number,
+                result.get("_reason"),
+                result.get("_url"),
+                result.get("_title"),
+                result.get("_hasJsonLd"),
+                result.get("_hasNextData"),
+                result.get("_scriptCount"),
+            )
+            return None
+
+        product = normalize_result(result, part_number)
+        product["_debug"] = result
+        return product
+
+    def _scrape_in_webview(self, part_number: str, search_url: str) -> Any:
+        """The Windows backend: navigate the hidden WebView2 window and scrape.
+
+        Returns the raw scrape result, or None on a soft failure.
+        """
         with self._lock:
             self._ensure_window()
 
-            search_url = (
-                "https://www.digikey.com/en/products/result?keywords="
-                + quote(part_number, safe="")
-            )
             logger.debug("DK fetch: loading %s", search_url)
             self._loaded.clear()
             self._window.load_url(search_url)
@@ -414,7 +477,7 @@ class DigikeyClient(BaseProductClient):
                 logger.debug("DK fetch: final URL = %s", final_url)
 
                 # Detect login/auth redirects
-                if "/login" in final_url.lower() or "/mydigikey" in final_url.lower():
+                if digikey_session.is_login_url(final_url) or "/mydigikey" in final_url.lower():
                     logger.warning(
                         "DK fetch: redirected to login page (%s) — session expired, invalidating",
                         final_url,
@@ -444,26 +507,50 @@ class DigikeyClient(BaseProductClient):
             except RuntimeError as exc:
                 logger.error("DK fetch: evaluate_js failed for %s: %s", part_number, exc)
                 return None
+        return result
 
-        if not result or not isinstance(result, dict):
-            logger.debug("DK fetch: no product data for %s", part_number)
+    def _scrape_over_cdp(self, part_number: str, search_url: str) -> Any:
+        """The macOS/Linux backend: scrape in dubIS's own Chromium window.
+
+        Returns the raw scrape result, or None on a soft failure. A missing
+        browser or a port that never opens raises `DistributorError`, because
+        that is a setup problem the user has to fix, not a product that could
+        not be found.
+        """
+        with self._lock:
+            if self._pending_cookies:
+                self._inject_into_cdp_browser(self._pending_cookies)
+                self._pending_cookies = None
+            try:
+                page = self._browser.visit(search_url, SCRAPE_JS)
+            except DistributorError:
+                raise
+            except TimeoutError as exc:
+                raise DistributorTimeout(
+                    f"Digikey fetch timed out for {part_number!r}",
+                    provider="digikey",
+                    part_number=part_number,
+                ) from exc
+            except Exception as exc:  # noqa: BLE001 - Playwright raises its own types
+                logger.warning("DK fetch (cdp): %s failed: %s", part_number, exc)
+                return None
+        if not page["cleared"]:
+            logger.warning("DK fetch (cdp): Cloudflare challenge did not clear for %s", part_number)
             return None
-
-        # Diagnostic envelope — log details and return None
-        if result.get("_source") == "diag":
-            logger.warning(
-                "DK fetch: scrape failed for %s — %s (url=%s, title=%r, "
-                "has_jsonld=%s, has_next_data=%s, scripts=%s)",
-                part_number,
-                result.get("_reason"),
-                result.get("_url"),
-                result.get("_title"),
-                result.get("_hasJsonLd"),
-                result.get("_hasNextData"),
-                result.get("_scriptCount"),
-            )
+        final_url = (page["url"] or "").lower()
+        if digikey_session.is_login_url(final_url) or "/mydigikey" in final_url:
+            logger.warning("DK fetch (cdp): redirected to %s — session expired", page["url"])
+            self._invalidate_session(delete_cookies_file=True)
             return None
+        return page["value"]
 
-        product = normalize_result(result, part_number)
-        product["_debug"] = result
-        return product
+    def _inject_into_cdp_browser(self, cookies: list[dict]) -> None:
+        """Hand a pushed session to the CDP browser, minus fingerprint-bound cookies."""
+        usable = [c for c in cookies if c.get("name") not in _FINGERPRINT_BOUND_COOKIES]
+        if not usable:
+            return
+        try:
+            self._browser.add_cookies(usable)
+            logger.debug("DK: injected %d cookies into the CDP browser", len(usable))
+        except Exception as exc:  # noqa: BLE001 - product pages work without a login
+            logger.warning("DK: could not inject the session into the CDP browser: %s", exc)

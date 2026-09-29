@@ -6,7 +6,7 @@ import pytest
 
 from digikey_client import DigikeyClient, hidden_window_available
 from digikey_normalizer import normalize_result
-from digikey_session import check_cookies_logged_in, save_cookies_to_file
+from digikey_session import save_cookies_to_file
 from dubis_errors import DistributorError
 
 
@@ -34,37 +34,15 @@ class TestDigikeyClient:
         client._cache["NOPE"] = None
         assert client.fetch_product("NOPE") is None
 
-    def test_sync_cookies_no_login(self):
-        """sync_cookies returns error when login not started."""
-        client = DigikeyClient()
-        result = client.sync_cookies()
-        assert result["status"] == "error"
-        assert result["logged_in"] is False
-
     def test_login_status_default(self):
         """Default login status is not logged in."""
         client = DigikeyClient()
         assert client.get_login_status() == {"logged_in": False}
 
-    def test_login_status_with_pending_cookies(self):
-        """Login status checks pending cookies."""
+    def test_login_status_follows_the_active_session(self):
         client = DigikeyClient()
-        client._pending_cookies = [{"name": "dkuhint", "value": "test"}]
+        client._session = [{"name": "dkuhint", "value": "test"}]
         assert client.get_login_status() == {"logged_in": True}
-
-    def test_login_status_with_sync_result(self):
-        """Login status checks sync result."""
-        client = DigikeyClient()
-        client._sync_result = {"logged_in": True}
-        assert client.get_login_status() == {"logged_in": True}
-
-    def test_check_cookies_logged_in(self):
-        cookies = [{"name": "dkuhint"}, {"name": "other"}]
-        assert check_cookies_logged_in(cookies) is True
-
-    def test_check_cookies_not_logged_in(self):
-        cookies = [{"name": "other"}]
-        assert check_cookies_logged_in(cookies) is False
 
     def test_normalize_jsonld_product(self):
         raw = {
@@ -263,13 +241,23 @@ class TestDigikeyCookiePersistence:
         client = DigikeyClient(cookies_file=cookies_file)
         assert client._load_cookies() is None
 
-    def test_load_cookies_not_logged_in(self, tmp_path):
-        """Cookies without dkuhint should not be returned."""
+    def test_load_cookies_does_not_judge_by_cookie_name(self, tmp_path):
+        """A saved session is loaded whatever its cookie names.
+
+        The old loader dropped any file without a `dkuhint` cookie, a
+        name-based guess at "signed in". Whether a session is live is now
+        decided by `validate_session_http`, which asks DigiKey.
+        """
         cookies_file = str(tmp_path / "dk_cookies.json")
         client = DigikeyClient(cookies_file=cookies_file)
         cookies = [{"name": "other_cookie", "value": "test"}]
         save_cookies_to_file(cookies, cookies_file)
-        assert client._load_cookies() is None
+        assert client._load_cookies() == cookies
+
+    def test_load_cookies_empty_list_is_no_session(self, tmp_path):
+        cookies_file = str(tmp_path / "dk_cookies.json")
+        save_cookies_to_file([], cookies_file)
+        assert DigikeyClient(cookies_file=cookies_file)._load_cookies() is None
 
     def test_load_cookies_corrupt_json(self, tmp_path):
         cookies_file = str(tmp_path / "dk_cookies.json")
@@ -289,7 +277,7 @@ class TestDigikeyCookiePersistence:
         client = DigikeyClient(cookies_file=cookies_file)
         cookies = [{"name": "dkuhint", "value": "test"}]
         client._set_logged_in(cookies)
-        assert client._sync_result["logged_in"] is True
+        assert client.get_login_status() == {"logged_in": True}
         assert client._pending_cookies == cookies
         # Verify file was written
         with open(cookies_file) as f:
@@ -323,7 +311,14 @@ class TestHiddenWindowAvailability:
     OSError)` and turned `POST /v1/distributors/digikey/session/validate`
     (which the frontend calls at startup whenever cookies exist) into a 500,
     35 seconds late.
+
+    All of this is the Windows (WebView2) backend, so the class pins it: on
+    macOS/Linux `fetch_backend()` picks the CDP browser instead.
     """
+
+    @pytest.fixture(autouse=True)
+    def _webview_backend(self, monkeypatch):
+        monkeypatch.setattr("digikey_client.fetch_backend", lambda: "webview")
 
     def test_unavailable_without_a_gui_loop(self, monkeypatch):
         import webview
@@ -348,7 +343,7 @@ class TestHiddenWindowAvailability:
 
         monkeypatch.setattr(webview, "windows", [])
         client = DigikeyClient()
-        client._pending_cookies = [{"name": "dkuhint", "value": "test"}]
+        client._session = [{"name": "dkuhint", "value": "test"}]
 
         def _must_not_probe():
             raise AssertionError("probed the window despite there being no GUI loop")
@@ -359,7 +354,7 @@ class TestHiddenWindowAvailability:
         assert result["logged_in"] is True      # session kept
         assert result["changed"] is False       # ...and not invalidated
         assert result["supported"] is False     # ...and says why
-        assert client._pending_cookies          # cookies untouched
+        assert client._session                  # cookies untouched
 
     def test_validate_session_still_probes_on_the_desktop(self, monkeypatch):
         """The guard must not disable validation where it does work."""
@@ -367,7 +362,7 @@ class TestHiddenWindowAvailability:
 
         monkeypatch.setattr(webview, "windows", [object()])
         client = DigikeyClient()
-        client._pending_cookies = [{"name": "dkuhint", "value": "test"}]
+        client._session = [{"name": "dkuhint", "value": "test"}]
         monkeypatch.setattr(client, "_probe_session", lambda: True)
 
         result = client.validate_session()

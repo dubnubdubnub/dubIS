@@ -111,7 +111,7 @@ The `live` pytest marker gates every test that hits a real distributor endpoint.
 |--------|-------|-------|
 | `live` | Hits a real endpoint. Deselected by default via `addopts` in `pyproject.toml`. | all of the below |
 | `browser` | Additionally needs the shared Chrome named by `DUBIS_CDP_URL`. | `tests/python/test_distributor_browser.py` |
-| `credentials` | Additionally needs a secret that lives only on Isaac's machine. | `test_mouser_live` (API key), `test_digikey_session_live` (cookies), the two Windows-only DigiKey session tests |
+| `credentials` | Additionally needs a secret that lives only on Isaac's machine. | `test_mouser_live` (API key), `test_digikey_session_live` (cookies) |
 
 `browser` and `credentials` never appear alone, so `pytest -m live` still means exactly what it always did — everything. The split exists so a run can ask for the part it can actually satisfy: CI runs `-m "live and not credentials and not browser"`, which is LCSC and Pololu.
 

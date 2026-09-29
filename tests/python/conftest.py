@@ -161,3 +161,25 @@ hypothesis.settings.register_profile(
 hypothesis.settings.load_profile(
     os.environ.get("HYPOTHESIS_PROFILE") or ("ci" if os.environ.get("CI") else "dev")
 )
+
+
+@pytest.fixture(autouse=True)
+def _no_real_digikey_browser(request, monkeypatch):
+    """A unit test must never start a real browser.
+
+    On macOS and Linux the DigiKey fetch backend launches a visible Chromium
+    window on first use (`digikey_browser.py`). A test that forgets to stub it
+    would open one on the developer's desktop, and would hang CI. So launching
+    fails loudly unless the test opted in with the `live` marker.
+    """
+    if request.node.get_closest_marker("live"):
+        return
+    import digikey_browser
+
+    def _refuse(self, url):
+        raise RuntimeError(
+            "a unit test tried to launch the DigiKey browser; stub "
+            "digikey_client.fetch_backend or DigikeyBrowser, or mark the test live"
+        )
+
+    monkeypatch.setattr(digikey_browser.DigikeyBrowser, "launch", _refuse)
