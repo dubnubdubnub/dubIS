@@ -79,7 +79,16 @@ export function classifyDigikeyProbe({ ok, status, url, body }) {
   }
   const finalUrl = String(url ?? "").toLowerCase();
   if (status === 401 || isDigikeyLoginUrl(finalUrl)) {
-    return { state: "signed_out", reason: "redirected to the DigiKey sign-in page" };
+    let where = "";
+    try {
+      where = new URL(finalUrl).host;
+    } catch {
+      where = "";
+    }
+    return {
+      state: "signed_out",
+      reason: `DigiKey answered as signed out (HTTP ${status}${where ? ` at ${where}` : ""})`,
+    };
   }
   if (!ok) {
     return { state: "inconclusive", reason: `HTTP ${status}` };
