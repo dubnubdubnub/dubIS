@@ -348,10 +348,16 @@ async function waitForDigikeySignIn(run) {
   for (let attempt = 1; attempt <= POLL_ATTEMPTS; attempt += 1) {
     if (run.cancelled) throw new Error("Cancelled.");
     await keepAlive();
+    // The last check's verdict rides along in the status line. Without it a
+    // browser that IS signed in but whose cookies never reach the probe (e.g.
+    // Brave treating the extension's fetch as third-party) looks exactly like
+    // "still waiting for you", for two minutes, with nothing to go on.
     await setStatus({
       state: "polling",
       attempt,
-      message: `Waiting for you to sign in to DigiKey (check ${attempt}/${POLL_ATTEMPTS})…`,
+      message:
+        `Waiting for you to sign in to DigiKey (check ${attempt}/${POLL_ATTEMPTS})…` +
+        (attempt > 1 ? ` Last check: ${lastReason}.` : ""),
     });
 
     const { state, reason } = await probeDigikeySignedIn();
