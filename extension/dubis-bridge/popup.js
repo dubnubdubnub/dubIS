@@ -4,7 +4,7 @@
 // service worker acts on nothing else, and nothing outside this extension can
 // send it a message.
 
-import { DIGIKEY_PUSH_PATH, getBaseUrl, SESSION_PATH } from "./config.js";
+import { DIGIKEY_PUSH_PATH, getBaseUrlForCode, SESSION_PATH } from "./config.js";
 import { routeForCode } from "./handshake-logic.js";
 
 const nonceInput = document.getElementById("nonce");
@@ -69,7 +69,7 @@ async function showTarget() {
       ? "DigiKey code: sign in at digikey.com."
       : "JLCPCB code: sign in at jlcpcb.com.";
   try {
-    const base = await getBaseUrl();
+    const base = await getBaseUrlForCode(code);
     targetLine.textContent = `${base}${site === "digikey" ? DIGIKEY_PUSH_PATH : SESSION_PATH}`;
   } catch (err) {
     targetLine.textContent = err.message;

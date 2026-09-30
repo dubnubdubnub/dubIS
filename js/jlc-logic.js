@@ -194,7 +194,7 @@ export const PAIRING_STEPS = [
  *  "not installed" and "installed but not clicked" look identical from here. */
 export const EXTENSION_UNVERIFIABLE =
   'dubIS cannot see your browser, so it cannot tell whether the extension is installed — '
-  + 'if nothing arrives, load extension/dubis-bridge and set its dubIS URL, then try the code again.';
+  + 'if nothing arrives, load extension/dubis-bridge in your browser and send the code again.';
 
 /** Stated at the top of the section, so the absence of a cookie anywhere in
  *  this UI reads as a design rule rather than an omission. */

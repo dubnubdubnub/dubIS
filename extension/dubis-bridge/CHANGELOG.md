@@ -3,6 +3,18 @@
 Bump `version` in `manifest.json` with every entry. The Chrome Web Store
 rejects a repeated version.
 
+## 0.3.0 (2026-09-29)
+
+- **Added: no more address to set.** Pairing codes now end in `.<port>`, and
+  the extension sends to `127.0.0.1` on that port. The desktop app picks a new
+  port every launch, so a fixed address in Options went stale on every restart.
+  A code can supply only a port, never a host. Options is now just the
+  fallback for codes without a port.
+- **Changed: new extension ID, `mnfcgeaogiopofamomogjhljgongdami`.** The
+  original signing key was lost before any Store upload, so the key was
+  rotated. Remove the old card and load the extension again. The new private
+  key is in the macOS login Keychain; see README, Publishing.
+
 ## 0.2.0 (2026-09-29)
 
 - **Added: DigiKey.** A pairing code starting with `DK-` sends your DigiKey

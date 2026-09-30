@@ -21,6 +21,47 @@ export function routeForCode(code) {
 }
 
 /**
+ * The port a pairing code carries, or null.
+ *
+ * dubIS appends `.<port>` to every code it shows: the port its own server is
+ * listening on. The desktop app binds a new port every launch, so a fixed
+ * address in Options went stale on every restart. A random code never contains
+ * a `.`, because base64url has no dot, so the suffix cannot be confused with
+ * the code itself.
+ *
+ * @param {string} code
+ * @returns {number|null}
+ */
+export function portFromCode(code) {
+  const match = /\.(\d{1,5})$/.exec(String(code ?? "").trim());
+  if (!match) return null;
+  const port = Number(match[1]);
+  return port >= 1 && port <= 65535 ? port : null;
+}
+
+/**
+ * Where a code's session is sent.
+ *
+ * **Only ever loopback when the code decides.** The code supplies a port and
+ * never a host, so a code handed over by someone else can at most point at
+ * another port on this machine. A local process could already read the
+ * browser's cookie store, so that grants it nothing new, and a remote
+ * address can only come from the Options page the user typed it into. The
+ * pairing code proves a person started the send (rule 3), and this rule keeps
+ * the code from moving the session off the machine.
+ *
+ * @param {string} code
+ * @param {string} optionsBase  the validated Options address, used when the
+ *   code carries no port (a code from an older dubIS, or one served over a
+ *   Unix socket, which has no port)
+ * @returns {string}
+ */
+export function destinationForCode(code, optionsBase) {
+  const port = portFromCode(code);
+  return port === null ? optionsBase : `http://127.0.0.1:${port}`;
+}
+
+/**
  * Cloudflare's "checking your browser" page. It is served with 200 or 403 at
  * the URL that was asked for, so neither the status nor the final URL gives it
  * away — only the body does. Seeing it proves nothing about sign-in.

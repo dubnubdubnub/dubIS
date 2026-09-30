@@ -26,12 +26,12 @@
     </style>
   </head>
   <body>
-    <h1>dubIS JLC bridge</h1>
-    <p class="sub">Which dubIS may this extension send a JLCPCB session to.</p>
+    <h1>dubIS bridge</h1>
+    <p class="sub">Usually nothing to set here: each pairing code ends in the port your dubIS is on, and the session goes to this computer on that port.</p>
 
-    <label for="base-url">dubIS base URL</label>
+    <label for="base-url">Fallback dubIS address</label>
     <input id="base-url" type="text" spellcheck="false" autocomplete="off" placeholder="http://127.0.0.1:7897" />
-    <div class="hint">The server dubIS runs on. Default: <code>http://127.0.0.1:7897</code>.</div>
+    <div class="hint">Used only for a pairing code without a <code>.port</code> ending, e.g. from an older dubIS. Default: <code>http://127.0.0.1:7897</code>.</div>
     <button id="save" type="button">Save</button>
     <div id="line" class="line" role="status"></div>
 

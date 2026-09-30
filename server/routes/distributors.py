@@ -134,7 +134,7 @@ def create_digikey_pairing(request: Request) -> dict:
     """Mint the single-use pairing code the bridge extension must present. Loopback only."""
     # Same gate and the same CORS middleware as the JLC intake routes below.
     require_loopback(request)
-    return request.app.state.api.create_digikey_pairing()
+    return _with_port(request.app.state.api.create_digikey_pairing(), request)
 
 
 @router.post(
@@ -197,7 +197,7 @@ def clear_mouser_api_key(request: Request) -> dict:
 # Why this is not a hole: CORS restrains browsers, not clients — it grants no
 # access a local process did not already have. `require_loopback` and the
 # single-use nonce remain the actual gate, and both still apply to the POST.
-BRIDGE_EXTENSION_ID = "fboadceadnhfhdkdmfjlhbicocbhbbpc"
+BRIDGE_EXTENSION_ID = "mnfcgeaogiopofamomogjhljgongdami"
 BRIDGE_EXTENSION_ORIGIN = f"chrome-extension://{BRIDGE_EXTENSION_ID}"
 
 _INTAKE_PREFLIGHT_HEADERS = {
@@ -211,6 +211,25 @@ _INTAKE_PREFLIGHT_HEADERS = {
     "Access-Control-Allow-Private-Network": "true",
     "Vary": "Origin",
 }
+
+
+def _with_port(pairing: dict, request: Request) -> dict:
+    """Append this server's port to the pairing code, as `<code>.<port>`.
+
+    The extension sends the session to 127.0.0.1 on that port
+    (`destinationForCode` in extension/dubis-bridge/handshake-logic.js). The
+    desktop app binds a new port on every launch, so a fixed address in the
+    extension's Options went stale on each restart. Only a port travels, never
+    a host: the extension will not send anywhere but loopback on the code's
+    say-so. A Unix-socket server has no port, so its codes carry none and the
+    extension falls back to its Options address. The nonce stores strip the
+    suffix before checking (`strip_code_port`).
+    """
+    server = request.scope.get("server")
+    port = server[1] if isinstance(server, (tuple, list)) and len(server) == 2 else None
+    if isinstance(port, int) and 0 < port < 65536:
+        return {**pairing, "nonce": f"{pairing['nonce']}.{port}"}
+    return pairing
 
 
 def _preflight(request: Request) -> Response:
@@ -327,7 +346,7 @@ def create_jlc_pairing(request: Request) -> dict:
     # a handler docstring on a `/v1` route is PUBLIC API text: it becomes the
     # OpenAPI `description` and, through `scripts/gen-cli.py`, the CLI's help.
     require_loopback(request)
-    return request.app.state.api.create_jlc_pairing()
+    return _with_port(request.app.state.api.create_jlc_pairing(), request)
 
 
 @router.post(

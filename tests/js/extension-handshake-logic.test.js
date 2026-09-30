@@ -9,6 +9,8 @@ import {
   isCloudflareInterstitial,
   routeForCode,
   toPushedCookie,
+  destinationForCode,
+  portFromCode,
 } from "../../extension/dubis-bridge/handshake-logic.js";
 
 const ACCOUNT = "https://www.digikey.com/MyDigiKey";
@@ -103,5 +105,37 @@ describe("describeRejection", () => {
   it("falls back to the raw body when it is not the error shape", () => {
     expect(describeRejection(500, "boom")).toBe("dubIS rejected the DigiKey session (HTTP 500): boom");
     expect(describeRejection(502, "")).toBe("dubIS rejected the DigiKey session (HTTP 502)");
+  });
+});
+
+
+describe("portFromCode / destinationForCode", () => {
+  const OPTIONS = "https://dubis.example.ts.net";
+
+  it("reads the port dubIS appends to a code", () => {
+    expect(portFromCode("DK-AbC_d-9.55200")).toBe(55200);
+    expect(portFromCode("x_Y-z.7891")).toBe(7891);
+  });
+
+  it("sends to loopback on that port, never a host from the code", () => {
+    expect(destinationForCode("DK-abc.55200", OPTIONS)).toBe("http://127.0.0.1:55200");
+    // A code cannot smuggle a host: anything that is not a trailing port is ignored.
+    expect(destinationForCode("DK-abc.evil.example", OPTIONS)).toBe(OPTIONS);
+    expect(destinationForCode("DK-abc@evil.example:443", OPTIONS)).toBe(OPTIONS);
+  });
+
+  it("falls back to the Options address for a code with no port", () => {
+    expect(portFromCode("DK-abc")).toBeNull();
+    expect(destinationForCode("DK-abc", OPTIONS)).toBe(OPTIONS);
+  });
+
+  it("refuses a number that is not a port", () => {
+    expect(portFromCode("abc.0")).toBeNull();
+    expect(portFromCode("abc.70000")).toBeNull();
+    expect(portFromCode("abc.123456")).toBeNull();
+  });
+
+  it("tolerates the whitespace a paste brings along", () => {
+    expect(portFromCode("  DK-abc.55200\n")).toBe(55200);
   });
 });

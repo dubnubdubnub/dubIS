@@ -571,20 +571,21 @@ fetch question stays open (below).
   from `key` and not the folder name. The README's 2026-09-20 CORS debugging
   history is not repeated there, because "Resolved: the scoped CORS
   preflight" above is its record.
-- **Open: the signing key's custody.** The README said the private key lived in
-  a session scratchpad "until moved to a password manager". On 2026-09-29 no
-  copy was found on the build machine. Before the first Store upload, either
-  locate it, or take the Store-assigned ID. The second route is Chrome's
-  documented one: update `manifest.json`'s `key` and `BRIDGE_EXTENSION_ID`
-  together, and every user re-adds the extension once.
-- **Open: the dubIS address goes stale on every desktop relaunch.** The app
-  binds an ephemeral port, and the extension's Options hold one fixed address.
-  Proposed fix: let the pairing code carry the port, e.g. `DK-<nonce>.<port>`.
-  The extension would accept a code-supplied destination **only on loopback**,
-  and keep the Options address for anything else. That keeps rule 3: a
-  malicious code could at worst point at another local port, and a local
-  process can already read the browser's cookie store. It needs a deliberate
-  review, because it changes what pins the destination.
+- **Resolved (0.3.0): the signing key.** The original key was not found, and
+  nothing had been published, so the key was rotated on 2026-09-29. The new ID
+  is `mnfcgeaogiopofamomogjhljgongdami`. The private key is in the macOS login
+  Keychain (service `dubis-bridge-signing-key`), and
+  `scripts/package-extension.py --first-upload --key-from-keychain` adds it to
+  the first Store upload, so the Store keeps this ID.
+- **Resolved (0.3.0): the stale address.** Pairing routes now answer
+  `<nonce>.<port>` (`_with_port` in `server/routes/distributors.py`), taking
+  the port from the request's own socket. The extension sends to
+  `http://127.0.0.1:<port>` (`destinationForCode`), and both nonce stores strip
+  the suffix (`pairing_code.strip_code_port`). Rule 3 holds, because the code
+  pins a port and never a host. A code-supplied destination is loopback by
+  construction, and a remote address still comes only from the user's Options
+  page. A Unix-socket server has no port, so its codes carry none, and the
+  extension falls back to Options.
 
 ### Phase 3 — inventory integration
 

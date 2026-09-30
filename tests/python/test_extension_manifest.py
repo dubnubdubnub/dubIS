@@ -25,7 +25,7 @@ MANIFEST_PATH = REPO_ROOT / "extension" / "dubis-bridge" / "manifest.json"
 # extension/dubis-bridge/README.md, the plan doc, and the server's CORS allowlist
 # — so it is pinned here and *derived* rather than trusted (see the section at
 # the bottom of this file).
-EXPECTED_EXTENSION_ID = "fboadceadnhfhdkdmfjlhbicocbhbbpc"
+EXPECTED_EXTENSION_ID = "mnfcgeaogiopofamomogjhljgongdami"
 
 # Exactly these. Chrome scopes `cookies` by host_permissions, so the pair below
 # IS the security boundary: cookie reads anywhere but jlcpcb.com and digikey.com
