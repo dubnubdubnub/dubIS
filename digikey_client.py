@@ -347,7 +347,7 @@ class DigikeyClient(BaseProductClient):
         return {"logged_in": True, "changed": False, "message": "Session valid"}
 
     def _probe_session(self) -> bool:
-        """Navigate to MyDigiKey/Account and check we don't end up at /login.
+        """Navigate to the MyDigiKey page and check we don't end up at sign-in.
 
         Returns True if the session is usable (lands on the account page),
         False if redirected to login or the Cloudflare challenge persists.

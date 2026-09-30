@@ -545,7 +545,7 @@ fetch question stays open (below).
   `host_permissions`. The server logs the names it receives (never the values), so
   the allowlist can be narrowed after the first real sign-in.
 - **The sign-in check was wrong, on both sides.** Verified live: a signed-out visit
-  to /MyDigiKey/Account ends on `auth.digikey.com/as/authorization.oauth2?…`, which
+  to /MyDigiKey ends on `auth.digikey.com/as/authorization.oauth2?…`, which
   contains neither "/login" nor "/signin", and a plain request with no session gets a
   401 rather than a redirect. The old `validate_session_http` matched only the two
   path fragments, so it read every signed-out session as signed in.

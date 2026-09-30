@@ -41,7 +41,7 @@ class TestValidateSessionHttp:
     def test_live_session_returns_true(self, client):
         with patch(
             "urllib.request.urlopen",
-            return_value=_fake_urlopen("https://www.digikey.com/MyDigiKey/Account", 200),
+            return_value=_fake_urlopen("https://www.digikey.com/MyDigiKey", 200),
         ):
             assert client.validate_session_http(SAVED) is True
 
@@ -316,7 +316,7 @@ class TestIsLoginUrl:
         ("https://auth.digikey.com/as/authorization.oauth2?x=1", True),
         ("https://www.digikey.com/MyDigiKey/Login?ReturnUrl=x", True),
         ("https://www.digikey.com/signin", True),
-        ("https://www.digikey.com/MyDigiKey/Account", False),
+        ("https://www.digikey.com/MyDigiKey", False),
         ("https://www.digikey.com/en/products/detail/yageo/RC0402FR-0710KL/726523", False),
         ("", False),
     ])
@@ -389,3 +389,28 @@ class TestFacadeWiring:
             assert api.get_digikey_login_status() == {"logged_in": True}
         finally:
             api.shutdown()
+
+
+class TestAccountUrl:
+    def test_the_extension_probes_the_same_page_as_the_server(self):
+        """Both sides must ask the same page. The old one, /MyDigiKey/Account,
+        404s for a signed-in user, so a drift here silently makes every real
+        session read as "not signed in" in one place and not the other."""
+        import re
+        from pathlib import Path
+
+        bg = (Path(__file__).resolve().parents[2] / "extension" / "jlc-bridge" / "background.js").read_text()
+        m = re.search(r'const DIGIKEY_ACCOUNT_URL = "([^"]+)"', bg)
+        assert m, "background.js no longer declares DIGIKEY_ACCOUNT_URL"
+        assert m.group(1) == digikey_session.ACCOUNT_URL
+
+    def test_the_http_probe_asks_for_it(self, client):
+        seen = []
+
+        def _urlopen(req, timeout):
+            seen.append(req.full_url)
+            return _fake_urlopen(digikey_session.ACCOUNT_URL, 200)
+
+        with patch("urllib.request.urlopen", side_effect=_urlopen):
+            assert client.validate_session_http(SAVED) is True
+        assert seen == [digikey_session.ACCOUNT_URL]

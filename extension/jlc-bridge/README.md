@@ -91,7 +91,7 @@ wrong. Anything that is not `DK-…` takes the JLC path exactly as before.
 1. In dubIS, start a DigiKey sign-in; it shows a `DK-…` pairing code.
 2. Sign in at [digikey.com](https://www.digikey.com/) in this browser.
 3. Paste the code into the popup and press **Send session to dubIS**.
-4. The extension polls `https://www.digikey.com/MyDigiKey/Account` (same 40 x
+4. The extension polls `https://www.digikey.com/MyDigiKey` (same 40 x
    3s cadence) and reads each answer (`classifyDigikeyProbe`):
    - **signed in** — a 2xx whose final, post-redirect URL contains neither
      `/login` nor `/signin`, and whose body is not a Cloudflare interstitial;
