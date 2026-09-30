@@ -27,6 +27,7 @@ graph LR
     "digikey_client.py" --> "dubis_errors.py"
     "digikey_normalizer.py" --> "domain/product.py"
     "digikey_session.py" --> "digikey_client.py"
+    "digikey_session.py" --> "pairing_code.py"
     "digikey_session.py" --> "secret_store.py"
     "distributor_manager.py" --> "base_client.py"
     "distributor_manager.py" --> "digikey_client.py"
@@ -99,6 +100,7 @@ graph LR
     "domain/purchase_candidates.py" --> "domain/predicates.py"
     "extension/dubis-bridge/background.js" --> "extension/dubis-bridge/config.js"
     "extension/dubis-bridge/background.js" --> "extension/dubis-bridge/handshake-logic.js"
+    "extension/dubis-bridge/config.js" --> "extension/dubis-bridge/handshake-logic.js"
     "extension/dubis-bridge/options.js" --> "extension/dubis-bridge/config.js"
     "extension/dubis-bridge/popup.js" --> "extension/dubis-bridge/config.js"
     "extension/dubis-bridge/popup.js" --> "extension/dubis-bridge/handshake-logic.js"
@@ -135,6 +137,7 @@ graph LR
     "inventory_ops.py" --> "domain/schema.py"
     "inventory_ops.py" --> "vendors.py"
     "jlc_session.py" --> "dubis_errors.py"
+    "jlc_session.py" --> "pairing_code.py"
     "jlc_session.py" --> "secret_store.py"
     "jlcpcb_client.py" --> "domain/schema.py"
     "jlcpcb_client.py" --> "dubis_errors.py"
@@ -889,6 +892,10 @@ graph LR
     "tests/python/server/test_openpnp_routes.py" --> "domain/__init__.py"
     "tests/python/server/test_openpnp_routes.py" --> "server/app.py"
     "tests/python/server/test_openpnp_routes.py" --> "tests/python/helpers.py"
+    "tests/python/server/test_pairing_code.py" --> "digikey_session.py"
+    "tests/python/server/test_pairing_code.py" --> "jlc_session.py"
+    "tests/python/server/test_pairing_code.py" --> "pairing_code.py"
+    "tests/python/server/test_pairing_code.py" --> "server/routes/distributors.py"
     "tests/python/server/test_parts_read.py" --> "tests/python/helpers.py"
     "tests/python/server/test_peercred.py" --> "server/__init__.py"
     "tests/python/server/test_peercred.py" --> "server/app.py"
@@ -1219,8 +1226,8 @@ graph LR
 
 ### digikey_session.py
 
-- **Imports:** `digikey_client.py`, `secret_store.py`
-- **Imported by:** `digikey_client.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_credential_file_modes.py`, `tests/python/test_digikey_session.py`
+- **Imports:** `digikey_client.py`, `pairing_code.py`, `secret_store.py`
+- **Imported by:** `digikey_client.py`, `tests/python/server/test_pairing_code.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_credential_file_modes.py`, `tests/python/test_digikey_session.py`
 
 ### distributor_fixtures.py
 
@@ -1399,13 +1406,13 @@ graph LR
 
 ### extension/dubis-bridge/config.js
 
-- **Imports:** —
+- **Imports:** `extension/dubis-bridge/handshake-logic.js`
 - **Imported by:** `extension/dubis-bridge/background.js`, `extension/dubis-bridge/options.js`, `extension/dubis-bridge/popup.js`
 
 ### extension/dubis-bridge/handshake-logic.js
 
 - **Imports:** —
-- **Imported by:** `extension/dubis-bridge/background.js`, `extension/dubis-bridge/popup.js`, `tests/js/extension-handshake-logic.test.js`
+- **Imported by:** `extension/dubis-bridge/background.js`, `extension/dubis-bridge/config.js`, `extension/dubis-bridge/popup.js`, `tests/js/extension-handshake-logic.test.js`
 
 ### extension/dubis-bridge/options.js
 
@@ -1444,8 +1451,8 @@ graph LR
 
 ### jlc_session.py
 
-- **Imports:** `dubis_errors.py`, `secret_store.py`
-- **Imported by:** `distributor_manager.py`, `jlcpcb_client.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/test_credential_file_modes.py`, `tests/python/test_digikey_session.py`, `tests/python/test_jlc_session.py`, `tests/python/test_jlcpcb_client.py`
+- **Imports:** `dubis_errors.py`, `pairing_code.py`, `secret_store.py`
+- **Imported by:** `distributor_manager.py`, `jlcpcb_client.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_pairing_code.py`, `tests/python/test_credential_file_modes.py`, `tests/python/test_digikey_session.py`, `tests/python/test_jlc_session.py`, `tests/python/test_jlcpcb_client.py`
 
 ### jlcpcb_client.py
 
@@ -2168,6 +2175,11 @@ graph LR
 - **Imports:** `ocr_engine.py`
 - **Imported by:** `ocr_layout.py`, `tests/python/test_ocr_layout.py`, `tests/python/test_ocr_table.py`
 
+### pairing_code.py
+
+- **Imports:** —
+- **Imported by:** `digikey_session.py`, `jlc_session.py`, `tests/python/server/test_pairing_code.py`
+
 ### pdf_raster.py
 
 - **Imports:** —
@@ -2441,7 +2453,7 @@ graph LR
 ### server/routes/distributors.py
 
 - **Imports:** `server/auth.py`, `server/models.py`
-- **Imported by:** `tests/python/server/test_health_cors.py`, `tests/python/server/test_jlcpcb_routes.py`
+- **Imported by:** `tests/python/server/test_health_cors.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_pairing_code.py`
 
 ### server/routes/events.py
 
@@ -3147,6 +3159,11 @@ graph LR
 ### tests/python/server/test_openpnp_routes.py
 
 - **Imports:** `domain/__init__.py`, `server/app.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
+### tests/python/server/test_pairing_code.py
+
+- **Imports:** `digikey_session.py`, `jlc_session.py`, `pairing_code.py`, `server/routes/distributors.py`
 - **Imported by:** —
 
 ### tests/python/server/test_parts_read.py

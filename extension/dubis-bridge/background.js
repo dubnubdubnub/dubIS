@@ -17,7 +17,7 @@
 //     A cookie value is never stored in extension storage or logged.
 //   * Nothing runs without a nonce the user pasted in from dubIS.
 
-import { DIGIKEY_PUSH_PATH, getBaseUrl, SESSION_PATH } from "./config.js";
+import { DIGIKEY_PUSH_PATH, getBaseUrlForCode, SESSION_PATH } from "./config.js";
 import {
   classifyDigikeyProbe,
   describeRejection,
@@ -220,11 +220,11 @@ async function readSessionCookies() {
 }
 
 /**
- * POST the session to the configured dubIS. Write-only: the response is read
+ * POST the session to the dubIS this code came from (see `destinationForCode`). Write-only: the response is read
  * for success/failure only, and dubIS never hands a credential back.
  */
 async function pushToDubis(nonce, account, cookies) {
-  const base = await getBaseUrl();
+  const base = await getBaseUrlForCode(nonce);
   const url = `${base}${SESSION_PATH}`;
   let response;
   try {
@@ -402,7 +402,7 @@ async function readDigikeyCookies() {
  * @returns {Promise<{url: string, state: string, cookieCount: number|null}>}
  */
 async function pushDigikeyToDubis(nonce, cookies) {
-  const base = await getBaseUrl();
+  const base = await getBaseUrlForCode(nonce);
   const url = `${base}${DIGIKEY_PUSH_PATH}`;
   let response;
   try {

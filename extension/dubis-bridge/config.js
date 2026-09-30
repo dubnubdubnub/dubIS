@@ -5,6 +5,9 @@
 // on purpose — see extension/dubis-bridge/README.md and the threat-model rules
 // in docs/plans/2026-09-20-extension-credential-capture.md.
 
+// Static on purpose: an MV3 service worker refuses dynamic `import()`.
+import { destinationForCode } from "./handshake-logic.js";
+
 export const DEFAULT_BASE_URL = "http://127.0.0.1:7897";
 
 /** Where the session is POSTed, relative to the configured dubIS base URL. */
@@ -54,6 +57,16 @@ export async function getBaseUrl() {
   const raw = stored[BASE_URL_KEY];
   if (!raw) return DEFAULT_BASE_URL;
   return normalizeBaseUrl(raw);
+}
+
+/**
+ * Where to send the session for this pairing code: loopback on the code's port
+ * when it carries one, otherwise the Options address. See `destinationForCode`.
+ * @param {string} code
+ * @returns {Promise<string>}
+ */
+export async function getBaseUrlForCode(code) {
+  return destinationForCode(code, await getBaseUrl());
 }
 
 /**

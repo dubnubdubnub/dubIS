@@ -3,6 +3,7 @@
 
     python scripts/package-extension.py                      # dist/dubis-bridge-<version>.zip
     python scripts/package-extension.py --first-upload       # strip `key` for a first Store upload
+    python scripts/package-extension.py --first-upload --key-from-keychain   # macOS: key from Keychain
     python scripts/package-extension.py --first-upload --key-pem ~/secure/dubis-bridge.pem
 
 What goes in: only the files the extension runs (the manifest, its scripts and
@@ -20,9 +21,12 @@ the server's CORS allowlist trusts (`BRIDGE_EXTENSION_ID`). The Chrome Web
 Store refuses a `key` field on an extension's *first* upload, so
 `--first-upload` strips it. Then either:
 
-1. **Keep today's ID.** Pass `--key-pem` with the matching private key and it
-   is added to the zip as `key.pem`, which the Store uses as the extension's
-   key. That zip then contains a secret: upload it and delete it.
+1. **Keep today's ID.** Pass the matching private key and it is added to the
+   zip as `key.pem`, which the Store uses as the extension's key. The key lives
+   in the macOS login Keychain under the service name `KEYCHAIN_SERVICE`, and
+   `--key-from-keychain` reads it from there without writing it to disk.
+   `--key-pem` takes a file instead. Either way the zip then contains a secret:
+   upload it and delete it.
 2. **Take the Store's ID.** Upload without `--key-pem`, copy the public key
    from the Developer Dashboard's Package tab into `manifest.json`, and update
    `BRIDGE_EXTENSION_ID`. `tests/python/test_extension_manifest.py` fails
@@ -46,6 +50,10 @@ DIST_DIR = REPO_ROOT / "dist"
 
 # What the browser needs, by pattern. Anything else in the folder is left out.
 RUNTIME_GLOBS = ("manifest.json", "*.js", "*.html", "*.css", "icons/*.png")
+
+# Where the private signing key lives: the macOS login Keychain, a generic
+# password whose value is the base64 of the PKCS#8 PEM (rotated 2026-09-29).
+KEYCHAIN_SERVICE = "dubis-bridge-signing-key"
 
 # A fixed timestamp so two builds of the same tree are byte-identical.
 _ZIP_EPOCH = (2026, 1, 1, 0, 0, 0)
@@ -122,21 +130,49 @@ def check(ext_dir: Path = EXTENSION_DIR) -> tuple[dict, list[Path]]:
     return manifest, files
 
 
+def keychain_pem(service: str = KEYCHAIN_SERVICE) -> str:
+    """Read the private key from the macOS login Keychain."""
+    import base64
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["security", "find-generic-password", "-s", service, "-w"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except FileNotFoundError as exc:
+        raise PackageError("`security` not found: --key-from-keychain needs macOS") from exc
+    except subprocess.CalledProcessError as exc:
+        raise PackageError(
+            f"no Keychain item {service!r} ({exc.stderr.strip() or 'not found'})") from exc
+    try:
+        return base64.b64decode(out, validate=True).decode("utf-8")
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise PackageError(f"Keychain item {service!r} is not a base64 PEM") from exc
+
+
 def build(
     out_dir: Path = DIST_DIR,
     *,
     first_upload: bool = False,
     key_pem: Path | None = None,
+    key_text: str | None = None,
     ext_dir: Path = EXTENSION_DIR,
 ) -> Path:
-    """Write the zip and return its path."""
-    if key_pem is not None and not first_upload:
-        raise PackageError("--key-pem only makes sense with --first-upload")
+    """Write the zip and return its path.
+
+    The private key comes from `key_pem` (a file) or `key_text` (already read,
+    e.g. from the Keychain), never both.
+    """
+    if key_pem is not None and key_text is not None:
+        raise PackageError("give the key once: a file or the Keychain, not both")
+    if (key_pem is not None or key_text is not None) and not first_upload:
+        raise PackageError("a private key only makes sense with --first-upload")
     manifest, files = check(ext_dir)
     if key_pem is not None:
         key_text = Path(key_pem).expanduser().read_text(encoding="utf-8")
-        if "PRIVATE KEY" not in key_text:
-            raise PackageError(f"{key_pem} does not look like a PEM private key")
+    if key_text is not None and "PRIVATE KEY" not in key_text:
+        raise PackageError("that does not look like a PEM private key")
 
     out_dir.mkdir(parents=True, exist_ok=True)
     suffix = "-first-upload" if first_upload else ""
@@ -151,7 +187,7 @@ def build(
             else:
                 payload = path.read_bytes()
             zf.writestr(zipfile.ZipInfo(name, date_time=_ZIP_EPOCH), payload)
-        if key_pem is not None:
+        if key_text is not None:
             zf.writestr(zipfile.ZipInfo("key.pem", date_time=_ZIP_EPOCH), key_text.encode())
     return out
 
@@ -160,8 +196,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--first-upload", action="store_true",
                         help="strip the manifest `key` (the Store refuses it on a first upload)")
-    parser.add_argument("--key-pem", type=Path,
-                        help="with --first-upload: add this private key as key.pem to keep the pinned ID")
+    key = parser.add_mutually_exclusive_group()
+    key.add_argument("--key-pem", type=Path,
+                     help="with --first-upload: add this private key as key.pem to keep the pinned ID")
+    key.add_argument("--key-from-keychain", action="store_true",
+                     help=f"with --first-upload: read the key from the macOS Keychain item {KEYCHAIN_SERVICE!r}")
     parser.add_argument("--out-dir", type=Path, default=DIST_DIR)
     parser.add_argument("--check", action="store_true", help="validate only; write nothing")
     args = parser.parse_args(argv)
@@ -170,12 +209,14 @@ def main(argv: list[str] | None = None) -> int:
             manifest, files = check()
             print(f"dubis-bridge {manifest['version']}: {len(files)} files, all references resolve")
             return 0
-        out = build(args.out_dir, first_upload=args.first_upload, key_pem=args.key_pem)
+        key_text = keychain_pem() if args.key_from_keychain else None
+        out = build(args.out_dir, first_upload=args.first_upload,
+                    key_pem=args.key_pem, key_text=key_text)
     except PackageError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(out)
-    if args.key_pem:
+    if args.key_pem or args.key_from_keychain:
         print("warning: this zip contains the private signing key. Upload it, then delete it.",
               file=sys.stderr)
     return 0

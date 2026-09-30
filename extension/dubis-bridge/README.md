@@ -9,10 +9,10 @@ nothing here ever types one.
 
 | | |
 |---|---|
-| **Version** | 0.2.0 (see [CHANGELOG.md](CHANGELOG.md)) |
-| **Extension ID** | `fboadceadnhfhdkdmfjlhbicocbhbbpc` (pinned, see [The ID and the signing key](#the-id-and-the-signing-key)) |
+| **Version** | 0.3.0 (see [CHANGELOG.md](CHANGELOG.md)) |
+| **Extension ID** | `mnfcgeaogiopofamomogjhljgongdami` (pinned, see [The ID and the signing key](#the-id-and-the-signing-key)) |
 | **Sites** | `jlcpcb.com`, `digikey.com` |
-| **Talks to** | the dubIS address you set in Options, and nothing else |
+| **Talks to** | your own dubIS on this machine (the port comes from the pairing code), and nothing else |
 | **Privacy** | [PRIVACY.md](PRIVACY.md) |
 | **Design and threat model** | [docs/plans/2026-09-20-extension-credential-capture.md](../../docs/plans/2026-09-20-extension-credential-capture.md) |
 
@@ -22,10 +22,12 @@ nothing here ever types one.
    `edge://extensions`) and turn on **Developer mode**.
 2. Click **Load unpacked** and choose this folder, `extension/dubis-bridge`
    (the one containing `manifest.json`).
-3. Open the extension's **Options** and set the dubIS address, for example
-   `http://127.0.0.1:55200`. The desktop app picks a new port each launch; read
-   the current one from `data/.v1_port` or the dubIS window's address bar.
-4. After pulling changes, click the reload arrow on the extension's card.
+3. After pulling changes, click the reload arrow on the extension's card.
+
+There is nothing to configure. Each pairing code ends in `.<port>`, the port
+your dubIS is listening on, and the extension sends to `127.0.0.1` on that
+port. The Options page's address is used only for a code without a port, which
+comes from an older dubIS or one served over a Unix socket.
 
 There is no Chrome Web Store listing yet. See [Publishing](#publishing).
 
@@ -33,16 +35,18 @@ There is no Chrome Web Store listing yet. See [Publishing](#publishing).
 
 | What you see | What it means |
 |---|---|
-| The card shows ID `fboadceadnhfhdkdmfjlhbicocbhbbpc` and no **Errors** button | Loaded correctly |
+| The card shows ID `mnfcgeaogiopofamomogjhljgongdami` and no **Errors** button | Loaded correctly |
 | An **Errors** button, or no card at all | You picked the wrong folder: choose `dubis-bridge` itself |
 | A different ID | `manifest.json` lost its `key`, and dubIS will refuse every push |
 | Pasting a `DK-` code shows no "DigiKey code" hint | An old copy is loaded: reload or re-add it |
-| "Failed to fetch" / "Could not reach dubIS" | The Options address is wrong, or dubIS isn't running |
+| "Failed to fetch" / "Could not reach dubIS" | dubIS isn't running, or the code came from a dubIS that has since restarted: get a new code |
+| "Sends to" shows an address you don't expect | The code has no `.<port>` ending, so the Options address is used |
 
 ## Use it
 
 1. In dubIS, open **Preferences** and click **Sign in** under JLCPCB or
-   DigiKey. dubIS shows a pairing code, valid for 10 minutes.
+   DigiKey. dubIS shows a pairing code, valid for 10 minutes, ending in its
+   port, for example `DK-3kf9…Zq.55200`.
 2. Sign in on that site in this browser, if you aren't already.
 3. Click the extension icon, paste the code, and press **Send session to
    dubIS**. That click is the only thing that ever starts a send.
@@ -51,8 +55,11 @@ There is no Chrome Web Store listing yet. See [Publishing](#publishing).
    dubIS's answer. While it waits, the status line shows what the last check
    found.
 
-**The code decides the site.** DigiKey codes start with `DK-`; anything else is
-a JLCPCB code. There is no site picker to get wrong.
+**The code decides the site and the port.** DigiKey codes start with `DK-`;
+anything else is a JLCPCB code. The `.<port>` ending picks the local dubIS.
+The code can supply a port but never a host, so it cannot send your session
+off this machine. A remote address can only come from Options, which you
+typed yourself.
 
 ### How each site is checked
 
@@ -103,13 +110,17 @@ so widening it fails CI.
 - **It acts only on your click plus a code from your dubIS.** The single-use
   code proves a person started the send. dubIS accepts it only from loopback,
   so a hub never forwards your session to another machine.
+- **A code can only point at this machine.** It carries a port, never a host,
+  and the extension sends to `127.0.0.1` on it. A local process that could run
+  a fake dubIS could already read the browser's cookie store, so that gives it
+  nothing new.
 - **Every outbound URL is fixed.** It calls one sign-in check per site and one
   dubIS route per site. There is no "fetch this URL" message.
 - **It is push-only.** No dubIS route ever returns a stored credential.
 - **Cookie values live only in memory.** They exist for the single POST that
   sends them: never stored, logged, or shown.
 - **dubIS lets exactly this extension in.** Its CORS rules answer
-  `chrome-extension://fboadceadnhfhdkdmfjlhbicocbhbbpc` and nothing else. That
+  `chrome-extension://mnfcgeaogiopofamomogjhljgongdami` and nothing else. That
   is why the ID is pinned.
 
 ## Files
@@ -118,10 +129,10 @@ so widening it fails CI.
 |---|---|
 | `manifest.json` | MV3 manifest. The permission set is the security boundary; `key` pins the ID. |
 | `background.js` | Service worker: routes a code to the JLC or DigiKey handshake, polls, reads cookies, sends once. |
-| `handshake-logic.js` | Pure decisions with no `chrome` APIs: code routing, probe classification, cookie shape, error text. |
-| `config.js` | The dubIS address (validated) and the two intake paths. |
+| `handshake-logic.js` | Pure decisions with no `chrome` APIs: code routing, the code's port and destination, probe classification, cookie shape, error text. |
+| `config.js` | The Options address (validated), the code-to-destination lookup, and the two intake paths. |
 | `popup.html`, `popup.js` | Status line, code box, Send and Cancel. |
-| `options.html`, `options.js` | The dubIS address. |
+| `options.html`, `options.js` | The fallback dubIS address, for codes without a port. |
 | `icons/` | Toolbar and store icons, made from `data/dubIS.png`. |
 
 Tests live with the rest of dubIS's tests:
@@ -158,12 +169,13 @@ signing keypair. It must stay stable, because dubIS's allowlist names it. The
 Chrome Web Store refuses a `key` field on an extension's **first** upload, so
 that one upload is different:
 
-- **Keep the current ID:**
+- **Keep the current ID** (the plan):
   ```bash
-  python scripts/package-extension.py --first-upload --key-pem /path/to/dubis-bridge.pem
+  python scripts/package-extension.py --first-upload --key-from-keychain
   ```
-  This needs the matching private key, which is added to the zip as `key.pem`.
-  That zip is a secret: upload it, then delete it.
+  This reads the private key from the macOS login Keychain and adds it to the
+  zip as `key.pem`. That zip is a secret: upload it, then delete it. On another
+  machine, use `--key-pem /path/to/key.pem` with an exported copy.
 - **Let the Store assign an ID:** build with `--first-upload` alone and upload.
   Then copy the public key from the Developer Dashboard's Package tab into
   `manifest.json`, and set `BRIDGE_EXTENSION_ID` in
@@ -173,9 +185,21 @@ that one upload is different:
 
 After the first upload, every build keeps `key` and uploads normally.
 
-**The private key never enters this repo.** `.gitignore` refuses `*.pem`,
-`*.crx` and `dist/`. It belongs in a password manager. Whoever holds it can
-publish an update that every installed copy accepts automatically.
+**Where the private key lives.** It is in the macOS login Keychain, as a
+generic password with service `dubis-bridge-signing-key`. The value is the
+base64 of the PKCS#8 PEM. The key was generated on 2026-09-29, after the
+original key was lost, and the ID changed with it. To back it up, or move it to
+a password manager:
+
+```bash
+security find-generic-password -s dubis-bridge-signing-key -w | base64 -d > dubis-bridge.pem
+```
+
+Delete that file once it's stored. The key never enters this repo:
+`.gitignore` refuses `*.pem`, `*.crx` and `dist/`. Whoever holds it can
+publish an update that every installed copy accepts automatically. Losing it
+before the first Store upload costs a new ID; losing it after costs every user
+a reinstall.
 
 ### Store listing checklist
 
@@ -192,9 +216,6 @@ publish an update that every installed copy accepts automatically.
 
 ## Known limitations
 
-- **The dubIS address must match the running app.** The desktop app binds a new
-  port each launch, so the Options address goes stale after a restart. See the
-  follow-up in the design doc.
 - **A long wait can be cut short.** Chrome may stop an idle MV3 service worker.
   The extension keeps itself awake while polling, without the broader `alarms`
   permission. If Chrome stops it anyway, press Send again.

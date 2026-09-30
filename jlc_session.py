@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from dubis_errors import DistributorError, DistributorTimeout
+from pairing_code import strip_code_port
 from secret_store import write_private_json
 
 logger = logging.getLogger(__name__)
@@ -104,7 +105,11 @@ def mint_nonce(ttl: float = NONCE_TTL_SECONDS) -> str:
 
 
 def consume_nonce(nonce: str) -> bool:
-    """Redeem *nonce*. True exactly once, for an unexpired nonce."""
+    """Redeem *nonce*. True exactly once, for an unexpired nonce.
+
+    Accepts the code as displayed, `<nonce>.<port>`; see `pairing_code`.
+    """
+    nonce = strip_code_port(nonce)
     if not nonce:
         return False
     with _nonce_lock:

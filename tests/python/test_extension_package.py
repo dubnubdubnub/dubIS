@@ -67,6 +67,31 @@ def test_key_pem_goes_in_only_on_a_first_upload(tmp_path):
         package_extension.build(tmp_path / "d2", key_pem=pem)
 
 
+def test_a_key_read_from_the_keychain_goes_in_as_key_pem(tmp_path, monkeypatch):
+    pem = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n"
+    out = package_extension.build(tmp_path, first_upload=True, key_text=pem)
+    with zipfile.ZipFile(out) as zf:
+        assert zf.read("key.pem").decode() == pem
+
+
+def test_keychain_lookup_failures_are_loud(monkeypatch):
+    import subprocess
+
+    def _missing(*a, **k):
+        raise subprocess.CalledProcessError(44, a[0], stderr="The specified item could not be found.")
+
+    monkeypatch.setattr(subprocess, "run", _missing)
+    with pytest.raises(package_extension.PackageError, match="no Keychain item"):
+        package_extension.keychain_pem()
+
+
+def test_the_key_cannot_come_from_two_places(tmp_path):
+    pem = tmp_path / "k.pem"
+    pem.write_text("-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n")
+    with pytest.raises(package_extension.PackageError, match="not both"):
+        package_extension.build(tmp_path / "d", first_upload=True, key_pem=pem, key_text="x")
+
+
 def test_a_non_key_file_is_refused_as_key_pem(tmp_path):
     bogus = tmp_path / "k.pem"
     bogus.write_text("not a key")
