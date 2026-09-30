@@ -2,7 +2,7 @@
 //
 // The only thing configurable is *which dubIS* a session may be pushed to.
 // Everything else (which cookies, which validation endpoint) is a constant
-// on purpose — see extension/jlc-bridge/README.md and the threat-model rules
+// on purpose — see extension/dubis-bridge/README.md and the threat-model rules
 // in docs/plans/2026-09-20-extension-credential-capture.md.
 
 export const DEFAULT_BASE_URL = "http://127.0.0.1:7897";

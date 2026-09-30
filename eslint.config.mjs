@@ -19,7 +19,7 @@ export default [
     },
   },
   {
-    // The MV3 extension (extension/jlc-bridge). Same rules as js/, plus the
+    // The MV3 extension (extension/dubis-bridge). Same rules as js/, plus the
     // WebExtension globals — without this block eslint matches no config for
     // these files and lints them with zero rules, i.e. `npx eslint extension/`
     // passes over nothing at all.

@@ -328,8 +328,8 @@ Was an open blocker; confirmed live, then fixed. It affected the **local** flow,
 not just the remote one, so phase 1 did not work at all until this landed.
 
 **The failure.** `host_permissions` is `*://*.jlcpcb.com/*` and nothing else
-(`extension/jlc-bridge/manifest.json`), while `pushToDubis`
-(`extension/jlc-bridge/background.js`) POSTs `Content-Type: application/json` to
+(`extension/dubis-bridge/manifest.json`), while `pushToDubis`
+(`extension/dubis-bridge/background.js`) POSTs `Content-Type: application/json` to
 the configured dubIS origin. Chrome's rule for an MV3 service worker is that a
 fetch to a host *outside* `host_permissions` is an ordinary cross-origin request
 ([Cross-origin network requests](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests)),
@@ -479,7 +479,7 @@ passes against that stored session. Requirement 3 and requirement 4 are both
 met: one click, and saved-password autofill never left the picture.
 
 **Still true, and unchanged by this:** `DEFAULT_BASE_URL` is
-`http://127.0.0.1:7897` (`extension/jlc-bridge/config.js`), which matches
+`http://127.0.0.1:7897` (`extension/dubis-bridge/config.js`), which matches
 nothing. `dubis serve` defaults to `7891` (`server/__main__.py`) and the desktop
 app picks an **ephemeral** port per launch (`app.pyw`'s `_free_port`, written to
 `data/.v1_port`), so the Options page needs the real port typed in — read it from
@@ -514,7 +514,7 @@ beside them.
 Ends at: *the user clicks Sign in, logs in with autofill, and dubIS can list their JLC
 warehouse parts.* Deliberately stops short of merging into inventory.
 
-- **1a. Extension** — `extension/jlc-bridge/`: MV3 manifest, service worker, options
+- **1a. Extension** — `extension/dubis-bridge/`: MV3 manifest, service worker, options
   page (dubIS base URL), popup (status + manual re-send). Push-only, nonce-bearing,
   two host permissions.
 - **1b. Server** — `jlc_session.py` (store, validate, three-state), `jlcpcb_client.py`
@@ -558,6 +558,33 @@ fetch question stays open (below).
   403 even for a good session. The push is accepted as `"unverified"`, since the
   extension already saw the account page in the user's browser.
 - **Decision 3's premise was false on macOS; see the amendment under it.**
+
+### Packaging (2026-09-29)
+
+- **Renamed and packaged.** The extension moved to `extension/dubis-bridge/`,
+  was renamed "dubIS bridge", and became 0.2.0. It gained icons, a
+  `CHANGELOG.md`, a `PRIVACY.md` written for the Store's privacy disclosure,
+  and `scripts/package-extension.py`. The script builds the Store zip with
+  runtime files only, checks that every manifest reference and relative
+  import resolves, and handles the first-upload `key` rule (see the
+  extension README's Publishing section). The ID is unchanged, since it comes
+  from `key` and not the folder name. The README's 2026-09-20 CORS debugging
+  history is not repeated there, because "Resolved: the scoped CORS
+  preflight" above is its record.
+- **Open: the signing key's custody.** The README said the private key lived in
+  a session scratchpad "until moved to a password manager". On 2026-09-29 no
+  copy was found on the build machine. Before the first Store upload, either
+  locate it, or take the Store-assigned ID. The second route is Chrome's
+  documented one: update `manifest.json`'s `key` and `BRIDGE_EXTENSION_ID`
+  together, and every user re-adds the extension once.
+- **Open: the dubIS address goes stale on every desktop relaunch.** The app
+  binds an ephemeral port, and the extension's Options hold one fixed address.
+  Proposed fix: let the pairing code carry the port, e.g. `DK-<nonce>.<port>`.
+  The extension would accept a code-supplied destination **only on loopback**,
+  and keep the Options address for anything else. That keeps rule 3: a
+  malicious code could at worst point at another local port, and a local
+  process can already read the browser's cookie store. It needs a deliberate
+  review, because it changes what pins the destination.
 
 ### Phase 3 — inventory integration
 

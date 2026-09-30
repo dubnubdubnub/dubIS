@@ -1,7 +1,7 @@
 // @ts-check
 /* jlc-sessions.js — the JLCPCB section of the Preferences modal: the paired
    accounts, a Revoke per account, and the pairing code that authorises the
-   jlc-bridge browser extension to hand a session over.
+   dubIS bridge browser extension to hand a session over.
 
    Split out of preferences-modal.js for the same reason server-list.js was: it
    is a live section, with a countdown and a poll that must start when the

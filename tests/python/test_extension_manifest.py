@@ -19,10 +19,10 @@ import json
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MANIFEST_PATH = REPO_ROOT / "extension" / "jlc-bridge" / "manifest.json"
+MANIFEST_PATH = REPO_ROOT / "extension" / "dubis-bridge" / "manifest.json"
 
 # The ID Chrome derives from the `key` below. Named in three other places —
-# extension/jlc-bridge/README.md, the plan doc, and the server's CORS allowlist
+# extension/dubis-bridge/README.md, the plan doc, and the server's CORS allowlist
 # — so it is pinned here and *derived* rather than trusted (see the section at
 # the bottom of this file).
 EXPECTED_EXTENSION_ID = "fboadceadnhfhdkdmfjlhbicocbhbbpc"
@@ -94,13 +94,13 @@ def test_manifest_pins_the_extension_id():
     "it still loads fine locally" breakage nothing else catches.
 
     The matching PRIVATE key is deliberately not in the repo; see
-    extension/jlc-bridge/README.md for where it lives.
+    extension/dubis-bridge/README.md for where it lives.
     """
     key = _manifest().get("key")
     assert isinstance(key, str) and key.strip(), (
         "manifest.json lost its `key` field, so the extension ID is no longer "
         "stable across an unpacked load and a Web Store upload. Restore the "
-        "base64 public key — see extension/jlc-bridge/README.md."
+        "base64 public key — see extension/dubis-bridge/README.md."
     )
     # A base64 DER SPKI for RSA-2048 is ~392 chars; anything much shorter is a
     # placeholder, not a key.
@@ -166,7 +166,7 @@ def test_the_manifest_key_derives_the_documented_extension_id():
         f"  documented: {EXPECTED_EXTENSION_ID}\n"
         f"  derived:    {derived}\n"
         "Either the key was replaced (then the ID changed for every installed "
-        "copy, and extension/jlc-bridge/README.md plus the server allowlist "
+        "copy, and extension/dubis-bridge/README.md plus the server allowlist "
         "need updating together), or this expectation drifted."
     )
 

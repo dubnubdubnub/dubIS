@@ -13,7 +13,7 @@ Three clauses, and the file exists to make the third one true:
    exactly one pinned `chrome-extension://` origin**, and refuse every other
    origin with a bare 403. This is the deliberate exception the plan's "phase
    2+ needs its own tested exception" was holding the door for, cashed in on
-   2026-09-20 for the *local* flow: the jlc-bridge extension holds no host
+   2026-09-20 for the *local* flow: the dubIS bridge extension holds no host
    permission for any dubIS origin (Chrome match patterns cannot name a port,
    so `http://127.0.0.1/*` would grant fetch + cookie-read for every loopback
    service — a far worse trade), so its `application/json` POST preflights, and

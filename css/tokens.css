@@ -184,7 +184,7 @@
 
   /* ── JLCPCB pairing panel (css/components/jlc.css) ──────────────────────────
      The JLC section of Preferences: one row per paired account, and the
-     pairing code the jlc-bridge extension needs. The code is read by eye and
+     pairing code the dubIS bridge extension needs. The code is read by eye and
      retyped into another window, so it gets its own padding rather than
      borrowing the account rows'.
      Consumed by: css/components/jlc.css */
