@@ -1,4 +1,4 @@
-// The bridge extension's pure decisions (extension/jlc-bridge/handshake-logic.js):
+// The bridge extension's pure decisions (extension/dubis-bridge/handshake-logic.js):
 // which handshake a pasted code starts, and how a DigiKey sign-in probe is read.
 // The load-bearing property is that nothing short of a clean signed-in answer
 // ends the DigiKey wait — a Cloudflare page or an error must never pass.
@@ -9,7 +9,7 @@ import {
   isCloudflareInterstitial,
   routeForCode,
   toPushedCookie,
-} from "../../extension/jlc-bridge/handshake-logic.js";
+} from "../../extension/dubis-bridge/handshake-logic.js";
 
 const ACCOUNT = "https://www.digikey.com/MyDigiKey";
 

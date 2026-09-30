@@ -100,10 +100,14 @@ scripts/ci_watcher/*.db
 # Hypothesis example database (local counterexample cache; see docs/property-testing.md)
 .hypothesis/
 
-# Browser-extension signing keys. The jlc-bridge private key lives OUTSIDE the
-# repo on purpose (see extension/jlc-bridge/README.md) — only the base64 public
+# Browser-extension signing keys. The dubIS bridge private key lives OUTSIDE the
+# repo on purpose (see extension/dubis-bridge/README.md) — only the base64 public
 # half belongs in manifest.json's "key". These patterns exist so a private key
 # dropped next to the extension can never be committed by accident.
 *.pem
 extension/**/*.pem
 extension/**/*.crx
+
+# Built extension packages (scripts/package-extension.py). A first-upload zip
+# built with --key-pem contains the private signing key.
+dist/

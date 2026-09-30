@@ -1,6 +1,6 @@
 /* jlc.css — the JLCPCB section of the Preferences modal (js/jlc-sessions.js).
    One row per paired account (account, label, stamps, Revoke), plus the
-   pairing code the jlc-bridge extension needs. Layout dimensions come from the
+   pairing code the dubIS bridge extension needs. Layout dimensions come from the
    --jlc-* tokens in css/tokens.css.
 
    Nothing here styles a credential, because none is ever rendered: the panel

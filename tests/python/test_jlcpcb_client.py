@@ -378,7 +378,7 @@ def test_live_library_fetch():
     store = str(repo_root / "data" / "jlc_sessions.json")
     if not os.path.exists(store):
         pytest.fail(
-            f"No JLC credential at {store} — pair an account through the jlc-bridge "
+            f"No JLC credential at {store} — pair an account through the dubIS bridge "
             "extension first (dubIS Preferences -> Sign in to JLC)."
         )
     client = JlcpcbClient(sessions_file=store)

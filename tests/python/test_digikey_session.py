@@ -399,7 +399,7 @@ class TestAccountUrl:
         import re
         from pathlib import Path
 
-        bg = (Path(__file__).resolve().parents[2] / "extension" / "jlc-bridge" / "background.js").read_text()
+        bg = (Path(__file__).resolve().parents[2] / "extension" / "dubis-bridge" / "background.js").read_text()
         m = re.search(r'const DIGIKEY_ACCOUNT_URL = "([^"]+)"', bg)
         assert m, "background.js no longer declares DIGIKEY_ACCOUNT_URL"
         assert m.group(1) == digikey_session.ACCOUNT_URL

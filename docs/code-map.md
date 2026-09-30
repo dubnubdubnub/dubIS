@@ -97,11 +97,11 @@ graph LR
     "domain/pricing.py" --> "domain/packaging.py"
     "domain/product.py" --> "domain/packaging.py"
     "domain/purchase_candidates.py" --> "domain/predicates.py"
-    "extension/jlc-bridge/background.js" --> "extension/jlc-bridge/config.js"
-    "extension/jlc-bridge/background.js" --> "extension/jlc-bridge/handshake-logic.js"
-    "extension/jlc-bridge/options.js" --> "extension/jlc-bridge/config.js"
-    "extension/jlc-bridge/popup.js" --> "extension/jlc-bridge/config.js"
-    "extension/jlc-bridge/popup.js" --> "extension/jlc-bridge/handshake-logic.js"
+    "extension/dubis-bridge/background.js" --> "extension/dubis-bridge/config.js"
+    "extension/dubis-bridge/background.js" --> "extension/dubis-bridge/handshake-logic.js"
+    "extension/dubis-bridge/options.js" --> "extension/dubis-bridge/config.js"
+    "extension/dubis-bridge/popup.js" --> "extension/dubis-bridge/config.js"
+    "extension/dubis-bridge/popup.js" --> "extension/dubis-bridge/handshake-logic.js"
     "file_dialogs.py" --> "csv_io.py"
     "file_dialogs.py" --> "domain/pricing.py"
     "inventory_api.py" --> "bench.py"
@@ -722,7 +722,7 @@ graph LR
     "tests/js/e2e/scan-server.py" --> "server/__init__.py"
     "tests/js/event-bus-contract.test.js" --> "js/event-bus.js"
     "tests/js/event-bus.test.js" --> "js/event-bus.js"
-    "tests/js/extension-handshake-logic.test.js" --> "extension/jlc-bridge/handshake-logic.js"
+    "tests/js/extension-handshake-logic.test.js" --> "extension/dubis-bridge/handshake-logic.js"
     "tests/js/favicon-stack.test.js" --> "js/inventory/favicon-stack.js"
     "tests/js/fetch-rows.test.js" --> "js/inventory/pricing-utils.js"
     "tests/js/filter-chips.test.js" --> "js/inventory/filter-chips-fields.js"
@@ -1392,29 +1392,29 @@ graph LR
 - **Imports:** —
 - **Imported by:** `app_launch.py`, `base_client.py`, `carts.py`, `digikey_browser.py`, `digikey_client.py`, `domain/federation.py`, `domain/generic_parts.py`, `domain/part_registry.py`, `jlc_session.py`, `jlcpcb_client.py`, `server/__main__.py`, `server/dispatch.py`, `server/errors.py`, `server/lockfile.py`, `server/proxy.py`, `server/routes/mirror.py`, `server/sources.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_ssh_tunnel.py`, `tests/python/test_base_client.py`, `tests/python/test_carts.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_digikey_browser.py`, `tests/python/test_digikey_session.py`, `tests/python/test_dubis_errors.py`, `tests/python/test_jlcpcb_client.py`
 
-### extension/jlc-bridge/background.js
+### extension/dubis-bridge/background.js
 
-- **Imports:** `extension/jlc-bridge/config.js`, `extension/jlc-bridge/handshake-logic.js`
+- **Imports:** `extension/dubis-bridge/config.js`, `extension/dubis-bridge/handshake-logic.js`
 - **Imported by:** —
 
-### extension/jlc-bridge/config.js
+### extension/dubis-bridge/config.js
 
 - **Imports:** —
-- **Imported by:** `extension/jlc-bridge/background.js`, `extension/jlc-bridge/options.js`, `extension/jlc-bridge/popup.js`
+- **Imported by:** `extension/dubis-bridge/background.js`, `extension/dubis-bridge/options.js`, `extension/dubis-bridge/popup.js`
 
-### extension/jlc-bridge/handshake-logic.js
+### extension/dubis-bridge/handshake-logic.js
 
 - **Imports:** —
-- **Imported by:** `extension/jlc-bridge/background.js`, `extension/jlc-bridge/popup.js`, `tests/js/extension-handshake-logic.test.js`
+- **Imported by:** `extension/dubis-bridge/background.js`, `extension/dubis-bridge/popup.js`, `tests/js/extension-handshake-logic.test.js`
 
-### extension/jlc-bridge/options.js
+### extension/dubis-bridge/options.js
 
-- **Imports:** `extension/jlc-bridge/config.js`
+- **Imports:** `extension/dubis-bridge/config.js`
 - **Imported by:** —
 
-### extension/jlc-bridge/popup.js
+### extension/dubis-bridge/popup.js
 
-- **Imports:** `extension/jlc-bridge/config.js`, `extension/jlc-bridge/handshake-logic.js`
+- **Imports:** `extension/dubis-bridge/config.js`, `extension/dubis-bridge/handshake-logic.js`
 - **Imported by:** —
 
 ### file_dialogs.py
@@ -2328,6 +2328,11 @@ graph LR
 - **Imports:** `csv_io.py`, `inventory_api.py`, `inventory_ops.py`
 - **Imported by:** —
 
+### scripts/package-extension.py
+
+- **Imports:** —
+- **Imported by:** —
+
 ### scripts/regen-layout-ignore.py
 
 - **Imports:** —
@@ -2645,7 +2650,7 @@ graph LR
 
 ### tests/js/extension-handshake-logic.test.js
 
-- **Imports:** `extension/jlc-bridge/handshake-logic.js`
+- **Imports:** `extension/dubis-bridge/handshake-logic.js`
 - **Imported by:** —
 
 ### tests/js/favicon-stack.test.js
@@ -3487,6 +3492,11 @@ graph LR
 ### tests/python/test_extension_manifest.py
 
 - **Imports:** `server/routes/__init__.py`
+- **Imported by:** —
+
+### tests/python/test_extension_package.py
+
+- **Imports:** —
 - **Imported by:** —
 
 ### tests/python/test_federation.py

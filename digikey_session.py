@@ -2,7 +2,7 @@
 
 HOW A SESSION ARRIVES
 The user signs in to DigiKey in their own browser, so saved-password autofill
-and SSO work, and the dubIS bridge extension (`extension/jlc-bridge/`) pushes
+and SSO work, and the dubIS bridge extension (`extension/dubis-bridge/`) pushes
 that session here. dubIS mints a single-use pairing code, the user pastes it
 into the extension popup, the extension waits until DigiKey's account page
 stops redirecting to login, and then POSTs the digikey.com cookies with the
