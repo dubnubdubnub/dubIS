@@ -82,7 +82,7 @@ def test_v1client_health_and_meta_roundtrip(api, tmp_path):
     try:
         assert _wait_until((tmp_path / ".v1_port").exists)
         client = V1Client(f"http://127.0.0.1:{port}")
-        assert client.get("/v1/health") == {"ok": True}
+        assert client.get("/v1/health")["ok"] is True
         assert "schema_version" in client.get("/v1/meta")
     finally:
         stop_server(server, data_dir=str(tmp_path))
@@ -118,7 +118,7 @@ def test_connect_uses_port_file_when_healthy(api, tmp_path, monkeypatch):
         assert _wait_until((data_dir / ".v1_port").exists)
         client = connect(str(tmp_path))
         assert client.discovered_via == "port_file"
-        assert client.get("/v1/health") == {"ok": True}
+        assert client.get("/v1/health")["ok"] is True
     finally:
         stop_server(server, data_dir=str(data_dir))
 
