@@ -8,6 +8,11 @@
  * Usage: node scripts/serve-static.js [root] [port]
  *   root  – directory to serve (default: current working directory)
  *   port  – port to listen on (default: 3123)
+ *
+ * Identity: GET /__serve-root answers with the root this process serves, so a
+ * Playwright run can prove the server it is about to reuse belongs to its own
+ * tree (tests/js/e2e/serve-root-setup.mjs). Exact path, read-only, inert for
+ * every other request; it lists nothing.
  */
 
 import http from 'http';
@@ -17,6 +22,9 @@ import { fileURLToPath } from 'url';
 
 const ROOT = path.resolve(process.argv[2] ?? '.');
 const PORT = parseInt(process.argv[3] ?? '3123', 10);
+
+// Kept in sync with SERVE_ROOT_ENDPOINT in scripts/serve-root-lib.mjs.
+const IDENTITY_PATH = '/__serve-root';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -38,6 +46,26 @@ const MIME = {
 const server = http.createServer((req, res) => {
   // Ignore query strings
   const urlPath = req.url.split('?')[0];
+
+  // Identity endpoint (see header). Compared against the raw path on purpose:
+  // a percent-encoded spelling must NOT reach it, so that a server which
+  // predates this endpoint keeps answering 404 for it — the guard reads a
+  // missing identity as "unknown tree", never as a pass.
+  if (urlPath === IDENTITY_PATH) {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { Allow: 'GET, HEAD', 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Method not allowed');
+      return;
+    }
+    const body = JSON.stringify({ root: ROOT, pid: process.pid });
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': Buffer.byteLength(body),
+      'Cache-Control': 'no-store',
+    });
+    res.end(req.method === 'HEAD' ? undefined : body);
+    return;
+  }
 
   // Resolve to a filesystem path, preventing directory traversal
   let filePath = path.join(ROOT, decodeURIComponent(urlPath));

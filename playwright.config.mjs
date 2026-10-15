@@ -1,9 +1,10 @@
 import { defineConfig } from '@playwright/test';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveServePort } from './scripts/serve-root-lib.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const servePort = parseInt(process.env.SERVE_PORT || '3123', 10);
+const servePort = resolveServePort(process.env);
 
 export default defineConfig({
   testDir: 'tests/js/e2e',
@@ -13,7 +14,13 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   // Bounded auto-retrying assertion timeout (Playwright has no default expect timeout).
   expect: { timeout: 5000 },
-  globalSetup: join(__dirname, 'tests/js/e2e/live/global-setup.mjs'),
+  // Order matters: the serve-root guard must fail before the live backend
+  // boots. It rejects a reused listener (reuseExistingServer below) that is
+  // not rooted at this checkout — see scripts/serve-root-lib.mjs.
+  globalSetup: [
+    join(__dirname, 'tests/js/e2e/serve-root-setup.mjs'),
+    join(__dirname, 'tests/js/e2e/live/global-setup.mjs'),
+  ],
   globalTeardown: join(__dirname, 'tests/js/e2e/live/global-teardown.mjs'),
   use: {
     browserName: 'chromium',
@@ -87,6 +94,8 @@ export default defineConfig({
   webServer: {
     command: `node scripts/serve-static.mjs . ${servePort}`,
     port: servePort,
+    // Reuse is only safe when the reused server serves THIS tree; the
+    // serve-root global setup enforces that before any spec runs.
     reuseExistingServer: !process.env.CI,
     timeout: 10_000,
   },
