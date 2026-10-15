@@ -12,7 +12,7 @@
    State lives here; the reducer and the trigger→region table are pure and live in
    panel-collapse-logic.js. */
 
-import { store, savePreferences } from './store.js';
+import { store, savePreferences, publishPreferences } from './store.js';
 import { AppLog, onLogEntry } from './api.js';
 import {
   REGIONS, normalizeCollapsed, setRegion, toggleRegion, panelsToReopen, regionsChanged,
@@ -35,6 +35,10 @@ const regionFor = (id) => REGIONS.find(r => r.id === id);
 function persist() {
   store.preferences.panels_collapsed = { ...state };
   savePreferences();
+  // Every preferences writer publishes, even a key classified `none` whose DOM
+  // state this module has already applied — so a key added here later cannot
+  // silently skip the publish.
+  publishPreferences();
 }
 
 /** Apply `state` to the DOM. Pure render — never writes state, never persists. */

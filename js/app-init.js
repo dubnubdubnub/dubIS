@@ -5,7 +5,7 @@ import { api, AppLog, whenPywebviewReady } from './api.js';
 import { connectEvents, onEvent } from './sse.js';
 import { showToast, Modal, setEnterSubmitEnabled } from './ui-helpers.js';
 import { UndoRedo } from './undo-redo.js';
-import { store, loadPreferences, savePreferences, loadInventory, fetchInventory, scheduleInventoryRefresh, onInventoryUpdated, getShortcutPrefs } from './store.js';
+import { store, loadPreferences, savePreferences, publishPreferences, loadInventory, fetchInventory, scheduleInventoryRefresh, onInventoryUpdated, getShortcutPrefs } from './store.js';
 import { processBOM } from './csv-parser.js';
 import { matchBOM } from './matching.js';
 import { colorizeRefs, REF_COLOR_MAP, invPartKey } from './part-keys.js';
@@ -616,7 +616,13 @@ async function bootstrapData() {
   // jumps from 100% to the stored level behind the startup skeleton. ui-zoom.js
   // cannot import store.js itself (leaf modules import it for geometry helpers,
   // and store.js pulls in constants.js), so app-init injects persistence.
-  setZoomPersister((z) => { store.preferences.ui_zoom = z; savePreferences(); });
+  setZoomPersister((z) => {
+    store.preferences.ui_zoom = z;
+    savePreferences();
+    // `none` in js/preferences-logic.js: js/ui-zoom.js has already written the
+    // --ui-zoom property and re-measured. Published so the writer rule holds.
+    publishPreferences();
+  });
   applyStoredZoom(store.preferences.ui_zoom);
   // Panels mount before preferences load, so the persisted collapse state has to
   // be applied here rather than at mount time.

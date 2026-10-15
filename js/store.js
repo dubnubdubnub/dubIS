@@ -7,6 +7,10 @@ import { EventBus, Events } from './event-bus.js';
 import { signal, activeSourceSignal, sourceStatusSignal } from './signals.js';
 import { SECTION_ORDER } from './constants.js';
 import { resolveThreshold } from './threshold-logic.js';
+import {
+  changedPreferencePaths,
+  snapshotPreferences,
+} from './preferences-logic.js';
 import { api, apiEnvelope, AppLog, setSourceHeaderProvider } from './api.js';
 import { onEvent } from './sse.js';
 import { formatMoney } from './ui-helpers.js';
@@ -101,11 +105,80 @@ let preferences = {
 // ── Signals ───────────────────────────────────────────────
 
 /**
- * Signal wrapping `preferences`. Listeners call `.get()` inside an effect;
- * writers call `.set(preferences)` after mutating the object.
- * Signal holding the preferences object (replaced the old PREFS_CHANGED EventBus event).
+ * What a preferences publish carries.
+ *
+ * `values` is the live bag (the same object `store.preferences` returns, so a
+ * subscriber that reads it sees current state, not a snapshot). `changed` is the
+ * list of dotted paths that moved in THIS publish, and it is the reason the
+ * payload is a wrapper rather than the bag itself: a subscriber has to be able
+ * to tell "the threshold slider moved" from "a tab closed" without diffing the
+ * world, and a subscriber that mounts later must read the paths of the publish it
+ * is being notified about, not of whatever published last.
+ *
+ * @typedef {{ values: any, changed: Array<string> }} PreferencesState
  */
-export const preferencesSignal = signal(preferences);
+
+/**
+ * Signal wrapping `preferences`. Listeners call `.get()` inside an effect;
+ * writers call `publishPreferences()` after mutating the bag — never `.set()`
+ * directly, because the bag is mutated in place and `signal()`'s identity guard
+ * (js/signals.js) treats a re-set of the same reference as a no-op. That is
+ * exactly how this signal silently never fired: every writer passed the identical
+ * object, so the one subscriber in js/inventory/inv-events.js ran once (at mount)
+ * and never again. (replaced the old PREFS_CHANGED EventBus event)
+ */
+export const preferencesSignal = signal(
+  /** @type {PreferencesState} */ ({ values: preferences, changed: [] }),
+);
+
+/**
+ * The bag as of the last publish, deep-copied.
+ *
+ * The baseline the next publish diffs against. Deep, not shallow: the writers
+ * mutate nested objects in place (`preferences.thresholds[section] = …`), so a
+ * shallow copy would mutate along with the live bag and every diff would report
+ * "nothing changed" — the same silent-no-op failure this file just escaped, one
+ * level down.
+ */
+let _publishedPrefs = snapshotPreferences(preferences);
+
+/**
+ * Publish the preferences bag to `preferencesSignal`.
+ *
+ * The ONE way to announce a preferences change. It makes the publish a real state
+ * change — a fresh bag object plus the list of paths that moved — instead of a
+ * re-set of the reference the writer just mutated, which `signal()` correctly
+ * ignores. js/signals.js is NOT weakened for this: `activeSourceSignal` and
+ * `cartsSignal` pass new values and rely on that guard.
+ *
+ * Nothing moved ⇒ nothing published. `persistTabs()` runs on every tab publish
+ * including startup hydration, and a save that changed no key must not repaint
+ * the grid for it.
+ *
+ * @returns {Array<string>} the paths that moved (empty when nothing published)
+ */
+export function publishPreferences() {
+  const changed = changedPreferencePaths(_publishedPrefs, preferences);
+  if (!changed.length) return [];
+  _publishedPrefs = snapshotPreferences(preferences);
+  preferences = { ...preferences };
+  preferencesSignal.set(/** @type {PreferencesState} */ ({ values: preferences, changed }));
+  return changed;
+}
+
+/**
+ * Re-baseline the publish diff WITHOUT notifying.
+ *
+ * For hydration, which is not a change anybody made: `loadPreferences()` fills
+ * the bag from disk and the startup appliers (zoom, collapse, column widths,
+ * hydrateSourcesFromPreferences) already applied what it loaded, and the grid
+ * renders from INVENTORY_LOADED a moment later. Rebasing is what stops the first
+ * slider drag after launch reporting every loaded key as changed — which would
+ * cost a spurious grid repaint and a spurious cart re-plan.
+ */
+export function rebasePreferences() {
+  _publishedPrefs = snapshotPreferences(preferences);
+}
 let manualLinks = [];
 let confirmedMatches = [];
 let genericParts = [];
@@ -218,7 +291,10 @@ function markBomDirty() {
   api('set_bom_dirty', true);
 }
 
-export function setPreferences(prefs) { preferences = { ...preferences, ...prefs }; }
+export function setPreferences(prefs) {
+  preferences = { ...preferences, ...prefs };
+  publishPreferences();
+}
 
 /* Did a re-fetch actually bring back different data?
    Both lists arrive straight from /v1 as parsed JSON built from the same
@@ -348,6 +424,14 @@ export async function loadPreferences() {
     if (stored.thresholds) preferences.thresholds = stored.thresholds;
     if (stored.lastBomDir) preferences.lastBomDir = stored.lastBomDir;
     if (stored.lastImportDir) preferences.lastImportDir = stored.lastImportDir;
+    // Carried through like the other remembered keys. It was written by
+    // js/import/import-panel.js and read back by that file's init(), but never
+    // read HERE — so the choice survived a re-init and died at the next launch,
+    // erased from preferences.json by the whole-bag save of any unrelated
+    // preference. That is THE trap of this loader, and it is invisible from the
+    // write side: tests/js/preference-keys.test.js now fails on any written key
+    // the loader does not carry.
+    if (typeof stored.lastOcrTemplate === "string") preferences.lastOcrTemplate = stored.lastOcrTemplate;
     if (stored.lastBomFile) preferences.lastBomFile = stored.lastBomFile;
     if (stored.inventory_view && typeof stored.inventory_view === "object") {
       preferences.inventory_view = {
@@ -447,6 +531,11 @@ export async function loadPreferences() {
       }
     }
   }
+  // The bag now holds everything on disk, and nothing on screen needs to be told:
+  // the callers of this function apply zoom / collapse / column widths from the
+  // loaded values themselves, and hydrateSourcesFromPreferences() below publishes
+  // the tab state. Rebase so the first REAL change publishes only what moved.
+  rebasePreferences();
   // Publish the roster + active source onto activeSourceSignal now that both
   // have been read. Without this the strip would render from the signal's
   // initial "local, no sources" until the first GET /v1/sources came back —
@@ -468,7 +557,7 @@ export function getThreshold(section) {
 export function setThreshold(section, value) {
   preferences.thresholds[section] = value;
   savePreferences();
-  preferencesSignal.set(preferences);
+  publishPreferences();
 }
 
 export function saveInventoryView(view) {
@@ -479,6 +568,10 @@ export function saveInventoryView(view) {
     vendor_group_scope: view.vendorGroupScope,
   };
   savePreferences();
+  // Classified `none` (js/preferences-logic.js): the only caller, persistAndRender
+  // in js/inventory/inv-events.js, renders in the same tick. Published anyway so
+  // "every writer publishes" holds — publishing costs no render for this key.
+  publishPreferences();
 }
 
 // ── Inventory loading ─────────────────────────────────────
@@ -642,7 +735,7 @@ export function getShortcutPrefs() {
 export function setShortcutPrefs(partial) {
   preferences.shortcuts = normalizeShortcuts({ ...getShortcutPrefs(), ...partial });
   savePreferences();
-  preferencesSignal.set(preferences);
+  publishPreferences();
 }
 
 // normalizeServerUrl now lives in js/servers-logic.js — the roster loader and
@@ -670,7 +763,7 @@ export function getServerUrl() {
 export function setServerUrl(url) {
   preferences.server_url = normalizeServerUrl(url);
   savePreferences();
-  preferencesSignal.set(preferences);
+  publishPreferences();
   return preferences.server_url;
 }
 
@@ -710,7 +803,7 @@ export function addServer(name, url, token) {
   if (!result.ok) return result;
   preferences.servers = result.servers;
   savePreferences();
-  preferencesSignal.set(preferences);
+  publishPreferences();
   // The strip is a view of the roster, so it has to move with the roster —
   // otherwise a server you just added is switchable only after a reload.
   syncTabsWithRoster();
@@ -769,7 +862,7 @@ export function updateServer(id, patch) {
     preferences.server_url = result.entry.url;
   }
   savePreferences();
-  preferencesSignal.set(preferences);
+  publishPreferences();
   syncTabsWithRoster();
   return { ok: true, entry: result.entry };
 }
@@ -787,7 +880,7 @@ export function removeServer(id) {
   const deselected = target.url === getServerUrl();
   if (deselected) preferences.server_url = '';
   savePreferences();
-  preferencesSignal.set(preferences);
+  publishPreferences();
   // reconcileTabs (inside this) strips the removed source out of every tab and
   // closes any tab left with nothing — so the strip can never keep offering a
   // server that is no longer configured.
@@ -967,7 +1060,10 @@ function persistTabs() {
   preferences.active_tab = activeTabId;
   preferences.active_source = source;
   savePreferences();
-  preferencesSignal.set(preferences);
+  // Every key this writes is classified `none`, so publishing repaints nothing:
+  // what re-renders after a tab move is syncShownSource → scheduleInventoryRefresh,
+  // and that stays the only refresh a switch costs.
+  publishPreferences();
   if (changed) {
     // Not awaited, and a failure is a warning rather than an error: this is the
     // default for clients that send NO header (tools/dubis-cli, curl, the next
@@ -1285,5 +1381,5 @@ export function getBehaviorPrefs() {
 export function setBehaviorPrefs(partial) {
   preferences.behavior = normalizeBehavior({ ...getBehaviorPrefs(), ...partial });
   savePreferences();
-  preferencesSignal.set(preferences);
+  publishPreferences();
 }

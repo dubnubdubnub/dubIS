@@ -17,8 +17,9 @@
    cannot rewrite a decision the user already made. */
 
 import { api, AppLog } from '../api.js';
-import { signal } from '../signals.js';
-import { getBehaviorPrefs } from '../store.js';
+import { signal, effect } from '../signals.js';
+import { getBehaviorPrefs, preferencesSignal } from '../store.js';
+import { replansCart } from '../preferences-logic.js';
 import { getActiveCartId } from './cart-store.js';
 
 /** @typedef {{plan: any|null, loading: boolean, error: string}} CartPlanState */
@@ -131,3 +132,23 @@ export function clearPlan() {
   _plan = null;
   _publish();
 }
+
+// A saved preference that the planner was TOLD about invalidates the plan on
+// screen, exactly as a cart mutation does: `reelCeiling` is sent as an argument
+// to `plan_cart` (see reelCeiling() above), so after the user lowers the ceiling
+// the grid still recommends the reels the old ceiling preferred. Nothing else
+// re-fetches — cartsSignal only moves on a cart mutation, which is why a tab
+// switch used to be the only way to see a new ceiling take effect.
+//
+// Gated on the classification table (js/preferences-logic.js), so a keystroke in
+// any other preference costs nothing, and on an active cart, so a ceiling change
+// with no cart open does not clear a plan that does not exist.
+effect(() => {
+  const { changed } = preferencesSignal.get();
+  if (!changed.length || !replansCart(changed)) return;
+  if (!getActiveCartId()) return;
+  // No .catch here on purpose: schedulePlanRefresh() returns nothing and the
+  // load it debounces into already handles its own failure (see above), which is
+  // the same contract js/cart/cart-modal.js relies on for the identical call.
+  schedulePlanRefresh();
+});

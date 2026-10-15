@@ -5,7 +5,7 @@ import { EventBus, Events } from '../event-bus.js';
 import { api, apiOn, AppLog } from '../api.js';
 import { showToast, escHtml, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { store, setBomDirty, setBomResults, setBomMeta, scheduleInventoryRefresh, savePreferences } from '../store.js';
+import { store, setBomDirty, setBomResults, setBomMeta, scheduleInventoryRefresh, savePreferences, publishPreferences } from '../store.js';
 import { bomAggKey, invPartKey } from '../part-keys.js';
 import { writeTargetForAll, viewStateFrom } from '../inventory/inv-source-logic.js';
 import { sourceStatusSignal } from '../signals.js';
@@ -34,6 +34,7 @@ export async function saveBomFile() {
   if (result && result.path) {
     state.bomDirty = false; setBomDirty(false); api('set_bom_dirty', false);
     store.preferences.lastBomFile = result.path; await savePreferences();
+    publishPreferences();
     return true;
   }
   return false;
@@ -85,6 +86,7 @@ export function setupEvents(handlers) {
       setBomMeta({ fileName: "" });
       store.preferences.lastBomFile = null;
       savePreferences();
+      publishPreferences();
       document.getElementById("bom-results").classList.add("hidden");
       document.getElementById("bom-thead").innerHTML = "";
       document.getElementById("bom-tbody").innerHTML = "";

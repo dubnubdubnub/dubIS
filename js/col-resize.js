@@ -43,7 +43,7 @@
    past the frame the win11 E2E leg samples. */
 
 import { AppLog } from './api.js';
-import { store, savePreferences } from './store.js';
+import { store, savePreferences, publishPreferences } from './store.js';
 import { toInnerPx } from './ui-zoom.js';
 import {
   findCol, nextWidth, widthFor, withWidth, withoutCol, withoutTable,
@@ -176,6 +176,7 @@ export function resetColWidth(tableId, colId) {
 function persist() {
   try {
     prefsBag()[PREF_KEY] = serializeWidths(_state);
+    publishPreferences();
     // Fire-and-forget, but never as an unhandled rejection: a width that fails
     // to save is a warning, not a broken grid.
     Promise.resolve(savePreferences()).catch((err) => {

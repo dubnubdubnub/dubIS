@@ -9,7 +9,7 @@
 
 import { api, AppLog } from './api.js';
 import { showToast, escHtml, Modal } from './ui-helpers.js';
-import { store, getThreshold, savePreferences, preferencesSignal, getShortcutPrefs, setShortcutPrefs, getBehaviorPrefs, setBehaviorPrefs } from './store.js';
+import { store, getThreshold, savePreferences, publishPreferences, getShortcutPrefs, setShortcutPrefs, getBehaviorPrefs, setBehaviorPrefs } from './store.js';
 import { wireServerList, startServerList, stopServerList } from './server-list.js';
 import { wireJlcPanel, startJlcPanel, stopJlcPanel } from './jlc-sessions.js';
 import { wireDigikeyPanel, startDigikeyPanel, stopDigikeyPanel } from './digikey-pairing.js';
@@ -225,7 +225,11 @@ export function applyPreferences() {
 
   savePreferences();
   closePreferencesModal();
-  preferencesSignal.set(store.preferences);
+  // Was `preferencesSignal.set(store.preferences)` — the same object the loop
+  // above just mutated in place, which signal()'s identity guard drops. The
+  // sliders are the reason this bug was visible: the threshold is baked into row
+  // HTML, so nothing moved until a tab switch happened to re-render.
+  publishPreferences();
 }
 
 // ── Digikey sign-in + Mouser key button wiring ──

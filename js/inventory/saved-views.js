@@ -15,7 +15,7 @@
  *   renameView(id, name)         → update name + persist
  */
 
-import { store, savePreferences } from '../store.js';
+import { store, savePreferences, publishPreferences } from '../store.js';
 import { AppLog } from '../api.js';
 import { syncFilterChipsBar } from './filter-chips-bar.js';
 
@@ -182,6 +182,7 @@ export async function saveView(name, snapshot) {
     ...snapshot,
   });
   await savePreferences();
+  publishPreferences();
 }
 
 // ── deleteView ─────────────────────────────────────────────────────────────
@@ -199,6 +200,7 @@ export async function deleteView(id) {
   if (idx === -1) return; // no-op
   views.splice(idx, 1);
   await savePreferences();
+  publishPreferences();
 }
 
 // ── renameView ─────────────────────────────────────────────────────────────
@@ -217,4 +219,5 @@ export async function renameView(id, name) {
   if (!entry) return; // no-op
   entry.name = name;
   await savePreferences();
+  publishPreferences();
 }

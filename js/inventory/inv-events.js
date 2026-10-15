@@ -6,6 +6,7 @@ import { EventBus, Events } from '../event-bus.js';
 import { effect } from '../signals.js';
 import { AppLog } from '../api.js';
 import { store, saveInventoryView, preferencesSignal } from '../store.js';
+import { repaintsGrid } from '../preferences-logic.js';
 import { escHtml, vendorIconFor } from '../ui-helpers.js';
 import { inferDistributor } from './inventory-logic.js';
 import state, { clearImportGenerations } from './inv-state.js';
@@ -171,8 +172,13 @@ export function setupEvents(handlers) {
   // render() will be triggered by INVENTORY_LOADED shortly after init.
   var _prefsEffectFirstRun = true;
   effect(function () {
-    preferencesSignal.get(); // subscribe
+    const { changed } = preferencesSignal.get();
     if (_prefsEffectFirstRun) { _prefsEffectFirstRun = false; return; }
+    // Gated on the classification table (js/preferences-logic.js): only a key that
+    // is baked into row HTML repaints the grid. Saving a tab set, a zoom level or
+    // a remembered dialog path publishes too, and re-rendering the whole grid for
+    // those would be a full rebuild paid for nothing.
+    if (!repaintsGrid(changed)) return;
     render();
   });
 
