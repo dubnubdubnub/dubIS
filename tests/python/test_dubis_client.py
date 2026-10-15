@@ -34,8 +34,11 @@ from tools.dubis_client import (
     compact_part,
     connect,
     derive_part_key,
+    exact_part_number_match,
     find_part,
     matches_part,
+    matches_part_number,
+    part_numbers,
     precheck_adjust,
     resolve_canonical_key,
 )
@@ -229,12 +232,60 @@ def test_matches_part_accepts_alias_pn():
     assert not matches_part(item, "nope")
 
 
-def test_compact_part_is_the_six_field_projection():
+def test_compact_part_is_the_seven_field_projection():
     compact = compact_part({"lcsc": "C1000", "qty": 5, "description": "cap", "extra": "dropped"})
     assert set(compact) == {
-        "part_key", "description", "qty", "section", "package", "unit_price",
+        "part_key", "part_numbers", "description", "qty", "section", "package",
+        "unit_price",
     }
     assert "extra" not in compact
+
+
+# ── the distributor part-number set ──────────────────────────────────────────
+#
+# `part_key` is one field: the first non-empty PN in precedence order. These
+# three helpers are the whole set, and they are what `search` matches and
+# `search`/`get` print, so the searchable fields and the visible ones cannot
+# drift apart again.
+
+_PN_RECORD = {
+    "lcsc": "C2830467",
+    "mpn": "12401951F412A",
+    "digikey": "664-12401951E412ACT-ND",
+    "mouser": "",
+    "pololu": None,
+}
+
+
+def test_part_numbers_is_every_number_the_record_carries():
+    assert part_numbers(_PN_RECORD) == {
+        "lcsc": "C2830467",
+        "mpn": "12401951F412A",
+        "digikey": "664-12401951E412ACT-ND",
+    }
+
+
+def test_part_numbers_drops_the_empty_ones():
+    assert part_numbers({"mpn": "  ", "digikey": "DK-1"}) == {"digikey": "DK-1"}
+    assert part_numbers({"description": "no identifiers at all"}) == {}
+
+
+def test_matches_part_number_is_a_case_insensitive_substring():
+    """The DigiKey-only case: `12401951E412` is DigiKey's revision of the code
+    and appears in no other field, so this is the only thing that finds it."""
+    assert matches_part_number(_PN_RECORD, "12401951e412")
+    assert matches_part_number(_PN_RECORD, "ACT-ND")
+    assert not matches_part_number(_PN_RECORD, "12401951G412")  # the MPN says F412
+    assert not matches_part_number(_PN_RECORD, "")
+
+
+def test_exact_part_number_match_needs_the_whole_field():
+    assert exact_part_number_match(_PN_RECORD, "664-12401951E412ACT-ND")
+    assert exact_part_number_match(_PN_RECORD, " 12401951f412a ")
+    assert not exact_part_number_match(_PN_RECORD, "12401951E412")
+    assert not exact_part_number_match(_PN_RECORD, "")
+    # An empty PN field is not an exact match for an empty query.
+    assert not exact_part_number_match({"lcsc": "C1", "mouser": ""}, "")
 
 
 # ── curation helpers (against a live server) ─────────────────────────────────
