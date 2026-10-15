@@ -18,6 +18,14 @@ over two unrelated JLCPCB routes ("which accounts are paired" and "that
 account's library"), and it projects the inventory-shaped library records down
 to the five fields a library listing is about.
 
+`transfer` is the newest addition and the only one that WRITES: it moves stock
+of one part between two configured sources of one hub, which is a composition
+over four routes (`GET /v1/parts` twice, `POST /v1/parts`,
+`POST /v1/parts/{key}/adjust` twice) plus the ordering and the refusals that no
+single route can provide. It exists because the alternative was `purchases
+import` — recording a purchase that never happened — to give a receiving server
+a part with a name.
+
 Behaviour change from the MCP versions: a part_key that matches nothing raises
 PartNotFoundError (exit 3) instead of returning the string "Part not found:
 <key>" as a successful result. A tool result is read by a model that can
@@ -34,12 +42,15 @@ from domain.thresholds import PRESET_SHIPPED, resolve, stored_preset_id
 from tools.dubis_client import (
     PartNotFoundError,
     V1Client,
+    V1Error,
     compact_part,
+    derive_part_key,
     exact_part_number_match,
     fetch_inventory,
     matches_part_number,
     part_numbers,
     resolve_canonical_key,
+    resolve_server,
 )
 
 # The prose fields `search` matches. The distributor part numbers are matched
@@ -49,6 +60,25 @@ from tools.dubis_client import (
 # drift apart again — which is exactly how the DigiKey column went invisible
 # twice over.
 _TEXT_SEARCH_FIELDS = ("description", "manufacturer", "package")
+
+# The prose fields `transfer` copies alongside the part numbers when a
+# destination has never heard of the part. The numbers themselves come from
+# `part_numbers()` — the same helper `search` and `get` use — because a part's
+# identity in dubIS is that whole set, and a transfer that carried only the
+# canonical key would arrive with the DigiKey and Mouser numbers stripped off.
+# Nothing here says how much there is or who sold it: the quantity moves as an
+# adjustment, and a price is a distributor's claim, not a fact about the part.
+TRANSFER_TEXT_FIELDS = ("manufacturer", "package", "description")
+
+
+class TransferError(Exception):
+    """A transfer the CLI will not attempt, or stopped partway through.
+
+    Exit 3, the same code as a server-rejected request: the caller asked for
+    something the servers will not do. The halfway case carries the sentence
+    that says which half landed, because "double-counted and visible" is the
+    only acceptable shape for a half-finished transfer.
+    """
 
 
 # ── implementations ──────────────────────────────────────────────────────────
@@ -356,6 +386,241 @@ def _jlc(client: V1Client, args) -> dict:
     }
 
 
+def _resolve_transfer_end(client: V1Client, requested: str | None, via: str, role: str):
+    """Resolve one end of a transfer to exactly one source, refusing a view.
+
+    With no `--server` the destination is the hub's persisted default, read
+    here rather than left implicit: a transfer has to be able to say where the
+    stock went, and a write that lands on "whatever window last clicked a tab"
+    is not an answer. A view (`merged`, or a comma group) has no single store to
+    write to — the hub refuses one too, but by then the part has already been
+    read from somewhere arbitrary.
+    """
+    if requested is None:
+        roster = client.get("/v1/sources")
+        requested = (roster.get("default") if isinstance(roster, dict) else "") or "local"
+        via = "hub-default"
+    selection = resolve_server(client, requested, via)
+    if selection.is_view:
+        raise TransferError(
+            f"the {role} resolved to {selection.selector!r}, which is a merged view of "
+            "several sources. A transfer writes stock to one store, so name one server."
+        )
+    return selection
+
+
+def _resolve_part(items: list[dict], typed: str, server: str) -> dict | None:
+    """The row a person means, exact first, then a fragment that names one.
+
+    They type `TMR2615F`; the store's key is `TMR2615F-AAC-1.500-500`. A label
+    carries a fragment of the key, and (see `part_numbers`) often a fragment of
+    a *different* PN than the key — a DigiKey number with its `-ND` suffix. So
+    an exact PN match wins, and a substring match is accepted only when exactly
+    one row answers it: guessing between two parts is how stock gets moved for
+    the wrong one, on the server that is not in front of you.
+    """
+    wanted = (typed or "").strip().lower()
+    exact = [i for i in items
+             if exact_part_number_match(i, wanted) or derive_part_key(i).lower() == wanted]
+    if len(exact) > 1:
+        raise TransferError(
+            f"{typed!r} is the whole part number of several parts on {server}: "
+            f"{sorted(derive_part_key(i) for i in exact)}; name one exactly"
+        )
+    if exact:
+        return exact[0]
+    partial = [i for i in items if matches_part_number(i, wanted)]
+    if len(partial) == 1:
+        return partial[0]
+    if not partial:
+        return None
+    raise TransferError(
+        f"{typed!r} matches several parts on {server}: "
+        f"{sorted(derive_part_key(i) for i in partial)}; name one exactly"
+    )
+
+
+def _transfer_side(client: V1Client, selection, part_key: str) -> dict | None:
+    """Pin the client to one source and resolve *part_key* there.
+
+    Returns that store's view of the part — the key IT calls it by, its on-hand
+    quantity, and the identity a destination would need — or None when the store
+    has never heard of it. The key is the store's, never what the caller typed,
+    and every write below names that one: it is what the server keys off.
+    """
+    client.use_source(selection)
+    item = _resolve_part(fetch_inventory(client), part_key, selection.names[0][1])
+    if item is None:
+        return None
+    return {
+        "selector": selection.selector,
+        "name": selection.names[0][1],
+        "part_key": derive_part_key(item),
+        "qty": int(item.get("qty", 0) or 0),
+        "identity": {
+            **part_numbers(item),
+            **{f: (item.get(f) or "").strip() for f in TRANSFER_TEXT_FIELDS
+               if (item.get(f) or "").strip()},
+        },
+        "unit_price": float(item.get("unit_price") or 0.0),
+    }
+
+
+def _transfer(client: V1Client, args) -> dict:
+    """`dubis transfer PART --quantity N --from aspen --server fremont`.
+
+    Moves stock between two configured sources of one hub. The order of the two
+    writes is the whole design: the destination is credited first and the source
+    debited second, so the one failure that can happen mid-way leaves the parts
+    counted twice — visible in both grids, correctable by hand — rather than
+    physically present and recorded nowhere.
+
+    A destination that does not know the part gets its identity through
+    `POST /v1/parts`, which writes no price observation: the part must not
+    arrive looking as though the destination bought it.
+    """
+    quantity = int(args.quantity)
+    if quantity <= 0:
+        raise TransferError(f"--quantity must be positive, got {quantity}")
+    tag = args.source or "cli"
+
+    dest = _resolve_transfer_end(client, args.server, args.server_via, "destination (--server)")
+    src = _resolve_transfer_end(client, args.from_server, "flag", "source (--from)")
+    if src.selector == dest.selector:
+        raise TransferError(
+            f"--from and --server both resolve to {src.selector!r}; a transfer needs two "
+            "different sources (moving stock onto itself would just double it)"
+        )
+
+    source = _transfer_side(client, src, args.part_key)
+    if source is None:
+        raise TransferError(
+            f"{args.part_key!r} matches no part on {src.names[0][1]} "
+            f"({src.selector}); nothing was written to either source"
+        )
+    destination = _transfer_side(client, dest, args.part_key)
+    if destination is None:
+        # Two stores routinely know one part by different numbers: aspen recorded
+        # the MPN, fremont only the DigiKey number. Searching on what the caller
+        # typed alone would miss the destination and create a SECOND part for
+        # the same reel, so try every number the source carries.
+        for candidate in [source["part_key"], *source["identity"].values()]:
+            destination = _transfer_side(client, dest, candidate)
+            if destination is not None:
+                break
+
+    if source["qty"] < quantity:
+        raise TransferError(
+            f"{src.names[0][1]} holds {source['qty']} of {source['part_key']}, not "
+            f"{quantity}. Refusing to remove more than it has: the server floors a "
+            "removal at zero, so the difference would vanish instead of failing."
+        )
+
+    note = args.note or f"transfer {quantity} -> {dest.names[0][1]} [{tag}]"
+    dst_key = destination["part_key"] if destination else source["part_key"]
+
+    create_body: dict | None = None
+    if destination is None:
+        create_body = {"part_key": source["part_key"], **source["identity"], "source": tag}
+        if source["unit_price"] > 0:
+            create_body["unit_price"] = source["unit_price"]
+    add_body = {"adj_type": "add", "quantity": quantity, "note": note, "source": tag}
+    remove_body = {"adj_type": "remove", "quantity": quantity, "note": note, "source": tag}
+
+    plan: list[dict] = []
+    if create_body is not None:
+        plan.append({"side": "destination", "method": "POST", "path": "/v1/parts",
+                     "body": create_body})
+    plan.append({"side": "destination", "method": "POST",
+                 "path": f"/v1/parts/{dst_key}/adjust", "body": add_body})
+    plan.append({"side": "source", "method": "POST",
+                 "path": f"/v1/parts/{source['part_key']}/adjust", "body": remove_body})
+
+    resolved = {
+        "requested": args.part_key,
+        "source": {"server": src.names[0][1], "selector": src.selector,
+                   "part_key": source["part_key"], "qty": source["qty"]},
+        # The destination SERVER is always named, part or no part: "where does
+        # this go" is a question the caller needs answered even when the answer
+        # is "to a store that has never heard of it".
+        "destination": {
+            "server": dest.names[0][1], "selector": dest.selector,
+            "known": destination is not None,
+            "part_key": destination["part_key"] if destination else source["part_key"],
+            "qty": destination["qty"] if destination else 0,
+        },
+        "destination_will_create": destination is None,
+    }
+    expected = {
+        "source": source["qty"] - quantity,
+        "destination": (destination["qty"] if destination else 0) + quantity,
+    }
+    if args.dry_run:
+        return {
+            "dry_run": True,
+            "quantity": quantity,
+            "resolved": resolved,
+            "plan": plan,
+            "expected": {
+                src.names[0][1]: expected["source"],
+                dest.names[0][1]: expected["destination"],
+            },
+        }
+
+    # Destination first, always. See the docstring: the alternative failure
+    # mode is stock that exists and is recorded nowhere.
+    client.use_source(dest)
+    if create_body is not None:
+        created = client.post("/v1/parts", create_body)
+        detail = created.get("detail") if isinstance(created, dict) else None
+        if isinstance(detail, dict) and detail.get("part_key"):
+            dst_key = detail["part_key"]
+    client.post(f"/v1/parts/{dst_key}/adjust", add_body)
+
+    client.use_source(src)
+    try:
+        client.post(f"/v1/parts/{source['part_key']}/adjust", remove_body)
+    except V1Error as exc:
+        raise TransferError(
+            f"{dest.names[0][1]} already has {quantity} more of {dst_key}, but removing "
+            f"them from {src.names[0][1]} failed: {exc}. The stock is now counted twice. "
+            f"Undo the destination with: dubis parts adjust {dst_key} --adj-type remove "
+            f"--quantity {quantity} --server {dest.selector} --source {tag}"
+        ) from exc
+
+    rows = []
+    for side, selection, key, before, want in (
+        ("source", src, source["part_key"], source["qty"], expected["source"]),
+        ("destination", dest, dst_key,
+         destination["qty"] if destination else 0, expected["destination"]),
+    ):
+        after = _transfer_side(client, selection, key)
+        actual = None if after is None else after["qty"]
+        rows.append({
+            "server": selection.names[0][1],
+            "side": side,
+            "part_key": key,
+            "before": before,
+            "expected": want,
+            "actual": actual,
+            "ok": actual == want,
+        })
+
+    return {
+        "dry_run": False,
+        "quantity": quantity,
+        "source_tag": tag,
+        "resolved": resolved,
+        "created_on_destination": create_body is not None,
+        "verification": rows,
+        "verified": all(row["ok"] for row in rows),
+        "undo": (
+            f"dubis adjustments rollback-source {tag} --server {src.selector} "
+            f"and --server {dest.selector}"
+        ),
+    }
+
+
 # ── argparse wiring ──────────────────────────────────────────────────────────
 
 
@@ -399,6 +664,22 @@ def _args_history(parser):
 
 def _args_generic_groups(parser):
     parser.add_argument("--part-type", dest="part_type", default="")
+
+
+def _args_transfer(parser):
+    """`transfer` is the one curated command that WRITES, so it is the one the
+    global `--dry-run` means something for — and the one that has to read both
+    servers to answer "what would this do", which is exactly what a dry run is
+    for here. It therefore does contact the servers, and writes nothing."""
+    parser.add_argument("part_key",
+                        help="any PN or part_key; each side is resolved to ITS own key")
+    parser.add_argument("--quantity", type=int, required=True,
+                        help="how many to move")
+    parser.add_argument("--from", dest="from_server", required=True, metavar="ID|NAME",
+                        help="source server the stock leaves (a /v1/sources id or name); "
+                             "`merged` and comma lists are refused — a view has no store")
+    parser.add_argument("--note", default="",
+                        help="adjustment note (default names both servers and the tag)")
 
 
 def _args_jlc(parser):
@@ -460,6 +741,13 @@ CURATED: dict[str, dict[str, Any]] = {
         "add_args": _args_generic_groups,
         "run": _generic_groups,
     },
+    "transfer": {
+        "help": "move stock of one part between two configured servers "
+                "(--from SOURCE --server DEST); credits the destination first",
+        "add_args": _args_transfer,
+        "run": _transfer,
+        "writes": True,
+    },
     "jlc": {
         "help": "JLCPCB: paired accounts, or one account's private parts library",
         "add_args": _args_jlc,
@@ -467,4 +755,4 @@ CURATED: dict[str, dict[str, Any]] = {
     },
 }
 
-__all__ = ["CURATED", "PartNotFoundError"]
+__all__ = ["CURATED", "PartNotFoundError", "TransferError"]

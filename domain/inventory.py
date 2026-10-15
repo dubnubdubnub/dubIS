@@ -550,6 +550,225 @@ def update_part_price(
     return result
 
 
+# ── create_part logic ─────────────────────────────────────────────────────────
+
+# The identity a created part may carry. Deliberately excludes Quantity and
+# both price columns: creating a part teaches the store the *name* of a thing,
+# it does not record that the store bought one.
+CREATE_IDENTITY_FIELDS: tuple[str, ...] = (
+    "lcsc", "mpn", "digikey", "mouser", "pololu",
+    "manufacturer", "package", "description",
+)
+
+# The subset of those that can name a part, in key-precedence order — the same
+# list `domain.part_registry.PN_COLUMNS` spells in CSV-column names, in the
+# inventory record's field names.
+_PN_JS_FIELDS: tuple[str, ...] = ("lcsc", "mpn", "digikey", "pololu", "mouser")
+
+
+def _adjustment_keys(adjustments_csv: str) -> set[str]:
+    """Every part key named by an adjustments.csv row.
+
+    This, not the SQLite cache, is what "the store already knows this key"
+    means: the cache is a deletable materialized view, and a part created by
+    `--adj-type set` exists here the moment its adjustment row is appended.
+    """
+    if not os.path.exists(adjustments_csv):
+        return set()
+    keys = set()
+    with open(adjustments_csv, newline="", encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            key = (row.get("lcsc_part") or "").strip()
+            if key:
+                keys.add(key)
+    return keys
+
+
+def _pin_key(registry: "_preg.PartRegistry", key: str, pns: list[str]) -> None:
+    """Register *key* as canonical for *pns* so a new ledger row cannot re-key it.
+
+    A part that exists only via adjustments was never registered (the registry
+    is built from ledger rows), so the first ledger row written for it would
+    derive its own key — usually a higher-precedence PN like the LCSC number —
+    and `apply_adjustments`, which keys off the raw adjustment string, would
+    then re-materialize the OLD key as a second row and overwrite the parts row
+    with it. The identity just written would be gone and the stock would sit
+    under a key no PN explains.
+
+    A PN already owned by a different canonical is left alone: the resulting
+    `PartRegistryCollisionError` from `canonical_for_row` is the loud answer to
+    "this part number belongs to two parts", and silently re-pointing an alias
+    would move somebody else's stock.
+    """
+    aliases = registry.parts.setdefault(key, [])
+    if key not in aliases:
+        aliases.append(key)
+        registry.dirty = True
+    registry.alias_index.setdefault(key, key)
+    for pn in pns:
+        if not pn or pn in registry.alias_index:
+            continue
+        aliases.append(pn)
+        registry.alias_index[pn] = key
+        registry.dirty = True
+
+
+def create_part(
+    *,
+    part_key: str,
+    fields: dict[str, str],
+    unit_price: float | None,
+    field_to_col: dict[str, str],
+    input_csv: str,
+    adjustments_csv: str,
+    adj_fieldnames: list[str],
+    base_dir: str,
+    fieldnames: list[str],
+    events_dir: str,
+    conn: sqlite3.Connection,
+) -> tuple[dict, "list[InventoryItem]"]:
+    """Give a part its identity without recording a purchase.  Caller holds the lock.
+
+    Returns (detail, fresh inventory).
+
+    The gap this closes: `adjust --adj-type add` refuses a part the store does
+    not know, `--adj-type set` creates one with no identity at all, and
+    `update_part_fields` then cannot reach it because it only edits rows that
+    are already in the purchase ledger. The only route that used to accept
+    identity was `POST /v1/purchases/import`, which records a purchase that
+    never happened — a ledger row *and* a price observation. So moving stock
+    between two dubIS servers meant either an anonymous part or a fabricated
+    purchase, and nothing in between.
+
+    What this writes is exactly one purchase-ledger row with `Quantity` 0 and
+    no `po_id`, and nothing in `events/`: no price observation, no purchase
+    order, no money. The part's stock stays whatever the adjustments say, since
+    `read_and_merge` starts from this row's 0 and `apply_adjustments` replays on
+    top of it — which is also what finally makes an `add` adjustment land on a
+    part that previously had none.
+
+    Two deliberate asymmetries:
+
+    * On an existing ledger row the identity fields are filled in, never blanked
+      out: an empty incoming value leaves the stored value alone. Completing a
+      part must be safe to re-run.
+    * `unit_price` is applied only when the row is created. Changing the price
+      of a part that already has one is `PUT /v1/parts/{key}/price`, which also
+      records the observation this route exists to avoid.
+    """
+    if not os.path.exists(input_csv):
+        raise ValueError("No purchase ledger found")
+
+    identity: dict[str, str] = {}
+    for name in CREATE_IDENTITY_FIELDS:
+        if name not in fields:
+            continue
+        col = field_to_col.get(name)
+        if not col:
+            raise ValueError(f"Unknown part field {name!r}")
+        value = (fields[name] or "").strip()
+        if value:
+            identity[col] = value
+    if unit_price is not None and float(unit_price) < 0:
+        raise ValueError(f"unit_price must not be negative, got {unit_price}")
+
+    registry = _preg.load(base_dir)
+    identity_row = {fn: "" for fn in fieldnames}
+    identity_row.update(identity)
+    # Registry-aware on purpose: when one of these PNs is already registered,
+    # the part it names is the part being completed, not a new one.
+    derived = inventory_ops.get_part_key(identity_row, registry)
+
+    key = (part_key or "").strip()
+    if key:
+        # An alias is the same part under another name; take its canonical.
+        key = registry.alias_index.get(key, key)
+    else:
+        key = derived
+    if not key:
+        raise ValueError(
+            "A part needs at least one part number to be keyed by "
+            f"(LCSC / MPN / DigiKey / Mouser / Pololu); got only {sorted(identity)!r}"
+        )
+    if not derived:
+        raise ValueError(
+            f"Cannot create part {key!r}: none of the supplied fields is a part "
+            "number, so no key can be derived from the identity"
+        )
+
+    pinned = False
+    if derived != key:
+        # Naming a key is only ever for completing a part the store already
+        # knows. Inventing a part whose canonical key is a lower-precedence PN
+        # than one of its own numbers would make it disagree with every
+        # `derive_key` caller (the CLI among them) about what it is called.
+        if key not in _adjustment_keys(adjustments_csv):
+            raise ValueError(
+                f"part_key {key!r} is not the key this identity derives "
+                f"({derived!r}), and the store has no adjustments for it. Either "
+                f"omit part_key and create it as {derived!r}, or name a part the "
+                "store already has."
+            )
+        _pin_key(registry, key, _preg._present_pns(identity_row))
+        pinned = True
+
+    with open(input_csv, newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        file_fieldnames = reader.fieldnames
+        rows = list(reader)
+
+    existing = [r for r in rows if inventory_ops.get_part_key(r, registry) == key]
+    written: dict[str, str] = {}
+    if existing:
+        # `identity` holds only the fields the caller actually sent, so filling
+        # these in cannot blank a column the destination already had right.
+        for row in existing:
+            for col, value in identity.items():
+                if col in file_fieldnames and row.get(col) != value:
+                    written[col] = value
+                    row[col] = value
+        created = False
+    else:
+        new_row = {fn: "" for fn in file_fieldnames}
+        for col, value in identity.items():
+            if col in file_fieldnames:
+                new_row[col] = value
+                written[col] = value
+        new_row["Quantity"] = "0"
+        if unit_price is not None and float(unit_price) > 0:
+            new_row["Unit Price($)"] = f"{float(unit_price):.4f}"
+            written["Unit Price($)"] = new_row["Unit Price($)"]
+        rows.append(new_row)
+        created = True
+
+    # The registry has to be on disk before the rebuild: `rebuild()` loads its
+    # own copy, and the pin is what keeps the new row under `key`.
+    if registry.dirty:
+        _preg.save(base_dir, registry)
+    atomic_write_rows(input_csv, file_fieldnames, rows, encoding="utf-8-sig")
+
+    ctx = RebuildContext(
+        base_dir=base_dir,
+        input_csv=input_csv,
+        adjustments_csv=adjustments_csv,
+        events_dir=events_dir,
+        fieldnames=fieldnames,
+        adj_fieldnames=adj_fieldnames,
+        conn=conn,
+    )
+    result, _ = rebuild(ctx)
+    qty = next((item["qty"] for item in result
+                if any(item.get(f) == key for f in _PN_JS_FIELDS)), 0)
+    detail = {
+        "part_key": key,
+        "created": created,
+        "pinned_key": pinned,
+        "qty": qty,
+        "columns": sorted(written),
+    }
+    return detail, result
+
+
 # ── update_part_fields logic ──────────────────────────────────────────────────
 
 def update_part_fields(

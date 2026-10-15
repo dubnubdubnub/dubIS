@@ -111,6 +111,13 @@ ARG_ORDER: dict[str, list[str]] = {
     # rows lead (they are the payload); source is the optional provenance tag
     # that makes the batch undoable by tag.
     "import_purchases": ["rows", "source"],
+    # part_key first even though it is a body field: it is the thing the call is
+    # about, and it is optional only because the key can be derived from the
+    # numbers. Then the PNs in key-precedence order, then the descriptive fields.
+    "create_part": [
+        "part_key", "lcsc", "mpn", "digikey", "mouser", "pololu",
+        "manufacturer", "package", "description", "unit_price", "source",
+    ],
     "consume_bom": ["matches", "board_qty", "bom_name", "note", "source"],
     "load_feeder_reel": ["tag_id", "part_key", "qty", "tape_width_mm"],
     "register_feeder": ["tag_id", "feeder_type"],
@@ -183,6 +190,7 @@ FINISH_MUTATION_OPERATION_IDS: set[str] = {
     "review_generic_member",
     # inventory_mut.py
     "adjust_part", "update_part_fields", "update_part_price", "delete_part",
+    "create_part",
     "fetch_missing_descriptions", "record_fetched_prices", "import_purchases",
     "remove_last_purchases", "remove_last_adjustments", "rollback_source",
     "rollback_purchases_source",

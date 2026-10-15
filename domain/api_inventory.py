@@ -209,6 +209,33 @@ class InventoryCRUDFacade:
                 conn=self._api._get_cache(),
             )
 
+    def create_part(self, part_key: str, fields_json: str | dict[str, str],
+                    unit_price: float | None = None) -> dict:
+        """Create a part with identity, or complete one that has none.
+
+        Returns the route's detail (`part_key`, `created`, `qty`, ...), NOT the
+        inventory: the caller is a route that publishes an SSE event, and the
+        event detail is not a place to ship a whole grid. The fresh inventory
+        still goes to the mirror like every other mutation.
+        """
+        fields = self._api._ensure_parsed(fields_json)
+        with self._api._lock:
+            detail, inventory = domain.inventory.create_part(
+                part_key=part_key,
+                fields=fields,
+                unit_price=unit_price,
+                field_to_col=self._api._FIELD_TO_COL,
+                input_csv=self._api.input_csv,
+                adjustments_csv=self._api.adjustments_csv,
+                adj_fieldnames=self._api.ADJ_FIELDNAMES,
+                base_dir=self._api.base_dir,
+                fieldnames=self._api.FIELDNAMES,
+                events_dir=self._api.events_dir,
+                conn=self._api._get_cache(),
+            )
+        self._api._push_to_mirror(inventory)
+        return detail
+
     def fetch_missing_descriptions(self) -> dict:
         """Fetch descriptions for parts with a distributor PN but none set."""
         dm = self._api._distributors

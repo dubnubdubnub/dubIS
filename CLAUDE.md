@@ -79,9 +79,11 @@ scripts/dubis low-stock                                          # per-section t
 scripts/dubis spec-search capacitor 100nF --package 0402
 scripts/dubis jlc library                                        # paired JLC accounts
 scripts/dubis jlc library 12625901A                              # that account's private library
+scripts/dubis transfer TMR2615F --quantity 12 --from aspen --server fremont
 # generated surface — every /v1 route
 scripts/dubis parts adjust C1000 --adj-type add --quantity 50    # --source defaults to "cli"
 scripts/dubis parts adjust C1000 --adj-type add --quantity 50 --dry-run
+scripts/dubis parts create --mpn TMR2615F-AAC-1.500-500 --package SOIC-8  # identity, no purchase
 scripts/dubis schema --json                                      # all 90 generated commands + params
 ```
 
@@ -101,7 +103,11 @@ Path params are positional, everything else is a flag; global flags work before 
 
 `parts adjust --adj-type add|remove` against a part that does not exist exits 3 rather than letting `/v1` silently no-op it; `set` creates parts on purpose and is exempt. A part key that matches nothing exits 3 everywhere, so a miss is never a silent success. `--dry-run` never contacts the server, so it will not catch an unknown key. Full detail lives in the generated `.claude/skills/dubis-cli/SKILL.md`.
 
-The nine hot-path commands (`status`, `search`, `get`, `spec-search`, `low-stock`, `prices`, `history`, `generic-groups`, `jlc`) are hand-written, not generated — they are compositions the OpenAPI spec cannot describe (`get` aggregates five routes, `search` filters client-side since no `/v1` search route exists). Add new ones to `tools/dubis-cli/curated.py`; the generated skill picks them up automatically.
+The ten hot-path commands (`status`, `search`, `get`, `spec-search`, `low-stock`, `prices`, `history`, `generic-groups`, `jlc`, `transfer`) are hand-written, not generated — they are compositions the OpenAPI spec cannot describe (`get` aggregates five routes, `search` filters client-side since no `/v1` search route exists). Add new ones to `tools/dubis-cli/curated.py`; the generated skill picks them up automatically.
+
+`transfer` is the one curated command that WRITES (`"writes": True` in its spec, which is what lets `--dry-run` reach it instead of short-circuiting in `_dispatch_curated`), and it reads both servers to answer "what would this do" — a dry run that could not resolve the key or read the on-hand quantity would be a dry run nobody would trust. Its invariants, each pinned by `tests/python/test_dubis_cli_transfer.py`: resolve the key on BOTH sides and report each store's own key (`TMR2615F` → `TMR2615F-AAC-1.500-500`, matched exactly first and by a unique fragment second, never guessed between two rows); refuse when on-hand < requested rather than letting `apply_stock_delta`'s `MAX(0, …)` floor eat the difference; **credit the destination before debiting the source**, so a failure between the two leaves stock counted twice (visible, correctable) rather than present and recorded nowhere; refuse a `merged`/group selector on either end (a view has no store to write to — the hub 400s one too, but only after the part was read from somewhere arbitrary); tag both adjustments with one `--source` so `adjustments rollback-source` undoes the session on each server. A destination that does not know the part gets its identity through `POST /v1/parts`, never `purchases import`.
+
+`POST /v1/parts` (`create_part`) is the first-class way to give a part its identity **without recording a purchase**. Before it there was none: `parts adjust --adj-type add` refuses an unknown part (deliberately), `--adj-type set` creates one with no MPN/mfr/package/description, and `PATCH /v1/parts/{key}` then cannot fix it because `update_part_fields` only edits rows already in the purchase ledger — so the anonymous part stays anonymous. The only route that took identity was `POST /v1/purchases/import`, which also appends a price observation, so a transferred part looked as though the destination had bought it. `create_part` writes one ledger row at `Quantity` 0 with no `po_id` and **nothing in `events/`**, and leaves the stock at whatever the adjustments say. **Trap:** a part that exists only via adjustments was never registered (the registry is built from ledger rows), so a new row carrying a higher-precedence PN would derive a new key while `apply_adjustments` — which keys off the raw adjustment string, no registry lookup — re-materializes the OLD key as a second row and overwrites the parts row with it. `create_part` pins the existing key in `part_registry` first (`pinned_key: true` in the response); `tests/python/test_part_identity_create.py::test_completing_an_anonymous_part_keeps_its_key_and_its_stock` is the pin.
 
 ## EventBus Flow
 
