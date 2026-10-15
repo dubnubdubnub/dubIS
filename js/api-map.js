@@ -3,6 +3,25 @@
 // Regenerate: python scripts/gen-api-client.py
 
 export const API_MAP = {
+  "activate_threshold_snapshot": {
+    "argOrder": [
+      "snapshot_id",
+      "source",
+      "note"
+    ],
+    "bodyParams": [
+      "note",
+      "snapshot_id",
+      "source"
+    ],
+    "mutating": false,
+    "path": "/v1/thresholds/activate",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "POST"
+  },
   "add_bom_missing_to_cart": {
     "argOrder": [
       "cart_id",
@@ -302,6 +321,27 @@ export const API_MAP = {
     "rawBody": false,
     "unwrap": "detail",
     "verb": "POST"
+  },
+  "create_threshold_snapshot": {
+    "argOrder": [
+      "values",
+      "mode",
+      "note",
+      "source"
+    ],
+    "bodyParams": [
+      "mode",
+      "note",
+      "source",
+      "values"
+    ],
+    "mutating": false,
+    "path": "/v1/thresholds",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "PUT"
   },
   "delete_cart": {
     "argOrder": [
@@ -1026,6 +1066,17 @@ export const API_MAP = {
     "unwrap": null,
     "verb": "GET"
   },
+  "list_threshold_snapshots": {
+    "argOrder": [],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/thresholds",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "GET"
+  },
   "list_vendors": {
     "argOrder": [],
     "bodyParams": [],
@@ -1649,6 +1700,23 @@ export const API_MAP = {
     ],
     "mutating": false,
     "path": "/v1/scan/sessions",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "POST"
+  },
+  "undo_threshold_snapshot": {
+    "argOrder": [
+      "source",
+      "note"
+    ],
+    "bodyParams": [
+      "note",
+      "source"
+    ],
+    "mutating": false,
+    "path": "/v1/thresholds/undo",
     "pathParams": [],
     "queryParams": [],
     "rawBody": false,

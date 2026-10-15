@@ -78,6 +78,24 @@ class DataDirLockedError(DubISError):
         self.data_dir = data_dir
 
 
+class NothingToUndoError(DubISError):
+    """An undo was asked for when there is no earlier state to return to.
+
+    Raised by `domain.threshold_snapshots.undo` when the active snapshot is
+    snapshot 0 — the shipped defaults, which have no predecessor. Mapped to
+    HTTP 409 by server/errors.py: the request is well-formed, the server's
+    history is simply in a state where it has no answer. A silent no-op (or a
+    200 that changed nothing) would tell the caller it had undone something,
+    which is the one answer that is worse than an error here.
+
+    Carries `active_id` so a client can say *why*: the profile you are undoing
+    from is the first one."""
+
+    def __init__(self, message: str, *, active_id: int = 0) -> None:
+        super().__init__(message)
+        self.active_id = active_id
+
+
 class SourceConfigError(DubISError):
     """A multi-server source registry operation was rejected as invalid.
 

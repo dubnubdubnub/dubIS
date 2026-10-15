@@ -1,6 +1,29 @@
 {
   "components": {
     "schemas": {
+      "ActivateThresholdSnapshotBody": {
+        "properties": {
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "integer"
+          },
+          "source": {
+            "default": "api",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_id"
+        ],
+        "title": "ActivateThresholdSnapshotBody",
+        "type": "object"
+      },
       "AddBomMissingBody": {
         "properties": {
           "missing": {
@@ -401,6 +424,48 @@
           "url"
         ],
         "title": "CreateSourceBody",
+        "type": "object"
+      },
+      "CreateThresholdSnapshotBody": {
+        "properties": {
+          "mode": {
+            "default": "delta",
+            "enum": [
+              "delta",
+              "full"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "source": {
+            "default": "api",
+            "title": "Source",
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "values"
+        ],
+        "title": "CreateThresholdSnapshotBody",
         "type": "object"
       },
       "DetectColumnsBody": {
@@ -1447,6 +1512,85 @@
         "title": "StartScanSessionBody",
         "type": "object"
       },
+      "ThresholdSnapshotModel": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "seeded": {
+            "default": false,
+            "title": "Seeded",
+            "type": "boolean"
+          },
+          "values": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "values",
+          "created_by",
+          "created_at",
+          "note",
+          "active"
+        ],
+        "title": "ThresholdSnapshotModel",
+        "type": "object"
+      },
+      "ThresholdsResponse": {
+        "properties": {
+          "active": {
+            "$ref": "#/components/schemas/ThresholdSnapshotModel"
+          },
+          "active_id": {
+            "title": "Active Id",
+            "type": "integer"
+          },
+          "resolved": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Resolved",
+            "type": "object"
+          },
+          "snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/ThresholdSnapshotModel"
+            },
+            "title": "Snapshots",
+            "type": "array"
+          }
+        },
+        "required": [
+          "snapshots",
+          "active_id",
+          "active",
+          "resolved"
+        ],
+        "title": "ThresholdsResponse",
+        "type": "object"
+      },
       "TunnelStatusModel": {
         "description": "The hub-managed ssh tunnel behind an `ssh://` source (server/ssh_tunnel.py).\n\n`state`: idle (not used yet) | starting | up | failed. `kind` names a\nfailure: no_ssh | auth | host_key | dns | unreachable | remote_target |\ntimeout | exited. `error` is the human sentence, built from ssh's stderr.",
         "properties": {
@@ -1479,6 +1623,22 @@
           "state"
         ],
         "title": "TunnelStatusModel",
+        "type": "object"
+      },
+      "UndoThresholdSnapshotBody": {
+        "properties": {
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "source": {
+            "default": "api",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "title": "UndoThresholdSnapshotBody",
         "type": "object"
       },
       "UpdateGenericPartBody": {
@@ -6243,6 +6403,152 @@
         "summary": "Extract Spec From Value",
         "tags": [
           "parts"
+        ]
+      }
+    },
+    "/v1/thresholds": {
+      "get": {
+        "description": "The snapshot list, the active one, and the resolved profile.\n\nA fresh server answers exactly one snapshot \u2014 id 0, the shipped defaults\n\u2014 because snapshot 0 is derived, not stored: there is no migration and no\nseeded file, and `default_thresholds` on `/v1/meta` is that same table.",
+        "operationId": "list_threshold_snapshots",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThresholdsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Threshold Snapshots",
+        "tags": [
+          "thresholds"
+        ]
+      },
+      "put": {
+        "description": "Append a new active snapshot, from a full profile or a sparse delta.\n\n`delta` (default) merges `values` onto the active snapshot's values \u2014 a\nnull value removes a category from the new state, which is how a tuned\ncategory is handed back to snapshot 0 / derivation. `full` records the\ngiven profile as-is. Either way the previous snapshots are untouched:\nthis is an append, not an edit.\n\nRefused: 401 anonymous (auth-on), 400 `source_config` on a merged/grouped\nselector (the dispatch middleware's write rule), 400 `value_error` for a\ncategory this server does not serve or a non-integer/negative threshold.",
+        "operationId": "create_threshold_snapshot",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateThresholdSnapshotBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThresholdsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Threshold Snapshot",
+        "tags": [
+          "thresholds"
+        ]
+      }
+    },
+    "/v1/thresholds/activate": {
+      "post": {
+        "description": "Make an older snapshot's profile active \u2014 by appending a copy of it.\n\nSame append-a-copy semantics as undo: the activation is itself an event\nand belongs in the record; flipping `active` onto an old row would rewrite\nhistory's shape. Unknown id -> 404; the already-active id -> 400 (a clone\nthat changes nothing is a caller mistake worth hearing about).",
+        "operationId": "activate_threshold_snapshot",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateThresholdSnapshotBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThresholdsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Activate Threshold Snapshot",
+        "tags": [
+          "thresholds"
+        ]
+      }
+    },
+    "/v1/thresholds/undo": {
+      "post": {
+        "description": "Append a copy of the previous snapshot and make it active.\n\nNever destructive \u2014 the undone snapshot stays in the record exactly as it\nwas. With snapshot 0 active there is no earlier state, and that is a loud\n409 `nothing_to_undo`, never a 200 that quietly changed nothing: a caller\nwho asked to undo must never be told \"done\" when nothing was.",
+        "operationId": "undo_threshold_snapshot",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UndoThresholdSnapshotBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThresholdsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Undo Threshold Snapshot",
+        "tags": [
+          "thresholds"
         ]
       }
     },

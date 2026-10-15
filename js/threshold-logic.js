@@ -3,17 +3,27 @@
 
    A threshold is the dollar value of a category's stock at which the qty cell
    is fully green (`stockValueColor` in js/ui-helpers.js ramps red→green across
-   it). Resolution runs in this order:
+   it). Resolution runs in this order — the spec is written down canonically
+   under "The resolution spec" in domain/thresholds.py's module docstring, and
+   mirrored here:
 
      1. the user's override   — preferences.json's `thresholds`, the sparse
                                 deltas the Preferences sliders write;
      2. the chosen preset     — a bundle from PRESET_BUNDLES, keyed by
                                 preferences.json's `threshold_preset`;
-     3. the shipped default   — DEFAULT_THRESHOLDS, generated from
-                                data/constants.json;
-     4. derivation            — the family tables (FAMILY_THRESHOLDS), unless
+     3. the server snapshot   — the ACTIVE snapshot's values this server says
+                                (GET /v1/thresholds' `active.values`, or
+                                /v1/meta's `active_threshold_profile`); a
+                                server that predates the feature sends
+                                nothing, and resolution is exactly the old
+                                order;
+     4. the shipped default   — DEFAULT_THRESHOLDS, generated from
+                                data/constants.json — which IS snapshot 0 of
+                                the server's snapshot history, not a separate
+                                entity;
+     5. derivation            — the family tables (FAMILY_THRESHOLDS), unless
                                 the category is named in BASE_BY_DECISION;
-     5. BASE_THRESHOLD        — a string no table names and no family rule has
+     6. BASE_THRESHOLD        — a string no table names and no family rule has
                                 an opinion about.
 
    A "Parent > Sub" section inherits its parent at each level, so an override
@@ -128,6 +138,10 @@ export function storedPresetId(raw) {
  * @typedef {object} ResolveOptions
  * @property {Record<string, number>|null} [preset] - the chosen bundle
  *           (presetBundle()/PRESET_BUNDLES[id], or null for none).
+ * @property {Record<string, number>|null} [server] - the server's ACTIVE
+ *           threshold snapshot values (GET /v1/thresholds `active.values`, or
+ *           /v1/meta's `active_threshold_profile`); null/absent for a server
+ *           that predates snapshot history.
  * @property {Record<string, number>} [defaults] - shipped defaults; the
  *           generated table unless the caller names another (a client of a
  *           remote server passes that server's /v1/meta answer).
@@ -141,7 +155,12 @@ export function storedPresetId(raw) {
  *  @param {ResolveOptions} [options]
  *  @returns {number} */
 export function resolveThreshold(section, overrides, options = {}) {
-  const tables = [overrides, options.preset || null, options.defaults || DEFAULT_THRESHOLDS];
+  const tables = [
+    overrides,
+    options.preset || null,
+    options.server || null,
+    options.defaults || DEFAULT_THRESHOLDS,
+  ];
   for (const table of tables) {
     if (!table) continue;
     if (section in table) return Number(table[section]);

@@ -202,13 +202,20 @@ def _spec_search(client: V1Client, args) -> dict:
 def _low_stock(client: V1Client, args) -> dict:
     """With no --threshold, each part is judged against its own section's
     threshold: the caller's override from /v1/preferences, then the chosen
-    preset bundle from /v1/meta, then the server's shipped default, then
+    preset bundle from /v1/meta, then the server's ACTIVE threshold snapshot
+    from /v1/meta, then the server's shipped default (snapshot 0), then
     derivation, then that server's base.
 
     That is the order the inventory grid colours with — js/threshold-logic.js
     is the frontend mirror of domain/thresholds.py, whose resolve() is what
     runs here — and a compound "Parent > Sub" section inherits its parent's
     entry exactly as the desktop does.
+
+    The CLI has no client profile of its own: it never sends overrides it
+    collected itself, and the server's active snapshot is always the server
+    layer it resolves against. An older server names no active profile, and
+    "no server snapshot" is the honest reading of that — the pre-snapshot
+    order, not a guess.
 
     It used to stop at the preferences and fall through to 0, so a section
     nobody had moved the slider for flagged only zero-stock parts while the
@@ -236,12 +243,19 @@ def _low_stock(client: V1Client, args) -> dict:
             (p.get("thresholds", {}) for p in presets if p.get("id") == preset_id),
             {},
         )
+    # The server's active threshold snapshot (domain/threshold_snapshots.py).
+    # Absent on an older server — and absent means no server layer, which is
+    # exactly what that server has.
+    active_profile = meta.get("active_threshold_profile") if isinstance(meta, dict) else None
 
     flagged = []
     for item in fetch_inventory(client):
         effective = (
             args.threshold if args.threshold is not None
-            else resolve(item.get("section", ""), overrides, defaults, base, preset=preset)
+            else resolve(
+                item.get("section", ""), overrides, defaults, base,
+                preset=preset, server=active_profile,
+            )
         )
         if item.get("qty", 0) <= effective:
             compact = compact_part(item)
@@ -373,7 +387,9 @@ def _args_spec_search(parser):
 
 def _args_low_stock(parser):
     parser.add_argument("--threshold", type=int, default=None,
-                        help="quantity ceiling; omit to use per-section thresholds")
+                        help="quantity ceiling; omit to use per-section thresholds "
+                             "(resolved against the server's active threshold snapshot — "
+                             "the CLI has no client profile of its own)")
 
 
 def _args_history(parser):
@@ -424,7 +440,8 @@ CURATED: dict[str, dict[str, Any]] = {
         "run": _spec_search,
     },
     "low-stock": {
-        "help": "parts at or below a stock threshold",
+        "help": "parts at or below a stock threshold (per-section: the server's "
+                "active threshold snapshot, then its shipped defaults)",
         "add_args": _args_low_stock,
         "run": _low_stock,
     },

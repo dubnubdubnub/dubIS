@@ -19,6 +19,7 @@ from dubis_errors import (
     DistributorTimeout,
     DubISError,
     NotFoundError,
+    NothingToUndoError,
     PartRegistryCollisionError,
     SourceConfigError,
     SourceNotFoundError,
@@ -33,6 +34,10 @@ _MAPPING: list[tuple[type[Exception], int, str]] = [
     # order matters: subclasses before bases
     (LoopbackRequiredError, 403, "loopback_only"),
     (PartRegistryCollisionError, 409, "part_registry_collision"),
+    # Undoing a threshold snapshot history that has nothing before the active
+    # snapshot. 409, not 400: the request is fine, the server's history is in
+    # a state with no answer — and never a silent 200 (domain/thresholds.py).
+    (NothingToUndoError, 409, "nothing_to_undo"),
     (AlternateRejectedError, 409, "alternate_rejected"),
     (SourceNotFoundError, 404, "source_not_found"),
     (NotFoundError, 404, "not_found"),
@@ -80,6 +85,8 @@ def _detail(exc: Exception) -> dict | None:
             "part_id": exc.part_id,
             "review": exc.review,
         }
+    if isinstance(exc, NothingToUndoError):
+        return {"active_id": exc.active_id}
     return None
 
 

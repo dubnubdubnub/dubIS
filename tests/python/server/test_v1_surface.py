@@ -115,6 +115,10 @@ _NEW_OPERATIONS = {
     "update_source",              # PATCH /v1/sources/{source_id} — roster CRUD
     "delete_source",              # DELETE /v1/sources/{source_id} — roster CRUD
     "whoami",                     # GET /v1/whoami — identity diagnostic, no bridge equivalent
+    "list_threshold_snapshots",   # GET /v1/thresholds — per-server threshold profile history, no bridge equivalent
+    "create_threshold_snapshot",  # PUT /v1/thresholds — append a snapshot, no bridge equivalent
+    "undo_threshold_snapshot",    # POST /v1/thresholds/undo — append-a-copy undo, no bridge equivalent
+    "activate_threshold_snapshot",  # POST /v1/thresholds/activate — activate an older snapshot by copy, no bridge equivalent
 }
 
 # The complete, frozen (method, path, operation_id) surface of the /v1 app.
@@ -176,6 +180,7 @@ FROZEN_V1_SURFACE = [
     ("GET", "/v1/parts/{part_key}/spec", "extract_spec"),
     ("GET", "/v1/preferences", "load_preferences"),
     ("GET", "/v1/sources", "list_sources"),
+    ("GET", "/v1/thresholds", "list_threshold_snapshots"),
     ("GET", "/v1/purchase-orders", "list_purchase_orders"),
     ("GET", "/v1/purchase-orders/{po_id}", "get_po_with_items"),
     ("GET", "/v1/purchase-orders/{po_id}/preview", "get_po_source_preview"),
@@ -225,6 +230,8 @@ FROZEN_V1_SURFACE = [
     ("POST", "/v1/scan/sessions", "start_scan_session"),
     ("POST", "/v1/sources", "create_source"),
     ("POST", "/v1/spec/extract", "extract_spec_from_value"),
+    ("POST", "/v1/thresholds/activate", "activate_threshold_snapshot"),
+    ("POST", "/v1/thresholds/undo", "undo_threshold_snapshot"),
     ("POST", "/v1/vendors/favicon", "fetch_favicon"),
     ("POST", "/v1/vendors/merge", "merge_vendors"),
     ("PUT", "/v1/carts/{cart_id}", "rename_cart"),
@@ -235,6 +242,7 @@ FROZEN_V1_SURFACE = [
     ("PUT", "/v1/parts/{part_key}/price", "update_part_price"),
     ("PUT", "/v1/preferences", "save_preferences"),
     ("PUT", "/v1/sources/active", "set_active_source"),
+    ("PUT", "/v1/thresholds", "create_threshold_snapshot"),
     ("PUT", "/v1/vendors", "update_vendor"),
 ]
 

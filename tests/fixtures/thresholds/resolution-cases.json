@@ -1,0 +1,128 @@
+{
+  "_spec": "The resolution spec, as data. Canonical prose: 'The resolution spec' in domain/thresholds.py's module docstring. Effective value for `section`, first hit wins, each table consulted exact then parent-inherited (' > '): (1) client override, (2) client preset bundle, (3) server active snapshot, (4) snapshot 0 = the shipped default profile, (5) family derivation, (6) base. Implemented by domain/thresholds.py's resolve() and js/threshold-logic.js's resolveThreshold(); BOTH test suites iterate this file and must agree on every case — that agreement is the whole reason the file exists (the frontend once fell back to $50 and dubis low-stock to 0). null for a table means 'the caller has none' (absent server profile, older server). Derivation cases name real family categories so the family tables (generated, identical on both sides) are what answer.",
+  "cases": [
+    {
+      "name": "client override wins over every other table",
+      "section": "Diodes",
+      "overrides": { "Diodes": 7 },
+      "preset": { "Diodes": 90 },
+      "server": { "Diodes": 33 },
+      "defaults": { "Diodes": 10 },
+      "base": 50,
+      "expected": 7
+    },
+    {
+      "name": "client override absent, so the server snapshot wins",
+      "section": "Diodes",
+      "overrides": {},
+      "preset": null,
+      "server": { "Diodes": 33 },
+      "defaults": { "Diodes": 10 },
+      "base": 50,
+      "expected": 33
+    },
+    {
+      "name": "server has no value for the category, so snapshot 0 answers",
+      "section": "Diodes",
+      "overrides": null,
+      "preset": null,
+      "server": { "Connectors": 5 },
+      "defaults": { "Diodes": 10 },
+      "base": 50,
+      "expected": 10
+    },
+    {
+      "name": "neither server table names it, so derivation answers",
+      "section": "ICs - Clock and Timing",
+      "overrides": {},
+      "preset": null,
+      "server": { "Diodes": 3 },
+      "defaults": { "Diodes": 10 },
+      "base": 50,
+      "expected": 100
+    },
+    {
+      "name": "neither table and no family, so the base answers",
+      "section": "Something Brand New",
+      "overrides": {},
+      "preset": null,
+      "server": { "Diodes": 3 },
+      "defaults": { "Diodes": 10 },
+      "base": 50,
+      "expected": 50
+    },
+    {
+      "name": "the client's preset bundle outranks the server snapshot",
+      "_why": "The preset is the window's own choice; the snapshot is the machine's. Closer statement of what this window means to show wins — pinned here so the two languages cannot disagree about the one seam the prose spec left for a fixture to close.",
+      "section": "Diodes",
+      "overrides": {},
+      "preset": { "Diodes": 90 },
+      "server": { "Diodes": 33 },
+      "defaults": { "Diodes": 10 },
+      "base": 50,
+      "expected": 90
+    },
+    {
+      "name": "the server snapshot inherits its parent entry for a child",
+      "section": "Passives - Resistors > Chip Resistors",
+      "overrides": {},
+      "preset": null,
+      "server": { "Passives - Resistors": 8 },
+      "defaults": {},
+      "base": 50,
+      "expected": 8
+    },
+    {
+      "name": "a parent entry in the server table outranks an exact default",
+      "_why": "Table order dominates within a lookup round: the server spoke about the family, so nothing shipped should overrule it for a child — the same principle by which a parent override outranks a child default.",
+      "section": "Passives - Capacitors > MLCC",
+      "overrides": {},
+      "preset": null,
+      "server": { "Passives - Capacitors": 3 },
+      "defaults": { "Passives - Capacitors > MLCC": 20 },
+      "base": 50,
+      "expected": 3
+    },
+    {
+      "name": "$0 in the server snapshot is a value, not an absence",
+      "section": "Diodes",
+      "overrides": {},
+      "preset": null,
+      "server": { "Diodes": 0 },
+      "defaults": { "Diodes": 10 },
+      "base": 50,
+      "expected": 0
+    },
+    {
+      "name": "no server profile at all (an older server) resolves as before",
+      "section": "Diodes",
+      "overrides": {},
+      "preset": null,
+      "server": null,
+      "defaults": { "Diodes": 10 },
+      "base": 50,
+      "expected": 10
+    },
+    {
+      "name": "the base is the caller's, not the build's",
+      "section": "Something Brand New",
+      "overrides": {},
+      "preset": null,
+      "server": {},
+      "defaults": {},
+      "base": 25,
+      "expected": 25
+    },
+    {
+      "name": "a base-by-decision category keeps the base despite its family prefix",
+      "_why": "The server snapshot layer must not disturb derivation's respect for BASE_BY_DECISION: 'Passives - Inductors' starts with a passives family prefix and the hand-tuned era left it at the base on purpose.",
+      "section": "Passives - Inductors",
+      "overrides": {},
+      "preset": null,
+      "server": {},
+      "defaults": {},
+      "base": 50,
+      "expected": 50
+    }
+  ]
+}

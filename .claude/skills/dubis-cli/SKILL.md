@@ -51,7 +51,7 @@ before the generated surface below.
 - `dubis search` — substring search over inventory incl. every distributor part number, compact projection (--category-hit for a whole category)
 - `dubis get` — aggregated detail card for one part
 - `dubis spec-search` — find the generic group matching a BOM spec
-- `dubis low-stock` — parts at or below a stock threshold
+- `dubis low-stock` — parts at or below a stock threshold (per-section: the server's active threshold snapshot, then its shipped defaults)
 - `dubis prices` — per-distributor price aggregates + last PO quantity
 - `dubis history` — adjustment log for one part
 - `dubis generic-groups` — generic-part groups with member counts and best member
@@ -69,7 +69,7 @@ A part key that matches nothing exits 3, so a miss is never a silent success.
 
 ## Full surface
 
-Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 104 commands:
+Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 108 commands:
 
 - **adjustments**: remove-last, rollback-source
 - **auth**: whoami
@@ -89,5 +89,6 @@ Every /v1 route, generated. `dubis schema --json` dumps them all with their para
 - **scan**: start-session
 - **sources**: create, delete, list, set-active, update
 - **spec**: extract-from-value
+- **thresholds**: activate-snapshot, create-snapshot, list-snapshots, undo-snapshot
 - **vendors**: delete, fetch-favicon, list, merge, update
 - **warnings**: get
