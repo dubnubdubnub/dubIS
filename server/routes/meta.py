@@ -3,11 +3,13 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response
 
 from domain import thresholds
+from server.build_identity import get_build_sha
+from server.models import HealthResponse
 
 router = APIRouter(prefix="/v1", tags=["meta"])
 
 
-@router.get("/health", operation_id="health")
+@router.get("/health", operation_id="health", response_model=HealthResponse)
 def health(response: Response) -> dict:
     # `Access-Control-Allow-Origin: *` on this one route, so a dubIS window
     # served from one origin can read another server's health and show whether
@@ -15,12 +17,21 @@ def health(response: Response) -> dict:
     # Without the header the browser hides a perfectly good 200 behind a CORS
     # error, which is indistinguishable from the server being down.
     #
-    # Safe to open where nothing else is: the payload is a constant, the route
+    # Safe to open where nothing else is: the payload is a per-process
+    # constant (liveness + build id), never user data, the route
     # is already unauthenticated (server/auth.py EXEMPT_PATHS), and `*` cannot
     # be used with credentials — a cookie- or token-bearing cross-origin read
     # is still rejected by the browser. Every other route stays same-origin.
+    #
+    # `build_sha` says which build is answering, so verifying a fremont roll
+    # is one curl instead of six cluster commands. It reports THE ANSWERING
+    # HUB's build, not the active source's — and that is correct, not a bug
+    # to "fix" later: /v1/health is in proxy.LOCAL_ONLY_PATHS (never
+    # proxied) and auth.EXEMPT_PATHS (no token needed to ask), which is what
+    # makes it a safe per-hub liveness+identity probe. A per-source build
+    # question belongs on a proxied route, not here.
     response.headers["Access-Control-Allow-Origin"] = "*"
-    return {"ok": True}
+    return {"ok": True, "build_sha": get_build_sha()}
 
 
 @router.get("/meta", operation_id="meta")

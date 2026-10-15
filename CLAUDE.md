@@ -73,7 +73,7 @@ Every `/v1` route as `dubis <resource> <verb>`, generated from `docs/openapi-v1.
 ```bash
 scripts/dubis serve                                              # start /v1 (everything else needs it)
 # hot path — hand-written in tools/dubis-cli/curated.py, these are compositions, not routes
-scripts/dubis search 100nF                                       # substring over lcsc/mpn/desc/mfr/package
+scripts/dubis search 100nF                                       # substring over every PN (lcsc/mpn/digikey/mouser/pololu) + desc/mfr/package
 scripts/dubis get C1000                                          # detail card: stock, prices, groups, history
 scripts/dubis low-stock                                          # per-section thresholds: your override, your preset, the shipped default, then derivation
 scripts/dubis spec-search capacitor 100nF --package 0402
@@ -84,6 +84,16 @@ scripts/dubis parts adjust C1000 --adj-type add --quantity 50    # --source defa
 scripts/dubis parts adjust C1000 --adj-type add --quantity 50 --dry-run
 scripts/dubis schema --json                                      # all 90 generated commands + params
 ```
+
+`search` matches every distributor part number, not just LCSC/MPN: a part's
+identity is the whole PN set and a DigiKey number often appears nowhere else in
+the record (`664-12401951E412ACT-ND` says `E412` where the MPN beside it says
+`F412`), so `search 12401951E412` finds the part keyed `C2830467`. A query that
+*is* a whole PN ranks first and so survives `--max-results`; partial hits keep
+the inventory's own order, because "104" inside an MPN is no stronger a signal
+than "100nF" inside a description. Both `search` rows and the `get` card carry
+`part_numbers` — the non-empty PN set behind the single `part_key` — so moving a
+part between two dubIS servers needs no `parts list` dump.
 
 `--server <id|name>` (or `DUBIS_SERVER`; the flag wins) picks which configured server *source* the hub serves the command from — generated and curated alike — by sending `X-Dubis-Source` on every request: `scripts/dubis --server reality-labs search 100nF`. Names resolve to ids via `GET /v1/sources` (`tools/dubis_client/servers.py`); `local`, `merged` and comma lists pass through; an unknown name exits 3 and never falls back to the hub's saved default. It writes no preference, unlike `dubis sources set-active`. It is unrelated to `--source`, the mutation tag. `dubis status` reports the answering source under `source` — derived, not echoed: the hub sends back no served-by header.
 

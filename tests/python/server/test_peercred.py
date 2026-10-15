@@ -445,7 +445,7 @@ def test_end_to_end_unix_socket_stamps_the_real_user(api, monkeypatch,
     try:
         with httpx.Client(transport=httpx.HTTPTransport(uds=short_socket_path),
                           base_url="http://localhost") as c:
-            assert c.get("/v1/health").json() == {"ok": True}
+            assert c.get("/v1/health").json()["ok"] is True
             r = c.post("/v1/parts/C100000/adjust",
                        json={"adj_type": "add", "quantity": 1, "source": "cli"})
     finally:

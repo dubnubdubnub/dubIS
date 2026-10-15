@@ -361,7 +361,7 @@ def test_health_exempt_even_without_credentials(tmp_path, monkeypatch):
     with TestClient(create_app(api), client=REMOTE) as c:
         r = c.get("/v1/health")
     assert r.status_code == 200
-    assert r.json() == {"ok": True}
+    assert r.json()["ok"] is True
 
 
 def test_static_frontend_gated_in_on_mode(tmp_path, monkeypatch):

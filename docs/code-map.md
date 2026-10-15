@@ -677,6 +677,7 @@ graph LR
     "server/app.py" --> "server/sources.py"
     "server/app.py" --> "server/ssh_tunnel.py"
     "server/auth.py" --> "server/__init__.py"
+    "server/build_identity.py" --> "server/__init__.py"
     "server/dispatch.py" --> "domain/federation.py"
     "server/dispatch.py" --> "dubis_errors.py"
     "server/dispatch.py" --> "server/__init__.py"
@@ -706,6 +707,8 @@ graph LR
     "server/routes/inventory_mut.py" --> "server/mutations.py"
     "server/routes/meta.py" --> "cache_db.py"
     "server/routes/meta.py" --> "domain/__init__.py"
+    "server/routes/meta.py" --> "server/build_identity.py"
+    "server/routes/meta.py" --> "server/models.py"
     "server/routes/mirror.py" --> "dubis_errors.py"
     "server/routes/openpnp.py" --> "domain/__init__.py"
     "server/routes/parts_read.py" --> "server/models.py"
@@ -878,6 +881,7 @@ graph LR
     "tests/python/server/test_auth_proxy_hosts.py" --> "server/app.py"
     "tests/python/server/test_auth_proxy_hosts.py" --> "server/auth.py"
     "tests/python/server/test_auth_proxy_hosts.py" --> "tests/python/helpers.py"
+    "tests/python/server/test_build_identity.py" --> "server/__init__.py"
     "tests/python/server/test_carts_routes.py" --> "domain/pricing.py"
     "tests/python/server/test_carts_routes.py" --> "server/__init__.py"
     "tests/python/server/test_error_contract.py" --> "server/app.py"
@@ -2475,7 +2479,7 @@ graph LR
 ### server/__init__.py
 
 - **Imports:** —
-- **Imported by:** `pnp_server.py`, `scripts/spike-webview-loopback.py`, `server/__main__.py`, `server/auth.py`, `server/dispatch.py`, `server/mutations.py`, `server/routes/carts.py`, `server/routes/events.py`, `server/routes/pnp.py`, `server/routes/preferences.py`, `server/routes/sources.py`, `server/sources.py`, `server/uds.py`, `tests/js/e2e/scan-server.py`, `tests/python/server/test_auth_proxy_hosts.py`, `tests/python/server/test_carts_routes.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_secret_not_committed.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_ssh_tunnel.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
+- **Imported by:** `pnp_server.py`, `scripts/spike-webview-loopback.py`, `server/__main__.py`, `server/auth.py`, `server/build_identity.py`, `server/dispatch.py`, `server/mutations.py`, `server/routes/carts.py`, `server/routes/events.py`, `server/routes/pnp.py`, `server/routes/preferences.py`, `server/routes/sources.py`, `server/sources.py`, `server/uds.py`, `tests/js/e2e/scan-server.py`, `tests/python/server/test_auth_proxy_hosts.py`, `tests/python/server/test_build_identity.py`, `tests/python/server/test_carts_routes.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_secret_not_committed.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_ssh_tunnel.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
 
 ### server/__main__.py
 
@@ -2491,6 +2495,11 @@ graph LR
 
 - **Imports:** `server/__init__.py`
 - **Imported by:** `server/app.py`, `server/errors.py`, `server/routes/auth.py`, `server/routes/distributors.py`, `server/routes/import_scan.py`, `server/routes/inventory_mut.py`, `server/routes/pnp.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_auth_proxy_hosts.py`
+
+### server/build_identity.py
+
+- **Imports:** `server/__init__.py`
+- **Imported by:** `server/routes/meta.py`
 
 ### server/dispatch.py
 
@@ -2520,7 +2529,7 @@ graph LR
 ### server/models.py
 
 - **Imports:** `domain/schema.py`
-- **Imported by:** `server/routes/distributors.py`, `server/routes/parts_read.py`, `server/routes/sources.py`, `tests/python/server/test_models.py`
+- **Imported by:** `server/routes/distributors.py`, `server/routes/meta.py`, `server/routes/parts_read.py`, `server/routes/sources.py`, `tests/python/server/test_models.py`
 
 ### server/mutations.py
 
@@ -2584,7 +2593,7 @@ graph LR
 
 ### server/routes/meta.py
 
-- **Imports:** `cache_db.py`, `domain/__init__.py`
+- **Imports:** `cache_db.py`, `domain/__init__.py`, `server/build_identity.py`, `server/models.py`
 - **Imported by:** —
 
 ### server/routes/mirror.py
@@ -3186,6 +3195,11 @@ graph LR
 ### tests/python/server/test_auth_proxy_hosts.py
 
 - **Imports:** `server/__init__.py`, `server/app.py`, `server/auth.py`, `tests/python/helpers.py`
+- **Imported by:** —
+
+### tests/python/server/test_build_identity.py
+
+- **Imports:** `server/__init__.py`
 - **Imported by:** —
 
 ### tests/python/server/test_carts_routes.py

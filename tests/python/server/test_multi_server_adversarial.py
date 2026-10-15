@@ -267,9 +267,9 @@ class TestConservationWithVisibility:
         but `{"ok": true, "service": "..."}` is the commonest shape a
         load-balancer or k8s health endpoint answers with — so the one impostor
         most likely to be sitting on a URL someone typed was the one the guard
-        waved through. dubIS's `/v1/health` is exactly `{"ok": true}`
-        (server/routes/meta.py, pinned by test_health_cors.py), so the probe
-        requires exactly that.
+        waved through. dubIS's `/v1/health` is a per-process constant whose key
+        set is pinned by test_health_cors.py (`ok`, optionally plus `build_sha`),
+        and the probe accepts exactly that key set — nothing else.
 
         The merged read already refuses this source; this is about the *dot*,
         which is the signal the user checks before trusting the totals.
@@ -286,6 +286,29 @@ class TestConservationWithVisibility:
         )
         assert "not a dubIS server" in (shop_row.get("detail") or ""), (
             "a red dot has to say why"
+        )
+
+    def test_the_real_health_body_with_build_sha_still_gets_a_green_dot(
+        self, hub, peers
+    ):
+        """The other half of the `build_sha` re-decision.
+
+        When /v1/health grew `build_sha`, a probe demanding the pre-build_sha
+        body would have painted every dot red under the version skew that is
+        the normal state of a roster — an old hub probing a newly deployed
+        source, or vice versa, since hubs deploy independently of each other.
+        The body dubIS actually answers today (the key set pinned by
+        test_health_cors.py) must get its green dot from any hub that already
+        knows the field AND one that does not.
+        """
+        add(hub, SHOP, "shop")
+        peers.health[SHOP] = httpx.Response(200, json={"ok": True, "build_sha": "a" * 40})
+
+        roster = hub.get("/v1/sources").json()
+        shop_row = next(s for s in roster["sources"] if s["id"] == "shop")
+
+        assert shop_row["reachable"] is True, (
+            "dubIS's own health body, build_sha included, is a dubIS server"
         )
 
     @settings(max_examples=40, deadline=None)

@@ -35,11 +35,20 @@ from tools.dubis_client import (
     PartNotFoundError,
     V1Client,
     compact_part,
+    exact_part_number_match,
     fetch_inventory,
+    matches_part_number,
+    part_numbers,
     resolve_canonical_key,
 )
 
-_SEARCH_FIELDS = ("lcsc", "mpn", "description", "manufacturer", "package")
+# The prose fields `search` matches. The distributor part numbers are matched
+# too, through `matches_part_number` rather than a second field list here, so
+# the fields a caller can SEARCH and the fields it can SEE (compact_part's
+# `part_numbers`) are the same tuple in tools/dubis_client/curate.py and cannot
+# drift apart again — which is exactly how the DigiKey column went invisible
+# twice over.
+_TEXT_SEARCH_FIELDS = ("description", "manufacturer", "package")
 
 
 # ── implementations ──────────────────────────────────────────────────────────
@@ -114,10 +123,25 @@ def _search(client: V1Client, args) -> dict:
                 query, item.get("section")
             )
             if not category_hit:
-                haystack = " ".join(str(item.get(f, "")) for f in _SEARCH_FIELDS).lower()
-                if query not in haystack:
-                    continue
+                # Matched through the shared helper, not a second field list
+                # here — see _TEXT_SEARCH_FIELDS.
+                if not matches_part_number(item, query):
+                    haystack = " ".join(
+                        str(item.get(f, "")) for f in _TEXT_SEARCH_FIELDS
+                    ).lower()
+                    if query not in haystack:
+                        continue
         hits.append(item)
+    if query:
+        # A query that IS a part number names one part, so that row goes first:
+        # it is the answer, and it now survives `--max-results` truncation
+        # however far back the inventory sorts it. Partial hits are NOT
+        # promoted — "104" inside an MPN is no stronger a signal than "100nF"
+        # inside a description, and promoting it would reorder results for
+        # ordinary queries on no evidence the caller wanted an identifier.
+        # list.sort is stable, so everything else keeps the inventory's own
+        # order and a descriptive query returns exactly what it returned before.
+        hits.sort(key=lambda item: 0 if exact_part_number_match(item, query) else 1)
     matches = [compact_part(item) for item in hits[: args.max_results]]
     return {"matches": matches, "total_count": len(hits), "returned": len(matches)}
 
@@ -130,6 +154,11 @@ def _get(client: V1Client, args) -> dict:
     history = client.get(f"/v1/parts/{key}/history")
     return {
         "part_key": key,
+        # Every distributor number the record carries, not just the one the
+        # canonical key happens to be: this card is what an agent reads before
+        # it moves a part to another server or orders it, and both of those
+        # need the DigiKey/Mouser numbers that `part_key` cannot show.
+        "part_numbers": part_numbers(item),
         "description": item.get("description", ""),
         "qty": item.get("qty", 0),
         "section": item.get("section", ""),
@@ -318,7 +347,9 @@ def _jlc(client: V1Client, args) -> dict:
 
 def _args_search(parser):
     parser.add_argument("query", nargs="?", default="",
-                        help="case-insensitive substring; empty matches everything")
+                        help="case-insensitive substring over every distributor part number "
+                             "(lcsc/mpn/digikey/mouser/pololu) and over description, "
+                             "manufacturer and package; empty matches everything")
     parser.add_argument("--section", default="", help="restrict to one exact section")
     parser.add_argument("--category-hit", dest="category_hit", action="store_true",
                         help="also keep rows whose SECTION the query names, even when no "
@@ -377,7 +408,8 @@ CURATED: dict[str, dict[str, Any]] = {
         "run": _status,
     },
     "search": {
-        "help": "substring search over inventory, compact projection (--category-hit for a whole category)",
+        "help": "substring search over inventory incl. every distributor part number, "
+                "compact projection (--category-hit for a whole category)",
         "add_args": _args_search,
         "run": _search,
     },

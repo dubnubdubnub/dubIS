@@ -1,6 +1,12 @@
 __pycache__/
 *.pyc
 *.pyo
+# Generated at IMAGE build time by the Dockerfile (ARG GIT_SHA), never a repo
+# file. Ignored so a local `docker build` run with the repo as context cannot
+# leave it behind as an untracked file that a `git add -A` would commit — a
+# committed _build_id.py would outrank git HEAD in server/build_identity.py's
+# precedence and pin every dev machine to a stale sha.
+server/_build_id.py
 .env
 data/*.csv
 data/*.json
