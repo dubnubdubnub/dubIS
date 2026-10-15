@@ -36,6 +36,7 @@
     "Manufacturer", "Customer NO.", "Package", "Description", "RoHS",
     "Quantity", "Unit Price($)", "Ext.Price($)",
     "Estimated lead time (business days)", "Date Code / Lot No.",
-    "po_id"
+    "po_id",
+    "source"
   ]
 }

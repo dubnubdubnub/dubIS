@@ -6,21 +6,72 @@ from typing import TYPE_CHECKING, Any
 
 import domain.inventory
 import inventory_ops
+from dubis_errors import NotFoundError
 
 if TYPE_CHECKING:
     from domain.schema import InventoryItem
+
+
+def _unmatched_tag_error(tag: str, csv_path: str, label: str) -> NotFoundError:
+    """Build the "nothing carried that tag" error, naming what the server holds.
+
+    The production failure this exists for: the operator ran the documented
+    `dubis adjustments rollback-source xfer-to-aspen-20261014`, the rows were
+    stored as `xfer-to-aspen-20261014@root`, and the route answered 200 with an
+    empty list. A zero-count undo is not a success, and the message has to
+    close the gap between the tag typed and the tag stored — so it lists the
+    tags that ARE there.
+    """
+    known = inventory_ops.distinct_sources(csv_path)
+    shown = ", ".join(repr(tag_value) for tag_value in known[:10]) or "(none at all)"
+    more = f" (+{len(known) - 10} more)" if len(known) > 10 else ""
+    return NotFoundError(
+        f"No {label} are tagged {tag!r} on this server, so nothing was undone. "
+        f"Tags this server holds: {shown}{more}. A tag written by a non-local "
+        f"caller is stored as `<tag>@<identity>`; naming the bare tag matches "
+        f"every identity that used it, so a typo here is the usual cause."
+    )
 
 
 class InventoryCRUDFacade:
     def __init__(self, api) -> None:
         self._api = api
 
-    def rollback_source(self, source: str) -> list[dict]:
-        """Remove all adjustments with the given source tag and rebuild."""
+    def rollback_source(self, source: str, *,
+                        require_match: bool = False) -> list[dict]:
+        """Remove all adjustments with the given source tag and rebuild.
+
+        `require_match` is what the /v1 undo route passes: a rollback that
+        removed nothing raises instead of answering 200 with an empty list.
+        `python -m server --rollback-on-exit` deliberately leaves it False — a
+        test session that made no adjustments has nothing to clean up, and a
+        traceback on every clean shutdown would bury the shutdown line.
+        """
         with self._api._lock:
             removed = inventory_ops.rollback_source(self._api.adjustments_csv, source)
             if removed:
                 self._api._rebuild()
+            elif require_match:
+                raise _unmatched_tag_error(
+                    source, self._api.adjustments_csv, "adjustments")
+        return removed
+
+    def rollback_purchases(self, source: str, *,
+                           require_match: bool = False) -> list[dict]:
+        """Remove all purchase-ledger rows with the given source tag and rebuild.
+
+        Only the ledger rows travel back. Price observations the import recorded
+        stay in `events/price_observations.csv`: a price is a *sighting* and that
+        log is append-only by design (docs/entity-store.md), so undoing a
+        purchase must not rewrite history that was true when it was seen.
+        """
+        with self._api._lock:
+            removed = inventory_ops.rollback_purchases(self._api.input_csv, source)
+            if removed:
+                self._api._rebuild()
+            elif require_match:
+                raise _unmatched_tag_error(
+                    source, self._api.input_csv, "purchase-ledger rows")
         return removed
 
     def rebuild_inventory(self) -> "list[InventoryItem]":
@@ -91,12 +142,18 @@ class InventoryCRUDFacade:
         """Remove the last `count` rows from adjustments.csv and rebuild inventory."""
         return self._api._truncate_csv(self._api.adjustments_csv, int(count), "adjustments")
 
-    def import_purchases(self, rows_json: str | list[dict[str, str]]) -> "list[InventoryItem]":
-        """Append purchase rows to purchase_ledger.csv. Returns fresh inventory."""
+    def import_purchases(self, rows_json: str | list[dict[str, str]],
+                         source: str = "") -> "list[InventoryItem]":
+        """Append purchase rows to purchase_ledger.csv. Returns fresh inventory.
+
+        `source` is the provenance tag that makes the rows undoable with
+        `rollback_purchases` instead of only as "delete the last N rows".
+        """
         rows = self._api._ensure_parsed(rows_json)
         with self._api._lock:
             result = domain.inventory.import_purchases(
                 rows=rows,
+                source=source,
                 fieldnames=self._api.FIELDNAMES,
                 input_csv=self._api.input_csv,
                 events_dir=self._api.events_dir,

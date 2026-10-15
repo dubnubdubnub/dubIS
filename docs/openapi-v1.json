@@ -615,6 +615,11 @@
             },
             "title": "Rows",
             "type": "array"
+          },
+          "source": {
+            "default": "",
+            "title": "Source",
+            "type": "string"
           }
         },
         "required": [
@@ -1744,6 +1749,57 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WhoAmIResponse": {
+        "description": "What this server concluded about the caller that asked.",
+        "properties": {
+          "auth_mode": {
+            "description": "`on` or `off` \u2014 whether identity is resolved at all.",
+            "title": "Auth Mode",
+            "type": "string"
+          },
+          "detail": {
+            "description": "One sentence naming the evidence behind `mechanism`.",
+            "title": "Detail",
+            "type": "string"
+          },
+          "identity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The identity every mutation from this request is stamped with, or null when auth is off and no identity is resolved for anyone.",
+            "title": "Identity"
+          },
+          "mechanism": {
+            "description": "How that identity was arrived at: `uds_peer_uid` (the kernel's SO_PEERCRED uid of the Unix-socket peer), `uds_proxy_hop` (the socket peer is a uid named in DUBIS_UDS_PROXY_UIDS, so its Tailscale-User-Login was believed instead), `loopback`, `bearer_token`, `session_cookie`, `tailnet_header`, or `auth_disabled`.",
+            "title": "Mechanism",
+            "type": "string"
+          },
+          "socket_uid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The uid the kernel reported for the Unix-socket peer, or null when this request did not arrive over a Unix socket (or this platform cannot read it).",
+            "title": "Socket Uid"
+          }
+        },
+        "required": [
+          "mechanism",
+          "detail",
+          "auth_mode"
+        ],
+        "title": "WhoAmIResponse",
+        "type": "object"
       }
     }
   },
@@ -1844,6 +1900,7 @@
     },
     "/v1/adjustments/by-source/{source}": {
       "delete": {
+        "description": "Undo every adjustment tagged `source`, suffixed with an identity or not.\n\nA tag written by a non-local caller is stored as `<tag>@<identity>`, so\nnaming the bare tag rolls back every identity that used it \u2014 and nothing\nelse: `xfer-2026` never touches `xfer-2026-12-31`. A rollback that removed\nnothing is a 404 naming the tags this server holds, never a 200 with an\nempty list: the documented undo path must not answer \"done\" while the stock\nstays wrong.",
         "operationId": "rollback_source",
         "parameters": [
           {
@@ -5721,6 +5778,51 @@
         ]
       }
     },
+    "/v1/purchases/by-source/{source}": {
+      "delete": {
+        "description": "Undo every purchase-ledger row tagged `source` (see `rollback_source`).\n\nOnly rows imported with a tag can be found this way: a ledger written\nbefore the `source` column existed has no tag to match, and that answers\n404 with the tags that do exist rather than removing nothing quietly. The\nprice observations the import recorded are not undone \u2014 a price is a\nsighting, and `events/price_observations.csv` is history, not state.",
+        "operationId": "rollback_purchases_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "title": "Source",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rollback Purchases Source",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rollback Purchases Source",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
     "/v1/purchases/import": {
       "post": {
         "operationId": "import_purchases",
@@ -6363,6 +6465,28 @@
         "summary": "Get Warnings",
         "tags": [
           "parts"
+        ]
+      }
+    },
+    "/v1/whoami": {
+      "get": {
+        "description": "Report who this server thinks you are, and the evidence it used.\n\nAsk it of whichever server you care about, directly: over the Unix socket\n(`curl -s --unix-socket /run/dubis/dubis.sock http://x/v1/whoami`), over the\ntailnet, or with `DUBIS_URL=https://<host> scripts/dubis whoami`. A hub\nanswers about itself and never forwards the question, so the answer always\ndescribes the connection you made, not a hop behind it.",
+        "operationId": "whoami",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhoAmIResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Whoami",
+        "tags": [
+          "auth"
         ]
       }
     }

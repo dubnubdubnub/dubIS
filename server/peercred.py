@@ -64,6 +64,19 @@ i.e. **root**. Three independent gates stand in the way:
 
 Nothing a client sends — header, cookie, body, TLS SNI — participates in
 any of those. See `tests/python/server/test_peercred.py`.
+
+When the peer is a *proxy*, not a person
+---------------------------------------
+`SO_PEERCRED` names the process that called `connect()`. When something else
+fronts the socket — `tailscale serve` proxying into `/run/dubis/dubis.sock`, say
+— the kernel is telling the truth about the wrong party: the peer is the proxy
+(`tailscaled`, uid 0), and the human is behind it. That is why
+`credential_for_socket` reports the raw `uid` alongside the name, and why
+`server/uds.py` stashes both in the ASGI scope state (`PEER_UID_KEY`): only
+`server/auth.py` decides whether a given uid is a *configured proxy hop* whose
+tailnet login header should be believed instead, and it does so only when an
+operator has named that uid explicitly. Nothing here ever infers "this looks
+like a proxy".
 """
 
 from __future__ import annotations
@@ -73,6 +86,7 @@ import os
 import socket
 import struct
 import sys
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +117,16 @@ LOCAL_IDENTITY = "local"
 #: Key under which `server/uds.py` stashes the resolved identity in the ASGI
 #: scope's `state` dict. Server-side only: nothing a client sends can reach it.
 PEER_IDENTITY_KEY = "dubis_peer_identity"
+
+#: Key under which `server/uds.py` stashes the *raw* kernel uid next to that
+#: identity, so `server/auth.py` can decide "is this peer a configured proxy
+#: hop?" from the number the kernel reported rather than from a name. A name
+#: would be ambiguous — `root`, `uid:0` and a box whose passwd file calls uid 0
+#: something else are all the same peer — and the degraded paths below
+#: (`local`, an unreadable credential) deliberately carry NO uid, which is what
+#: stops the proxy branch from ever firing where no uid was ever read.
+#: Server-side only, exactly like the identity key.
+PEER_UID_KEY = "dubis_peer_uid"
 
 
 def available() -> bool:
@@ -140,6 +164,24 @@ def unavailable_reason() -> str:
             "dubIS does not implement)"
         )
     return "SO_PEERCRED is not exposed by this Python build"
+
+
+def uid_for_username(username: str) -> int | None:
+    """The uid of *username*, or None when this platform cannot say.
+
+    The inverse of `username_for_uid`, for the operator who would rather write
+    `DUBIS_UDS_PROXY_UIDS=tailscale` than look up a number. None means "no
+    answer" (no `pwd` module, or no such account); the caller decides whether
+    that is an error — `server.auth._parse_proxy_uids` treats it as one, on
+    purpose, because a silently-dropped proxy-uid entry would leave the
+    operator believing a hop is configured when nothing is.
+    """
+    if pwd is None:  # pragma: no cover - Windows
+        return None
+    try:
+        return pwd.getpwnam(username).pw_uid
+    except KeyError:
+        return None
 
 
 def username_for_uid(uid: int) -> str:
@@ -221,9 +263,23 @@ def _peer_ucred(sock) -> tuple[int, int] | None:
     return _unpack_ucred(raw)
 
 
-def identity_for_socket(sock) -> str | None:
-    """The identity to attribute to a connection whose transport socket is
-    *sock*.
+@dataclass(frozen=True)
+class PeerCredential:
+    """What the kernel said about one Unix-socket peer.
+
+    `identity` is what to attribute to the connection; `uid` is the raw number
+    behind it, or None where no uid was ever read (a platform without
+    `SO_PEERCRED`, or a credential read that failed). The None is load-bearing,
+    not a gap: `server/auth.py`'s proxy-hop branch requires a uid, so it can
+    only ever fire on a connection where the kernel really reported one.
+    """
+
+    identity: str
+    uid: int | None
+
+
+def credential_for_socket(sock) -> PeerCredential | None:
+    """The peer credential for a connection whose transport socket is *sock*.
 
     Returns None — meaning "this is not a Unix socket, I claim nothing" — for
     every TCP connection, which is what keeps `server/auth.py`'s existing
@@ -242,15 +298,21 @@ def identity_for_socket(sock) -> str | None:
         return None
 
     if not available():
-        return LOCAL_IDENTITY
+        return PeerCredential(identity=LOCAL_IDENTITY, uid=None)
 
     cred = _peer_ucred(sock)
     if cred is None:
         # The socket *is* AF_UNIX, so the peer is on this machine — the
         # loopback trust class — we just could not name them.
-        return LOCAL_IDENTITY
+        return PeerCredential(identity=LOCAL_IDENTITY, uid=None)
     _pid, uid = cred
-    return username_for_uid(uid)
+    return PeerCredential(identity=username_for_uid(uid), uid=uid)
+
+
+def identity_for_socket(sock) -> str | None:
+    """The identity alone; see `credential_for_socket` for the full answer."""
+    credential = credential_for_socket(sock)
+    return None if credential is None else credential.identity
 
 
 def identity_from_scope(scope) -> str | None:
@@ -269,3 +331,20 @@ def identity_from_scope(scope) -> str | None:
     if isinstance(identity, str) and identity:
         return identity
     return None
+
+
+def peer_uid_from_scope(scope) -> int | None:
+    """The kernel uid `server/uds.py` stashed for this connection, if any.
+
+    Read as defensively as `identity_from_scope`: absent for every TCP request,
+    absent on a platform that could not read a credential, and never coerced —
+    a bool or a string is not a uid. Callers treat None as "no kernel evidence",
+    which is exactly the answer that keeps the proxy-hop branch closed.
+    """
+    state = scope.get("state")
+    if not isinstance(state, dict):
+        return None
+    uid = state.get(PEER_UID_KEY)
+    if isinstance(uid, bool) or not isinstance(uid, int):
+        return None
+    return uid if uid >= 0 else None

@@ -292,37 +292,106 @@ def append_adjustment(adjustments_csv: str, adj_fieldnames: list[str],
     }])
 
 
-def rollback_source(adjustments_csv: str, source: str) -> list[dict]:
-    """Remove all adjustments with the given source tag.
+#: The one separator `stamp_source()` (server/auth.py) puts between the tag a
+#: caller named and the identity the server resolved for them.
+TAG_SEPARATOR = "@"
 
-    Returns (kept_rows, removed_rows). Caller is responsible for
-    writing kept_rows back and triggering a rebuild.
+
+def tag_matches(row_source: str, tag: str) -> bool:
+    """Does a stored `source` cell belong to the tag the caller named?
+
+    `stamp_source()` composes what actually gets stored as `{source}@{identity}`
+    for any non-local caller, so the tag an operator *remembers*
+    (`xfer-to-aspen-20261014`) and the tag the server *wrote*
+    (`xfer-to-aspen-20261014@root`, `...@isaac`, `...@someone@gmail.com`) are
+    different strings. Matching them exactly made the documented undo command
+    remove nothing on every remote server while still reporting success.
+
+    `@` is the only wildcard here, and that is deliberate:
+
+    * `xfer-2026` matches `xfer-2026`, `xfer-2026@alice`, `xfer-2026@bob` —
+      two humans who used one tag on one server both roll back, which is the
+      point of naming a session rather than a row.
+    * `xfer-2026` does NOT match `xfer-2026-12-31@bob`: a longer tag that
+      merely shares a prefix is a different session, and a rollback that ate it
+      would undo work nobody asked it to undo. Prefix matching without the
+      separator boundary is exactly how that happens, so the separator is part
+      of the prefix test rather than a character to search for.
+    * Naming the full stored tag (`xfer-2026@bob`) still matches exactly one
+      identity's rows.
     """
-    if not source:
+    if not tag:
+        return False
+    return row_source == tag or row_source.startswith(tag + TAG_SEPARATOR)
+
+
+def distinct_sources(csv_path: str) -> list[str]:
+    """Every distinct non-empty `source` cell in a CSV, in first-seen order.
+
+    Used to make a rollback that matched nothing actionable: the operator typed
+    one tag and the server holds another, so the answer has to show them what
+    is actually stored. Works for both tagged logs (adjustments.csv and
+    purchase_ledger.csv) since both spell the column `source`.
+    """
+    if not os.path.exists(csv_path):
+        return []
+    seen: list[str] = []
+    with open(csv_path, newline="", encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            value = (row.get("source") or "").strip()
+            if value and value not in seen:
+                seen.append(value)
+    return seen
+
+
+def _rollback_by_tag(csv_path: str, tag: str, *, label: str) -> list[dict]:
+    """Drop every row of *csv_path* tagged *tag* (see :func:`tag_matches`).
+
+    Returns the removed rows, or `[]` when nothing matched — this function
+    never decides how loud a zero-match rollback is, because its callers want
+    different answers: the `/v1` undo routes raise (an undo that undid nothing
+    is a failed undo), while `python -m server --rollback-on-exit` must stay
+    quiet for a session that legitimately changed nothing.
+    """
+    if not tag:
         raise ValueError("source must not be empty")
-    if not os.path.exists(adjustments_csv):
+    if not os.path.exists(csv_path):
         return []
 
-    with open(adjustments_csv, newline="", encoding="utf-8-sig") as f:
+    with open(csv_path, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         fieldnames = reader.fieldnames
         rows = list(reader)
 
-    kept = []
-    removed = []
-    for row in rows:
-        if (row.get("source") or "") == source:
-            removed.append(row)
-        else:
-            kept.append(row)
+    kept = [row for row in rows if not tag_matches(row.get("source") or "", tag)]
+    removed = [row for row in rows if tag_matches(row.get("source") or "", tag)]
 
     if not removed:
         return []
 
-    csv_io.atomic_write_rows(adjustments_csv, fieldnames, kept, encoding="utf-8-sig")
-
-    logger.info("Rolled back %d adjustment(s) with source=%r", len(removed), source)
+    csv_io.atomic_write_rows(csv_path, fieldnames, kept, encoding="utf-8-sig")
+    logger.info("Rolled back %d %s row(s) with source=%r", len(removed), label, tag)
     return removed
+
+
+def rollback_source(adjustments_csv: str, source: str) -> list[dict]:
+    """Remove all adjustments tagged *source* (suffixed with an identity or not).
+
+    Returns the removed rows; the caller writes nothing back (this does) and is
+    responsible for triggering a rebuild.
+    """
+    return _rollback_by_tag(adjustments_csv, source, label="adjustment")
+
+
+def rollback_purchases(ledger_csv: str, source: str) -> list[dict]:
+    """Remove all purchase-ledger rows tagged *source* (see :func:`rollback_source`).
+
+    Rows imported before the ledger carried a `source` column have none, so
+    they match nothing here — `remove_last_purchases` stays the only way to
+    undo them, and a rollback that finds nothing says so loudly rather than
+    pretending.
+    """
+    return _rollback_by_tag(ledger_csv, source, label="purchase")
 
 
 def migrate_to_vendors(ledger_csv: str, vendors_json: str) -> dict[str, int]:

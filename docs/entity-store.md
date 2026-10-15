@@ -62,6 +62,38 @@ expects. Two mechanisms keep that working:
 missing packaging to a real carrier — `domain/packaging.py`'s `carrier_of`
 returns `None` for exactly this reason.
 
+### The purchase ledger's `source` column, and what an undo may not touch
+
+`data/purchase_ledger.csv` is append-only, and its header is `FIELDNAMES` in
+`data/constants.json`. The `source` column was appended after `po_id`, so a
+deployment's existing file has a *shorter* header than the code expects — the
+same shape as the price-observation migration above, and the same two
+mechanisms: writes migrate (`import_purchases` goes through
+`csv_io.append_csv_rows`, which calls `migrate_csv_header` first), and reads
+tolerate (`inventory_ops.rollback_purchases` reads
+`row.get("source") or ""`, so an unmigrated file loads and is never rewritten
+by a read).
+
+The column exists so a purchase import has provenance. Before it, the only undo
+for `POST /v1/purchases/import` was `purchases remove-last --count N`, which is
+order-dependent: anything imported afterwards had to be deleted first. Now the
+route takes a `source` (stamped with the caller's identity like every other
+mutation) and `DELETE /v1/purchases/by-source/{source}` removes exactly the rows
+that carry it.
+
+Two limits are deliberate, not unfinished work:
+
+- **`""` means unknown, never a guessed tag.** A default of `"import"` would
+  make every untagged import roll back with every other, so an untagged row
+  stays untagged and the rollback that finds it says so loudly (404, naming the
+  tags the server holds). Rows written before the column existed are only ever
+  undoable with `remove-last`.
+- **Price observations are not rolled back.** `record_import_prices` writes into
+  `events/price_observations.csv`, and that log is append-only because a price
+  is a *sighting* — the history is the data. Undoing the purchase removes the
+  stock, not the fact that the price was seen. `remove_last_purchases` has
+  always behaved the same way.
+
 ### The derived `prices` table cannot hold a packaging
 
 `cache.db`'s `prices` table is keyed `(part_id, distributor)` — there is no

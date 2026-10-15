@@ -55,7 +55,12 @@ LEGACY_PREFIX = "/api/"
 
 # Operations whose derived <resource> <verb> would collide or read badly.
 # Keyed by operationId -> (resource, verb).
-VERB_OVERRIDES: dict[str, tuple[str, str]] = {}
+VERB_OVERRIDES: dict[str, tuple[str, str]] = {
+    # `whoami` is both the noun and the verb, so deriving from the path segment
+    # spells `dubis whoami whoami`. It belongs with the auth routes it explains:
+    # `dubis auth whoami`.
+    "whoami": ("auth", "whoami"),
+}
 
 # Path segment -> CLI resource name, where the segment is a poor command noun.
 RESOURCE_ALIASES: dict[str, str] = {
@@ -305,7 +310,13 @@ def render_skill(commands: dict[str, dict[str, Any]]) -> str:
         "- `--dry-run` prints the request instead of sending it. It never contacts",
         "  the server, so it will not catch an unknown part key.",
         "- `--source NAME` tags mutations (default `cli`), so",
-        "  `dubis adjustments rollback-source NAME` undoes a whole session.",
+        "  `dubis adjustments rollback-source NAME` undoes a whole session of stock",
+        "  changes and `dubis purchases rollback-source NAME` undoes a whole session",
+        "  of imported purchases. A tag written by a non-local caller is stored as",
+        "  `<tag>@<identity>`; naming the bare tag matches every identity that used",
+        "  it (and nothing else — `xfer-2026` never touches `xfer-2026-12-31@bob`).",
+        "  A rollback that removes nothing exits 3 and lists the tags the server",
+        "  actually holds; it never answers success having undone nothing.",
         "- `--server ID|NAME` (or `DUBIS_SERVER`; the flag wins) serves the command",
         "  from that configured server source instead of the hub's saved default —",
         "  e.g. `dubis --server reality-labs search 100nF`. A name is resolved to its",

@@ -84,6 +84,11 @@ _INVENTORY_API_METHOD_NAMES = {
 # REST conventions. Enumerated exactly; no wildcard allowance.
 _NEW_OPERATIONS = {
     "events_stream",             # GET /v1/events (SSE) — no bridge equivalent
+    # DELETE /v1/purchases/by-source/{source} — undo a tagged purchase-import
+    # session. InventoryApi.rollback_purchases is the facade behind it; the id
+    # carries the `-source` tail so the CLI verb reads `purchases rollback-source`
+    # exactly like `adjustments rollback-source`.
+    "rollback_purchases_source",
     "fetch_distributor_product", # GET /v1/distributors/{name}/product/{code} — dispatches to fetch_*_product
     "get_digikey_session",       # GET /v1/distributors/digikey/session — merges check_digikey_session + get_digikey_login_status
     "get_po_source",             # GET /v1/purchase-orders/{po_id}/source — streams the file; no bridge equivalent (open_source_file shells out)
@@ -109,6 +114,7 @@ _NEW_OPERATIONS = {
     "create_source",              # POST /v1/sources — roster CRUD, supersedes the JS-side roster writes
     "update_source",              # PATCH /v1/sources/{source_id} — roster CRUD
     "delete_source",              # DELETE /v1/sources/{source_id} — roster CRUD
+    "whoami",                     # GET /v1/whoami — identity diagnostic, no bridge equivalent
 }
 
 # The complete, frozen (method, path, operation_id) surface of the /v1 app.
@@ -128,6 +134,7 @@ FROZEN_V1_SURFACE = [
     ("DELETE", "/v1/parts/{part_key}", "delete_part"),
     ("DELETE", "/v1/purchase-orders/last", "delete_last_purchase_order"),
     ("DELETE", "/v1/purchase-orders/{po_id}", "delete_purchase_order"),
+    ("DELETE", "/v1/purchases/by-source/{source}", "rollback_purchases_source"),
     ("DELETE", "/v1/purchases/last", "remove_last_purchases"),
     ("DELETE", "/v1/saved-searches/{search_id}", "delete_saved_search"),
     ("DELETE", "/v1/sources/{source_id}", "delete_source"),
@@ -175,6 +182,7 @@ FROZEN_V1_SURFACE = [
     ("GET", "/v1/purchase-orders/{po_id}/source", "get_po_source"),
     ("GET", "/v1/vendors", "list_vendors"),
     ("GET", "/v1/warnings", "get_warnings"),
+    ("GET", "/v1/whoami", "whoami"),
     ("PATCH", "/v1/carts/{cart_id}/items/{ref}", "update_cart_item"),
     ("PATCH", "/v1/parts/{part_key}", "update_part_fields"),
     ("PATCH", "/v1/purchase-orders/{po_id}", "update_purchase_order"),

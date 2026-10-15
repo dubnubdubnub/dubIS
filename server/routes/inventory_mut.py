@@ -53,6 +53,11 @@ class RecordFetchedPricesBody(BaseModel):
 
 class ImportPurchasesBody(BaseModel):
     rows: list[dict[str, str]]
+    # Provenance tag for the whole batch, stamped into each ledger row's
+    # `source` column (and with the caller's identity, like every other
+    # mutation). Without it the only undo is `remove_last_purchases`, which is
+    # order-dependent: anything imported afterwards has to be deleted first.
+    source: str = ""
 
 
 class ConsumeBomBody(BaseModel):
@@ -165,9 +170,15 @@ def import_purchases(
     body: ImportPurchasesBody,
 ) -> dict:
     api = request.app.state.api
-    api.import_purchases(body.rows)
+    source = stamp_source(request, body.source)
+    api.import_purchases(body.rows, source)
+    # `source` is echoed because it is the handle for the undo, and on a remote
+    # server it is NOT the string the caller sent (stamp_source appends their
+    # identity). Showing what was stored is how the next `rollback-source`
+    # names the right tag instead of guessing.
     return finish_mutation(
-        reason="import_purchases", detail={"count": len(body.rows)},
+        reason="import_purchases",
+        detail={"count": len(body.rows), "source": source},
     )
 
 
@@ -200,10 +211,38 @@ def rollback_source(
     request: Request,
     source: str,
 ) -> dict:
+    """Undo every adjustment tagged `source`, suffixed with an identity or not.
+
+    A tag written by a non-local caller is stored as `<tag>@<identity>`, so
+    naming the bare tag rolls back every identity that used it — and nothing
+    else: `xfer-2026` never touches `xfer-2026-12-31`. A rollback that removed
+    nothing is a 404 naming the tags this server holds, never a 200 with an
+    empty list: the documented undo path must not answer "done" while the stock
+    stays wrong.
+    """
     api = request.app.state.api
-    removed = api.rollback_source(source)
+    removed = api.rollback_source(source, require_match=True)
     detail = {"removed": removed}
     return finish_mutation(reason="rollback_source", detail=detail)
+
+
+@router.delete("/purchases/by-source/{source}", operation_id="rollback_purchases_source")
+def rollback_purchases_source(
+    request: Request,
+    source: str,
+) -> dict:
+    """Undo every purchase-ledger row tagged `source` (see `rollback_source`).
+
+    Only rows imported with a tag can be found this way: a ledger written
+    before the `source` column existed has no tag to match, and that answers
+    404 with the tags that do exist rather than removing nothing quietly. The
+    price observations the import recorded are not undone — a price is a
+    sighting, and `events/price_observations.csv` is history, not state.
+    """
+    api = request.app.state.api
+    removed = api.rollback_purchases(source, require_match=True)
+    detail = {"removed": removed}
+    return finish_mutation(reason="rollback_purchases", detail=detail)
 
 
 @router.post("/bom/consume", operation_id="consume_bom")

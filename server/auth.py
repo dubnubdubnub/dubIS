@@ -12,6 +12,7 @@ Configured entirely by env (12-factor; container-friendly), read once at
 | `DUBIS_TRUST_TAILSCALE_HEADER`     | `1` only when a tailscale proxy fronts the server (else ignored)|
 | `DUBIS_TRUSTED_PROXY_IPS`          | comma-separated IPs/CIDRs allowed to assert the header below     |
 | `DUBIS_TRUSTED_PROXY_HOSTS`        | comma-separated DNS names whose current A/AAAA records may too   |
+| `DUBIS_UDS_PROXY_UIDS`             | Unix-socket uids that are a proxy hop, not a person (step 0b). Unset = inert. |
 
 Resolution order per request, when mode is `on`:
 0. Unix-domain-socket peer (`python -m server --uds <path>`) -> identity is
@@ -20,6 +21,20 @@ Resolution order per request, when mode is `on`:
    makes `ssh -L <port>:/path/to.sock` attribute each teammate's mutations
    to them instead of collapsing every one into `local`. Unforgeable and
    secret-free: the uid comes from the OS, not from the request.
+
+0b. The same branch, one step to the side, ONLY when an operator named this
+    peer's uid in `DUBIS_UDS_PROXY_UIDS`: the socket peer is a *proxy*, so its
+    uid describes the hop, not the human. When ALL of `DUBIS_UDS_PROXY_UIDS`
+    names the kernel-reported uid, `DUBIS_TRUST_TAILSCALE_HEADER=1`, and
+    `Tailscale-User-Login` is present and in `DUBIS_TAILNET_ALLOWLIST` ->
+    identity = that login. Anything else (no opt-in, a peer whose uid is its
+    own, no header, a login off the allowlist) falls back to step 0 exactly.
+    The reason this exists: `tailscale serve` proxying into the socket makes
+    the kernel peer `tailscaled` (uid 0), so every tailnet caller would
+    otherwise be attributed to `root`. A TCP caller cannot reach this branch at
+    all — it is gated on the AF_UNIX scope state that only `server/uds.py`
+    sets. See `_resolve_uds_peer` for the trust boundary and its forge analysis,
+    and docs/tailnet-socket-proxy.md for what the operator has to get right.
 1. Loopback peer (`request.client.host` in `127.0.0.0/8`, `::1`) -> identity
    `local`, allowed.
 2. `Authorization: Bearer <token>` or `Authorization: Token <token>` (the
@@ -51,6 +66,14 @@ Resolution order per request, when mode is `on`:
    from an untrusted peer is ignored with a rate-limited warning naming the
    peer and what every configured name currently resolves to.
 5. Otherwise -> 401 `{error, code:"unauthorized", detail}`.
+
+Every resolved identity carries the *mechanism* that produced it, stashed
+beside it on `request.state` (`identity_mechanism`, `identity_detail`) and
+reported by `GET /v1/whoami`, so an operator can ask a server what it thinks
+the caller is and why without reading its logs. Mechanisms: `uds_peer_uid`,
+`uds_proxy_hop`, `loopback`, `bearer_token`, `session_cookie`,
+`tailnet_header` (and `auth_disabled`, which is what `/v1/whoami` answers when
+the middleware is not installed at all).
 
 `off` mode: the middleware is never installed by `create_app` — zero
 behavior change, no import-time cost either.
@@ -123,6 +146,75 @@ def _parse_trusted_proxies(raw: str) -> tuple[IpNetwork, ...]:
             continue
         nets.append(ipaddress.ip_network(part, strict=False))
     return tuple(nets)
+
+
+_UID_RE = re.compile(r"[0-9]+")
+
+
+def _parse_proxy_uids(raw: str) -> frozenset[int]:
+    """Parse `DUBIS_UDS_PROXY_UIDS` (`0`, or `0,tailscale`) into uids.
+
+    An operator names the proxy's uid — `0` for `tailscaled` — or its account
+    name, resolved through the passwd file so the config reads as a person
+    would write it. Fail-loud like every other auth list here: an entry that
+    is neither a number nor a known account raises at `create_app()` rather
+    than being dropped, because an operator who believes a proxy hop is
+    configured while nothing is configured is the exact silent failure this
+    whole module exists to avoid.
+
+    Empty/unset -> empty set, which is what keeps the feature inert by default:
+    there is no built-in "uid 0 looks like a proxy" rule anywhere.
+    """
+    uids: set[int] = set()
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if _UID_RE.fullmatch(part):
+            uids.add(int(part))
+            continue
+        resolved = peercred.uid_for_username(part)
+        if resolved is None:
+            raise ValueError(
+                f"DUBIS_UDS_PROXY_UIDS entry {part!r} is neither a numeric uid nor an "
+                "account this system has a passwd entry for -- write the uid itself "
+                "(`id -u <name>`) if the account lives only on the proxy box"
+            )
+        uids.add(resolved)
+    return frozenset(uids)
+
+
+def _warn_uds_proxy_config(
+    uids: frozenset[int], *, trust_tailscale_header: bool, allowlist_configured: bool,
+) -> None:
+    """One startup warning when the proxy-hop opt-in is armed but cannot work.
+
+    Same shape as the trusted-proxy fail-safe above: the config is honored
+    exactly as written (nothing here loosens a gate), and the operator is told
+    once, loudly, that the hop they asked for will never fire, rather than
+    debugging a wall of `root`-stamped rows later. Each missing prerequisite
+    is named.
+    """
+    if not uids:
+        return
+    missing: list[str] = []
+    if not trust_tailscale_header:
+        missing.append("DUBIS_TRUST_TAILSCALE_HEADER is not `1`")
+    if not allowlist_configured:
+        missing.append("DUBIS_TAILNET_ALLOWLIST is empty, so no login can ever match")
+    if not peercred.available():
+        missing.append(
+            f"this platform cannot read a Unix-socket uid ({peercred.unavailable_reason()})"
+        )
+    if not missing:
+        return
+    logger.warning(
+        "DUBIS_UDS_PROXY_UIDS=%s is set, but the Unix-socket proxy hop will NEVER fire: %s. "
+        "Until those are fixed every Unix-socket caller keeps resolving to its own peer "
+        "uid (which on a proxy-fronted socket means the proxy's own account, e.g. `root`). "
+        "See docs/tailnet-socket-proxy.md.",
+        sorted(uids), "; ".join(missing),
+    )
 
 
 def _is_trusted_proxy(host: str | None, networks: tuple[IpNetwork, ...]) -> bool:
@@ -313,6 +405,10 @@ class AuthConfig:
     trust_tailscale_header: bool = False
     trusted_proxy_ips: tuple[IpNetwork, ...] = field(default_factory=tuple)
     trusted_proxy_hosts: TrustedProxyHosts = field(default_factory=lambda: TrustedProxyHosts(()))
+    # Uids whose Unix-socket peer is a proxy hop rather than a person
+    # (`DUBIS_UDS_PROXY_UIDS`). Empty by default, and nothing populates it on
+    # its own: an unconfigured server behaves byte-identically to yesterday's.
+    uds_proxy_uids: frozenset[int] = field(default_factory=frozenset)
     # Generated fresh per process: cookie sessions don't need to survive a
     # restart (the browser just re-bootstraps via POST /v1/auth/session).
     cookie_secret: bytes = field(default_factory=lambda: secrets.token_bytes(32))
@@ -322,6 +418,7 @@ class AuthConfig:
 
     def __post_init__(self) -> None:
         self._untrusted_warn = _RateLimit(self.untrusted_warn_interval, time.monotonic)
+        self._socket_warn = _RateLimit(self.untrusted_warn_interval, time.monotonic)
 
     @classmethod
     def from_env(cls, *, resolver: Resolver | None = None) -> AuthConfig:
@@ -337,12 +434,20 @@ class AuthConfig:
                 "header will NOT be honored (fail-safe) until a trusted proxy is configured "
                 "(prefer DUBIS_TRUSTED_PROXY_HOSTS=<the operator's headless proxy Service>)."
             )
+        tailnet_allowlist = _parse_allowlist(os.environ.get("DUBIS_TAILNET_ALLOWLIST", ""))
+        uds_proxy_uids = _parse_proxy_uids(os.environ.get("DUBIS_UDS_PROXY_UIDS", ""))
+        _warn_uds_proxy_config(
+            uds_proxy_uids,
+            trust_tailscale_header=trust_tailscale_header,
+            allowlist_configured=bool(tailnet_allowlist),
+        )
         return cls(
             tokens_by_token=_parse_tokens(os.environ.get("DUBIS_TOKENS", "")),
-            tailnet_allowlist=_parse_allowlist(os.environ.get("DUBIS_TAILNET_ALLOWLIST", "")),
+            tailnet_allowlist=tailnet_allowlist,
             trust_tailscale_header=trust_tailscale_header,
             trusted_proxy_ips=trusted_proxy_ips,
             trusted_proxy_hosts=TrustedProxyHosts(trusted_proxy_hosts, resolver=resolver),
+            uds_proxy_uids=uds_proxy_uids,
         )
 
     async def is_trusted_proxy(self, host: str | None) -> bool:
@@ -353,6 +458,28 @@ class AuthConfig:
         if addr is None:
             return False
         return await self.trusted_proxy_hosts.contains(addr)
+
+    def warn_socket_header_ignored(self, peer: str, peer_uid: int | None) -> None:
+        """Rate-limited diagnosis for a `Tailscale-User-Login` that arrived over
+        a Unix socket from a peer the config does not treat as a proxy.
+
+        This is the shape a forge attempt takes on a socket-fronted server: a
+        local caller inside the socket directory's group asserting somebody
+        else's tailnet login. The answer is always the caller's own uid (the
+        kernel's answer beats the wire), but the attempt should be visible in
+        the log rather than silently discarded.
+        """
+        if not self.uds_proxy_uids:
+            return  # the feature was never opted in; nothing was expected here
+        if not self._socket_warn.ready("socket"):
+            return
+        logger.warning(
+            "Ignoring Tailscale-User-Login from Unix-socket peer %s (uid %s): it is not a "
+            "configured proxy uid (DUBIS_UDS_PROXY_UIDS: %s), so the kernel's answer is used "
+            "and the header is dropped. If this peer really is a proxy, name its uid in "
+            "DUBIS_UDS_PROXY_UIDS. (Rate-limited: at most one such warning per %gs.)",
+            peer, peer_uid, sorted(self.uds_proxy_uids), self.untrusted_warn_interval,
+        )
 
     def warn_untrusted_header(self, host: str | None) -> None:
         """Rate-limited diagnosis for a header that arrived from the wrong
@@ -410,13 +537,42 @@ def _unauthorized(detail: str) -> JSONResponse:
     )
 
 
+# How an identity was arrived at. Public vocabulary: `GET /v1/whoami` reports
+# these strings, so renaming one is an API change, not a refactor. Every
+# resolution path names itself here rather than inventing a string inline, so
+# the set stays closed and the diagnostic cannot drift from the resolver.
+MECHANISM_UDS_PEER = "uds_peer_uid"          # SO_PEERCRED uid -> that account
+MECHANISM_UDS_PROXY = "uds_proxy_hop"        # socket peer is a named proxy uid
+MECHANISM_LOOPBACK = "loopback"              # 127.0.0.0/8 or ::1 peer
+MECHANISM_TOKEN = "bearer_token"             # DUBIS_TOKENS match
+MECHANISM_COOKIE = "session_cookie"          # signed dubis_session cookie
+MECHANISM_TAILNET = "tailnet_header"         # Tailscale-User-Login from a proxy
+MECHANISM_AUTH_OFF = "auth_disabled"         # no middleware installed at all
+
+
+@dataclass(frozen=True)
+class Resolution:
+    """An identity plus the evidence behind it.
+
+    The mechanism is not decoration: the bug this file's step 0b exists for is
+    exactly one where the *identity string* looked plausible (`root`) and only
+    how it was arrived at explained it. `GET /v1/whoami` returns both.
+    """
+
+    identity: str
+    mechanism: str
+    detail: str
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     """Installed by `create_app` only when `DUBIS_AUTH_MODE=on`.
 
     Gates every request (API routes AND the mounted static frontend, since
     both live on the same `app` this middleware wraps) except EXEMPT_PATHS.
     Resolved identity is stashed on `request.state.identity` for downstream
-    handlers (e.g. mutation source-stamping in server/routes/inventory_mut.py).
+    handlers (e.g. mutation source-stamping in server/routes/inventory_mut.py),
+    with the mechanism that produced it on `identity_mechanism` /
+    `identity_detail` for `GET /v1/whoami`.
     """
 
     def __init__(self, app, config: AuthConfig) -> None:
@@ -427,14 +583,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if request.url.path in EXEMPT_PATHS:
             return await call_next(request)
 
-        identity = await self._resolve(request)
-        if identity is None:
+        resolution = await self._resolve(request)
+        if resolution is None:
             return _unauthorized("missing or invalid credentials")
 
-        request.state.identity = identity
+        request.state.identity = resolution.identity
+        request.state.identity_mechanism = resolution.mechanism
+        request.state.identity_detail = resolution.detail
         return await call_next(request)
 
-    async def _resolve(self, request: Request) -> str | None:
+    async def _resolve(self, request: Request) -> Resolution | None:
         # 0. Unix-socket peer credentials. FIRST, and for two reasons.
         #
         # Correctness: `request.client` is None for a UDS connection (uvicorn
@@ -454,11 +612,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # client cannot get here regardless of what it sends.
         peer = peercred.identity_from_scope(request.scope)
         if peer is not None:
-            return peer
+            return self._resolve_uds_peer(request, peer)
 
         client = request.client
         if client is not None and _is_loopback(client.host):
-            return "local"
+            return Resolution("local", MECHANISM_LOOPBACK,
+                              f"loopback TCP peer {client.host}")
 
         authz = request.headers.get("Authorization", "")
         scheme, _, param = authz.partition(" ")
@@ -466,13 +625,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
             token = param.strip()
             name = self.config.lookup_token(token)
             if name is not None:
-                return name
+                return Resolution(name, MECHANISM_TOKEN,
+                                  "Authorization bearer/token token matched DUBIS_TOKENS")
 
         cookie = request.cookies.get(COOKIE_NAME)
         if cookie:
             identity = self.config.verify_cookie(cookie)
             if identity is not None:
-                return identity
+                return Resolution(identity, MECHANISM_COOKIE,
+                                  f"signed {COOKIE_NAME} session cookie")
 
         login = request.headers.get("Tailscale-User-Login")
         if self.config.trust_tailscale_header and login:
@@ -482,9 +643,106 @@ class AuthMiddleware(BaseHTTPMiddleware):
             if not await self.config.is_trusted_proxy(peer_host):
                 self.config.warn_untrusted_header(peer_host)
             elif login in self.config.tailnet_allowlist:
-                return login
+                return Resolution(login, MECHANISM_TAILNET,
+                                  "Tailscale-User-Login asserted by a trusted proxy "
+                                  "(DUBIS_TRUSTED_PROXY_IPS/HOSTS)")
 
         return None
+
+    def _resolve_uds_peer(self, request: Request, peer: str) -> Resolution:
+        """A request that arrived over the Unix socket: the peer's own account,
+        or — only when an operator named this uid as a proxy — the tailnet
+        login the proxy in front of it vouched for.
+
+        The trust boundary, stated exactly
+        ----------------------------------
+        The kernel's answer still wins by default. This returns the peer's own
+        identity unless EVERY one of these holds, and the order is not
+        incidental:
+
+        1. `DUBIS_UDS_PROXY_UIDS` is non-empty (an operator named a uid; there
+           is no built-in "uid 0 is probably a proxy" rule anywhere), AND
+        2. the kernel actually reported a uid for this connection
+           (`peercred.peer_uid_from_scope`) — so a platform without
+           `SO_PEERCRED`, or a credential read that failed, cannot take this
+           branch even if it is configured, AND
+        3. that uid is one the operator named, AND
+        4. `DUBIS_TRUST_TAILSCALE_HEADER=1`, AND
+        5. `Tailscale-User-Login` is present and in `DUBIS_TAILNET_ALLOWLIST`.
+
+        Fail any of them and the answer is `peer` — today's behavior, byte for
+        byte. A teammate who reaches the socket directly through `ssh -L` is
+        still attributed to their own Unix account, and their own uid is not a
+        named proxy uid, so a `Tailscale-User-Login` they attach themselves is
+        dropped here (and logged) rather than believed.
+
+        Who can forge this, and what it costs
+        -------------------------------------
+        To present the header at all, a caller must be able to *connect* to the
+        socket. That is already restricted by the socket directory, not by
+        anything here: `/run/dubis` is `0750 isaac:uwrl-dev`
+        (deploy/systemd/dubis.conf) because uvicorn chmods the socket itself
+        `0666`, so only the owner and `uwrl-dev` can traverse to it. So the
+        population that could attempt this is: members of that group, plus
+        root, plus whoever tailscaled forwards to it.
+
+        * A **non-root local user in that group** cannot take this branch at
+          all. `SO_PEERCRED` reports *their* uid, which is not the named proxy
+          uid, so gate 3 fails and they get their own username — the header is
+          inert for them. This is the property the branch must not lose: a
+          named uid can never be *upgraded* by a header.
+        * A **remote caller** cannot reach the branch over the network: gate
+          order puts this code behind `peercred.identity_from_scope`, which is
+          only ever populated by `server/uds.py` for an AF_UNIX transport, and
+          `server/uds.py` refuses to stamp anything for a TCP connection.
+        * What is left is **a process already running as the proxy uid** — on
+          aspen, root, since `tailscaled` runs as root. That is not an
+          escalation: root can already `setuid()` to any account and connect
+          (so it can already *be* any identity this server has), read the data
+          dir, and read every token on the box. Granting root the ability to
+          assert an allowlisted login buys nothing it did not already have.
+        * The one assumption this design cannot check from inside the server:
+          that the header a proxy-uid peer presents was **injected by the proxy
+          from an authenticated tailnet session**, not forwarded verbatim from
+          an unauthenticated client that typed the header itself. The kernel
+          proves *who* is connected; it cannot prove *who wrote the header*.
+          For `tailscale serve` that means the handler must require tailnet
+          auth (`--auth`), so tailscaled refuses an unauthenticated request
+          before it ever reaches the socket, and must own these headers. The
+          allowlist is not a secret and is not the defense here; it bounds
+          which logins are ever admitted, nothing more. The verification recipe
+          in docs/tailnet-socket-proxy.md names the check that proves it: send
+          your own `Tailscale-User-Login` from a tailnet client and confirm the
+          server still reports the real one.
+        """
+        login = request.headers.get("Tailscale-User-Login")
+        peer_uid = peercred.peer_uid_from_scope(request.scope)
+        proxy_hop = (
+            bool(self.config.uds_proxy_uids)
+            and peer_uid is not None
+            and peer_uid in self.config.uds_proxy_uids
+            and self.config.trust_tailscale_header
+            and bool(login)
+            and login in self.config.tailnet_allowlist
+        )
+        if proxy_hop:
+            return Resolution(
+                login or "",
+                MECHANISM_UDS_PROXY,
+                f"Unix-socket peer uid {peer_uid} is a configured proxy uid "
+                "(DUBIS_UDS_PROXY_UIDS), so the identity is the proxy's "
+                "Tailscale-User-Login, allowlisted in DUBIS_TAILNET_ALLOWLIST",
+            )
+        if login:
+            self.config.warn_socket_header_ignored(peer, peer_uid)
+        if peer_uid is None:
+            detail = (
+                "Unix-socket peer; this platform reported no uid, so per-user "
+                "attribution is unavailable"
+            )
+        else:
+            detail = f"Unix-socket peer uid {peer_uid}, read from the kernel's SO_PEERCRED"
+        return Resolution(peer, MECHANISM_UDS_PEER, detail)
 
 
 def set_session_cookie(

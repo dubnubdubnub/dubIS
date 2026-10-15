@@ -22,7 +22,13 @@ without one, commands exit 4 and say so. `DUBIS_URL` overrides discovery.
 - `--dry-run` prints the request instead of sending it. It never contacts
   the server, so it will not catch an unknown part key.
 - `--source NAME` tags mutations (default `cli`), so
-  `dubis adjustments rollback-source NAME` undoes a whole session.
+  `dubis adjustments rollback-source NAME` undoes a whole session of stock
+  changes and `dubis purchases rollback-source NAME` undoes a whole session
+  of imported purchases. A tag written by a non-local caller is stored as
+  `<tag>@<identity>`; naming the bare tag matches every identity that used
+  it (and nothing else — `xfer-2026` never touches `xfer-2026-12-31@bob`).
+  A rollback that removes nothing exits 3 and lists the tags the server
+  actually holds; it never answers success having undone nothing.
 - `--server ID|NAME` (or `DUBIS_SERVER`; the flag wins) serves the command
   from that configured server source instead of the hub's saved default —
   e.g. `dubis --server reality-labs search 100nF`. A name is resolved to its
@@ -63,9 +69,10 @@ A part key that matches nothing exits 3, so a miss is never a silent success.
 
 ## Full surface
 
-Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 102 commands:
+Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 104 commands:
 
 - **adjustments**: remove-last, rollback-source
+- **auth**: whoami
 - **bom**: consume, resolve-spec
 - **carts**: add-bom-missing, add-item, clear, consolidate, create, delete, export, get, list, plan, remove-item, rename, set-active, set-board-count, split, update-item
 - **distributors**: clear-mouser-api-key, create-digikey-pairing, create-jlc-pairing, fetch-jlc-library, fetch-product, get-digikey-session, get-mouser-api-key-status, list-jlc-sessions, logout-digikey, receive-digikey-session, receive-jlc-session, revoke-jlc-session, set-mouser-api-key, validate-digikey-session
@@ -77,7 +84,7 @@ Every /v1 route, generated. `dubis schema --json` dumps them all with their para
 - **pnp**: consume
 - **po**: create-with-items, delete, delete-last, get-source, get-source-preview, get-with-items, list, update
 - **preferences**: load, save
-- **purchases**: import, remove-last
+- **purchases**: import, remove-last, rollback-source
 - **saved-search**: delete
 - **scan**: start-session
 - **sources**: create, delete, list, set-active, update

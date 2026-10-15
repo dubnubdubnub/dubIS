@@ -116,6 +116,11 @@ def _rollback_on_exit(api: InventoryApi, test_source: str) -> None:
     wiring is needed (dubis_headless.py installed its own SIGTERM/SIGINT
     handlers because it had no framework doing graceful shutdown for it;
     uvicorn already does).
+
+    `require_match` stays False here on purpose. The /v1 undo routes raise when
+    a tag matched nothing, because for a human that is a failed undo; a session
+    that simply made no adjustments has nothing to clean up, and raising on it
+    would turn every clean shutdown into a traceback.
     """
     removed = api.rollback_source(test_source)
     print(f"[server] Rolled back {len(removed)} test adjustment(s) with source={test_source!r}", flush=True)
@@ -126,11 +131,12 @@ def _mount_test_routes(app, api: InventoryApi, test_source: str) -> None:
     production surface — only called from here, when --test-source is set.
 
     Lighter than the deleted tests/e2e-server.py's full-fixture recopy: it
-    truncates adjustments tagged with this session's source and rebuilds.
-    Direct purchase_ledger.csv writes (import_purchases, update_part_price,
-    update_part_fields, delete_part) are NOT undone by this — those routes
-    don't take a source and never wrote adjustment rows. Live specs
-    exercising them must use distinct part keys per test/file rather than
+    truncates adjustments tagged with this session's source and rebuilds. It
+    does NOT undo direct purchase_ledger.csv writes (import_purchases,
+    update_part_price, update_part_fields, delete_part) — this reset replays
+    adjustments only. Of those four, only import_purchases carries a tag at all
+    (its `source`, undone with `dubis purchases rollback-source`), so live specs
+    exercising the rest must use distinct part keys per test/file rather than
     relying on --test-source cleanup.
     """
 
