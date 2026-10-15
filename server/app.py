@@ -53,6 +53,7 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
         predicates,
         preferences,
         sources,
+        thresholds,
         vendors_pos,
     )
     app.include_router(meta.router)
@@ -71,6 +72,7 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
     app.include_router(feeders.router)
     app.include_router(mirror.router)
     app.include_router(sources.router)
+    app.include_router(thresholds.router)
 
     # The identity diagnostic, registered in BOTH auth modes: "what do you
     # think I am, and why?" is most useful precisely when the answer is the

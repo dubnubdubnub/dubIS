@@ -8,7 +8,7 @@ and js/inventory-record.d.ts are generated from.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, create_model
 
@@ -247,3 +247,61 @@ class JlcLibraryResponse(BaseModel):
     account: str
     total: int
     records: list[InventoryItemModel]
+
+
+# ── Threshold snapshot history (domain/threshold_snapshots.py) ──────────────
+#
+# The server's stock-value threshold profile as an append-only snapshot
+# history. Snapshot 0 IS the default profile — it is derived from the shipped
+# table on every read, never stored, which is why `ThresholdSnapshotModel`
+# only ever describes snapshots 1..n plus the derived row marked `seeded`.
+
+
+class ThresholdSnapshotModel(BaseModel):
+    id: int
+    # The sparse profile this snapshot records: only the categories it names;
+    # " > " parent inheritance applies at resolution (domain/thresholds.py).
+    values: dict[str, int]
+    # Composed `source@identity` (server/auth.stamp_source); "server" for the
+    # derived snapshot 0, whose created_at is then "" — shipped defaults are a
+    # build fact, not an event.
+    created_by: str
+    created_at: str
+    note: str
+    active: bool
+    # True only for snapshot 0: synthesized from this build's defaults, never
+    # read back from the store file.
+    seeded: bool = False
+
+
+class ThresholdsResponse(BaseModel):
+    snapshots: list[ThresholdSnapshotModel]
+    active_id: int
+    active: ThresholdSnapshotModel
+    # The server-side resolution per served category: active snapshot ->
+    # snapshot 0 -> derivation -> base, with no client override or preset
+    # (those are client state the server cannot know).
+    resolved: dict[str, int]
+
+
+class CreateThresholdSnapshotBody(BaseModel):
+    # delta mode: merged onto the active snapshot's values; a null value
+    # removes a category so it falls through to snapshot 0 again.
+    # full mode: the profile as-is; nulls are refused.
+    values: dict[str, int | None]
+    mode: Literal["delta", "full"] = "delta"
+    note: str = ""
+    # Attribution tag, composed with the caller's identity the way every
+    # mutation's `source` is (server/auth.stamp_source).
+    source: str = "api"
+
+
+class UndoThresholdSnapshotBody(BaseModel):
+    source: str = "api"
+    note: str = ""
+
+
+class ActivateThresholdSnapshotBody(BaseModel):
+    snapshot_id: int
+    source: str = "api"
+    note: str = ""

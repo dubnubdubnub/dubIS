@@ -625,6 +625,47 @@ def test_low_stock_prefers_the_callers_override_over_the_default(cli, live):
         prefs.unlink()
 
 
+def _v1(live, method, path, body=None):
+    import urllib.request
+
+    port = (live / ".v1_port").read_text(encoding="utf-8").strip()
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}{path}",
+        data=json.dumps(body).encode() if body is not None else None,
+        headers={"Content-Type": "application/json"},
+        method=method,
+    )
+    with urllib.request.urlopen(request, timeout=10) as resp:
+        return json.load(resp)
+
+
+def test_low_stock_and_the_thresholds_route_agree_on_the_active_snapshot(cli, live):
+    """The CLI has no client profile, so its server layer is the server's
+    ACTIVE threshold snapshot — the same table GET /v1/thresholds reports and
+    the route's own `resolved` profile applies. This pins that agreement: a
+    snapshot that moves "Other" to 5 must move both the route's answer and
+    the CLI's judgement, in the same request round.
+
+    The module-scoped `live` server is restored via the undo route (which is
+    itself the append-a-copy undo the store tests pin), so later low-stock
+    tests still see the shipped profile."""
+    created = _v1(live, "PUT", "/v1/thresholds",
+                  {"values": {"Other": 5}, "source": "test:s1"})
+    try:
+        assert created["active_id"] == 1
+        assert created["active"]["created_by"] == "test:s1"  # auth-off: no suffix
+        assert created["resolved"]["Other"] == 5
+        listed = _v1(live, "GET", "/v1/thresholds")
+        assert listed["active_id"] == 1 and listed["resolved"]["Other"] == 5
+        payload, _ = cli("low-stock")
+        # LM358DR sits in "Other" at qty 25: low at the base 50, fine at 5.
+        assert not any(part["part_key"] == "LM358DR" for part in payload["parts"])
+    finally:
+        undone = _v1(live, "POST", "/v1/thresholds/undo", {"source": "test:s1"})
+    assert undone["active_id"] == 2
+    assert undone["resolved"]["Other"] == 50  # back to the base via snapshot 0
+
+
 def test_low_stock_inherits_a_parent_override_for_a_sub_category(cli, live):
     """The CLI used to look up the exact section string only, so an override on
     "Passives - Capacitors" moved the desktop and not this command. Both sides

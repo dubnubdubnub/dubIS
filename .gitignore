@@ -42,6 +42,11 @@ jlc_sessions.json
 digikey_cookies.json
 mouser_credentials.json
 server_tokens.json*
+# Not a credential, but the same trap: the threshold snapshot store
+# (domain/threshold_snapshots.py) is runtime-written user data, and under
+# `--data-dir .` it lands at the repo root where the anchored `data/*.json`
+# rule does not reach. One `git add -A` from being committed to a PUBLIC repo.
+threshold_snapshots.json
 # No trailing slash on purpose. `node_modules/` matches a DIRECTORY only, so
 # when a worktree carried `node_modules` as a *symlink* to the main checkout's
 # copy (a file, not a directory) the rule stopped matching and `git add -A`

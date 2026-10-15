@@ -76,6 +76,16 @@ EXEMPT = {
     # GET /v1/inventory-mirror itself after either toggle.
     "enable_inventory_mirror": "installs the mirror daemon; no inventory change",
     "disable_inventory_mirror": "removes the mirror daemon; no inventory change",
+    # Threshold snapshot history (domain/threshold_snapshots.py): appends a
+    # profile snapshot, changes no inventory row — the same call the
+    # preferences route makes for the same reason (see its docstring and
+    # server/routes/thresholds.py's "No SSE publish"). Repainting open windows
+    # on a profile change is the client-state PR's job via GET /v1/thresholds,
+    # not something to smuggle through an inventory event that would force
+    # every window to refetch stock.
+    "create_threshold_snapshot": "threshold profile state, not inventory data",
+    "undo_threshold_snapshot": "threshold profile state, not inventory data",
+    "activate_threshold_snapshot": "threshold profile state, not inventory data",
 }
 
 # Routes that publish transitively via a shared helper the source-scan can't see.

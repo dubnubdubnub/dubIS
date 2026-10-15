@@ -4,19 +4,44 @@ A threshold is the dollar value of a category's stock at which the qty cell is
 fully green; `js/ui-helpers.js`'s `stockValueColor` ramps red→green across it,
 and `dubis low-stock` flags a part whose qty is at or below its section's.
 
-Three tables feed one number, and the order is the whole design:
+## The resolution spec (the one place this is written down)
 
-1. **the user's override** — `preferences.json`'s `thresholds`, the sparse
-   deltas the Preferences sliders write (only categories the user actually
-   moved — the preset id is stored alongside, never the resolved table);
-2. **the chosen preset** — `PRESET_BUNDLES`, named bundles served on
-   `/v1/meta` (see *Presets* below);
-3. **the shipped default** — `data/constants.json`'s `DEFAULT_THRESHOLDS`, the
-   per-category numbers the app has always been configured with by hand;
+Effective value for a category, first hit wins, each table consulted exact
+then parent-inherited ("Parent > Sub"):
 
-and then, for a category none of those three names, **derivation** (see
-*Derivation* below) before `BASE_THRESHOLD` — the floor of last resort for a
-string no family rule has an opinion about.
+1. **client override** — the window's own sparse deltas
+   (`preferences.json`'s `thresholds`);
+2. **client preset** — the bundle the window chose
+   (`preferences.json`'s `threshold_preset`, contents served on `/v1/meta`);
+3. **server active snapshot** — the profile *this server* says
+   (`domain/threshold_snapshots.py`; `GET /v1/thresholds`'s `active.values`);
+4. **snapshot 0** — the shipped default profile
+   (`data/constants.json`'s `DEFAULT_THRESHOLDS`, `/v1/meta`'s
+   `default_thresholds`) — which *is* the snapshot history's snapshot 0, not
+   a separate entity;
+5. **derivation** — the family tables (`derive`, see *Derivation* below);
+6. **base** — `BASE_THRESHOLD`, or the caller's own base.
+
+Levels 1–2 are the *client* layer (what this window was told to show), 3–4
+the *server* layer (what this machine's profile is), 5–6 the fallbacks.
+Within each layer the more specific beats the coarser: a per-category delta
+outranks a bundle choice, the active snapshot outranks the shipped one. A
+client table outranks a server table because the client spoke about *this
+window* more recently and locally; the server snapshot outranks snapshot 0
+because it is a deliberate, attributed, recorded choice over a build fact.
+
+This spec is implemented by `resolve()` below and mirrored in
+`js/threshold-logic.js`, and BOTH languages are pinned against every case by
+the shared fixture `tests/fixtures/thresholds/resolution-cases.json` — the
+agreement is the whole reason the fixture exists (the frontend once fell back
+to $50 and `dubis low-stock` to 0, so the same part was low for one caller
+and fine for the other).
+
+That order predates per-server profiles: originally the three tables were
+the user's override, the chosen preset, and the shipped default (the
+per-category numbers the app has always been configured with by hand), with
+derivation and the base behind them. The server active snapshot slots between
+the preset and the shipped default; nothing about the old order moved.
 
 A compound section ("Parent > Sub") inherits its parent at *each* level, so an
 override on "Passives - Resistors" covers "… > Chip Resistors" without either
@@ -285,25 +310,34 @@ def resolve(
     defaults: Mapping[str, Any] | None = None,
     base: int | None = None,
     preset: Mapping[str, Any] | None = None,
+    server: Mapping[str, Any] | None = None,
 ) -> int:
-    """The effective threshold for `section`.
+    """The effective threshold for `section` — see *The resolution spec* at the
+    top of this module for the order and *why* each layer sits where it does.
 
     Exact override, then the override inherited from the parent; then the same
-    two steps against the chosen preset bundle; then the exact default, then
-    the default inherited from the parent; then derivation (`derive`, the
-    family tables); then `base` (`BASE_THRESHOLD` when the caller does not
-    name one).
+    two steps against the chosen preset bundle; then the server's active
+    snapshot (`server`, the values of `threshold_snapshots`' active snapshot —
+    absent/None for a client that has no server profile or a server that
+    predates the feature, which resolves exactly as it always did); then the
+    exact default, then the default inherited from the parent; then
+    derivation (`derive`, the family tables); then `base` (`BASE_THRESHOLD`
+    when the caller does not name one).
 
     A parent's *override* outranks a child's *default* on purpose: the user
     spoke about that family, and nothing in the shipped table should overrule
     something they set deliberately. The preset sits between the two for the
     same reason: it is a choice the user made, but a coarser one than a
-    per-category slider, so an explicit delta still wins over it.
+    per-category slider, so an explicit delta still wins over it. The server
+    snapshot sits below the preset for its mirror reason: it is explicit
+    per-category tuning, but of the *machine*, and a window's own bundle
+    choice is the closer statement of what that window means to show.
 
-    Nothing that already resolved changes: derivation runs only where the old
-    order fell straight through to the base, and every category the old order
-    answered at the base by the operator's decision is named in
-    `BASE_BY_DECISION`, which derivation respects.
+    Nothing that already resolved changes: the server layer is inert when it
+    names nothing, derivation runs only where the old order fell straight
+    through to the base, and every category the old order answered at the
+    base by the operator's decision is named in `BASE_BY_DECISION`, which
+    derivation respects.
 
     `base` exists for a caller that is not this build — `dubis low-stock` asks
     the server it is talking to what its base is, rather than assuming a remote
@@ -311,7 +345,7 @@ def resolve(
     up with `bundle_for` for a caller, or from the server's own
     `/v1/meta` `threshold_presets` for a client).
     """
-    for table in (overrides, preset, defaults):
+    for table in (overrides, preset, server, defaults):
         if not table:
             continue
         if section in table:
