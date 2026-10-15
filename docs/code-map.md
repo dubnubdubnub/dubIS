@@ -697,6 +697,7 @@ graph LR
     "server/mutations.py" --> "server/sources.py"
     "server/proxy.py" --> "dubis_errors.py"
     "server/proxy.py" --> "server/sources.py"
+    "server/routes/auth.py" --> "server/__init__.py"
     "server/routes/auth.py" --> "server/auth.py"
     "server/routes/carts.py" --> "server/__init__.py"
     "server/routes/distributors.py" --> "server/auth.py"
@@ -950,6 +951,7 @@ graph LR
     "tests/python/server/test_parts_read.py" --> "tests/python/helpers.py"
     "tests/python/server/test_peercred.py" --> "server/__init__.py"
     "tests/python/server/test_peercred.py" --> "server/app.py"
+    "tests/python/server/test_peercred.py" --> "server/auth.py"
     "tests/python/server/test_peercred.py" --> "tests/python/helpers.py"
     "tests/python/server/test_pnp_routes.py" --> "server/__init__.py"
     "tests/python/server/test_secret_not_committed.py" --> "server/__init__.py"
@@ -984,6 +986,9 @@ graph LR
     "tests/python/server/test_vendors_pos_routes.py" --> "purchase_orders.py"
     "tests/python/server/test_vendors_pos_routes.py" --> "server/__init__.py"
     "tests/python/server/test_vendors_pos_routes.py" --> "vendors.py"
+    "tests/python/server/test_whoami.py" --> "server/__init__.py"
+    "tests/python/server/test_whoami.py" --> "server/app.py"
+    "tests/python/server/test_whoami.py" --> "tests/python/helpers.py"
     "tests/python/strategies.py" --> "domain/__init__.py"
     "tests/python/strategies.py" --> "domain/schema.py"
     "tests/python/test_api_mirror.py" --> "tests/python/helpers.py"
@@ -2496,7 +2501,7 @@ graph LR
 ### server/__init__.py
 
 - **Imports:** —
-- **Imported by:** `pnp_server.py`, `scripts/spike-webview-loopback.py`, `server/__main__.py`, `server/auth.py`, `server/build_identity.py`, `server/dispatch.py`, `server/mutations.py`, `server/routes/carts.py`, `server/routes/events.py`, `server/routes/pnp.py`, `server/routes/preferences.py`, `server/routes/sources.py`, `server/sources.py`, `server/uds.py`, `tests/js/e2e/scan-server.py`, `tests/python/server/test_auth_proxy_hosts.py`, `tests/python/server/test_build_identity.py`, `tests/python/server/test_carts_routes.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_secret_not_committed.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_ssh_tunnel.py`, `tests/python/server/test_thresholds_routes.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
+- **Imported by:** `pnp_server.py`, `scripts/spike-webview-loopback.py`, `server/__main__.py`, `server/auth.py`, `server/build_identity.py`, `server/dispatch.py`, `server/mutations.py`, `server/routes/auth.py`, `server/routes/carts.py`, `server/routes/events.py`, `server/routes/pnp.py`, `server/routes/preferences.py`, `server/routes/sources.py`, `server/sources.py`, `server/uds.py`, `tests/js/e2e/scan-server.py`, `tests/python/server/test_auth_proxy_hosts.py`, `tests/python/server/test_build_identity.py`, `tests/python/server/test_carts_routes.py`, `tests/python/server/test_events.py`, `tests/python/server/test_generic_parts_routes.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_pnp_routes.py`, `tests/python/server/test_secret_not_committed.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_ssh_tunnel.py`, `tests/python/server/test_thresholds_routes.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_vendors_pos_routes.py`, `tests/python/server/test_whoami.py`, `tests/python/test_pnp_server.py`, `tests/python/test_scan_session.py`
 
 ### server/__main__.py
 
@@ -2506,12 +2511,12 @@ graph LR
 ### server/app.py
 
 - **Imports:** `server/auth.py`, `server/dispatch.py`, `server/errors.py`, `server/routes/__init__.py`, `server/sources.py`, `server/ssh_tunnel.py`
-- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/domain/test_distributor_categories.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_auth_proxy_hosts.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_mutation_publishes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_ssh_tunnel.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_thresholds_routes.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_v1_surface.py`, `tests/python/test_dubis_client.py`
+- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/domain/test_distributor_categories.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_auth_proxy_hosts.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_mutation_publishes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_ssh_tunnel.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_thresholds_routes.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_v1_surface.py`, `tests/python/server/test_whoami.py`, `tests/python/test_dubis_client.py`
 
 ### server/auth.py
 
 - **Imports:** `server/__init__.py`
-- **Imported by:** `server/app.py`, `server/errors.py`, `server/routes/auth.py`, `server/routes/distributors.py`, `server/routes/import_scan.py`, `server/routes/inventory_mut.py`, `server/routes/pnp.py`, `server/routes/thresholds.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_auth_proxy_hosts.py`
+- **Imported by:** `server/app.py`, `server/errors.py`, `server/routes/auth.py`, `server/routes/distributors.py`, `server/routes/import_scan.py`, `server/routes/inventory_mut.py`, `server/routes/pnp.py`, `server/routes/thresholds.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_auth_proxy_hosts.py`, `tests/python/server/test_peercred.py`
 
 ### server/build_identity.py
 
@@ -2570,7 +2575,7 @@ graph LR
 
 ### server/routes/auth.py
 
-- **Imports:** `server/auth.py`
+- **Imports:** `server/__init__.py`, `server/auth.py`
 - **Imported by:** —
 
 ### server/routes/carts.py
@@ -3207,7 +3212,7 @@ graph LR
 ### tests/python/helpers.py
 
 - **Imports:** `distributor_manager.py`, `inventory_api.py`, `lcsc_client.py`
-- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_auth_proxy_hosts.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_ssh_tunnel.py`, `tests/python/server/test_thresholds_routes.py`, `tests/python/server/test_token_store.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_digikey_session.py`, `tests/python/test_dubis_cli_commands.py`, `tests/python/test_dubis_cli_server_select.py`, `tests/python/test_dubis_client.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
+- **Imported by:** `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_auth_proxy_hosts.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_inventory_mut.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_parts_read.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_ssh_tunnel.py`, `tests/python/server/test_thresholds_routes.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_whoami.py`, `tests/python/test_api_mirror.py`, `tests/python/test_app_mirror_hooks.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_digikey_session.py`, `tests/python/test_dubis_cli_commands.py`, `tests/python/test_dubis_cli_server_select.py`, `tests/python/test_dubis_client.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_inventory_api_misc.py`, `tests/python/test_inventory_api_pricing.py`, `tests/python/test_pnp_server.py`
 
 ### tests/python/server/conftest.py
 
@@ -3351,7 +3356,7 @@ graph LR
 
 ### tests/python/server/test_peercred.py
 
-- **Imports:** `server/__init__.py`, `server/app.py`, `tests/python/helpers.py`
+- **Imports:** `server/__init__.py`, `server/app.py`, `server/auth.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/server/test_pnp_routes.py
@@ -3422,6 +3427,11 @@ graph LR
 ### tests/python/server/test_vendors_pos_routes.py
 
 - **Imports:** `purchase_orders.py`, `server/__init__.py`, `vendors.py`
+- **Imported by:** —
+
+### tests/python/server/test_whoami.py
+
+- **Imports:** `server/__init__.py`, `server/app.py`, `tests/python/helpers.py`
 - **Imported by:** —
 
 ### tests/python/strategies.py
