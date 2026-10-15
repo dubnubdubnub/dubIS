@@ -75,6 +75,7 @@ async function installServerProbes(page) {
 /** @param {import('@playwright/test').Page} page */
 async function openPrefs(page) {
   await page.keyboard.press('Control+,');
+  await page.click('#prefs-tab-general'); // the server roster lives on the General tab
   await expect(page.locator('#pref-server-list')).toBeVisible();
 }
 

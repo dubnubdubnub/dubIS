@@ -26,7 +26,7 @@ vi.mock('../../js/api.js', () => ({
 }));
 
 import {
-  store, getThreshold, setThreshold, snapshotLinks,
+  store, getThreshold, setThreshold, setThresholdPreset, snapshotLinks,
   setInventory, setBomResults, setBomDirty, setBomMeta, setPreferences,
   addManualLink, confirmMatch,
   setLinkingMode, clearLinks,
@@ -225,6 +225,49 @@ describe('getThreshold', () => {
 
   it('returns default 50 for unknown section', () => {
     expect(getThreshold('Unknown')).toBe(50);
+  });
+});
+
+describe('threshold preset resolution (store glue)', () => {
+  beforeEach(() => {
+    store.preferences.thresholds = {};
+    store.preferences.threshold_preset = 'shipped';
+  });
+
+  it('defaults to the shipped preset', () => {
+    expect(store.preferences.threshold_preset).toBe('shipped');
+  });
+
+  it('a chosen preset moves the grid off the shipped defaults', () => {
+    // ic-heavy raises ICs - Microcontrollers to 200; with no preset it is the
+    // base 50 (the legacy answer). getThreshold must read the active bundle.
+    expect(getThreshold('ICs - Microcontrollers')).toBe(50);
+    setThresholdPreset('ic-heavy');
+    expect(getThreshold('ICs - Microcontrollers')).toBe(200);
+  });
+
+  it('a per-category override still outranks the preset', () => {
+    setThresholdPreset('ic-heavy');
+    setThreshold('ICs - Microcontrollers', 42);
+    expect(getThreshold('ICs - Microcontrollers')).toBe(42);
+  });
+
+  it('an unrecognised STORED preset id degrades to shipped, not a throw', () => {
+    // Another window may hand us a stale id; getThreshold runs per row and
+    // must not poison the whole grid.
+    store.preferences.threshold_preset = 'no-such-preset';
+    expect(getThreshold('Diodes')).toBe(10);
+  });
+
+  it('setThresholdPreset rejects an unrecognised id (strict caller)', () => {
+    expect(() => setThresholdPreset('no-such-preset')).toThrow(/unknown threshold preset/);
+    // The rejected call must not have mutated the stored id.
+    expect(store.preferences.threshold_preset).toBe('shipped');
+  });
+
+  it('re-selecting the shipped preset is a no-op, not an error', () => {
+    setThresholdPreset('shipped');
+    expect(store.preferences.threshold_preset).toBe('shipped');
   });
 });
 

@@ -59,7 +59,10 @@
 
 /**
  * @typedef {Object} Preferences
- * @property {Object<string, number>} thresholds - Stock value thresholds per section
+ * @property {Object<string, number>} thresholds - Sparse per-section threshold
+ *   deltas: only categories the user moved, never the resolved table
+ * @property {string} [threshold_preset] - Chosen threshold preset id
+ *   (js/threshold-logic.js PRESETS); an id, never a bundle copy
  * @property {string} [lastBomDir] - Last directory used for BOM file open
  * @property {string} [lastImportDir] - Last directory used for purchase import
  * @property {string} [lastBomFile] - Last BOM file path

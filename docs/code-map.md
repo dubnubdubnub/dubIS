@@ -561,6 +561,7 @@ graph LR
     "js/preferences-modal.js" --> "js/jlc-sessions.js"
     "js/preferences-modal.js" --> "js/server-list.js"
     "js/preferences-modal.js" --> "js/store.js"
+    "js/preferences-modal.js" --> "js/threshold-logic.js"
     "js/preferences-modal.js" --> "js/ui-helpers.js"
     "js/resize-panels.js" --> "js/ui-zoom.js"
     "js/server-list.js" --> "js/server-probe.js"
@@ -2092,7 +2093,7 @@ graph LR
 
 ### js/preferences-modal.js
 
-- **Imports:** `js/api.js`, `js/digikey-pairing.js`, `js/jlc-sessions.js`, `js/server-list.js`, `js/store.js`, `js/ui-helpers.js`
+- **Imports:** `js/api.js`, `js/digikey-pairing.js`, `js/jlc-sessions.js`, `js/server-list.js`, `js/store.js`, `js/threshold-logic.js`, `js/ui-helpers.js`
 - **Imported by:** `js/app-init.js`
 
 ### js/resize-panels.js
@@ -2155,7 +2156,7 @@ graph LR
 ### js/threshold-logic.js
 
 - **Imports:** `js/threshold-defaults.generated.js`
-- **Imported by:** `js/store.js`
+- **Imported by:** `js/preferences-modal.js`, `js/store.js`
 
 ### js/types.js
 

@@ -84,6 +84,9 @@ function sectionCount(page, name) {
 async function setCategoryToggle(page, on) {
   await page.keyboard.press('Control+,');
   await expect(page.locator('#prefs-modal')).toBeVisible();
+  // The search toggle lives on the General tab since the threshold tuner got
+  // its own; navigation only, the assertions are untouched.
+  await page.click('#prefs-tab-general');
   await page.locator('#pref-category-search').setChecked(on);
   await page.click('#prefs-save');
   await expect(page.locator('#prefs-modal')).toBeHidden();

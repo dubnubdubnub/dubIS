@@ -78,6 +78,11 @@ export const PREFERENCE_REACTIONS = Object.freeze(/** @type {Record<string, Reac
   // it: a slider move is invisible until something else re-renders. That is the
   // user-visible bug this row exists to fix.
   thresholds: 'repaints',
+  // The chosen preset moves the inherited value of every category the bundle
+  // names, so it is baked into row HTML exactly like a slider value — without
+  // this row, picking a preset would leave the grid coloured by the old one
+  // until something else re-rendered.
+  threshold_preset: 'repaints',
   // Which ROWS are in the grid is decided by this toggle (js/inventory/
   // inv-tree-render.js `categoryHit()` → filterByQuery, and js/bom-row-data.js
   // for the BOM table). It is read at render time and nothing else re-renders:
