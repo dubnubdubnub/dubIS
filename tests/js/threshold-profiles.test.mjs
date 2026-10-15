@@ -12,7 +12,9 @@
 //      differently, and each answer is that source's own;
 //   2. a source whose /v1/meta fails is marked stale and keeps its last-known
 //      profile — it does NOT quietly resolve through the build-time table;
-//   3. merged and grouped tabs resolve against the hub's profile.
+//   3. merged and grouped tabs resolve against the hub's profile;
+//   4. the cache is keyed BY SOURCE, not by recency — a late answer for the
+//      source you LEFT cannot recolour the source you moved to.
 //
 // `profileState()` is asserted alongside the resolutions because "we fell
 // through to the shipped table" has to be a thing the UI can say, not a thing
@@ -97,6 +99,42 @@ function installFetch() {
 
 /** Source ids that have been asked, in order. */
 function asked() { return calls.map((c) => c.source); }
+
+/**
+ * A `/v1/meta` whose answers the test releases by hand, so two sources can
+ * answer OUT OF ORDER. Every eager-fetch test awaits each tab switch, which
+ * means the last response to land is always the ACTIVE source's — and a single
+ * global profile copy overwritten on each fetch gives the identical answer. The
+ * deferred fetch is what makes "the source you LEFT answered AFTER the source
+ * you moved to" expressible, and that ordering is the only thing which tells a
+ * per-source cache apart from one global copy.
+ * @returns {Map<string, {resolve: (body: any) => void}>} source id -> its gate
+ */
+function installDeferredFetch() {
+  /** @type {Map<string, {resolve: (body: any) => void}>} */
+  const gates = new Map();
+  globalThis.fetch = vi.fn((_url, init) => {
+    const source = (init && init.headers && init.headers['X-Dubis-Source']) || '';
+    /** @type {(body: any) => void} */
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    gates.set(source, { resolve: release });
+    return held;
+  });
+  return gates;
+}
+
+/** Let one source's held `/v1/meta` answer. Throws rather than silently
+ *  succeeding if that source was never asked — a test that answered nothing
+ *  would assert nothing. */
+function answerDeferred(gates, source, body) {
+  const gate = gates.get(source);
+  if (!gate) {
+    throw new Error(`no /v1/meta request was made for ${source} `
+      + `(asked: ${[...gates.keys()].join(', ') || 'nothing'})`);
+  }
+  gate.resolve({ ok: true, status: 200, statusText: 'OK', json: async () => body });
+}
 
 /** Drain the fire-and-forget refresh a tab switch kicks off. The fake fetch is
  *  pure microtasks (no real timer inside), so yielding repeatedly is enough —
@@ -297,6 +335,56 @@ describe('threshold profile cache', () => {
       expect(store.getThreshold('Diodes')).not.toBe(SHIPPED_DIODES);
     });
 
+    it('is keyed by source, not by recency: a late answer for the source you LEFT cannot recolour the one you moved to', async () => {
+      // THE regression this module exists to prevent, and the only test here
+      // that can tell a per-source cache from ONE GLOBAL COPY. Every other test
+      // awaits each tab switch, so the last `/v1/meta` to complete is always
+      // the ACTIVE source's — and a global copy overwritten on each fetch
+      // answers identically. (Verified by mutation: replacing the cache key
+      // with a constant leaves all of them green.) What separates the two
+      // designs is ORDER: the source you moved AWAY FROM answering LAST.
+      const gates = installDeferredFetch();
+      const store = await import('../../js/store.js');
+      store.hydrateSourcesFromPreferences();
+      await settle();
+      answerDeferred(gates, 'local', HUB);
+      await settle();
+
+      const shop = store.addServer('Shop', 'https://shop.example').entry.id;
+      const bench = store.addServer('Bench', 'https://bench.example').entry.id;
+      store.setPreferences({ thresholds: {} });
+
+      // Move to Shop. Its /v1/meta is asked and stays in flight.
+      await store.switchActiveSource(shop);
+      await settle();
+      expect(gates.has(shop)).toBe(true);
+
+      // Move on to Bench BEFORE Shop answers — now Shop's response is late.
+      await store.switchActiveSource(bench);
+      await settle();
+      expect(gates.has(bench)).toBe(true);
+
+      // Bench answers first, so the grid colours with Bench.
+      answerDeferred(gates, bench, BENCH);
+      await settle();
+      expect(store.getThreshold('Diodes')).toBe(2);
+
+      // Shop answers LATE, for a source this window no longer shows. It belongs
+      // in Shop's entry and nowhere else.
+      answerDeferred(gates, shop, SHOP);
+      await settle();
+
+      const { profileState, profileFor } = await import('../../js/threshold-profiles.js');
+      // A single global copy would have been overwritten here and now say 900.
+      expect(profileState(store.getActiveSource())).toBe('fresh');
+      expect(store.getThreshold('Diodes')).toBe(2);
+      // And the late answer is not thrown away either — it is filed under Shop,
+      // where the tab that shows Shop reads it.
+      expect(profileFor(shop).state).toBe('fresh');
+      expect(profileFor(shop).profile.active.Diodes).toBe(900);
+      expect(profileFor(bench).profile.active.Diodes).toBe(2);
+    });
+
     it('agrees with resolveThreshold() run against that source’s profile', async () => {
       const { store, ids } = await bootStore(ROSTER);
       const mod = await import('../../js/threshold-profiles.js');
@@ -314,6 +402,19 @@ describe('threshold profile cache', () => {
       });
       expect(store.getThreshold('Diodes')).toBe(expected);
       expect(expected).toBe(2);
+
+      // And the SAME expression against the source this window is NOT showing
+      // must DISAGREE. Without this the test only recomputes the number the
+      // getter just produced — a tautology that passes with one profile, two
+      // profiles or none. Two profiles, two answers, and the grid holds the
+      // active one: that is the whole claim.
+      await mod.refreshProfile(ids.Shop);
+      const shopAnswer = resolveThreshold('Diodes', prefs.thresholds, {
+        preset: presetBundle(storedPresetId(prefs.threshold_preset)),
+        ...mod.resolveOptionsFor(ids.Shop),
+      });
+      expect(shopAnswer).toBe(900);
+      expect(shopAnswer).not.toBe(store.getThreshold('Diodes'));
     });
 
     it('keeps the layer order: override beats preset beats server', async () => {
