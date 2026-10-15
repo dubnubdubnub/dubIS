@@ -86,6 +86,32 @@ def get_part_attributes(request: Request, part_key: str) -> list:
     return api.get_part_attributes(part_key)
 
 
+@router.get("/parts/{part_key}/categories", operation_id="get_part_categories")
+def get_part_categories(request: Request, part_key: str) -> list:
+    """What each distributor calls this part, and where that files it.
+
+    One row per distributor a product has been fetched from, preferred first,
+    each with the dubIS section ``category_map.csv`` gives it -- ``null`` when
+    the bucket is ambiguous or nobody has labelled it, which is the map saying
+    "no opinion" rather than saying nothing.
+
+    Read this to answer "why is this part in that section?" when the answer is
+    not in its description: the section came from the distributor's own
+    category, recorded on the fetch that first saw the part
+    (domain/distributor_categories.py), and a human can correct it by editing
+    that row or the map row above it.
+
+    A row with ``refused`` true is one the project has struck out -- the
+    distributor misfiled that specific part, so its category is recorded here
+    and deliberately not used (``category_refusals.csv``). Its ``section`` is
+    what the map *would* have said, which is why the flag has to be read with
+    it: showing the section alone would explain the part's place by a signal
+    that was never consulted.
+    """
+    api = request.app.state.api
+    return api.get_part_categories(part_key)
+
+
 @router.get("/parts/{part_key}/spec", operation_id="extract_spec")
 def extract_spec(request: Request, part_key: str) -> dict:
     api = request.app.state.api

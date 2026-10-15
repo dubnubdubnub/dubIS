@@ -12,6 +12,7 @@ distributor icons and the browser-tab icon went missing.
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -125,3 +126,82 @@ def test_openpnp_family_table_is_copied_into_the_image():
     omission at runtime.
     """
     assert "openpnp_families.json" in _dockerfile_data_copies()
+
+
+# --- root-level assets a Python module resolves against itself ---------------
+#
+# The scans above only look under data/, because that is where the frontend's
+# URLs point. A module reading a sibling file is the same bug through a
+# different door: the path is relative to the module, so it resolves to the
+# repo when you run from source and to /app in the image, where `COPY *.py .`
+# brought the module and nothing brought its data.
+
+_ROOT_PY_GLOBS = ("*.py", "*.pyw", "domain/**/*.py", "server/**/*.py",
+                  "mirror_install/**/*.py")
+
+
+def _python_sibling_reads() -> dict[str, list[str]]:
+    """Files a module asks for beside itself -> who asks. The container twin of
+    tests/python/test_pyinstaller_spec.py's `_python_bundle_refs`, which guards
+    the same reads against dubIS.spec."""
+    refs: dict[str, list[str]] = {}
+    files: list[Path] = []
+    for pattern in _ROOT_PY_GLOBS:
+        files += sorted(REPO_ROOT.glob(pattern))
+    for path in files:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "join" and node.args):
+                continue
+            if not any(isinstance(sub, ast.Name) and sub.id == "__file__"
+                       for sub in ast.walk(node.args[0])):
+                continue
+            segments = [a.value for a in node.args[1:]
+                        if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+            if not segments:
+                continue
+            rel = "/".join(segments)
+            if (REPO_ROOT / rel).is_file() and not rel.startswith("data/"):
+                refs.setdefault(rel, []).append(
+                    f"{path.relative_to(REPO_ROOT)}:{node.lineno}")
+    return refs
+
+
+def _dockerfile_root_copies() -> set[str]:
+    """Top-level files the Dockerfile copies into /app."""
+    text = re.sub(r"\\\s*\n\s*", " ", (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8"))
+    copied: set[str] = set()
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.upper().startswith("COPY "):
+            continue
+        tokens = line.split()[1:]
+        if len(tokens) < 2:
+            continue
+        for src in tokens[:-1]:
+            if "/" not in src and "*" not in src:
+                copied.add(src)
+    return copied
+
+
+def test_module_sibling_assets_are_copied_into_the_image():
+    """category_map.csv is the case this exists for.
+
+    Absent from the image it does not raise: category_map.load() would fail on
+    a missing file, but only the first time a rebuild asked a distributor
+    category a question -- and the failure looks like a broken deploy rather
+    than a missing asset. The desktop bundle has the twin guard in
+    test_pyinstaller_spec.py; this is the container half.
+    """
+    missing = {rel: who for rel, who in _python_sibling_reads().items()
+               if rel not in _dockerfile_root_copies()}
+    assert not missing, (
+        "these files are resolved beside their own module but the Dockerfile "
+        "never copies them, so the container runs without them while the repo "
+        "cannot tell:\n"
+        + "\n".join(f"  {rel}  <- {', '.join(sorted(set(who)))}"
+                    for rel, who in sorted(missing.items()))
+        + "\nAdd a COPY for each. (.dockerignore only excludes data/**, so a "
+        "root-level file needs no exemption -- but it does need the COPY.)"
+    )

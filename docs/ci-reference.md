@@ -133,7 +133,7 @@ python scripts/capture-distributor-fixtures.py
 git add tests/fixtures/generated/distributor-scrapes.json
 ```
 
-The capture → commit → replay flow: `scripts/capture-distributor-fixtures.py` writes `tests/fixtures/generated/distributor-scrapes.json`; `tests/python/test_normalizers.py` replays it offline. Five blocks, not four — Mouser is captured twice: `mouser` is Search API JSON (needs a key), `mouser_product` is the normalized product a *deployed* dubIS server returns from `GET /v1/distributors/mouser/product/{code}` (needs an API token, no browser here). See `distributor_fixtures.CAPTURE_BLOCKS`. Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
+The capture → commit → replay flow: `scripts/capture-distributor-fixtures.py` writes `tests/fixtures/generated/distributor-scrapes.json`; `tests/python/test_normalizers.py` replays it offline. Five blocks in `distributor_fixtures.CAPTURE_BLOCKS`, not four — Mouser is captured twice: `mouser` is Search API JSON (needs a key), `mouser_product` is the normalized product a *deployed* dubIS server returns from `GET /v1/distributors/mouser/product/{code}` (needs an API token, no browser here). **The committed file currently holds two of them** (`lcsc`, `pololu`); `digikey`, `mouser` and `mouser_product` have never been captured into git, so nothing offline replays those two clients and `stale_distributors()` rightly calls all three stale. Read the file when deciding what a replay test proves, not the tuple. Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
 
 ### Why nothing in CI speaks CDP
 

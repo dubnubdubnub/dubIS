@@ -150,6 +150,19 @@ def create_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_part_attributes_canonical
             ON part_attributes (canonical_name);
+        -- Derived mirror of data/distributor_categories.csv: what each
+        -- distributor calls this part, in the distributor's own words.
+        -- domain/distributor_categories.py is the writer; categorize.py
+        -- translates these into the `section` below through category_map.csv.
+        CREATE TABLE IF NOT EXISTS distributor_categories (
+            part_id       TEXT NOT NULL REFERENCES parts(part_id),
+            distributor   TEXT NOT NULL,
+            category      TEXT NOT NULL DEFAULT '',
+            subcategory   TEXT NOT NULL DEFAULT '',
+            observed_at   TEXT DEFAULT '',
+            source        TEXT DEFAULT '',
+            PRIMARY KEY (part_id, distributor)
+        );
         CREATE TABLE IF NOT EXISTS generic_parts (
             generic_part_id  TEXT PRIMARY KEY,
             name             TEXT NOT NULL,
@@ -523,6 +536,7 @@ def write_checkpoint(
     *,
     purchase_path: str,
     adjustments_path: str,
+    categories_hash: str | None = None,
 ) -> None:
     """Record content hashes of the source CSVs the cache has fully processed.
 
@@ -530,6 +544,16 @@ def write_checkpoint(
     rows, and a canonical hash over ALL current adjustment rows (after a full
     write/append+apply every row is processed, so the full set is the
     processed prefix).
+
+    ``categories_hash`` is the durable distributor-category store's content
+    digest (``domain.distributor_categories.content_hash``). The store decides
+    the ``section`` column now, so it is an input to the cache in exactly the
+    sense the ledger is and gets the same treatment for the same reason: the
+    alternative is that editing the file -- by hand, which is the whole point of
+    it being a CSV -- changes nothing until some other event forces a full
+    rebuild. It is a content digest rather than a file hash because re-fetching
+    a part refreshes ``observed_at`` without changing the answer, and a product
+    preview must not cost a full rebuild of the inventory.
     """
     rows = _read_adjustment_rows(adjustments_path)
     meta = {
@@ -537,6 +561,18 @@ def write_checkpoint(
         "adjustment_count": str(len(rows)),
         "adjustment_prefix_hash": _hash_adjustment_rows(rows),
     }
+    if categories_hash is not None:
+        meta["category_hash"] = categories_hash
+    # When a caller has no category store in hand, leave whatever is recorded:
+    # the checkpoint describes inputs the cache has processed, and "I did not
+    # look" is not the same statement as "it is empty". Overwriting it with ""
+    # would make the next catch-up see a mismatch and force a full rebuild on
+    # every single call.
+    else:
+        existing = conn.execute(
+            "SELECT value FROM cache_meta WHERE key = 'category_hash'").fetchone()
+        if existing:
+            meta["category_hash"] = existing[0]
     for key, value in meta.items():
         conn.execute(
             "INSERT OR REPLACE INTO cache_meta (key, value) VALUES (?, ?)",
@@ -549,17 +585,19 @@ def read_checkpoint(conn: sqlite3.Connection) -> dict[str, Any]:
     """Read the checkpoint.
 
     Returns ``{"purchase_hash": str, "adjustment_count": int,
-    "adjustment_prefix_hash": str}``.  Missing keys default to ""/0.  Old
-    caches (which stored only purchase_lines/adjustment_lines) therefore come
-    back with empty hashes, which makes catch_up trigger a one-time full
-    rebuild that writes the new-format checkpoint.
+    "adjustment_prefix_hash": str, "category_hash": str}``.  Missing keys
+    default to ""/0.  Old caches (which stored only purchase_lines/
+    adjustment_lines) therefore come back with empty hashes, which makes
+    catch_up trigger a one-time full rebuild that writes the new-format
+    checkpoint.
     """
     result: dict[str, Any] = {
         "purchase_hash": "",
         "adjustment_count": 0,
         "adjustment_prefix_hash": "",
+        "category_hash": "",
     }
-    for key in ("purchase_hash", "adjustment_prefix_hash"):
+    for key in ("purchase_hash", "adjustment_prefix_hash", "category_hash"):
         row = conn.execute(
             "SELECT value FROM cache_meta WHERE key = ?", (key,)
         ).fetchone()
@@ -591,6 +629,7 @@ def catch_up(
     purchase_path: str,
     adjustments_path: str,
     adj_fieldnames: list[str],
+    categories_hash: str | None = None,
 ) -> bool:
     """Replay only events added since the last checkpoint.
 
@@ -604,6 +643,16 @@ def catch_up(
     # same-row-count edits that a line count would miss.
     if _file_hash(purchase_path) != cp["purchase_hash"]:
         logger.info("Purchase ledger content changed, full rebuild needed")
+        return False
+
+    # Same reasoning for the distributor-category store, which now decides the
+    # section column: catch-up replays quantities and never re-categorizes, so
+    # a category that changed -- fetched, edited, or deleted -- is invisible
+    # until something else forces a full rebuild.  A store that only takes
+    # effect on the day someone happens to edit the ledger is a store that does
+    # not take effect.
+    if categories_hash is not None and categories_hash != cp["category_hash"]:
+        logger.info("Distributor category store changed, full rebuild needed")
         return False
 
     # The already-processed region of adjustments.csv must be byte-for-byte the
@@ -664,7 +713,8 @@ def catch_up(
 
     # Update checkpoint
     write_checkpoint(conn, purchase_path=purchase_path,
-                     adjustments_path=adjustments_path)
+                     adjustments_path=adjustments_path,
+                     categories_hash=categories_hash)
     return True
 
 

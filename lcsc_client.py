@@ -69,15 +69,35 @@ class LcscClient(BaseProductClient):
                     "price": tier.get("productPrice", 0),
                 })
 
-        # Build normalized response
-        cat_name = ""
-        subcat_name = ""
-        for cat in (result_data.get("parentCatalogList") or []):
-            if isinstance(cat, dict):
-                if not cat_name:
-                    cat_name = cat.get("catalogName", "")
-                else:
-                    subcat_name = cat.get("catalogName", "")
+        # The distributor's own category, which category_map.csv turns into a
+        # dubIS section.  LCSC's product payload states it twice, in two
+        # different vocabularies, and only one of them is the one the map is
+        # keyed on:
+        #
+        #   parentCatalogName / catalogName   "Capacitors" / "Ceramic Capacitors"
+        #   parentCatalogList[].catalogNameEn "Passives" -> "Capacitors"
+        #
+        # The pair is the bucket and its leaf in LCSC's shopping catalogue --
+        # the vocabulary the map and the corpus label table use.  The list is a
+        # deeper, DigiKey-flavoured crumb trail ("Passives", "Integrated
+        # Circuits (ICs)", "Linear") whose top crumb names no bucket anybody
+        # has labelled.  Reading the list was also reading a key it does not
+        # have: the entries carry `catalogNameEn`, so `catalogName` came back
+        # empty and every LCSC product captured an empty category -- a green
+        # test over a field that was never populated.
+        cat_name = str(result_data.get("parentCatalogName") or "").strip()
+        subcat_name = str(result_data.get("catalogName") or "").strip()
+        if not cat_name:
+            crumbs = [
+                str(cat.get("catalogNameEn") or cat.get("catalogName") or "").strip()
+                for cat in (result_data.get("parentCatalogList") or [])
+                if isinstance(cat, dict)
+            ]
+            crumbs = [c for c in crumbs if c]
+            if crumbs:
+                cat_name = crumbs[0]
+                if len(crumbs) > 1:
+                    subcat_name = crumbs[1]
 
         # Extract key attributes from paramVOList
         attributes = []

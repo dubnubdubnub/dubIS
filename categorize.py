@@ -1,9 +1,30 @@
-"""Categorize inventory parts by description, MPN, and manufacturer."""
+"""Categorize inventory parts by distributor category, description, MPN, manufacturer.
+
+Two independent signals, in this order:
+
+1. **What the distributor says the part is.**  When a fetch recorded the
+   distributor's own category for this part, ``category_map.csv`` translates it
+   into a dubIS section.  This is the only signal that reads the *catalogue*
+   rather than the description string, and it is what the corpus measures the
+   description rules against -- so when the two disagree, the corpus says the
+   distributor is right far more often than not.
+2. **What the description says.**  ``CATEGORY_RULES``, below.
+
+The distributor's word is not taken blindly.  Two things can refuse it: a
+per-part entry in ``category_refusals.csv``, applied before the category is
+even offered (``category_refusals.py``), and the description veto in
+``categorize()``.
+And it is only taken at all when the map commits to one section -- a bucket the
+table labels ambiguous ("Passive Components": resistors, capacitors *and*
+inductors) has no opinion, and the part falls through to the rules.
+"""
 
 from __future__ import annotations
 
 import re
 from typing import Any
+
+import category_map
 
 
 def parse_resistance(desc: str) -> float:
@@ -240,6 +261,15 @@ SUBCATEGORY_RULES: dict[str, list[dict[str, Any]]] = {
 }
 
 
+# Which sections each rule's exclude_desc vetoes.  Built once: the veto below
+# asks "did the description specifically disclaim this section?", and the only
+# place the project records that is the exclude_desc lists themselves.
+_DISCLAIMERS: dict[str, list[str]] = {}
+for _rule in CATEGORY_RULES:
+    if "exclude_desc" in _rule:
+        _DISCLAIMERS.setdefault(_rule["category"], []).extend(_rule["exclude_desc"])
+
+
 _PATTERNS: dict[tuple[str, ...], re.Pattern[str]] = {}
 
 
@@ -257,12 +287,8 @@ def _has(text: str, keywords: list[str]) -> bool:
     return pat.search(text) is not None
 
 
-def categorize(row: dict[str, str]) -> str:
-    desc = (row.get("Description") or "").lower()
-    mpn = (row.get("Manufacture Part Number") or "").lower()
-    mfr = (row.get("Manufacturer") or "").lower()
-
-    parent = "Other"
+def _from_rules(desc: str, mpn: str, mfr: str) -> str:
+    """The description/MPN/manufacturer answer -- today's whole behaviour."""
     for rule in CATEGORY_RULES:
         if "exclude_desc" in rule and _has(desc, rule["exclude_desc"]):
             continue
@@ -281,8 +307,68 @@ def categorize(row: dict[str, str]) -> str:
                     matched = False
                     break
         if has_condition and matched:
-            parent = rule["category"]
-            break
+            return rule["category"]
+    return "Other"
+
+
+def _disclaimed(section: str, desc: str) -> bool:
+    """True when the description specifically says it is not this section.
+
+    ``exclude_desc`` was written to stop a *keyword* rule from claiming a part
+    that merely mentions the word -- "LED DRIVER" is not an LED.  The same list
+    is the only place the project records "a description containing X is not
+    one of these", so it is what a distributor category gets checked against.
+
+    Deliberately narrower than it looks, and measured: firing on the disclaimer
+    alone costs a correct placement -- a heart rate sensor whose LCSC
+    description says "Built-in temperature sensor" is still a sensor, and
+    refusing there scored it as Other.  So ``categorize()`` only honours a
+    disclaimer when the description also has a specific, competing answer to
+    offer.  A description that says nothing leaves the distributor's word
+    standing, which is the whole point of asking it.
+    """
+    return section in _DISCLAIMERS and _has(desc, _DISCLAIMERS[section])
+
+
+def categorize(
+    row: dict[str, str],
+    distributor_category: category_map.DistributorCategory | None = None,
+) -> str:
+    """The section a part belongs in.
+
+    ``distributor_category`` -- what the distributor called this part, as
+    recorded when it was last fetched -- outranks the description rules
+    whenever the map commits to a section for it.
+
+    Nothing here decides *whether to ask the distributor*.  That is the
+    per-part carve-out, and it belongs with the thing it reads the part from:
+    ``domain.distributor_categories.resolve`` drops a category the project has
+    recorded as a misfile (``category_refusals.csv``) before handing one here,
+    so a part the distributor is known to get wrong arrives with no category
+    and is placed by its description.  A seam on this function would have been
+    a second, weaker copy of that decision: it could only refuse a *section*,
+    so it would have blinded every distributor for that part at once instead of
+    letting the next one in ``PREFERENCE`` answer.
+    """
+    desc = (row.get("Description") or "").lower()
+    mpn = (row.get("Manufacture Part Number") or "").lower()
+    mfr = (row.get("Manufacturer") or "").lower()
+
+    parent = _from_rules(desc, mpn, mfr)
+    if distributor_category is not None:
+        proposed = category_map.opinion(
+            distributor_category.distributor,
+            distributor_category.category,
+            distributor_category.subcategory,
+        )
+        # The distributor outranks the description -- but only when the map
+        # commits to a section for its bucket and the description does not both
+        # disclaim the section and name a specific one of its own.  "The rules
+        # had nothing" is not a competing answer; it is the reason we are asking.
+        if (proposed is not None
+                and not (parent not in ("Other", proposed)
+                         and _disclaimed(proposed, desc))):
+            parent = proposed
 
     # Check subcategory rules
     sub_rules = SUBCATEGORY_RULES.get(parent)

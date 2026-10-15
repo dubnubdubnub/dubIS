@@ -44,6 +44,20 @@ COPY css/ css/
 # check below fails even though /data (the actual runtime volume) is empty.
 COPY data/constants.json data/constants.json
 
+# The distributor-category -> dubIS-section table. category_map.py resolves it
+# against its own module directory (not --data-dir), so the image needs its own
+# copy exactly like constants.json — and a missing copy is not an error, it is
+# categorize() quietly going back to reading descriptions alone, which is the
+# shape of bug this file already documents twice. `COPY *.py .` above takes the
+# module; this takes the data it reads.
+COPY category_map.csv .
+
+# The per-part misfile list beside it. Absent is not an error either, and that
+# is the problem: category_refusals.load() reads a missing file as "no misfiles
+# recorded", so the container would silently steamroll every part the desktop
+# app protects -- the same divergence in two builds, with nothing red anywhere.
+COPY category_refusals.csv .
+
 # The rest of the repo-committed data/ assets, for the same reason: they are
 # image content, not user data, so --data-dir never points at them.
 #

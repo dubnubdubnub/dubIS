@@ -62,7 +62,7 @@ A part key that matches nothing exits 3, so a miss is never a silent success.
 
 ## Full surface
 
-Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 101 commands:
+Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 102 commands:
 
 - **adjustments**: remove-last, rollback-source
 - **bom**: consume, resolve-spec
@@ -72,7 +72,7 @@ Every /v1 route, generated. `dubis schema --json` dumps them all with their para
 - **generic**: add-member, create, create-saved-search, exclude-member, list, list-member-reviews, list-saved-searches, remove-member, review-member, set-preferred-member, update
 - **import**: detect-columns, match-part, ocr-engine-available, ocr-overlay, parse-source
 - **inventory-mirror**: disable, enable, get-info
-- **parts**: adjust, delete, evaluate-predicates, extract-spec, fetch-missing-descriptions, get-attributes, get-generic-group-names, get-history, get-last-po-quantity, get-price-summary, get-sourced-distributors, has-purchase-history, list, record-fetched-prices, update-fields, update-price
+- **parts**: adjust, delete, evaluate-predicates, extract-spec, fetch-missing-descriptions, get-attributes, get-categories, get-generic-group-names, get-history, get-last-po-quantity, get-price-summary, get-sourced-distributors, has-purchase-history, list, record-fetched-prices, update-fields, update-price
 - **pnp**: consume
 - **po**: create-with-items, delete, delete-last, get-source, get-source-preview, get-with-items, list, update
 - **preferences**: load, save
