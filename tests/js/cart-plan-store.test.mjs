@@ -66,6 +66,40 @@ describe('cart plan store', () => {
     expect(planStore.reelCeiling()).toBe(80);
   });
 
+  it('re-plans on its own when the reel ceiling is saved', async () => {
+    // The second member of the "read at fetch, repaint when something else
+    // fetches" class: the ceiling is an argument to plan_cart, so a saved change
+    // left the on-screen plan recommending reels the old ceiling preferred, and a
+    // tab switch was the only way to make it take effect.
+    const planCalls = () => apiMock.mock.calls.filter((c) => c[0] === 'plan_cart');
+    await planStore.loadPlan();
+    expect(planCalls()).toHaveLength(1);
+
+    store.setBehaviorPrefs({ reelCeiling: 150 });
+    expect(planCalls(), 'the publish must not storm the server — it is debounced').toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(planStore.PLAN_DEBOUNCE_MS + 5);
+    expect(planCalls()).toHaveLength(2);
+    expect(apiMock).toHaveBeenLastCalledWith('plan_cart', 'cart_1', 'min', 150);
+  });
+
+  it('does not re-plan for a preference the planner was not told about', async () => {
+    const planCalls = () => apiMock.mock.calls.filter((c) => c[0] === 'plan_cart');
+    await planStore.loadPlan();
+    store.setShortcutPrefs({ vimNav: true });
+    store.setServerUrl('http://bench:8000');
+    store.setThreshold('Resistors', 40);
+    await vi.advanceTimersByTimeAsync(planStore.PLAN_DEBOUNCE_MS + 5);
+    expect(planCalls()).toHaveLength(1);
+  });
+
+  it('does not re-plan with no cart open', async () => {
+    const planCalls = () => apiMock.mock.calls.filter((c) => c[0] === 'plan_cart');
+    activeCartId = null;
+    store.setBehaviorPrefs({ reelCeiling: 120 });
+    await vi.advanceTimersByTimeAsync(planStore.PLAN_DEBOUNCE_MS + 5);
+    expect(planCalls()).toHaveLength(0);
+  });
+
   it('refetches when the cart-wide preset changes', async () => {
     await planStore.setPreset('reel');
     expect(planStore.getPreset()).toBe('reel');

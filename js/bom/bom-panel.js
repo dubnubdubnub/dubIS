@@ -5,7 +5,7 @@ import { EventBus, Events } from '../event-bus.js';
 import { api, AppLog } from '../api.js';
 import { showToast, Modal, setupDropZone, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
-import { store, setBomResults, setBomFootprintNearMisses, setBomMeta, snapshotLinks, savePreferences } from '../store.js';
+import { store, setBomResults, setBomFootprintNearMisses, setBomMeta, snapshotLinks, savePreferences, publishPreferences } from '../store.js';
 import { bomKey, invPartKey, countStatuses, rawRowAggKey } from '../part-keys.js';
 import { processBOM, aggregateBomRows } from '../csv-parser.js';
 import { matchBOM } from '../matching.js';
@@ -128,6 +128,7 @@ async function browseBomFile() {
     store.preferences.lastBomFile = result.path;
   }
   savePreferences();
+  publishPreferences();
   loadBomText(result.content, result.name, result.links || null);
 }
 

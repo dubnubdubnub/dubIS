@@ -4,7 +4,7 @@ import { api, AppLog, apiMfgDirect } from '../api.js';
 import { showToast, setupDropZone, resetDropZoneInput } from '../ui-helpers.js';
 import { html } from '../dom/html.js';
 import { UndoRedo } from '../undo-redo.js';
-import { store, scheduleInventoryRefresh, savePreferences } from '../store.js';
+import { store, scheduleInventoryRefresh, savePreferences, publishPreferences } from '../store.js';
 import { parseCSV, generateCSV } from '../csv-parser.js';
 import { TARGET_FIELDS, PO_TEMPLATES, classifyRow, countWarnings, transformImportRows, seedManualRows } from './import-logic.js';
 import { renderDropZone, renderMapper as renderMapperHtml, renderOcrEngineNotice } from './import-renderer.js';
@@ -96,6 +96,7 @@ export function init() {
     ocrSel.addEventListener("change", () => {
       store.preferences.lastOcrTemplate = ocrSel.value;
       savePreferences();
+      publishPreferences();
     });
   }
 
@@ -218,6 +219,7 @@ async function browseImportFile() {
   if (result.directory) {
     store.preferences.lastImportDir = result.directory;
     savePreferences();
+    publishPreferences();
   }
   loadImportText(result.content, result.name);
 }
@@ -245,6 +247,7 @@ async function createNewPO(templateKey = "generic") {
   if (dir) {
     store.preferences.lastImportDir = dir;
     savePreferences();
+    publishPreferences();
   }
 
   const fileName = result.path.replace(/^.*[\\/]/, "");

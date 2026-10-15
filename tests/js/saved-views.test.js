@@ -46,6 +46,10 @@ vi.mock('../../js/store.js', () => {
   return {
     store,
     savePreferences: (...a) => mockSavePreferences(...a),
+    // saved-views.js publishes after every write (js/preferences-logic.js is the
+    // table that decides what a publish costs); this suite only cares about the
+    // bag it saved, so the publish is a no-op here.
+    publishPreferences: vi.fn(),
     // other exports used transitively
     loadPreferences: vi.fn(),
     onInventoryUpdated: vi.fn(),

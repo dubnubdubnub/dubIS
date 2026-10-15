@@ -249,6 +249,7 @@ graph LR
     "js/cart/cart-modal.js" --> "js/ui-helpers.js"
     "js/cart/cart-plan-store.js" --> "js/api.js"
     "js/cart/cart-plan-store.js" --> "js/cart/cart-store.js"
+    "js/cart/cart-plan-store.js" --> "js/preferences-logic.js"
     "js/cart/cart-plan-store.js" --> "js/signals.js"
     "js/cart/cart-plan-store.js" --> "js/store.js"
     "js/cart/cart-store.js" --> "js/api.js"
@@ -416,6 +417,7 @@ graph LR
     "js/inventory/inv-events.js" --> "js/inventory/inv-state.js"
     "js/inventory/inv-events.js" --> "js/inventory/inventory-logic.js"
     "js/inventory/inv-events.js" --> "js/inventory/vendor-flyout.js"
+    "js/inventory/inv-events.js" --> "js/preferences-logic.js"
     "js/inventory/inv-events.js" --> "js/signals.js"
     "js/inventory/inv-events.js" --> "js/store.js"
     "js/inventory/inv-events.js" --> "js/ui-helpers.js"
@@ -569,6 +571,7 @@ graph LR
     "js/store.js" --> "js/api.js"
     "js/store.js" --> "js/constants.js"
     "js/store.js" --> "js/event-bus.js"
+    "js/store.js" --> "js/preferences-logic.js"
     "js/store.js" --> "js/server-tabs-logic.js"
     "js/store.js" --> "js/servers-logic.js"
     "js/store.js" --> "js/signals.js"
@@ -779,6 +782,11 @@ graph LR
     "tests/js/part-preview-history.test.js" --> "js/part-preview.js"
     "tests/js/pick-tier.test.js" --> "js/inventory/pricing-utils.js"
     "tests/js/predicate-ui.test.js" --> "js/components/predicate-ui.js"
+    "tests/js/preference-keys.test.js" --> "js/preferences-logic.js"
+    "tests/js/preference-keys.test.js" --> "js/store.js"
+    "tests/js/preferences-publish.test.js" --> "js/preferences-logic.js"
+    "tests/js/preferences-publish.test.js" --> "js/signals.js"
+    "tests/js/preferences-publish.test.js" --> "js/store.js"
     "tests/js/qrcode.test.js" --> "js/vendor/qrcode.js"
     "tests/js/real-data.test.js" --> "js/csv-parser.js"
     "tests/js/real-data.test.js" --> "js/matching.js"
@@ -1586,7 +1594,7 @@ graph LR
 
 ### js/cart/cart-plan-store.js
 
-- **Imports:** `js/api.js`, `js/cart/cart-store.js`, `js/signals.js`, `js/store.js`
+- **Imports:** `js/api.js`, `js/cart/cart-store.js`, `js/preferences-logic.js`, `js/signals.js`, `js/store.js`
 - **Imported by:** `js/cart/cart-modal.js`
 
 ### js/cart/cart-store.js
@@ -1855,7 +1863,7 @@ graph LR
 
 ### js/inventory/inv-events.js
 
-- **Imports:** `js/api.js`, `js/event-bus.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-sort-group.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-logic.js`, `js/inventory/vendor-flyout.js`, `js/signals.js`, `js/store.js`, `js/ui-helpers.js`
+- **Imports:** `js/api.js`, `js/event-bus.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-sort-group.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-logic.js`, `js/inventory/vendor-flyout.js`, `js/preferences-logic.js`, `js/signals.js`, `js/store.js`, `js/ui-helpers.js`
 - **Imported by:** `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`
 - **Emits:** —
 - **Listens:** `BOM_CLEARED`, `BOM_LOADED`, `FLYOUT_ACTIVE_CHANGED`, `FLYOUT_CLOSED`, `FLYOUT_OPENED`, `FLYOUT_SEARCH_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LABEL_BULK_SELECTION`, `LABEL_MODE`, `LINKING_MODE`, `PO_CHANGED`, `VENDORS_CHANGED`
@@ -2022,6 +2030,11 @@ graph LR
 - **Imports:** —
 - **Imported by:** `js/label-selection.js`
 
+### js/preferences-logic.js
+
+- **Imports:** —
+- **Imported by:** `js/cart/cart-plan-store.js`, `js/inventory/inv-events.js`, `js/store.js`, `tests/js/preference-keys.test.js`, `tests/js/preferences-publish.test.js`
+
 ### js/preferences-modal.js
 
 - **Imports:** `js/api.js`, `js/digikey-pairing.js`, `js/jlc-sessions.js`, `js/server-list.js`, `js/store.js`, `js/ui-helpers.js`
@@ -2060,7 +2073,7 @@ graph LR
 ### js/signals.js
 
 - **Imports:** —
-- **Imported by:** `js/bom/bom-events.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/inventory/adjust-modal.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-source-view.js`, `js/inventory/price-modal.js`, `js/server-tabs.js`, `js/store.js`, `js/ui-zoom-control.js`, `js/ui-zoom.js`, `tests/js/signals.test.js`
+- **Imported by:** `js/bom/bom-events.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/inventory/adjust-modal.js`, `js/inventory/inv-events.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-source-view.js`, `js/inventory/price-modal.js`, `js/server-tabs.js`, `js/store.js`, `js/ui-zoom-control.js`, `js/ui-zoom.js`, `tests/js/preferences-publish.test.js`, `tests/js/signals.test.js`
 
 ### js/sse.js
 
@@ -2069,8 +2082,8 @@ graph LR
 
 ### js/store.js
 
-- **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/server-tabs-logic.js`, `js/servers-logic.js`, `js/signals.js`, `js/sse.js`, `js/threshold-logic.js`, `js/ui-helpers.js`
-- **Imported by:** `js/a11y/roving-grid.js`, `js/a11y/scrollable.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/col-resize.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-source-view.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/preferences-modal.js`, `js/server-list.js`, `js/server-tabs.js`, `js/text-popover.js`, `js/vendors-modal.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/inventory-rendering.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/saved-views.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
+- **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/preferences-logic.js`, `js/server-tabs-logic.js`, `js/servers-logic.js`, `js/signals.js`, `js/sse.js`, `js/threshold-logic.js`, `js/ui-helpers.js`
+- **Imported by:** `js/a11y/roving-grid.js`, `js/a11y/scrollable.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/col-resize.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-source-view.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/preferences-modal.js`, `js/server-list.js`, `js/server-tabs.js`, `js/text-popover.js`, `js/vendors-modal.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/inventory-rendering.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/preference-keys.test.js`, `tests/js/preferences-publish.test.js`, `tests/js/saved-views.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
 - **Emits:** `CONFIRMED_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LINKING_MODE`, `LINKS_CHANGED`, `PO_CHANGED`, `VENDORS_CHANGED`
 - **Listens:** —
 
@@ -2876,6 +2889,16 @@ graph LR
 ### tests/js/predicate-ui.test.js
 
 - **Imports:** `js/components/predicate-ui.js`
+- **Imported by:** —
+
+### tests/js/preference-keys.test.js
+
+- **Imports:** `js/preferences-logic.js`, `js/store.js`
+- **Imported by:** —
+
+### tests/js/preferences-publish.test.js
+
+- **Imports:** `js/preferences-logic.js`, `js/signals.js`, `js/store.js`
 - **Imported by:** —
 
 ### tests/js/qrcode.test.js
