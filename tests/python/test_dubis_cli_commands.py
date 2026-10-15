@@ -312,6 +312,64 @@ def test_search_returns_only_the_compact_projection(cli):
     }
 
 
+# ── search --category-hit ─────────────────────────────────────────────────────
+#
+# The CLI's version of the app's `behavior.categorySearch` toggle. It is a FLAG
+# rather than a default because the CLI has no preferences file: there is no
+# stored toggle to honour, and defaulting on would make the same command mean
+# two things on two machines. The rule itself is shared with the frontend
+# (domain/category_match.py, pinned by tests/fixtures/category-name/cases.json).
+#
+# The seeded C1000 is the real bug in miniature: its section is
+# "Passives - Capacitors > MLCC" and its description says "Capacitor", so the
+# plural — the word a person types when they want the category — matched nothing.
+
+
+def test_search_category_hit_finds_a_category_the_text_never_names(cli):
+    assert cli("search", "capacitors")[0]["total_count"] == 0
+    payload, _ = cli("search", "capacitors", "--category-hit")
+    assert [m["part_key"] for m in payload["matches"]] == ["C1000"]
+    assert payload["matches"][0]["section"] == "Passives - Capacitors > MLCC"
+
+
+def test_search_category_hit_does_not_swallow_everything(cli):
+    """Two letters name nine IC sections as a substring, which is why the
+    category rule matches whole tokens. Note the plain text search DOES hit here
+    — "ic" is inside the seeded part's "SOIC-8" package — so what the flag must
+    not do is ADD anything: same rows with it, same rows without it."""
+    plain, _ = cli("search", "ic")
+    with_flag, _ = cli("search", "ic", "--category-hit")
+    assert [m["part_key"] for m in with_flag["matches"]] == [
+        m["part_key"] for m in plain["matches"]
+    ]
+    # …and it is not the whole inventory either.
+    assert with_flag["total_count"] < cli("search")[0]["total_count"]
+    # The capacitor row's category is not named by "ic", so it stays out.
+    assert "C1000" not in [m["part_key"] for m in with_flag["matches"]]
+
+
+def test_search_category_hit_leaves_a_non_matching_category_out(cli):
+    """The flag ADDS the named category, it does not return the inventory."""
+    assert cli("search", "leds", "--category-hit")[0]["total_count"] == 0
+
+
+def test_search_category_hit_composes_with_section(cli):
+    """--section narrows first, then the category rule decides what survives the
+    term — so naming a category the section filter already excluded is empty."""
+    payload, _ = cli("search", "capacitors", "--category-hit",
+                     "--section", "Passives - Capacitors > MLCC")
+    assert payload["total_count"] == 1
+    assert cli("search", "capacitors", "--category-hit", "--section", "Other")[0][
+        "total_count"] == 0
+
+
+def test_search_without_the_flag_is_unchanged(cli):
+    """Off is the default, so the plain substring behaviour the flag documents
+    over must still be exactly what it was."""
+    assert [m["part_key"] for m in cli("search", "capacitor")[0]["matches"]] == ["C1000"]
+    assert cli("search", "op-amp")[0]["total_count"] == 1
+
+
 def test_get_aggregates_the_detail_card(cli):
     payload, _ = cli("get", "C1000")
     assert payload["part_key"] == "C1000"

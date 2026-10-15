@@ -76,6 +76,81 @@ describe('bomRowDisplayData — search filtering', () => {
   });
 });
 
+// ── The category toggle, in BOM mode ──
+//
+// The decision this pins (and which is written at js/bom-row-data.js's call
+// site): a BOM table has no section BUCKET — its rows are BOM lines, and the BOM
+// side of a row carries no section at all, because a section is a property of a
+// part we stock rather than of a line on somebody's bill of materials. So
+// "show the whole category" is not expressible here. What IS: a line whose
+// MATCHED inventory part belongs to the named category stays visible, which
+// reads as "show me my BOM lines that are diodes".
+
+describe('bomRowDisplayData — category hit', () => {
+  const EMPTY_MEMBERS = new Set();
+
+  // bomRowDisplayData takes SIX positional arguments before `options`, so
+  // passing the options object as the sixth lands it in `expandedMembers` and
+  // the toggle silently does nothing — a green test either way. One helper, one
+  // arity to get right.
+  function render(r, query, options) {
+    return bomRowDisplayData(r, query, 'all', EMPTY_ALTS, NO_LINKING, EMPTY_MEMBERS, options);
+  }
+
+  function diodeRow(overrides = {}) {
+    return makeRow({
+      bom: { lcsc: '', mpn: 'D1', value: '', refs: 'D1', desc: '', dnp: false },
+      inv: { lcsc: 'C2128', mpn: '1N4148WS', description: 'Diode Independent 100V 150mA',
+        section: 'Diodes', qty: 100 },
+      ...overrides,
+    });
+  }
+
+  it('keeps a line whose matched part is in the named category', () => {
+    // "diodes" is not in any field of this row — the description says "Diode".
+    const r = diodeRow();
+    expect(render(r, 'diodes')).toBeNull();
+    expect(render(r, 'diodes', { categoryHit: true })).not.toBeNull();
+  });
+
+  it('does nothing when the toggle is off', () => {
+    expect(render(diodeRow(), 'diodes', { categoryHit: false })).toBeNull();
+  });
+
+  it('never ADDS a line that is matched to nothing', () => {
+    // The honest half of the decision: with no matched part there is no section,
+    // so the toggle cannot conjure BOM lines into the table.
+    const unmatched = makeRow({
+      bom: { lcsc: '', mpn: 'D9', value: '', refs: 'D9', desc: 'whatever', dnp: false },
+      inv: null,
+      effectiveStatus: 'missing',
+    });
+    expect(render(unmatched, 'diodes', { categoryHit: true })).toBeNull();
+  });
+
+  it('does not light up a line from an unrelated category', () => {
+    const led = diodeRow({
+      inv: { lcsc: 'C2286', mpn: 'KT-0603R', description: 'Red 645nm LED Indication',
+        section: 'LEDs', qty: 10 },
+    });
+    expect(render(led, 'diodes', { categoryHit: true })).toBeNull();
+  });
+
+  it('still does not let a two-letter term swallow the table', () => {
+    expect(render(diodeRow(), 'ic', { categoryHit: true })).toBeNull();
+    const mcu = diodeRow({
+      inv: { lcsc: 'C1', mpn: 'ATmega328', description: 'MCU',
+        section: 'ICs - Microcontrollers', qty: 3 },
+    });
+    expect(render(mcu, 'ic', { categoryHit: true })).toBeNull();
+    expect(render(mcu, 'ics', { categoryHit: true })).not.toBeNull();
+  });
+
+  it('leaves the text search working inside a category the term does not name', () => {
+    expect(render(diodeRow(), '150ma', { categoryHit: true })).not.toBeNull();
+  });
+});
+
 // ── Display value tests ──
 
 describe('bomRowDisplayData — display values', () => {

@@ -197,7 +197,26 @@ export function filterMembers(members, tags, searchText) {
       }
     }
 
-    // Search text filtering
+    // Search text filtering.
+    //
+    // DECISION: the "a term that names a category shows the whole category"
+    // toggle (behavior.categorySearch) deliberately does NOTHING here.
+    //
+    // A flyout is already the narrowest slice the grid has — one generic part's
+    // members — and a member carries only {part_id, description, spec}. There is
+    // no `section` to consult and no bucket to keep: the members of one generic
+    // group are interchangeable substitutes for one another, so they do not span
+    // categories in the first place, and a member that is not in stock has no
+    // section at all (a section is a property of a part we stock).
+    //
+    // The alternative — resolve each member's part_id against store.inventory to
+    // recover a section — would make this pure module depend on the store for a
+    // case that cannot arise, and would silently do nothing for the members that
+    // are not in inventory, which is most of what a flyout is for. So the honest
+    // answer is "not applicable here", stated, rather than a silent omission that
+    // reads as an oversight. Note the main search box DOES sync into an open
+    // flyout (js/inventory/inv-events.js); typing a category name there filters
+    // this member list by text exactly as it always has.
     if (hasSearch) {
       var text = [member.description || "", member.part_id || ""].join(" ").toLowerCase();
       if (text.indexOf(search) === -1) return false;

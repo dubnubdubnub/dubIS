@@ -334,6 +334,12 @@
     <div class="modal-subtitle">Qty color reflects stock dollar value (qty &times; unit price). Adjust the green threshold per category.</div>
     <div class="prefs-sliders" id="prefs-sliders"></div>
     <div class="modal-divider"></div>
+    <div class="modal-subtitle" style="margin-bottom:4px"><strong>Inventory search</strong></div>
+    <div class="modal-form" style="flex-direction:column;align-items:flex-start;gap:8px">
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pref-category-search"> A search term that names a category shows the whole category</label>
+      <span style="font-size:11px;color:var(--text-muted)">Typing &ldquo;diodes&rdquo; shows every Diodes row, even ones whose text never says it. Whole words only: &ldquo;ic&rdquo; still searches, it does not light up every IC category.</span>
+    </div>
+    <div class="modal-divider"></div>
     <div class="modal-subtitle" style="margin-bottom:4px">
       <strong>Digikey</strong>
       <span style="font-size:11px;font-weight:normal;margin-left:6px;color:var(--text-muted)">

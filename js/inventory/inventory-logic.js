@@ -4,7 +4,14 @@
    bom-comparison.js, and bom-row-data.js. */
 
 import { bomKey, invPartKey } from '../part-keys.js';
+import { matchesCategoryName } from '../category-match.js';
 import { sourceNames } from './inv-source-logic.js';
+
+// The category-name matcher lives in js/category-match.js, not here, so that
+// js/bom-row-data.js can consult it too: this file already re-exports
+// bomRowDisplayData, so defining it here would have made those two modules
+// import each other.
+export { nameTokens, matchesCategoryName } from '../category-match.js';
 
 // ── Dimension fields by part type (for filter chips) ──
 
@@ -40,13 +47,45 @@ export function groupBySection(inventory) {
 // ── Search filtering ──
 
 /**
+ * The section key a search bucket belongs to, or "" when it has none.
+ *
+ * Derived from the bucket rather than passed in by the caller on purpose: a
+ * search bucket IS one section bucket — groupBySection keys by
+ * `item.section || "Other"`, so every row in it shares a section — and letting a
+ * call site name the bucket separately would allow the name and the contents to
+ * disagree, which is a bug that reads as a filter working.
+ *
+ * @param {Array<{section?: string}>} parts
+ * @returns {string}
+ */
+export function bucketSection(parts) {
+  if (!parts.length) return "";
+  return parts[0].section || "Other";
+}
+
+/**
  * Filter parts by a lowercase search query.
- * @param {Array<Object>} parts
+ *
+ * @param {Array<Object>} parts - one section bucket (see bucketSection)
  * @param {string} query - lowercase search term
+ * @param {{categoryHit?: boolean}} [options] - `categoryHit` opts in to the
+ *   category rule (js/category-match.js): when the query NAMES this bucket's
+ *   category, the whole bucket is kept. Opt-in, so the default is byte-identical
+ *   to a plain text search and the policy — the `behavior.categorySearch`
+ *   preference — stays at the call site rather than inside a pure predicate that
+ *   cannot read a preference. Buckets are filtered independently, so a category
+ *   hit ADDS a category to the text results rather than replacing them.
  * @returns {Array<Object>}
  */
-export function filterByQuery(parts, query) {
+export function filterByQuery(parts, query, options) {
   if (!query) return parts;
+  if (options && options.categoryHit && matchesCategoryName(query, bucketSection(parts))) {
+    // The term names this category, so every row of it is a result — including
+    // the rows whose text says nothing about it, which is the entire point: the
+    // Diodes rows read "Diode 100V 2A …", so searching "diodes" used to return
+    // nothing at all.
+    return parts;
+  }
   return parts.filter(function (item) {
     // Server names join the haystack so that, in a merged view, typing "bench"
     // narrows to what is on the bench. They contribute nothing in a

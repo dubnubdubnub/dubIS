@@ -199,6 +199,7 @@ graph LR
     "js/app-init.js" --> "js/ui-zoom.js"
     "js/app-init.js" --> "js/undo-redo.js"
     "js/app-init.js" --> "js/vendors-modal.js"
+    "js/bom-row-data.js" --> "js/category-match.js"
     "js/bom-row-data.js" --> "js/matching.js"
     "js/bom-row-data.js" --> "js/part-keys.js"
     "js/bom/bom-events.js" --> "js/api.js"
@@ -488,6 +489,7 @@ graph LR
     "js/inventory/inv-tree-render.js" --> "js/inventory/inventory-logic.js"
     "js/inventory/inv-tree-render.js" --> "js/store.js"
     "js/inventory/inv-tree-render.js" --> "js/ui-helpers.js"
+    "js/inventory/inventory-logic.js" --> "js/category-match.js"
     "js/inventory/inventory-logic.js" --> "js/inventory/inv-source-logic.js"
     "js/inventory/inventory-logic.js" --> "js/part-keys.js"
     "js/inventory/inventory-panel.js" --> "js/col-resize.js"
@@ -1003,6 +1005,7 @@ graph LR
     "tests/python/test_categorize_distributor_category.py" --> "domain/distributor_categories.py"
     "tests/python/test_categorize_distributor_category.py" --> "inventory_ops.py"
     "tests/python/test_category_map.py" --> "category_map.py"
+    "tests/python/test_category_name_match.py" --> "domain/category_match.py"
     "tests/python/test_category_refusals.py" --> "category_map.py"
     "tests/python/test_category_refusals.py" --> "category_refusals.py"
     "tests/python/test_category_refusals.py" --> "domain/distributor_categories.py"
@@ -1388,6 +1391,11 @@ graph LR
 - **Imports:** `domain/purchase_candidates.py`
 - **Imported by:** `tests/python/domain/test_cart_plan.py`
 
+### domain/category_match.py
+
+- **Imports:** —
+- **Imported by:** `tests/python/test_category_name_match.py`
+
 ### domain/distributor_categories.py
 
 - **Imports:** `category_map.py`, `category_refusals.py`, `csv_io.py`, `domain/pricing.py`
@@ -1577,7 +1585,7 @@ graph LR
 
 ### js/bom-row-data.js
 
-- **Imports:** `js/matching.js`, `js/part-keys.js`
+- **Imports:** `js/category-match.js`, `js/matching.js`, `js/part-keys.js`
 - **Imported by:** `tests/js/bom-row-display.test.js`, `tests/js/matching-alt-package-ohm.test.js`
 
 ### js/bom/bom-events.js
@@ -1643,6 +1651,11 @@ graph LR
 
 - **Imports:** `js/api.js`, `js/signals.js`, `js/store.js`
 - **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/cart/cart-add.js`, `js/cart/cart-export.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`
+
+### js/category-match.js
+
+- **Imports:** —
+- **Imported by:** `js/bom-row-data.js`, `js/inventory/inventory-logic.js`
 
 ### js/col-resize-logic.js
 
@@ -1972,7 +1985,7 @@ graph LR
 
 ### js/inventory/inventory-logic.js
 
-- **Imports:** `js/inventory/inv-source-logic.js`, `js/part-keys.js`
+- **Imports:** `js/category-match.js`, `js/inventory/inv-source-logic.js`, `js/part-keys.js`
 - **Imported by:** `js/inventory/filter-chips-fields.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`, `tests/js/inventory-logic.test.js`
 
 ### js/inventory/inventory-panel.js
@@ -3448,6 +3461,11 @@ graph LR
 ### tests/python/test_category_map.py
 
 - **Imports:** `category_map.py`
+- **Imported by:** —
+
+### tests/python/test_category_name_match.py
+
+- **Imports:** `domain/category_match.py`
 - **Imported by:** —
 
 ### tests/python/test_category_refusals.py

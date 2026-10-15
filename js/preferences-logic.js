@@ -78,6 +78,14 @@ export const PREFERENCE_REACTIONS = Object.freeze(/** @type {Record<string, Reac
   // it: a slider move is invisible until something else re-renders. That is the
   // user-visible bug this row exists to fix.
   thresholds: 'repaints',
+  // Which ROWS are in the grid is decided by this toggle (js/inventory/
+  // inv-tree-render.js `categoryHit()` → filterByQuery, and js/bom-row-data.js
+  // for the BOM table). It is read at render time and nothing else re-renders:
+  // flip it with a category name still in the search box and, without a repaint,
+  // the grid keeps showing the pre-toggle rows and the toggle looks broken. Same
+  // shape as `thresholds` — a value baked into which rows exist and what their
+  // HTML says — so `repaints`, not `lazy-read`.
+  'behavior.categorySearch': 'repaints',
 
   // ── replans ─────────────────────────────────────────────
   // The reel ceiling is an ARGUMENT to the planner — cart-plan-store.js sends it

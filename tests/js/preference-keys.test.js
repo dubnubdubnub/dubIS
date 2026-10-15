@@ -200,11 +200,19 @@ describe('PREFERENCE_REACTIONS classification', () => {
 });
 
 describe('the classification itself', () => {
-  it('repaints for the one key baked into row HTML', () => {
+  it('repaints for the keys baked into row HTML', () => {
     expect(reactionFor('thresholds')).toBe('repaints');
     // Sections are data-driven (SECTION_ORDER), so a change arrives as a path
     // under thresholds and must resolve through it.
     expect(repaintsGrid(['thresholds.Capacitors > MLCC'])).toBe(true);
+    // The category-search toggle decides WHICH rows are in the grid and is read
+    // at render time, so it is the second member of this class — and the one
+    // whose failure the user would read as "the toggle does nothing".
+    expect(reactionFor('behavior.categorySearch')).toBe('repaints');
+    expect(repaintsGrid(['behavior.categorySearch'])).toBe(true);
+    // It is not an argument to the cart planner, so claiming a re-plan here
+    // would be a claim about a fetch that does not happen.
+    expect(replansCart(['behavior.categorySearch'])).toBe(false);
   });
 
   it('re-plans the cart for the reel ceiling, and does not repaint the grid', () => {

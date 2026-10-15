@@ -27,7 +27,52 @@ describe('behavior preferences slice', () => {
 
   it('exposes exactly the known behavior keys', () => {
     expect(Object.keys(store.getBehaviorPrefs()).sort())
-      .toEqual(['autoCopySelection', 'reelCeiling']);
+      .toEqual(['autoCopySelection', 'categorySearch', 'reelCeiling']);
+  });
+
+  // ── category search ──
+  // The first behavior preference whose DEFAULT is true, which makes it the first
+  // one that can be broken by the obvious implementation. `!!b.categorySearch` is
+  // how the line above it reads, and `!!undefined` is false — so a
+  // preferences.json that predates the feature (or that nobody ever toggled)
+  // would come back OFF and the shipped default would be unreachable. These pin
+  // "absent means default" separately from "present means decided".
+
+  it('defaults category search to true', () => {
+    expect(store.getBehaviorPrefs().categorySearch).toBe(true);
+  });
+
+  it('reads a stored behavior bag with no categorySearch key as the default', async () => {
+    const { api } = await import('../../js/api.js');
+    api.mockResolvedValueOnce({ behavior: { autoCopySelection: true, reelCeiling: 120 } });
+    await store.loadPreferences();
+    expect(store.getBehaviorPrefs().categorySearch).toBe(true);
+    // …and the keys that WERE stored still load.
+    expect(store.getBehaviorPrefs().autoCopySelection).toBe(true);
+    expect(store.getBehaviorPrefs().reelCeiling).toBe(120);
+  });
+
+  it('persists turning category search OFF, and keeps it off', () => {
+    store.setBehaviorPrefs({ categorySearch: false });
+    expect(store.getBehaviorPrefs().categorySearch).toBe(false);
+    // The whitelist runs on write too, so a later unrelated write must not
+    // resurrect the default over the user's explicit no.
+    store.setBehaviorPrefs({ reelCeiling: 150 });
+    expect(store.getBehaviorPrefs().categorySearch).toBe(false);
+  });
+
+  it('reads an explicit stored false back as false, not as the default', async () => {
+    const { api } = await import('../../js/api.js');
+    api.mockResolvedValueOnce({ behavior: { categorySearch: false } });
+    await store.loadPreferences();
+    expect(store.getBehaviorPrefs().categorySearch).toBe(false);
+  });
+
+  it('coerces a non-boolean categorySearch to a boolean', () => {
+    store.setBehaviorPrefs({ categorySearch: 'yes' });
+    expect(store.getBehaviorPrefs().categorySearch).toBe(true);
+    store.setBehaviorPrefs({ categorySearch: 0 });
+    expect(store.getBehaviorPrefs().categorySearch).toBe(false);
   });
 
   it('setBehaviorPrefs updates the value and persists', async () => {
@@ -56,10 +101,12 @@ describe('behavior preferences slice', () => {
     expect(store.getBehaviorPrefs().reelCeiling).toBe(150);
   });
 
-  it('keeps the two behavior preferences independent', () => {
+  it('keeps the behavior preferences independent', () => {
     store.setBehaviorPrefs({ reelCeiling: 25 });
     store.setBehaviorPrefs({ autoCopySelection: true });
-    expect(store.getBehaviorPrefs()).toEqual({ autoCopySelection: true, reelCeiling: 25 });
+    expect(store.getBehaviorPrefs()).toEqual({
+      autoCopySelection: true, categorySearch: true, reelCeiling: 25,
+    });
   });
 
   it('falls back to the default rather than accepting a ceiling of zero', () => {
