@@ -57,18 +57,26 @@ def live(tmp_path_factory):
         api.shutdown()
 
 
-@pytest.fixture
-def cli(live, monkeypatch, capsys):
+def _cli_runner(data_dir, monkeypatch, capsys):
+    """Run the CLI against a data dir, returning (parsed stdout, stderr).
+
+    Shared by `cli` and `pn_cli`: two seeded servers, one calling convention.
+    """
     monkeypatch.delenv("DUBIS_URL", raising=False)
 
     def _run(*argv, expect=0):
-        code = dubis_cli.main(["--data-dir", str(live), *argv])
+        code = dubis_cli.main(["--data-dir", str(data_dir), *argv])
         out = capsys.readouterr()
         assert code == expect, f"exit {code} (expected {expect}); stderr={out.err}"
         payload = json.loads(out.out) if out.out.strip() else None
         return payload, out.err
 
     return _run
+
+
+@pytest.fixture
+def cli(live, monkeypatch, capsys):
+    return _cli_runner(live, monkeypatch, capsys)
 
 
 # ── reads ────────────────────────────────────────────────────────────────────
@@ -308,8 +316,178 @@ def test_search_respects_max_results_without_lying_about_the_total(cli):
 def test_search_returns_only_the_compact_projection(cli):
     payload, _ = cli("search", "capacitor")
     assert set(payload["matches"][0]) == {
-        "part_key", "description", "qty", "section", "package", "unit_price",
+        "part_key", "part_numbers", "description", "qty", "section", "package",
+        "unit_price",
     }
+
+
+def test_low_stock_rows_carry_the_part_numbers(cli):
+    """`low-stock` shares the projection, so it gains the numbers too: the
+    point of flagging a part is usually to buy it, and buying it needs the
+    distributor number, not the LCSC key alone."""
+    payload, _ = cli("low-stock", "--threshold", "100000")
+    by_key = {part["part_key"]: part for part in payload["parts"]}
+    assert by_key["C1000"]["part_numbers"] == {
+        "lcsc": "C1000", "mpn": "CL05B104KO5NNNC",
+    }
+
+
+# ── distributor part numbers: visible, and searchable ────────────────────────
+#
+# A part's identity in dubIS is the whole SET of distributor numbers, but
+# `search` and `get` showed only the derived `part_key` — the first non-empty
+# PN in precedence order — and `search` matched lcsc/mpn/description/mfr/package
+# only. So a part keyed by its LCSC number hid its DigiKey number from every
+# read path AND from search at once. The seed below is the real store shape
+# from a real request: the string the user was holding, `12401951E412`, is
+# DigiKey's own revision of the part code (`…E412…`) where the MPN beside it
+# reads `…F412…`, so it exists in exactly one column of the record.
+#
+# A second server rather than more rows in `live`, so the count assertions
+# there stay about what they were written to assert.
+
+
+@pytest.fixture(scope="module")
+def pn_live(tmp_path_factory):
+    tmp_path = tmp_path_factory.mktemp("dubis-cli-pn")
+    api = make_api(tmp_path)
+    write_ledger(api, [
+        # The reported case: keyed by LCSC, queried string only in DigiKey.
+        # Its description quotes the regulator's MPN, and "Connectors > SMD"
+        # sorts before "ICs - Power / Voltage Regulators", so the row that
+        # merely MENTIONS that part is the one the inventory returns first —
+        # which is what the ranking tests below measure against.
+        make_part(lcsc="C2830467", mpn="12401951F412A",
+                  digikey="664-12401951E412ACT-ND", qty=40,
+                  desc="Connector Header 2.54mm 12 Position, mates with TPS7A0233PDBVR",
+                  pkg="Through Hole", unit_price="0.11", ext_price="4.40"),
+        make_part(lcsc="C169117", mpn="TPS7A0233PDBVR",
+                  digikey="296-50133-1-ND", mouser="667-TPS7A0233PDBVR",
+                  qty=120, desc="IC Voltage Regulator 3.3V 300mA SOT-223",
+                  pkg="SOT-223", unit_price="0.42", ext_price="50.40"),
+        # A part whose ONLY identifier is a Pololu number: no LCSC, no MPN.
+        make_part(pololu="2912", qty=3, desc="Motor Driver Dual 1A TB6612FNG",
+                  pkg="Breakaway Header", unit_price="9.75", ext_price="29.25"),
+    ])
+    server, thread, base_url = start_live_server(api)
+    port = base_url.rsplit(":", 1)[1]
+    (tmp_path / ".v1_port").write_text(port, encoding="utf-8")
+    try:
+        yield tmp_path
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5)
+        api.shutdown()
+
+
+@pytest.fixture
+def pn_cli(pn_live, monkeypatch, capsys):
+    return _cli_runner(pn_live, monkeypatch, capsys)
+
+
+def _keys(payload):
+    return [m["part_key"] for m in payload["matches"]]
+
+
+def test_search_finds_a_part_only_by_its_digikey_number(pn_cli):
+    payload, _ = pn_cli("search", "12401951E412")
+    assert payload["total_count"] == 1
+    assert _keys(payload) == ["C2830467"]
+    assert payload["matches"][0]["part_numbers"]["digikey"] == "664-12401951E412ACT-ND"
+
+
+def test_the_digikey_only_query_really_appears_nowhere_else(pn_cli):
+    """The fixture IS the bug, so the fixture gets checked: if the queried
+    string ever lands in another column of that record — a richer description,
+    a package rename — the test above stops proving anything and this one says
+    so instead of going quietly green."""
+    card, _ = pn_cli("get", "C2830467")
+    rest = json.dumps(
+        {k: v for k, v in card.items() if k not in ("part_numbers", "recent_history")},
+        default=str,
+    ).lower()
+    assert "12401951e412" not in rest
+    assert card["part_numbers"]["mpn"] == "12401951F412A"
+
+
+def test_search_finds_a_part_only_by_its_mouser_number(pn_cli):
+    assert _keys(pn_cli("search", "667-TPS7A0233")[0]) == ["C169117"]
+
+
+def test_search_finds_a_part_whose_only_identifier_is_pololu(pn_cli):
+    """No LCSC, no MPN: `part_key` here IS the Pololu number, and it is still
+    a column search used to ignore."""
+    payload, _ = pn_cli("search", "2912")
+    assert _keys(payload) == ["2912"]
+    assert payload["matches"][0]["part_numbers"] == {"pololu": "2912"}
+
+
+def test_search_projection_carries_every_number_the_record_has(pn_cli):
+    payload, _ = pn_cli("search", "12401951F412A")
+    assert payload["matches"][0]["part_numbers"] == {
+        "lcsc": "C2830467",
+        "mpn": "12401951F412A",
+        "digikey": "664-12401951E412ACT-ND",
+    }
+
+
+def test_search_projection_omits_the_distributors_that_never_quoted(pn_cli):
+    """Empty strings would make `part_numbers` a fixed five-key blob per row
+    and turn "is this sourced at Mouser" into a value test instead of a
+    membership test — and would put back the noise that made the projection
+    compact in the first place."""
+    payload, _ = pn_cli("search", "TPS7A0233PDBVR", "--max-results", "1")
+    numbers = payload["matches"][0]["part_numbers"]
+    assert numbers["mouser"] == "667-TPS7A0233PDBVR"
+    assert set(numbers) == {"lcsc", "mpn", "digikey", "mouser"}
+    assert "pololu" not in numbers
+
+
+def test_get_card_carries_every_number_the_record_has(pn_cli):
+    """The card is what an agent reads before it moves a part to another
+    server or orders it; both need the numbers `part_key` cannot show. Reached
+    through the DigiKey alias, since that is the number in hand."""
+    card, _ = pn_cli("get", "664-12401951E412ACT-ND")
+    assert card["part_key"] == "C2830467"
+    assert card["part_numbers"] == {
+        "lcsc": "C2830467",
+        "mpn": "12401951F412A",
+        "digikey": "664-12401951E412ACT-ND",
+    }
+
+
+# ── ranking: a query that IS a part number names one part ────────────────────
+#
+# Deliberate decision, stated in the PR: only a WHOLE-field PN match is
+# promoted. A partial hit is not more specific than a prose hit ("104" inside
+# an MPN is no stronger a signal than "100nF" inside a description), so
+# promoting it would reorder ordinary searches on no evidence the caller wanted
+# an identifier. The sort is stable, so everything else keeps the inventory's
+# own order and a descriptive query returns exactly what it returned before.
+
+
+def test_inventory_order_puts_the_row_that_mentions_the_pn_first(pn_cli):
+    """The baseline the ranking tests need, pinned on its own: with a query
+    that is a PN of neither row, the connector — whose section sorts first —
+    comes back before the regulator the MPN actually belongs to."""
+    payload, _ = pn_cli("search", "TPS7A0233")
+    assert _keys(payload) == ["C2830467", "C169117"]
+
+
+def test_an_exact_part_number_hit_ranks_above_a_row_that_merely_mentions_it(pn_cli):
+    payload, _ = pn_cli("search", "TPS7A0233PDBVR")
+    assert _keys(payload) == ["C169117", "C2830467"]
+
+
+def test_an_exact_part_number_hit_survives_max_results(pn_cli):
+    """The consequence that actually costs a wrong answer: `--max-results 1`
+    on the inventory's own order returns the connector and reports the
+    regulator as a match nobody was shown — the part you asked for by its
+    whole MPN, truncated away by a row that only quotes it."""
+    payload, _ = pn_cli("search", "TPS7A0233PDBVR", "--max-results", "1")
+    assert _keys(payload) == ["C169117"]
+    assert payload["total_count"] == 2
+    assert payload["returned"] == 1
 
 
 # ── search --category-hit ─────────────────────────────────────────────────────

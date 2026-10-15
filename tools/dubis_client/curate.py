@@ -7,8 +7,11 @@ are testable without discovery.
 
 Four properties live here:
 
-1. **Compact projections** (`compact_part`) — six fields, not the full
-   14-field inventory record. Context economy for agent callers.
+1. **Compact projections** (`compact_part`) — seven fields, not the full
+   14-field inventory record. Context economy for agent callers. One of the
+   seven is `part_numbers`, the whole distributor-PN set, because a projection
+   that carries only the derived `part_key` hides the numbers a caller is most
+   likely to need (`part_numbers`' docstring).
 2. **Key derivation** (`derive_part_key`) — GET /v1/parts items carry no
    ``part_key`` field, so every caller that needs one derives it the same way.
 3. **Canonical-key normalization** (`resolve_canonical_key`) — several /v1
@@ -75,11 +78,61 @@ def matches_part(item: dict[str, Any], part_key: str) -> bool:
     return any((item.get(f) or "") == part_key for f in _PN_FIELDS)
 
 
+def part_numbers(item: dict[str, Any]) -> dict[str, str]:
+    """Every distributor part number a record carries, empty ones dropped.
+
+    A part's identity in dubIS is this *set*, not any one member of it:
+    `derive_part_key` returns the first non-empty field in precedence order,
+    so a part keyed by its LCSC number hides its DigiKey, Mouser and Pololu
+    numbers from anything that only carries `part_key`. Those hidden numbers are
+    the ones a person actually arrives with — off a reel label, a BOM, or the
+    other dubIS server they are moving the part to — and they are frequently
+    found nowhere else in the record. A DigiKey number embeds that vendor's own
+    revision code: `664-12401951E412ACT-ND` says `E412` where the MPN beside it,
+    `12401951F412A`, says `F412`, so the string a person is holding matches no
+    other field of the row.
+
+    Empty keys are dropped rather than spelled `""`: "is this part sourced at
+    Mouser" becomes a membership test, and a search result line does not pay
+    for three empty strings per row.
+    """
+    numbers: dict[str, str] = {}
+    for field in _PN_FIELDS:
+        value = (item.get(field) or "").strip()
+        if value:
+            numbers[field] = value
+    return numbers
+
+
+def matches_part_number(item: dict[str, Any], needle: str) -> bool:
+    """True when *needle* is a case-insensitive substring of any PN field.
+
+    The substring form is what `search` needs: a person types what is printed
+    on the reel, which is a vendor number with or without its `-ND` suffix, and
+    often a fragment of one. `matches_part` is the exact form, for a caller
+    that already holds a whole key.
+    """
+    probe = (needle or "").lower()
+    return bool(probe) and any(probe in v.lower() for v in part_numbers(item).values())
+
+
+def exact_part_number_match(item: dict[str, Any], query: str) -> bool:
+    """True when *query* IS one of this item's part numbers, whole.
+
+    The distinction `search` ranks on: a whole-field hit means the caller
+    pasted an identifier, which names one part; a row whose prose happens to
+    contain the same characters is a weaker answer to the same keystrokes.
+    """
+    probe = (query or "").strip().lower()
+    return bool(probe) and any(probe == v.lower() for v in part_numbers(item).values())
+
+
 def compact_part(item: dict[str, Any]) -> dict[str, Any]:
-    """The compact search/low-stock projection: part_key, description, qty,
-    section, package, unit_price."""
+    """The compact search/low-stock projection: part_key, the distributor part
+    numbers behind it, description, qty, section, package, unit_price."""
     return {
         "part_key": derive_part_key(item),
+        "part_numbers": part_numbers(item),
         "description": item.get("description", ""),
         "qty": item.get("qty", 0),
         "section": item.get("section", ""),
