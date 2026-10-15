@@ -9,7 +9,7 @@ open beside it. See domain/thresholds.py.
 
 from __future__ import annotations
 
-from domain.thresholds import BASE_THRESHOLD, PRESETS, PRESET_SHIPPED
+from domain.thresholds import BASE_THRESHOLD, PRESET_SHIPPED, PRESETS
 
 
 def test_meta_carries_the_shipped_defaults(client, api):
@@ -64,3 +64,35 @@ def test_preset_thresholds_are_plain_json_scalars(client):
     body = client.get("/v1/meta").json()
     for entry in body["threshold_presets"]:
         assert all(isinstance(v, int) for v in entry["thresholds"].values()), entry["id"]
+
+
+# ── the snapshot-history additions (domain/threshold_snapshots.py) ───────────
+#
+# `default_thresholds` keeps meaning snapshot 0 — these tests pin that the
+# new fields were ADDED alongside it, not swapped in for it: a client that
+# knows nothing about snapshots must read exactly the old contract.
+
+
+def test_meta_carries_the_active_profile_and_it_starts_as_snapshot_zero(client):
+    body = client.get("/v1/meta").json()
+    # A server with no writes: the active profile IS snapshot 0, which IS the
+    # shipped defaults — one table, three names, no drift possible.
+    assert body["active_threshold_profile"] == body["default_thresholds"]
+    summary = body["threshold_snapshots"]
+    assert summary["count"] == 1
+    assert summary["active_id"] == 0
+    assert summary["active_created_by"] == "server"
+    assert summary["active_created_at"] == ""
+
+
+def test_meta_active_profile_follows_a_write_but_default_thresholds_does_not(client):
+    r = client.put("/v1/thresholds", json={"values": {"Diodes": 7}, "mode": "full"})
+    assert r.status_code == 200
+    body = client.get("/v1/meta").json()
+    assert body["active_threshold_profile"]["Diodes"] == 7
+    # The old key is snapshot 0 — the shipped table — and a write can never
+    # move it. This is the "extend, do not reshape" contract in one assert.
+    assert body["default_thresholds"]["Diodes"] == 10
+    summary = body["threshold_snapshots"]
+    assert summary["count"] == 2 and summary["active_id"] == 1
+    assert summary["active_created_by"] == "api"  # the default tag, auth-off

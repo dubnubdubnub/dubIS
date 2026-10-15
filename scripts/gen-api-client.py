@@ -131,6 +131,12 @@ ARG_ORDER: dict[str, list[str]] = {
     # `enabled`, which reads as though the flag were the point of the call.
     "create_source": ["url", "id", "name", "token", "enabled"],
     "update_source": ["source_id", "name", "url", "token", "enabled"],
+    # Threshold snapshot history (domain/threshold_snapshots.py). Positional
+    # order = the natural call: the profile first, then how to apply it, then
+    # the attribution tail every mutation carries.
+    "create_threshold_snapshot": ["values", "mode", "note", "source"],
+    "undo_threshold_snapshot": ["source", "note"],
+    "activate_threshold_snapshot": ["snapshot_id", "source", "note"],
     "merge_vendors": ["src_id", "dst_id"],
     "ocr_overlay": ["file_b64", "file_name", "template"],
     "parse_import_source": ["file_b64", "file_name", "path", "template"],

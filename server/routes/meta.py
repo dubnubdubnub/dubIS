@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request, Response
 
-from domain import thresholds
+from domain import threshold_snapshots, thresholds
 from server.build_identity import get_build_sha
 from server.models import HealthResponse
 
@@ -53,6 +53,18 @@ def meta(request: Request) -> dict:
     # Presets are read-only server facts — the user's *choice* of preset id
     # and their sparse deltas are what lives in preferences, never the
     # resolved table.
+    #
+    # `active_threshold_profile` and `threshold_snapshots` carry the ACTIVE
+    # snapshot of the server's profile history (domain/threshold_snapshots.py)
+    # beside it. `default_thresholds` keeps meaning exactly snapshot 0 — the
+    # shipped defaults — so an existing client sees the old contract; a client
+    # that knows about snapshots reads the active profile here (or the full
+    # history from GET /v1/thresholds) and slots it between its own preset and
+    # these defaults (the resolution spec in domain/thresholds.py). A server
+    # with no writes answers the snapshot fields as snapshot 0 itself: same
+    # table, count 1.
+    history = threshold_snapshots.load(api.base_dir, api.DEFAULT_THRESHOLDS)
+    active = history.active
     return {
         "schema_version": cache_db.SCHEMA_VERSION,
         "section_order": api.SECTION_ORDER,
@@ -60,4 +72,12 @@ def meta(request: Request) -> dict:
         "default_thresholds": api.DEFAULT_THRESHOLDS,
         "base_threshold": thresholds.BASE_THRESHOLD,
         "threshold_presets": thresholds.presets_payload(),
+        "active_threshold_profile": dict(active.values),
+        "threshold_snapshots": {
+            "count": len(history.snapshots),
+            "active_id": active.id,
+            "active_created_by": active.created_by,
+            "active_created_at": active.created_at,
+            "active_note": active.note,
+        },
     }
