@@ -573,11 +573,13 @@ graph LR
     "js/store.js" --> "js/servers-logic.js"
     "js/store.js" --> "js/signals.js"
     "js/store.js" --> "js/sse.js"
+    "js/store.js" --> "js/threshold-logic.js"
     "js/store.js" --> "js/ui-helpers.js"
     "js/text-popover.js" --> "js/api.js"
     "js/text-popover.js" --> "js/hover-affordance.js"
     "js/text-popover.js" --> "js/store.js"
     "js/text-popover.js" --> "js/ui-zoom.js"
+    "js/threshold-logic.js" --> "js/threshold-defaults.generated.js"
     "js/ui-helpers.js" --> "js/a11y/focus-trap.js"
     "js/ui-zoom-control.js" --> "js/api.js"
     "js/ui-zoom-control.js" --> "js/signals.js"
@@ -634,6 +636,8 @@ graph LR
     "scripts/gen-inventory-types.py" --> "domain/schema.py"
     "scripts/gen-openapi.py" --> "server/app.py"
     "scripts/gen-property-schema.py" --> "domain/schema.py"
+    "scripts/gen-threshold-defaults.py" --> "domain/__init__.py"
+    "scripts/gen-threshold-defaults.py" --> "domain/inventory.py"
     "scripts/generate-test-fixtures.py" --> "csv_io.py"
     "scripts/generate-test-fixtures.py" --> "inventory_api.py"
     "scripts/generate-test-fixtures.py" --> "inventory_ops.py"
@@ -684,6 +688,7 @@ graph LR
     "server/routes/inventory_mut.py" --> "server/auth.py"
     "server/routes/inventory_mut.py" --> "server/mutations.py"
     "server/routes/meta.py" --> "cache_db.py"
+    "server/routes/meta.py" --> "domain/__init__.py"
     "server/routes/mirror.py" --> "dubis_errors.py"
     "server/routes/openpnp.py" --> "domain/__init__.py"
     "server/routes/parts_read.py" --> "server/models.py"
@@ -830,6 +835,9 @@ graph LR
     "tests/python/domain/test_pricing.py" --> "cart_qty.py"
     "tests/python/domain/test_pricing.py" --> "domain/pricing.py"
     "tests/python/domain/test_purchase_candidates.py" --> "domain/purchase_candidates.py"
+    "tests/python/domain/test_threshold_defaults.py" --> "domain/thresholds.py"
+    "tests/python/domain/test_threshold_defaults.py" --> "inventory_api.py"
+    "tests/python/domain/test_thresholds.py" --> "domain/thresholds.py"
     "tests/python/helpers.py" --> "distributor_manager.py"
     "tests/python/helpers.py" --> "inventory_api.py"
     "tests/python/helpers.py" --> "lcsc_client.py"
@@ -880,6 +888,7 @@ graph LR
     "tests/python/server/test_main_flags.py" --> "tests/python/helpers.py"
     "tests/python/server/test_main_transport.py" --> "server/__main__.py"
     "tests/python/server/test_main_transport.py" --> "server/lockfile.py"
+    "tests/python/server/test_meta_thresholds.py" --> "domain/thresholds.py"
     "tests/python/server/test_models.py" --> "domain/schema.py"
     "tests/python/server/test_models.py" --> "server/models.py"
     "tests/python/server/test_multi_server_adversarial.py" --> "dubis_errors.py"
@@ -1247,7 +1256,7 @@ graph LR
 ### domain/__init__.py
 
 - **Imports:** —
-- **Imported by:** `domain/api_cart.py`, `domain/inventory.py`, `inventory_ops.py`, `server/routes/feeders.py`, `server/routes/openpnp.py`, `tests/python/domain/test_feeders.py`, `tests/python/domain/test_part_registry.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/strategies.py`
+- **Imported by:** `domain/api_cart.py`, `domain/inventory.py`, `inventory_ops.py`, `scripts/gen-threshold-defaults.py`, `server/routes/feeders.py`, `server/routes/meta.py`, `server/routes/openpnp.py`, `tests/python/domain/test_feeders.py`, `tests/python/domain/test_part_registry.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/strategies.py`
 
 ### domain/api_attributes.py
 
@@ -1352,7 +1361,7 @@ graph LR
 ### domain/inventory.py
 
 - **Imports:** `cache_db.py`, `carts.py`, `csv_io.py`, `domain/__init__.py`, `domain/attributes.py`, `domain/generic_parts.py`, `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`, `saved_searches.py`
-- **Imported by:** `domain/api_inventory.py`, `inventory_api.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/test_cache_catchup_properties.py`, `tests/python/test_concurrency_locks.py`
+- **Imported by:** `domain/api_inventory.py`, `inventory_api.py`, `scripts/gen-threshold-defaults.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/test_cache_catchup_properties.py`, `tests/python/test_concurrency_locks.py`
 
 ### domain/packages.py
 
@@ -1393,6 +1402,11 @@ graph LR
 
 - **Imports:** —
 - **Imported by:** `cache_db.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/federation.py`, `domain/inventory.py`, `inventory_ops.py`, `jlcpcb_client.py`, `scripts/gen-inventory-types.py`, `scripts/gen-property-schema.py`, `server/models.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_models.py`, `tests/python/strategies.py`, `tests/python/test_cache_db.py`, `tests/python/test_federation.py`, `tests/python/test_federation_properties.py`, `tests/python/test_gen_property_schema.py`, `tests/python/test_jlcpcb_client.py`
+
+### domain/thresholds.py
+
+- **Imports:** —
+- **Imported by:** `tests/python/domain/test_threshold_defaults.py`, `tests/python/domain/test_thresholds.py`, `tests/python/server/test_meta_thresholds.py`
 
 ### dubis_errors.py
 
@@ -1437,7 +1451,7 @@ graph LR
 ### inventory_api.py
 
 - **Imports:** `bench.py`, `cache_db.py`, `csv_io.py`, `distributor_manager.py`, `domain/api_attributes.py`, `domain/api_cart.py`, `domain/api_distributor.py`, `domain/api_fileio.py`, `domain/api_generic_parts.py`, `domain/api_history.py`, `domain/api_inventory.py`, `domain/api_mirror.py`, `domain/api_predicates.py`, `domain/api_preferences.py`, `domain/api_pricing.py`, `domain/api_purchase_orders.py`, `domain/api_scan.py`, `domain/api_vendors.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/pricing.py`, `inventory_ops.py`, `mirror_push.py`
-- **Imported by:** `client_shell.py`, `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `server/__main__.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/helpers.py`, `tests/python/server/test_main_flags.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_catchup_properties.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`, `tests/python/test_request_restart.py`
+- **Imported by:** `client_shell.py`, `mfg_direct_import.py`, `scripts/generate-test-fixtures.py`, `server/__main__.py`, `tests/python/conftest.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/domain/test_threshold_defaults.py`, `tests/python/helpers.py`, `tests/python/server/test_main_flags.py`, `tests/python/test_api_surface.py`, `tests/python/test_cache_catchup_properties.py`, `tests/python/test_cache_db.py`, `tests/python/test_clients_base.py`, `tests/python/test_install_tesseract.py`, `tests/python/test_inventory_api_adjustments.py`, `tests/python/test_inventory_api_loading.py`, `tests/python/test_ocr_overlay_api.py`, `tests/python/test_part_history.py`, `tests/python/test_real_data.py`, `tests/python/test_request_restart.py`
 
 ### inventory_mirror.py
 
@@ -2055,7 +2069,7 @@ graph LR
 
 ### js/store.js
 
-- **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/server-tabs-logic.js`, `js/servers-logic.js`, `js/signals.js`, `js/sse.js`, `js/ui-helpers.js`
+- **Imports:** `js/api.js`, `js/constants.js`, `js/event-bus.js`, `js/server-tabs-logic.js`, `js/servers-logic.js`, `js/signals.js`, `js/sse.js`, `js/threshold-logic.js`, `js/ui-helpers.js`
 - **Imported by:** `js/a11y/roving-grid.js`, `js/a11y/scrollable.js`, `js/a11y/shortcut-help.js`, `js/a11y/shortcuts.js`, `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/cart/cart-plan-store.js`, `js/cart/cart-store.js`, `js/col-resize.js`, `js/feeders-modal.js`, `js/group-flyout/flyout-panel.js`, `js/import/import-panel.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/import/mfg-direct/vendor-picker.js`, `js/inventory/adjust-modal.js`, `js/inventory/favicon-stack.js`, `js/inventory/fetch-controller.js`, `js/inventory/filter-chips-bar.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-source-view.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`, `js/inventory/price-modal.js`, `js/inventory/saved-views.js`, `js/inventory/vendor-flyout.js`, `js/label-selection.js`, `js/panel-collapse.js`, `js/preferences-modal.js`, `js/server-list.js`, `js/server-tabs.js`, `js/text-popover.js`, `js/vendors-modal.js`, `tests/js/bom-dirty-invariant.test.js`, `tests/js/inventory-rendering.test.js`, `tests/js/panel-reopen-noop-refresh.test.js`, `tests/js/saved-views.test.js`, `tests/js/shortcut-prefs.test.js`, `tests/js/store.test.js`, `tests/js/undo-redo.test.js`
 - **Emits:** `CONFIRMED_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LINKING_MODE`, `LINKS_CHANGED`, `PO_CHANGED`, `VENDORS_CHANGED`
 - **Listens:** —
@@ -2064,6 +2078,16 @@ graph LR
 
 - **Imports:** `js/api.js`, `js/hover-affordance.js`, `js/store.js`, `js/ui-zoom.js`
 - **Imported by:** `js/app-init.js`
+
+### js/threshold-defaults.generated.js
+
+- **Imports:** —
+- **Imported by:** `js/threshold-logic.js`
+
+### js/threshold-logic.js
+
+- **Imports:** `js/threshold-defaults.generated.js`
+- **Imported by:** `js/store.js`
 
 ### js/types.js
 
@@ -2335,6 +2359,11 @@ graph LR
 - **Imports:** `domain/schema.py`
 - **Imported by:** —
 
+### scripts/gen-threshold-defaults.py
+
+- **Imports:** `domain/__init__.py`, `domain/inventory.py`
+- **Imported by:** —
+
 ### scripts/generate-test-fixtures.py
 
 - **Imports:** `csv_io.py`, `inventory_api.py`, `inventory_ops.py`
@@ -2482,7 +2511,7 @@ graph LR
 
 ### server/routes/meta.py
 
-- **Imports:** `cache_db.py`
+- **Imports:** `cache_db.py`, `domain/__init__.py`
 - **Imported by:** —
 
 ### server/routes/mirror.py
@@ -3036,6 +3065,16 @@ graph LR
 - **Imports:** `domain/purchase_candidates.py`
 - **Imported by:** —
 
+### tests/python/domain/test_threshold_defaults.py
+
+- **Imports:** `domain/thresholds.py`, `inventory_api.py`
+- **Imported by:** —
+
+### tests/python/domain/test_thresholds.py
+
+- **Imports:** `domain/thresholds.py`
+- **Imported by:** —
+
 ### tests/python/helpers.py
 
 - **Imports:** `distributor_manager.py`, `inventory_api.py`, `lcsc_client.py`
@@ -3134,6 +3173,11 @@ graph LR
 ### tests/python/server/test_main_transport.py
 
 - **Imports:** `server/__main__.py`, `server/lockfile.py`
+- **Imported by:** —
+
+### tests/python/server/test_meta_thresholds.py
+
+- **Imports:** `domain/thresholds.py`
 - **Imported by:** —
 
 ### tests/python/server/test_mirror_routes.py

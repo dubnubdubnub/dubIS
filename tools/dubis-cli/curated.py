@@ -3,8 +3,9 @@
 These are the ten tools `tools/dubis-mcp` exposed, and they are hand-written
 rather than generated for a reason worth stating: they are not aliases for
 single /v1 routes. `get` aggregates five calls, `search` filters client-side
-(no /v1 search route exists), `low-stock` reads a preferences threshold per
-section, and `spec-search` routes a display string through /v1/spec/extract
+(no /v1 search route exists), `low-stock` resolves a per-section threshold
+across /v1/preferences and /v1/meta, and `spec-search` routes a display string
+through /v1/spec/extract
 before resolving. A generator over the OpenAPI spec cannot produce any of
 them — the spec describes routes, and these are compositions.
 
@@ -28,6 +29,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from domain.thresholds import resolve
 from tools.dubis_client import (
     PartNotFoundError,
     V1Client,
@@ -158,21 +160,33 @@ def _spec_search(client: V1Client, args) -> dict:
 
 def _low_stock(client: V1Client, args) -> dict:
     """With no --threshold, each part is judged against its own section's
-    threshold from /v1/preferences.
+    threshold: the caller's override from /v1/preferences, then the server's
+    shipped default from /v1/meta, then that server's base.
 
-    That lookup is flat and keyed on the exact section string: unlike the
-    desktop UI, a compound section like "Parent > Sub" does NOT inherit
-    "Parent"'s threshold — only an exact entry applies, and anything
-    unconfigured defaults to 0 (zero-stock parts only).
+    That is the order the inventory grid colours with — js/threshold-logic.js
+    is the frontend mirror of domain/thresholds.py, whose resolve() is what
+    runs here — and a compound "Parent > Sub" section inherits its parent's
+    entry exactly as the desktop does.
+
+    It used to stop at the preferences and fall through to 0, so a section
+    nobody had moved the slider for flagged only zero-stock parts while the
+    desktop called the same part low. The two defaults were the bug; one
+    resolution order served by the server is the fix.
     """
     prefs = client.get("/v1/preferences")
-    thresholds = prefs.get("thresholds", {}) if isinstance(prefs, dict) else {}
+    overrides = prefs.get("thresholds", {}) if isinstance(prefs, dict) else {}
+    meta = client.get("/v1/meta")
+    defaults = meta.get("default_thresholds", {}) if isinstance(meta, dict) else {}
+    # An older server answers neither key. Its base is then unknown, and the
+    # honest fallback is this build's base — not 0, which is the default that
+    # made this command quietly disagree with the window beside it.
+    base = meta.get("base_threshold") if isinstance(meta, dict) else None
 
     flagged = []
     for item in fetch_inventory(client):
         effective = (
             args.threshold if args.threshold is not None
-            else thresholds.get(item.get("section", ""), 0)
+            else resolve(item.get("section", ""), overrides, defaults, base)
         )
         if item.get("qty", 0) <= effective:
             compact = compact_part(item)

@@ -279,7 +279,8 @@ def test_serve_honours_an_explicit_data_dir(monkeypatch, tmp_path):
 #
 # Hand-written rather than generated because they are compositions, not
 # routes: `get` aggregates five calls, `search` filters client-side (there is
-# no /v1 search route), `low-stock` reads per-section thresholds.
+# no /v1 search route), `low-stock` resolves a per-section threshold across
+# /v1/preferences and /v1/meta.
 
 
 def test_search_matches_description_case_insensitively(cli):
@@ -348,11 +349,59 @@ def test_low_stock_flags_by_explicit_threshold(cli):
     assert all("threshold" in part for part in payload["parts"])
 
 
-def test_low_stock_without_threshold_uses_per_section_preferences(cli):
-    """Unconfigured sections default to 0, so a well-stocked part must not be
-    flagged when no --threshold is given."""
+def test_low_stock_without_threshold_uses_the_shipped_default(cli):
+    """No preferences exist in this data dir, so each part is judged against
+    the default its category ships with — the same number the inventory grid
+    colours with. C1000 is a capacitor at qty 500 against its category's $20,
+    so it is not low; LM358DR's description categorises to "Other", which has
+    no default, so the $50 base judges its qty of 25 and it is.
+
+    This replaces a test asserting the opposite, written when an unconfigured
+    section fell through to 0 and only a zero-stock part was ever flagged — a
+    default the desktop window beside it never agreed with."""
     payload, _ = cli("low-stock")
-    assert not any(part["part_key"] == "LM358DR" for part in payload["parts"])
+    flagged = {part["part_key"]: part["threshold"] for part in payload["parts"]}
+    assert flagged["LM358DR"] == 50
+    assert "C1000" not in flagged
+
+
+def test_low_stock_takes_the_defaults_off_meta_rather_than_its_own_table(cli, live):
+    """The CLI is an HTTP client of /v1: what a remote server considers the
+    default is that server's business, so the answer has to arrive over the
+    wire. Dropping `default_thresholds` from /v1/meta would silently send every
+    remote query back to the base."""
+    import urllib.request
+
+    port = (live / ".v1_port").read_text(encoding="utf-8").strip()
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/v1/meta", timeout=10) as resp:
+        meta = json.load(resp)
+    assert meta["default_thresholds"]
+    assert isinstance(meta["base_threshold"], int)
+
+
+def test_low_stock_prefers_the_callers_override_over_the_default(cli, live):
+    prefs = live / "preferences.json"
+    prefs.write_text(json.dumps({"thresholds": {"Other": 5}}), encoding="utf-8")
+    try:
+        payload, _ = cli("low-stock")
+        assert not any(part["part_key"] == "LM358DR" for part in payload["parts"])
+    finally:
+        prefs.unlink()
+
+
+def test_low_stock_inherits_a_parent_override_for_a_sub_category(cli, live):
+    """The CLI used to look up the exact section string only, so an override on
+    "Passives - Capacitors" moved the desktop and not this command. Both sides
+    now resolve through domain/thresholds.py, inheritance included."""
+    prefs = live / "preferences.json"
+    prefs.write_text(json.dumps({"thresholds": {"Passives - Capacitors": 1000}}),
+                     encoding="utf-8")
+    try:
+        payload, _ = cli("low-stock")
+        flagged = {part["part_key"]: part["threshold"] for part in payload["parts"]}
+        assert flagged["C1000"] == 1000
+    finally:
+        prefs.unlink()
 
 
 def test_status_reports_the_discovered_server(cli):

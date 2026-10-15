@@ -615,6 +615,12 @@ jobs:
       - name: Verify property-test schema table is up to date
         if: needs.parse-tags.outputs.run_python == 'true' || needs.parse-tags.outputs.run_js == 'true'
         run: ~/dubis-venv/bin/python scripts/gen-property-schema.py --check
+      # The grid's threshold defaults reach the browser as a generated module
+      # (js/constants.js cannot be imported from a test), so the table the
+      # frontend colours with must not drift from data/constants.json.
+      - name: Verify threshold default table is up to date
+        if: needs.parse-tags.outputs.run_python == 'true' || needs.parse-tags.outputs.run_js == 'true'
+        run: ~/dubis-venv/bin/python scripts/gen-threshold-defaults.py --check
       - name: Verify module manifests are accurate
         if: needs.parse-tags.outputs.run_python == 'true'
         run: ~/dubis-venv/bin/python scripts/check-manifests.py
@@ -659,6 +665,9 @@ jobs:
       - name: Verify inventory-record types are up to date
         if: needs.parse-tags.outputs.run_python == 'true'
         run: python scripts/gen-inventory-types.py --check
+      - name: Verify threshold default table is up to date
+        if: needs.parse-tags.outputs.run_python == 'true' || needs.parse-tags.outputs.run_js == 'true'
+        run: python scripts/gen-threshold-defaults.py --check
       - name: Verify module manifests are accurate
         if: needs.parse-tags.outputs.run_python == 'true'
         run: python scripts/check-manifests.py

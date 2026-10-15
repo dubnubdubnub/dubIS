@@ -79,6 +79,15 @@ if [ $propschema_rc -ne 0 ]; then
     echo "  → property schema stale — run \`python scripts/gen-property-schema.py\` and commit."
 fi
 
+# 3d. shipped threshold defaults (js/threshold-defaults.generated.js is a
+#     generated copy of data/constants.json's DEFAULT_THRESHOLDS, because
+#     js/constants.js cannot be imported from a test — see the script's docstring).
+run_step "threshold-defaults" "$PY" scripts/gen-threshold-defaults.py --check
+thresholds_rc=$?
+if [ $thresholds_rc -ne 0 ]; then
+    echo "  → threshold defaults stale — run \`python scripts/gen-threshold-defaults.py\` and commit."
+fi
+
 # 4. manifests
 run_step "manifests" "$PY" scripts/check-manifests.py
 

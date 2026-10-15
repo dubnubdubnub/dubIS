@@ -54,7 +54,7 @@ before the generated surface below.
 ```bash
 dubis search 100nF                 # substring over lcsc/mpn/description/mfr/package
 dubis get C1000                    # one detail card: stock, prices, groups, history
-dubis low-stock                    # per-section thresholds from preferences
+dubis low-stock                    # per-section thresholds: your override, else the shipped default
 dubis spec-search capacitor 100nF --package 0402
 ```
 

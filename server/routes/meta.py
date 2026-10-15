@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request, Response
 
+from domain import thresholds
+
 router = APIRouter(prefix="/v1", tags=["meta"])
 
 
@@ -26,8 +28,16 @@ def meta(request: Request) -> dict:
     api = request.app.state.api
     import cache_db  # noqa: PLC0415
 
+    # `default_thresholds` and `base_threshold` travel here because a client
+    # that judges stock needs the same number the inventory grid colours with,
+    # and this is the route that already answers "what are this server's
+    # categories". `dubis low-stock` reads them from here rather than carrying
+    # its own copy of the table — see domain/thresholds.py for why a third
+    # default is the bug this closes.
     return {
         "schema_version": cache_db.SCHEMA_VERSION,
         "section_order": api.SECTION_ORDER,
         "flat_section_order": api.FLAT_SECTION_ORDER,
+        "default_thresholds": api.DEFAULT_THRESHOLDS,
+        "base_threshold": thresholds.BASE_THRESHOLD,
     }
