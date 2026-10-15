@@ -40,6 +40,10 @@ import {
   tabForSource,
   tabForSourceValue,
 } from './server-tabs-logic.js';
+import {
+  refreshProfile,
+  resolveOptionsFor,
+} from './threshold-profiles.js';
 
 // Debounce window for the SSE-driven inventory refresh (trailing debounce:
 // the timer resets on every event and fires once quiet). 250ms per Task 3
@@ -580,13 +584,27 @@ export async function savePreferences() {
 
 export function getThreshold(section) {
   // The order — override, inherited parent override, chosen preset bundle,
-  // shipped default, inherited parent default, family derivation, base —
-  // lives in js/threshold-logic.js so the CLI and the grid cannot disagree
-  // about it. The preset id is re-read through the lenient rule on every
-  // call because another window may have written preferences.json since the
-  // last load; a stale id must not poison every row build.
+  // server profile, that server's snapshot 0, inherited parent default, family
+  // derivation, base — lives in js/threshold-logic.js so the CLI and the grid
+  // cannot disagree about it. The preset id is re-read through the lenient rule
+  // on every call because another window may have written preferences.json
+  // since the last load; a stale id must not poison every row build.
+  //
+  // The server layer is the ACTIVE SOURCE's own profile, not this build's
+  // generated table: a threshold is a per-server fact (domain/
+  // threshold_snapshots.py), and a window showing `shop` must colour rows the
+  // way `shop` would. `resolveOptionsFor` returns {} when that source has
+  // nothing cached, which is the ONLY way the shipped table is reached any
+  // more — and js/threshold-profiles.js's `profileState()` says out loud when
+  // that has happened, so a colour based on baked-in defaults is never
+  // silently one. Read through `getActiveSource()` rather than a stored value:
+  // the same function every /v1 request is stamped with, so the colour and the
+  // rows can never be about two different servers.
   const preset = presetBundle(storedPresetId(preferences.threshold_preset));
-  return resolveThreshold(section, preferences.thresholds, { preset });
+  return resolveThreshold(section, preferences.thresholds, {
+    preset,
+    ...resolveOptionsFor(getActiveSource()),
+  });
 }
 
 export function setThresholdPreset(presetId) {
@@ -1075,6 +1093,15 @@ function syncShownSource(opts) {
   const source = getActiveSource();
   if (source === shownSource) return false;
   shownSource = source;
+  // The threshold profile belongs to the source, so it moves with it — and it
+  // moves HERE rather than at each gesture, for the same reason the refetch
+  // does: this is the one place that knows the source behind the grid actually
+  // changed. Before the `refetch` gate, because startup seeds the source
+  // without refetching the inventory and still needs a profile to colour the
+  // first paint with. Fire-and-forget: a paint path must not await a network
+  // round trip, and a failure is a state change (`stale`), never a rejection.
+  refreshProfile(source).catch((e) =>
+    AppLog.warn('thresholds: profile refresh for ' + source + ' failed: ' + e));
   if (!opts.refetch) return false;
   scheduleInventoryRefresh().catch((e) =>
     AppLog.warn('sources: refresh after moving to ' + source + ' failed: ' + e));
