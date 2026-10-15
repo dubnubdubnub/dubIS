@@ -20,13 +20,13 @@ Does NOT own BOM match data (produced by `js/bom/`) or generic-parts definitions
 - `inventory-panel.js`: `init` — mount point; wires DOM refs, events, and render
 - `inv-events.js`: `setupEvents`, `isFlyoutDragActive` — event wiring + drag-state query
 - `inv-state.js`: `hydrateFromPreferences` — restores sort/group view from preferences
-- `inv-tree-render.js`: `renderNormalInventory`, `renderGlobalScope`, `appendFlatRows`, `renderVendorPiles`, `renderHierarchySection`, `renderSubSection`, `renderSection` — hierarchy rendering
+- `inv-tree-render.js`: `renderNormalInventory`, `renderGlobalScope`, `appendFlatRows`, `renderVendorPiles`, `renderHierarchySection`, `renderSubSection`, `renderSection`, `categoryHit` — hierarchy rendering (`categoryHit` reads the `behavior.categorySearch` preference at render time; inv-bom-mode.js shares it so both halves of the panel agree)
 - `inv-bom-mode.js`: `buildNearMissMap`, `renderBomComparison`, `renderRemainingInventory`, `renderRemainingNormalSections` — BOM-mode rendering
 - `inv-mutations.js`: `createReverseLink`, `confirmMatch`, `unconfirmMatch`, `confirmAltMatch`, `inferPartType`, `autoCreateGroupAndOpenFlyout`, `handleBomTableClick` — BOM click handling
 - `inv-row-build.js`: `createPartRow` — single inventory row DOM builder
 - `inv-sort-group.js`: `nextScope`, `sortPartsBy`, `groupByVendor` — pure sort/group helpers
 - `inv-groups-view.js`: `renderGroupedView`, `renderFilterRow`, `applyGroupFilters` — groups mode
-- `inventory-logic.js`: `groupBySection`, `filterByQuery`, `inferDistributor`, `countByDistributor`, `filterByDistributor`, `filterByVendor`, `computeMatchedInvKeys`, `sortBomRows`, `buildRowMap`, `groupPartsByGeneric`, `computeFilterDimensions`, `filterMembersByChips`, `bomRowDisplayData`, `BOM_STATUS_SORT_ORDER` — pure logic
+- `inventory-logic.js`: `groupBySection`, `filterByQuery`, `bucketSection`, `inferDistributor`, `countByDistributor`, `filterByDistributor`, `filterByVendor`, `computeMatchedInvKeys`, `sortBomRows`, `buildRowMap`, `groupPartsByGeneric`, `computeFilterDimensions`, `filterMembersByChips`, `bomRowDisplayData`, `BOM_STATUS_SORT_ORDER` — pure logic (re-exports `nameTokens`/`matchesCategoryName` from `../category-match.js`, which lives outside this directory so `../bom-row-data.js` can use it without the two importing each other)
 - `inv-html-builders.js`: `renderSectionHeader`, `renderSubSectionHeader`, `renderPartRowHtml`, `createBomRowElement`, `renderAltRows`, `renderMemberRows`, `renderFilterBarHtml`, `renderBomTableHeader`, `renderInvColHeader`, `countStatuses` — pure HTML builders
 - `inv-source-logic.js`: `sourceEntries`, `isMergedRow`, `sourceNames`, `sourceBadge`, `conflictFields`, `hasConflict`, `conflictNote`, `viewStateFrom`, `writeTarget`, `writeTargetForAll`, `partialViewNote`, `serverOptions` — pure merged-view provenance: what a row's badge claims, which fields two servers disagreed on, and which server a write may land on
 - `inv-source-view.js`: `toggleSourceBreakdown`, `refreshSourceBreakdowns`, `initSourceBanner` — the per-source breakdown inserted after an expanded row, and the "totals are incomplete" banner

@@ -4,7 +4,7 @@
    renderHierarchySection, renderSubSection, renderSection. */
 
 import { escHtml } from '../ui-helpers.js';
-import { store } from '../store.js';
+import { store, getBehaviorPrefs } from '../store.js';
 import {
   groupBySection,
   filterByQuery,
@@ -35,6 +35,17 @@ function activeSortScope()        { return state.bomData ? null : state.sortScop
 function activeVendorGroupScope() { return state.bomData ? null : state.vendorGroupScope; }
 function activeGroupLevel()       { return state.bomData ? 0    : state.groupLevel; }
 
+// Whether a term that NAMES a category keeps the whole bucket (Preferences
+// toggle, default on). Read at render time, never cached here: js/preferences-
+// logic.js classifies `behavior.categorySearch` as `repaints`, so flipping the
+// toggle re-enters render() and this read is already the new value. Caching it
+// in a module-level `var` next to SECTION_HIERARCHY — which IS read once, because
+// SECTION_ORDER never changes at runtime — would make the toggle do nothing until
+// relaunch, the exact bug js/preferences-logic.js exists to prevent.
+// Exported because inv-bom-mode.js's "Other Inventory" half renders through the
+// same section renderers below and must agree with this one.
+export function categoryHit() { return getBehaviorPrefs().categorySearch; }
+
 // ── Normal mode: grouped by section ──
 
 export function renderNormalInventory() {
@@ -51,7 +62,7 @@ export function renderNormalInventory() {
   for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
     var entry = SECTION_HIERARCHY[i];
     if (!entry.children) {
-      var filtered = filterByPredicate(filterByVendor(filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributors), state.selectedVendorIds), state.activePredicate);
+      var filtered = filterByPredicate(filterByVendor(filterByDistributor(filterByQuery(sections[entry.name] || [], query, { categoryHit: categoryHit() }), state.activeDistributors), state.selectedVendorIds), state.activePredicate);
       if (filtered.length > 0) renderSection(entry.name, filtered);
     } else {
       renderHierarchySection(entry, sections, query);
@@ -70,7 +81,7 @@ export function renderGlobalScope(sections, query) {
   for (var i = 0; i < FLAT_SECTIONS.length; i++) {
     var name = FLAT_SECTIONS[i];
     var bucket = sections[name] || [];
-    var filtered = filterByPredicate(filterByDistributor(filterByQuery(bucket, query), state.activeDistributors), state.activePredicate);
+    var filtered = filterByPredicate(filterByDistributor(filterByQuery(bucket, query, { categoryHit: categoryHit() }), state.activeDistributors), state.activePredicate);
     var displayName = sectionDisplayName(name);
     for (var j = 0; j < filtered.length; j++) {
       var tagged = /** @type {SectionTaggedItem} */ (Object.assign({}, filtered[j]));
@@ -109,12 +120,12 @@ export function renderVendorPiles(container, parts, scopeKey) {
 }
 
 export function renderHierarchySection(entry, sections, query) {
-  var parentParts = filterByPredicate(filterByVendor(filterByDistributor(filterByQuery(sections[entry.name] || [], query), state.activeDistributors), state.selectedVendorIds), state.activePredicate);
+  var parentParts = filterByPredicate(filterByVendor(filterByDistributor(filterByQuery(sections[entry.name] || [], query, { categoryHit: categoryHit() }), state.activeDistributors), state.selectedVendorIds), state.activePredicate);
   var childData = [];
   var totalCount = parentParts.length;
   for (var i = 0; i < entry.children.length; i++) {
     var fullKey = entry.name + " > " + entry.children[i];
-    var filtered = filterByPredicate(filterByVendor(filterByDistributor(filterByQuery(sections[fullKey] || [], query), state.activeDistributors), state.selectedVendorIds), state.activePredicate);
+    var filtered = filterByPredicate(filterByVendor(filterByDistributor(filterByQuery(sections[fullKey] || [], query, { categoryHit: categoryHit() }), state.activeDistributors), state.selectedVendorIds), state.activePredicate);
     totalCount += filtered.length;
     childData.push({ name: entry.children[i], fullKey: fullKey, parts: filtered });
   }

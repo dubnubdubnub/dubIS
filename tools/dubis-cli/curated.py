@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from domain.category_match import matches_category_name
 from domain.thresholds import resolve
 from tools.dubis_client import (
     PartNotFoundError,
@@ -102,9 +103,20 @@ def _search(client: V1Client, args) -> dict:
         if section and (item.get("section") or "").lower() != section:
             continue
         if query:
-            haystack = " ".join(str(item.get(f, "")) for f in _SEARCH_FIELDS).lower()
-            if query not in haystack:
-                continue
+            # `--category-hit` mirrors the app's Preferences toggle: a term that
+            # NAMES this row's category keeps the row even when no field of it
+            # contains the term. Explicit rather than default-on because the CLI
+            # has no preferences file — there is no stored toggle to read, and
+            # silently defaulting on would make `dubis search diodes` disagree
+            # with `dubis search diodes` on a laptop that turned it off. The
+            # rule itself is shared with the frontend (domain/category_match.py).
+            category_hit = bool(args.category_hit) and matches_category_name(
+                query, item.get("section")
+            )
+            if not category_hit:
+                haystack = " ".join(str(item.get(f, "")) for f in _SEARCH_FIELDS).lower()
+                if query not in haystack:
+                    continue
         hits.append(item)
     matches = [compact_part(item) for item in hits[: args.max_results]]
     return {"matches": matches, "total_count": len(hits), "returned": len(matches)}
@@ -294,6 +306,13 @@ def _args_search(parser):
     parser.add_argument("query", nargs="?", default="",
                         help="case-insensitive substring; empty matches everything")
     parser.add_argument("--section", default="", help="restrict to one exact section")
+    parser.add_argument("--category-hit", dest="category_hit", action="store_true",
+                        help="also keep rows whose SECTION the query names, even when no "
+                             "field of the row contains it ('diodes' finds the Diodes "
+                             "category, whose rows only ever say 'Diode'). Whole words "
+                             "only, so 'ic' matches no category. Off by default: the CLI "
+                             "has no preferences file, so unlike the app's Preferences "
+                             "toggle (on by default) this can only be asked for.")
     parser.add_argument("--max-results", dest="max_results", type=int, default=25)
 
 
@@ -344,7 +363,7 @@ CURATED: dict[str, dict[str, Any]] = {
         "run": _status,
     },
     "search": {
-        "help": "substring search over inventory, compact projection",
+        "help": "substring search over inventory, compact projection (--category-hit for a whole category)",
         "add_args": _args_search,
         "run": _search,
     },

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   groupBySection,
   filterByQuery,
+  bucketSection,
   computeMatchedInvKeys,
   computeCollapsedState,
   sortBomRows,
@@ -108,6 +109,106 @@ describe('filterByQuery', () => {
   it('is case-insensitive', () => {
     expect(filterByQuery(parts, 'RESISTOR')).toHaveLength(0); // query must be pre-lowercased
     expect(filterByQuery(parts, 'resistor')).toHaveLength(1);
+  });
+});
+
+// ── filterByQuery: a term that NAMES the category keeps the whole bucket ──
+//
+// The bug this covers is a search that returns literally nothing. Every Diodes
+// row's description reads "Diode 100V 2A Surface Mount", so "diodes" matched no
+// haystack and the category was unsearchable by its own name. The rule lives in
+// js/category-match.js and is pinned case-by-case by
+// tests/js/category-match-cases.test.mjs; what is under test HERE is the
+// predicate's contract around it — that the bucket is kept whole, that it is
+// opt-in, and that a hit in one bucket does not reach into another.
+
+describe('filterByQuery — category hit', () => {
+  // Shaped like two real buckets out of groupBySection: rows whose text says the
+  // singular, in a section named by the plural.
+  var diodes = [
+    { section: 'Diodes', lcsc: 'C14996', description: 'Diode 100V 2A Surface Mount SMA' },
+    { section: 'Diodes', lcsc: 'C2128', description: 'Diode Independent 100V 150mA' },
+  ];
+  var leds = [
+    { section: 'LEDs', lcsc: 'C2286', description: 'Red 645nm LED Indication - Discrete' },
+  ];
+  var ungrouped = [
+    { section: 'Connectors', lcsc: 'C98732', description: 'Banana and Tip Connector Adapters' },
+  ];
+  var child = [
+    { section: 'Connectors > SMD', lcsc: 'C429942', description: '' },
+  ];
+
+  it('keeps the whole bucket when the term names its category', () => {
+    expect(filterByQuery(diodes, 'diodes', { categoryHit: true })).toHaveLength(2);
+  });
+
+  it('finds rows whose text never contains the term', () => {
+    // The point of the feature: neither description contains "diodes".
+    for (const row of diodes) {
+      expect(row.description.toLowerCase()).not.toContain('diodes');
+    }
+    expect(filterByQuery(diodes, 'diodes', {})).toHaveLength(0);
+  });
+
+  it('does nothing when the toggle is off', () => {
+    // Byte-identical to a plain text search — the preference is the only thing
+    // that turns this on, so "off" must not be a subtly different filter.
+    expect(filterByQuery(diodes, 'diodes', { categoryHit: false })).toHaveLength(0);
+    expect(filterByQuery(diodes, 'diodes')).toHaveLength(0);
+  });
+
+  it('leaves every OTHER bucket to the text search', () => {
+    // A category hit ADDS a category, it does not replace the search: typing
+    // "diodes" must not also light up the LEDs bucket.
+    expect(filterByQuery(leds, 'diodes', { categoryHit: true })).toHaveLength(0);
+    expect(filterByQuery(leds, 'leds', { categoryHit: true })).toHaveLength(1);
+  });
+
+  it('does not let a short term swallow the grid', () => {
+    // "ic" is a substring of nine IC section names. Whole-token matching is what
+    // keeps this an empty result instead of "everything".
+    var ics = [
+      { section: 'ICs - Microcontrollers', lcsc: 'C1', description: 'MCU' },
+      { section: 'ICs - Amplifiers', lcsc: 'C2', description: 'Op Amp' },
+    ];
+    expect(filterByQuery(ics, 'ic', { categoryHit: true })).toHaveLength(0);
+    expect(filterByQuery(ics, 'ics', { categoryHit: true })).toHaveLength(2);
+  });
+
+  it('a parent name keeps a child bucket too', () => {
+    // "Connectors > SMD" carries the parent's token, so typing the parent shows
+    // the family rather than only the ungrouped rows under the parent header.
+    expect(filterByQuery(child, 'connectors', { categoryHit: true })).toHaveLength(1);
+    expect(filterByQuery(ungrouped, 'connectors', { categoryHit: true })).toHaveLength(1);
+    // …and the child's own name does NOT reach up to the parent bucket.
+    expect(filterByQuery(ungrouped, 'smd', { categoryHit: true })).toHaveLength(0);
+  });
+
+  it('still applies the text search inside a bucket the term does not name', () => {
+    expect(filterByQuery(diodes, '100v', { categoryHit: true })).toHaveLength(2);
+    expect(filterByQuery(diodes, '150ma', { categoryHit: true })).toHaveLength(1);
+  });
+
+  it('an empty bucket is kept empty rather than invented', () => {
+    expect(filterByQuery([], 'diodes', { categoryHit: true })).toEqual([]);
+  });
+});
+
+describe('bucketSection', () => {
+  it('reads the section off the bucket it belongs to', () => {
+    expect(bucketSection([{ section: 'Diodes' }, { section: 'Diodes' }])).toBe('Diodes');
+  });
+
+  it('reports "Other" for the bucket groupBySection files unsectioned rows under', () => {
+    // Must agree with groupBySection's `item.section || "Other"` or the fallback
+    // bucket would be the one category a term could never name.
+    expect(bucketSection([{ section: '' }, { mpn: 'X' }])).toBe('Other');
+    expect(filterByQuery([{ section: '' }], 'other', { categoryHit: true })).toHaveLength(1);
+  });
+
+  it('has no section to name when there is no bucket', () => {
+    expect(bucketSection([])).toBe('');
   });
 });
 

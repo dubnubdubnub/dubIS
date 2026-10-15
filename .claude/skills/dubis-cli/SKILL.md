@@ -42,7 +42,7 @@ Hand-written commands covering the common questions. Reach for these
 before the generated surface below.
 
 - `dubis status` — which /v1 server and server source answer this session, and its part count
-- `dubis search` — substring search over inventory, compact projection
+- `dubis search` — substring search over inventory, compact projection (--category-hit for a whole category)
 - `dubis get` — aggregated detail card for one part
 - `dubis spec-search` — find the generic group matching a BOM spec
 - `dubis low-stock` — parts at or below a stock threshold

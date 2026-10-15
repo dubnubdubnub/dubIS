@@ -5,8 +5,19 @@
 
 import { bomKey, invPartKey, STATUS_ICONS, STATUS_ROW_CLASS } from './part-keys.js';
 import { extractFootprintCode, invFootprintCode } from './matching.js';
+import { matchesCategoryName } from './category-match.js';
 
-export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState, expandedMembers) {
+/**
+ * @param {Object} r - a BOM comparison row ({ bom, inv, effectiveStatus, … })
+ * @param {string} query - lowercase search term
+ * @param {string} activeFilter
+ * @param {Set<string>} expandedAlts
+ * @param {Object} linkingState
+ * @param {Set<string>} expandedMembers
+ * @param {{categoryHit?: boolean}} [options]
+ * @returns {Object|null} the row's display data, or null to hide the row
+ */
+export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState, expandedMembers, options) {
   var st = r.effectiveStatus;
 
   // ── Filter by status ──
@@ -21,11 +32,31 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
 
   // ── Filter by search query ──
   if (query) {
+    // DECISION for the category toggle in BOM mode, stated here because it is
+    // not the same claim as the inventory grid's and cannot be.
+    //
+    // The grid's rule is "keep the whole section bucket", which needs a bucket.
+    // A BOM table has none — its rows are BOM lines, bucketed by nothing, and
+    // the BOM side of a row (`r.bom`) carries no `section` at all: a section is
+    // a property of a part we stock, not of a line on somebody's bill of
+    // materials. So "show the whole category" is not expressible here, and
+    // inventing a bucket would mean showing BOM lines that match nothing, which
+    // is the opposite of what a BOM search is for.
+    //
+    // What IS expressible, and is what this does: a BOM line whose MATCHED
+    // inventory part belongs to the named category stays visible. That is the
+    // same question — "is this row in the category I just typed?" — answered
+    // with the only section a BOM row has, and it reads as "show me my BOM lines
+    // that are diodes". A line matched to nothing has no section and so is
+    // filtered by text exactly as before; the toggle never ADDS an unmatched
+    // line to the table.
+    var categoryHit = !!(options && options.categoryHit
+      && r.inv && matchesCategoryName(query, r.inv.section || ""));
     var text = [
       r.bom.lcsc, r.bom.mpn, r.bom.value, r.bom.refs, r.bom.desc,
       r.inv ? r.inv.lcsc : "", r.inv ? r.inv.mpn : "", r.inv ? r.inv.description : "",
     ].join(" ").toLowerCase();
-    if (!text.includes(query)) return null;
+    if (!categoryHit && !text.includes(query)) return null;
   }
 
   var partKey = bomKey(r.bom);

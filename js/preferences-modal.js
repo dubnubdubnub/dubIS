@@ -95,6 +95,7 @@ function syncKeyboardPrefs() {
   document.getElementById('pref-enter-submit').checked = p.enterSubmitsModals;
   document.getElementById('pref-vim-nav').checked = p.vimNav;
   document.getElementById('pref-auto-copy').checked = getBehaviorPrefs().autoCopySelection;
+  document.getElementById('pref-category-search').checked = getBehaviorPrefs().categorySearch;
   document.getElementById('pref-reel-ceiling').value = String(getBehaviorPrefs().reelCeiling);
 }
 
@@ -103,6 +104,11 @@ function wireKeyboardPrefs() {
   document.getElementById('pref-enter-submit').addEventListener('change', (e) => setShortcutPrefs({ enterSubmitsModals: e.target.checked }));
   document.getElementById('pref-vim-nav').addEventListener('change', (e) => setShortcutPrefs({ vimNav: e.target.checked }));
   document.getElementById('pref-auto-copy').addEventListener('change', (e) => setBehaviorPrefs({ autoCopySelection: e.target.checked }));
+  // A checkbox, so 'change' fires once per click and the value is already the
+  // user's intent — no re-read from the store needed, unlike the ceiling field.
+  // The grid repaints on its own: js/preferences-logic.js classifies this key as
+  // `repaints`, so the write publishes and js/inventory/inv-events.js re-renders.
+  document.getElementById('pref-category-search').addEventListener('change', (e) => setBehaviorPrefs({ categorySearch: e.target.checked }));
   // Committed on 'change' (blur or Enter), not 'input': every keystroke of
   // "150" passes through 1 and 15, and persisting those would rewrite the rule
   // twice on the way to the number the user meant. setBehaviorPrefs rejects a

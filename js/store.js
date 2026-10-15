@@ -58,6 +58,14 @@ export const SHORTCUT_DEFAULTS = Object.freeze({
 /** @type {Object} */
 export const BEHAVIOR_DEFAULTS = Object.freeze({
   autoCopySelection: false,   // auto-copy highlighted/selected text to clipboard
+  // A search term that NAMES a category ("diodes") shows that whole category,
+  // not only the rows whose text contains the term. ON by default: the case it
+  // fixes is a search that returns literally nothing — every Diodes row reads
+  // "Diode 100V 2A …", so the plural matched no haystack — and a user who types a
+  // category name means the category. The match is whole-word and contiguous
+  // (js/category-match.js), so it cannot swallow the grid the way a substring
+  // rule would; "ic" still searches, it does not light up nine IC sections.
+  categorySearch: true,
   // Spend above which a whole reel stops being a convenience worth paying for.
   // A DEFAULT RULE, not a constant and not a budget: it decides which reel the
   // cart's reel preset prefers and never hides one that exists, so a $90 reel
@@ -1360,13 +1368,21 @@ export async function switchActiveSource(sourceId) {
  * not added HERE looks like it saved and comes back as the default, in both
  * directions and without an error.
  * @param {any} raw
- * @returns {{autoCopySelection: boolean, reelCeiling: number}}
+ * @returns {{autoCopySelection: boolean, categorySearch: boolean, reelCeiling: number}}
  */
 function normalizeBehavior(raw) {
   const b = raw || {};
   const ceiling = Number(b.reelCeiling);
   return {
     autoCopySelection: !!b.autoCopySelection,
+    // NOT `!!b.categorySearch`, which is how the line above reads. This default
+    // is ON, and `!!undefined` is false — so a preferences.json written before
+    // this feature existed (or one that simply never carried the key, because
+    // nothing was toggled) would come back OFF and the shipped default would be
+    // unreachable. An absent key means "never decided", which is the default;
+    // any value present means somebody decided, and `!!` reads that decision.
+    categorySearch: b.categorySearch === undefined
+      ? BEHAVIOR_DEFAULTS.categorySearch : !!b.categorySearch,
     // 0 and negatives are not a ceiling of zero — they would reject every reel
     // there is — so they fall back to the shipped default.
     reelCeiling: Number.isFinite(ceiling) && ceiling > 0

@@ -23,7 +23,7 @@ import {
 import { isFlyoutDragActive } from './inv-events.js';
 import state from './inv-state.js';
 import { handleBomTableClick } from './inv-mutations.js';
-import { renderSection, renderHierarchySection } from './inv-tree-render.js';
+import { renderSection, renderHierarchySection, categoryHit } from './inv-tree-render.js';
 
 // ── Section hierarchy (read once from store) ──
 
@@ -84,7 +84,7 @@ export function renderBomComparison() {
   var flyoutActive = isFlyoutDragActive();
   for (var i = 0; i < sortedRows.length; i++) {
     var r = sortedRows[i];
-    var d = bomRowDisplayData(r, query, state.activeFilter, state.expandedAlts, linkingState, state.expandedMembers);
+    var d = bomRowDisplayData(r, query, state.activeFilter, state.expandedAlts, linkingState, state.expandedMembers, { categoryHit: categoryHit() });
     if (!d) continue;
     var bomTr = createBomRowElement(d);
     bomTr.draggable = flyoutActive;
@@ -169,7 +169,7 @@ export function renderRemainingNormalSections(otherParts, query) {
   for (var i = 0; i < SECTION_HIERARCHY.length; i++) {
     var entry = SECTION_HIERARCHY[i];
     if (!entry.children) {
-      var filtered = filterByDistributor(filterByQuery(otherParts[entry.name] || [], query), state.activeDistributors);
+      var filtered = filterByDistributor(filterByQuery(otherParts[entry.name] || [], query, { categoryHit: categoryHit() }), state.activeDistributors);
       if (filtered.length > 0) renderSection(entry.name, filtered);
     } else {
       renderHierarchySection(entry, otherParts, query);
