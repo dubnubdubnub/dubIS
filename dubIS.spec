@@ -76,6 +76,11 @@ a = Analysis(
         # descriptions alone, and the feature would simply never have been
         # there. That silent-absence shape is why this list is guarded.
         ('category_map.csv', '.'),
+        # The per-part misfile list. Its absence is not a crash either --
+        # category_refusals.load() reads a missing file as "no misfiles
+        # recorded" -- so the built app would place the protected parts by
+        # their distributor's misfile while every source run looked correct.
+        ('category_refusals.csv', '.'),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],

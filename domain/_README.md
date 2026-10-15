@@ -29,8 +29,8 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `attributes.py`: `record_fetched_attributes`, `get_attributes` — distributor parametric fetch + lookup
 - `attributes.py`: `record_attributes`, `read_rows`, `build_rows` — durable part_attributes CSV
 - `attributes.py`: `load_into_db` — rebuild the derived part_attributes cache table
-- `distributor_categories.py`: `record_fetched_categories`, `get_part_categories` — distributor category fetch + lookup, with the section category_map.csv gives it
-- `distributor_categories.py`: `record_categories`, `read_rows`, `index`, `resolve`, `resolver`, `content_hash` — durable distributor_categories CSV and the per-rebuild lookup
+- `distributor_categories.py`: `record_fetched_categories`, `get_part_categories` — distributor category fetch + lookup, with the section category_map.csv gives it and the category_refusals.csv verdict on it
+- `distributor_categories.py`: `record_categories`, `read_rows`, `index`, `resolve`, `resolver`, `content_hash` — durable distributor_categories CSV, the per-rebuild lookup (which refuses a part's category per `category_refusals.csv`), and the digest the cache checkpoint hashes
 - `distributor_categories.py`: `load_into_db` — rebuild the derived distributor_categories cache table
 - `distributor_categories.py`: `PREFERENCE` — which distributor wins when two disagree about one part
 - `attribute_parse.py`: `parse_value`, `ParsedValue` — value -> magnitude/range/unit, or unparsed

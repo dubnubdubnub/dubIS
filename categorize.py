@@ -10,7 +10,10 @@ Two independent signals, in this order:
    distributor is right far more often than not.
 2. **What the description says.**  ``CATEGORY_RULES``, below.
 
-The distributor's word is not taken blindly: see the veto in ``categorize()``.
+The distributor's word is not taken blindly.  Two things can refuse it: a
+per-part entry in ``category_refusals.csv``, applied before the category is
+even offered (``category_refusals.py``), and the description veto in
+``categorize()``.
 And it is only taken at all when the map commits to one section -- a bucket the
 table labels ambiguous ("Passive Components": resistors, capacitors *and*
 inductors) has no opinion, and the part falls through to the rules.
@@ -19,7 +22,7 @@ inductors) has no opinion, and the part falls through to the rules.
 from __future__ import annotations
 
 import re
-from typing import Any, Callable
+from typing import Any
 
 import category_map
 
@@ -330,7 +333,6 @@ def _disclaimed(section: str, desc: str) -> bool:
 def categorize(
     row: dict[str, str],
     distributor_category: category_map.DistributorCategory | None = None,
-    accept: Callable[[str], bool] | None = None,
 ) -> str:
     """The section a part belongs in.
 
@@ -338,12 +340,15 @@ def categorize(
     recorded when it was last fetched -- outranks the description rules
     whenever the map commits to a section for it.
 
-    ``accept`` lets the caller refuse a section for *this* part.  Nothing in
-    production passes one; the corpus uses it to hold the parts listed in
-    ``known-misfiles.json``, where the distributor's own category is the thing
-    that is wrong, so scoring with categories fed in still measures the
-    misfile rather than papering over it.  It is also the seam a future
-    per-part override would plug into.
+    Nothing here decides *whether to ask the distributor*.  That is the
+    per-part carve-out, and it belongs with the thing it reads the part from:
+    ``domain.distributor_categories.resolve`` drops a category the project has
+    recorded as a misfile (``category_refusals.csv``) before handing one here,
+    so a part the distributor is known to get wrong arrives with no category
+    and is placed by its description.  A seam on this function would have been
+    a second, weaker copy of that decision: it could only refuse a *section*,
+    so it would have blinded every distributor for that part at once instead of
+    letting the next one in ``PREFERENCE`` answer.
     """
     desc = (row.get("Description") or "").lower()
     mpn = (row.get("Manufacture Part Number") or "").lower()
@@ -357,11 +362,10 @@ def categorize(
             distributor_category.subcategory,
         )
         # The distributor outranks the description -- but only when the map
-        # commits to a section for its bucket, the caller has not refused that
-        # section for this part, and the description does not both disclaim the
-        # section and name a specific one of its own.  "The rules had nothing"
-        # is not a competing answer; it is the reason we are asking.
-        if (proposed is not None and (accept is None or accept(proposed))
+        # commits to a section for its bucket and the description does not both
+        # disclaim the section and name a specific one of its own.  "The rules
+        # had nothing" is not a competing answer; it is the reason we are asking.
+        if (proposed is not None
                 and not (parent not in ("Other", proposed)
                          and _disclaimed(proposed, desc))):
             parent = proposed

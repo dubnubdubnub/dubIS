@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 import category_map
+import category_refusals
 from categorize import categorize
 from category_map import DistributorCategory
 
@@ -59,13 +60,19 @@ class TestPrecedence:
                      "Interface")
         assert got == "ICs - Interface"
 
-    def test_the_distributor_wins_over_a_wrong_mpn_rule(self):
-        # LCSC files this under Development Boards & Tools; the description
-        # says "Microcontrollers", which is what the part is *not*.
-        assert _place("LQFP-48(7x7) Microcontrollers (MCU/MPU/SOC) ROHS",
-                      "lcsc", "Development Boards & Tools",
-                      "Programmers, Emulators, And Debuggers") == \
-            "Development Boards, Kits, Programmers"
+    def test_the_distributor_wins_over_a_description_naming_a_feature(self):
+        """C7495014: an Ethernet controller whose feature list mentions LEDs.
+
+        The rules read "Programmable LED indication" and file a gigabit PHY as
+        an LED. This is the case the feature exists for -- and the one the
+        fixture blames on the description, which is what makes it the right
+        half of the pair with ``TestPerPartRefusal`` below.
+        """
+        assert _place("10BASE-T、100BASE-TX、1000BASE-T PCIe SPI、I2C、SMBus "
+                      "Wake-up function、Programmable LED indication QFN-64(9x9) "
+                      "Ethernet Controllers ROHS",
+                      "lcsc", "Interface", "Ethernet Controllers") == \
+            "ICs - Interface"
 
     def test_the_description_still_answers_when_the_map_is_silent(self):
         assert _place("RES 10k 0402", "mouser", "Electronic Components") == \
@@ -107,25 +114,85 @@ class TestVeto:
                       "Linear Hall Sensors") == "ICs - Sensors"
 
 
-class TestAcceptHook:
-    def test_a_caller_can_refuse_a_section_for_one_part(self):
-        """The seam known-misfiles.json uses, and a future per-part override.
+class TestPerPartRefusal:
+    """``category_refusals.csv``: the per-part carve-out, applied where the
+    category is *chosen*, not where it is used.
 
-        C7497415: LCSC files it under Development Boards & Tools, the
-        description says "Microcontrollers", and the description is the thing
-        that is wrong -- which is why refusing the map has to fall back to the
-        rules rather than to Other.
-        """
-        def refuse_the_map(section):
-            return section != "Development Boards, Kits, Programmers"
+    C7497415 is FU6522L, a microcontroller in LQFP-48 that JLC files under
+    *Programmers, Emulators, And Debuggers*. The description is the half that
+    is right about it and the category is the misfile -- which is the opposite
+    of the analog-switch case above, and the reason "trust the distributor"
+    cannot be a blanket rule. Refusing LCSC's answer leaves the part with no
+    category at all, so it is placed by its description.
+    """
 
+    MISFILE = DistributorCategory(
+        "lcsc", "Development Boards & Tools",
+        "Programmers, Emulators, And Debuggers")
+
+    def _refused(self, part_id="C7497415", by=None):
+        import domain.distributor_categories as store
+        return store.resolve(by or {"lcsc": self.MISFILE}, part_id=part_id,
+                             refusals=category_refusals.load())
+
+    def test_the_shipped_list_refuses_the_answer_it_names(self):
+        refusals = category_refusals.load()
+        assert refusals.refusal_for("C7497415", self.MISFILE) is not None
+        # ...and only that answer: the same part's next fetch, filed correctly,
+        # is not refused forever by a row about the old misfile.
+        assert refusals.refusal_for(
+            "C7497415", DistributorCategory("lcsc", "Microcontrollers")) is None
+
+    def test_a_refused_category_never_reaches_categorize(self):
+        assert self._refused() is None
+
+    def test_the_part_is_placed_by_its_description_not_by_the_misfile(self):
         row = _row("LQFP-48(7x7) Microcontrollers (MCU/MPU/SOC) ROHS")
-        lcsc_says_dev_board = DistributorCategory(
-            "lcsc", "Development Boards & Tools", "Programmers, Emulators, And Debuggers")
-        assert categorize(row, distributor_category=lcsc_says_dev_board) == \
+        # First, the regression itself, stated as what it looks like: with no
+        # carve-out the map wins this part and files a microcontroller as a
+        # development board.
+        assert categorize(row, distributor_category=self.MISFILE) == \
             "Development Boards, Kits, Programmers"
-        assert categorize(row, distributor_category=lcsc_says_dev_board,
-                          accept=refuse_the_map) == "ICs - Microcontrollers"
+        assert categorize(row, distributor_category=self._refused()) == \
+            "ICs - Microcontrollers"
+
+    def test_refusing_lcsc_hands_the_decision_to_digikey(self):
+        """Why this is a per-distributor skip and not a section veto.
+
+        A seam that could only refuse a *section* would blind every distributor
+        for the part at once. Skipping one leaves the next in PREFERENCE to
+        answer, and DigiKey's taxonomy has this part right.
+        """
+        digikey = DistributorCategory("digikey", "System On Chip (SoC)", "Embedded")
+        assert self._refused(by={"lcsc": self.MISFILE, "digikey": digikey}) == digikey
+
+    def test_the_production_resolver_applies_the_list(self, tmp_path):
+        """The defect this replaces: a carve-out nothing in production passed.
+
+        Driven through ``resolver`` -- the callable ``domain.inventory.rebuild``
+        hands ``categorize_and_sort`` -- over a real store file, so the shipped
+        list is proven wired into the rebuild path rather than only into a
+        test's own arguments.
+        """
+        import domain.distributor_categories as store
+        import inventory_ops
+
+        store.record_categories(str(tmp_path), "C7497415", "lcsc",
+                                self.MISFILE.category, self.MISFILE.subcategory)
+        store.record_categories(str(tmp_path), "C1525", "lcsc",
+                                self.MISFILE.category, self.MISFILE.subcategory)
+        row = {"Description": "LQFP-48(7x7) Microcontrollers (MCU/MPU/SOC) ROHS",
+               "Manufacture Part Number": "FU6522L", "Manufacturer": "",
+               "LCSC Part Number": "C7497415"}
+        resolver = store.resolver(str(tmp_path), inventory_ops.get_part_key)
+        assert resolver(row) is None
+        assert list(inventory_ops.categorize_and_sort(
+            [row], category_resolver=resolver))[0] == "ICs - Microcontrollers"
+        # The same misfiled category recorded against a different part still
+        # places that part: the refusal is about C7497415, and nothing else
+        # loses its category because of it.
+        other = dict(row, **{"LCSC Part Number": "C1525"})
+        assert resolver(other) == self.MISFILE
 
 
 class TestSubcategoriesStillComeFromTheDescription:

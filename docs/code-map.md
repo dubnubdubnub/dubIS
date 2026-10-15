@@ -17,6 +17,7 @@ graph LR
     "carts.py" --> "csv_io.py"
     "carts.py" --> "dubis_errors.py"
     "categorize.py" --> "category_map.py"
+    "category_refusals.py" --> "category_map.py"
     "client_shell.py" --> "file_dialogs.py"
     "client_shell.py" --> "inventory_api.py"
     "digikey_browser.py" --> "dubis_errors.py"
@@ -77,6 +78,7 @@ graph LR
     "domain/attributes.py" --> "domain/pricing.py"
     "domain/cart_plan.py" --> "domain/purchase_candidates.py"
     "domain/distributor_categories.py" --> "category_map.py"
+    "domain/distributor_categories.py" --> "category_refusals.py"
     "domain/distributor_categories.py" --> "csv_io.py"
     "domain/distributor_categories.py" --> "domain/pricing.py"
     "domain/federation.py" --> "domain/schema.py"
@@ -652,6 +654,7 @@ graph LR
     "scripts/generate-test-fixtures.py" --> "inventory_ops.py"
     "scripts/score-categorize-corpus.py" --> "categorize.py"
     "scripts/score-categorize-corpus.py" --> "category_map.py"
+    "scripts/score-categorize-corpus.py" --> "category_refusals.py"
     "scripts/seed-bom-prices.py" --> "browser_page.py"
     "scripts/spike-webview-loopback.py" --> "server/__init__.py"
     "scripts/spike-webview-loopback.py" --> "server/__main__.py"
@@ -992,10 +995,17 @@ graph LR
     "tests/python/test_carts.py" --> "dubis_errors.py"
     "tests/python/test_categorize_corpus.py" --> "categorize.py"
     "tests/python/test_categorize_corpus.py" --> "category_map.py"
+    "tests/python/test_categorize_corpus.py" --> "category_refusals.py"
+    "tests/python/test_categorize_corpus.py" --> "domain/distributor_categories.py"
     "tests/python/test_categorize_distributor_category.py" --> "categorize.py"
     "tests/python/test_categorize_distributor_category.py" --> "category_map.py"
+    "tests/python/test_categorize_distributor_category.py" --> "category_refusals.py"
+    "tests/python/test_categorize_distributor_category.py" --> "domain/distributor_categories.py"
     "tests/python/test_categorize_distributor_category.py" --> "inventory_ops.py"
     "tests/python/test_category_map.py" --> "category_map.py"
+    "tests/python/test_category_refusals.py" --> "category_map.py"
+    "tests/python/test_category_refusals.py" --> "category_refusals.py"
+    "tests/python/test_category_refusals.py" --> "domain/distributor_categories.py"
     "tests/python/test_ci_watcher_audit.py" --> "scripts/ci_watcher/audit.py"
     "tests/python/test_ci_watcher_listener.py" --> "scripts/ci_watcher/listener.py"
     "tests/python/test_ci_watcher_listener.py" --> "scripts/ci_watcher/state.py"
@@ -1231,7 +1241,12 @@ graph LR
 ### category_map.py
 
 - **Imports:** —
-- **Imported by:** `categorize.py`, `domain/distributor_categories.py`, `scripts/score-categorize-corpus.py`, `tests/python/categorize_corpus_labels.py`, `tests/python/domain/test_distributor_categories.py`, `tests/python/test_categorize_corpus.py`, `tests/python/test_categorize_distributor_category.py`, `tests/python/test_category_map.py`
+- **Imported by:** `categorize.py`, `category_refusals.py`, `domain/distributor_categories.py`, `scripts/score-categorize-corpus.py`, `tests/python/categorize_corpus_labels.py`, `tests/python/domain/test_distributor_categories.py`, `tests/python/test_categorize_corpus.py`, `tests/python/test_categorize_distributor_category.py`, `tests/python/test_category_map.py`, `tests/python/test_category_refusals.py`
+
+### category_refusals.py
+
+- **Imports:** `category_map.py`
+- **Imported by:** `domain/distributor_categories.py`, `scripts/score-categorize-corpus.py`, `tests/python/test_categorize_corpus.py`, `tests/python/test_categorize_distributor_category.py`, `tests/python/test_category_refusals.py`
 
 ### client_shell.py
 
@@ -1375,8 +1390,8 @@ graph LR
 
 ### domain/distributor_categories.py
 
-- **Imports:** `category_map.py`, `csv_io.py`, `domain/pricing.py`
-- **Imported by:** `domain/api_attributes.py`, `domain/inventory.py`, `tests/python/domain/test_distributor_categories.py`
+- **Imports:** `category_map.py`, `category_refusals.py`, `csv_io.py`, `domain/pricing.py`
+- **Imported by:** `domain/api_attributes.py`, `domain/inventory.py`, `tests/python/domain/test_distributor_categories.py`, `tests/python/test_categorize_corpus.py`, `tests/python/test_categorize_distributor_category.py`, `tests/python/test_category_refusals.py`
 
 ### domain/federation.py
 
@@ -2421,7 +2436,7 @@ graph LR
 
 ### scripts/score-categorize-corpus.py
 
-- **Imports:** `categorize.py`, `category_map.py`
+- **Imports:** `categorize.py`, `category_map.py`, `category_refusals.py`
 - **Imported by:** —
 
 ### scripts/seed-bom-prices.py
@@ -3422,17 +3437,22 @@ graph LR
 
 ### tests/python/test_categorize_corpus.py
 
-- **Imports:** `categorize.py`, `category_map.py`
+- **Imports:** `categorize.py`, `category_map.py`, `category_refusals.py`, `domain/distributor_categories.py`
 - **Imported by:** —
 
 ### tests/python/test_categorize_distributor_category.py
 
-- **Imports:** `categorize.py`, `category_map.py`, `inventory_ops.py`
+- **Imports:** `categorize.py`, `category_map.py`, `category_refusals.py`, `domain/distributor_categories.py`, `inventory_ops.py`
 - **Imported by:** —
 
 ### tests/python/test_category_map.py
 
 - **Imports:** `category_map.py`
+- **Imported by:** —
+
+### tests/python/test_category_refusals.py
+
+- **Imports:** `category_map.py`, `category_refusals.py`, `domain/distributor_categories.py`
 - **Imported by:** —
 
 ### tests/python/test_check_claude_md.py

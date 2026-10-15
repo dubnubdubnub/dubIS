@@ -29,8 +29,11 @@ shape ``domain.attributes.py`` established:
 
 One row per (part_id, distributor) rather than one per sighting is also what
 makes the store editable: blanking a row is how you tell dubIS to stop
-believing a distributor about one part, which is the per-part version of the
-``known-misfiles.json`` carve-out in ``categorize()``.
+believing a distributor about one part.  That is the *local* opt-out, and it is
+temporary -- the next fetch of that part rewrites the row from the live page.
+A distributor that misfiles a part does so for everyone and on every fetch, so
+the durable carve-out is the shipped list: ``category_refusals.csv``, read by
+:func:`resolve` below and consulted before the map is asked anything.
 """
 from __future__ import annotations
 
@@ -43,6 +46,7 @@ from datetime import datetime
 from typing import Any, Callable
 
 import category_map
+import category_refusals
 import csv_io
 from domain.pricing import resolve_part_key
 
@@ -193,6 +197,9 @@ def index(rows: list[dict[str, str]]) -> dict[str, dict[str, category_map.Distri
 
 def resolve(
     by_distributor: dict[str, category_map.DistributorCategory],
+    *,
+    part_id: str = "",
+    refusals: category_refusals.Refusals | None = None,
 ) -> category_map.DistributorCategory | None:
     """The one category to believe, by :data:`PREFERENCE`.
 
@@ -201,11 +208,28 @@ def resolve(
     place -- it loses to it, because "no opinion" is not an opinion and
     letting it win would mean the more specific distributor's answer is
     discarded by the less specific one's silence.
+
+    ``refusals`` is the shipped misfile list (``category_refusals.csv``).  A
+    distributor whose answer for this part is on it is skipped here, which is
+    the only place that decision can live: skipping is per *distributor*, so
+    LCSC misfiling a part hands the decision to DigiKey, and if nobody else
+    answered, the part is placed by its description -- the signal that was
+    right about it.  ``None`` means "no list", which is what a caller with no
+    part identity to look up has; production always passes one, through
+    :func:`resolver`.
     """
     for distributor in PREFERENCE:
         found = by_distributor.get(distributor)
         if found is None:
             continue
+        if refusals is not None and part_id:
+            refused = refusals.refusal_for(part_id, found)
+            if refused is not None:
+                logger.info(
+                    "not believing %s about %s (%s): %s", distributor, part_id,
+                    " / ".join(x for x in (found.category, found.subcategory) if x),
+                    refused.reason)
+                continue
         if category_map.opinion(found.distributor, found.category, found.subcategory):
             return found
     return None
@@ -214,6 +238,8 @@ def resolve(
 def resolver(
     data_dir: str,
     part_key: Callable[[dict[str, str]], str],
+    *,
+    refusals: category_refusals.Refusals | None = None,
 ) -> Callable[[dict[str, str]], category_map.DistributorCategory | None]:
     """A per-row lookup for one rebuild, reading the CSV exactly once.
 
@@ -222,17 +248,24 @@ def resolver(
     is found when the row is keyed on its MPN instead.  Rows for parts no
     longer in inventory stay in the file (they cost nothing and a re-purchase
     wants them back) and simply never match.
+
+    ``refusals`` defaults to the shipped misfile list, read once per rebuild
+    beside the store.  An explicit ``Refusals([])`` says "there are no
+    misfiles", which is a different statement from the default and the one a
+    test isolating one mechanism means.
     """
     table = index(read_rows(data_dir))
     if not table:
         return lambda row: None
+    if refusals is None:
+        refusals = category_refusals.load()
 
     def lookup(row: dict[str, str]) -> category_map.DistributorCategory | None:
         key = part_key(row)
         if not key:
             return None
         found = table.get(key)
-        return resolve(found) if found else None
+        return resolve(found, part_id=key, refusals=refusals) if found else None
 
     return lookup
 
@@ -246,6 +279,13 @@ def content_hash(data_dir: str) -> str:
     product preview would then look like an input change and force a full
     rebuild of the whole inventory. So this covers exactly the columns
     ``categorize()`` reads, in a stable order.
+
+    The shipped misfile list is folded in because it feeds the same column: a
+    deploy that adds a refusal row has to force the rebuild that puts the
+    protected part back, or the carve-out sits in the repo and changes nothing
+    until some unrelated event happens to rebuild the cache.  With no store
+    there is no opinion anywhere, so nothing to re-derive, and the digest stays
+    empty for exactly the reason it was empty before.
     """
     if not os.path.exists(csv_path(data_dir)):
         return ""
@@ -257,6 +297,8 @@ def content_hash(data_dir: str) -> str:
     for fact in facts:
         digest.update("\x1f".join(fact).encode("utf-8"))
         digest.update(b"\x1e")
+    digest.update(b"|refusals|")
+    digest.update(category_refusals.content_hash().encode("ascii"))
     return digest.hexdigest()
 
 
@@ -334,6 +376,8 @@ def get_part_categories(
     conn: sqlite3.Connection,
     data_dir: str,
     part_key: str,
+    *,
+    refusals: category_refusals.Refusals | None = None,
 ) -> list[dict[str, Any]]:
     """What each distributor calls this part, preferred first, with the verdict.
 
@@ -343,20 +387,30 @@ def get_part_categories(
     ``note`` carries the reason a human wrote next to the row, so a reviewer
     asking "why is this an Other?" gets the sentence that was decided, not a
     guess at it.
+
+    ``refused`` marks a row the shipped misfile list has struck out, with the
+    row's ``refusal_reason`` saying why.  Without it this endpoint would show a
+    section for a category that is not being used, which is the worst thing a
+    "why is this part here?" endpoint can do: answer confidently about a signal
+    nobody consulted.
     """
+    if refusals is None:
+        refusals = category_refusals.load()
     resolved_key = resolve_part_key(conn, part_key) or part_key
     found = index(read_rows(data_dir, resolved_key)).get(resolved_key, {})
     # `preferred` is resolve()'s answer, not "first row": the row that wins is
-    # the first in PREFERENCE order the map can place, and a reader comparing
-    # this list against the section the part actually landed in needs the same
-    # rule, not a different one that happens to agree most of the time.
-    winner = resolve(found)
+    # the first in PREFERENCE order the map can place and the refusal has not
+    # struck out, and a reader comparing this list against the section the part
+    # actually landed in needs the same rule, not a different one that happens
+    # to agree most of the time.
+    winner = resolve(found, part_id=resolved_key, refusals=refusals)
     preferred_key = (winner.distributor, winner.category, winner.subcategory) if winner else None
     out: list[dict[str, Any]] = []
     ordered = [d for d in PREFERENCE if d in found] + [
         d for d in sorted(found) if d not in PREFERENCE]
     for distributor in ordered:
         entry = found[distributor]
+        refusal = refusals.refusal_for(resolved_key, entry)
         out.append({
             "distributor": entry.distributor,
             "category": entry.category,
@@ -365,6 +419,8 @@ def get_part_categories(
                 entry.distributor, entry.category, entry.subcategory),
             "note": " ".join(category_map.load().notes(
                 entry.distributor, entry.category, entry.subcategory)),
+            "refused": refusal is not None,
+            "refusal_reason": refusal.reason if refusal else "",
             "preferred": (entry.distributor, entry.category, entry.subcategory)
             == preferred_key,
         })

@@ -1,0 +1,6 @@
+part_id,distributor,category,subcategory,reason
+C7497415,lcsc,Development Boards & Tools,"Programmers, Emulators, And Debuggers",FU6522L is a microcontroller in LQFP-48; JLC files it under programmers because it drives BLDC motors. The description is right and the category is the misfile.
+C17213633,lcsc,Interface,Interface - Specialized,TN80C31BH-1 is a microcontroller; JLC files it under interface - specialized. The description is right and the category is the misfile.
+C6904269,lcsc,Magnetic Sensors,Linear Hall Sensors,MDSR-4-27-33 is a Littelfuse reed switch; JLC files it under linear hall sensors because it is magnetically actuated. The description is right and the category is the misfile.
+C17444835,lcsc,Power Management (PMIC),Motor Driver ICs,LA1061M is a specialized interface IC; JLC files it under motor driver ICs. The description is right and the category is the misfile.
+C6653278,lcsc,Industrial Control Electrical,"Surge Protectors,Lightning Arrester",LS1205EVD33 is a power-distribution switch; JLC files it under surge protectors and the map turns that into Other. The description is right and the category is the misfile.

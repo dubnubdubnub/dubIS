@@ -14,6 +14,10 @@ and the next rebuild honours it -- and so one table serves two jobs:
   labels the corpus is scored against and the mapping the app applies cannot
   drift apart.
 
+A bucket-level table cannot express "*this* part is misfiled", because the
+bucket is shared by the parts that belong there.  That carve-out lives beside
+this file, per part, in ``category_refusals.csv`` -- see ``category_refusals.py``.
+
 Three shapes of key, and the difference is decided at load time, not guessed
 at read time:
 
@@ -42,7 +46,9 @@ import os
 import threading
 from typing import Iterable, NamedTuple
 
-MAP_FILENAME = "category_map.csv"
+# The filename lives in map_path()'s os.path.join and nowhere else: the asset
+# guards read that literal, and a constant holding a second copy is a name they
+# cannot see and nobody can keep in step.
 COLUMNS = ["distributor", "category", "subcategory", "section", "note"]
 DISTRIBUTORS = ("lcsc", "digikey", "mouser", "pololu")
 
@@ -87,8 +93,14 @@ def map_path() -> str:
     to demand the CSV is in ``dubIS.spec``'s ``datas``.  Resolving it against
     the CWD instead works in the repo and reads an absent file in the built
     app, which is the failure that guard exists to catch.
+
+    The filename is a literal for the same reason: this guard and
+    ``tests/python/test_container_assets.py`` find a module's sibling reads by
+    walking the AST, and a non-literal segment ends the path they trace -- which
+    would make this file invisible to the only thing that notices an unshipped
+    asset.
     """
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), MAP_FILENAME)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "category_map.csv")
 
 
 def _legal_sections() -> frozenset[str]:

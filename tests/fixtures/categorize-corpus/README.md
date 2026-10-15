@@ -7,11 +7,17 @@ category_path}`. The description is copied verbatim from the distributor, and
 truth. `tests/python/categorize_corpus_labels.py` maps each category to the
 dubIS sections that count as correct.
 
+It is ground truth with one exception, and the exception is recorded rather
+than implied: distributors misfile individual parts, so for the parts in
+`known-misfiles.json` the distributor's category is the thing under test, not
+the thing to score against. That is why scoring with categories wired in goes
+through the production resolver, which applies `category_refusals.csv`.
+
 | File | Parts | Source |
 |------|-------|--------|
 | `lcsc.jsonl` | 3000 | The [jlcparts](https://github.com/yaqwsx/jlcparts) snapshot of the JLC/LCSC catalogue: stratified over all 582 leaf categories, seeded. |
 | `digikey.jsonl` | 1600 | DigiKey category listing pages, read in a real browser: up to 50 per leaf across 32 leaves. |
-| `known-misfiles.json` | — | The parts that land in a wrong section today, each with a reason. Mostly these are rows the distributor filed under a category that its own description contradicts. |
+| `known-misfiles.json` | — | The parts that land in a wrong section today, each with a reason and a `fault`: `description` (the description is the unreliable half, so the category should place the part) or `distributor` (the distributor filed a part under a category its own description contradicts, so `category_refusals.csv` refuses it and the description places the part). |
 
 ## Rebuilding
 

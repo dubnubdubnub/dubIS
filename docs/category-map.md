@@ -21,21 +21,27 @@ The corpus in `tests/fixtures/categorize-corpus/` is 4,600 real catalogue rows
 labelled with the distributor's own category. Scored against it, the
 description rules land in a section their own label allows 93.9% of the time
 (LCSC) and 96.4% (DigiKey). Feeding the distributor's category through this map
-first: **99.6% and 99.7%**, moving 168 LCSC parts and 52 DigiKey parts and
-un-placing none.
+first, with the misfile list applied: **99.4% and 99.7%**, moving 163 LCSC
+parts and 52 DigiKey parts and un-placing none.
 
-Eight of the fifteen entries in `known-misfiles.json` -- the corpus's list of
-parts the description rules get *wrong*, not merely miss -- are fixed by the
-category alone. `742-DG2750DN1-T1-GE4TR-ND` is the type case: DigiKey's own
-description is `LOW VOLTAGE DUAL ANALAOG SWITCH`, misspelled, so the Switches
-rule claims it and no amount of rule-writing will stop it, because the string
-really does say switch. DigiKey's breadcrumb says
+Read that number with the caveat in [The misfile list](#the-misfile-list),
+though. The label a part is scored against *is the distributor's category*, so
+for a part the distributor misfiled, "correct" means "agrees with the
+misfile". The honest version of the win is the three parts in
+`known-misfiles.json` whose fault is the description and which the category now
+places correctly:
+
+`742-DG2750DN1-T1-GE4TR-ND` is the type case: DigiKey's own description is
+`LOW VOLTAGE DUAL ANALAOG SWITCH`, misspelled, so the Switches rule claims it
+and no amount of rule-writing will stop it, because the string really does say
+switch. DigiKey's breadcrumb says
 `Interface / Analog Switches, Multiplexers, Demultiplexers`, and that is what
 the part is.
 
-That is the whole argument. The description rules are not being replaced; they
-are being demoted to what they are good at, which is the parts nobody has
-fetched.
+That is the argument for the map. The description rules are not being replaced;
+they are being demoted to what they are good at, which is the parts nobody has
+fetched and the parts their distributor files wrong -- which is why the second
+list below exists.
 
 ## Three shapes of row, and the difference matters
 
@@ -111,7 +117,8 @@ follow-ups, and neither is a reason to leave the 20 abstentions out.
 
 The distributor's word is not taken blindly. If the description both **disclaims**
 the proposed section and **offers a specific one of its own**, the description
-wins:
+wins. (The other thing that refuses a category is per part, not per word: see
+[The misfile list](#the-misfile-list).)
 
 ```python
 parent = from_rules if (from_rules not in ("Other", proposed)
@@ -164,14 +171,65 @@ Load-time validation is strict, because the failure it prevents is invisible:
 * an unknown `distributor`, a row naming neither category nor subcategory, and a
   missing column are all refused.
 
-## Per-part overrides
+## The misfile list
 
-The map is a decision about a *bucket*. When one specific part is misfiled by
-its distributor -- the situation `known-misfiles.json` records for the corpus --
-the durable store is the per-part seam: `data/distributor_categories.csv`, one
-row per (part, distributor). Blanking a row stops dubIS believing that
+`category_refusals.csv`, beside `category_map.csv`, is the per-part carve-out:
+
+```
+part_id,distributor,category,subcategory,reason
+C7497415,lcsc,Development Boards & Tools,"Programmers, Emulators, And Debuggers",FU6522L is a microcontroller in LQFP-48; ...
+```
+
+One row says *this distributor, about this part, said this, and it was wrong*.
+`domain/distributor_categories.resolve` consults it before it asks the map
+anything, so a refused category never reaches `categorize()` and the part is
+placed by its description -- the signal that was right about it.
+
+This is not a detail. JLC files a microcontroller under *Programmers*, a reed
+switch under *Linear Hall Sensors*, a power-distribution switch under *Surge
+Protectors*; the map places all three of those buckets, so without the list the
+feature would move seven correctly-filed parts into the bucket their
+distributor got wrong, and the corpus would score that as an improvement
+because the corpus's ground truth is that same distributor category.
+
+Three things about the shape:
+
+* **It is per distributor, not per part.** Refusing LCSC's answer for a part
+  hands the decision to DigiKey, and if nobody else answered, to the
+  description. A hook that could only refuse a *section* would blind every
+  distributor for the part at once.
+* **It names what was said.** `category`/`subcategory` are the misfile, not a
+  formality: leave both blank and the row refuses that distributor about the
+  part forever; name them and a correct re-filing of the part is believed
+  again. Matching uses the same candidate expansion as the map, so a row
+  written against the leaf covers a part stored as bucket-plus-leaf and vice
+  versa.
+* **It ships.** `data/distributor_categories.csv` has a per-part opt-out too
+  (blank the row), but that is one user's machine, and the next fetch of that
+  part rewrites the row from the live page. A distributor's misfile is a fact
+  about its catalogue, so it belongs with the app: `Dockerfile` and `dubIS.spec`
+  both copy it, and `domain.distributor_categories.content_hash` folds its
+  digest into the cache checkpoint so a deploy that adds a row forces the
+  rebuild that moves the part back.
+
+`reason` is required. A carve-out that carries no sentence saying why is a
+carve-out the next reader deletes, and the part goes back to being misfiled.
+
+The corpus holds both directions of this: `known-misfiles.json` records each
+misfile's `fault` -- `distributor` or `description` -- and
+`test_a_part_the_distributor_misfiled_is_never_moved_by_its_category` fails if
+the map moves one, while
+`test_every_misfile_the_map_could_act_on_is_refused` fails at the moment a map
+row lands over a part that has no refusal yet.
+
+## Per-part overrides on one machine
+
+For a single inventory, the durable store is the seam: `data/distributor_categories.csv`,
+one row per (part, distributor). Blanking a row stops dubIS believing that
 distributor about that part, and the part falls back to its description.
 
 That file is written when a product is fetched and read at rebuild; see
 `domain/distributor_categories.py` for why it has to be durable rather than
 fetched, and why a change to it forces a full rebuild instead of a catch-up.
+What it cannot do is survive the next fetch of that part -- which is exactly
+what `category_refusals.csv` is for.

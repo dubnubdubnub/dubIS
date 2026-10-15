@@ -100,6 +100,13 @@ def get_part_categories(request: Request, part_key: str) -> list:
     category, recorded on the fetch that first saw the part
     (domain/distributor_categories.py), and a human can correct it by editing
     that row or the map row above it.
+
+    A row with ``refused`` true is one the project has struck out -- the
+    distributor misfiled that specific part, so its category is recorded here
+    and deliberately not used (``category_refusals.csv``). Its ``section`` is
+    what the map *would* have said, which is why the flag has to be read with
+    it: showing the section alone would explain the part's place by a signal
+    that was never consulted.
     """
     api = request.app.state.api
     return api.get_part_categories(part_key)

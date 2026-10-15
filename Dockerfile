@@ -52,6 +52,12 @@ COPY data/constants.json data/constants.json
 # module; this takes the data it reads.
 COPY category_map.csv .
 
+# The per-part misfile list beside it. Absent is not an error either, and that
+# is the problem: category_refusals.load() reads a missing file as "no misfiles
+# recorded", so the container would silently steamroll every part the desktop
+# app protects -- the same divergence in two builds, with nothing red anywhere.
+COPY category_refusals.csv .
+
 # The rest of the repo-committed data/ assets, for the same reason: they are
 # image content, not user data, so --data-dir never points at them.
 #
