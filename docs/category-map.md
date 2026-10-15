@@ -56,7 +56,7 @@ missing row. `mouser,Semiconductors,,` says: this bucket spans eight dubIS
 sections, mapping it to any one would misfile nearly everything under it. A
 missing row says nobody looked. Both produce no opinion today; only one of them
 tells the next person not to re-derive it. The Mouser pass produced 8 placements
-and 21 abstentions, and the abstentions are the majority of the value: they are
+and 20 abstentions, and the abstentions are the majority of the value: they are
 why nobody has to have that argument twice.
 
 An abstention also **stops** the lookup rather than falling through to a vaguer
@@ -105,7 +105,7 @@ its client keeps the last two crumbs of a deep breadcrumb, so a part under
 the shallow breadcrumbs where the parent crumb *is* the bucket, and for the rest
 they are the vocabulary and the abstention record. Making them bite properly
 needs either Mouser's root crumb captured or a leaf-level pass; both are
-follow-ups, and neither is a reason to leave the 21 abstentions out.
+follow-ups, and neither is a reason to leave the 20 abstentions out.
 
 ## The veto
 

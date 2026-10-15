@@ -75,7 +75,7 @@ class TestShippedMap:
     def test_mouser_abstentions_are_the_majority_of_its_rows(self):
         """Mouser's top-level buckets are mostly too broad to place.
 
-        Pinned because the abstentions are the point of that pass: 21 buckets
+        Pinned because the abstentions are the point of that pass: 28 buckets
         were examined and 8 placed. A future edit that quietly deletes them
         would make the file read as "Mouser was never looked at", which is a
         different and worse claim than "we looked and declined".
@@ -83,7 +83,7 @@ class TestShippedMap:
         loaded = category_map.load()
         mouser = [k for k in loaded._abstained if k[0] == "mouser"]  # noqa: SLF001
         placed = [k for k in loaded._by_key if k[0] == "mouser"]  # noqa: SLF001
-        assert len(mouser) >= 15
+        assert len(mouser) >= 20
         assert len(placed) >= 5
 
 
