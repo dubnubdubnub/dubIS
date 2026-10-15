@@ -30,5 +30,15 @@
   "Passives - Resistors": 4,
   "Passives - Resistors > Chip Resistors": 4,
   "Passives - Resistors > Variable / Trimmers": 4,
-  "Switches": 50
+  "Switches": 50,
+  "Development Boards, Kits, Programmers": 50,
+  "ICs - Clock and Timing": 100,
+  "ICs - Clock and Timing > Programmable Oscillators": 100,
+  "ICs - Power / Voltage Regulators > DC-DC": 100,
+  "Passives - Varistors": 20,
+  "Passives - Inductors > Chokes": 20,
+  "Discrete Semiconductors > IGBTs": 20,
+  "Connectors > RF": 20,
+  "Mechanical & Hardware > Standoffs": 50,
+  "Something Brand New": 50
 }

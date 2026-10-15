@@ -23,6 +23,9 @@ for (const [w, h] of [[1200, 700], [800, 600]]) {
 
     await page.locator('#prefs-btn').click();
     await expect(page.locator('#prefs-modal')).toBeVisible();
+    // The DigiKey section lives on the General tab since the threshold tuner
+    // got its own. Navigation only — every assertion below is untouched.
+    await page.locator('#prefs-tab-general').click();
     await expect(page.locator('#dk-status')).toHaveText('Not logged in');
     await expect(page.locator('#dk-logout')).toBeHidden();
 
@@ -32,13 +35,22 @@ for (const [w, h] of [[1200, 700], [800, 600]]) {
     await expect(page.locator('#dk-pairing')).toContainText('digikey.com');
     await expect(page.locator('#dk-pairing [data-act="copy"]')).toBeVisible();
 
+    // Back to the threshold tab: the pairing panel grew the modal, and the
+    // flex-column scroll-pane trap (CLAUDE.md) is measured where the sliders
+    // live. The tabs make the two sections siblings of separate panes, but
+    // the modal's max-height cap is shared, so the collapse this guards is
+    // still a live failure — measure it where it would happen.
+    await page.locator('#prefs-tab-thresholds').click();
     const slidersH = await page.locator('#prefs-sliders').evaluate((el) => el.getBoundingClientRect().height);
     expect(slidersH, 'category sliders collapsed after the pairing panel appeared').toBeGreaterThan(40);
 
-    // Closing the modal drops the code; reopening starts clean.
+    // Closing the modal drops the code; reopening starts clean. Re-activate
+    // the General tab first so "hidden" means "no code rendered", not merely
+    // "the pane is switched away".
     await page.keyboard.press('Escape');
     await expect(page.locator('#prefs-modal')).toBeHidden();
     await page.locator('#prefs-btn').click();
+    await page.locator('#prefs-tab-general').click();
     await expect(page.locator('#dk-pairing')).toBeHidden();
   });
 }

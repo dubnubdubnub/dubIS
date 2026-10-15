@@ -331,9 +331,33 @@
 <div class="modal-overlay hidden" id="prefs-modal">
   <div class="modal prefs-modal-wide">
     <div class="modal-title">Preferences</div>
-    <div class="modal-subtitle">Qty color reflects stock dollar value (qty &times; unit price). Adjust the green threshold per category.</div>
-    <div class="prefs-sliders" id="prefs-sliders"></div>
-    <div class="modal-divider"></div>
+    <!-- Two tabs, one modal: the threshold tuner and everything else. A pane is
+         hidden with the global `.hidden` (display:none), so its controls leave
+         the tab order and the focus trap with it. The threshold pane is the
+         default because the modal's original subtitle — and its first
+         section — were always about the qty colours. -->
+    <div class="prefs-tabs" role="tablist" aria-label="Preferences sections">
+      <button type="button" class="prefs-tab is-active" id="prefs-tab-thresholds"
+              role="tab" aria-selected="true" aria-controls="prefs-pane-thresholds"
+              data-prefs-pane="prefs-pane-thresholds">Stock thresholds</button>
+      <button type="button" class="prefs-tab" id="prefs-tab-general"
+              role="tab" aria-selected="false" aria-controls="prefs-pane-general"
+              data-prefs-pane="prefs-pane-general">General</button>
+    </div>
+    <div class="prefs-pane" id="prefs-pane-thresholds" role="tabpanel" aria-labelledby="prefs-tab-thresholds">
+      <div class="modal-subtitle">Qty color reflects stock dollar value (qty &times; unit price). Adjust the green threshold per category.</div>
+      <div class="prefs-presets" id="prefs-presets" role="group" aria-label="Threshold preset"></div>
+      <span class="prefs-presets-help">
+        A preset is a starting point, not a lock: moving one slider overrides
+        just that category, and the rest keep following the preset. Click the
+        chosen preset again to drop back to the server defaults. Only the
+        preset choice and the categories you moved are saved &mdash; never the
+        whole table. Categories nobody has tuned derive their family
+        default (ICs, passives, connectors) instead of falling to the flat base.
+      </span>
+      <div class="prefs-sliders" id="prefs-sliders"></div>
+    </div>
+    <div class="prefs-pane hidden" id="prefs-pane-general" role="tabpanel" aria-labelledby="prefs-tab-general">
     <div class="modal-subtitle" style="margin-bottom:4px"><strong>Inventory search</strong></div>
     <div class="modal-form" style="flex-direction:column;align-items:flex-start;gap:8px">
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pref-category-search"> A search term that names a category shows the whole category</label>
@@ -457,6 +481,7 @@
         dearer reel is still offered, marked as over the ceiling, never hidden.
       </span>
     </div>
+    </div><!-- /prefs-pane-general -->
     <div class="modal-actions">
       <button class="btn-lg btn btn-cancel" id="prefs-cancel">Cancel</button>
       <button class="btn-lg btn btn-apply" id="prefs-save">Save</button>

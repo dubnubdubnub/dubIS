@@ -456,3 +456,82 @@
   border-radius: var(--radius-sm);
   padding: 1px var(--space-xs);
 }
+
+/* ── Preferences tabs + threshold presets (PR D) ─────────────────────
+ * Appended at END OF FILE on purpose: scripts/check-layout-tokens.ignore
+ * accepts known hard-codes by LINE NUMBER, so inserting anywhere earlier
+ * silently invalidates every ignore entry below the insertion. */
+/* The tab strip. One row, never wrapping: a wrapped strip steals vertical
+   space from the panes at narrow widths (the header-wrap trap, one modal
+   lower down the list). */
+.prefs-tabs {
+  display: flex;
+  gap: var(--space-md);
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: var(--space-md);
+  flex-shrink: 0;
+}
+.prefs-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.prefs-tab.is-active {
+  color: var(--text-primary);
+  border-bottom-color: var(--color-blue);
+}
+/* A pane is a plain block flex item with overflow visible, so its automatic
+   minimum size is its content height — it cannot absorb the modal's overflow
+   the way a scrollable child of a capped flex column does (the 0px-collapse
+   trap documented on .prefs-sliders). The modal stays the scroll container
+   for whatever exceeds the cap. */
+.prefs-pane { flex-shrink: 0; }
+/* Preset picker — the cart's segmented control, same semantics: the active
+   segment is aria-pressed, and re-clicking it unpins back to the shipped
+   defaults. */
+.prefs-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+.prefs-preset {
+  padding: var(--space-2xs) var(--space-md);
+  font-size: var(--text-sm);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.prefs-preset[aria-pressed="true"] {
+  border-color: var(--color-blue);
+  color: var(--text-primary);
+}
+.prefs-presets-help {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--space-md);
+}
+/* Per-row "reset to preset value" control. It doubles as the override marker:
+   `visibility:hidden` (not display:none) when the row is not overridden, so
+   every row keeps identical geometry and the slider-edge alignment guard in
+   tests/js/e2e/resize-visibility.spec.mjs still compares like with like. */
+.prefs-reset {
+  flex-shrink: 0;
+  min-width: var(--space-4xl);
+  padding: var(--space-2xs) var(--space-sm);
+  font-size: var(--text-sm);
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.prefs-reset.is-inert { visibility: hidden; }

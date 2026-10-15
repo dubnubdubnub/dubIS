@@ -15,6 +15,7 @@ test('redo pref restricts the binding live', async ({ page }) => {
   await waitForInventoryRows(page);
 
   await page.keyboard.press('Control+,');
+  await page.click('#prefs-tab-general'); // keyboard controls live on the General tab
   await page.locator('#pref-redo').selectOption('ctrl-y');
   await expect(page.locator('#pref-redo')).toHaveValue('ctrl-y');
 
@@ -22,6 +23,7 @@ test('redo pref restricts the binding live', async ({ page }) => {
   // select change took effect by reloading the modal: close + reopen reads it back.
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+,');
+  await page.click('#prefs-tab-general'); // reopened on the default tab
   await expect(page.locator('#pref-redo')).toHaveValue('ctrl-y');
   await assertHttpExercised(routeState);
 });
@@ -32,6 +34,7 @@ test('vim nav toggle moves the grid with j/k', async ({ page }) => {
   await waitForInventoryRows(page);
 
   await page.keyboard.press('Control+,');
+  await page.click('#prefs-tab-general'); // keyboard controls live on the General tab
   await page.locator('#pref-vim-nav').check();
   await page.keyboard.press('Escape');
 

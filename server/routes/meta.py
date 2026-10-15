@@ -34,10 +34,19 @@ def meta(request: Request) -> dict:
     # categories". `dubis low-stock` reads them from here rather than carrying
     # its own copy of the table — see domain/thresholds.py for why a third
     # default is the bug this closes.
+    #
+    # `threshold_presets` travels here too, and deliberately NOT through
+    # /v1/preferences: savePreferences posts the whole in-memory bag, so
+    # anything served through preferences persists into preferences.json as
+    # user state on the next unrelated save (js/store.js documents this).
+    # Presets are read-only server facts — the user's *choice* of preset id
+    # and their sparse deltas are what lives in preferences, never the
+    # resolved table.
     return {
         "schema_version": cache_db.SCHEMA_VERSION,
         "section_order": api.SECTION_ORDER,
         "flat_section_order": api.FLAT_SECTION_ORDER,
         "default_thresholds": api.DEFAULT_THRESHOLDS,
         "base_threshold": thresholds.BASE_THRESHOLD,
+        "threshold_presets": thresholds.presets_payload(),
     }

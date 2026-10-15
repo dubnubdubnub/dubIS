@@ -6,17 +6,61 @@ and `dubis low-stock` flags a part whose qty is at or below its section's.
 
 Three tables feed one number, and the order is the whole design:
 
-1. **the user's override** — `preferences.json`'s `thresholds`, what the
-   Preferences sliders write;
-2. **the shipped default** — `data/constants.json`'s `DEFAULT_THRESHOLDS`, the
+1. **the user's override** — `preferences.json`'s `thresholds`, the sparse
+   deltas the Preferences sliders write (only categories the user actually
+   moved — the preset id is stored alongside, never the resolved table);
+2. **the chosen preset** — `PRESET_BUNDLES`, named bundles served on
+   `/v1/meta` (see *Presets* below);
+3. **the shipped default** — `data/constants.json`'s `DEFAULT_THRESHOLDS`, the
    per-category numbers the app has always been configured with by hand;
-3. **`BASE_THRESHOLD`** — the floor for a category with neither.
+
+and then, for a category none of those three names, **derivation** (see
+*Derivation* below) before `BASE_THRESHOLD` — the floor of last resort for a
+string no family rule has an opinion about.
 
 A compound section ("Parent > Sub") inherits its parent at *each* level, so an
 override on "Passives - Resistors" covers "… > Chip Resistors" without either
 table having to list every child. That inheritance is not a convenience: the
 inventory's section strings come from the part descriptions, and a sub-category
 nobody typed anything about must not silently fall to the base.
+
+## Derivation — why the base is no longer the answer to "unknown category"
+
+The distributor-import work is bringing in a wave of categories that postdate
+the hand-tuned table, and every one of them used to land on the flat
+`BASE_THRESHOLD` — a $2 MCU reel and a $300 FPGA reel both "fine" at $50 of
+stock. So a category with neither an override nor a default is now asked of
+the *family tables below* before it is allowed to fall to the base:
+
+* `FAMILY_THRESHOLDS` — prefix → value, longest prefix wins. Seeded from the
+  operator's own hand edits (the record lives in the PR that added this):
+  expensive IC classes went 2–4× up (mode of the tuned IC numbers: 100),
+  passives stayed low (median of the tuned passives: 20), and the
+  connector/discrete family kept its tuned 20.
+* `BASE_BY_DECISION` — the categories the hand-tuned era *did* speak about and
+  left at the base. Derivation must not re-decide them: the legacy fixture
+  (`tests/fixtures/thresholds/legacy-defaults.json`) pins every one of these
+  names at $50, and a family rule that silently moved them would be exactly
+  the "new answer for an old category" change derivation exists to avoid.
+  Membership here is a decision, and the guard test
+  (`test_no_vocabulary_category_falls_to_the_base_silently`) is what makes
+  every future base-landing category either derive or be *named* here.
+
+A decision covers the exact category, never its children: "ICs - Power /
+Voltage Regulators" staying at $50 is an opinion about that row, while a new
+"… > DC-DC" under it is a category nobody has tuned and must extrapolate to
+the IC family. That asymmetry is deliberate.
+
+## Presets
+
+Copy the cart-preset shape (`domain/cart_plan.py`), not the saved-view shape:
+a chosen preset **id** plus sparse per-category deltas, never a materialised
+threshold table. An unrecognised *stored* id falls back to `PRESET_SHIPPED`
+(`stored_preset_id`) because a stale string in preferences.json must degrade
+one preference, not make the app unreadable; an unrecognised *caller* id
+raises (`bundle_for`) because a caller can fix its request and quietly serving
+a different bundle than the one asked for is worse than saying no — the same
+asymmetry as `plan_cart`'s `default_preset`.
 
 ## Why this lives in `domain/` and not in the frontend
 
@@ -45,8 +89,120 @@ from typing import Any, Mapping
 # it and as `data/constants.json`'s SECTION_ORDER renders its children.
 SECTION_SEPARATOR = " > "
 
-# The threshold of last resort: a category with no override and no default.
+# The threshold of last resort: a category no table names and no family rule
+# has an opinion about.
 BASE_THRESHOLD = 50
+
+# ── Derivation tables ───────────────────────────────────────────────────────
+# Prefix → threshold, longest prefix wins. Keyed on the section string alone,
+# which is the only input the Python and JS sides share at call time; the JS
+# mirror is GENERATED from these tables (scripts/gen-threshold-defaults.py),
+# and the behaviour of both is pinned by the shared fixture.
+#
+# Seeded from the operator's hand edits, not invented:
+#   ICs 100 — the mode of the tuned IC overrides (Amplifiers, ESD Protection,
+#             Motor Drivers, USB, Load Switches, Switchers all went 50→100;
+#             Microcontrollers and Sensors went to 200, which is what the
+#             `ic-heavy` preset and per-category overrides are for).
+#   Passives 20 — the median of the tuned passives (4 / 20 / 50).
+#   Discrete Semiconductors + Connectors 20 — the connector/discrete default,
+#             seeded from the tuned connector number.
+FAMILY_THRESHOLDS: tuple[tuple[str, int], ...] = (
+    ("ICs - ", 100),
+    ("Passives - ", 20),
+    ("Discrete Semiconductors", 20),
+    ("Connectors", 20),
+)
+
+# Categories the hand-tuned era left at the base ON PURPOSE. Derivation skips
+# these; the legacy fixture pins them. A new category that lands on the base
+# must join this set (base by decision) or a family rule — silence is the one
+# outcome the guard test forbids.
+BASE_BY_DECISION: frozenset[str] = frozenset({
+    "Development Boards, Kits, Programmers",
+    "Discrete Semiconductors",
+    "Discrete Semiconductors > MOSFETs",
+    "ICs - Amplifiers",
+    "ICs - ESD Protection",
+    "ICs - Interface",
+    "ICs - Microcontrollers",
+    "ICs - Motor Drivers",
+    "ICs - Power / Voltage Regulators",
+    "ICs - Power / Voltage Regulators > LDOs",
+    "ICs - Power / Voltage Regulators > Load Switches",
+    "ICs - Power / Voltage Regulators > Switchers",
+    "ICs - Sensors",
+    "ICs - USB",
+    "ICs - Voltage References",
+    "LEDs",
+    "Mechanical & Hardware",
+    "Other",
+    "Passives - Inductors",
+    "Switches",
+})
+
+# ── Presets ─────────────────────────────────────────────────────────────────
+PRESET_SHIPPED = "shipped"
+"""No bundle: the resolution order is exactly the shipped tables."""
+
+PRESET_IC_HEAVY = "ic-heavy"
+"""The operator's own hand-tuned IC numbers, promoted to a bundle."""
+
+PRESET_TIGHT = "tight"
+"""Double every shipped number: a category stays amber until it holds twice
+the stock, so thin shelves flag sooner."""
+
+PRESETS: tuple[str, ...] = (PRESET_SHIPPED, PRESET_IC_HEAVY, PRESET_TIGHT)
+
+# Sparse bundles — only the categories the bundle moves. Parent inheritance
+# (" > ") applies to a bundle exactly as it does to an override table, so a
+# bundle may name a parent to cover its children.
+PRESET_BUNDLES: dict[str, dict[str, int]] = {
+    PRESET_IC_HEAVY: {
+        "ICs - Microcontrollers": 200,
+        "ICs - Sensors": 200,
+        "ICs - Amplifiers": 100,
+        "ICs - ESD Protection": 100,
+        "ICs - Motor Drivers": 100,
+        "ICs - USB": 100,
+        "ICs - Power / Voltage Regulators > Load Switches": 100,
+        "ICs - Power / Voltage Regulators > Switchers": 100,
+        "ICs - Power / Voltage Regulators > LDOs": 30,
+    },
+    PRESET_TIGHT: {
+        "Connectors": 40,
+        "Crystals & Oscillators": 20,
+        "Diodes": 20,
+        "Passives - Capacitors": 40,
+        "Passives - Resistors": 8,
+        "Discrete Semiconductors": 100,
+        "LEDs": 100,
+        "Mechanical & Hardware": 100,
+        "Passives - Inductors": 100,
+        "Switches": 100,
+    },
+}
+
+PRESET_INFO: dict[str, dict[str, str]] = {
+    PRESET_SHIPPED: {
+        "name": "Server defaults",
+        "description": "No bundle — the shipped table, derived families, and the base.",
+    },
+    PRESET_IC_HEAVY: {
+        "name": "Expensive ICs",
+        "description": (
+            "IC classes carry their real price: MCUs and sensors at $200, the rest "
+            "of the IC families at $100, LDOs pulled below the base to $30."
+        ),
+    },
+    PRESET_TIGHT: {
+        "name": "Flag sooner",
+        "description": (
+            "Twice the shipped number for every cheap category — a shelf stays "
+            "amber until it holds double the stock."
+        ),
+    },
+}
 
 
 def parent_of(section: str) -> str:
@@ -55,27 +211,107 @@ def parent_of(section: str) -> str:
     return section[:sep] if sep != -1 else ""
 
 
+def derive(section: str) -> int | None:
+    """The family-class threshold for a category no table names, or None.
+
+    None means "no opinion", and the caller falls to the base — but only for a
+    string outside every family. A category named in `BASE_BY_DECISION` also
+    answers None: that is a decision to keep the base, not an absence of one,
+    and the guard test in tests/python/domain/test_threshold_defaults.py is
+    what keeps the two indistinguishable from the outside and very different
+    in intent.
+    """
+    if section in BASE_BY_DECISION:
+        return None
+    best: tuple[str, int] | None = None
+    for prefix, value in FAMILY_THRESHOLDS:
+        if not section.startswith(prefix):
+            continue
+        if best is None or len(prefix) > len(best[0]):
+            best = (prefix, value)
+    return best[1] if best else None
+
+
+def bundle_for(preset_id: str) -> dict[str, int]:
+    """The bundle named by `preset_id`, for a CALLER: unknown raises.
+
+    The `plan_cart(default_preset=...)` asymmetry — a caller can fix its
+    request, so guessing a different bundle than the one asked for is worse
+    than saying no.
+    """
+    if preset_id == PRESET_SHIPPED:
+        return {}
+    if preset_id in PRESET_BUNDLES:
+        return PRESET_BUNDLES[preset_id]
+    raise ValueError(
+        f"unknown threshold preset {preset_id!r}; expected one of {PRESETS}"
+    )
+
+
+def stored_preset_id(raw: object) -> str:
+    """A preset id read back from stored state: unrecognised falls back.
+
+    The `_effective_preset` asymmetry — one stale string should degrade to the
+    shipped order, not make the whole preference unreadable.
+    """
+    raw = raw.strip() if isinstance(raw, str) else ""
+    return raw if raw in PRESETS else PRESET_SHIPPED
+
+
+def presets_payload() -> list[dict[str, object]]:
+    """The preset bundles as they travel on `GET /v1/meta`.
+
+    Served there and NOT through /v1/preferences, because savePreferences
+    posts the whole in-memory bag — defaults served through it would persist
+    into preferences.json as user state on the next unrelated save (see
+    js/store.js). Presets are read-only server facts, which is what /v1/meta
+    already carries for defaults.
+    """
+    payload = [{"id": PRESET_SHIPPED, **PRESET_INFO[PRESET_SHIPPED], "thresholds": {}}]
+    for preset_id in PRESETS:
+        if preset_id == PRESET_SHIPPED:
+            continue
+        payload.append({
+            "id": preset_id,
+            **PRESET_INFO[preset_id],
+            "thresholds": PRESET_BUNDLES[preset_id],
+        })
+    return payload
+
+
 def resolve(
     section: str,
     overrides: Mapping[str, Any] | None = None,
     defaults: Mapping[str, Any] | None = None,
     base: int | None = None,
+    preset: Mapping[str, Any] | None = None,
 ) -> int:
     """The effective threshold for `section`.
 
-    Exact override, then the override inherited from the parent, then the exact
-    default, then the default inherited from the parent, then `base`
-    (`BASE_THRESHOLD` when the caller does not name one).
+    Exact override, then the override inherited from the parent; then the same
+    two steps against the chosen preset bundle; then the exact default, then
+    the default inherited from the parent; then derivation (`derive`, the
+    family tables); then `base` (`BASE_THRESHOLD` when the caller does not
+    name one).
 
     A parent's *override* outranks a child's *default* on purpose: the user
     spoke about that family, and nothing in the shipped table should overrule
-    something they set deliberately.
+    something they set deliberately. The preset sits between the two for the
+    same reason: it is a choice the user made, but a coarser one than a
+    per-category slider, so an explicit delta still wins over it.
+
+    Nothing that already resolved changes: derivation runs only where the old
+    order fell straight through to the base, and every category the old order
+    answered at the base by the operator's decision is named in
+    `BASE_BY_DECISION`, which derivation respects.
 
     `base` exists for a caller that is not this build — `dubis low-stock` asks
     the server it is talking to what its base is, rather than assuming a remote
-    server agrees with this checkout.
+    server agrees with this checkout. `preset` is the chosen bundle (look it
+    up with `bundle_for` for a caller, or from the server's own
+    `/v1/meta` `threshold_presets` for a client).
     """
-    for table in (overrides, defaults):
+    for table in (overrides, preset, defaults):
         if not table:
             continue
         if section in table:
@@ -83,4 +319,7 @@ def resolve(
         parent = parent_of(section)
         if parent and parent in table:
             return int(table[parent])
+    derived = derive(section)
+    if derived is not None:
+        return derived
     return BASE_THRESHOLD if base is None else int(base)

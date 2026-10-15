@@ -62,6 +62,7 @@ test.describe('Text popover, double-click-select, auto-copy', () => {
 
     // Enable via the prefs modal (realistic click), then re-select.
     await page.locator('#prefs-btn').click();
+    await page.locator('#prefs-tab-general').click(); // the auto-copy toggle lives on the General tab
     await page.locator('#pref-auto-copy').check();
     await page.locator('#prefs-cancel').click(); // change persists on toggle, not on Save
 

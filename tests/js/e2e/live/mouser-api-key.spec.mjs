@@ -17,6 +17,10 @@ test.describe('Mouser API key in preferences modal', () => {
     await page.click('#prefs-btn');
     const modal = page.locator('#prefs-modal');
     await expect(modal).not.toHaveClass(/hidden/);
+    // The Mouser key section lives on the General tab since the threshold
+    // tuner got its own — the default tab is Stock thresholds, where this
+    // input is display:none.
+    await page.click('#prefs-tab-general');
 
     const status = page.locator('#mouser-status');
     const keyInput = page.locator('#mouser-api-key');
@@ -54,6 +58,7 @@ test.describe('Mouser API key in preferences modal', () => {
 
   test('Save with empty input shows toast, does not flip status', async ({ page }) => {
     await page.click('#prefs-btn');
+    await page.click('#prefs-tab-general'); // Mouser key lives on the General tab
     const status = page.locator('#mouser-status');
     await expect(status).toHaveText(/No API key/);
 
@@ -66,6 +71,7 @@ test.describe('Mouser API key in preferences modal', () => {
 
   test('Enter key in input triggers save', async ({ page }) => {
     await page.click('#prefs-btn');
+    await page.click('#prefs-tab-general'); // Mouser key lives on the General tab
     const keyInput = page.locator('#mouser-api-key');
     await keyInput.fill('enter-key-test');
     await keyInput.press('Enter');

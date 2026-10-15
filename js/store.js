@@ -6,7 +6,7 @@
 import { EventBus, Events } from './event-bus.js';
 import { signal, activeSourceSignal, sourceStatusSignal } from './signals.js';
 import { SECTION_ORDER } from './constants.js';
-import { resolveThreshold } from './threshold-logic.js';
+import { PRESET_SHIPPED, presetBundle, resolveThreshold, storedPresetId } from './threshold-logic.js';
 import {
   changedPreferencePaths,
   snapshotPreferences,
@@ -83,6 +83,12 @@ let bomDirty = false;
 let bomFootprintNearMisses = [];
 let preferences = {
   thresholds: {},
+  // The chosen threshold preset id — an id, never a resolved table. The
+  // cart-preset shape (domain/cart_plan.py): this plus the sparse
+  // `thresholds` deltas is the whole stored state; the bundles themselves are
+  // server facts served on /v1/meta and generated into
+  // js/threshold-defaults.generated.js, never copied into preferences.
+  threshold_preset: PRESET_SHIPPED,
   inventory_view: { group_level: 0, sort_column: null, sort_scope: null, vendor_group_scope: null },
   shortcuts: { ...SHORTCUT_DEFAULTS },
   behavior: { ...BEHAVIOR_DEFAULTS },
@@ -430,6 +436,23 @@ export async function loadPreferences() {
   const stored = await api("load_preferences");
   if (stored && typeof stored === "object") {
     if (stored.thresholds) preferences.thresholds = stored.thresholds;
+    // The preset id, read with the LENIENT stored-state rule: a stale or
+    // hand-typo'd id degrades to the shipped order rather than making the
+    // preference unusable (the _effective_preset asymmetry in
+    // domain/cart_plan.py, mirrored in js/threshold-logic.js). Carried
+    // through like every other key here — an unread key is erased by the next
+    // whole-bag save of any unrelated preference.
+    if (stored.threshold_preset !== undefined) {
+      const rawPreset = typeof stored.threshold_preset === "string" ? stored.threshold_preset.trim() : "";
+      const presetId = storedPresetId(stored.threshold_preset);
+      if (rawPreset !== presetId) {
+        AppLog.warn(
+          `Preferences: unknown threshold preset ${JSON.stringify(stored.threshold_preset)}` +
+          ` — falling back to ${PRESET_SHIPPED}`
+        );
+      }
+      preferences.threshold_preset = presetId;
+    }
     if (stored.lastBomDir) preferences.lastBomDir = stored.lastBomDir;
     if (stored.lastImportDir) preferences.lastImportDir = stored.lastImportDir;
     // Carried through like the other remembered keys. It was written by
@@ -556,10 +579,25 @@ export async function savePreferences() {
 }
 
 export function getThreshold(section) {
-  // The order — override, inherited parent override, shipped default,
-  // inherited parent default, base — lives in js/threshold-logic.js so the
-  // CLI and the grid cannot disagree about it.
-  return resolveThreshold(section, preferences.thresholds);
+  // The order — override, inherited parent override, chosen preset bundle,
+  // shipped default, inherited parent default, family derivation, base —
+  // lives in js/threshold-logic.js so the CLI and the grid cannot disagree
+  // about it. The preset id is re-read through the lenient rule on every
+  // call because another window may have written preferences.json since the
+  // last load; a stale id must not poison every row build.
+  const preset = presetBundle(storedPresetId(preferences.threshold_preset));
+  return resolveThreshold(section, preferences.thresholds, { preset });
+}
+
+export function setThresholdPreset(presetId) {
+  // The STRICT caller view: an unrecognised id throws rather than silently
+  // switching the whole grid to a different bundle (plan_cart's asymmetry).
+  presetBundle(presetId);
+  preferences.threshold_preset = presetId;
+  savePreferences();
+  // Classified `repaints` beside `thresholds` (js/preferences-logic.js): the
+  // preset is baked into every row's colour the same way a slider is.
+  publishPreferences();
 }
 
 export function setThreshold(section, value) {

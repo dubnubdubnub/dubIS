@@ -16,6 +16,7 @@ test('mirror toggle enables and shows serve URL', async ({ page }) => {
   await waitForInventoryRows(page);
 
   await page.keyboard.press('Control+,');
+  await page.click('#prefs-tab-general'); // the mirror section lives on the General tab
   const cb = page.locator('#mirror-enabled');
   await expect(cb).not.toBeChecked();
 
@@ -32,6 +33,7 @@ test('mirror toggle disables and clears URL', async ({ page }) => {
   await waitForInventoryRows(page);
 
   await page.keyboard.press('Control+,');
+  await page.click('#prefs-tab-general'); // the mirror section lives on the General tab
   await page.locator('#mirror-enabled').check();
   await expect(page.locator('#mirror-url')).toHaveValue('https://mauler.example.ts.net');
 

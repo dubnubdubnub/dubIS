@@ -30,7 +30,7 @@ from __future__ import annotations
 from typing import Any
 
 from domain.category_match import matches_category_name
-from domain.thresholds import resolve
+from domain.thresholds import PRESET_SHIPPED, resolve, stored_preset_id
 from tools.dubis_client import (
     PartNotFoundError,
     V1Client,
@@ -172,8 +172,9 @@ def _spec_search(client: V1Client, args) -> dict:
 
 def _low_stock(client: V1Client, args) -> dict:
     """With no --threshold, each part is judged against its own section's
-    threshold: the caller's override from /v1/preferences, then the server's
-    shipped default from /v1/meta, then that server's base.
+    threshold: the caller's override from /v1/preferences, then the chosen
+    preset bundle from /v1/meta, then the server's shipped default, then
+    derivation, then that server's base.
 
     That is the order the inventory grid colours with — js/threshold-logic.js
     is the frontend mirror of domain/thresholds.py, whose resolve() is what
@@ -187,18 +188,31 @@ def _low_stock(client: V1Client, args) -> dict:
     """
     prefs = client.get("/v1/preferences")
     overrides = prefs.get("thresholds", {}) if isinstance(prefs, dict) else {}
+    # The preset id is STORED state, so it takes the lenient read: a stale or
+    # hand-typo'd id degrades to the shipped order rather than failing the
+    # command (domain.thresholds.stored_preset_id).
+    preset_id = stored_preset_id(prefs.get("threshold_preset") if isinstance(prefs, dict) else None)
     meta = client.get("/v1/meta")
     defaults = meta.get("default_thresholds", {}) if isinstance(meta, dict) else {}
     # An older server answers neither key. Its base is then unknown, and the
     # honest fallback is this build's base — not 0, which is the default that
     # made this command quietly disagree with the window beside it.
     base = meta.get("base_threshold") if isinstance(meta, dict) else None
+    # The bundle comes from the server too — an older server serves no preset
+    # list, and "no bundle" is the honest reading of that, not a guess.
+    presets = meta.get("threshold_presets") if isinstance(meta, dict) else None
+    preset = {}
+    if isinstance(presets, list) and preset_id != PRESET_SHIPPED:
+        preset = next(
+            (p.get("thresholds", {}) for p in presets if p.get("id") == preset_id),
+            {},
+        )
 
     flagged = []
     for item in fetch_inventory(client):
         effective = (
             args.threshold if args.threshold is not None
-            else resolve(item.get("section", ""), overrides, defaults, base)
+            else resolve(item.get("section", ""), overrides, defaults, base, preset=preset)
         )
         if item.get("qty", 0) <= effective:
             compact = compact_part(item)
