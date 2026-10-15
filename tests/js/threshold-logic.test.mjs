@@ -154,6 +154,36 @@ describe('deriveThreshold — the family tables', () => {
   });
 });
 
+describe('the server snapshot layer (options.server) — mirror of resolve(server=...)', () => {
+  // The full cross-language pin is tests/js/threshold-resolution-parity.test.mjs
+  // against tests/fixtures/thresholds/resolution-cases.json; these are the
+  // mechanism-level cases that name the layer explicitly.
+  it('sits between the preset and the shipped defaults', () => {
+    const server = { Diodes: 33 };
+    expect(resolveThreshold('Diodes', {}, { server })).toBe(33);
+    expect(resolveThreshold('Diodes', {}, { preset: { Diodes: 90 }, server })).toBe(90);
+    expect(resolveThreshold('Diodes', { Diodes: 7 }, { server })).toBe(7);
+    expect(resolveThreshold('Diodes', {}, { server })).not.toBe(10); // the default, masked
+  });
+
+  it('inherits a parent entry for a child, like every other table', () => {
+    expect(resolveThreshold('Diodes > Zener', {}, { server: { Diodes: 33 } })).toBe(33);
+  });
+
+  it('treats $0 as a value, not an absence', () => {
+    expect(resolveThreshold('Diodes', {}, { server: { Diodes: 0 } })).toBe(0);
+  });
+
+  it('is inert when absent or null — an older server resolves as before', () => {
+    expect(resolveThreshold('Diodes', {}, { server: null })).toBe(10);
+    expect(resolveThreshold('Diodes', {})).toBe(10);
+  });
+
+  it('falls through per-category: unnamed by the server, named by snapshot 0', () => {
+    expect(resolveThreshold('Diodes', {}, { server: { Connectors: 5 } })).toBe(10);
+  });
+});
+
 describe('presets — the cart semantics, applied to thresholds', () => {
   it('ships the sentinel first and a bundle for every other id', () => {
     expect(PRESETS[0]).toBe(PRESET_SHIPPED);
