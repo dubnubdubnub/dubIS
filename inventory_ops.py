@@ -199,11 +199,19 @@ def sort_key_for_section(section: str, description: str) -> float | None:
 
 
 def categorize_and_sort(parts: list[dict[str, str]],
-                        flat_section_order: list[str] | None = None) -> dict[str, list[dict[str, str]]]:
-    """Categorize parts and sort within sections."""
+                        flat_section_order: list[str] | None = None,
+                        category_resolver=None) -> dict[str, list[dict[str, str]]]:
+    """Categorize parts and sort within sections.
+
+    ``category_resolver`` maps a row to the distributor category to believe
+    about it (see ``domain.distributor_categories.resolver``).  It defaults to
+    nothing, which is the old behaviour exactly: a caller with no store to
+    read still categorizes from the description alone.
+    """
     categorized: dict[str, list[dict[str, str]]] = {}
     for p in parts:
-        cat = categorize(p)
+        cat = categorize(p, distributor_category=category_resolver(p)
+                         if category_resolver else None)
         categorized.setdefault(cat, []).append(p)
 
     # Sort passives by value -- applies to both bare and compound section names

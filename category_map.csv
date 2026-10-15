@@ -1,0 +1,445 @@
+distributor,category,subcategory,section,note
+lcsc,Resistors,,Passives - Resistors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Capacitors,,Passives - Capacitors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,"Inductors, Coils, Chokes",,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Inductors/Coils/Transformers,,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Inductors & Chokes & Transformers,,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Filters,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Filters,,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Bead/Filter/EMI Optimization,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Bead/Filter/EMI Optimization,,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Connectors,,Connectors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Terminal,,Connectors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Wire/Cable/DataCable,,Connectors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Wire/Cable/DataCable,,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Wire/Cable/DataCable,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Wires And Cables,,Connectors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Wires And Cables,,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Wires And Cables,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Wires and cables,,Connectors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Wires and cables,,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Wires and cables,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Switches,,Switches,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Key/Switch,,Switches,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,switches,,Switches,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Pushbutton Switches & Relays,,Switches,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,"Crystals, Oscillators, Resonators",,Crystals & Oscillators,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Crystal Oscillator/Oscillator/Resonator,,Crystals & Oscillators,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Resonators/Oscillators,,Crystals & Oscillators,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Clock/Timing,,Crystals & Oscillators,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Clock/Timing,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Clock/Timing,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Diodes,,Diodes,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Circuit Protection,,ICs - ESD Protection,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Circuit Protection,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,TVS/Fuse/Board Level Protection,,Diodes,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,TVS/Fuse/Board Level Protection,,ICs - ESD Protection,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,TVS/Fuse/Board Level Protection,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Transistors/Thyristors,,Discrete Semiconductors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Triode/MOS Tube/Transistor,,Discrete Semiconductors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Silicon Carbide (SiC) Devices,,Discrete Semiconductors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Gallium Nitride (GaN) Devices,,Discrete Semiconductors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Optoelectronics,,LEDs,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Photoelectric Devices,,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Photoelectric Devices,,LEDs,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Photoelectric Devices,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Optocoupler/LED/Digital Tube/Photoelectric Device,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Optocoupler/LED/Digital Tube/Photoelectric Device,,LEDs,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Optocoupler/LED/Digital Tube/Photoelectric Device,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Optocouplers & LEDs & Infrared,,LEDs,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Optocouplers & LEDs & Infrared,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Optoisolators,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Optoisolators,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Optocoupler,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Optocoupler,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Optocouplers/Photocouplers,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Optocouplers/Photocouplers,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Signal Isolation Devices,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Power Management (PMIC),,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Power Management ICs,,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Power Supply Chip,,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Power Modules,,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Power Modules,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Amplifiers/Comparators,,ICs - Amplifiers,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Operational Amplifier/Comparator,,ICs - Amplifiers,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Data Acquisition,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Data Acquisition,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,ADC/DAC/Data Conversion,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,ADC/DAC/Data Conversion,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Interface,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Interface ICs,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Communication Interface Chip/UART/485/232,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Logic,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Logic,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Logic ICs,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Logic ICs,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Memory,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Embedded Processors & Controllers,,ICs - Microcontrollers,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Single Chip Microcomputer/Microcontroller,,ICs - Microcontrollers,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Motor Driver ICs,,ICs - Motor Drivers,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,LED Drivers,,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,LED Drivers,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Nixie Tube Driver/LED Driver,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Nixie Tube Driver/LED Driver,,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Nixie Tube Driver/LED Driver,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Sensors,,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Magnetic Sensors,,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Relays,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,RF And Wireless,,ICs - Amplifiers,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,RF And Wireless,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,RF And Wireless,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,RF & Radio,,ICs - Amplifiers,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,RF & Radio,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,RF & Radio,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Radio Frequency Chip/Antenna,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Radio Frequency Chip/Antenna,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,IoT/Communication Modules,,"Development Boards, Kits, Programmers",Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,IoT/Communication Modules,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,IoT/Communication Modules,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Functional Modules,,"Development Boards, Kits, Programmers",Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Functional Modules,,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Functional Modules,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Educational Kits,,"Development Boards, Kits, Programmers",Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Educational Kits,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Development Boards & Tools,,"Development Boards, Kits, Programmers",Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Displays,,LEDs,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Displays,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Audio Products / Vibration Motors,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Industrial Control Electrical,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Hardware/Fasteners/Sealing,,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Hardware Fasteners,,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Hardwares / Sealings / Machinings,,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Consumables,,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Consumables,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Battery Products,,Connectors,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Battery Products,,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Battery Products,,Other,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Other,,,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Others,,,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Global Sourcing Parts,,,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,Test,,,Promoted from categorize_corpus_labels.LCSC_CATEGORY.
+lcsc,,NTC Thermistors,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,NTC Thermistors,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,NTC Thermistors,Passives - Resistors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,PTC Thermistors,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,PTC Thermistors,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,PTC Thermistors,Passives - Resistors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Others,,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Photoresistors,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Photoresistors,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Photoresistors,Passives - Resistors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Audio Transformers,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Audio Transformers,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Current Sense Transformers,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Current Sense Transformers,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Current Sense Transformers,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Current Transformers,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Current Transformers,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Current Transformers,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Power Transformer,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Power Transformer,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Power Transformers,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Power Transformers,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Pulse Transformers,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Pulse Transformers,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Pulse Transformers(LAN),Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Pulse Transformers(LAN),Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,RJ45 Transformer,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,RJ45 Transformer,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Accessories - Inductors/Transformers,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Accessories - Inductors/Transformers,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Accessories - Inductors/Transformers,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Wireless Charging Coils,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Wireless Charging Coils,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Ferrite Beads,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Common Mode Filters,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Common Mode Chokes / Filters,Passives - Inductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Feed Through Capacitors,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Feed Through Capacitors,Passives - Capacitors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Ceramic Filters,Crystals & Oscillators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Ceramic Filters,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Crystal Filters,Crystals & Oscillators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Crystal Filters,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Switched Capacitor Filters,ICs - Amplifiers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Switched Capacitor Filters,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Connector Accessories,Connectors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Connector Accessories,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Connector Accessories,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,FFC Cable (Flexible Flat Cable),Connectors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,FFC Cable (Flexible Flat Cable),Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Rotary Encoders,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Rotary Encoders,Switches,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Switch Accessories / Caps,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Switch Accessories / Caps,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Switch Accessories / Caps,Switches,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Switch Accessories Or Caps,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Switch Accessories Or Caps,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Switch Accessories Or Caps,Switches,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Real Time Clocks,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Real Time Clocks,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Real-Time Clocks(RTC),ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Real-Time Clocks(RTC),Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Time Delays,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Timers / Counters,Crystals & Oscillators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Timers / Counters,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Timers / Counters,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,ESD And Surge Protection (TVS/ESD),Diodes,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,ESD And Surge Protection (TVS/ESD),ICs - ESD Protection,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Electrostatic And Surge Protection (TVS/ESD),Diodes,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Electrostatic And Surge Protection (TVS/ESD),ICs - ESD Protection,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Fuseholders,Connectors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Fuseholders,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Fuseholders,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Automotive Fuses,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Disposable Fuses,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Resettable Fuses,ICs - ESD Protection,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Resettable Fuses,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Thermal Fuses (TCO),Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,SiC Diodes,Diodes,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Intelligent Power Modules (IPM),Discrete Semiconductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Intelligent Power Modules (IPM),ICs - Motor Drivers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Intelligent Power Modules (IPM),ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Laser Diodes,Diodes,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Laser Diodes,LEDs,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Photodiodes,Diodes,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Photodiodes,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Photodiodes,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Phototransistors,Discrete Semiconductors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Phototransistors,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Phototransistors,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Infrared Remote Receiver (IRM),ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Infrared Remote Receiver (IRM),Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Photointerrupters - Slot Type - Transistor Output,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Photointerrupters - Slot Type - Transistor Output,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Photointerrupters - Slot Type - Logic Output,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Photointerrupters - Slot Type - Logic Output,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Reflective Optical Interrupters,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Reflective Optical Interrupters,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Optoelectronics Accessories,LEDs,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Optoelectronics Accessories,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Optoelectronics Accessories,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Photoelectric Accessories,LEDs,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Photoelectric Accessories,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Photoelectric Accessories,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Fiber Optical Transceivers,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Fiber Optical Transceivers,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,IrDA Transceiver Modules,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,IrDA Transceiver Modules,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Optocouplers - Phototransistor Output,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Optocouplers - Phototransistor Output,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Solid State Relays - MOS Output (PhotoMOS),ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Solid State Relays - MOS Output (PhotoMOS),Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Solid State Relays (MOS Output),ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Solid State Relays (MOS Output),Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Solid State Relays (Triac Output),ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Solid State Relays (Triac Output),Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Gate Drive Optocoupler,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Gate Drive Optocoupler,ICs - Motor Drivers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Gate Drive Optocoupler,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Isolation Amplifiers,ICs - Amplifiers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Isolation Amplifiers,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Isolated ADCs,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Isolated ADCs,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Isolated ADCs With Power,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Isolated ADCs With Power,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Isolated Comparators,ICs - Amplifiers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Isolated Comparators,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Isolated USB ICs,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Isolated USB ICs,ICs - USB,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Voltage Reference,ICs - Voltage References,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Motor Driver ICs,ICs - Motor Drivers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Isolators - Gate Drivers,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Isolators - Gate Drivers,ICs - Motor Drivers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Isolators - Gate Drivers,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Gate Drive ICs,ICs - Motor Drivers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Gate Drive ICs,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Supervisor And Reset ICs,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Supervisor And Reset ICs,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Monitors & Reset Circuits,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Monitors & Reset Circuits,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Current Source / Constant Current Source,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Current Source / Constant Current Source,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Power Management - Specialized,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Power Management - Specialized,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Leakage Protection ICs,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Leakage Protection ICs,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Power Over Ethernet (PoE) Controllers,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Power Over Ethernet (PoE) Controllers,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Linear - Analog Multipliers, Dividers",ICs - Amplifiers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Linear - Analog Multipliers, Dividers",Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Digital Potentiometers,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Digital Potentiometers,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Digital Potentiometers,Passives - Resistors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Analog Front End (AFE),ICs - Amplifiers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Analog Front End (AFE),ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Analog Front End (AFE),Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Touch Screen Controllers,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Touch Screen Controllers,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,USB Converters,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,USB Converters,ICs - USB,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Audio Interface ICs,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Audio Interface ICs,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Security Verification / Encryption ICs,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Security Verification / Encryption ICs,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Translators, Level Shifters",ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Translators, Level Shifters",Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Signal Switches, Multiplexers, Decoders",ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Signal Switches, Multiplexers, Decoders",Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Buffers, Drivers, Receivers, Transceivers",ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Buffers, Drivers, Receivers, Transceivers",Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Programmable Logic Device (CPLDs/FPGAs),ICs - Microcontrollers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Programmable Logic Device (CPLDs/FPGAs),Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Relay / Coil Drivers,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Relay / Coil Drivers,ICs - Motor Drivers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Relay / Coil Drivers,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Gate Drivers,ICs - Motor Drivers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Gate Drivers,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,LCD Drivers,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,LCD Drivers,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Digital Tube Drivers,ICs - Interface,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Digital Tube Drivers,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Laser Drivers,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Laser Drivers,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Thermostat Switches,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Thermostat Switches,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Thermostat Switches,Switches,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Sensor Modules,"Development Boards, Kits, Programmers",Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Sensor Modules,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Sensor Modules,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Reed Switches,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Reed Switches,Switches,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Antennas,Connectors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Antennas,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,RF Cables,Connectors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,RF Cables,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,RF Amplifiers,ICs - Amplifiers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,RF Amplifiers,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Low Noise Amplifiers (LNA) - RF,ICs - Amplifiers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Low Noise Amplifiers (LNA) - RF,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,SAW Filters,Crystals & Oscillators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,SAW Filters,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Motor Driver Boards, Modules","Development Boards, Kits, Programmers",Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Motor Driver Boards, Modules",ICs - Motor Drivers,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Motor Driver Boards, Modules",Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,LED Segment Displays,LEDs,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,LED Segment Displays,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,LED Dot Matrix And Cluster,LEDs,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,LED Dot Matrix And Cluster,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,LED Displays Modules,LEDs,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,LED Displays Modules,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Microphones,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Microphones,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,MEMS Microphones,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,MEMS Microphones,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Limit Switchs,Travel Switchs",Switches,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Tact Switch,Switches,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Tact Switchs,Keypad Switches",Switches,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Tactile Switch/Push Button Switch,Switches,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Encoders,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Encoders,Switches,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Proximity Sensors,Proximity Switches",ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Proximity Sensors,Proximity Switches",Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Proximity Sensors,Proximity Switches",Switches,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,PhotoelectricSensor,ICs - Sensors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,PhotoelectricSensor,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Power Module/Power Supply,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Power Module/Power Supply,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Power Supply Module,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Power Supply Module,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Power Supply Module,Power Supplies",ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,"Power Supply Module,Power Supplies",Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Waterproof LED Driver Power Supply,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Waterproof LED Driver Power Supply,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Battery Connector,Connectors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,BatteryConnector,Connectors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Terminal Strips,Connectors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Power Connector / Plug Connector,Connectors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Antenna Spring,Connectors,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Antenna Spring,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Antenna Spring,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Heat Sink / Cooling Fin,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Heat Sink / Cooling Fin,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Heat Sink/Heatsink,Mechanical & Hardware,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Heat Sink/Heatsink,Other,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Global Sourcing Parts,,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,New Arrivals,,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+lcsc,,Comprehensive Electronic,,Promoted from categorize_corpus_labels.LCSC_SUBCATEGORY.
+digikey,Aluminum Electrolytic Capacitors,,Passives - Capacitors,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Through Hole Resistors,,Passives - Resistors,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Arrays, Signal Transformers",,Other,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Arrays, Signal Transformers",,Passives - Inductors,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Inrush Current Limiters (ICL),,ICs - Sensors,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Inrush Current Limiters (ICL),,Other,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Inrush Current Limiters (ICL),,Passives - Resistors,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Surge Suppression ICs,,ICs - ESD Protection,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Surge Suppression ICs,,ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Surge Suppression ICs,,Other,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Thermal Cutoffs (Thermal Fuses),,Other,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Thyristors,Transient Voltage Suppressors (TVS),Diodes,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Thyristors,Transient Voltage Suppressors (TVS),Discrete Semiconductors,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Thyristors,Transient Voltage Suppressors (TVS),ICs - ESD Protection,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Thyristors,Transient Voltage Suppressors (TVS),Other,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Barrel Connector Accessories,Barrel Connectors,Connectors,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Barrel Connector Accessories,Barrel Connectors,Mechanical & Hardware,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Barrel Connector Accessories,Barrel Connectors,Other,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Edgeboard Connectors,Card Edge Connectors,Connectors,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Fiber Optic Connector Housings,Fiber Optic Connectors,Connectors,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Modular/Ethernet Connector (RJ45, RJ11) Plugs",Modular/Ethernet Connectors,Connectors,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Quick Connects, Quick Disconnect Connectors",Terminals,Connectors,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Nuts,,Mechanical & Hardware,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Clock Generators, PLLs, Frequency Synthesizers",Clock/Timing,Crystals & Oscillators,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Clock Generators, PLLs, Frequency Synthesizers",Clock/Timing,ICs - Interface,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Clock Generators, PLLs, Frequency Synthesizers",Clock/Timing,Other,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,System On Chip (SoC),Embedded,ICs - Microcontrollers,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Analog Switches, Multiplexers, Demultiplexers",Interface,ICs - Interface,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Comparators,Linear,ICs - Amplifiers,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Gates and Inverters,Logic,ICs - Interface,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Gates and Inverters,Logic,Other,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Full, Half-Bridge (H Bridge) Drivers",Power Management (PMIC),ICs - Motor Drivers,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Full, Half-Bridge (H Bridge) Drivers",Power Management (PMIC),ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Hot Swap Controllers,Power Management (PMIC),ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Motor Drivers, Controllers",Power Management (PMIC),ICs - Motor Drivers,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Power Management - Specialized,Power Management (PMIC),ICs - Motor Drivers,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Power Management - Specialized,Power Management (PMIC),ICs - Power / Voltage Regulators,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Power Management - Specialized,Power Management (PMIC),Other,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Transistor, Photovoltaic Output Optoisolators","Optocouplers, Optoisolators",ICs - Interface,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Transistor, Photovoltaic Output Optoisolators","Optocouplers, Optoisolators",Other,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Circuit Board Indicators, Arrays, Light Bars, Bar Graphs",,LEDs,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,LED Indication - Discrete,,LEDs,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,RFI and EMI - Shielding and Absorbing Materials,,Mechanical & Hardware,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,RFI and EMI - Shielding and Absorbing Materials,,Other,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Signal Relays, Up to 2 Amps",,Other,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Humidity, Moisture Sensors",,ICs - Sensors,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Ambient Light, IR, UV Sensors",Optical Sensors,ICs - Sensors,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Solder Stencils, Templates",,Mechanical & Hardware,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,"Solder Stencils, Templates",,Other,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Pushbutton Switches,,Switches,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+digikey,Tactile Switches,,Switches,Promoted from categorize_corpus_labels.DIGIKEY_PATH.
+mouser,Audio Products,,,"No dubIS audio section. Bucket = speakers, buzzers, microphones, vibration motors (LCSC's analogous 'Audio Products / Vibration Motors' is scored {Other}) PLUS audio amplifier modules and headphone/audio jacks, where dubIS's own description rules do better than a blanket Other. No single parent; abstain beats pinning the whole bucket to Other."
+mouser,Automation & Remote Control,,,"Industrial grab-bag: motor drives, contactors, PLC I/O modules, actuators, solenoids, remote-control transmitters/receivers, signal towers. None of the 21 sections covers this family and the contents scatter across several (a signal tower is arguably LEDs, a drive board arguably Development Boards). LCSC's comparable 'Industrial Control Electrical' is scored {Other} only because that bucket is much narrower."
+mouser,Batteries & Power Supplies,,,"Batteries, packs, holders, chargers, AC/DC desktop and enclosed supplies, DC/DC converters. 'ICs - Power / Voltage Regulators' is an IC section (LDOs, switchers, load switches) - a coin cell or a 240W desktop PSU filed there is a misfile, not a coarse answer. LCSC's comparable 'Battery Products' is scored {Mechanical & Hardware, Connectors, Other}, i.e. three parents, which is the table saying it has no single answer."
+mouser,Circuit Protection,,,"Fuses, fuse holders, circuit breakers, MOVs, GDTs, PTC resettable fuses and TVS diodes. Only the TVS/ESD leaves have a dubIS home (ICs - ESD Protection / Diodes); fuses and breakers have none. The DIGIKEY_PATH table deliberately labels each Circuit Protection path separately (ICL, Surge Suppression ICs, Thermal Cutoffs, TVS/Thyristors) and never the umbrella - same judgement here. Needs subcategory rows, not a parent row."
+mouser,Connectors,,Connectors,"1:1 with dubIS's Connectors, and CATEGORY_RULES already key on connector vocabulary (connector/header/receptacle/terminal block/IC socket), so the two agree. Residual tail (cable assemblies, board spacers) is small relative to the bucket; LCSC scores cables {Other, Connectors, Mechanical & Hardware} but the umbrella itself is unambiguously connectors."
+mouser,Development Kits & Tools,,"Development Boards, Kits, Programmers","dubIS's section is the same family (boards, kits, programmers) and its rules already fire on eval board / dev kit / starter kit / ST-Link / J-Link. Not verified because Mouser's bucket also carries hand tools, test equipment, breadboards/perfboard and enclosures, which dubIS's rules leave in Other - a reviewer may want those split out by subcategory."
+mouser,Discrete Semiconductors,,Discrete Semiconductors,"Same name, same domain: MOSFETs, IGBTs, thyristors/SCR/TRIAC, SiC/GaN devices, discrete modules. Not verified because Mouser's umbrella also contains Diodes, which dubIS keeps in its own section - a 'Discrete Semiconductors > Diodes' subcategory row should exist before this parent row is trusted for diodes."
+mouser,Electromechanical,,,"Relays, solenoids, motors/actuators, encoders, lamps and signalling devices. dubIS has no electromechanical section (LCSC scores 'Relays' {Other}), but the bucket also holds encoders (Switches/Sensors in the LCSC table) and LED lamps (LEDs) where the description rules do better than a blanket Other. Cannot place the umbrella from its words alone."
+mouser,Embedded Solutions,,,"MCUs/SoCs, system-on-module and wireless/IoT modules, single-board computers, FPGA/CPLD kits. The existing tables split exactly this three ways: 'Embedded Processors & Controllers' and 'System On Chip (SoC)' -> ICs - Microcontrollers, 'IoT/Communication Modules' / 'Functional Modules' -> {Other, Development Boards, ICs - Interface}. Any single parent misfiled two thirds of the bucket."
+mouser,Fans & Thermal Management,,,"DC/AC fans, blowers, heat sinks, thermal interface materials, Peltier modules, temperature sensors. dubIS's Mechanical & Hardware is fastening/mounting hardware (spacer, standoff, nut, washer, battery holder), so it is not an honest home for a fan; LCSC scores heat sinks {Mechanical & Hardware, Other} - even the hand-tuned table will not commit - and consumables {Other, Mechanical}. No single parent."
+mouser,Fiber Optics,,,"Fiber optic cables, connectors, transceiver/transmitter-receiver modules and amplifiers. The existing tables put these in two different parents: DigiKey 'Fiber Optic Connectors' -> {Connectors}, LCSC 'Fiber Optical Transceivers' -> {ICs - Interface, Other}. One Mouser umbrella spans both, so the parent row would contradict whichever half it picked."
+mouser,Frequency Control,,Crystals & Oscillators,"Mouser's Frequency Control is crystals, resonators and oscillators (crystal/TCXO/VCXO/OCXO/MEMS), which is exactly dubIS's Crystals & Oscillators; the LCSC equivalents ('Crystals, Oscillators, Resonators', 'Resonators/Oscillators') are scored {Crystals & Oscillators} alone. Caveat for whoever adds subcategory rows: a leaf holding clock/timing ICs (PLL, clock generators, buffers) belongs to ICs - Interface, the split the DigiKey table already makes for 'Clock/Timing / Clock Generators, PLLs, Frequency Synthesizers'."
+mouser,Interconnect Products,,Connectors,"Mouser's interconnect tree is connectors, headers, terminals, cable assemblies - dubIS Connectors is the home for the bulk, and dubIS already reads 'connector/header/receptacle/terminal block' into it. The wire & cable and board-spacer/standoff children read as Other or Mechanical & Hardware and want their own rows."
+mouser,Lighting Solutions,,,"Finished luminaires (bulbs, tubes, panels, fixtures) mixed with LED engines and lighting drivers. dubIS LEDs is for LED components and a lighting driver is a power IC (categorize.py routes 'lighting driver' there), so no single parent is honest."
+mouser,Memory,,Other,"SECTION_ORDER has no memory section; mirrors the existing LCSC row ""Memory"": {OTH}, which the corpus already scores as correct. Holds across the whole bucket - EEPROM/flash/SRAM ICs, DRAM modules, cards and drives all land in Other."
+mouser,Optoelectronics,,LEDs,"Bulk is LED indication, LED displays/modules and laser parts, which dubIS files under LEDs (displays included - cf. LCSC 'LED Segment Displays': {LED, OTH}); same call as LCSC ""Optoelectronics"": {LED}. The optoisolator children belong in ICs - Interface and light pipes in Mechanical/Other."
+mouser,Other Electronic Components,,,Literal catch-all - says nothing about what a part is. Same treatment as LCSC 'Other'/'Others'/'' (None in the labels module).
+mouser,Passive Components,,,"Spans three separate dubIS sections (Passives - Resistors / Capacitors / Inductors) plus crystals, filters and trimmers. Any single parent misfiles the other two-thirds; needs Mouser's leaf category, not the top level."
+mouser,PC Board Products,,,"Bare PCBs, prototyping/perfboard and stencils. dubIS has no PCB section and Mechanical & Hardware is reserved for hardware/fasteners (spacer, standoff, nut, washer); DigiKey's nearest row, 'Solder Stencils, Templates', is itself {OTH, MECH}. Cannot place from its words alone."
+mouser,Power,,,"Batteries, cords, power entry, transformers and finished AC/DC and DC/DC supplies. Every dubIS power section is IC-only, so ICs - Power / Voltage Regulators would misfile each brick; LCSC's nearest rows are ambiguous too (Battery Products {MECH, CON, OTH})."
+mouser,RF/IF and RFID,,,"Antennas, coax, RF amplifiers, transceivers, SAW filters and RFID modules. dubIS has no RF section and LCSC's equivalent is scored as a genuine 3-way ambiguity (RF And Wireless {OTH, IF, AMP}); picking one parent would be a guess."
+mouser,Semiconductors,,,"Top level over all ICs, discretes, discrete modules, RF semiconductors and FPGAs - spans 8+ dubIS sections (Diodes, Discrete Semiconductors, every ICs - *). Only the leaf path is mappable; abstain at this level."
+mouser,Sensors,,ICs - Sensors,"Everything in the bucket is a sensor and dubIS's only sensor section already takes the non-IC ones: categorize.py files thermistor, hall effect, humidity, moisture and photointerrupter under ICs - Sensors. Same decision as LCSC ""Sensors"": {SEN}."
+mouser,Test & Measurement,,,"Instruments, probes, clips, test leads and calibration services. dubIS has no instrument section, and Development Boards, Kits, Programmers is for dev kits and programmers, not bench gear - routing there would be a guess."
+mouser,Tools & Supplies,,,"Mouser root crumb, not a component type: hand tools, soldering/desoldering stations, calibration and repair services, ESD control, labels, storage, cleaning chemicals, fasteners, batteries, tool kits. dubIS's Mechanical & Hardware is a thin fastener section and honestly holds only a minority of this bucket; tools, services and chemicals have no dubIS home. Nearest LCSC analogue 'Consumables' is labelled {OTH, MECH} - the existing table itself refuses to pick one, so under a single-section schema this is an abstain, not 'Other'."
+mouser,Wireless,,,"Mouser root crumb and an application grouping, not a part type: RF transceivers and modules, LoRa/BT/WiFi/cellular modules, antennas, LNAs, RF switches, SAW/ceramic filters, RF connectors and cable assemblies, wireless dev kits, RFID/NFC. It spans ICs - Amplifiers, ICs - Interface, Connectors, Development Boards, Kits, Programmers and Other at once. The existing table encodes exactly this ambiguity as a three-way set (LCSC 'RF And Wireless' -> {OTH, IF, AMP}); forcing one parent would silently misfile most of the bucket."
+mouser,3D Printing,,,"Mouser root crumb: whole 3D printers and kits, filament and resin, print heads/nozzles, build surfaces, pens, post-processing consumables. dubIS is a parts inventory - a printer is a machine and filament is a consumable, so neither Mechanical & Hardware (fasteners/hardware) nor Development Boards, Kits, Programmers (dev tools and boards) is an honest home for the bucket as a whole."
+mouser,Electronic Components,,,"Mouser's root catalogue bucket - semiconductors, passives, connectors, electromechanical, optoelectronics, displays and boards all sit under it. Mapping it to any single section would misfile nearly every part beneath it. This is the textbook catch-all the labels module gives None: 'Other': None, 'Others': None, 'Global Sourcing Parts': None."

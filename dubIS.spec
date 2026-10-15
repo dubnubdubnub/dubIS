@@ -69,6 +69,13 @@ a = Analysis(
         # quietly instead of erroring.
         ('data/openpnp_families.json', 'data'),
         ('data/pnp_part_map.json', 'data'),
+        # The distributor-category -> section table. category_map.py resolves it
+        # against its own module directory, so in the frozen bundle it must sit
+        # at the bundle root beside the module -- and unlike a missing icon, a
+        # missing map is not a crash: categorize() would keep working from
+        # descriptions alone, and the feature would simply never have been
+        # there. That silent-absence shape is why this list is guarded.
+        ('category_map.csv', '.'),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],

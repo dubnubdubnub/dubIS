@@ -16,6 +16,7 @@ graph LR
     "cart_qty.py" --> "domain/packaging.py"
     "carts.py" --> "csv_io.py"
     "carts.py" --> "dubis_errors.py"
+    "categorize.py" --> "category_map.py"
     "client_shell.py" --> "file_dialogs.py"
     "client_shell.py" --> "inventory_api.py"
     "digikey_browser.py" --> "dubis_errors.py"
@@ -38,6 +39,7 @@ graph LR
     "distributor_manager.py" --> "pololu_client.py"
     "distributor_profiles.py" --> "mfg_direct_import.py"
     "domain/api_attributes.py" --> "domain/attributes.py"
+    "domain/api_attributes.py" --> "domain/distributor_categories.py"
     "domain/api_cart.py" --> "cart_export.py"
     "domain/api_cart.py" --> "cart_qty.py"
     "domain/api_cart.py" --> "carts.py"
@@ -74,6 +76,9 @@ graph LR
     "domain/attributes.py" --> "domain/attribute_parse.py"
     "domain/attributes.py" --> "domain/pricing.py"
     "domain/cart_plan.py" --> "domain/purchase_candidates.py"
+    "domain/distributor_categories.py" --> "category_map.py"
+    "domain/distributor_categories.py" --> "csv_io.py"
+    "domain/distributor_categories.py" --> "domain/pricing.py"
     "domain/federation.py" --> "domain/schema.py"
     "domain/federation.py" --> "dubis_errors.py"
     "domain/feeders.py" --> "csv_io.py"
@@ -85,6 +90,7 @@ graph LR
     "domain/inventory.py" --> "csv_io.py"
     "domain/inventory.py" --> "domain/__init__.py"
     "domain/inventory.py" --> "domain/attributes.py"
+    "domain/inventory.py" --> "domain/distributor_categories.py"
     "domain/inventory.py" --> "domain/generic_parts.py"
     "domain/inventory.py" --> "domain/pricing.py"
     "domain/inventory.py" --> "domain/schema.py"
@@ -645,6 +651,7 @@ graph LR
     "scripts/generate-test-fixtures.py" --> "inventory_api.py"
     "scripts/generate-test-fixtures.py" --> "inventory_ops.py"
     "scripts/score-categorize-corpus.py" --> "categorize.py"
+    "scripts/score-categorize-corpus.py" --> "category_map.py"
     "scripts/seed-bom-prices.py" --> "browser_page.py"
     "scripts/spike-webview-loopback.py" --> "server/__init__.py"
     "scripts/spike-webview-loopback.py" --> "server/__main__.py"
@@ -810,6 +817,7 @@ graph LR
     "tests/js/undo-redo.test.js" --> "js/store.js"
     "tests/js/undo-redo.test.js" --> "js/undo-redo.js"
     "tests/js/vendor-flyout.test.js" --> "js/inventory/vendor-flyout.js"
+    "tests/python/categorize_corpus_labels.py" --> "category_map.py"
     "tests/python/conftest.py" --> "cache_db.py"
     "tests/python/conftest.py" --> "digikey_browser.py"
     "tests/python/conftest.py" --> "distributor_fixtures.py"
@@ -819,6 +827,10 @@ graph LR
     "tests/python/domain/test_attributes.py" --> "domain/attributes.py"
     "tests/python/domain/test_cart_plan.py" --> "domain/cart_plan.py"
     "tests/python/domain/test_cart_plan.py" --> "domain/purchase_candidates.py"
+    "tests/python/domain/test_distributor_categories.py" --> "category_map.py"
+    "tests/python/domain/test_distributor_categories.py" --> "domain/distributor_categories.py"
+    "tests/python/domain/test_distributor_categories.py" --> "inventory_ops.py"
+    "tests/python/domain/test_distributor_categories.py" --> "server/app.py"
     "tests/python/domain/test_feeders.py" --> "domain/__init__.py"
     "tests/python/domain/test_generic_parts.py" --> "cache_db.py"
     "tests/python/domain/test_generic_parts.py" --> "domain/generic_parts.py"
@@ -979,6 +991,11 @@ graph LR
     "tests/python/test_carts.py" --> "carts.py"
     "tests/python/test_carts.py" --> "dubis_errors.py"
     "tests/python/test_categorize_corpus.py" --> "categorize.py"
+    "tests/python/test_categorize_corpus.py" --> "category_map.py"
+    "tests/python/test_categorize_distributor_category.py" --> "categorize.py"
+    "tests/python/test_categorize_distributor_category.py" --> "category_map.py"
+    "tests/python/test_categorize_distributor_category.py" --> "inventory_ops.py"
+    "tests/python/test_category_map.py" --> "category_map.py"
     "tests/python/test_ci_watcher_audit.py" --> "scripts/ci_watcher/audit.py"
     "tests/python/test_ci_watcher_listener.py" --> "scripts/ci_watcher/listener.py"
     "tests/python/test_ci_watcher_listener.py" --> "scripts/ci_watcher/state.py"
@@ -1208,8 +1225,13 @@ graph LR
 
 ### categorize.py
 
+- **Imports:** `category_map.py`
+- **Imported by:** `inventory_ops.py`, `scripts/score-categorize-corpus.py`, `spec_extractor.py`, `tests/python/test_categorize_corpus.py`, `tests/python/test_categorize_distributor_category.py`, `tests/python/test_inventory_api_categorize.py`
+
+### category_map.py
+
 - **Imports:** —
-- **Imported by:** `inventory_ops.py`, `scripts/score-categorize-corpus.py`, `spec_extractor.py`, `tests/python/test_categorize_corpus.py`, `tests/python/test_inventory_api_categorize.py`
+- **Imported by:** `categorize.py`, `domain/distributor_categories.py`, `scripts/score-categorize-corpus.py`, `tests/python/categorize_corpus_labels.py`, `tests/python/domain/test_distributor_categories.py`, `tests/python/test_categorize_corpus.py`, `tests/python/test_categorize_distributor_category.py`, `tests/python/test_category_map.py`
 
 ### client_shell.py
 
@@ -1219,7 +1241,7 @@ graph LR
 ### csv_io.py
 
 - **Imports:** —
-- **Imported by:** `carts.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `domain/attributes.py`, `domain/feeders.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/part_registry.py`, `domain/pricing.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_csv_io.py`, `vendors.py`
+- **Imported by:** `carts.py`, `domain/api_mirror.py`, `domain/api_preferences.py`, `domain/api_purchase_orders.py`, `domain/api_vendors.py`, `domain/attributes.py`, `domain/distributor_categories.py`, `domain/feeders.py`, `domain/generic_parts.py`, `domain/inventory.py`, `domain/part_registry.py`, `domain/pricing.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `mfg_direct_import.py`, `purchase_orders.py`, `saved_searches.py`, `scripts/generate-test-fixtures.py`, `tests/python/test_csv_io.py`, `vendors.py`
 
 ### digikey_browser.py
 
@@ -1268,7 +1290,7 @@ graph LR
 
 ### domain/api_attributes.py
 
-- **Imports:** `domain/attributes.py`
+- **Imports:** `domain/attributes.py`, `domain/distributor_categories.py`
 - **Imported by:** `inventory_api.py`
 
 ### domain/api_cart.py
@@ -1351,6 +1373,11 @@ graph LR
 - **Imports:** `domain/purchase_candidates.py`
 - **Imported by:** `tests/python/domain/test_cart_plan.py`
 
+### domain/distributor_categories.py
+
+- **Imports:** `category_map.py`, `csv_io.py`, `domain/pricing.py`
+- **Imported by:** `domain/api_attributes.py`, `domain/inventory.py`, `tests/python/domain/test_distributor_categories.py`
+
 ### domain/federation.py
 
 - **Imports:** `domain/schema.py`, `dubis_errors.py`
@@ -1368,7 +1395,7 @@ graph LR
 
 ### domain/inventory.py
 
-- **Imports:** `cache_db.py`, `carts.py`, `csv_io.py`, `domain/__init__.py`, `domain/attributes.py`, `domain/generic_parts.py`, `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`, `saved_searches.py`
+- **Imports:** `cache_db.py`, `carts.py`, `csv_io.py`, `domain/__init__.py`, `domain/attributes.py`, `domain/distributor_categories.py`, `domain/generic_parts.py`, `domain/pricing.py`, `domain/schema.py`, `inventory_ops.py`, `saved_searches.py`
 - **Imported by:** `domain/api_inventory.py`, `inventory_api.py`, `scripts/gen-threshold-defaults.py`, `tests/python/domain/test_generic_parts.py`, `tests/python/domain/test_inventory_fetch_descriptions.py`, `tests/python/test_cache_catchup_properties.py`, `tests/python/test_concurrency_locks.py`
 
 ### domain/packages.py
@@ -1394,7 +1421,7 @@ graph LR
 ### domain/pricing.py
 
 - **Imports:** `csv_io.py`, `domain/packaging.py`
-- **Imported by:** `cache_db.py`, `domain/api_cart.py`, `domain/api_pricing.py`, `domain/attributes.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/server/test_carts_routes.py`, `tests/python/test_cache_db.py`, `tests/python/test_cart_facade.py`, `tests/python/test_cart_qty.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_inventory_api_pricing.py`
+- **Imported by:** `cache_db.py`, `domain/api_cart.py`, `domain/api_pricing.py`, `domain/attributes.py`, `domain/distributor_categories.py`, `domain/inventory.py`, `file_dialogs.py`, `inventory_api.py`, `inventory_ops.py`, `tests/python/domain/test_pricing.py`, `tests/python/server/test_carts_routes.py`, `tests/python/test_cache_db.py`, `tests/python/test_cart_facade.py`, `tests/python/test_cart_qty.py`, `tests/python/test_concurrency_locks.py`, `tests/python/test_inventory_api_pricing.py`
 
 ### domain/product.py
 
@@ -1469,7 +1496,7 @@ graph LR
 ### inventory_ops.py
 
 - **Imports:** `categorize.py`, `csv_io.py`, `domain/__init__.py`, `domain/pricing.py`, `domain/schema.py`, `vendors.py`
-- **Imported by:** `cache_db.py`, `domain/api_inventory.py`, `domain/api_pricing.py`, `domain/inventory.py`, `inventory_api.py`, `scripts/generate-test-fixtures.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/test_cache_db.py`, `tests/python/test_inventory_ops.py`, `tests/python/test_last_po_quantity.py`
+- **Imported by:** `cache_db.py`, `domain/api_inventory.py`, `domain/api_pricing.py`, `domain/inventory.py`, `inventory_api.py`, `scripts/generate-test-fixtures.py`, `tests/python/domain/test_distributor_categories.py`, `tests/python/domain/test_part_registry_integration.py`, `tests/python/test_cache_db.py`, `tests/python/test_categorize_distributor_category.py`, `tests/python/test_inventory_ops.py`, `tests/python/test_last_po_quantity.py`
 
 ### jlc_session.py
 
@@ -2394,7 +2421,7 @@ graph LR
 
 ### scripts/score-categorize-corpus.py
 
-- **Imports:** `categorize.py`
+- **Imports:** `categorize.py`, `category_map.py`
 - **Imported by:** —
 
 ### scripts/seed-bom-prices.py
@@ -2425,7 +2452,7 @@ graph LR
 ### server/app.py
 
 - **Imports:** `server/auth.py`, `server/dispatch.py`, `server/errors.py`, `server/routes/__init__.py`, `server/sources.py`, `server/ssh_tunnel.py`
-- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_auth_proxy_hosts.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_mutation_publishes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_ssh_tunnel.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_v1_surface.py`, `tests/python/test_dubis_client.py`
+- **Imported by:** `scripts/gen-openapi.py`, `server/__main__.py`, `server/run.py`, `tests/python/domain/test_distributor_categories.py`, `tests/python/server/conftest.py`, `tests/python/server/test_auth.py`, `tests/python/server/test_auth_proxy_hosts.py`, `tests/python/server/test_error_contract.py`, `tests/python/server/test_feeders_routes.py`, `tests/python/server/test_health_cors.py`, `tests/python/server/test_jlcpcb_routes.py`, `tests/python/server/test_main_flags.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_mutation_publishes.py`, `tests/python/server/test_openpnp_routes.py`, `tests/python/server/test_peercred.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_routes.py`, `tests/python/server/test_ssh_tunnel.py`, `tests/python/server/test_static_serving.py`, `tests/python/server/test_token_store.py`, `tests/python/server/test_v1_surface.py`, `tests/python/test_dubis_client.py`
 
 ### server/auth.py
 
@@ -3015,7 +3042,7 @@ graph LR
 
 ### tests/python/categorize_corpus_labels.py
 
-- **Imports:** —
+- **Imports:** `category_map.py`
 - **Imported by:** —
 
 ### tests/python/conftest.py
@@ -3036,6 +3063,11 @@ graph LR
 ### tests/python/domain/test_cart_plan.py
 
 - **Imports:** `domain/cart_plan.py`, `domain/purchase_candidates.py`
+- **Imported by:** —
+
+### tests/python/domain/test_distributor_categories.py
+
+- **Imports:** `category_map.py`, `domain/distributor_categories.py`, `inventory_ops.py`, `server/app.py`
 - **Imported by:** —
 
 ### tests/python/domain/test_feeders.py
@@ -3390,7 +3422,17 @@ graph LR
 
 ### tests/python/test_categorize_corpus.py
 
-- **Imports:** `categorize.py`
+- **Imports:** `categorize.py`, `category_map.py`
+- **Imported by:** —
+
+### tests/python/test_categorize_distributor_category.py
+
+- **Imports:** `categorize.py`, `category_map.py`, `inventory_ops.py`
+- **Imported by:** —
+
+### tests/python/test_category_map.py
+
+- **Imports:** `category_map.py`
 - **Imported by:** —
 
 ### tests/python/test_check_claude_md.py

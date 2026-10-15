@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 import cache_db
 import domain.attributes
+import domain.distributor_categories
 import domain.generic_parts
 import domain.pricing
 import inventory_ops
@@ -112,7 +113,12 @@ def rebuild(ctx: RebuildContext) -> "tuple[list[InventoryItem], dict[str, int]]"
     registry = _preg.load(base_dir)
     file_fieldnames, merged = inventory_ops.read_and_merge(input_csv, fieldnames, registry=registry)
     inventory_ops.apply_adjustments(merged, adjustments_csv, file_fieldnames)
-    categorized = inventory_ops.categorize_and_sort(list(merged.values()))
+    # Resolved before categorizing, from the local CSV only: a rebuild runs on
+    # every mutation, so this is where a fetched distributor category is allowed
+    # to influence a section and a network call is not.
+    categories = domain.distributor_categories.resolver(base_dir, inventory_ops.get_part_key)
+    categorized = inventory_ops.categorize_and_sort(list(merged.values()),
+                                                    category_resolver=categories)
     cache_db.populate_full(
         conn, merged, categorized,
         ledger_path=input_csv,
@@ -123,7 +129,8 @@ def rebuild(ctx: RebuildContext) -> "tuple[list[InventoryItem], dict[str, int]]"
     if registry.dirty:
         _preg.save(base_dir, registry)
     cache_db.write_checkpoint(conn, purchase_path=input_csv,
-                              adjustments_path=adjustments_csv)
+                              adjustments_path=adjustments_csv,
+                              categories_hash=domain.distributor_categories.content_hash(base_dir))
     if os.path.exists(events_dir):
         domain.pricing.populate_prices_cache(conn, events_dir)
     from domain import generic_parts as _gp  # noqa: PLC0415
@@ -135,6 +142,7 @@ def rebuild(ctx: RebuildContext) -> "tuple[list[InventoryItem], dict[str, int]]"
     import carts  # noqa: PLC0415
     carts.load_into_db(conn, base_dir)
     domain.attributes.load_into_db(conn, base_dir)
+    domain.distributor_categories.load_into_db(conn, base_dir)
     return cache_db.query_inventory(conn), migration_summary
 
 
@@ -185,7 +193,8 @@ def rebuild_or_catchup(
     cp = cache_db.read_checkpoint(conn)
     has_cache = conn.execute("SELECT 1 FROM parts LIMIT 1").fetchone() is not None
     if has_cache and cp["purchase_hash"]:
-        if cache_db.catch_up(conn, input_csv, adjustments_csv, adj_fieldnames):
+        if cache_db.catch_up(conn, input_csv, adjustments_csv, adj_fieldnames,
+                             categories_hash=domain.distributor_categories.content_hash(base_dir)):
             _restore_derived_entities(conn, base_dir, events_dir)
             return cache_db.query_inventory(conn), {}
     ctx = RebuildContext(
@@ -312,6 +321,12 @@ def adjust_part(
     else:
         cache_db.apply_stock_delta(conn, part_key, record_qty)
 
+    # No categories_hash here on purpose. These paths apply a stock delta and
+    # leave every `section` as it was, so the cache still describes the category
+    # store the last *full* rebuild read -- and stamping today's digest would
+    # mark a pending re-categorization as done. Leaving the recorded digest
+    # alone is what keeps a category fetched since then pending, which is the
+    # whole point of hashing the store in the first place.
     cache_db.write_checkpoint(conn, purchase_path=input_csv,
                               adjustments_path=adjustments_csv)
     cache_db.verify_parts(
@@ -387,6 +402,12 @@ def consume_bom(
         delta = int(row["quantity"])
         cache_db.apply_stock_delta(conn, pn, delta)
 
+    # No categories_hash here on purpose. These paths apply a stock delta and
+    # leave every `section` as it was, so the cache still describes the category
+    # store the last *full* rebuild read -- and stamping today's digest would
+    # mark a pending re-categorization as done. Leaving the recorded digest
+    # alone is what keeps a category fetched since then pending, which is the
+    # whole point of hashing the store in the first place.
     cache_db.write_checkpoint(conn, purchase_path=input_csv,
                               adjustments_path=adjustments_csv)
     cache_db.verify_parts(

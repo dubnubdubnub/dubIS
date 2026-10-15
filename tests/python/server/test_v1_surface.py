@@ -47,7 +47,7 @@ _INVENTORY_API_METHOD_NAMES = {
     'fetch_lcsc_product', 'fetch_missing_descriptions', 'fetch_mouser_product',
     'fetch_pololu_product', 'get_cart', 'get_digikey_login_status', 'get_generic_group_names',
     'get_inventory_mirror_info', 'get_last_po_quantity', 'get_mouser_api_key_status',
-    'get_part_attributes', 'get_part_history', 'get_po_source_preview', 'get_po_with_items',
+    'get_part_attributes', 'get_part_categories', 'get_part_history', 'get_po_source_preview', 'get_po_with_items',
     # JLCPCB browser-extension credential capture + private-library read
     # (docs/plans/2026-09-20-extension-credential-capture.md, phase 1b). Real
     # InventoryApi methods, added after Task 8 — hence listed here rather than
@@ -164,6 +164,7 @@ FROZEN_V1_SURFACE = [
     ("GET", "/v1/parts/{part_key}/prices", "get_price_summary"),
     ("GET", "/v1/parts/{part_key}/purchase-history", "has_purchase_history"),
     ("GET", "/v1/parts/{part_key}/attributes", "get_part_attributes"),
+    ("GET", "/v1/parts/{part_key}/categories", "get_part_categories"),
     ("POST", "/v1/parts/{part_key}/evaluate", "evaluate_part_predicates"),
     ("GET", "/v1/parts/{part_key}/spec", "extract_spec"),
     ("GET", "/v1/preferences", "load_preferences"),

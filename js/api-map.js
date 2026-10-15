@@ -771,6 +771,21 @@ export const API_MAP = {
     "unwrap": null,
     "verb": "GET"
   },
+  "get_part_categories": {
+    "argOrder": [
+      "part_key"
+    ],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/parts/{part_key}/categories",
+    "pathParams": [
+      "part_key"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "GET"
+  },
   "get_part_history": {
     "argOrder": [
       "part_key"

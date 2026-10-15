@@ -12,6 +12,7 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `inventory_ops.py` — imports `derive_missing_price`, `parse_price`, `parse_qty`
 - `inventory_api.py` — imports `record_fetched_prices`, `get_price_summary`, `populate_prices_cache`, `resolve_part_key`, `record_observations`
 - `domain.inventory` — imports `load_into_db` from `attributes` (rebuild restores the derived table)
+- `domain.inventory` — imports `load_into_db` and `resolver` from `distributor_categories` (rebuild restores the derived table and reads it to place parts)
 - `inventory_api.py` — imports `create_generic_part_api`, `update_generic_part_api`, `add_member_api`, `remove_member_api`, `set_preferred_api`, `exclude_member`, `list_generic_parts_with_member_specs`, `fetch_members`, `resolve_bom_spec`, `extract_spec_for_part`, `review_member_api`, `list_member_reviews`
 - `domain.inventory` — imports `auto_generate_passive_groups` from `generic_parts`
 
@@ -28,6 +29,10 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `attributes.py`: `record_fetched_attributes`, `get_attributes` — distributor parametric fetch + lookup
 - `attributes.py`: `record_attributes`, `read_rows`, `build_rows` — durable part_attributes CSV
 - `attributes.py`: `load_into_db` — rebuild the derived part_attributes cache table
+- `distributor_categories.py`: `record_fetched_categories`, `get_part_categories` — distributor category fetch + lookup, with the section category_map.csv gives it
+- `distributor_categories.py`: `record_categories`, `read_rows`, `index`, `resolve`, `resolver`, `content_hash` — durable distributor_categories CSV and the per-rebuild lookup
+- `distributor_categories.py`: `load_into_db` — rebuild the derived distributor_categories cache table
+- `distributor_categories.py`: `PREFERENCE` — which distributor wins when two disagree about one part
 - `attribute_parse.py`: `parse_value`, `ParsedValue` — value -> magnitude/range/unit, or unparsed
 - `attribute_parse.py`: `canonical_name`, `normalize_name` — cross-distributor attribute names (alias table: CANONICAL_NAME_ALIASES)
 - `generic_parts.py`: `create_generic_part`, `create_generic_part_api` — create generic group with auto-matching
@@ -52,6 +57,7 @@ Does NOT own database connections, file paths, or CSV I/O setup — those are pa
 - `__init__.py` — package marker (empty)
 - `pricing.py` — all pricing logic: parse helpers, observation log, SQLite cache helpers
 - `attributes.py` — part attribute store: durable CSV, derived cache table, fetch recording
+- `distributor_categories.py` — what each distributor calls each part: durable CSV, derived cache table, fetch recording, and the preference order categorize() reads
 - `attribute_parse.py` — attribute value parsing + canonical attribute-name table
 - `inventory.py` — inventory pipeline: rebuild, catch-up, adjust, import, consume
 - `generic_parts.py` — generic parts CRUD, auto-matching, BOM resolution, membership interchangeability reviews

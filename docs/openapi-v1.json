@@ -4769,6 +4769,51 @@
         ]
       }
     },
+    "/v1/parts/{part_key}/categories": {
+      "get": {
+        "description": "What each distributor calls this part, and where that files it.\n\nOne row per distributor a product has been fetched from, preferred first,\neach with the dubIS section ``category_map.csv`` gives it -- ``null`` when\nthe bucket is ambiguous or nobody has labelled it, which is the map saying\n\"no opinion\" rather than saying nothing.\n\nRead this to answer \"why is this part in that section?\" when the answer is\nnot in its description: the section came from the distributor's own\ncategory, recorded on the fetch that first saw the part\n(domain/distributor_categories.py), and a human can correct it by editing\nthat row or the map row above it.",
+        "operationId": "get_part_categories",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "part_key",
+            "required": true,
+            "schema": {
+              "title": "Part Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {},
+                  "title": "Response Get Part Categories",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Part Categories",
+        "tags": [
+          "parts"
+        ]
+      }
+    },
     "/v1/parts/{part_key}/distributors": {
       "get": {
         "operationId": "get_sourced_distributors",

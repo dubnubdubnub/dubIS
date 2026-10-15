@@ -349,6 +349,16 @@ class InventoryApi:
         """Stored parametric attributes for a part, across all distributors."""
         return self._attrs.get_part_attributes(part_key)
 
+    def get_part_categories(self, part_key: str) -> list[dict[str, Any]]:
+        """What each distributor calls this part, and where the map files it.
+
+        The read side of the category store: one row per distributor that has
+        ever been fetched for this part, preferred first, each carrying the
+        section ``category_map.csv`` gives it (or ``None`` -- the bucket is
+        ambiguous or unlabelled, which is an answer and not a gap).
+        """
+        return self._attrs.get_part_categories(part_key)
+
     def evaluate_part_predicates(
         self,
         part_key: str,
