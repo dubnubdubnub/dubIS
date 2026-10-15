@@ -15,7 +15,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -43,6 +43,20 @@ function scratchTree() {
   writeFileSync(join(dir, 'index.html'), '<html><body>scratch tree</body></html>');
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
+}
+
+/**
+ * Make `linkPath` an alternate spelling of `target`.
+ *
+ * Windows needs a junction, not a symlink: creating a symlink demands
+ * SeCreateSymbolicLinkPrivilege (or Developer Mode), and the win11 runner
+ * executes as a service account, so `symlinkSync` there fails with
+ * EPERM — a privilege fact about the machine, not a property of the guard.
+ * A directory junction is the same path indirection (a reparse point the OS
+ * follows on open, which is what realpath resolves) and needs no privilege.
+ */
+function linkTo(target, linkPath) {
+  symlinkSync(target, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
 }
 
 async function freePort() {
@@ -162,7 +176,10 @@ describe('assertServeRoot (the guard Playwright runs)', () => {
     const linkDir = mkdtempSync(join(tmpdir(), 'dubis-serve-root-link-'));
     cleanups.push(() => rmSync(linkDir, { recursive: true, force: true }));
     const link = join(linkDir, 'checkout');
-    symlinkSync(REPO_ROOT, link);
+    linkTo(REPO_ROOT, link);
+    // The link must genuinely be another spelling of this tree, or the check
+    // below would prove nothing (and would fail loudly rather than vacuously).
+    expect(realpathSync(link)).toBe(realpathSync(REPO_ROOT));
     const { port } = await startServeStatic(REPO_ROOT);
     await expect(assertServeRoot({ port, expectedRoot: `${link}/` }))
       .resolves.toMatchObject({ status: 'match' });
