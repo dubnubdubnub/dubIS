@@ -26,6 +26,10 @@ function resetOf(page, section) {
   return page.locator(
     `#prefs-sliders .prefs-row:has(.prefs-slider[data-section="${section}"]) .prefs-reset`);
 }
+function inheritedOf(page, section) {
+  return page.locator(
+    `#prefs-sliders .prefs-row:has(.prefs-slider[data-section="${section}"]) .prefs-inherited`);
+}
 
 test('preset picker: choose, unpin, per-category override, sparse save', async ({ page }) => {
   await installRouteMocks(page, MOCK_INVENTORY);
@@ -65,10 +69,19 @@ test('preset picker: choose, unpin, per-category override, sparse save', async (
   await expect(resetOf(page, 'Diodes')).not.toHaveClass(/is-inert/);
   await expect(resetOf(page, 'Connectors')).toHaveClass(/is-inert/);
 
+  // Both numbers are visible on an overridden row: the effective value in
+  // the input, the inherited one in the "← $N" label hint — no hover needed.
+  await expect(rowInput(page, 'Diodes')).toHaveValue('17');
+  await expect(inheritedOf(page, 'Diodes')).toBeVisible();
+  await expect(inheritedOf(page, 'Diodes')).toContainText('$10');
+  // A row that is not overridden shows one number: its hint stays hidden.
+  await expect(inheritedOf(page, 'Connectors')).toBeHidden();
+
   // Reset snaps the row back to the inherited value, and the marker follows.
   await resetOf(page, 'Diodes').click();
   await expect(rowInput(page, 'Diodes')).toHaveValue('10');
   await expect(resetOf(page, 'Diodes')).toHaveClass(/is-inert/);
+  await expect(inheritedOf(page, 'Diodes')).toBeHidden();
 
   // Save persists the preset id plus ONLY the categories that differ from
   // what the preset/default/derivation answers — the resolved table never
@@ -85,4 +98,43 @@ test('preset picker: choose, unpin, per-category override, sparse save', async (
     /** @type {unknown} */ (calls[0][0]));
   expect(prefs.threshold_preset).toBe('shipped');
   expect(prefs.thresholds, 'the delta only — not the resolved table').toEqual({ Diodes: 17 });
+});
+
+test('overridden row shows both numbers at the narrowest viewport, with Save/Cancel in-viewport', async ({ page }) => {
+  // 800x600 is the narrowest size the e2e suite uses (resize-visibility.spec).
+  await installRouteMocks(page, MOCK_INVENTORY);
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto('/index.html');
+  await waitForInventoryRows(page);
+
+  await page.click('#prefs-btn');
+  await page.waitForSelector('#prefs-modal:not(.hidden)', { timeout: 5000 });
+
+  await rowInput(page, 'Diodes').fill('17');
+  await expect(inheritedOf(page, 'Diodes')).toBeVisible();
+  await expect(inheritedOf(page, 'Diodes')).toContainText('$10');
+  await expect(rowInput(page, 'Diodes')).toHaveValue('17');
+
+  // The hint grows no row horizontally and the modal is the scroll container,
+  // so both action buttons must still land inside the viewport once the
+  // modal has scrolled them into view (scrollIntoView on a button the scroll
+  // boxes cannot reach leaves it outside — the assertion below then fails).
+  const geo = await page.evaluate(() => {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const probe = (id) => {
+      const el = document.getElementById(id);
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      const r = el.getBoundingClientRect();
+      return {
+        w: Math.round(r.width),
+        inViewport: r.width > 0 && r.height > 0
+          && r.left >= -1 && r.right <= vw + 1 && r.top >= -1 && r.bottom <= vh + 1,
+      };
+    };
+    return { save: probe('prefs-save'), cancel: probe('prefs-cancel'), vw, vh };
+  });
+  console.log(`Prefs actions at ${geo.vw}x${geo.vh}:`, JSON.stringify(geo));
+  expect(geo.save.inViewport, `Save button outside ${geo.vw}x${geo.vh} viewport`).toBe(true);
+  expect(geo.cancel.inViewport, `Cancel button outside ${geo.vw}x${geo.vh} viewport`).toBe(true);
 });

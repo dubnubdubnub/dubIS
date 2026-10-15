@@ -153,17 +153,26 @@ function _createPrefsSliderRow(section, indent) {
   const inherited = inheritedDraft(section);
   const row = document.createElement("div");
   row.className = "prefs-row";
+  // padding-left, not text-indent: the tuned label is a flex row (see
+  // .prefs-label--tuned in css/modals.css), and text-indent does not reach
+  // flex items. The label is border-box and width-fixed, so the indent eats
+  // its 180px from the inside and every slider keeps the same left edge.
   const labelStyle = indent
-    ? 'font-size:11px;color:var(--text-secondary);text-indent:18px'
+    ? 'font-size:11px;color:var(--text-secondary);padding-left:18px'
     : '';
-  // The reset control doubles as the override marker: visible exactly when
-  // the row's value differs from what the preset/default/derivation would
-  // answer without this category's own delta. It holds its space when hidden
-  // (visibility, not display) so every row's slider keeps identical edges —
-  // the alignment guard in resize-visibility.spec.mjs compares edges across
-  // rows.
+  // An overridden row shows BOTH numbers side by side: the effective value in
+  // the input, and the inherited one as a "← $N" hint inside the fixed-width
+  // label — a second column would move the slider edges and add noise to the
+  // rows that are not overridden. The hint and the reset control toggle
+  // together off the row's is-overridden class; the reset holds its space
+  // when hidden (visibility, not display) so every row's slider keeps
+  // identical edges — the alignment guard in resize-visibility.spec.mjs
+  // compares edges across rows.
   row.innerHTML = `
-    <label class="prefs-label"${labelStyle ? ` style="${labelStyle}"` : ''}>${escHtml(indent ? section.split(" > ").pop() : section)}</label>
+    <label class="prefs-label prefs-label--tuned"${labelStyle ? ` style="${labelStyle}"` : ''}>
+      <span class="prefs-label-name">${escHtml(indent ? section.split(" > ").pop() : section)}</span>
+      <span class="prefs-inherited" title="Inherited value (preset / default / parent override)">← $${inherited}</span>
+    </label>
     <input type="range" class="prefs-slider" min="0" max="${Math.max(val, PREFS_MAX_THRESHOLD)}" step="1" value="${val}" data-section="${escHtml(section)}">
     <span class="prefs-value-wrap">$<input type="number" class="prefs-input" min="0" step="1" value="${val}"></span>
     <button type="button" class="prefs-reset" data-section="${escHtml(section)}"
@@ -176,7 +185,11 @@ function _createPrefsSliderRow(section, indent) {
 
   const syncMarker = () => {
     const v = parseInt(input.value, 10);
-    reset.classList.toggle("is-inert", isNaN(v) || v === inheritedDraft(section));
+    const overridden = !isNaN(v) && v !== inheritedDraft(section);
+    reset.classList.toggle("is-inert", !overridden);
+    // Drives both override markers: the "← $N" inherited hint in the label
+    // and the amber value input (css/modals.css). Equal → one number shows.
+    row.classList.toggle("is-overridden", overridden);
   };
   syncMarker();
 
