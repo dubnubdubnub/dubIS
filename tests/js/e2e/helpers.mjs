@@ -354,8 +354,100 @@ export async function checkElementVisibility(page, selector, label) {
 }
 
 /**
+ * Viewport probe that measures a rect WITHOUT helping it into view.
+ *
+ * `isReachableByScroll()` below calls `scrollIntoView()` before measuring,
+ * and that scrolls EVERY ancestor scroll box — including `overflow:hidden`
+ * ones no user can scroll — so it answers "in viewport" for a control nobody
+ * can actually click. Mutation-proven on the preferences modal: setting
+ * `.prefs-modal-wide { overflow-y: hidden }` leaves Save below an 800x600
+ * viewport and unreachable by mouse, and a scrollIntoView-then-measure
+ * assertion still passes. Prefer this helper for any "is it reachable" claim.
+ *
+ * This probe never calls scrollIntoView or focus. With `scroll: true` it
+ * scrolls only ancestors whose computed `overflow-y` is auto|scroll|overlay
+ * AND whose content actually overflows — the boxes a scrollbar and a wheel
+ * exist for — innermost first, and records any ancestor that clips the
+ * element while offering no user-facing scroll (`clippedBy`, e.g. an
+ * `overflow:hidden` modal body). Vertical only: the app's clipping bugs are
+ * all vertical, and horizontal reach is a separate question.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string} selector
+ * @param {{scroll?: boolean}} [opts] `scroll: false` measures the raw rect
+ * @returns {Promise<{found: boolean, inViewport: boolean,
+ *   rect: {top:number,bottom:number,left:number,right:number,width:number,height:number}|null,
+ *   vw: number, vh: number, scrolled: string[], clippedBy: string[], reason: string}>}
+ */
+export async function isReachableByUserScroll(page, selector, { scroll = true } = {}) {
+  return page.evaluate(({ sel, doScroll }) => {
+    /** @param {Element} n */
+    const name = (n) => n.tagName.toLowerCase()
+      + (n.id ? `#${n.id}` : '')
+      + (typeof n.className === 'string' && n.className.trim()
+        ? `.${n.className.trim().split(/\s+/).join('.')}` : '');
+    const el = document.querySelector(sel);
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    if (!el) {
+      return { found: false, inViewport: false, rect: null, vw, vh, scrolled: [], clippedBy: [],
+        reason: `${sel}: not found` };
+    }
+    const box = () => {
+      const r = el.getBoundingClientRect();
+      return { top: Math.round(r.top), bottom: Math.round(r.bottom),
+        left: Math.round(r.left), right: Math.round(r.right),
+        width: Math.round(r.width), height: Math.round(r.height) };
+    };
+    const first = box();
+    if (first.width === 0 || first.height === 0) {
+      return { found: true, inViewport: false, rect: first, vw, vh, scrolled: [], clippedBy: [],
+        reason: `${name(el)}: zero box` };
+    }
+    /** @type {string[]} */ const scrolled = [];
+    /** @type {string[]} */ const clippedBy = [];
+    if (doScroll) {
+      for (let a = el.parentElement; a; a = a.parentElement) {
+        const isRoot = a === document.documentElement || a === document.body;
+        const cs = getComputedStyle(a);
+        const ar = isRoot ? { top: 0, bottom: vh } : a.getBoundingClientRect();
+        const er = el.getBoundingClientRect();
+        const outBelow = er.bottom - ar.bottom;
+        const outAbove = ar.top - er.top;
+        const clips = isRoot || cs.overflowY !== 'visible';
+        const scroller = isRoot
+          ? (document.scrollingElement?.scrollHeight ?? 0) > (document.scrollingElement?.clientHeight ?? 0)
+          : (cs.overflowY === 'auto' || cs.overflowY === 'scroll' || cs.overflowY === 'overlay')
+            && a.scrollHeight > a.clientHeight + 1;
+        if (outBelow > 1 || outAbove > 1) {
+          if (scroller) {
+            const before = a.scrollTop;
+            a.scrollTop = outBelow > 1 ? before + outBelow : before - outAbove;
+            if (a.scrollTop !== before) scrolled.push(name(a));
+          } else if (clips) {
+            clippedBy.push(name(a));
+          }
+        }
+      }
+    }
+    const rect = box();
+    const inViewport = rect.width > 0 && rect.height > 0
+      && rect.left >= -1 && rect.right <= vw + 1 && rect.top >= -1 && rect.bottom <= vh + 1;
+    const parts = [`${name(el)} rect ${rect.left},${rect.top} to ${rect.right},${rect.bottom} in ${vw}x${vh}`];
+    if (scrolled.length) parts.push(`scrolled ${scrolled.join(' > ')}`);
+    if (clippedBy.length) parts.push(`clipped by non-scrollable ${clippedBy.join(' > ')}`);
+    return { found: true, inViewport, rect, vw, vh, scrolled, clippedBy, reason: parts.join('; ') };
+  }, { sel: selector, doScroll: scroll });
+}
+
+/**
  * Check that an element is not overflowed/clipped by its scrollable ancestor.
  * An element is "reachable" if it can be scrolled into view.
+ *
+ * NOTE: "reachable" here means only "some ancestor scroll box can be moved so
+ * the rect lands in the viewport" — `scrollIntoView` moves `overflow:hidden`
+ * boxes too, so this cannot tell a reachable control from an unreachable one.
+ * Use `isReachableByUserScroll()` for that claim.
  */
 export async function isReachableByScroll(page, selector, label) {
   return page.evaluate(({ sel, lbl }) => {

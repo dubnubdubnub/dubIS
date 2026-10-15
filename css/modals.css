@@ -535,3 +535,43 @@
   cursor: pointer;
 }
 .prefs-reset.is-inert { visibility: hidden; }
+
+/* ── Threshold override markers ───────────────────────── */
+/* An overridden threshold row shows both numbers: the effective value in the
+   number input, and the inherited one (preset / default / parent) as a
+   "← $N" hint inside the label. The hint lives inside the fixed-width
+   .prefs-label on purpose — a second column beside the value would move the
+   slider's right edge on overridden rows, and the alignment guard in
+   tests/js/e2e/resize-visibility.spec.mjs compares slider edges across every
+   row. Non-overridden rows render no hint (display:none), so they show one
+   number and keep their height. Appended at end-of-file: the accepted-px
+   ignore list in scripts/check-layout-tokens.ignore is keyed by line number,
+   so inserting above would silently un-ignore older lines. */
+.prefs-label--tuned {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+.prefs-label--tuned .prefs-label-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prefs-inherited {
+  display: none;
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: var(--weight-normal);
+  white-space: nowrap;
+}
+.prefs-row.is-overridden .prefs-inherited { display: inline; }
+/* The override mark on the number itself: green is "answering as inherited",
+   amber is "you set this". Focus keeps the blue border so the field still
+   reads as focused on an overridden row. */
+.prefs-row.is-overridden .prefs-input {
+  border-color: var(--color-yellow-border);
+  color: var(--color-yellow);
+}
+.prefs-row.is-overridden .prefs-input:focus { border-color: var(--color-blue); }
