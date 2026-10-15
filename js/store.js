@@ -6,6 +6,7 @@
 import { EventBus, Events } from './event-bus.js';
 import { signal, activeSourceSignal, sourceStatusSignal } from './signals.js';
 import { SECTION_ORDER } from './constants.js';
+import { resolveThreshold } from './threshold-logic.js';
 import { api, apiEnvelope, AppLog, setSourceHeaderProvider } from './api.js';
 import { onEvent } from './sse.js';
 import { formatMoney } from './ui-helpers.js';
@@ -458,14 +459,10 @@ export async function savePreferences() {
 }
 
 export function getThreshold(section) {
-  if (section in preferences.thresholds) return preferences.thresholds[section];
-  // Fallback: compound "Parent > Sub" -> try parent threshold
-  const sep = section.indexOf(" > ");
-  if (sep !== -1) {
-    const parent = section.substring(0, sep);
-    if (parent in preferences.thresholds) return preferences.thresholds[parent];
-  }
-  return 50;
+  // The order — override, inherited parent override, shipped default,
+  // inherited parent default, base — lives in js/threshold-logic.js so the
+  // CLI and the grid cannot disagree about it.
+  return resolveThreshold(section, preferences.thresholds);
 }
 
 export function setThreshold(section, value) {

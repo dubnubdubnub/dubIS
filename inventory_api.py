@@ -57,6 +57,12 @@ class InventoryApi:
     SECTION_ORDER = _CONSTANTS["SECTION_ORDER"]
     FLAT_SECTION_ORDER = _FLAT_SECTION_ORDER
     SECTION_HIERARCHY = _SECTION_HIERARCHY
+    # Shipped per-category stock-value thresholds (see domain/thresholds.py).
+    # Indexed, not .get(): a constants.json without this key is a broken
+    # install, and failing at import names the file — failing at render time
+    # would just make every category answer the base and look like the user's
+    # own doing.
+    DEFAULT_THRESHOLDS = _CONSTANTS["DEFAULT_THRESHOLDS"]
 
     def __init__(self, *, debug: bool = False) -> None:
         self.base_dir: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")

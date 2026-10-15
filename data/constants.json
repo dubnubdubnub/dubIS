@@ -23,6 +23,13 @@
     "ICs - USB", "ICs - Interface", "ICs - ESD Protection", "Mechanical & Hardware",
     "Development Boards, Kits, Programmers", "Other"
   ],
+  "DEFAULT_THRESHOLDS": {
+    "Connectors": 20,
+    "Crystals & Oscillators": 10,
+    "Diodes": 10,
+    "Passives - Capacitors": 20,
+    "Passives - Resistors": 4
+  },
   "FIELDNAMES": [
     "Digikey Part Number", "LCSC Part Number", "Pololu Part Number", "Mouser Part Number",
     "Manufacture Part Number",
