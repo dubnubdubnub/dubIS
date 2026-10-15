@@ -1835,5 +1835,16 @@ export const API_MAP = {
     "rawBody": false,
     "unwrap": null,
     "verb": "POST"
+  },
+  "whoami": {
+    "argOrder": [],
+    "bodyParams": [],
+    "mutating": false,
+    "path": "/v1/whoami",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": null,
+    "verb": "GET"
   }
 };

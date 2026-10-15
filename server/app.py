@@ -72,6 +72,14 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
     app.include_router(mirror.router)
     app.include_router(sources.router)
 
+    # The identity diagnostic, registered in BOTH auth modes: "what do you
+    # think I am, and why?" is most useful precisely when the answer is the
+    # degenerate one. It answers about THIS server (server/proxy.py
+    # LOCAL_ONLY_PATHS), and it is not auth-exempt.
+    from server.routes import auth as auth_routes
+
+    app.include_router(auth_routes.diagnostic_router)
+
     # The pooled httpx clients (one per source url+token) that the proxy and the
     # fan-out share; closed by the lifespan above. Tests swap in a stub
     # transport by replacing this attribute before the first request.
@@ -93,7 +101,6 @@ def create_app(api, static_dir: str | None = None) -> FastAPI:
 
     if os.environ.get("DUBIS_AUTH_MODE", "off") == "on":
         from server.auth import AuthConfig, AuthMiddleware
-        from server.routes import auth as auth_routes
 
         auth_config = AuthConfig.from_env()
         app.state.auth_config = auth_config

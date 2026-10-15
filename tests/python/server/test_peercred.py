@@ -50,6 +50,10 @@ from tests.python.helpers import make_api, make_part, write_ledger
 
 FAKE_PID = 4242
 
+#: "stamp no uid at all", which is what server/uds.py does on a platform that
+#: cannot read one — distinct from stamping uid 0.
+_NO_UID = object()
+
 
 # ── fixtures/helpers ─────────────────────────────────────────────────────────
 
@@ -219,6 +223,14 @@ def test_well_formed_ucred_unpacks_pid_and_uid():
 # ── uid -> name ──────────────────────────────────────────────────────────────
 
 
+def test_uid_for_username_is_the_inverse_of_username_for_uid():
+    """`DUBIS_UDS_PROXY_UIDS=tailscale` is a convenience over this one lookup,
+    so the two directions have to agree — and an unknown account answers None
+    rather than a guess (the caller decides that is an error)."""
+    assert peercred.uid_for_username(getpass.getuser()) == os.getuid()
+    assert peercred.uid_for_username("no-such-account-xyz") is None
+
+
 def test_uid_without_a_passwd_entry_becomes_uid_n(monkeypatch):
     """A container user or a deleted account must resolve to something
     honest and still per-user, not to a shared identity and not to a
@@ -279,6 +291,9 @@ def test_protocol_stamps_the_identity_for_a_unix_connection(monkeypatch):
         b.close()
 
     assert proto.app_state[peercred.PEER_IDENTITY_KEY] == getpass.getuser()
+    # The raw uid travels with it: it is the only evidence that can answer
+    # "is this peer a proxy?" without guessing from a name.
+    assert proto.app_state[peercred.PEER_UID_KEY] == os.getuid()
     # The shared lifespan dict must not have been mutated: it is common to
     # every other connection, and stamping one caller's name into it would
     # hand that identity to everybody else.
@@ -299,6 +314,27 @@ def test_protocol_leaves_a_tcp_connection_untouched(monkeypatch):
 
     assert proto.app_state is shared
     assert peercred.PEER_IDENTITY_KEY not in proto.app_state
+    # Neither the uid: with no identity there is no uid, which is what keeps
+    # the proxy-hop branch unreachable for a TCP connection.
+    assert peercred.PEER_UID_KEY not in proto.app_state
+
+
+def test_protocol_stamps_no_uid_when_the_platform_cannot_read_one(monkeypatch):
+    """The degraded platform still gets an identity (`local`, so it is not
+    401ed) but NO uid — and `server/auth.py` requires a uid for the proxy hop,
+    so a box that cannot read `SO_PEERCRED` cannot take that branch even if an
+    operator configures it there."""
+    monkeypatch.setattr(peercred, "available", lambda: False)
+    proto = _make_protocol({})
+    a, b = _unix_socketpair()
+    try:
+        proto.connection_made(_FakeTransport(a))
+    finally:
+        a.close()
+        b.close()
+
+    assert proto.app_state[peercred.PEER_IDENTITY_KEY] == peercred.LOCAL_IDENTITY
+    assert peercred.PEER_UID_KEY not in proto.app_state
 
 
 def test_protocol_throws_loudly_if_uvicorn_drops_app_state(monkeypatch):
@@ -322,17 +358,21 @@ def test_protocol_throws_loudly_if_uvicorn_drops_app_state(monkeypatch):
 
 class _ScopeStamper:
     """An ASGI shim standing in for what server/uds.py does to a connection:
-    put a peer identity in the scope's `state` dict. Lets the auth-order
-    tests run under TestClient without a real socket."""
+    put a peer identity (and, when the kernel reported one, its uid) in the
+    scope's `state` dict. Lets the auth-order tests run under TestClient
+    without a real socket."""
 
-    def __init__(self, app, identity):
+    def __init__(self, app, identity, uid=_NO_UID):
         self.app = app
         self.identity = identity
+        self.uid = uid
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
             state = dict(scope.get("state") or {})
             state[peercred.PEER_IDENTITY_KEY] = self.identity
+            if self.uid is not _NO_UID:
+                state[peercred.PEER_UID_KEY] = self.uid
             scope = {**scope, "state": state}
         await self.app(scope, receive, send)
 
@@ -401,6 +441,301 @@ def test_tcp_loopback_resolution_is_unchanged(api, monkeypatch):
                    json={"adj_type": "add", "quantity": 1, "source": "cli"})
     assert r.status_code == 200
     assert _read_sources(api.adjustments_csv) == ["cli"]
+
+
+# ── reading the uid back out of the scope ────────────────────────────────────
+
+
+def test_credential_for_socket_reports_the_uid_alongside_the_name(monkeypatch):
+    _arm_peercred(monkeypatch, 0)
+    a, b = _unix_socketpair()
+    try:
+        credential = peercred.credential_for_socket(a)
+    finally:
+        a.close()
+        b.close()
+
+    assert credential is not None
+    assert credential.uid == 0
+    assert credential.identity == peercred.username_for_uid(0)
+
+
+def test_credential_for_a_tcp_socket_is_still_no_credential_at_all(monkeypatch):
+    """Not "a credential with no uid" — no credential. `None` is what makes
+    `server/uds.py` stamp nothing for a TCP connection."""
+    _arm_peercred(monkeypatch, 0)
+    client, server_side = _tcp_socketpair()
+    try:
+        assert peercred.credential_for_socket(client) is None
+    finally:
+        client.close()
+        server_side.close()
+
+
+@pytest.mark.parametrize("state", [
+    pytest.param({}, id="absent"),
+    pytest.param({peercred.PEER_UID_KEY: "0"}, id="string-not-int"),
+    pytest.param({peercred.PEER_UID_KEY: True}, id="bool-is-not-a-uid"),
+    pytest.param({peercred.PEER_UID_KEY: -1}, id="negative"),
+    pytest.param({peercred.PEER_UID_KEY: None}, id="none"),
+])
+def test_peer_uid_from_scope_refuses_anything_that_is_not_a_uid(state):
+    assert peercred.peer_uid_from_scope({"state": state}) is None
+
+
+def test_peer_uid_from_scope_reads_a_real_uid_and_survives_a_missing_state():
+    assert peercred.peer_uid_from_scope(
+        {"state": {peercred.PEER_UID_KEY: 0}}) == 0
+    assert peercred.peer_uid_from_scope({}) is None
+    assert peercred.peer_uid_from_scope({"state": "not-a-dict"}) is None
+
+
+# ── the proxy hop: a socket whose peer is tailscaled, not a person ───────────
+#
+# The bug these defend: `tailscale serve` proxying into the Unix socket makes
+# the kernel peer `tailscaled` (uid 0), so every tailnet caller is stamped
+# `@root` and the store cannot answer who moved the stock. The fix is a hop,
+# not a downgrade: the kernel's answer still wins unless an operator named this
+# uid as a proxy AND the proxy vouched for an allowlisted tailnet login.
+
+PROXY_UID = 0
+TAILNET_LOGIN = "alice@example.com"
+
+
+def _arm_proxy_hop(monkeypatch, *, proxy_uids="0", trust="1", allowlist=TAILNET_LOGIN):
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", trust)
+    monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", allowlist)
+    if proxy_uids is None:
+        monkeypatch.delenv("DUBIS_UDS_PROXY_UIDS", raising=False)
+    else:
+        monkeypatch.setenv("DUBIS_UDS_PROXY_UIDS", proxy_uids)
+
+
+def _adjust_over_socket(api, monkeypatch, *, identity, uid, headers=None):
+    """One adjustment from a Unix-socket caller, returning the source it wrote."""
+    app = _ScopeStamper(create_app(api), identity, uid)
+    with TestClient(app, client=None) as c:
+        r = c.post("/v1/parts/C100000/adjust",
+                   json={"adj_type": "add", "quantity": 1, "source": "cli"},
+                   headers=headers or {})
+    assert r.status_code == 200, r.json()
+    return _read_sources(api.adjustments_csv)[-1]
+
+
+def test_a_named_proxy_uid_resolves_the_tailnet_login(api, monkeypatch):
+    """The whole point: on aspen the kernel says uid 0, tailscaled says
+    'this is alice over the tailnet', and the ledger row names alice."""
+    _arm_proxy_hop(monkeypatch)
+    sources = _adjust_over_socket(api, monkeypatch, identity="root", uid=PROXY_UID,
+                                  headers={"Tailscale-User-Login": TAILNET_LOGIN})
+    assert sources == f"cli@{TAILNET_LOGIN}"
+
+
+def test_a_proxy_uid_with_no_header_falls_back_to_the_unix_username(api, monkeypatch):
+    """A root process that reaches the socket itself (no proxy, so no header)
+    is still `root` — today's behavior, unchanged."""
+    _arm_proxy_hop(monkeypatch)
+    assert _adjust_over_socket(api, monkeypatch, identity="root", uid=PROXY_UID) == "cli@root"
+
+
+def test_a_proxy_uid_with_a_login_off_the_allowlist_falls_back(api, monkeypatch):
+    """An off-allowlist login is not a reason to 401 a caller the kernel has
+    already named: it is a reason to ignore the header and use the uid."""
+    _arm_proxy_hop(monkeypatch)
+    sources = _adjust_over_socket(api, monkeypatch, identity="root", uid=PROXY_UID,
+                                  headers={"Tailscale-User-Login": "mallory@example.com"})
+    assert sources == "cli@root"
+
+
+def test_the_hop_needs_the_tailnet_trust_flag_even_for_a_named_proxy_uid(api, monkeypatch):
+    """`DUBIS_TRUST_TAILSCALE_HEADER` stays the master switch for believing any
+    `Tailscale-User-Login`, socket included. Naming a uid is not the same as
+    opting into header trust."""
+    _arm_proxy_hop(monkeypatch, trust="0")
+    sources = _adjust_over_socket(api, monkeypatch, identity="root", uid=PROXY_UID,
+                                  headers={"Tailscale-User-Login": TAILNET_LOGIN})
+    assert sources == "cli@root"
+
+
+def test_the_hop_is_inert_when_nobody_opted_in(api, monkeypatch):
+    """Default-off. Everything else is configured and correct, and the uid is
+    0 — and nothing happens, because no rule anywhere infers 'uid 0 is a
+    proxy'."""
+    _arm_proxy_hop(monkeypatch, proxy_uids=None)
+    sources = _adjust_over_socket(api, monkeypatch, identity="root", uid=PROXY_UID,
+                                  headers={"Tailscale-User-Login": TAILNET_LOGIN})
+    assert sources == "cli@root"
+
+
+def test_a_peer_with_its_own_uid_cannot_be_upgraded_by_a_header(api, monkeypatch, caplog):
+    """THE property the hop must not lose.
+
+    A teammate in the socket directory's group who reaches it directly (their
+    own uid, `ssh -L` or a local curl) and attaches somebody else's tailnet
+    login gets their OWN username. The header is dropped, and the attempt is
+    logged rather than silently discarded.
+    """
+    import logging as _logging
+
+    _arm_proxy_hop(monkeypatch)
+    with caplog.at_level(_logging.WARNING):
+        sources = _adjust_over_socket(api, monkeypatch, identity="bob", uid=1000,
+                                      headers={"Tailscale-User-Login": TAILNET_LOGIN})
+    assert sources == "cli@bob"
+    assert any("Ignoring Tailscale-User-Login from Unix-socket peer bob" in rec.message
+               for rec in caplog.records if rec.levelno == _logging.WARNING), \
+        "the dropped header should be visible in the log, not silently discarded"
+
+
+def test_a_peer_with_no_uid_cannot_take_the_hop(api, monkeypatch):
+    """The degraded path (no `SO_PEERCRED`, or an unreadable credential): the
+    identity is `local` and there is NO uid, so the hop is unreachable rather
+    than merely unused — a caller cannot claim the hop by having no uid."""
+    _arm_proxy_hop(monkeypatch)
+    sources = _adjust_over_socket(api, monkeypatch, identity=peercred.LOCAL_IDENTITY,
+                                  uid=None, headers={"Tailscale-User-Login": TAILNET_LOGIN})
+    assert sources == "cli", "`local` keeps today's unsuffixed source too"
+
+
+def test_a_tcp_caller_cannot_reach_the_hop_end_to_end(api, monkeypatch):
+    """(c) end to end, with every star aligned: the credential reader rigged to
+    answer uid 0, the proxy uid configured, trust on, the login allowlisted, and
+    the header sent. Over TCP the scope carries no peer identity and no uid, so
+    the request resolves to `local` exactly as it does today."""
+    monkeypatch.setenv("DUBIS_AUTH_MODE", "on")
+    monkeypatch.setenv("DUBIS_TRUST_TAILSCALE_HEADER", "1")
+    monkeypatch.setenv("DUBIS_TAILNET_ALLOWLIST", TAILNET_LOGIN)
+    monkeypatch.setenv("DUBIS_UDS_PROXY_UIDS", "0")
+    _arm_peercred(monkeypatch, PROXY_UID)
+
+    server, thread = _serve(create_app(api), host="127.0.0.1", port=0,
+                            http=uds.PeerCredHTTPProtocol)
+    port = server.servers[0].sockets[0].getsockname()[1]
+    try:
+        r = httpx.post(f"http://127.0.0.1:{port}/v1/parts/C100000/adjust",
+                       json={"adj_type": "add", "quantity": 1, "source": "cli"},
+                       headers={"Tailscale-User-Login": TAILNET_LOGIN}, timeout=10)
+        who = httpx.get(f"http://127.0.0.1:{port}/v1/whoami", timeout=10)
+    finally:
+        _stop(server, thread)
+
+    assert r.status_code == 200
+    assert _read_sources(api.adjustments_csv) == ["cli"]
+    assert who.json()["mechanism"] == "loopback"
+    assert who.json()["socket_uid"] is None
+
+
+def test_a_tcp_caller_with_no_credentials_is_still_refused(api, monkeypatch):
+    """The hop must not become a hole for a network peer that sends the header
+    and nothing else: no peer identity in scope means the branch is never even
+    entered, and the request falls through to the 401 it always got."""
+    _arm_proxy_hop(monkeypatch)
+    with TestClient(create_app(api), client=("100.64.1.2", 51234)) as c:
+        r = c.get("/v1/parts", headers={"Tailscale-User-Login": TAILNET_LOGIN})
+    assert r.status_code == 401
+
+
+def test_the_hop_survives_a_real_unix_socket(api, monkeypatch, short_socket_path):
+    """The aspen shape, with no ASGI shim: a real uvicorn on a real Unix socket
+    whose peer uid is the proxy's, and the tailnet header riding on it. Only
+    `peercred._peer_ucred` is faked, because this suite runs on macOS too."""
+    _arm_proxy_hop(monkeypatch)
+    _arm_peercred(monkeypatch, PROXY_UID)
+
+    server, thread = _serve(create_app(api), uds=short_socket_path,
+                            http=uds.PeerCredHTTPProtocol)
+    try:
+        with httpx.Client(transport=httpx.HTTPTransport(uds=short_socket_path),
+                          base_url="http://localhost") as c:
+            r = c.post("/v1/parts/C100000/adjust",
+                       json={"adj_type": "add", "quantity": 1, "source": "cli"},
+                       headers={"Tailscale-User-Login": TAILNET_LOGIN})
+            # The hop applies per request, on the evidence that request carries:
+            # with the proxy's header it names the person, without it the kernel's
+            # answer stands. Both report the same socket uid, which is what makes
+            # the difference legible to an operator with `curl --unix-socket`.
+            plain = c.get("/v1/whoami").json()
+            vouched = c.get("/v1/whoami",
+                            headers={"Tailscale-User-Login": TAILNET_LOGIN}).json()
+    finally:
+        _stop(server, thread)
+        uds.remove_socket_path(short_socket_path)
+
+    assert r.status_code == 200
+    assert _read_sources(api.adjustments_csv) == [f"cli@{TAILNET_LOGIN}"]
+    assert plain["mechanism"] == "uds_peer_uid"
+    assert plain["identity"] == peercred.username_for_uid(PROXY_UID)
+    assert plain["socket_uid"] == PROXY_UID
+    assert vouched["mechanism"] == "uds_proxy_hop"
+    assert vouched["identity"] == TAILNET_LOGIN
+    assert vouched["socket_uid"] == PROXY_UID
+
+
+# ── parsing and warning about the opt-in ──────────────────────────────────
+
+
+def test_proxy_uids_accept_numbers_and_account_names(monkeypatch):
+    """`0` and `tailscale` are the same entry written two ways; the operator
+    writes whichever they know."""
+    from server.auth import _parse_proxy_uids
+
+    monkeypatch.setattr(peercred, "uid_for_username", lambda name: 999)
+    assert _parse_proxy_uids("") == frozenset()
+    assert _parse_proxy_uids(" 0 , 999 ") == frozenset({0, 999})
+    assert _parse_proxy_uids("tailscale") == frozenset({999})
+
+
+def test_a_real_account_name_resolves_to_its_real_uid():
+    """Unmonkeypatched, so it proves the passwd lookup is really wired up —
+    the account running this test always has an entry."""
+    from server.auth import _parse_proxy_uids
+
+    assert _parse_proxy_uids(getpass.getuser()) == frozenset({os.getuid()})
+
+
+@pytest.mark.parametrize("raw", ["not-a-user", "-1", "0,ghost", " 0x1 "])
+def test_a_proxy_uid_entry_that_is_neither_a_uid_nor_an_account_raises(monkeypatch, raw):
+    """Fail-loud, like every other auth list: an entry that is silently dropped
+    leaves the operator believing a hop is configured when nothing is."""
+    import pytest as _pytest
+
+    from server.auth import _parse_proxy_uids
+
+    monkeypatch.setattr(peercred, "uid_for_username", lambda name: None)
+    with _pytest.raises(ValueError, match="DUBIS_UDS_PROXY_UIDS"):
+        _parse_proxy_uids(raw)
+
+
+def test_an_unworkable_proxy_uid_config_warns_once(api, monkeypatch, caplog):
+    """The opt-in is armed but cannot fire (here: the trust flag is off). The
+    config is honored exactly as written — nothing is loosened — and the
+    operator is told once why every caller will keep resolving to `root`."""
+    import logging as _logging
+
+    _arm_proxy_hop(monkeypatch, trust="0", allowlist="")
+    with caplog.at_level(_logging.WARNING):
+        create_app(api)
+
+    warnings = [rec for rec in caplog.records
+                if rec.levelno == _logging.WARNING and "DUBIS_UDS_PROXY_UIDS" in rec.message]
+    assert len(warnings) == 1
+    assert "DUBIS_TRUST_TAILSCALE_HEADER" in warnings[0].message
+    assert "DUBIS_TAILNET_ALLOWLIST" in warnings[0].message
+
+
+def test_a_workable_proxy_uid_config_says_nothing(api, monkeypatch, caplog):
+    """The other half: aspen configured correctly gets no warning, so a warning
+    always means something rather than being noise to ignore."""
+    import logging as _logging
+
+    _arm_proxy_hop(monkeypatch)
+    monkeypatch.setattr(peercred, "available", lambda: True)
+    with caplog.at_level(_logging.WARNING):
+        create_app(api)
+
+    assert not [rec for rec in caplog.records
+                if rec.levelno == _logging.WARNING and "DUBIS_UDS_PROXY_UIDS" in rec.message]
 
 
 # ── end to end over a real Unix socket ───────────────────────────────────────

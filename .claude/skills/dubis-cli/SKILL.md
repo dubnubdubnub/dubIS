@@ -69,9 +69,10 @@ A part key that matches nothing exits 3, so a miss is never a silent success.
 
 ## Full surface
 
-Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 103 commands:
+Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 104 commands:
 
 - **adjustments**: remove-last, rollback-source
+- **auth**: whoami
 - **bom**: consume, resolve-spec
 - **carts**: add-bom-missing, add-item, clear, consolidate, create, delete, export, get, list, plan, remove-item, rename, set-active, set-board-count, split, update-item
 - **distributors**: clear-mouser-api-key, create-digikey-pairing, create-jlc-pairing, fetch-jlc-library, fetch-product, get-digikey-session, get-mouser-api-key-status, list-jlc-sessions, logout-digikey, receive-digikey-session, receive-jlc-session, revoke-jlc-session, set-mouser-api-key, validate-digikey-session
