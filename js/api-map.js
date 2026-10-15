@@ -904,10 +904,12 @@ export const API_MAP = {
   },
   "import_purchases": {
     "argOrder": [
-      "rows"
+      "rows",
+      "source"
     ],
     "bodyParams": [
-      "rows"
+      "rows",
+      "source"
     ],
     "mutating": true,
     "path": "/v1/purchases/import",
@@ -1491,6 +1493,21 @@ export const API_MAP = {
     "queryParams": [],
     "rawBody": false,
     "unwrap": null,
+    "verb": "DELETE"
+  },
+  "rollback_purchases_source": {
+    "argOrder": [
+      "source"
+    ],
+    "bodyParams": [],
+    "mutating": true,
+    "path": "/v1/purchases/by-source/{source}",
+    "pathParams": [
+      "source"
+    ],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
     "verb": "DELETE"
   },
   "rollback_source": {

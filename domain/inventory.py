@@ -429,15 +429,34 @@ def import_purchases(
     base_dir: str,
     conn: sqlite3.Connection,
     distributors: Any,
+    source: str = "",
 ) -> "list[InventoryItem]":
     """Append purchase rows to purchase_ledger.csv and return fresh inventory.
 
     Caller holds the lock.
+
+    `source` is stamped into every row's `source` column, which is what makes
+    the batch undoable by tag (`rollback_purchases`) rather than only as
+    "truncate the last N rows" — an order-dependent undo that forces anyone who
+    imported afterwards to delete their own rows first. An empty `source` leaves
+    the column as the row brought it, which for every real caller means "":
+    untagged is *unknown provenance*, never a guessed tag.
     """
     if not rows:
         raise ValueError("No rows to import")
+    if source and "source" not in fieldnames:
+        raise ValueError(
+            "cannot tag imported purchases: the ledger has no 'source' column "
+            f"(columns: {fieldnames})"
+        )
 
     normalized = [{fn: row.get(fn, "") for fn in fieldnames} for row in rows]
+    if source:
+        # The caller's tag wins over anything a row arrived carrying: the tag
+        # names THIS write session, and a stale value in a re-imported row must
+        # not survive into it (that is how a rollback would eat the wrong rows).
+        for row in normalized:
+            row["source"] = source
     append_csv_rows(input_csv, list(fieldnames), normalized)
     record_import_prices(rows, events_dir, distributors, base_dir)
     ctx = RebuildContext(
