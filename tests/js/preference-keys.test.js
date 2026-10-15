@@ -18,7 +18,16 @@
    (1) is the spine: the documented trap of that loader is that a key it does not
    read is erased from preferences.json by the next whole-bag save, so (1) is the
    complete set of keys that can exist at runtime, and (2)/(3) are checked against
-   it rather than trusted. */
+   it rather than trusted.
+
+   The enumeration is parser-based (tests/js/preference-key-scan.mjs), not
+   regex-based. The regexes were syntax-coupled: destructuring the loader's
+   payload, `preferences["foo"] = …` bracket writes, and
+   `Object.assign(preferences, …)` all evaded them — and `js/col-resize.js`
+   was doing a live sixth variant (a bag-returning alias plus a computed-key
+   bracket write) when this guard was hardened. The scan now RAISES on any bag
+   reference it cannot account for, and the planted-key tests below prove each
+   formerly-evasive form now fails the guard. */
 import { describe, it, expect, vi } from 'vitest';
 
 // store.js is imported for SHORTCUT_DEFAULTS / BEHAVIOR_DEFAULTS, so it needs the
@@ -40,6 +49,9 @@ vi.mock('../../js/ui-helpers.js', () => ({
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  parseModule, scanLoaderReadKeys, scanInitialLiteralKeys, scanWrittenKeys,
+} from './preference-key-scan.mjs';
 import {
   REACTIONS,
   REACTION_OWNERS,
@@ -64,56 +76,27 @@ function jsSources(dir = JS_DIR, acc = []) {
 }
 const ALL_JS = jsSources();
 
-/** The body of loadPreferences — the only writer of the in-memory bag's keys. */
-function loaderBody() {
-  const start = STORE_SRC.indexOf('export async function loadPreferences(');
-  const end = STORE_SRC.indexOf('export async function savePreferences(', start + 1);
-  if (start < 0 || end < 0) {
-    throw new Error('loadPreferences/savePreferences not both found in js/store.js — update this enumeration');
-  }
-  return STORE_SRC.slice(start, end);
-}
+/** js/store.js → "store.js", js/bom/bom-events.js → "bom/bom-events.js". */
+function relOf(path) { return path.slice(JS_DIR.length + 1); }
 
-/** Keys the loader reads out of the stored payload, in either of its two forms. */
-function loaderReadKeys() {
-  const body = loaderBody();
-  const keys = new Set();
-  for (const m of body.matchAll(/\bstored\.([A-Za-z_$][\w$]*)/g)) keys.add(m[1]);
-  for (const m of body.matchAll(/hasOwnProperty\.call\(stored,\s*'([^']+)'/g)) keys.add(m[1]);
+const SOURCES = ALL_JS.map(({ path, src }) => ({ path: relOf(path), src }));
+
+const LOADER_KEYS = (() => {
+  const keys = scanLoaderReadKeys(STORE_SRC, 'js/store.js');
   if (keys.size < 10) throw new Error(`Suspiciously few loader keys (${keys.size}) — the enumeration broke`);
   return keys;
-}
-
-/** Top-level keys of the `let preferences = { … }` literal. */
-function initialLiteralKeys() {
-  const start = STORE_SRC.indexOf('let preferences = {');
-  const end = STORE_SRC.indexOf('\n};', start + 1);
-  if (start < 0 || end < 0) throw new Error('the initial preferences literal is not findable — update this enumeration');
-  const keys = new Set();
-  for (const m of STORE_SRC.slice(start, end).matchAll(/^ {2}([A-Za-z_$][\w$]*):/gm)) keys.add(m[1]);
-  return keys;
-}
-
-/** `preferences.<key> = …` / `store.preferences.<key>[x] = …` across all of js/. */
-function writtenKeys() {
-  const WRITE = /(?:^|[^.\w])(?:store\.)?preferences\.([A-Za-z_$][\w$]*)\s*(?:\[[^\]]*\])?\s*=(?!=)/g;
-  /** @type {Map<string, string[]>} */
-  const byKey = new Map();
-  for (const { path, src } of ALL_JS) {
-    for (const m of src.matchAll(WRITE)) {
-      const rel = path.slice(JS_DIR.length + 1);
-      if (!byKey.has(m[1])) byKey.set(m[1], []);
-      byKey.get(m[1]).push(rel);
-    }
-  }
-  return byKey;
-}
-
-const LOADER_KEYS = loaderReadKeys();
-const LITERAL_KEYS = initialLiteralKeys();
-const WRITTEN = writtenKeys();
+})();
+const LITERAL_KEYS = scanInitialLiteralKeys(parseModule(STORE_SRC, 'js/store.js'), 'js/store.js');
+const WRITTEN = scanWrittenKeys(SOURCES);
+const WRITING_FILES = new Set([...WRITTEN.values()].flat());
 const TABLE_KEYS = Object.keys(PREFERENCE_REACTIONS);
-const TOP_LEVEL = new Set(TABLE_KEYS.map((k) => k.split('.')[0]));
+
+/** The classification guard's predicate, as a value the planted-key tests can
+ * assert against without failing this file: which keys does the enumeration
+ * find that the table has no row for? Empty means the guard passes. */
+function unclassified(loaderKeys) {
+  return [...loaderKeys].filter((k) => !TABLE_KEYS.includes(k));
+}
 
 describe('preference key enumeration', () => {
   it('the initial literal is read back by loadPreferences (the erasure trap)', () => {
@@ -139,13 +122,24 @@ describe('preference key enumeration', () => {
 
   it('every module that writes a preference publishes the write', () => {
     // Publishing is what makes a change visible; a writer that only saves has
-    // reintroduced the bug this branch fixed, one file over.
+    // reintroduced the bug this branch fixed, one file over. "Writes" is the
+    // parser's answer — the same one the erasure guard above uses — so a
+    // bracket write or an Object.assign counts here too, not just `x.k =`.
     for (const { path, src } of ALL_JS) {
-      if (path.endsWith(`${join('js', 'store.js')}`) || path.endsWith('preferences-logic.js')) continue;
-      if (!/(?:^|[^.\w])(?:store\.)?preferences\.[A-Za-z_$][\w$]*\s*(?:\[[^\]]*\])?\s*=(?!=)/.test(src)) continue;
-      const rel = path.slice(JS_DIR.length + 1);
+      const rel = relOf(path);
+      if (rel === 'store.js' || rel === 'preferences-logic.js') continue;
+      if (!WRITING_FILES.has(rel)) continue;
       expect(src, `${rel} writes a preference but never calls publishPreferences()`).toContain('publishPreferences(');
     }
+  });
+
+  it('the enumeration itself is alive (sanity floors)', () => {
+    // A scan that silently finds nothing would pass every assertion above.
+    // These floors are far below today's counts (18/11/18) and far above zero:
+    // an enumeration that broke must trip this before it could trip nothing.
+    expect(LOADER_KEYS.size).toBeGreaterThanOrEqual(10);
+    expect(LITERAL_KEYS.size).toBeGreaterThanOrEqual(10);
+    expect(WRITTEN.size).toBeGreaterThanOrEqual(10);
   });
 });
 
@@ -239,5 +233,118 @@ describe('the classification itself', () => {
     expect(() => reactionFor('someNewKey')).toThrow(/no entry in PREFERENCE_REACTIONS/);
     // …but a data-driven child of a classified parent is never "unknown".
     expect(() => reactionFor('thresholds.Something Nobody Added')).not.toThrow();
+  });
+});
+
+describe('planted-key guard: the forms the regex scans evaded', () => {
+  // Each test PLANTS a key written in one formerly-evasive style, proves the
+  // scan now sees it, and proves the guard fails on it — an unclassified key
+  // reaching reactionFor() throws, and a written key the loader never carries
+  // is the erasure trap. This is how the last guard was validated (a
+  // `lastOcrTemplate`-shape bug walked in through a form the scan could read);
+  // a hardening without planted keys is an unproven hardening.
+
+  it('plants a destructured read in loadPreferences and the guard fails', () => {
+    const planted = 'plantedDestructuredKey';
+    const keys = scanLoaderReadKeys(`
+      export async function loadPreferences() {
+        const stored = await api("load_preferences");
+        const { ${planted} } = stored;
+        if (stored.thresholds) preferences.thresholds = stored.thresholds;
+      }`, 'planted-loader.js');
+    expect(keys, 'destructuring the payload must count as reading that key').toContain(planted);
+    // The guard then fails on the planted key, two ways:
+    expect(unclassified(keys), 'a destructured key must reach classification').toContain(planted);
+    expect(() => reactionFor(planted)).toThrow(RangeError);
+    // And it is the erasure trap exactly: written nowhere in the real loader,
+    // so the whole-bag save would erase it.
+    expect(LOADER_KEYS, 'the planted key must not exist in the real loader').not.toContain(planted);
+  });
+
+  it('plants preferences["plantedBracketKey"] = … and the write guard fails it', () => {
+    const planted = 'plantedBracketKey';
+    const written = scanWrittenKeys([{
+      path: 'js/store.js',
+      src: `let preferences = { thresholds: {} };\npreferences["${planted}"] = 1;\n`,
+    }]);
+    expect([...written.keys()], 'a bracket-literal write must count as a write').toContain(planted);
+    // The guard then fails: the written key is not carried by the real loader
+    // (the erasure test above would go red on exactly this predicate), and it
+    // has no classification row.
+    expect(LOADER_KEYS).not.toContain(planted);
+    expect(() => reactionFor(planted)).toThrow(RangeError);
+  });
+
+  it('plants Object.assign(store.preferences, { plantedAssignKey }) and the write guard fails it', () => {
+    const planted = 'plantedAssignKey';
+    const written = scanWrittenKeys([{
+      path: 'js/planted-writer.js',
+      src: `import { store } from './store.js';\nObject.assign(store.preferences, { ${planted}: 1 });\n`,
+    }]);
+    expect([...written.keys()], 'Object.assign into the bag must count as a write').toContain(planted);
+    expect(LOADER_KEYS).not.toContain(planted);
+    expect(() => reactionFor(planted)).toThrow(RangeError);
+    // The writer must also be caught by the publish rule, since it is now in
+    // the writing-file set the publish test iterates.
+    expect(WRITING_FILES, 'the planted writer must not be in the real tree').not.toContain('planted-writer.js');
+  });
+
+  // ── and the loud half: a construct the scan cannot account for is a FAILURE,
+  // never a silent pass.
+
+  it('refuses to scan a computed bracket write it cannot name', () => {
+    expect(() => scanWrittenKeys([{
+      path: 'js/store.js',
+      src: `let preferences = { thresholds: {} };\nconst k = pick();\npreferences[k] = 1;\n`,
+    }])).toThrow(/COMPUTED key/);
+  });
+
+  it('refuses to scan Object.assign(bag, <non-literal>)', () => {
+    expect(() => scanWrittenKeys([{
+      path: 'js/planted-writer.js',
+      src: `import { store } from './store.js';\nObject.assign(store.preferences, patch);\n`,
+    }])).toThrow(/not an object literal/);
+  });
+
+  it('refuses a spread inside Object.assign(bag, …)', () => {
+    expect(() => scanWrittenKeys([{
+      path: 'js/planted-writer.js',
+      src: `import { store } from './store.js';\nObject.assign(store.preferences, { ...patch, ok: 1 });\n`,
+    }])).toThrow(/spreads into the preferences bag/);
+  });
+
+  it('refuses a rest-element destructure of the stored payload', () => {
+    expect(() => scanLoaderReadKeys(`
+      export async function loadPreferences() {
+        const stored = await api("load_preferences");
+        const { thresholds, ...everythingElse } = stored;
+      }`, 'planted-loader.js')).toThrow(/rest element/);
+  });
+
+  it('refuses an alias of the bag — writes through it would be invisible', () => {
+    expect(() => scanWrittenKeys([{
+      path: 'js/store.js',
+      src: `let preferences = { thresholds: {} };\nconst bag = preferences;\nbag.sneaky = 1;\n`,
+    }])).toThrow(/aliases the preferences bag/);
+  });
+
+  it('refuses a function that returns the bag (the live col-resize.js shape)', () => {
+    // js/col-resize.js used to do exactly this and write through the result
+    // with a computed key; the scan now refuses the escape route itself.
+    expect(() => scanWrittenKeys([{
+      path: 'js/planted-writer.js',
+      src: `import { store } from './store.js';\nfunction prefsBag() { return store.preferences; }\nprefsBag().sneaky = 1;\n`,
+    }])).toThrow(/returns the preferences bag/);
+  });
+
+  it('refuses a file that shadows the name `preferences` with its own binding', () => {
+    expect(() => scanWrittenKeys([{
+      path: 'js/planted-writer.js',
+      src: `const preferences = { notTheBag: true };\npreferences.notTheBag = false;\n`,
+    }])).toThrow(/binds the name `preferences`/);
+  });
+
+  it('refuses a source it cannot parse, rather than scanning around it', () => {
+    expect(() => scanWrittenKeys([{ path: 'js/planted-writer.js', src: 'preferences.x = (' }])).toThrow(/cannot parse/);
   });
 });

@@ -50,9 +50,6 @@ import {
   normalizeWidths, serializeWidths, isCustom, HANDLE_ATTR, HANDLE_TABLE_ATTR,
 } from './col-resize-logic.js';
 
-/** Preference key. Free-form dict server-side (server/routes/preferences.py). */
-const PREF_KEY = 'column_widths';
-
 /**
  * A table that opts into column resizing.
  * @typedef {object} ResizableTable
@@ -79,10 +76,17 @@ function tableSpecs() {
 }
 
 /* store.preferences is typed from its literal default, which has no
- * column_widths key; this is the same "free-form bag" the server treats it as. */
-function prefsBag() {
-  return /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (store.preferences));
-}
+ * column_widths key; this is the same "free-form bag" the server treats it as.
+ * The cast is spelled at each access instead of through a prefsBag() helper on
+ * purpose: a helper that RETURNS the bag lets writes happen behind an alias
+ * (`prefsBag()[KEY] = …`), and tests/js/preference-key-scan.mjs — the guard
+ * that enumerates every preference key the app writes — cannot see a write
+ * through an alias, so it refuses to vouch for a file that returns the bag at
+ * all. This file was the live example: its persist() wrote
+ * `prefsBag()[PREF_KEY] = …` — a bracket write whose key lived in a constant,
+ * invisible to the old regex guard. A direct
+ * `store.preferences.column_widths = …` is the same object and the same write,
+ * and the guard can read it. */
 
 /**
  * Register a table (idempotent per id) and apply whatever widths are known.
@@ -143,7 +147,9 @@ function markCustomHandles(t) {
  * @param {unknown} [raw] stored value; defaults to the in-memory preferences
  */
 export function applyStoredColWidths(raw) {
-  _state = normalizeWidths(raw === undefined ? prefsBag()[PREF_KEY] : raw, tableSpecs());
+  _state = normalizeWidths(raw === undefined
+    ? /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (store.preferences)).column_widths
+    : raw, tableSpecs());
   applyColWidths();
 }
 
@@ -175,7 +181,7 @@ export function resetColWidth(tableId, colId) {
 
 function persist() {
   try {
-    prefsBag()[PREF_KEY] = serializeWidths(_state);
+    /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (store.preferences)).column_widths = serializeWidths(_state);
     publishPreferences();
     // Fire-and-forget, but never as an unhandled rejection: a width that fails
     // to save is a warning, not a broken grid.
