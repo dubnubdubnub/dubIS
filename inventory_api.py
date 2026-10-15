@@ -241,8 +241,13 @@ class InventoryApi:
 
     # ── Public API methods (called from JS via pywebview) ────────────────
 
-    def rollback_source(self, source: str) -> list[dict]:
-        return self._inv.rollback_source(source)
+    def rollback_source(self, source: str, *,
+                        require_match: bool = False) -> list[dict]:
+        return self._inv.rollback_source(source, require_match=require_match)
+
+    def rollback_purchases(self, source: str, *,
+                           require_match: bool = False) -> list[dict]:
+        return self._inv.rollback_purchases(source, require_match=require_match)
 
     def rebuild_inventory(self) -> list[dict[str, Any]]:
         return self._inv.rebuild_inventory()
@@ -278,8 +283,9 @@ class InventoryApi:
     def remove_last_adjustments(self, count: int | str) -> list[dict[str, Any]]:
         return self._inv.remove_last_adjustments(count)
 
-    def import_purchases(self, rows_json: str | list[dict[str, str]]) -> list[dict[str, Any]]:
-        return self._inv.import_purchases(rows_json)
+    def import_purchases(self, rows_json: str | list[dict[str, str]],
+                         source: str = "") -> list[dict[str, Any]]:
+        return self._inv.import_purchases(rows_json, source)
 
     def update_part_price(self, part_key: str, unit_price: float | None = None,
                           ext_price: float | None = None) -> list[dict[str, Any]]:

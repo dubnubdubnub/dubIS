@@ -168,7 +168,8 @@ def _global_parser() -> argparse.ArgumentParser:
                         help="data directory to discover the server in (default: <repo>/data)")
     common.add_argument("--source", default=argparse.SUPPRESS,
                         help="tag mutations with this source (default: cli), so "
-                             "`dubis adjustments rollback-source <source>` can undo them")
+                             "`dubis adjustments rollback-source <source>` or "
+                             "`dubis purchases rollback-source <source>` can undo them")
     common.add_argument("--server", default=argparse.SUPPRESS, metavar="ID|NAME",
                         help="serve this request from that configured server source "
                              "(a /v1/sources id or name, `local`, `merged`, or a comma "

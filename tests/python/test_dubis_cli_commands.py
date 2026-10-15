@@ -699,6 +699,46 @@ def test_curated_names_do_not_collide_with_generated_resources():
     assert not resources.intersection(dubis_cli._RESERVED)
 
 
+# ── undo a session by its tag ────────────────────────────────────────────────
+#
+# The documented undo path has to fail LOUD at the CLI too: a 404 from a
+# rollback that matched nothing is a V1Error, which is exit 3, which is what
+# tells an agent that the stock it thinks it undid is still wrong.
+
+
+def test_adjustments_rollback_source_exits_3_when_nothing_matched(cli):
+    _payload, err = cli("adjustments", "rollback-source", "no-such-session",
+                        expect=3)
+    assert "no-such-session" in err
+    assert "nothing was undone" in err
+
+
+def test_purchases_import_then_rollback_by_tag(cli):
+    """Round trip through the CLI: the tag `--source` stamps is the tag
+    `purchases rollback-source` removes, so an import is undoable without
+    counting rows or deleting whatever someone else imported after."""
+    rows = [{"LCSC Part Number": "C999001", "Quantity": "7",
+             "Description": "Resistor 1k 0402", "Package": "0402"}]
+    payload, _ = cli("purchases", "import", "--rows", json.dumps(rows),
+                     "--source", "cli-undo-test")
+    assert payload["count"] == 1
+    assert payload["source"] == "cli-undo-test"
+    keys = {i.get("lcsc") for i in cli("parts", "list")[0]}
+    assert "C999001" in keys
+
+    payload, _ = cli("purchases", "rollback-source", "cli-undo-test")
+    assert len(payload["removed"]) == 1
+    keys = {i.get("lcsc") for i in cli("parts", "list")[0]}
+    assert "C999001" not in keys
+
+
+def test_purchases_rollback_source_exits_3_when_nothing_matched(cli):
+    _payload, err = cli("purchases", "rollback-source", "no-such-session",
+                        expect=3)
+    assert "no-such-session" in err
+    assert "nothing was undone" in err
+
+
 # ── scripts/dubis launcher ───────────────────────────────────────────────────
 #
 # Nothing exercised the shim until it shipped broken: it defaulted to a bare

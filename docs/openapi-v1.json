@@ -615,6 +615,11 @@
             },
             "title": "Rows",
             "type": "array"
+          },
+          "source": {
+            "default": "",
+            "title": "Source",
+            "type": "string"
           }
         },
         "required": [
@@ -1844,6 +1849,7 @@
     },
     "/v1/adjustments/by-source/{source}": {
       "delete": {
+        "description": "Undo every adjustment tagged `source`, suffixed with an identity or not.\n\nA tag written by a non-local caller is stored as `<tag>@<identity>`, so\nnaming the bare tag rolls back every identity that used it \u2014 and nothing\nelse: `xfer-2026` never touches `xfer-2026-12-31`. A rollback that removed\nnothing is a 404 naming the tags this server holds, never a 200 with an\nempty list: the documented undo path must not answer \"done\" while the stock\nstays wrong.",
         "operationId": "rollback_source",
         "parameters": [
           {
@@ -5718,6 +5724,51 @@
         "tags": [
           "vendors",
           "purchase-orders"
+        ]
+      }
+    },
+    "/v1/purchases/by-source/{source}": {
+      "delete": {
+        "description": "Undo every purchase-ledger row tagged `source` (see `rollback_source`).\n\nOnly rows imported with a tag can be found this way: a ledger written\nbefore the `source` column existed has no tag to match, and that answers\n404 with the tags that do exist rather than removing nothing quietly. The\nprice observations the import recorded are not undone \u2014 a price is a\nsighting, and `events/price_observations.csv` is history, not state.",
+        "operationId": "rollback_purchases_source",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "title": "Source",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rollback Purchases Source",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rollback Purchases Source",
+        "tags": [
+          "parts"
         ]
       }
     },

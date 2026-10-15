@@ -108,6 +108,9 @@ ARG_ORDER: dict[str, list[str]] = {
     "update_cart_item": ["cart_id", "ref", "qty", "target_distributor", "target_packaging",
                          "preset", "per_board_qty"],
     "adjust_part": ["adj_type", "part_key", "quantity", "note", "source"],
+    # rows lead (they are the payload); source is the optional provenance tag
+    # that makes the batch undoable by tag.
+    "import_purchases": ["rows", "source"],
     "consume_bom": ["matches", "board_qty", "bom_name", "note", "source"],
     "load_feeder_reel": ["tag_id", "part_key", "qty", "tape_width_mm"],
     "register_feeder": ["tag_id", "feeder_type"],
@@ -176,6 +179,7 @@ FINISH_MUTATION_OPERATION_IDS: set[str] = {
     "adjust_part", "update_part_fields", "update_part_price", "delete_part",
     "fetch_missing_descriptions", "record_fetched_prices", "import_purchases",
     "remove_last_purchases", "remove_last_adjustments", "rollback_source",
+    "rollback_purchases_source",
     "consume_bom",
     # vendors_pos.py
     "update_vendor", "delete_vendor", "merge_vendors",

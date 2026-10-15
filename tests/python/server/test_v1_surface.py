@@ -84,6 +84,11 @@ _INVENTORY_API_METHOD_NAMES = {
 # REST conventions. Enumerated exactly; no wildcard allowance.
 _NEW_OPERATIONS = {
     "events_stream",             # GET /v1/events (SSE) — no bridge equivalent
+    # DELETE /v1/purchases/by-source/{source} — undo a tagged purchase-import
+    # session. InventoryApi.rollback_purchases is the facade behind it; the id
+    # carries the `-source` tail so the CLI verb reads `purchases rollback-source`
+    # exactly like `adjustments rollback-source`.
+    "rollback_purchases_source",
     "fetch_distributor_product", # GET /v1/distributors/{name}/product/{code} — dispatches to fetch_*_product
     "get_digikey_session",       # GET /v1/distributors/digikey/session — merges check_digikey_session + get_digikey_login_status
     "get_po_source",             # GET /v1/purchase-orders/{po_id}/source — streams the file; no bridge equivalent (open_source_file shells out)
@@ -128,6 +133,7 @@ FROZEN_V1_SURFACE = [
     ("DELETE", "/v1/parts/{part_key}", "delete_part"),
     ("DELETE", "/v1/purchase-orders/last", "delete_last_purchase_order"),
     ("DELETE", "/v1/purchase-orders/{po_id}", "delete_purchase_order"),
+    ("DELETE", "/v1/purchases/by-source/{source}", "rollback_purchases_source"),
     ("DELETE", "/v1/purchases/last", "remove_last_purchases"),
     ("DELETE", "/v1/saved-searches/{search_id}", "delete_saved_search"),
     ("DELETE", "/v1/sources/{source_id}", "delete_source"),
