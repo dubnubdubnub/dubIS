@@ -223,7 +223,7 @@ def test_an_unreachable_source_is_a_loud_502(hub_on_shop, upstream):
 # ── the paths that never leave this hub ──────────────────────────────────────
 
 
-LOCAL_ONLY = ["/v1/health", "/v1/sources", "/v1/preferences"]
+LOCAL_ONLY = ["/v1/health", "/v1/sources", "/v1/preferences", "/v1/whoami"]
 
 
 @pytest.mark.parametrize("path", LOCAL_ONLY)
@@ -252,6 +252,7 @@ def test_preferences_stay_local_so_the_roster_cannot_move_with_the_source(hub_on
 @pytest.mark.parametrize("path", [
     "/v1/health", "/v1/sources", "/v1/sources/active", "/v1/sources/shop",
     "/v1/preferences", "/v1/import/parse", "/v1/events", "/v1/auth/session",
+    "/v1/whoami",
 ])
 def test_the_local_only_allowlist(path):
     assert proxy.is_local_only(path) is True

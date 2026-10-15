@@ -55,7 +55,12 @@ LEGACY_PREFIX = "/api/"
 
 # Operations whose derived <resource> <verb> would collide or read badly.
 # Keyed by operationId -> (resource, verb).
-VERB_OVERRIDES: dict[str, tuple[str, str]] = {}
+VERB_OVERRIDES: dict[str, tuple[str, str]] = {
+    # `whoami` is both the noun and the verb, so deriving from the path segment
+    # spells `dubis whoami whoami`. It belongs with the auth routes it explains:
+    # `dubis auth whoami`.
+    "whoami": ("auth", "whoami"),
+}
 
 # Path segment -> CLI resource name, where the segment is a poor command noun.
 RESOURCE_ALIASES: dict[str, str] = {

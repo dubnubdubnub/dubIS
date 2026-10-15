@@ -76,6 +76,11 @@ def parse_source_header(raw: str | None) -> list[str]:
 # Exact paths that are about THIS hub and must never be proxied.
 LOCAL_ONLY_PATHS = frozenset({
     "/v1/health",
+    # The identity diagnostic answers "what do YOU think the caller that reached
+    # you is?". Proxied, it would answer about the hub->source hop (the hub's
+    # bearer token, the hub's socket) and call that the caller — the one answer
+    # that is guaranteed to be about the wrong party. Ask the box directly.
+    "/v1/whoami",
     "/v1/preferences",
     "/v1/import/parse",
     "/v1/events",

@@ -9,6 +9,7 @@ an `ssh://` server entry; see [docs/ssh-sources.md](../../docs/ssh-sources.md).
 |---|---|
 | `dubis.service` | `/etc/systemd/system/dubis.service` |
 | `dubis.conf` | `/etc/tmpfiles.d/dubis.conf` |
+| `dubis-tailnet-serve.env` | `/etc/dubis/tailnet-serve.env` (a `EnvironmentFile=`; see below) |
 
 These are not applied by anything in this repo. The box is managed by hand.
 
@@ -42,6 +43,23 @@ Adjust `User=`, the group in `dubis.conf`, and the paths for another box.
    `AuthMiddleware` is never installed and every caller is `local`, even over
    the socket. To check, send `POST /v1/auth/session` over the socket. It
    answers `{"identity":"<your username>"}` only when the mode is `on`.
+
+## When something proxies into the socket, the peer is the proxy
+
+`SO_PEERCRED` names the process that called `connect()`. If `tailscale serve`
+proxies into `/run/dubis/dubis.sock`, that process is `tailscaled` (uid 0), so
+every tailnet caller is attributed to `root` and the `Tailscale-User-Login`
+branch of `server/auth.py` is never reached. `DUBIS_UDS_PROXY_UIDS` is the
+explicit, default-off opt-in that lets an operator declare a uid a *hop* rather
+than a person; `deploy/systemd/dubis-tailnet-serve.env` is the template and
+[docs/tailnet-socket-proxy.md](../../docs/tailnet-socket-proxy.md) is the trust
+boundary, the forge analysis, and the verification recipe (including the one
+check that must be run on the box before trusting it).
+
+`GET /v1/whoami` answers "what do you think I am, and how did you decide?" on
+any dubIS, over any transport — the fastest way to see which identity a server
+is about to stamp a mutation with. It is not auth-exempt and a hub never
+proxies it, so it always describes the connection you made.
 
 ## Onboarding a teammate
 

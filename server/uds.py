@@ -80,8 +80,8 @@ class PeerCredHTTPProtocol(AutoHTTPProtocol):
     def connection_made(self, transport) -> None:
         super().connection_made(transport)
 
-        identity = peercred.identity_for_socket(transport.get_extra_info("socket"))
-        if identity is None:
+        credential = peercred.credential_for_socket(transport.get_extra_info("socket"))
+        if credential is None:
             return  # TCP (or an unreadable transport): behave exactly as before.
 
         app_state = getattr(self, "app_state", _MISSING)
@@ -95,7 +95,15 @@ class PeerCredHTTPProtocol(AutoHTTPProtocol):
                 "protocol, so the peer identity cannot be attached to the ASGI scope. "
                 "Unix-socket identity is broken until server/uds.py is updated for it."
             )
-        self.app_state = {**app_state, peercred.PEER_IDENTITY_KEY: identity}
+        state = {**app_state, peercred.PEER_IDENTITY_KEY: credential.identity}
+        # The raw uid travels next to the name so `server/auth.py` can decide
+        # the one question that must be answered with a number: "is this peer a
+        # proxy uid the operator named?" Absent wherever no uid was read (no
+        # SO_PEERCRED, unreadable credential), which is what makes the proxy-hop
+        # branch unreachable on a degraded platform rather than merely unused.
+        if credential.uid is not None:
+            state[peercred.PEER_UID_KEY] = credential.uid
+        self.app_state = state
 
 
 class SocketPathInUseError(OSError):
