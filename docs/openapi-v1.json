@@ -586,6 +586,24 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HealthResponse": {
+        "properties": {
+          "build_sha": {
+            "title": "Build Sha",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "build_sha"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
       "ImportPurchasesBody": {
         "properties": {
           "rows": {
@@ -4179,9 +4197,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Health",
-                  "type": "object"
+                  "$ref": "#/components/schemas/HealthResponse"
                 }
               }
             },

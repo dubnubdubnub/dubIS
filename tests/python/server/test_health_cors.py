@@ -151,7 +151,7 @@ def test_health_readable_cross_origin_from_a_remote_peer(tmp_path, monkeypatch):
         with TestClient(create_app(api), client=REMOTE) as c:
             r = c.get("/v1/health", headers={"Origin": ORIGIN})
         assert r.status_code == 200
-        assert r.json() == {"ok": True}
+        assert r.json()["ok"] is True
         assert r.headers["access-control-allow-origin"] == "*"
     finally:
         api.shutdown()
@@ -160,7 +160,15 @@ def test_health_readable_cross_origin_from_a_remote_peer(tmp_path, monkeypatch):
 def test_health_carries_nothing_worth_protecting(client):
     # The justification for opening this one route: a constant payload. If this
     # ever grows a field, the `*` above needs re-deciding, not extending.
-    assert client.get("/v1/health").json() == {"ok": True}
+    #
+    # Re-decided when `build_sha` was added, and the `*` survived: the payload
+    # is a per-process fact, not data — a commit id is the same string the
+    # public GHCR image tag already is, and it names no user, part or path.
+    # The exact key set below is the teeth: any further field must edit this
+    # test, which forces the re-deciding this comment records.
+    body = client.get("/v1/health").json()
+    assert body["ok"] is True
+    assert set(body) == {"ok", "build_sha"}
 
 
 # ── Clause 2: the one pinned extension origin, on two paths ──────────────────
