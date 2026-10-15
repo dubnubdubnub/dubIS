@@ -81,6 +81,12 @@ jobs:
           context: .
           push: true
           tags: ${{ env.IMAGE }}:${{ github.sha }}
+          # Bakes the commit into the image (Dockerfile ARG GIT_SHA ->
+          # server/_build_id.py -> /v1/health's `build_sha`), so a running
+          # container reports its own build and the image tag is no longer
+          # the only place the truth lives. The build fails without it.
+          build-args:
+            GIT_SHA=${{ github.sha }}
 
       - name: Report built image + pin instructions
         run: |

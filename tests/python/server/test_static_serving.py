@@ -37,7 +37,7 @@ def test_v1_routes_take_precedence_over_static(api):
     with TestClient(create_app(api, static_dir=str(REPO_ROOT))) as c:
         r = c.get("/v1/health")
     assert r.status_code == 200
-    assert r.json() == {"ok": True}
+    assert r.json()["ok"] is True
 
 
 def test_no_static_dir_root_is_404(api):

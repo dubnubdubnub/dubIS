@@ -164,9 +164,19 @@ def _is_healthy(base_url: str, timeout: float = 1.0, uds: str | None = None) -> 
     if resp.status_code != 200:
         return False
     try:
-        return resp.json() == {"ok": True}
+        body = resp.json()
     except ValueError:
         return False
+    # `ok` is the only fact discovery asks for. Exact equality on the payload
+    # would make an older CLI blind to a newer server: /v1/health grew
+    # `build_sha`, and a client that demanded the pre-build_sha body would
+    # answer "no server found" (exit 4) to a perfectly healthy one — the
+    # exact silent failure this health-check exists to prevent. A server
+    # that says ok is healthy; further fields are forward-compatible here by
+    # design. (The *roster probe* in server/sources.py deliberately keeps
+    # stricter teeth — it is fingerprinting dubIS, not asking "is anything
+    # home".)
+    return isinstance(body, dict) and body.get("ok") is True
 
 
 def default_data_dir(repo_root: str) -> str:

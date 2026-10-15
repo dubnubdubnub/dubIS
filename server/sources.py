@@ -1124,19 +1124,30 @@ async def probe(
     # an SSO page, an nginx default, a load-balancer health shim — and a green
     # dot next to a server that cannot serve inventory is worse than a red one,
     # because it is the signal the user checks to decide whether the totals can
-    # be trusted. `/v1/health` on a real dubIS is a constant `{"ok": true}`
-    # (server/routes/meta.py), so require exactly that.
+    # be trusted. `/v1/health` on a real dubIS is a per-process constant
+    # (server/routes/meta.py), so require that shape.
     try:
         body = response.json()
     except ValueError:
         return ProbeResult(reachable=False, detail="not a dubIS server")
-    # Exact equality, not `body.get("ok")`: `{"ok": true, "service": "..."}` is
-    # the most common shape a load-balancer or k8s health shim answers with, so
-    # a truthy-`ok` test hands the commonest impostor of all a green dot.
-    # tests/python/server/test_health_cors.py pins dubIS's body to exactly
-    # `{"ok": true}` and says growing a field there needs re-deciding — this is
-    # one of the places that would have to be re-decided with it.
-    if body != {"ok": True}:
+    # Not a truthy-`ok` test: `{"ok": true, "service": "..."}` is the most
+    # common shape a load-balancer or k8s health shim answers with, so a
+    # truthy-`ok` test hands the commonest impostor of all a green dot.
+    #
+    # Re-decided when /v1/health grew `build_sha`: exact equality on
+    # `{"ok": true}` would have painted every green dot red under the version
+    # skew that is the normal state of a roster (an old hub probing a newly
+    # deployed source, or vice versa — hubs deploy independently). The
+    # anti-impostor teeth survive as a key-set rule instead: the body is
+    # `ok`, optionally plus dubIS's own `build_sha`, and NOTHING else. The
+    # shim shape above still fails, and so does any future field until this
+    # rule is re-decided with it. test_health_cors.py pins the live body to
+    # exactly this key set — it is the producer half of this consumer rule.
+    if not isinstance(body, dict) or body.get("ok") is not True:
+        return ProbeResult(reachable=False, detail="not a dubIS server")
+    if set(body) - {"ok", "build_sha"}:
+        return ProbeResult(reachable=False, detail="not a dubIS server")
+    if "build_sha" in body and not isinstance(body["build_sha"], str):
         return ProbeResult(reachable=False, detail="not a dubIS server")
     return ProbeResult(reachable=True, detail="", auth=await _probe_auth(source, clients, timeout))
 

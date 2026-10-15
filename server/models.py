@@ -40,6 +40,18 @@ class InventoryEnvelope(BaseModel):
     inventory: list[InventoryItemModel]
 
 
+class HealthResponse(BaseModel):
+    ok: bool
+    # Which build this answering process runs: a full commit sha, or the
+    # literal "unknown". Precedence (baked image value > DUBIS_BUILD_SHA >
+    # git HEAD > unknown) lives in server/build_identity.py.
+    #
+    # This is the ANSWERING HUB's build, never a source's: /v1/health is in
+    # proxy.LOCAL_ONLY_PATHS, so it is never proxied upstream — see
+    # server/routes/meta.py for why that is deliberate.
+    build_sha: str
+
+
 class QuantityResponse(BaseModel):
     quantity: int | None
 

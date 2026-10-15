@@ -75,7 +75,7 @@ def test_start_server_serves_health_then_stop_closes_port(api):
                 time.sleep(0.05)
         assert resp is not None, f"server never became reachable ({last_exc!r})"
         assert resp.status_code == 200
-        assert resp.json() == {"ok": True}
+        assert resp.json()["ok"] is True
     finally:
         stop_server(server)
 

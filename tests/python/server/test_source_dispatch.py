@@ -235,7 +235,7 @@ def test_local_only_paths_are_answered_here_even_when_a_remote_is_selected(hub_o
 
 def test_health_still_answers_about_this_hub(hub_on_shop):
     r = hub_on_shop.get("/v1/health")
-    assert r.json() == {"ok": True}
+    assert r.json()["ok"] is True
     # The one route that is cross-origin readable, unchanged by the hub.
     assert r.headers["access-control-allow-origin"] == "*"
 
