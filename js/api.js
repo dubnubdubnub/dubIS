@@ -86,8 +86,13 @@ function buildBody(entry, argMap) {
    one saved it last. server/dispatch.py states the contract: a dubIS window
    sends this on every /v1 request, including the first of a page load. So every
    call carries it, from the provider below; `apiOn` overrides it per call when
-   a write has to land on one specific server. */
-const SOURCE_HEADER = "X-Dubis-Source";
+   a write has to land on one specific server.
+
+   Exported for the one caller that cannot come through `api()`: js/
+   threshold-profiles.js fetches `/v1/meta` directly (an infra route, kept out
+   of the generated api-map) and must still name its source. Exporting the NAME
+   keeps this the only place it is spelled. */
+export const SOURCE_HEADER = "X-Dubis-Source";
 
 /* Supplies this window's own source value. Installed by js/store.js at import
    time — a function rather than a value so api.js never imports the store, which

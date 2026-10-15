@@ -5,8 +5,9 @@
 import { EventBus, Events } from '../event-bus.js';
 import { effect } from '../signals.js';
 import { AppLog } from '../api.js';
-import { store, saveInventoryView, preferencesSignal } from '../store.js';
+import { store, saveInventoryView, preferencesSignal, getActiveSource } from '../store.js';
 import { repaintsGrid } from '../preferences-logic.js';
+import { profileKeyFor, thresholdProfileSignal } from '../threshold-profiles.js';
 import { escHtml, vendorIconFor } from '../ui-helpers.js';
 import { inferDistributor } from './inventory-logic.js';
 import state, { clearImportGenerations } from './inv-state.js';
@@ -179,6 +180,25 @@ export function setupEvents(handlers) {
     // a remembered dialog path publishes too, and re-rendering the whole grid for
     // those would be a full rebuild paid for nothing.
     if (!repaintsGrid(changed)) return;
+    render();
+  });
+
+  // A threshold profile is a SERVER fact that can arrive after the rows were
+  // built, and it is baked into the row HTML exactly like a preference is, so
+  // nothing else re-paints it. Two real cases: the first paint happens before
+  // this window's /v1/meta answer lands, and switching to a server whose
+  // profile is already cached re-renders from the inventory fetch while the
+  // *new* profile is still in flight. Without this the grid keeps the colours
+  // of the server you left — the exact disagreement this line of work removes.
+  //
+  // Filtered on the source, not on "any publish": a background refresh of a
+  // server this window is not showing must not rebuild this grid. The effect's
+  // immediate first run carries the signal's initial empty sourceId and so
+  // falls out at the comparison — no first-run flag needed.
+  effect(function () {
+    const { sourceId } = thresholdProfileSignal.get();
+    if (!sourceId) return;
+    if (sourceId !== profileKeyFor(getActiveSource())) return;
     render();
   });
 
