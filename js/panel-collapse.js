@@ -6,8 +6,12 @@
    real click target at zero panel width because the pill is wider than the 5px
    handle and carries an inflated hit box.
 
-   Reopening restores the panel's pre-collapse flex ratio, so a user who dragged
-   the divider does not lose that width to a collapse round-trip.
+   Collapse is the `.panel-collapsed` class and nothing else: this module never
+   writes a panel's inline flex/width. Those belong to js/resize-panels.js, whose
+   weight for the panel survives untouched under the class's `!important` zero
+   width — so reopening gives back a dragged width without this module saving or
+   restoring anything. (It used to, and two writers of the same inline styles is
+   how a collapse came to leave a dead strip beside the BOM.)
 
    State lives here; the reducer and the trigger→region table are pure and live in
    panel-collapse-logic.js. */
@@ -20,9 +24,6 @@ import {
 
 /** @type {Record<string, boolean>} */
 let state = normalizeCollapsed(undefined);
-
-/** Pre-collapse inline sizing per panel, so expand() restores it exactly. */
-const savedSizing = /** @type {Record<string, {flex: string, width: string}>} */ ({});
 
 /** @type {Record<string, HTMLElement>} */
 const toggles = {};
@@ -56,27 +57,18 @@ function render() {
       if (vh && vh.classList.contains('resize-handle-v')) {
         vh.classList.toggle('hidden', collapsed);
       }
-    } else if (node && collapsed) {
-      if (!savedSizing[r.id]) {
-        savedSizing[r.id] = { flex: node.style.flex, width: node.style.width };
-      }
-      node.classList.add('panel-collapsed');
-      node.setAttribute('aria-hidden', 'true');
     } else if (node) {
-      node.classList.remove('panel-collapsed');
-      node.removeAttribute('aria-hidden');
-      const saved = savedSizing[r.id];
-      if (saved) {
-        // Restore the dragged width rather than snapping back to the 22%/40%
-        // stylesheet defaults.
-        node.style.flex = saved.flex;
-        node.style.width = saved.width;
-        delete savedSizing[r.id];
-      }
+      node.classList.toggle('panel-collapsed', collapsed);
+      if (collapsed) node.setAttribute('aria-hidden', 'true');
+      else node.removeAttribute('aria-hidden');
     }
 
     const t = toggles[r.id];
     if (t) {
+      // Each side panel's pill sits on the one divider that panel's collapse
+      // disables (the other neighbour is the never-collapsible grid).
+      const handle = t.closest('.resize-handle-h');
+      if (handle) handle.classList.toggle('beside-collapsed', collapsed);
       t.setAttribute('aria-expanded', String(!collapsed));
       t.classList.toggle('is-collapsed', collapsed);
       const verb = collapsed ? 'Show ' : 'Hide ';
