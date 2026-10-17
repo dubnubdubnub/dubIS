@@ -3,6 +3,8 @@
 
 import { escHtml, formatMoney } from '../ui-helpers.js';
 import { STATUS_ICONS, STATUS_ROW_CLASS, colorizeRefs, rawRowAggKey } from '../part-keys.js';
+import { BOM_BUCKETS } from '../bom-status.js';
+import { rawRowBoardReason } from './board-features.js';
 import { BOM_STATUS_COL_W } from '../layout-tokens.js';
 
 /**
@@ -53,9 +55,11 @@ export function renderLoadedDropZone(fileName) {
 /**
  * Returns summary chips HTML.
  *
- * The leading pair of chips is `total` (quiet grey — every unique row, DNP
- * included) followed by `UTBP` (blue — unique to be placed, i.e. total minus
- * the DNP rows). Both come straight off countStatuses; nothing is derived here.
+ * The leading pair of chips is `total` (quiet grey — every unique row, DNP and
+ * board-only included) followed by `UTBP` (blue — unique to be placed, i.e.
+ * total minus the DNP and board-only rows). Both come straight off
+ * countStatuses; nothing is derived here. The per-bucket chips follow the
+ * registry's BOM_BUCKETS (js/bom-status.js), then `covered`.
  *
  * @param {object} counts - from countStatuses (needs `total` and `utbp`)
  * @param {string} fileName
@@ -65,17 +69,17 @@ export function renderLoadedDropZone(fileName) {
 export function renderBomSummary(counts, fileName, multiplier) {
   const c = counts;
   const multLabel = multiplier > 1 ? ` (x${multiplier})` : "";
+  const bucketChips = BOM_BUCKETS.map(b => {
+    const n = c[b.id] || 0;
+    if (!b.chip || (b.hideWhenZero && n === 0)) return "";
+    const title = b.chip.title ? ` title="${escHtml(b.chip.title)}"` : "";
+    return `<span class="chip ${b.chip.cls}"${title}>${n} ${b.chip.label}</span>`;
+  }).filter(Boolean).join("\n    ");
   return `
     <span class="bom-name">${escHtml(fileName)}${multLabel}</span>
-    <span class="chip grey chip-quiet" title="unique rows in this BOM, including do-not-place">${c.total} total</span>
+    <span class="chip grey chip-quiet" title="unique rows in this BOM, including do-not-place and board features">${c.total} total</span>
     <span class="chip blue" title="unique to be placed">${c.utbp} UTBP</span>
-    ${c.manual > 0 ? `<span class="chip pink">${c.manual} manual</span>` : ''}
-    ${c.confirmed > 0 ? `<span class="chip teal">${c.confirmed} confirmed</span>` : ''}
-    <span class="chip green">${c.ok} ok</span>
-    <span class="chip yellow">${c.short} short</span>
-    <span class="chip orange">${c.possible} possible</span>
-    <span class="chip red">${c.missing} missing</span>
-    ${c.dnp > 0 ? `<span class="chip grey">${c.dnp} DNP</span>` : ''}
+    ${bucketChips}
     ${c.covered > 0 ? `<span class="chip green">${c.covered} covered</span>` : ''}
   `;
 }
@@ -137,7 +141,7 @@ export function renderStagingHead(headers, bomCols) {
  * @param {string[]} headers
  * @param {string|null} status - effective status for this row's agg key
  * @param {boolean} isLinkTarget - whether this row is a valid link target
- * @param {"ok"|"warn"|"dnp"|"subtotal"} classifyResult - from classifyBomRow
+ * @param {"ok"|"warn"|"dnp"|"board-only"|"subtotal"} classifyResult - from classifyBomRow
  * @returns {string}
  */
 export function renderStagingRow(row, ri, bomCols, headers, status, isLinkTarget, classifyResult) {
@@ -147,7 +151,13 @@ export function renderStagingRow(row, ri, bomCols, headers, status, isLinkTarget
   if (cls === "warn") rowClass = "row-warn";
   else if (cls === "subtotal") rowClass = "row-subtotal";
   else if (cls === "dnp") rowClass = "row-dnp";
+  else if (cls === "board-only") rowClass = STATUS_ROW_CLASS["board-only"];
   else if (status && STATUS_ROW_CLASS[status]) rowClass = STATUS_ROW_CLASS[status];
+
+  // A board-only row carries its reason on the status cell and the row, so a
+  // greyed line is never a mystery.
+  const boardReason = cls === "board-only" ? (rawRowBoardReason(row, bomCols) || "board feature") : "";
+  const rowTitle = boardReason ? ` title="${escHtml(boardReason)}"` : "";
 
   if (isLinkTarget) rowClass += (rowClass ? " " : "") + "link-target";
 
@@ -160,8 +170,12 @@ export function renderStagingRow(row, ri, bomCols, headers, status, isLinkTarget
   cellsHtml += `<td class="row-delete" data-action="delete" data-ri="${ri}">\u00d7</td>`;
 
   // Status icon cell
-  const stIcon = (cls === "ok" && status) ? (STATUS_ICONS[status] || "") : "";
-  cellsHtml += `<td class="status">${stIcon}</td>`;
+  if (boardReason) {
+    cellsHtml += `<td class="status" title="${escHtml(boardReason)}" aria-label="${escHtml(boardReason)}">${STATUS_ICONS["board-only"]}</td>`;
+  } else {
+    const stIcon = (cls === "ok" && status) ? (STATUS_ICONS[status] || "") : "";
+    cellsHtml += `<td class="status">${stIcon}</td>`;
+  }
 
   // Data cells
   headers.forEach((h, ci) => {
@@ -186,5 +200,5 @@ export function renderStagingRow(row, ri, bomCols, headers, status, isLinkTarget
     cellsHtml += `<td${lcscAttr}>${cellContent}</td>`;
   });
 
-  return `<tr data-ri="${ri}"${dataLink} class="${rowClass}">${cellsHtml}</tr>`;
+  return `<tr data-ri="${ri}"${dataLink}${rowTitle} class="${rowClass}">${cellsHtml}</tr>`;
 }

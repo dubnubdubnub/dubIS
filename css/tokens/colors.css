@@ -58,4 +58,5 @@
   --row-purple-header-bg:     #a371f710;  /* tr.member-header-row */
   --row-purple-faint-bg:      #a371f70a;  /* tr.member-row */
   --row-dnp-bg:               #484f5810;  /* tr.row-dnp */
+  --row-board-only-bg:        #484f5808;  /* tr.row-board-only — fainter than DNP: not a part at all */
 }

@@ -1,9 +1,10 @@
 // @ts-check
 /* bom-row-data.js — Pure display-data computation for BOM table rows.
    No DOM dependencies. Depends on: bomKey, STATUS_ICONS,
-   STATUS_ROW_CLASS (from part-keys.js). */
+   STATUS_ROW_CLASS (from part-keys.js), the status registry (bom-status.js). */
 
 import { bomKey, invPartKey, STATUS_ICONS, STATUS_ROW_CLASS } from './part-keys.js';
+import { statusSpec } from './bom-status.js';
 import { extractFootprintCode, invFootprintCode } from './matching.js';
 import { matchesCategoryName } from './category-match.js';
 
@@ -19,15 +20,13 @@ import { matchesCategoryName } from './category-match.js';
  */
 export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingState, expandedMembers, options) {
   var st = r.effectiveStatus;
+  var spec = statusSpec(st);
 
   // ── Filter by status ──
+  // A filter button is a countStatuses bucket, so a row shows under every
+  // bucket its status counts toward (manual-short under Manual AND Short).
   if (activeFilter !== "all" && st !== activeFilter) {
-    var matchesFilter =
-      (activeFilter === "manual" && st === "manual-short") ||
-      (activeFilter === "confirmed" && st === "confirmed-short") ||
-      (activeFilter === "generic" && st === "generic-short") ||
-      (activeFilter === "short" && (st === "manual-short" || st === "confirmed-short" || st === "generic-short"));
-    if (!matchesFilter) return null;
+    if (!(spec && spec.buckets.includes(activeFilter))) return null;
   }
 
   // ── Filter by search query ──
@@ -74,7 +73,12 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
   var dispMouser = (hasInv ? r.inv.mouser : "") || "";
   var dispMpn = (hasInv ? r.inv.mpn : "") || r.bom.mpn || "";
   var invQty = hasInv ? r.inv.qty : "\u2014";
-  var invDesc = hasInv
+  // A board-only row says WHY it is out of the counts, in the column a
+  // missing row would say "not in inventory".
+  var boardReason = st === "board-only" ? (r.boardReason || "board feature") : "";
+  var invDesc = boardReason
+    ? boardReason
+    : hasInv
     ? (r.inv.description || r.inv.mpn)
     : (r.bom.desc || r.bom.value || "not in inventory");
 
@@ -89,17 +93,9 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
     : "\u2014";
 
   // ── Quantity CSS class ──
-  var qtyClass = st === "dnp" ? "qty-dnp"
-    : st === "manual" ? "qty-manual"
-    : st === "manual-short" ? "qty-manual-short"
-    : st === "confirmed" ? "qty-confirmed"
-    : st === "confirmed-short" ? "qty-confirmed-short"
-    : st === "generic" ? "qty-generic"
-    : st === "generic-short" ? "qty-generic-short"
-    : st === "ok" ? "qty-ok"
-    : st === "short" ? (r.coveredByAlts ? "qty-ok" : "qty-short")
-    : st === "possible" ? "qty-possible"
-    : "qty-miss";
+  // A plain short row whose alternates cover it reads as ok; anything the
+  // registry does not declare reads as missing.
+  var qtyClass = coveredShort ? "qty-ok" : (spec ? spec.qtyClass : "qty-miss");
 
   // ── Alt badge data ──
   var altBadge = null;
@@ -201,6 +197,7 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
     qtyClass: qtyClass,
     refs: r.bom.refs || "",
     isMissing: st === "missing",
+    boardReason: boardReason,
     altBadge: altBadge,
     showConfirm: showConfirm,
     showUnconfirm: showUnconfirm,

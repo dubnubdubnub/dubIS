@@ -270,17 +270,22 @@ describe('buildLinkableKeys', () => {
 });
 
 describe('prepareConsumption', () => {
+  // prepareConsumption reads computeRows output: the status is what says DNP
+  // and board-only, and the registry (js/bom-status.js) says what is consumed.
+  const bom = (qty, extra = {}) => ({ qty, dnp: false, lcsc: '', mpn: 'P', value: '', footprint: '', ...extra });
+  const inv = (lcsc, mpn = '') => ({ lcsc, mpn, digikey: '', qty: 100 });
+
   it('extracts matched parts (not value or fuzzy)', () => {
     const results = [
-      { inv: { lcsc: 'C123', mpn: '', digikey: '' }, matchType: 'lcsc', bom: { qty: 5 } },
-      { inv: { lcsc: 'C456', mpn: '', digikey: '' }, matchType: 'mpn', bom: { qty: 3 } },
-      { inv: { lcsc: 'C789', mpn: '', digikey: '' }, matchType: 'value', bom: { qty: 2 } },
-      { inv: { lcsc: '', mpn: 'ABC', digikey: '' }, matchType: 'fuzzy', bom: { qty: 1 } },
-      { inv: null, matchType: 'none', bom: { qty: 4 } },
-      { inv: { lcsc: 'C111', mpn: '', digikey: '' }, matchType: 'manual', bom: { qty: 7 } },
-      { inv: { lcsc: 'C222', mpn: '', digikey: '' }, matchType: 'confirmed', bom: { qty: 8 } },
+      { inv: inv('C123'), matchType: 'lcsc', bom: bom(5), alts: [] },
+      { inv: inv('C456'), matchType: 'mpn', bom: bom(3), alts: [] },
+      { inv: inv('C789'), matchType: 'value', bom: bom(2), alts: [] },
+      { inv: inv('', 'ABC'), matchType: 'fuzzy', bom: bom(1), alts: [] },
+      { inv: null, matchType: 'none', bom: bom(4), alts: [] },
+      { inv: inv('C111'), matchType: 'manual', bom: bom(7), alts: [] },
+      { inv: inv('C222'), matchType: 'confirmed', bom: bom(8), alts: [] },
     ];
-    const { matches, matchesJson } = prepareConsumption(results);
+    const { matches, matchesJson } = prepareConsumption(computeRows(results, 1, {}));
     expect(matches).toHaveLength(4);
     expect(matches[0]).toEqual({ part_key: 'C123', bom_qty: 5 });
     expect(matches[1]).toEqual({ part_key: 'C456', bom_qty: 3 });
@@ -289,20 +294,42 @@ describe('prepareConsumption', () => {
     expect(JSON.parse(matchesJson)).toEqual(matches);
   });
 
+  it('consumes a short row (the server floors at zero, not the client)', () => {
+    const rows = computeRows([{ inv: inv('C1'), matchType: 'lcsc', bom: bom(500), alts: [] }], 1, {});
+    expect(rows[0].effectiveStatus).toBe('short');
+    expect(prepareConsumption(rows).matches).toEqual([{ part_key: 'C1', bom_qty: 500 }]);
+  });
+
+  it('never consumes a DNP row, even one matched by LCSC', () => {
+    // Behaviour change from the pre-registry rule (matchType only): the cart
+    // never buys a DNP part, so consuming it walked stock down every build.
+    const rows = computeRows([{ inv: inv('C9'), matchType: 'lcsc', bom: bom(2, { dnp: true }), alts: [] }], 1, {});
+    expect(rows[0].effectiveStatus).toBe('dnp');
+    expect(prepareConsumption(rows).matches).toEqual([]);
+  });
+
+  it('never consumes a board-only row, whatever matchBOM matched it to', () => {
+    const rows = computeRows([{
+      inv: inv('', 'TC2030'), matchType: 'mpn', alts: [],
+      bom: bom(1, { mpn: 'TC2030', value: 'TC2030', footprint: 'Connector:Tag-Connect_TC2030-IDC-NL_2x03_P1.27mm_Vertical' }),
+    }], 1, {});
+    expect(rows[0].effectiveStatus).toBe('board-only');
+    expect(prepareConsumption(rows).matches).toEqual([]);
+  });
+
   it('returns empty matches for no inventory hits', () => {
-    const results = [
-      { inv: null, matchType: 'none', bom: { qty: 1 } },
-    ];
-    const { matches } = prepareConsumption(results);
-    expect(matches).toHaveLength(0);
+    const rows = computeRows([{ inv: null, matchType: 'none', bom: bom(1), alts: [] }], 1, {});
+    expect(prepareConsumption(rows).matches).toHaveLength(0);
   });
 
   it('skips parts with no invPartKey', () => {
-    const results = [
-      { inv: { lcsc: '', mpn: '', digikey: '' }, matchType: 'lcsc', bom: { qty: 1 } },
-    ];
-    const { matches } = prepareConsumption(results);
-    expect(matches).toHaveLength(0);
+    const rows = computeRows([{ inv: inv(''), matchType: 'lcsc', bom: bom(1), alts: [] }], 1, {});
+    expect(prepareConsumption(rows).matches).toHaveLength(0);
+  });
+
+  it('throws on raw matchBOM results instead of quietly consuming the wrong set', () => {
+    expect(() => prepareConsumption([{ inv: inv('C1'), matchType: 'lcsc', bom: bom(1) }]))
+      .toThrow(/computeRows/);
   });
 });
 
@@ -386,5 +413,16 @@ describe('buildMissingCartEntries', () => {
 
   it('still skips rows that are not missing or short', () => {
     expect(buildMissingCartEntries([shortRow(5, 100)])).toEqual([]);
+  });
+
+  it('never sends a board feature or a DNP part, though both are unmatched', () => {
+    const rows = computeRows([
+      { bom: { qty: 3, dnp: false, mpn: 'Fiducial', value: 'Fiducial', footprint: 'Fiducial:Fiducial_1mm' }, inv: null, matchType: null, alts: [] },
+      { bom: { qty: 1, dnp: false, mpn: 'Logo', value: 'Logo', excluded: true }, inv: null, matchType: null, alts: [] },
+      { bom: { qty: 1, dnp: true, mpn: 'R99' }, inv: null, matchType: null, alts: [] },
+    ], 1, {});
+    expect(rows.map(r => r.effectiveStatus)).toEqual(['board-only', 'board-only', 'dnp']);
+    expect(buildMissingCartEntries(rows)).toEqual([]);
+    expect(buildLinkableKeys(rows, true).size).toBe(0);
   });
 });

@@ -117,6 +117,20 @@ describe('renderPartRowHtml — vendor favicon column', () => {
 });
 
 describe('renderFilterBarHtml', () => {
+  it('has one button per non-empty registry bucket, Board-only included', () => {
+    const counts = {
+      total: 41, ok: 1, short: 0, missing: 31, possible: 0,
+      confirmed: 0, manual: 0, generic: 0, dnp: 2, boardOnly: 7,
+    };
+    const html = renderFilterBarHtml(counts, 'boardOnly');
+    expect(html).toContain('data-filter="dnp">DNP (2)</button>');
+    expect(html).toMatch(/class="btn-md filter-btn active" data-filter="boardOnly">Board-only \(7\)<\/button>/);
+    // Always-shown buckets stay, even at zero; hide-when-zero ones go.
+    expect(html).toContain('data-filter="short">Short (0)</button>');
+    expect(html).not.toContain('data-filter="manual"');
+    expect(renderFilterBarHtml({ ...counts, boardOnly: 0 }, 'all')).not.toContain('boardOnly');
+  });
+
   it('renders filter buttons with correct counts', () => {
     const counts = {
       total: 8, ok: 5, short: 2, missing: 1, possible: 0,

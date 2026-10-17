@@ -178,6 +178,20 @@ describe('countStatuses', () => {
     expect(c.utbp).toBe(3);
   });
 
+  it('utbp excludes board-only rows too, and they are not missing', () => {
+    const rows = [
+      { effectiveStatus: 'missing' },
+      { effectiveStatus: 'board-only' },
+      { effectiveStatus: 'board-only' },
+      { effectiveStatus: 'dnp' },
+    ];
+    const c = countStatuses(rows);
+    expect(c.total).toBe(4);
+    expect(c.boardOnly).toBe(2);
+    expect(c.missing).toBe(1);
+    expect(c.utbp).toBe(1);
+  });
+
   it('counts manual-short and confirmed-short under short + manual/confirmed', () => {
     const rows = [
       { effectiveStatus: 'manual-short' },

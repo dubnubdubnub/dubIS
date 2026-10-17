@@ -14,6 +14,8 @@
 .chip.pink { background: #db61a220; color: var(--color-pink); border: 1px solid #db61a240; }
 .chip.grey { background: #484f5820; color: var(--color-gray-muted); border: 1px solid #484f5840; }
 .chip.teal { background: #2dd4bf20; color: var(--color-teal); border: 1px solid #2dd4bf40; }
+/* Board-only count: grey like DNP, dashed so the two grey chips read apart. */
+.chip.chip-board-only { border-style: dashed; }
 
 /* Near-miss: value-matching inventory parts that were rejected on footprint grounds. */
 .near-miss-badge {

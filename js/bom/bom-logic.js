@@ -3,18 +3,23 @@
 
 import { isDnp, extractPartIds } from '../csv-parser.js';
 import { bomAggKey, invPartKey } from '../part-keys.js';
+import { statusHas } from '../bom-status.js';
+import { boardFeatureReason, rawRowBoardReason } from './board-features.js';
 
 /**
- * Classify a single BOM row as ok | warn | dnp | subtotal.
+ * Classify a single BOM row as ok | warn | dnp | board-only | subtotal.
  * @param {string[]} row
- * @param {{ lcsc: number, lcscCols?: number[], mpn: number, qty: number, ref: number, desc: number, value: number, footprint: number, dnp: number }} bomCols
- * @returns {"ok" | "warn" | "dnp" | "subtotal"}
+ * @param {{ lcsc: number, lcscCols?: number[], mpn: number, qty: number, ref: number, desc: number, value: number, footprint: number, dnp: number, exclude?: number }} bomCols
+ * @returns {"ok" | "warn" | "dnp" | "board-only" | "subtotal"}
  */
 export function classifyBomRow(row, bomCols) {
   const joined = row.join("").toLowerCase();
   if (joined.includes("subtotal") || joined.includes("total:")) return "subtotal";
 
-  // DNP check before part-ID validation -- DNP rows without MPN/LCSC are not warnings
+  // Board-feature and DNP checks come before part-ID validation: a fiducial or
+  // a DNP row with no MPN/LCSC is not a warning. Board-only wins over DNP, as
+  // in computeRows — a fiducial marked DNP is still a fiducial.
+  if (rawRowBoardReason(row, bomCols)) return "board-only";
   if (bomCols.dnp !== -1 && isDnp(row[bomCols.dnp])) return "dnp";
 
   const { lcsc, mpn } = extractPartIds(row, bomCols);
@@ -57,9 +62,19 @@ export function countBomWarnings(bomRawRows, bomCols) {
 export function computeRows(results, multiplier, links) {
   if (!results) return null;
   const mult = multiplier;
-  return results.map(r => {
+  return results.map(raw => {
+    // A board feature is decided from the BOM line alone, and whatever
+    // matchBOM found for it is dropped: a fiducial has no inventory
+    // counterpart, so a value/fuzzy hit on "Fiducial" — or an MPN fallback of
+    // "TC2030" that matches the programming cable on the shelf — is noise that
+    // would otherwise light up Link/Adjust, add to the board price, and
+    // highlight an unrelated inventory part as "in this BOM".
+    const boardReason = boardFeatureReason(raw.bom);
+    const r = boardReason ? { ...raw, ...unmatched() } : raw;
     let status;
-    if (r.bom.dnp) {
+    if (boardReason) {
+      status = "board-only";
+    } else if (r.bom.dnp) {
       status = "dnp";
     } else if (!r.inv) {
       status = "missing";
@@ -80,8 +95,18 @@ export function computeRows(results, multiplier, links) {
     const combinedQty = (r.inv ? r.inv.qty : 0) + altQty;
     const isShort = status === "short" || status === "manual-short" || status === "confirmed-short";
     const coveredByAlts = (isShort && combinedQty >= r.bom.qty * mult);
-    return { ...r, effectiveStatus: status, effectiveQty: r.bom.qty * mult, altQty, combinedQty, coveredByAlts };
+    return { ...r, effectiveStatus: status, boardReason, effectiveQty: r.bom.qty * mult, altQty, combinedQty, coveredByAlts };
   });
+}
+
+// What a board-only row's match fields are reset to (see computeRows). A
+// function, so no two rows share one `alts` array.
+function unmatched() {
+  return {
+    inv: null, alts: [], altsUnverified: [], matchType: "none",
+    matchSignals: { value: false, footprint: false, mpn: false },
+    genericPartId: null, genericPartName: null, genericMembers: null,
+  };
 }
 
 /**
@@ -99,7 +124,8 @@ export function buildStatusMap(rows) {
 }
 
 /**
- * Build a Set of bomAggKeys that are linkable (missing, possible, short, etc).
+ * Build a Set of bomAggKeys that are linkable — the statuses js/bom-status.js
+ * marks `linkable` (missing, possible, and every short variant).
  * @param {Array} rows - computed rows from computeRows
  * @param {boolean} linkingMode - whether linking mode is active
  * @returns {Set<string>}
@@ -108,7 +134,7 @@ export function buildLinkableKeys(rows, linkingMode) {
   const missingKeys = new Set();
   if (linkingMode) {
     rows.forEach(r => {
-      if (r.effectiveStatus === "missing" || r.effectiveStatus === "possible" || r.effectiveStatus === "short" || r.effectiveStatus === "manual-short" || r.effectiveStatus === "confirmed-short" || r.effectiveStatus === "generic-short") {
+      if (statusHas(r.effectiveStatus, "linkable")) {
         const bsk = bomAggKey(r.bom);
         if (bsk) missingKeys.add(bsk);
       }
@@ -118,14 +144,25 @@ export function buildLinkableKeys(rows, linkingMode) {
 }
 
 /**
- * Extract consumption matches from results.
- * @param {Array} results
+ * Extract consumption matches from computed rows: every row whose status
+ * js/bom-status.js marks `consumable` (a confirmed-enough match that is
+ * placed — never possible, missing, DNP or board-only) and that has an
+ * inventory part key.
+ *
+ * Takes computeRows output, not raw matchBOM results: the status is what
+ * says DNP and board-only, and a raw result carries neither. A row without
+ * an effectiveStatus is a caller passing the wrong thing, so it throws rather
+ * than quietly consuming nothing.
+ * @param {Array} rows - computed rows from computeRows
  * @returns {{ matches: Array, matchesJson: string }}
  */
-export function prepareConsumption(results) {
+export function prepareConsumption(rows) {
   const matches = [];
-  results.forEach(r => {
-    if (r.inv && r.matchType !== "value" && r.matchType !== "fuzzy") {
+  rows.forEach(r => {
+    if (typeof r.effectiveStatus !== "string") {
+      throw new Error("prepareConsumption needs rows from computeRows (no effectiveStatus on a row)");
+    }
+    if (r.inv && statusHas(r.effectiveStatus, "consumable")) {
       const pk = invPartKey(r.inv);
       if (pk) matches.push({ part_key: pk, bom_qty: r.bom.qty });
     }
@@ -134,10 +171,10 @@ export function prepareConsumption(results) {
 }
 
 /**
- * Build the cart-item payload for every missing/short/possible row (the "Add
- * all missing to cart" button, B5) — mirrors buildLinkableKeys' status set
- * but produces cart entries instead of a key Set, and isn't gated behind
- * linkingMode since it fires from its own button, not a link-drag.
+ * Build the cart-item payload for every row whose status js/bom-status.js
+ * marks `needsPurchase` — missing, possible and every short variant (the "Add
+ * all missing to cart" button, B5). Board-only and DNP rows are never sent.
+ * Not gated behind linkingMode since it fires from its own button.
  *
  * Matched-but-short/possible rows (`r.inv` set) carry `part_id` + `shortfall`
  * (needed - onHand, floored at 0, so the server's default_qty ladder logic
@@ -150,10 +187,7 @@ export function prepareConsumption(results) {
 export function buildMissingCartEntries(rows) {
   const entries = [];
   rows.forEach(r => {
-    const st = r.effectiveStatus;
-    const isMissingOrShort = st === "missing" || st === "possible" || st === "short" ||
-      st === "manual-short" || st === "confirmed-short" || st === "generic-short";
-    if (!isMissingOrShort) return;
+    if (!statusHas(r.effectiveStatus, "needsPurchase")) return;
     // per_board_qty is the BOM's own per-board placement count — the same
     // r.bom.qty computePriceInfo() multiplies to get price-per-board. Carrying
     // it lets the cart's purchase plan re-derive a requirement as

@@ -233,6 +233,33 @@ describe('bomRowDisplayData — row class and icon', () => {
   });
 });
 
+describe('bomRowDisplayData — board-only rows', () => {
+  // computeRows strips a board-only row's match, so inv is null here.
+  const boardRow = () => makeRow({
+    effectiveStatus: 'board-only', inv: null, matchType: 'none',
+    boardReason: 'Fiducial \u2014 board feature, nothing to place',
+    bom: { lcsc: '', mpn: 'Fiducial', value: 'Fiducial', refs: 'FID1', desc: '', dnp: false, footprint: 'Fiducial:Fiducial_1mm' },
+  });
+
+  it('is greyed, says why, and offers no action', () => {
+    const d = bomRowDisplayData(boardRow(), '', 'all', EMPTY_ALTS, NO_LINKING);
+    expect(d.rowClass).toBe('row-board-only');
+    expect(d.qtyClass).toBe('qty-board-only');
+    expect(d.invDesc).toMatch(/^Fiducial/);
+    expect(d.boardReason).toMatch(/nothing to place/);
+    expect(d.showLink).toBe(false);
+    expect(d.showAdjust).toBe(false);
+    expect(d.showConfirm).toBe(false);
+    expect(d.showGroupFlyout).toBe(false);
+  });
+
+  it('shows under the Board-only filter and not under Missing', () => {
+    expect(bomRowDisplayData(boardRow(), '', 'boardOnly', EMPTY_ALTS, NO_LINKING)).not.toBeNull();
+    expect(bomRowDisplayData(boardRow(), '', 'missing', EMPTY_ALTS, NO_LINKING)).toBeNull();
+    expect(bomRowDisplayData(boardRow(), '', 'dnp', EMPTY_ALTS, NO_LINKING)).toBeNull();
+  });
+});
+
 // ── Qty class tests ──
 
 describe('bomRowDisplayData — quantity CSS class', () => {

@@ -240,3 +240,51 @@ export function federatedInputs(opts = {}) {
     }))),
   );
 }
+
+// ── BOM match results ────────────────────────────────────────────────────────
+
+/** Every matchType js/matching.js's matchBOM can assign, plus the absent forms. */
+export const MATCH_TYPES = /** @type {const} */ ([
+  'none', null, 'lcsc', 'mpn', 'fuzzy', 'value', 'manual', 'confirmed', 'generic',
+]);
+
+/**
+ * Footprints aimed at both sides of js/bom/board-features.js: real board
+ * features, real parts whose footprint only looks like one, and plain parts.
+ */
+const FOOTPRINTS = [
+  '', 'Resistor_SMD:R_0402_1005Metric', 'Package_TO_SOT_SMD:SOT-23-5',
+  'Fiducial:Fiducial_1mm_Mask2mm', 'MountingHole:MountingHole_2.2mm_M2_Pad',
+  'TestPoint:TestPoint_Pad_D1.0mm', 'TestPoint:TestPoint_Keystone_5000-5004_Miniature',
+  'Connector:Tag-Connect_TC2030-IDC-NL_2x03_P1.27mm_Vertical',
+];
+const VALUES = ['', '10k', '100nF', 'Fiducial', 'MountingHole', 'TestPoint', 'TC2030', 'LTC2050'];
+
+/**
+ * One aggregated BOM line, the shape csv-parser.js's aggregateBomRows emits.
+ * `mpn` is often the value itself — the Value-as-MPN fallback a KiCad BOM gets.
+ */
+export const bomLine = () => fc.record({
+  qty: fc.integer({ min: 0, max: 500 }),
+  dnp: fc.boolean(),
+  excluded: fc.boolean(),
+  lcsc: fc.oneof(blank(), lcscToken().map((s) => s.toUpperCase())),
+  value: fc.constantFrom(...VALUES),
+  footprint: fc.constantFrom(...FOOTPRINTS),
+  realMpn: fc.oneof(blank(), nonLcscToken()),
+  refs: fc.constant('X1'),
+  desc: text(),
+}).map(({ realMpn, ...line }) => ({ ...line, mpn: realMpn || line.value }));
+
+/** One matchBOM result: a line, maybe a matched part, a matchType, alternates. */
+export const bomMatchResult = () => fc.record({
+  bom: bomLine(),
+  inv: fc.option(fc.record({
+    qty: fc.integer({ min: 0, max: 1000 }),
+    lcsc: fc.oneof(blank(), lcscToken().map((s) => s.toUpperCase())),
+    mpn: fc.oneof(blank(), nonLcscToken()),
+    unit_price: money(),
+  }), { nil: null }),
+  matchType: fc.constantFrom(...MATCH_TYPES),
+  alts: fc.array(fc.record({ qty: fc.integer({ min: 0, max: 100 }) }), { maxLength: 3 }),
+});

@@ -9,7 +9,7 @@ import { store, setBomResults, setBomFootprintNearMisses, setBomMeta, snapshotLi
 import { bomKey, invPartKey, countStatuses, rawRowAggKey } from '../part-keys.js';
 import { processBOM, aggregateBomRows } from '../csv-parser.js';
 import { matchBOM } from '../matching.js';
-import { classifyBomRow, countBomWarnings, computeRows, buildStatusMap, buildLinkableKeys, computePriceInfo } from './bom-logic.js';
+import { classifyBomRow, countBomWarnings, computeRows, buildStatusMap, buildLinkableKeys, computePriceInfo, prepareConsumption } from './bom-logic.js';
 import { renderDropZone, renderLoadedDropZone, renderBomSummary, renderPriceInfo, renderLinkingBanner, renderStagingHead, renderStagingRow } from './bom-renderer.js';
 import state from './bom-state.js';
 import { setupEvents } from './bom-events.js';
@@ -235,7 +235,7 @@ function resetConsumeConfirm() {
 function openConsumeModal() {
   AppLog.info("Opening consume modal");
   const mult = getMultiplier();
-  const matched = state.lastResults.filter(r => r.inv && r.matchType !== "value" && r.matchType !== "fuzzy");
+  const { matches: matched } = prepareConsumption(computeRows(state.lastResults, mult, store.links));
   document.getElementById("consume-subtitle").textContent =
     `Consume ${matched.length} matched parts x${mult} from "${state.lastFileName}"?`;
   document.getElementById("consume-note").value = "";

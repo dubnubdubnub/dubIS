@@ -4,6 +4,7 @@
 
 import { escHtml, stockValueColor, formatMoney } from '../ui-helpers.js';
 import { invPartKey, colorizeRefs, countStatuses } from '../part-keys.js';
+import { BOM_BUCKETS } from '../bom-status.js';
 import { renderFanStack } from './favicon-stack.js';
 import { isLabelMode, isSelected } from '../label-selection.js';
 /* col-resize-LOGIC, not col-resize.js: this module must stay store-free (see
@@ -226,6 +227,7 @@ export function createBomRowElement(d) {
   // off by default so click-and-drag selects text.
   tr.draggable = false;
   tr.className = d.rowClass;
+  if (d.boardReason) tr.title = d.boardReason;
   if (d.isLinkingSource || d.isReverseLinkingSource) tr.classList.add("linking-source");
   if (d.isReverseTarget) tr.classList.add("link-target");
 
@@ -274,7 +276,7 @@ export function createBomRowElement(d) {
     '<td class="mono" title="' + escHtml(d.dispMpn) + '">' + escHtml(d.dispMpn) + '</td>' +
     '<td class="' + d.qtyClass + '" style="text-align:right;font-weight:600">' + d.effectiveQty + '</td>' +
     '<td class="inv-qty-cell ' + d.qtyClass + '" style="text-align:right;font-weight:600">' + haveHtml + '</td>' +
-    '<td class="desc-cell' + (d.isMissing ? ' muted' : '') + '" title="' + escHtml(d.invDesc) + '">' + escHtml(d.invDesc) + (d.genericPartName ? '<span class="generic-via">via ' + escHtml(d.genericPartName) + '</span>' : '') + '</td>' +
+    '<td class="desc-cell' + (d.isMissing || d.boardReason ? ' muted' : '') + '" title="' + escHtml(d.invDesc) + '">' + escHtml(d.invDesc) + (d.genericPartName ? '<span class="generic-via">via ' + escHtml(d.genericPartName) + '</span>' : '') + '</td>' +
     '<td class="mono" style="text-align:center">' + d.matchLabel +
       (d.footprintConfirmed && d.footprintCode ? ' <span class="match-signal-footprint" title="Footprint also matches: ' + escHtml(d.footprintCode) + '">+' + escHtml(d.footprintCode) + '</span>' : '') +
     '</td>' +
@@ -396,21 +398,25 @@ export function renderMemberRows(members, partKey, resolvedPartId, groupName, in
 // ── Filter bar HTML ──
 
 /**
- * Build the filter bar HTML string.
+ * Build the filter bar HTML string: "All", then one button per countStatuses
+ * bucket in the registry's order (js/bom-status.js BOM_BUCKETS), so a new
+ * bucket gets its button without an edit here.
  * @param {Object} c - status counts from countStatuses
  * @param {string} activeFilter - current active filter
  * @returns {string}
  */
 export function renderFilterBarHtml(c, activeFilter) {
-  return '<button class="btn-md filter-btn' + (activeFilter === "all" ? " active" : "") + '" data-filter="all">All (' + c.total + ')</button>' +
-    (c.manual > 0 ? '<button class="btn-md filter-btn' + (activeFilter === "manual" ? " active" : "") + '" data-filter="manual">Manual (' + c.manual + ')</button>' : '') +
-    (c.confirmed > 0 ? '<button class="btn-md filter-btn' + (activeFilter === "confirmed" ? " active" : "") + '" data-filter="confirmed">Confirmed (' + c.confirmed + ')</button>' : '') +
-    (c.generic > 0 ? '<button class="btn-md filter-btn' + (activeFilter === "generic" ? " active" : "") + '" data-filter="generic">Generic (' + c.generic + ')</button>' : '') +
-    '<button class="btn-md filter-btn' + (activeFilter === "ok" ? " active" : "") + '" data-filter="ok">In Stock (' + c.ok + ')</button>' +
-    '<button class="btn-md filter-btn' + (activeFilter === "short" ? " active" : "") + '" data-filter="short">Short (' + c.short + ')</button>' +
-    '<button class="btn-md filter-btn' + (activeFilter === "possible" ? " active" : "") + '" data-filter="possible">Possible (' + c.possible + ')</button>' +
-    '<button class="btn-md filter-btn' + (activeFilter === "missing" ? " active" : "") + '" data-filter="missing">Missing (' + c.missing + ')</button>' +
-    (c.dnp > 0 ? '<button class="btn-md filter-btn' + (activeFilter === "dnp" ? " active" : "") + '" data-filter="dnp">DNP (' + c.dnp + ')</button>' : '');
+  var btn = function (id, label, n) {
+    return '<button class="btn-md filter-btn' + (activeFilter === id ? " active" : "") + '" data-filter="' + id + '">' + label + ' (' + n + ')</button>';
+  };
+  var html = btn("all", "All", c.total);
+  for (var i = 0; i < BOM_BUCKETS.length; i++) {
+    var b = BOM_BUCKETS[i];
+    var n = c[b.id] || 0;
+    if (b.hideWhenZero && n === 0) continue;
+    html += btn(b.id, b.filterLabel, n);
+  }
+  return html;
 }
 
 // ── BOM comparison table header ──
