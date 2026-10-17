@@ -25,4 +25,4 @@ images:
   # independently blocks `:latest`, but sha-PLACEHOLDER is neither `:latest`
   # nor a real digest, so it would simply fail to pull if it ever escaped.
   - name: ghcr.io/dubnubdubnub/fremont
-    newTag: "38e9ba7021e39029b207182c1a9df1d4678625c5"
+    newTag: "d6f183c1559f2de3d6b33aab8527d2aaa7689ed8"
