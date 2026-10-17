@@ -73,6 +73,9 @@ _INVENTORY_API_METHOD_NAMES = {
     'shutdown', 'split_cart',
     'start_scan_session',
     'update_cart_item', 'update_generic_part', 'update_part_fields', 'update_part_price',
+    # A part with identity and no purchase (server/routes/inventory_mut.py). A
+    # real InventoryApi method, added after Task 8, like the JLC ones above.
+    'create_part',
     'update_purchase_order', 'update_vendor', 'validate_digikey_session',
 }
 
@@ -221,6 +224,7 @@ FROZEN_V1_SURFACE = [
     ("POST", "/v1/import/parse", "parse_import_source"),
     ("POST", "/v1/inventory-mirror/disable", "disable_inventory_mirror"),
     ("POST", "/v1/inventory-mirror/enable", "enable_inventory_mirror"),
+    ("POST", "/v1/parts", "create_part"),
     ("POST", "/v1/parts/fetch-missing-descriptions", "fetch_missing_descriptions"),
     ("POST", "/v1/parts/{part_key}/adjust", "adjust_part"),
     ("POST", "/v1/parts/{part_key}/fetched-prices", "record_fetched_prices"),

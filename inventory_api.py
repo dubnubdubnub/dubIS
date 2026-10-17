@@ -295,6 +295,12 @@ class InventoryApi:
                            fields_json: str | dict[str, str]) -> list[dict[str, Any]]:
         return self._inv.update_part_fields(part_key, fields_json)
 
+    def create_part(self, part_key: str, fields_json: str | dict[str, str],
+                    unit_price: float | None = None) -> dict[str, Any]:
+        """Create a part with identity and no purchase, or complete an existing
+        part's identity. Returns the mutation detail, not the inventory."""
+        return self._inv.create_part(part_key, fields_json, unit_price)
+
     def delete_part(self, part_key: str) -> list[dict[str, Any]]:
         return self._inv.delete_part(part_key)
 

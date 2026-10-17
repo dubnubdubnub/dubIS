@@ -313,6 +313,74 @@
         "title": "CreateGenericPartBody",
         "type": "object"
       },
+      "CreatePartBody": {
+        "description": "Identity for a part the store does not have yet.\n\n`part_key` is optional and only for completing a part the store already\nknows under that key (one created by an adjustment, say). Leave it empty to\ncreate the part under the key its own part numbers imply.",
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "digikey": {
+            "default": "",
+            "title": "Digikey",
+            "type": "string"
+          },
+          "lcsc": {
+            "default": "",
+            "title": "Lcsc",
+            "type": "string"
+          },
+          "manufacturer": {
+            "default": "",
+            "title": "Manufacturer",
+            "type": "string"
+          },
+          "mouser": {
+            "default": "",
+            "title": "Mouser",
+            "type": "string"
+          },
+          "mpn": {
+            "default": "",
+            "title": "Mpn",
+            "type": "string"
+          },
+          "package": {
+            "default": "",
+            "title": "Package",
+            "type": "string"
+          },
+          "part_key": {
+            "default": "",
+            "title": "Part Key",
+            "type": "string"
+          },
+          "pololu": {
+            "default": "",
+            "title": "Pololu",
+            "type": "string"
+          },
+          "source": {
+            "default": "",
+            "title": "Source",
+            "type": "string"
+          },
+          "unit_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Price"
+          }
+        },
+        "title": "CreatePartBody",
+        "type": "object"
+      },
       "CreatePurchaseOrderBody": {
         "properties": {
           "line_items": {
@@ -4779,6 +4847,48 @@
           }
         },
         "summary": "List Parts",
+        "tags": [
+          "parts"
+        ]
+      },
+      "post": {
+        "description": "Create a part with its identity, without recording a purchase.\n\nCarries the part numbers, manufacturer, package and description, and leaves\nthe part at whatever stock the adjustments already say (usually zero). No\nprice observation is written and no purchase order is touched, so the part\ndoes not end up looking like some distributor sold it to you. Use\n`POST /v1/purchases/import` when a part really was bought.\n\nRe-running it on a part that exists fills in only the fields you send, so\ncompleting a part's identity cannot blank what the store already had.",
+        "operationId": "create_part",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePartBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Part",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Part",
         "tags": [
           "parts"
         ]

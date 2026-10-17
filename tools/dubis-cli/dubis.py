@@ -47,7 +47,8 @@ sys.path.insert(0, str(_HERE))
 sys.path.insert(0, str(_REPO_ROOT))
 
 from commands import COMMANDS  # noqa: E402  (needs the sys.path above)
-from curated import CURATED  # noqa: E402
+from curated import CURATED, TransferError  # noqa: E402
+
 from tools.dubis_client import (  # noqa: E402
     NoServerFoundError,
     PartNotFoundError,
@@ -391,19 +392,25 @@ def _run_serve(args: argparse.Namespace) -> int:
 def _dispatch_curated(args: argparse.Namespace) -> int:
     """Run a hand-written hot-path command.
 
-    Every curated command is a read, so --dry-run has no write to withhold —
-    but it still declines to run, because "dry-run executed it anyway" is the
-    more surprising of the two behaviours and matches what the generated
-    read-only commands do.
+    Every curated command but `transfer` is a read, so --dry-run has no write to
+    withhold — but it still declines to run, because "dry-run executed it
+    anyway" is the more surprising of the two behaviours and matches what the
+    read-only generated commands do.
+
+    `transfer` is marked `writes` and handles --dry-run itself: it has to read
+    both servers to say what the transfer would do (what the key resolves to on
+    each side, how many are actually on hand), and that answer is the point of
+    asking. It sends no write on that path.
     """
-    if args.dry_run:
+    spec = CURATED[args.resource]
+    if args.dry_run and not spec.get("writes"):
         print(f"note: {args.resource} is read-only; --dry-run has nothing to withhold",
               file=sys.stderr)
         _emit({"dry_run": True, "command": args.resource}, args.json)
         return EXIT_OK
 
     client = _connect(args)
-    _emit(CURATED[args.resource]["run"](client, args), args.json)
+    _emit(spec["run"](client, args), args.json)
     return EXIT_OK
 
 
@@ -466,7 +473,7 @@ def main(argv: list[str] | None = None) -> int:
         except NoServerFoundError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return EXIT_NO_SERVER
-        except (V1Error, PartNotFoundError, ServerSelectionError) as exc:
+        except (V1Error, PartNotFoundError, ServerSelectionError, TransferError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return EXIT_SERVER
 

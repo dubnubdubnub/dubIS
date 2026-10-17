@@ -34,6 +34,27 @@ class UpdatePartFieldsBody(BaseModel):
     fields: dict[str, str]
 
 
+class CreatePartBody(BaseModel):
+    """Identity for a part the store does not have yet.
+
+    `part_key` is optional and only for completing a part the store already
+    knows under that key (one created by an adjustment, say). Leave it empty to
+    create the part under the key its own part numbers imply.
+    """
+
+    part_key: str = ""
+    lcsc: str = ""
+    mpn: str = ""
+    digikey: str = ""
+    mouser: str = ""
+    pololu: str = ""
+    manufacturer: str = ""
+    package: str = ""
+    description: str = ""
+    unit_price: float | None = None
+    source: str = ""
+
+
 class UpdatePartPriceBody(BaseModel):
     unit_price: float | None = None
     ext_price: float | None = None
@@ -96,6 +117,38 @@ def adjust_part(
         reason="adjust",
         detail={"part_key": part_key, "adj_type": body.adj_type, "quantity": body.quantity},
     )
+
+
+@router.post("/parts", operation_id="create_part")
+def create_part(
+    request: Request,
+    body: CreatePartBody,
+) -> dict:
+    """Create a part with its identity, without recording a purchase.
+
+    Carries the part numbers, manufacturer, package and description, and leaves
+    the part at whatever stock the adjustments already say (usually zero). No
+    price observation is written and no purchase order is touched, so the part
+    does not end up looking like some distributor sold it to you. Use
+    `POST /v1/purchases/import` when a part really was bought.
+
+    Re-running it on a part that exists fills in only the fields you send, so
+    completing a part's identity cannot blank what the store already had.
+    """
+    api = request.app.state.api
+    source = stamp_source(request, body.source)
+    fields = {
+        name: value
+        for name, value in (
+            ("lcsc", body.lcsc), ("mpn", body.mpn), ("digikey", body.digikey),
+            ("mouser", body.mouser), ("pololu", body.pololu),
+            ("manufacturer", body.manufacturer), ("package", body.package),
+            ("description", body.description),
+        )
+    }
+    detail = api.create_part(body.part_key, fields, body.unit_price)
+    detail["source"] = source
+    return finish_mutation(reason="create_part", detail=detail)
 
 
 @router.patch("/parts/{part_key}", operation_id="update_part_fields")
