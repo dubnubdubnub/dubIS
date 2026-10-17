@@ -250,6 +250,41 @@ export const API_MAP = {
     "unwrap": null,
     "verb": "POST"
   },
+  "create_part": {
+    "argOrder": [
+      "part_key",
+      "lcsc",
+      "mpn",
+      "digikey",
+      "mouser",
+      "pololu",
+      "manufacturer",
+      "package",
+      "description",
+      "unit_price",
+      "source"
+    ],
+    "bodyParams": [
+      "description",
+      "digikey",
+      "lcsc",
+      "manufacturer",
+      "mouser",
+      "mpn",
+      "package",
+      "part_key",
+      "pololu",
+      "source",
+      "unit_price"
+    ],
+    "mutating": true,
+    "path": "/v1/parts",
+    "pathParams": [],
+    "queryParams": [],
+    "rawBody": false,
+    "unwrap": "detail",
+    "verb": "POST"
+  },
   "create_purchase_order_with_items": {
     "argOrder": [
       "vendor_id",

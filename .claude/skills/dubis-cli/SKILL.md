@@ -55,6 +55,7 @@ before the generated surface below.
 - `dubis prices` — per-distributor price aggregates + last PO quantity
 - `dubis history` — adjustment log for one part
 - `dubis generic-groups` — generic-part groups with member counts and best member
+- `dubis transfer` — move stock of one part between two configured servers (--from SOURCE --server DEST); credits the destination first
 - `dubis jlc` — JLCPCB: paired accounts, or one account's private parts library
 
 ```bash
@@ -69,7 +70,7 @@ A part key that matches nothing exits 3, so a miss is never a silent success.
 
 ## Full surface
 
-Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 108 commands:
+Every /v1 route, generated. `dubis schema --json` dumps them all with their params. 109 commands:
 
 - **adjustments**: remove-last, rollback-source
 - **auth**: whoami
@@ -80,7 +81,7 @@ Every /v1 route, generated. `dubis schema --json` dumps them all with their para
 - **generic**: add-member, create, create-saved-search, exclude-member, list, list-member-reviews, list-saved-searches, remove-member, review-member, set-preferred-member, update
 - **import**: detect-columns, match-part, ocr-engine-available, ocr-overlay, parse-source
 - **inventory-mirror**: disable, enable, get-info
-- **parts**: adjust, delete, evaluate-predicates, extract-spec, fetch-missing-descriptions, get-attributes, get-categories, get-generic-group-names, get-history, get-last-po-quantity, get-price-summary, get-sourced-distributors, has-purchase-history, list, record-fetched-prices, update-fields, update-price
+- **parts**: adjust, create, delete, evaluate-predicates, extract-spec, fetch-missing-descriptions, get-attributes, get-categories, get-generic-group-names, get-history, get-last-po-quantity, get-price-summary, get-sourced-distributors, has-purchase-history, list, record-fetched-prices, update-fields, update-price
 - **pnp**: consume
 - **po**: create-with-items, delete, delete-last, get-source, get-source-preview, get-with-items, list, update
 - **preferences**: load, save
