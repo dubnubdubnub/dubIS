@@ -7,6 +7,12 @@
  * INVENTORY_LOADED:     InventoryItem[]          — full inventory array
  * INVENTORY_UPDATED:    InventoryItem[]          — updated inventory array
  * BOM_LOADED:           {rows, fileName, multiplier} — computed BOM rows + metadata
+ * BOM_REMATCHED:        {rows, fileName, multiplier} — same payload, for a re-match nobody
+ *                                                  asked for (an inventory refresh, a spec
+ *                                                  lookup landing). Deliberately NOT a panel
+ *                                                  reopen trigger: BOM_LOADED is one, and a
+ *                                                  background re-match must not force open a
+ *                                                  BOM panel the user collapsed.
  * BOM_CLEARED:          (none)
  * CONFIRMED_CHANGED:    (none)                   — listeners re-read store.links
  * LINKING_MODE:         (none)                   — listeners re-read store.links.linkingMode etc.
@@ -23,6 +29,7 @@ export const Events = Object.freeze({
   INVENTORY_LOADED:  "inventory-loaded",
   INVENTORY_UPDATED: "inventory-updated",
   BOM_LOADED:        "bom-loaded",
+  BOM_REMATCHED:     "bom-rematched",
   BOM_CLEARED:       "bom-cleared",
   CONFIRMED_CHANGED: "confirmed-match-changed",
   LINKING_MODE:      "linking-mode",

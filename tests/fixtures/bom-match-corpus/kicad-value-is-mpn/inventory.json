@@ -1,0 +1,203 @@
+{
+  "_comment": "Synthetic inventory for this case: real LCSC parts (descriptions verbatim from LCSC), invented quantities. `record` is what matchBOM sees; `truth` is the hand-checked ground truth the corpus gate compares against, read from the LCSC product page rather than parsed by the code under test.",
+  "parts": [
+    {
+      "record": {
+        "lcsc": "C307331",
+        "mpn": "CL05B104KB54PNC",
+        "manufacturer": "Samsung Electro-Mechanics",
+        "description": "100nF ±10% 50V Ceramic Capacitor X7R 0402",
+        "package": "0402",
+        "section": "Passives - Capacitors > MLCC",
+        "qty": 200
+      },
+      "truth": {
+        "type": "C",
+        "value": 1e-07,
+        "package": "0402",
+        "voltage": 50
+      }
+    },
+    {
+      "record": {
+        "lcsc": "C1525",
+        "mpn": "CL05B104KO5NNNC",
+        "manufacturer": "Samsung Electro-Mechanics",
+        "description": "100nF ±10% 16V Ceramic Capacitor X7R 0402",
+        "package": "0402",
+        "section": "Passives - Capacitors > MLCC",
+        "qty": 5000
+      },
+      "truth": {
+        "type": "C",
+        "value": 1e-07,
+        "package": "0402",
+        "voltage": 16
+      }
+    },
+    {
+      "record": {
+        "lcsc": "C77005",
+        "mpn": "GRM155R61C104KA88D",
+        "manufacturer": "muRata",
+        "description": "100nF ±10% 16V Ceramic Capacitor X5R 0402",
+        "package": "0402",
+        "section": "Passives - Capacitors > MLCC",
+        "qty": 800
+      },
+      "truth": {
+        "type": "C",
+        "value": 1e-07,
+        "package": "0402",
+        "voltage": 16
+      }
+    },
+    {
+      "record": {
+        "lcsc": "C440198",
+        "mpn": "GRM21BR61H106KE43L",
+        "manufacturer": "muRata",
+        "description": "10uF ±10% 50V Ceramic Capacitor X5R 0805",
+        "package": "0805",
+        "section": "Passives - Capacitors > MLCC",
+        "qty": 150
+      },
+      "truth": {
+        "type": "C",
+        "value": 1e-05,
+        "package": "0805",
+        "voltage": 50
+      }
+    },
+    {
+      "record": {
+        "lcsc": "C14445",
+        "mpn": "CL05A105KP5NNNC",
+        "manufacturer": "Samsung Electro-Mechanics",
+        "description": "1uF ±10% 10V Ceramic Capacitor X5R 0402",
+        "package": "0402",
+        "section": "Passives - Capacitors > MLCC",
+        "qty": 1000
+      },
+      "truth": {
+        "type": "C",
+        "value": 1e-06,
+        "package": "0402",
+        "voltage": 10
+      }
+    },
+    {
+      "record": {
+        "lcsc": "C15849",
+        "mpn": "CL10A105KB8NNNC",
+        "manufacturer": "Samsung Electro-Mechanics",
+        "description": "1uF ±10% 50V Ceramic Capacitor X5R 0603",
+        "package": "0603",
+        "section": "Passives - Capacitors > MLCC",
+        "qty": 300
+      },
+      "truth": {
+        "type": "C",
+        "value": 1e-06,
+        "package": "0603",
+        "voltage": 50
+      }
+    },
+    {
+      "record": {
+        "lcsc": "C57112",
+        "mpn": "0603B103K500NT",
+        "manufacturer": "FH",
+        "description": "10nF ±10% 50V Ceramic Capacitor X7R 0603",
+        "package": "0603",
+        "section": "Passives - Capacitors > MLCC",
+        "qty": 700
+      },
+      "truth": {
+        "type": "C",
+        "value": 1e-08,
+        "package": "0603",
+        "voltage": 50
+      }
+    },
+    {
+      "record": {
+        "lcsc": "C25076",
+        "mpn": "0402WGF1000TCE",
+        "manufacturer": "UNI-ROYAL",
+        "description": "100Ω ±1% 62.5mW 0402 Thick Film Resistor",
+        "package": "0402",
+        "section": "Passives - Resistors > Chip Resistors",
+        "qty": 900
+      },
+      "truth": {
+        "type": "R",
+        "value": 100,
+        "package": "0402"
+      }
+    },
+    {
+      "record": {
+        "lcsc": "C106235",
+        "mpn": "RC0402FR-071KL",
+        "manufacturer": "YAGEO",
+        "description": "1kΩ 62.5mW 50V Thick Film Resistor ±100ppm/℃ ±1% 0402 Chip Resistor - Surface Mount RoHS",
+        "package": "0402",
+        "section": "Passives - Resistors > Chip Resistors",
+        "qty": 400
+      },
+      "truth": {
+        "type": "R",
+        "value": 1000,
+        "package": "0402"
+      }
+    },
+    {
+      "record": {
+        "lcsc": "C25741",
+        "mpn": "0402WGF1003TCE",
+        "manufacturer": "UNI-ROYAL",
+        "description": "100kΩ ±1% 62.5mW 0402 Thick Film Resistor",
+        "package": "0402",
+        "section": "Passives - Resistors > Chip Resistors",
+        "qty": 600
+      },
+      "truth": {
+        "type": "R",
+        "value": 100000,
+        "package": "0402"
+      }
+    },
+    {
+      "record": {
+        "lcsc": "C177242",
+        "mpn": "FXL0420-100-M",
+        "manufacturer": "cjiang",
+        "description": "1.6A 10uH ±20% 282mΩ 2.2A Molded inductor SMD,4.4x4.2mm Fixed Inductors RoHS",
+        "package": "SMD,4.4x4.2mm",
+        "section": "Passives - Inductors",
+        "qty": 20
+      },
+      "truth": {
+        "type": "L",
+        "value": 1e-05,
+        "package": "SMD 4.4x4.2mm"
+      }
+    },
+    {
+      "record": {
+        "lcsc": "C6186",
+        "mpn": "AMS1117-3.3",
+        "manufacturer": "Advanced Monolithic Systems",
+        "description": "3.3V Positive Fixed SOT-223 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators RoHS",
+        "package": "SOT-223",
+        "section": "ICs - Power / Voltage Regulators > LDOs",
+        "qty": 50
+      },
+      "truth": {
+        "type": "other",
+        "package": "SOT-223"
+      }
+    }
+  ]
+}

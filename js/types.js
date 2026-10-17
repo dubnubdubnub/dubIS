@@ -21,6 +21,22 @@
  * @property {boolean} dnp - Do Not Place flag
  * @property {boolean} [excluded] - The design's "Exclude from BOM" flag (board-only, see js/bom-status.js)
  * @property {string} [footprint] - Footprint, "Library:Name"
+ * @property {BomSpec} [spec] - What the distributor says about this row's LCSC
+ *   code (js/bom/bom-spec-lookup.js). Read by matching, never written back to
+ *   the BOM file — the user's own columns are what Save BOM writes.
+ */
+
+/**
+ * @typedef {Object} BomSpec
+ * @property {"lcsc"} source - Which distributor answered
+ * @property {string} code - The LCSC code that was looked up
+ * @property {string} mpn
+ * @property {string} manufacturer
+ * @property {string} description
+ * @property {string} package
+ * @property {string} category
+ * @property {string} subcategory
+ * @property {{name: string, value: string}[]} attributes
  */
 
 /**

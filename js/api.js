@@ -161,13 +161,18 @@ async function callHttp(entry, args, opts = {}) {
   const res = await fetch(url, init);
   if (!res.ok) {
     let message = res.statusText || `HTTP ${res.status}`;
+    let code = null;
     try {
       const errBody = await res.json();
       if (errBody && errBody.error) message = errBody.error;
+      if (errBody && typeof errBody.code === "string") code = errBody.code;
     } catch {
       // Non-JSON error body — fall back to statusText/status.
     }
-    throw new Error(message);
+    // status + the envelope's machine code ride on the Error so a caller that
+    // can tell an answer from a failure (apiRequest's) does not have to parse
+    // the human message: a 404 `product_not_found` is a normal answer.
+    throw Object.assign(new Error(message), { status: res.status, code });
   }
 
   const data = await res.json();
@@ -207,6 +212,26 @@ export async function api(method, ...args) {
     showToast("Error: " + e.message);
     return undefined;
   }
+}
+
+/**
+ * `api(method, ...)` without the catch: the error is THROWN, carrying `status`
+ * and the /v1 envelope's `code`, instead of being logged and toasted.
+ *
+ * For background callers that make many requests nobody asked for and must
+ * tell an answer from a failure themselves — js/bom/bom-spec-lookup.js asks
+ * LCSC about every unidentified BOM row, where an unknown code (404
+ * `product_not_found`) is a normal answer and a toast per row would be noise.
+ * Such a caller still owes the user a log line for real failures; this only
+ * moves the decision to it. HTTP-mapped methods only — the bridge has no
+ * status to carry.
+ * @param {string} method
+ * @param {...any} args
+ */
+export async function apiRequest(method, ...args) {
+  const entry = API_MAP[method];
+  if (!entry) throw new Error("apiRequest: " + method + " has no /v1 route");
+  return callHttp(entry, args);
 }
 
 /**

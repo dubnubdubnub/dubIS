@@ -344,9 +344,12 @@ export function setupEvents(handlers) {
   });
 
   // EventBus subscriptions
+  // Passive: an inventory refresh is not the user touching the BOM (it fires
+  // after every mutation anywhere, including a hover's price recording), so it
+  // must not force a collapsed BOM panel open — see BOM_REMATCHED.
   EventBus.on(Events.INVENTORY_UPDATED, () => {
     if (state.lastResults && state.lastFileName && state.bomRawRows.length) {
-      reprocessAndRender();
+      reprocessAndRender({ passive: true });
     }
   });
 

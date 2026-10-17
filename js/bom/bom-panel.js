@@ -2,7 +2,7 @@
    Imports pure logic and renderer, wires up DOM events and EventBus. */
 
 import { EventBus, Events } from '../event-bus.js';
-import { api, AppLog } from '../api.js';
+import { api, apiRequest, AppLog } from '../api.js';
 import { showToast, Modal, setupDropZone, resetDropZoneInput } from '../ui-helpers.js';
 import { UndoRedo } from '../undo-redo.js';
 import { store, setBomResults, setBomFootprintNearMisses, setBomMeta, snapshotLinks, savePreferences, publishPreferences } from '../store.js';
@@ -13,6 +13,7 @@ import { classifyBomRow, countBomWarnings, computeRows, buildStatusMap, buildLin
 import { renderDropZone, renderLoadedDropZone, renderBomSummary, renderPriceInfo, renderLinkingBanner, renderStagingHead, renderStagingRow } from './bom-renderer.js';
 import state from './bom-state.js';
 import { setupEvents } from './bom-events.js';
+import { createSpecLookup, codesNeedingSpec } from './bom-spec-lookup.js';
 
 // -- Helpers --
 
@@ -25,14 +26,65 @@ function aggregateFromRawRows() {
   return aggregateBomRows(state.bomRawRows, state.bomHeaders, state.bomCols).aggregated;
 }
 
-function reprocessAndRender() {
+// -- Distributor specs for unidentified rows --
+// One lookup per window session: the cache is keyed by LCSC code, so a
+// re-match (an edit, an inventory refresh, a link) re-applies what is already
+// known instead of asking again. See js/bom/bom-spec-lookup.js.
+const specLookup = createSpecLookup({
+  fetchProduct: (code) => apiRequest("fetch_lcsc_product", code),
+  log: AppLog,
+});
+
+/** Every match goes through here, so no path can forget the cached specs. */
+function runMatch(aggregated) {
+  specLookup.apply(aggregated);
+  return matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches, store.genericParts);
+}
+
+/** A staging cell is mid-edit: re-rendering the tbody now would discard the typing. */
+function editingStagingCell() {
+  const a = document.activeElement;
+  return !!(a && a.tagName === "INPUT" && a.closest("#bom-tbody"));
+}
+
+/**
+ * Ask LCSC about the rows the last match could not identify, and re-match if
+ * anything was learned. Fire-and-forget from every match; terminates because
+ * a re-match only follows a fetch that FOUND something, and a found code is
+ * cached for the session, so the re-match's own call asks nothing.
+ */
+async function refreshSpecs() {
+  const codes = codesNeedingSpec(state.lastResults);
+  if (codes.length === 0) return;
+  const outcome = await specLookup.lookup(codes);
+  if (outcome.found.length === 0) return;
+  // The BOM may have been cleared while we waited; nothing to upgrade then.
+  if (!state.lastResults || !state.bomRawRows.length) return;
+  // The focusout handler re-matches when the edit ends, and that match applies
+  // the cache — so skipping here loses nothing.
+  if (editingStagingCell()) return;
+  AppLog.info("BOM spec lookup: learned " + outcome.found.length + " LCSC spec(s); re-matching");
+  reprocessAndRender({ passive: true });
+}
+
+function kickSpecLookup() {
+  refreshSpecs().catch((e) => AppLog.warn("BOM spec lookup crashed: " + (e && e.message ? e.message : e)));
+}
+
+/**
+ * @param {{passive?: boolean}} [opts] `passive`: nobody asked for this
+ *   re-match (an inventory refresh, a spec lookup landing), so announce it as
+ *   BOM_REMATCHED — which does not force a collapsed BOM panel open.
+ */
+function reprocessAndRender(opts = {}) {
   const aggregated = aggregateFromRawRows();
-  const { results, footprintNearMisses } = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches, store.genericParts);
+  const { results, footprintNearMisses } = runMatch(aggregated);
   state.lastResults = results;
   setBomResults(results);
   setBomFootprintNearMisses(footprintNearMisses);
   setBomMeta({ headers: state.bomHeaders, cols: state.bomCols });
-  emitBomData();
+  emitBomData(!!opts.passive);
+  kickSpecLookup();
 }
 
 // -- Multiplier --
@@ -44,11 +96,15 @@ function getMultiplier() {
 
 // -- Compute effective rows and emit to inventory panel --
 
-function emitBomData() {
+function emitBomData(passive = false) {
   const rows = computeRows(state.lastResults, getMultiplier(), store.links);
   if (!rows) return;
   renderBomPanel(rows);
-  EventBus.emit(Events.BOM_LOADED, { rows, fileName: state.lastFileName, multiplier: getMultiplier() });
+  const payload = { rows, fileName: state.lastFileName, multiplier: getMultiplier() };
+  // Two literal emits, not a ternary: tests/js/event-bus-contract.test.js reads
+  // literal emit calls to prove every event is both emitted and heard.
+  if (passive) EventBus.emit(Events.BOM_REMATCHED, payload);
+  else EventBus.emit(Events.BOM_LOADED, payload);
 }
 
 // -- Render the BOM panel (editable raw rows + summary) --
@@ -179,7 +235,7 @@ function loadBomText(text, fileName, savedLinks) {
   });
 
   // Match
-  const { results, footprintNearMisses } = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches, store.genericParts);
+  const { results, footprintNearMisses } = runMatch(aggregated);
   state.lastResults = results;
   state.lastFileName = fileName;
   setBomResults(results);
@@ -192,6 +248,7 @@ function loadBomText(text, fileName, savedLinks) {
   AppLog.info("BOM loaded: " + fileName + " \u2014 " + rawRows.length + " rows, " + aggregated.size + " unique, " + matched + " matched, " + missing + " missing");
 
   emitBomData();
+  kickSpecLookup();
 
   const zone = document.getElementById("bom-drop-zone");
   zone.innerHTML = renderLoadedDropZone(fileName);

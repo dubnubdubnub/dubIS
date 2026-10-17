@@ -1,0 +1,45 @@
+{
+  "_comment": "Reproduces the 2026-10 'missing component matching is not working' report in scrubbed form: a KiCad BOM whose Value column holds the MPN, with no MPN or Description column, matched against an inventory that stocks substitutes rather than the exact parts. Keys are bomAggKey (the LCSC code here). `status` is matchBOM's raw status; `part` the inventory part key it must land on, or null; `match` the matchType. `truth` is the line's hand-checked spec, from the LCSC product page — the gate compares it against the inventory part's `truth`, never against anything the matcher parsed.",
+  "lines": {
+    "C77020": {
+      "status": "possible", "part": "C307331", "match": "value",
+      "truth": { "type": "C", "value": 1e-7, "package": "0402", "voltage": 50 },
+      "why": "Murata MPN as Value: GRM155R71H104KE14D contains '71H', which used to read as 71 henries. Three 100nF 0402 parts are stocked; the 16V ones have more stock, so without the voltage gate the qty tie-break picked a 16V part for a 50V line."
+    },
+    "C15850": {
+      "status": "possible", "part": "C440198", "match": "value",
+      "truth": { "type": "C", "value": 1e-5, "package": "0805", "voltage": 25 },
+      "why": "The only 10uF 0805 stocked is rated 50V — higher than the line's 25V, so it is a valid substitute."
+    },
+    "C52923": {
+      "status": "missing", "part": null,
+      "truth": { "type": "C", "value": 1e-6, "package": "0402", "voltage": 25 },
+      "why": "The only 1uF 0402 stocked is rated 10V (below 25V) and the 50V 1uF is 0603. Both are wrong answers; the line must stay missing."
+    },
+    "C15195": {
+      "status": "missing", "part": null,
+      "truth": { "type": "C", "value": 1e-8, "package": "0402", "voltage": 50 },
+      "why": "Classic value-in-Value line. The only 10nF stocked is 0603 — a footprint near-miss, not a match."
+    },
+    "C11702": {
+      "status": "possible", "part": "C106235", "match": "value",
+      "truth": { "type": "R", "value": 1000, "package": "0402" },
+      "why": "The reported bug: 0402WGF1001TCE (1kΩ) shares a 10-char prefix with the stocked 0402WGF1000TCE (100Ω), and fuzzy matching used to offer the 100Ω part. The correct suggestion is the Yageo 1kΩ."
+    },
+    "C25744": {
+      "status": "missing", "part": null,
+      "truth": { "type": "R", "value": 10000, "package": "0402" },
+      "why": "0402WGF1002TCE (10kΩ): its UniOhm neighbours 0402WGF1000TCE (100Ω) and 0402WGF1003TCE (100kΩ) are stocked, no 10kΩ is. Prefix similarity must not produce a match."
+    },
+    "C408339": {
+      "status": "missing", "part": null,
+      "truth": { "type": "L", "value": 1e-5, "package": "Sunlord MWSA0402S (4x4mm)" },
+      "why": "LCSC answers product_not_found for this code, so nothing is known about the line beyond its MPN. The stocked 10uH molded inductor is plausible but unproven; unknown is never a pass."
+    },
+    "C6186": {
+      "status": "ok", "part": "C6186", "match": "lcsc",
+      "truth": { "type": "other", "package": "SOT-223" },
+      "why": "Identity control: an exact LCSC match is untouched by any of this, and is never looked up."
+    }
+  }
+}

@@ -228,6 +228,7 @@ graph LR
     "js/bom/bom-panel.js" --> "js/bom/bom-events.js"
     "js/bom/bom-panel.js" --> "js/bom/bom-logic.js"
     "js/bom/bom-panel.js" --> "js/bom/bom-renderer.js"
+    "js/bom/bom-panel.js" --> "js/bom/bom-spec-lookup.js"
     "js/bom/bom-panel.js" --> "js/bom/bom-state.js"
     "js/bom/bom-panel.js" --> "js/csv-parser.js"
     "js/bom/bom-panel.js" --> "js/event-bus.js"
@@ -809,6 +810,7 @@ graph LR
     "tests/js/matching-perf.test.js" --> "js/matching.js"
     "tests/js/matching-perf.test.js" --> "js/part-keys.js"
     "tests/js/matching-resistor-values.test.js" --> "js/matching.js"
+    "tests/js/matching-spec.test.js" --> "js/matching.js"
     "tests/js/matching.test.js" --> "js/matching.js"
     "tests/js/matching.test.js" --> "js/part-keys.js"
     "tests/js/mfg-direct-logic.test.js" --> "js/import/mfg-direct/mfg-direct-logic.js"
@@ -1224,6 +1226,7 @@ graph LR
 |---|---|---|
 | `BOM_CLEARED` | `js/bom/bom-events.js` | `js/app-init.js`, `js/inventory/inv-events.js` |
 | `BOM_LOADED` | `js/bom/bom-panel.js` | `js/app-init.js`, `js/inventory/inv-events.js` |
+| `BOM_REMATCHED` | `js/bom/bom-panel.js` | `js/inventory/inv-events.js` |
 | `CONFIRMED_CHANGED` | `js/store.js` | `js/app-init.js`, `js/bom/bom-events.js`, `tests/js/store.test.js` |
 | `FLYOUT_ACTIVE_CHANGED` | `js/group-flyout/flyout-panel.js` | `js/inventory/inv-events.js` |
 | `FLYOUT_CLOSED` | `js/group-flyout/flyout-panel.js` | `js/inventory/inv-events.js` |
@@ -1668,15 +1671,20 @@ graph LR
 
 ### js/bom/bom-panel.js
 
-- **Imports:** `js/api.js`, `js/bom/bom-events.js`, `js/bom/bom-logic.js`, `js/bom/bom-renderer.js`, `js/bom/bom-state.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/matching.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
+- **Imports:** `js/api.js`, `js/bom/bom-events.js`, `js/bom/bom-logic.js`, `js/bom/bom-renderer.js`, `js/bom/bom-spec-lookup.js`, `js/bom/bom-state.js`, `js/csv-parser.js`, `js/event-bus.js`, `js/matching.js`, `js/part-keys.js`, `js/store.js`, `js/ui-helpers.js`, `js/undo-redo.js`
 - **Imported by:** `js/app-init.js`
-- **Emits:** `BOM_LOADED`
+- **Emits:** `BOM_LOADED`, `BOM_REMATCHED`
 - **Listens:** —
 
 ### js/bom/bom-renderer.js
 
 - **Imports:** `js/bom-status.js`, `js/bom/board-features.js`, `js/layout-tokens.js`, `js/part-keys.js`, `js/ui-helpers.js`
 - **Imported by:** `js/bom/bom-panel.js`, `tests/js/bom-renderer.test.js`
+
+### js/bom/bom-spec-lookup.js
+
+- **Imports:** —
+- **Imported by:** `js/bom/bom-panel.js`
 
 ### js/bom/bom-state.js
 
@@ -1987,7 +1995,7 @@ graph LR
 - **Imports:** `js/api.js`, `js/event-bus.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-sort-group.js`, `js/inventory/inv-state.js`, `js/inventory/inventory-logic.js`, `js/inventory/vendor-flyout.js`, `js/preferences-logic.js`, `js/signals.js`, `js/store.js`, `js/threshold-profiles.js`, `js/ui-helpers.js`
 - **Imported by:** `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`
 - **Emits:** —
-- **Listens:** `BOM_CLEARED`, `BOM_LOADED`, `FLYOUT_ACTIVE_CHANGED`, `FLYOUT_CLOSED`, `FLYOUT_OPENED`, `FLYOUT_SEARCH_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LABEL_BULK_SELECTION`, `LABEL_MODE`, `LINKING_MODE`, `PO_CHANGED`, `VENDORS_CHANGED`
+- **Listens:** `BOM_CLEARED`, `BOM_LOADED`, `BOM_REMATCHED`, `FLYOUT_ACTIVE_CHANGED`, `FLYOUT_CLOSED`, `FLYOUT_OPENED`, `FLYOUT_SEARCH_CHANGED`, `INVENTORY_LOADED`, `INVENTORY_UPDATED`, `LABEL_BULK_SELECTION`, `LABEL_MODE`, `LINKING_MODE`, `PO_CHANGED`, `VENDORS_CHANGED`
 
 ### js/inventory/inv-groups-view.js
 
@@ -2124,7 +2132,7 @@ graph LR
 ### js/matching.js
 
 - **Imports:** `js/part-keys.js`
-- **Imported by:** `js/app-init.js`, `js/bom-row-data.js`, `js/bom/bom-panel.js`, `tests/js/board-features.test.js`, `tests/js/matching-alt-package-ohm.test.js`, `tests/js/matching-footprint.test.js`, `tests/js/matching-perf.test.js`, `tests/js/matching-resistor-values.test.js`, `tests/js/matching.test.js`, `tests/js/real-data.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom-row-data.js`, `js/bom/bom-panel.js`, `tests/js/board-features.test.js`, `tests/js/matching-alt-package-ohm.test.js`, `tests/js/matching-footprint.test.js`, `tests/js/matching-perf.test.js`, `tests/js/matching-resistor-values.test.js`, `tests/js/matching-spec.test.js`, `tests/js/matching.test.js`, `tests/js/real-data.test.js`
 
 ### js/panel-collapse-logic.js
 
@@ -2971,6 +2979,11 @@ graph LR
 - **Imported by:** —
 
 ### tests/js/matching-resistor-values.test.js
+
+- **Imports:** `js/matching.js`
+- **Imported by:** —
+
+### tests/js/matching-spec.test.js
 
 - **Imports:** `js/matching.js`
 - **Imported by:** —

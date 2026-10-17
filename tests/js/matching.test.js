@@ -186,10 +186,19 @@ describe('valuesCompatible', () => {
     expect(valuesCompatible(bom, inv)).toBe(false);
   });
 
-  it('returns true when value unparseable (benefit of doubt)', () => {
+  // Deliberately reversed: this used to be "benefit of doubt" (true), and that
+  // doubt is exactly how a Value=MPN KiCad line for a 1kΩ resistor "possibly"
+  // matched the 100Ω part sharing its MPN prefix. Unknown is never a pass.
+  it('returns false when the BOM value is unparseable (unknown is never a pass)', () => {
     const bom = { value: 'XYZ', desc: '' };
     const inv = { description: 'Capacitor 100nF' };
-    expect(valuesCompatible(bom, inv)).toBe(true);
+    expect(valuesCompatible(bom, inv)).toBe(false);
+  });
+
+  it('returns false when the inventory value is unparseable', () => {
+    const bom = { value: '100n', desc: '' };
+    const inv = { description: 'Capacitor, see datasheet' };
+    expect(valuesCompatible(bom, inv)).toBe(false);
   });
 
   it('handles zero values correctly', () => {

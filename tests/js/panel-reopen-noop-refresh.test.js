@@ -195,3 +195,21 @@ describe('a no-op inventory refresh reopens nothing', () => {
     EventBus.off(Events.VENDORS_CHANGED, vend);
   });
 });
+
+// ── 4. The BOM's own background re-match ──────────────────────────────────────
+
+/* The BOM panel re-matches on its own twice over: after every inventory
+   refresh (the same SSE chain as above), and when an LCSC spec lookup for an
+   unidentified row lands (js/bom/bom-spec-lookup.js). Neither is the user
+   touching the BOM, so neither may announce itself as BOM_LOADED — that is a
+   ONE_SHOT reopen trigger. They emit BOM_REMATCHED, which must stay off the
+   reopen table. The behavioural half is tests/js/e2e/bom-spec-lookup.spec.mjs
+   ("does not reopen a collapsed BOM panel"). */
+describe('a background BOM re-match reopens nothing', () => {
+  it('BOM_REMATCHED exists and is not a reopen trigger', () => {
+    expect(Events.BOM_REMATCHED).toBeDefined();
+    expect(REOPEN_TRIGGERS.BOM_REMATCHED,
+      'BOM_REMATCHED is the passive twin of BOM_LOADED; making it a reopen trigger '
+      + 'would force the collapsed BOM panel open on every inventory refresh').toBeUndefined();
+  });
+});
