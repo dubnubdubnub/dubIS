@@ -19,6 +19,8 @@
  * @property {number} qty - Total quantity needed
  * @property {string} refs - Comma-separated designators (e.g. "R1,R2,R3")
  * @property {boolean} dnp - Do Not Place flag
+ * @property {boolean} [excluded] - The design's "Exclude from BOM" flag (board-only, see js/bom-status.js)
+ * @property {string} [footprint] - Footprint, "Library:Name"
  */
 
 /**
@@ -30,7 +32,8 @@
  * @property {string|null} matchType - "exact"|"confirmed"|"manual"|"value"|"fuzzy"|"prefix"|null
  * @property {string} status - Raw status from matchBOM
  * @property {number} effectiveQty - Qty after multiplier
- * @property {string} effectiveStatus - "ok"|"short"|"possible"|"missing"|"manual"|"confirmed"|"dnp"|"manual-short"|"confirmed-short"
+ * @property {string} effectiveStatus - one of BOM_STATUS_IDS in js/bom-status.js (the registry declares what each means)
+ * @property {string|null} [boardReason] - Why a board-only row is a board feature (user-facing), else null
  * @property {number} [altQty] - Total qty across alts
  * @property {number} [combinedQty] - inv.qty + altQty
  * @property {boolean} [coveredByAlts] - Whether alts cover the shortfall

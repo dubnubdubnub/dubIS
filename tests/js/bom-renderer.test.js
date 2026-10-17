@@ -117,6 +117,16 @@ describe('renderBomSummary', () => {
     expect(html).not.toContain('DNP');
   });
 
+  it('shows a board-only chip, with its explanation, when > 0', () => {
+    const html = renderBomSummary({ ...counts, boardOnly: 7 }, 'bom.csv', 1);
+    expect(html).toMatch(/<span class="chip grey chip-board-only" title="[^"]*board features[^"]*">7 board-only<\/span>/);
+  });
+
+  it('hides the board-only chip when 0 or absent', () => {
+    expect(renderBomSummary({ ...counts, boardOnly: 0 }, 'bom.csv', 1)).not.toContain('board-only');
+    expect(renderBomSummary(counts, 'bom.csv', 1)).not.toContain('board-only');
+  });
+
   it('shows covered chip when > 0', () => {
     const html = renderBomSummary(counts, 'bom.csv', 1);
     expect(html).toContain('1 covered');
@@ -269,6 +279,16 @@ describe('renderStagingRow', () => {
   it('applies row-dnp class for DNP', () => {
     const html = renderStagingRow(['C123', '', '1'], 0, cols, headers, null, false, 'dnp');
     expect(html).toContain('row-dnp');
+  });
+
+  it('greys a board-only row and puts its reason on the row and the status cell', () => {
+    const kcols = { lcsc: 3, lcscCols: [3], mpn: 0, qty: -1, ref: 1, desc: -1, value: 0, footprint: 2, dnp: 4, exclude: 5 };
+    const kheaders = ['Value', 'Reference', 'Footprint', 'LCSC', 'DNP', 'Exclude from BOM'];
+    const html = renderStagingRow(['Fiducial', 'FID1', 'Fiducial:Fiducial_1mm_Mask2mm', '', '', ''], 0, kcols, kheaders, null, false, 'board-only');
+    expect(html).toContain('class="row-board-only"');
+    expect(html).toMatch(/<tr[^>]*title="Fiducial[^"]*nothing to place"/);
+    expect(html).toMatch(/<td class="status" title="Fiducial[^"]*" aria-label="Fiducial[^"]*">\u25CC<\/td>/);
+    expect(html).not.toContain('data-action="link"');
   });
 
   it('applies status row class for ok rows with status', () => {

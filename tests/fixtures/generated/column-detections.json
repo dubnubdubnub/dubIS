@@ -4,6 +4,9 @@
     "9": "Manufacturer",
     "1": "Quantity"
   },
+  "Value,Reference,Footprint,LCSC,DNP,Exclude from BOM": {
+    "3": "LCSC Part Number"
+  },
   "Designator*,Quantity*,Manufacturer Part Number*,Value,Procurement Type,Exclude from BOM,Exclude from Board": {
     "2": "Manufacture Part Number",
     "1": "Quantity"

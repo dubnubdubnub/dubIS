@@ -157,7 +157,9 @@ export function setupEvents(handlers) {
     const mult = getMultiplier();
     const note = document.getElementById("consume-note").value;
 
-    const { matches } = prepareConsumption(state.lastResults);
+    // Computed rows, not raw results: the status is what says a row is DNP
+    // or board-only, and neither is ever consumed (js/bom-status.js).
+    const { matches } = prepareConsumption(computeRows(state.lastResults, mult, store.links));
 
     if (matches.length === 0) {
       showToast("No matched parts to consume");

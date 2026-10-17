@@ -203,9 +203,11 @@ graph LR
     "js/app-init.js" --> "js/ui-zoom.js"
     "js/app-init.js" --> "js/undo-redo.js"
     "js/app-init.js" --> "js/vendors-modal.js"
+    "js/bom-row-data.js" --> "js/bom-status.js"
     "js/bom-row-data.js" --> "js/category-match.js"
     "js/bom-row-data.js" --> "js/matching.js"
     "js/bom-row-data.js" --> "js/part-keys.js"
+    "js/bom/board-features.js" --> "js/csv-parser.js"
     "js/bom/bom-events.js" --> "js/api.js"
     "js/bom/bom-events.js" --> "js/bom/bom-logic.js"
     "js/bom/bom-events.js" --> "js/bom/bom-state.js"
@@ -218,6 +220,8 @@ graph LR
     "js/bom/bom-events.js" --> "js/store.js"
     "js/bom/bom-events.js" --> "js/ui-helpers.js"
     "js/bom/bom-events.js" --> "js/undo-redo.js"
+    "js/bom/bom-logic.js" --> "js/bom-status.js"
+    "js/bom/bom-logic.js" --> "js/bom/board-features.js"
     "js/bom/bom-logic.js" --> "js/csv-parser.js"
     "js/bom/bom-logic.js" --> "js/part-keys.js"
     "js/bom/bom-panel.js" --> "js/api.js"
@@ -232,6 +236,8 @@ graph LR
     "js/bom/bom-panel.js" --> "js/store.js"
     "js/bom/bom-panel.js" --> "js/ui-helpers.js"
     "js/bom/bom-panel.js" --> "js/undo-redo.js"
+    "js/bom/bom-renderer.js" --> "js/bom-status.js"
+    "js/bom/bom-renderer.js" --> "js/bom/board-features.js"
     "js/bom/bom-renderer.js" --> "js/layout-tokens.js"
     "js/bom/bom-renderer.js" --> "js/part-keys.js"
     "js/bom/bom-renderer.js" --> "js/ui-helpers.js"
@@ -441,6 +447,7 @@ graph LR
     "js/inventory/inv-groups-view.js" --> "js/inventory/inventory-logic.js"
     "js/inventory/inv-groups-view.js" --> "js/store.js"
     "js/inventory/inv-groups-view.js" --> "js/ui-helpers.js"
+    "js/inventory/inv-html-builders.js" --> "js/bom-status.js"
     "js/inventory/inv-html-builders.js" --> "js/col-resize-logic.js"
     "js/inventory/inv-html-builders.js" --> "js/inventory/favicon-stack.js"
     "js/inventory/inv-html-builders.js" --> "js/inventory/inv-source-logic.js"
@@ -494,6 +501,7 @@ graph LR
     "js/inventory/inv-tree-render.js" --> "js/inventory/inventory-logic.js"
     "js/inventory/inv-tree-render.js" --> "js/store.js"
     "js/inventory/inv-tree-render.js" --> "js/ui-helpers.js"
+    "js/inventory/inventory-logic.js" --> "js/bom-status.js"
     "js/inventory/inventory-logic.js" --> "js/category-match.js"
     "js/inventory/inventory-logic.js" --> "js/inventory/inv-source-logic.js"
     "js/inventory/inventory-logic.js" --> "js/part-keys.js"
@@ -553,6 +561,7 @@ graph LR
     "js/panel-collapse.js" --> "js/api.js"
     "js/panel-collapse.js" --> "js/panel-collapse-logic.js"
     "js/panel-collapse.js" --> "js/store.js"
+    "js/part-keys.js" --> "js/bom-status.js"
     "js/part-keys.js" --> "js/csv-parser.js"
     "js/part-keys.js" --> "js/ui-helpers.js"
     "js/part-preview.js" --> "js/api.js"
@@ -745,6 +754,11 @@ graph LR
     "tests/js/api-client.test.js" --> "js/ui-helpers.js"
     "tests/js/api.test.js" --> "js/api.js"
     "tests/js/api.test.js" --> "js/ui-helpers.js"
+    "tests/js/board-features.test.js" --> "js/bom/board-features.js"
+    "tests/js/board-features.test.js" --> "js/bom/bom-logic.js"
+    "tests/js/board-features.test.js" --> "js/csv-parser.js"
+    "tests/js/board-features.test.js" --> "js/matching.js"
+    "tests/js/board-features.test.js" --> "js/part-keys.js"
     "tests/js/bom-dirty-invariant.test.js" --> "js/api.js"
     "tests/js/bom-dirty-invariant.test.js" --> "js/store.js"
     "tests/js/bom-label-checkbox.test.js" --> "js/inventory/inv-mutations.js"
@@ -1627,8 +1641,18 @@ graph LR
 
 ### js/bom-row-data.js
 
-- **Imports:** `js/category-match.js`, `js/matching.js`, `js/part-keys.js`
+- **Imports:** `js/bom-status.js`, `js/category-match.js`, `js/matching.js`, `js/part-keys.js`
 - **Imported by:** `tests/js/bom-row-display.test.js`, `tests/js/matching-alt-package-ohm.test.js`
+
+### js/bom-status.js
+
+- **Imports:** —
+- **Imported by:** `js/bom-row-data.js`, `js/bom/bom-logic.js`, `js/bom/bom-renderer.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inventory-logic.js`, `js/part-keys.js`
+
+### js/bom/board-features.js
+
+- **Imports:** `js/csv-parser.js`
+- **Imported by:** `js/bom/bom-logic.js`, `js/bom/bom-renderer.js`, `tests/js/board-features.test.js`
 
 ### js/bom/bom-events.js
 
@@ -1639,8 +1663,8 @@ graph LR
 
 ### js/bom/bom-logic.js
 
-- **Imports:** `js/csv-parser.js`, `js/part-keys.js`
-- **Imported by:** `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `tests/js/bom-logic.test.js`, `tests/js/matching-alt-package-ohm.test.js`
+- **Imports:** `js/bom-status.js`, `js/bom/board-features.js`, `js/csv-parser.js`, `js/part-keys.js`
+- **Imported by:** `js/bom/bom-events.js`, `js/bom/bom-panel.js`, `tests/js/board-features.test.js`, `tests/js/bom-logic.test.js`, `tests/js/matching-alt-package-ohm.test.js`
 
 ### js/bom/bom-panel.js
 
@@ -1651,7 +1675,7 @@ graph LR
 
 ### js/bom/bom-renderer.js
 
-- **Imports:** `js/layout-tokens.js`, `js/part-keys.js`, `js/ui-helpers.js`
+- **Imports:** `js/bom-status.js`, `js/bom/board-features.js`, `js/layout-tokens.js`, `js/part-keys.js`, `js/ui-helpers.js`
 - **Imported by:** `js/bom/bom-panel.js`, `tests/js/bom-renderer.test.js`
 
 ### js/bom/bom-state.js
@@ -1737,7 +1761,7 @@ graph LR
 ### js/csv-parser.js
 
 - **Imports:** —
-- **Imported by:** `js/app-init.js`, `js/bom/bom-events.js`, `js/bom/bom-logic.js`, `js/bom/bom-panel.js`, `js/import/import-panel.js`, `js/part-keys.js`, `tests/js/csv-parser.test.js`, `tests/js/real-data.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom/board-features.js`, `js/bom/bom-events.js`, `js/bom/bom-logic.js`, `js/bom/bom-panel.js`, `js/import/import-panel.js`, `js/part-keys.js`, `tests/js/board-features.test.js`, `tests/js/csv-parser.test.js`, `tests/js/real-data.test.js`
 
 ### js/digikey-logic.js
 
@@ -1972,7 +1996,7 @@ graph LR
 
 ### js/inventory/inv-html-builders.js
 
-- **Imports:** `js/col-resize-logic.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-source-logic.js`, `js/label-selection.js`, `js/part-keys.js`, `js/ui-helpers.js`
+- **Imports:** `js/bom-status.js`, `js/col-resize-logic.js`, `js/inventory/favicon-stack.js`, `js/inventory/inv-source-logic.js`, `js/label-selection.js`, `js/part-keys.js`, `js/ui-helpers.js`
 - **Imported by:** `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-row-build.js`, `js/inventory/inventory-panel.js`, `tests/js/inventory-rendering.test.js`
 
 ### js/inventory/inv-import-markers.js
@@ -2027,7 +2051,7 @@ graph LR
 
 ### js/inventory/inventory-logic.js
 
-- **Imports:** `js/category-match.js`, `js/inventory/inv-source-logic.js`, `js/part-keys.js`
+- **Imports:** `js/bom-status.js`, `js/category-match.js`, `js/inventory/inv-source-logic.js`, `js/part-keys.js`
 - **Imported by:** `js/inventory/filter-chips-fields.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-events.js`, `js/inventory/inv-groups-view.js`, `js/inventory/inv-tree-render.js`, `js/inventory/inventory-panel.js`, `tests/js/inventory-logic.test.js`
 
 ### js/inventory/inventory-panel.js
@@ -2100,7 +2124,7 @@ graph LR
 ### js/matching.js
 
 - **Imports:** `js/part-keys.js`
-- **Imported by:** `js/app-init.js`, `js/bom-row-data.js`, `js/bom/bom-panel.js`, `tests/js/matching-alt-package-ohm.test.js`, `tests/js/matching-footprint.test.js`, `tests/js/matching-perf.test.js`, `tests/js/matching-resistor-values.test.js`, `tests/js/matching.test.js`, `tests/js/real-data.test.js`
+- **Imported by:** `js/app-init.js`, `js/bom-row-data.js`, `js/bom/bom-panel.js`, `tests/js/board-features.test.js`, `tests/js/matching-alt-package-ohm.test.js`, `tests/js/matching-footprint.test.js`, `tests/js/matching-perf.test.js`, `tests/js/matching-resistor-values.test.js`, `tests/js/matching.test.js`, `tests/js/real-data.test.js`
 
 ### js/panel-collapse-logic.js
 
@@ -2119,8 +2143,8 @@ graph LR
 
 ### js/part-keys.js
 
-- **Imports:** `js/csv-parser.js`, `js/ui-helpers.js`
-- **Imported by:** `js/app-init.js`, `js/bom-row-data.js`, `js/bom/bom-events.js`, `js/bom/bom-logic.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/cart/cart-add.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/feeders-logic.js`, `js/feeders-modal.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory/adjust-modal.js`, `js/inventory/fetch-controller.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-source-view.js`, `js/inventory/inventory-logic.js`, `js/inventory/price-modal.js`, `js/label-selection.js`, `js/matching.js`, `tests/js/matching-alt-package-ohm.test.js`, `tests/js/matching-perf.test.js`, `tests/js/matching.test.js`, `tests/js/part-keys.test.js`, `tests/js/real-data.test.js`
+- **Imports:** `js/bom-status.js`, `js/csv-parser.js`, `js/ui-helpers.js`
+- **Imported by:** `js/app-init.js`, `js/bom-row-data.js`, `js/bom/bom-events.js`, `js/bom/bom-logic.js`, `js/bom/bom-panel.js`, `js/bom/bom-renderer.js`, `js/cart/cart-add.js`, `js/cart/cart-header.js`, `js/cart/cart-modal.js`, `js/feeders-logic.js`, `js/feeders-modal.js`, `js/import/mfg-direct/mfg-direct-panel.js`, `js/inventory/adjust-modal.js`, `js/inventory/fetch-controller.js`, `js/inventory/inv-bom-mode.js`, `js/inventory/inv-bom-view.js`, `js/inventory/inv-html-builders.js`, `js/inventory/inv-inline-edit.js`, `js/inventory/inv-mutations.js`, `js/inventory/inv-row-build.js`, `js/inventory/inv-source-view.js`, `js/inventory/inventory-logic.js`, `js/inventory/price-modal.js`, `js/label-selection.js`, `js/matching.js`, `tests/js/board-features.test.js`, `tests/js/matching-alt-package-ohm.test.js`, `tests/js/matching-perf.test.js`, `tests/js/matching.test.js`, `tests/js/part-keys.test.js`, `tests/js/real-data.test.js`
 
 ### js/part-preview.js
 
@@ -2732,6 +2756,11 @@ graph LR
 ### tests/js/api.test.js
 
 - **Imports:** `js/api.js`, `js/ui-helpers.js`
+- **Imported by:** —
+
+### tests/js/board-features.test.js
+
+- **Imports:** `js/bom/board-features.js`, `js/bom/bom-logic.js`, `js/csv-parser.js`, `js/matching.js`, `js/part-keys.js`
 - **Imported by:** —
 
 ### tests/js/bom-dirty-invariant.test.js

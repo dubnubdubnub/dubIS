@@ -23,6 +23,7 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 
 import { compressRefs, countStatuses, invPartKey } from '../../../js/part-keys.js';
+import { BOM_STATUS_IDS } from '../../../js/bom-status.js';
 import {
   IDENTITY_FIELDS,
   PART_KEY_BRANCHES,
@@ -204,10 +205,9 @@ describe('compressRefs — no designator is lost', () => {
 
 // ── countStatuses ────────────────────────────────────────────────────────────
 
-const STATUSES = [
-  'ok', 'short', 'possible', 'missing', 'manual', 'confirmed',
-  'manual-short', 'confirmed-short', 'generic', 'generic-short', 'dnp',
-];
+// Every declared status, read from the registry rather than retyped — a
+// retyped list is exactly how a new status escapes these properties.
+const STATUSES = BOM_STATUS_IDS;
 
 describe('countStatuses — the tallies reconcile', () => {
   const rows = () => fc.array(
@@ -218,11 +218,11 @@ describe('countStatuses — the tallies reconcile', () => {
     { maxLength: 40 },
   );
 
-  it('total is every row and utbp is total minus the DNPs', () => {
+  it('total is every row and utbp is total minus the DNP and board-only rows', () => {
     fc.assert(fc.property(rows(), (list) => {
       const c = countStatuses(list);
       expect(c.total).toBe(list.length);
-      expect(c.utbp).toBe(c.total - c.dnp);
+      expect(c.utbp).toBe(c.total - c.dnp - c.boardOnly);
     }));
   });
 
@@ -241,14 +241,14 @@ describe('countStatuses — the tallies reconcile', () => {
   });
 
   it('the exclusive buckets never over-count the rows', () => {
-    // ok / short / possible / missing / dnp are mutually exclusive, but they do
+    // ok / short / possible / missing / dnp / boardOnly are mutually exclusive, but they do
     // NOT partition: a plain `manual`, `confirmed` or `generic` row lands in
     // none of them, which the first draft of this test wrongly assumed. They
     // get their own counters and their own filter buttons, so the honest
     // invariant is a bound, not an equality.
     fc.assert(fc.property(rows(), (list) => {
       const c = countStatuses(list);
-      expect(c.ok + c.short + c.possible + c.missing + c.dnp).toBeLessThanOrEqual(c.total);
+      expect(c.ok + c.short + c.possible + c.missing + c.dnp + c.boardOnly).toBeLessThanOrEqual(c.total);
       for (const key of ['manual', 'confirmed', 'generic', 'covered']) {
         expect(c[key]).toBeLessThanOrEqual(c.total);
       }

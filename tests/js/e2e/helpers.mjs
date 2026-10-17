@@ -263,9 +263,16 @@ export async function loadBom(page, bomCsv) {
 /**
  * Load BOM via evaluate — detailed version with full status computation.
  * Populates inventory panel only (no staging table).
+ *
+ * The statuses come from the app's own computeRows (js/bom/bom-logic.js),
+ * imported into the page by URL — the same module instance the app uses —
+ * rather than re-derived here. This helper used to hand-roll its own copy of
+ * the status rules, which is one more place a new status (board-only, say)
+ * silently never reached; see js/bom-status.js.
  */
 export async function loadBomViaEmit(page, bomCsv) {
-  await page.evaluate((csv) => {
+  await page.evaluate(async (csv) => {
+    const { computeRows } = await import('/js/bom/bom-logic.js');
     const result = processBOM(csv, 'test-bom.csv');
     if (!result) throw new Error('processBOM returned null');
     const { headers, cols, aggregated } = result;
@@ -274,24 +281,7 @@ export async function loadBomViaEmit(page, bomCsv) {
     const { results } = matchBOM(aggregated, store.inventory, store.links.manualLinks, store.links.confirmedMatches);
     store.bomResults = results;
     store.bomFileName = 'test-bom.csv';
-    const rows = results.map(r => {
-      let status;
-      if (r.bom.dnp) status = 'dnp';
-      else if (!r.inv) status = 'missing';
-      else if (r.matchType === 'value' || r.matchType === 'fuzzy') status = 'possible';
-      else if (r.bom.qty <= r.inv.qty) status = 'ok';
-      else status = 'short';
-      const altQty = (r.alts || []).reduce((s, a) => s + a.qty, 0);
-      const combinedQty = (r.inv ? r.inv.qty : 0) + altQty;
-      return {
-        ...r,
-        effectiveQty: r.bom.qty,
-        effectiveStatus: status,
-        altQty,
-        combinedQty,
-        coveredByAlts: status === 'short' && combinedQty >= r.bom.qty,
-      };
-    });
+    const rows = computeRows(results, 1, store.links);
     EventBus.emit(Events.BOM_LOADED, { rows, fileName: 'test-bom.csv', multiplier: 1 });
   }, bomCsv);
 }

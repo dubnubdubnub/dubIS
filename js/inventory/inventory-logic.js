@@ -4,6 +4,7 @@
    bom-comparison.js, and bom-row-data.js. */
 
 import { bomKey, invPartKey } from '../part-keys.js';
+import { BOM_STATUSES, BOM_STATUS_IDS } from '../bom-status.js';
 import { matchesCategoryName } from '../category-match.js';
 import { sourceNames } from './inv-source-logic.js';
 
@@ -188,11 +189,9 @@ export function computeMatchedInvKeys(bomData) {
 
 // ── BOM status sort order ──
 
-export var BOM_STATUS_SORT_ORDER = {
-  missing: 0, "manual-short": 0.4, manual: 0.5,
-  "confirmed-short": 0.7, confirmed: 0.75,
-  possible: 1, short: 2, ok: 3, dnp: 4,
-};
+// Derived from each status's `sortWeight` in js/bom-status.js.
+export var BOM_STATUS_SORT_ORDER = Object.fromEntries(
+  BOM_STATUS_IDS.map(function (id) { return [id, BOM_STATUSES[id].sortWeight]; }));
 
 /**
  * Sort BOM rows by status priority.

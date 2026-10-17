@@ -120,6 +120,15 @@ tr.row-dnp td { color: var(--color-gray-muted); text-decoration: line-through; }
 tr.row-dnp td.row-delete { text-decoration: none; }
 tr.row-dnp td input { color: var(--color-gray-muted); text-decoration: line-through; }
 
+/* Board-only (fiducial, mounting hole, test pad, Tag-Connect, excluded from
+   BOM): greyed like DNP but NOT struck through — DNP is a part deliberately
+   left off, this is copper that was never a part. Italic, so the two stay
+   distinguishable side by side. */
+tr.row-board-only { --row-bg: var(--row-board-only-bg); background: var(--row-bg); }
+tr.row-board-only td { color: var(--color-gray-muted); font-style: italic; }
+tr.row-board-only td.status { font-style: normal; }
+tr.row-board-only td input { color: var(--color-gray-muted); font-style: italic; }
+
 tr.row-yellow-covered { --row-bg: var(--row-green-covered-bg); background: var(--row-bg); border-left: 3px solid var(--color-green); }
 tr.row-yellow-covered td.status { color: var(--color-green); }
 
@@ -150,6 +159,7 @@ td.inv-qty-cell,
 .qty-manual { color: var(--color-pink); }
 .qty-manual-short { color: var(--color-pink-dark); }
 .qty-dnp { color: var(--color-gray-muted); }
+.qty-board-only { color: var(--color-gray-muted); }
 .qty-confirmed { color: var(--color-teal); }
 .qty-confirmed-short { color: var(--color-teal-dark); }
 .qty-generic { color: var(--color-purple-light); }

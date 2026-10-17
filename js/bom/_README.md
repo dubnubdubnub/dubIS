@@ -23,7 +23,8 @@ inventory comparison view (rendered by `js/inventory/inv-bom-mode.js`).
 ## Public exports
 
 - `bom-panel.js`: `init` — mount point; wires drop zone, consume modal, and event handlers
-- `bom-logic.js`: `classifyBomRow`, `countBomWarnings`, `computeRows`, `buildStatusMap`, `buildLinkableKeys`, `prepareConsumption`, `computePriceInfo` — pure BOM logic
+- `bom-logic.js`: `classifyBomRow`, `countBomWarnings`, `computeRows`, `buildStatusMap`, `buildLinkableKeys`, `prepareConsumption`, `buildMissingCartEntries`, `computePriceInfo` — pure BOM logic. Every "which statuses are X" question is answered by the status registry `../bom-status.js`, never a local list
+- `board-features.js`: `boardFeatureReason`, `rawRowBoardReason`, `hasPartNumber`, `EXCLUDED_FROM_BOM_REASON` — is a BOM line a board feature (fiducial, mounting hole, bare test pad, Tag-Connect, "Exclude from BOM") rather than a part; drives the `board-only` status
 - `bom-renderer.js`: `renderDropZone`, `renderLoadedDropZone`, `renderBomSummary`, `renderPriceInfo`, `renderLinkingBanner`, `renderStagingHead`, `renderStagingRow` — pure HTML renderers
 - `bom-state.js`: `ConsumeState` — panel state singleton (default export is the mutable state object)
 - `bom-events.js`: `setupEvents` — wires all DOM listeners and EventBus subscriptions
@@ -32,6 +33,7 @@ inventory comparison view (rendered by `js/inventory/inv-bom-mode.js`).
 
 - `../event-bus.js`, `../store.js`, `../api.js`, `../ui-helpers.js`
 - `../part-keys.js` — bomKey, invPartKey, rawRowAggKey, bomAggKey, countStatuses
+- `../bom-status.js` — the effective-status registry (statusHas, BOM_BUCKETS)
 - `../csv-parser.js` — processBOM, aggregateBomRows, generateCSV, isDnp, extractPartIds
 - `../matching.js` — matchBOM
 - `../undo-redo.js` — UndoRedo
@@ -42,4 +44,5 @@ inventory comparison view (rendered by `js/inventory/inv-bom-mode.js`).
 - `bom-events.js` — all DOM and EventBus listener wiring
 - `bom-state.js` — mutable panel state singleton
 - `bom-logic.js` — pure BOM logic (row classify, status, price, consume prep)
+- `board-features.js` — pure board-feature classification (board-only rows)
 - `bom-renderer.js` — pure HTML renderers (drop zone, summary, staging table)
