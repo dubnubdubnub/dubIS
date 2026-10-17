@@ -215,6 +215,14 @@ kubectl get secret -n dubis | grep -i ghcr
 If no `ghcr`-named secret shows up after a minute, check the Kyverno policy
 logs before proceeding — the Deployment will otherwise sit in `ImagePullBackOff`.
 
+`tests/python/test_deploy_manifests.py` reads `deploy/namespace.yaml` **from
+the file**, never from `kubectl kustomize deploy/`, for exactly this reason:
+the render is *correct* to omit a file the kustomization does not list, so a
+guard built on the render would pass only on machines without kubectl — green
+in CI, red on a laptop, and the label untested where a human would notice. If
+you ever move the Namespace into the kustomization, this step and that test
+change together.
+
 ## 2. Create the `dubis-server-auth` Secret (out-of-band, from stdin)
 
 **Never** put tokens in git or in shell argv history — pipe them via stdin so

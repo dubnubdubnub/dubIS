@@ -88,7 +88,9 @@ if [ $thresholds_rc -ne 0 ]; then
     echo "  → threshold defaults stale — run \`python scripts/gen-threshold-defaults.py\` and commit."
 fi
 
-# 4. manifests
+# 4. manifests — the js/domain `_README.md` "Public exports" lists, i.e. module
+#    API manifests. Unrelated to the k8s manifests in deploy/, which are
+#    guarded by tests/python/test_deploy_manifests.py (run by pytest below).
 run_step "manifests" "$PY" scripts/check-manifests.py
 
 # 4b. claude-md
