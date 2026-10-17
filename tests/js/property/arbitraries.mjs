@@ -288,3 +288,211 @@ export const bomMatchResult = () => fc.record({
   matchType: fc.constantFrom(...MATCH_TYPES),
   alts: fc.array(fc.record({ qty: fc.integer({ min: 0, max: 100 }) }), { maxLength: 3 }),
 });
+
+// ── BOM matching (js/matching.js) ────────────────────────────────────────────
+//
+// A BOM line and inventory parts generated from a GROUND TRUTH — type, value,
+// package, voltage — that is then *expressed* (or not) through the places a
+// real row carries it: the Value column, the Description, the Footprint, or the
+// distributor spec (`bom.spec`). Each generated object keeps its truth and a
+// record of which facts it expressed, so a property can judge a match against
+// what is actually true without re-parsing anything — the anti-tautology rule
+// in docs/property-testing.md.
+//
+// MPNs are dealt from shared real-family stems with a tiny digit alphabet, so
+// BOM lines and inventory parts collide on long prefixes the way UniOhm
+// 0402WGF####TCE neighbours do. Independently drawn MPNs would never reach
+// steps 3 and 4 of the matcher at all.
+
+export const PASSIVE_TYPES = /** @type {const} */ (['C', 'R', 'L']);
+const UNIT_SYMBOL = { C: 'F', R: 'Ω', L: 'H' };
+const ATTR_NAME = { C: 'Capacitance', R: 'Resistance', L: 'Inductance' };
+const TYPE_WORD = { C: 'Ceramic Capacitor', R: 'Thick Film Resistor', L: 'Fixed Inductor' };
+const SECTION = {
+  C: 'Passives - Capacitors > MLCC',
+  R: 'Passives - Resistors > Chip Resistors',
+  L: 'Passives - Inductors',
+};
+const KICAD_LIB = { C: 'Capacitor_SMD:C_', R: 'Resistor_SMD:R_', L: 'Inductor_SMD:L_' };
+const MANTISSAS = [1, 2.2, 4.7, 10, 47, 100];
+const PREFIXES = {
+  C: [['p', 1e-12], ['n', 1e-9], ['u', 1e-6]],
+  R: [['', 1], ['k', 1e3], ['M', 1e6]],
+  L: [['n', 1e-9], ['u', 1e-6]],
+};
+export const CHIP_PACKAGES = ['0402', '0603', '0805'];
+export const RATED_VOLTAGES = [6.3, 10, 16, 25, 50];
+const MPN_STEMS = ['0402WGF', 'CL05B10', 'GRM155R71H', 'RC0402FR-07'];
+
+/** One part's ground truth. `voltage` is null except for capacitors. */
+export function passiveTruth(type) {
+  const t = type ? fc.constant(type) : fc.constantFrom(...PASSIVE_TYPES);
+  return t.chain((ty) => fc.record({
+    type: fc.constant(ty),
+    mantissa: fc.constantFrom(...MANTISSAS),
+    prefix: fc.constantFrom(...PREFIXES[ty]),
+    package: fc.constantFrom(...CHIP_PACKAGES),
+    voltage: ty === 'C' ? fc.constantFrom(...RATED_VOLTAGES) : fc.constant(null),
+  })).map(({ prefix, ...rest }) => ({
+    ...rest,
+    symbol: prefix[0],
+    value: rest.mantissa * prefix[1],
+  }));
+}
+
+/** "4.7kΩ", "100nF", "10uH" — how a value reads in text. */
+export function valueText(truth) {
+  return `${truth.mantissa}${truth.symbol}${UNIT_SYMBOL[truth.type]}`;
+}
+
+/** An MPN from the shared stems; never parses as a value or a package. */
+export const pooledMpn = () => fc.tuple(
+  fc.constantFrom(...MPN_STEMS),
+  fc.stringMatching(/^[01]{3,4}$/),
+  fc.constantFrom('TCE', 'KB5NNNC', 'KE14D', 'XL'),
+).map(([stem, digits, tail]) => stem + digits + tail);
+
+/** A truth that differs from `t` in exactly one fact, or matches it outright. */
+function neighbourOf(t) {
+  return fc.oneof(
+    fc.constant(t),
+    passiveTruth(t.type).map((o) => ({ ...t, mantissa: o.mantissa, symbol: o.symbol, value: o.value })),
+    fc.constantFrom(...CHIP_PACKAGES).map((p) => ({ ...t, package: p })),
+    t.type === 'C' ? fc.constantFrom(...RATED_VOLTAGES).map((v) => ({ ...t, voltage: v })) : fc.constant(t),
+    passiveTruth(),
+  );
+}
+
+/**
+ * One inventory part around a truth. The record comes from inventoryRecord()
+ * so it stays schema-valid; the fields matching reads are then set explicitly,
+ * identity included — matching needs MPN collisions that identityFields()
+ * deliberately cannot produce. `lcsc` is "C1…" and unique per part; BOM lines
+ * never carry one, so step 1 never fires and every match is earned by the
+ * steps under test.
+ */
+function inventoryPartAround(truth, index) {
+  return fc.record({
+    base: inventoryRecord(),
+    mpn: pooledMpn(),
+    valueShown: fc.boolean(),
+    packageShown: fc.boolean(),
+    voltageShown: fc.boolean(),
+    sectioned: fc.boolean(),
+    qty: fc.integer({ min: 0, max: 5000 }),
+  }).map((g) => {
+    const desc = [
+      g.valueShown ? valueText(truth) : '',
+      truth.voltage !== null && g.voltageShown ? `±10% ${truth.voltage}V` : '',
+      TYPE_WORD[truth.type],
+    ].filter(Boolean).join(' ');
+    return {
+      record: {
+        ...g.base,
+        lcsc: 'C1' + String(index).padStart(5, '0'),
+        mpn: g.mpn,
+        description: desc,
+        package: g.packageShown ? truth.package : '',
+        section: g.sectioned ? SECTION[truth.type] : 'Other',
+        qty: g.qty,
+      },
+      truth,
+      shown: {
+        value: g.valueShown,
+        package: g.packageShown,
+        voltage: truth.voltage !== null && g.voltageShown,
+      },
+    };
+  });
+}
+
+/**
+ * A BOM line (the aggregated-entry shape matchBOM reads) expressing `truth`
+ * through the chosen channels, plus `shown` — which facts it actually carries.
+ * @param {any} truth
+ * @param {{ valueVia: 'column'|'desc'|'spec'|'none', voltageVia: 'desc'|'spec'|'none',
+ *   packageVia: 'footprint'|'spec'|'none', refs: boolean, stdLib: boolean, mpn: string }} how
+ */
+export function buildBomLine(truth, how) {
+  const descParts = [];
+  if (how.valueVia === 'desc') descParts.push(valueText(truth));
+  if (how.voltageVia === 'desc' && truth.voltage !== null) descParts.push(`${truth.voltage}V`);
+  const attributes = [];
+  if (how.valueVia === 'spec') attributes.push({ name: ATTR_NAME[truth.type], value: valueText(truth) });
+  if (how.voltageVia === 'spec' && truth.voltage !== null) {
+    attributes.push({ name: 'Voltage Rating', value: `${truth.voltage}V` });
+  }
+  const specPackage = how.packageVia === 'spec' ? truth.package : '';
+  // KiCad shape: no MPN column, so the Value cell IS the MPN unless it holds the value.
+  const value = how.valueVia === 'column' ? valueText(truth) : how.mpn;
+  const bom = {
+    lcsc: '',
+    mpn: value,
+    value,
+    desc: descParts.join(' '),
+    // A KiCad standard-library footprint names the passive type even when it
+    // names no package; a private library ("MyLib:") names neither.
+    footprint: (how.stdLib ? KICAD_LIB[truth.type] : 'MyLib:')
+      + (how.packageVia === 'footprint' ? `${truth.package}_1005Metric` : 'Custom_Pad'),
+    refs: how.refs ? `${truth.type}1` : '',
+    qty: 1,
+    dnp: false,
+  };
+  if (attributes.length || specPackage) {
+    bom.spec = {
+      source: 'lcsc', code: 'C999', mpn: '', manufacturer: '', description: '',
+      package: specPackage, category: '', subcategory: '', attributes,
+    };
+  }
+  return {
+    bom,
+    truth,
+    // Whether anything on the line itself says it is a passive at all — a
+    // designator, a standard-library footprint, or a value written with a unit.
+    typed: how.refs || how.stdLib || how.valueVia !== 'none',
+    shown: {
+      value: how.valueVia !== 'none',
+      package: how.packageVia !== 'none',
+      voltage: truth.voltage !== null && how.voltageVia !== 'none',
+    },
+  };
+}
+
+export const bomLineHow = () => fc.record({
+  valueVia: fc.constantFrom('column', 'desc', 'spec', 'none'),
+  voltageVia: fc.constantFrom('desc', 'spec', 'none'),
+  packageVia: fc.constantFrom('footprint', 'spec', 'none'),
+  refs: fc.boolean(),
+  stdLib: fc.boolean(),
+  mpn: pooledMpn(),
+});
+
+/**
+ * A whole matching scenario: one BOM line and an inventory of its neighbours.
+ * With `identity`, the line is one of the inventory parts by exact MPN — its
+ * truth becomes that part's truth, since it IS that part.
+ */
+export function bomMatchScenario() {
+  return passiveTruth().chain((truth) => fc.tuple(
+    bomLineHow(),
+    fc.array(neighbourOf(truth), { minLength: 1, maxLength: 7 }),
+    fc.boolean(),
+  ).chain(([how, truths, identity]) => fc.tuple(
+    ...truths.map((t, i) => inventoryPartAround(t, i)),
+  ).map((drawn) => {
+    // One part per MPN: two different parts sharing an MPN is an inventory no
+    // matcher can disambiguate (invByMPN keeps one of them), not a case to judge.
+    const seen = new Set();
+    const parts = drawn.filter((p) => !seen.has(p.record.mpn) && seen.add(p.record.mpn));
+    // A line whose drawn MPN happens to equal a stocked part's IS that part,
+    // so it takes that part's truth — same as a deliberate identity line.
+    const collided = how.valueVia !== 'column'
+      ? parts.find((p) => p.record.mpn.toUpperCase() === how.mpn.toUpperCase()) : undefined;
+    const target = identity ? parts[0] : collided;
+    if (target) {
+      const line = buildBomLine(target.truth, { ...how, valueVia: how.valueVia === 'column' ? 'none' : how.valueVia, mpn: target.record.mpn });
+      return { line, parts };
+    }
+    return { line: buildBomLine(truth, how), parts };
+  })));
+}

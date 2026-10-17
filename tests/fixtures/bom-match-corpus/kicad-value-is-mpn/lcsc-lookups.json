@@ -1,0 +1,255 @@
+{
+  "C77020": {
+    "product": {
+      "productCode": "C77020",
+      "mpn": "GRM155R71H104KE14D",
+      "manufacturer": "muRata",
+      "description": "100nF ±10% 50V Ceramic Capacitor X7R 0402",
+      "package": "0402",
+      "category": "Capacitors",
+      "subcategory": "Ceramic Capacitors",
+      "attributes": [
+        {
+          "name": "Capacitance",
+          "value": "100nF"
+        },
+        {
+          "name": "Temperature Coefficient",
+          "value": "X7R"
+        },
+        {
+          "name": "Tolerance",
+          "value": "±10%"
+        },
+        {
+          "name": "Voltage Rating",
+          "value": "50V"
+        }
+      ]
+    }
+  },
+  "C15850": {
+    "product": {
+      "productCode": "C15850",
+      "mpn": "CL21A106KAYNNNE",
+      "manufacturer": "Samsung Electro-Mechanics",
+      "description": "10uF ±10% 25V Ceramic Capacitor X5R 0805",
+      "package": "0805",
+      "category": "Capacitors",
+      "subcategory": "Ceramic Capacitors",
+      "attributes": [
+        {
+          "name": "Capacitance",
+          "value": "10uF"
+        },
+        {
+          "name": "Temperature Coefficient",
+          "value": "X5R"
+        },
+        {
+          "name": "Tolerance",
+          "value": "±10%"
+        },
+        {
+          "name": "Voltage Rating",
+          "value": "25V"
+        }
+      ]
+    }
+  },
+  "C52923": {
+    "product": {
+      "productCode": "C52923",
+      "mpn": "CL05A105KA5NQNC",
+      "manufacturer": "Samsung Electro-Mechanics",
+      "description": "1uF ±10% 25V Ceramic Capacitor X5R 0402",
+      "package": "0402",
+      "category": "Capacitors",
+      "subcategory": "Ceramic Capacitors",
+      "attributes": [
+        {
+          "name": "Capacitance",
+          "value": "1uF"
+        },
+        {
+          "name": "Temperature Coefficient",
+          "value": "X5R"
+        },
+        {
+          "name": "Tolerance",
+          "value": "±10%"
+        },
+        {
+          "name": "Voltage Rating",
+          "value": "25V"
+        }
+      ]
+    }
+  },
+  "C15195": {
+    "product": {
+      "productCode": "C15195",
+      "mpn": "CL05B103KB5NNNC",
+      "manufacturer": "Samsung Electro-Mechanics",
+      "description": "10nF ±10% 50V Ceramic Capacitor X7R 0402",
+      "package": "0402",
+      "category": "Capacitors",
+      "subcategory": "Ceramic Capacitors",
+      "attributes": [
+        {
+          "name": "Capacitance",
+          "value": "10nF"
+        },
+        {
+          "name": "Temperature Coefficient",
+          "value": "X7R"
+        },
+        {
+          "name": "Tolerance",
+          "value": "±10%"
+        },
+        {
+          "name": "Voltage Rating",
+          "value": "50V"
+        }
+      ]
+    }
+  },
+  "C11702": {
+    "product": {
+      "productCode": "C11702",
+      "mpn": "0402WGF1001TCE",
+      "manufacturer": "UNI-ROYAL",
+      "description": "1kΩ ±1% 62.5mW 0402 Thick Film Resistor",
+      "package": "0402",
+      "category": "Resistors",
+      "subcategory": "Chip Resistor - Surface Mount",
+      "attributes": [
+        {
+          "name": "Resistance",
+          "value": "1kΩ"
+        },
+        {
+          "name": "Power(Watts)",
+          "value": "62.5mW"
+        },
+        {
+          "name": "Voltage Rating",
+          "value": "50V"
+        },
+        {
+          "name": "Type",
+          "value": "Thick Film Resistor"
+        },
+        {
+          "name": "Temperature Coefficient",
+          "value": "±100ppm/℃"
+        },
+        {
+          "name": "Tolerance",
+          "value": "±1%"
+        },
+        {
+          "name": "Operating Temperature",
+          "value": "-55℃~+155℃"
+        }
+      ]
+    }
+  },
+  "C25744": {
+    "product": {
+      "productCode": "C25744",
+      "mpn": "0402WGF1002TCE",
+      "manufacturer": "UNI-ROYAL",
+      "description": "10kΩ ±1% 62.5mW 0402 Thick Film Resistor",
+      "package": "0402",
+      "category": "Resistors",
+      "subcategory": "Chip Resistor - Surface Mount",
+      "attributes": [
+        {
+          "name": "Resistance",
+          "value": "10kΩ"
+        },
+        {
+          "name": "Power(Watts)",
+          "value": "62.5mW"
+        },
+        {
+          "name": "Voltage Rating",
+          "value": "50V"
+        },
+        {
+          "name": "Type",
+          "value": "Thick Film Resistor"
+        },
+        {
+          "name": "Temperature Coefficient",
+          "value": "±100ppm/℃"
+        },
+        {
+          "name": "Tolerance",
+          "value": "±1%"
+        },
+        {
+          "name": "Operating Temperature",
+          "value": "-55℃~+155℃"
+        }
+      ]
+    }
+  },
+  "C408339": {
+    "error": {
+      "status": 404,
+      "code": "product_not_found"
+    }
+  },
+  "C6186": {
+    "product": {
+      "productCode": "C6186",
+      "mpn": "AMS1117-3.3",
+      "manufacturer": "Advanced Monolithic Systems",
+      "description": "3.3V Positive Fixed SOT-223 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators RoHS",
+      "package": "SOT-223",
+      "category": "Power Management (PMIC)",
+      "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+      "attributes": [
+        {
+          "name": "Output Voltage",
+          "value": "3.3V"
+        },
+        {
+          "name": "Number of Outputs",
+          "value": "1"
+        },
+        {
+          "name": "Operating Temperature",
+          "value": "-40℃~+125℃"
+        },
+        {
+          "name": "Supply Current (Iq)",
+          "value": "5mA"
+        },
+        {
+          "name": "Output Configuration",
+          "value": "Positive"
+        },
+        {
+          "name": "Operating Voltage",
+          "value": "15V"
+        },
+        {
+          "name": "Output Current",
+          "value": "1A"
+        },
+        {
+          "name": "Features",
+          "value": "Short Circuit Protection;Thermal shutdown;Over Current Protection"
+        },
+        {
+          "name": "Output Type",
+          "value": "Fixed"
+        }
+      ]
+    }
+  }
+}

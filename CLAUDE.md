@@ -118,6 +118,7 @@ Events are centralized in `js/event-bus.js`. Store setters that emit are marked;
 | `INVENTORY_LOADED` | store.js (`loadInventory`) | inv-events.js, bom-events.js, app-init.js |
 | `INVENTORY_UPDATED` | store.js (`onInventoryUpdated`) | inv-events.js, bom-events.js, app-init.js, label-selection.js |
 | `BOM_LOADED` | bom-panel.js | inv-events.js, app-init.js |
+| `BOM_REMATCHED` | bom-panel.js (passive re-match: inventory refresh, LCSC spec lookup) | inv-events.js — deliberately not a panel reopen trigger |
 | `BOM_CLEARED` | bom-events.js | inv-events.js |
 | `CONFIRMED_CHANGED` | store.js (`confirmMatch`, `unconfirmMatch`), app-init.js | bom-events.js |
 | `LINKING_MODE` | store.js (`setLinkingMode`, `setReverseLinkingMode`) | bom-events.js, inv-events.js |
@@ -196,6 +197,24 @@ checkpoint so the deploy that adds it is the deploy that moves the part back.
 `tests/fixtures/categorize-corpus/known-misfiles.json` records each misfile's
 `fault` and the corpus tests hold both directions: a `fault: distributor` part must never be moved by its
 category, and a map row that lands on one without a refusal fails immediately.
+
+### After changing BOM matching (`js/matching.js`, `js/bom/bom-spec-lookup.js`)
+
+The rule is at the top of `js/matching.js`: an identity match (LCSC, exact MPN,
+manual, confirmed) is a fact; everything else is a suggestion, and for a passive
+a suggestion needs the value KNOWN on both sides and equal, no known-different
+footprint, and no known-lower capacitor voltage — unknown is never a pass. A
+Value=MPN KiCad row learns its value from LCSC (`bom.spec`, looked up for
+unidentified rows and re-matched as `BOM_REMATCHED`, never `BOM_LOADED`).
+
+```bash
+npx vitest run tests/js/bom-match-corpus.test.mjs tests/js/matching-spec.test.js
+npx vitest run --project property tests/js/property/matching.property.test.mjs
+```
+
+The corpus (`tests/fixtures/bom-match-corpus/`, README inside) holds labelled
+real-shaped cases and a gate that fails on ANY provably wrong suggestion; a
+matching bug report becomes a new scrubbed case there, never the user's BOM.
 
 ### After modifying Python backend code
 ```bash

@@ -202,10 +202,15 @@ export function setupEvents(handlers) {
     render();
   });
 
-  EventBus.on(Events.BOM_LOADED, function (data) {
+  // BOM_REMATCHED carries the same rows as BOM_LOADED and renders the same
+  // way; the two differ only in whether the panel layer may force the BOM
+  // panel open (js/panel-collapse-logic.js lists BOM_LOADED, not this).
+  function onBomRows(data) {
     state.bomData = data;
     render();
-  });
+  }
+  EventBus.on(Events.BOM_LOADED, onBomRows);
+  EventBus.on(Events.BOM_REMATCHED, onBomRows);
 
   // Task B4: while linking mode is armed with an inventory item, the header
   // cart icon also becomes a valid drop target (purple dotted box, mirrors

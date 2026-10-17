@@ -9,7 +9,7 @@ Does NOT own BOM match data (produced by `js/bom/`) or generic-parts definitions
 ## Listens
 
 - `INVENTORY_LOADED` / `INVENTORY_UPDATED` — `inv-events.js:setupEvents`; re-renders (preferences via `preferencesSignal`)
-- `BOM_LOADED` — `inv-events.js:setupEvents`; stores bomData, re-renders
+- `BOM_LOADED` / `BOM_REMATCHED` — `inv-events.js:setupEvents`; stores bomData, re-renders
 - `BOM_CLEARED` — `inv-events.js:setupEvents`; clears BOM state, re-renders
 - `LINKING_MODE` — `inv-events.js:setupEvents`; re-renders
 - `FLYOUT_SEARCH_CHANGED` / `FLYOUT_ACTIVE_CHANGED` — `inv-events.js:setupEvents`; syncs search

@@ -5,7 +5,7 @@
 
 import { bomKey, invPartKey, STATUS_ICONS, STATUS_ROW_CLASS } from './part-keys.js';
 import { statusSpec } from './bom-status.js';
-import { extractFootprintCode, invFootprintCode } from './matching.js';
+import { bomFootprintCode, invFootprintCode } from './matching.js';
 import { matchesCategoryName } from './category-match.js';
 
 /**
@@ -53,6 +53,7 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
       && r.inv && matchesCategoryName(query, r.inv.section || ""));
     var text = [
       r.bom.lcsc, r.bom.mpn, r.bom.value, r.bom.refs, r.bom.desc,
+      r.bom.spec ? r.bom.spec.description : "",
       r.inv ? r.inv.lcsc : "", r.inv ? r.inv.mpn : "", r.inv ? r.inv.description : "",
     ].join(" ").toLowerCase();
     if (!categoryHit && !text.includes(query)) return null;
@@ -76,11 +77,17 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
   // A board-only row says WHY it is out of the counts, in the column a
   // missing row would say "not in inventory".
   var boardReason = st === "board-only" ? (r.boardReason || "board feature") : "";
+  // A missing row from a Value=MPN BOM has no description of its own, so the
+  // cell used to repeat the MPN. When the distributor told us what the part is
+  // (js/bom/bom-spec-lookup.js), say that instead — prefixed, so it can never be
+  // mistaken for a description the user wrote.
+  var specDesc = r.bom.spec && r.bom.spec.description
+    ? "LCSC: " + r.bom.spec.description : "";
   var invDesc = boardReason
     ? boardReason
     : hasInv
     ? (r.inv.description || r.inv.mpn)
-    : (r.bom.desc || r.bom.value || "not in inventory");
+    : (r.bom.desc || specDesc || r.bom.value || "not in inventory");
 
   // ── Match label ──
   var matchLabel = r.matchType === "lcsc" ? "LCSC"
@@ -146,7 +153,7 @@ export function bomRowDisplayData(r, query, activeFilter, expandedAlts, linkingS
   var footprintCode = null;
   if (r.matchSignals && r.matchSignals.value && r.matchSignals.footprint &&
       (r.matchType === 'value' || r.matchType === 'fuzzy')) {
-    var bomCode = extractFootprintCode(r.bom.footprint);
+    var bomCode = bomFootprintCode(r.bom);
     var invCode = invFootprintCode(r.inv);
     if (bomCode && invCode && bomCode === invCode) {
       footprintConfirmed = true;
