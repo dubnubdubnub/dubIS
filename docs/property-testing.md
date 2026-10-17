@@ -29,6 +29,7 @@ ran.
 | JS arbitraries | `tests/js/property/arbitraries.mjs` |
 | JS global config | `tests/js/property/setup.mjs` |
 | JS reference suite | `tests/js/property/part-keys.property.test.mjs` |
+| Browser model-based suite (fast-check driving Playwright; own run budget `FC_E2E_NUM_RUNS`) | `tests/js/e2e/panel-layout-model.spec.mjs` |
 | Schema table the JS side reads | `tests/js/property/inventory-schema.generated.mjs` |
 | Its generator + staleness guard | `scripts/gen-property-schema.py` |
 

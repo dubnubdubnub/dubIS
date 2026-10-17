@@ -17,6 +17,12 @@
    zero-width panel can still catch a click or a Tab stop. */
 .panel.panel-collapsed > * { visibility: hidden; }
 
+/* A divider beside a collapsed panel does not drag (js/panel-layout-logic.js,
+   canDrag) — the pill on it is the way back — so it must not advertise one.
+   A class rather than a sibling selector: #flyout-container sits between the
+   second handle and #panel-bom, so `+ .panel-collapsed` would never match it. */
+.resize-handle-h.beside-collapsed { cursor: default; }
+
 /* The handle sets its own z-index, which makes it a stacking context — so the pill
    inside it cannot outrank .panel-header on its own, and the header would swallow
    its clicks. Raise the hosting handle instead. Scoped with :has() so handles

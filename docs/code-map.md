@@ -568,6 +568,7 @@ graph LR
     "js/preferences-modal.js" --> "js/store.js"
     "js/preferences-modal.js" --> "js/threshold-logic.js"
     "js/preferences-modal.js" --> "js/ui-helpers.js"
+    "js/resize-panels.js" --> "js/panel-layout-logic.js"
     "js/resize-panels.js" --> "js/ui-zoom.js"
     "js/server-list.js" --> "js/server-probe.js"
     "js/server-list.js" --> "js/server-tabs.js"
@@ -802,6 +803,7 @@ graph LR
     "tests/js/ocr-overlay-state.test.js" --> "js/import/mfg-direct/ocr-overlay/ocr-overlay-state.js"
     "tests/js/panel-collapse-events.test.js" --> "js/panel-collapse-logic.js"
     "tests/js/panel-collapse-logic.test.js" --> "js/panel-collapse-logic.js"
+    "tests/js/panel-layout-logic.test.js" --> "js/panel-layout-logic.js"
     "tests/js/panel-reopen-noop-refresh.test.js" --> "js/api.js"
     "tests/js/panel-reopen-noop-refresh.test.js" --> "js/event-bus.js"
     "tests/js/panel-reopen-noop-refresh.test.js" --> "js/panel-collapse-logic.js"
@@ -2110,6 +2112,11 @@ graph LR
 - **Imports:** `js/api.js`, `js/panel-collapse-logic.js`, `js/store.js`
 - **Imported by:** `js/app-init.js`, `js/cart/cart-add.js`, `js/import/import-panel.js`
 
+### js/panel-layout-logic.js
+
+- **Imports:** —
+- **Imported by:** `js/resize-panels.js`, `tests/js/panel-layout-logic.test.js`
+
 ### js/part-keys.js
 
 - **Imports:** `js/csv-parser.js`, `js/ui-helpers.js`
@@ -2137,7 +2144,7 @@ graph LR
 
 ### js/resize-panels.js
 
-- **Imports:** `js/ui-zoom.js`
+- **Imports:** `js/panel-layout-logic.js`, `js/ui-zoom.js`
 - **Imported by:** `js/app-init.js`
 
 ### js/server-list.js
@@ -2972,6 +2979,16 @@ graph LR
 ### tests/js/panel-collapse-logic.test.js
 
 - **Imports:** `js/panel-collapse-logic.js`
+- **Imported by:** —
+
+### tests/js/panel-geometry-owner.test.js
+
+- **Imports:** —
+- **Imported by:** —
+
+### tests/js/panel-layout-logic.test.js
+
+- **Imports:** `js/panel-layout-logic.js`
 - **Imported by:** —
 
 ### tests/js/panel-reopen-noop-refresh.test.js
