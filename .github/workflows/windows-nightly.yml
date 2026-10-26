@@ -1,0 +1,93 @@
+name: windows nightly (full functional)
+
+# The PR-path js-windows leg in ci.yml runs only the `windows` Playwright
+# project — a ~15-spec Windows-smoke subset — to keep PR feedback fast. This
+# workflow runs the FULL `functional` suite on Windows once a day so the
+# coverage the subset drops is still exercised. Advisory policy: a failure here
+# annotates the run but blocks nothing (it is not a required check and gates no
+# merge).
+#
+# Moved from the self-hosted win11 KubeVirt VM to GitHub-hosted windows-2025 on
+# 2026-09-04, and renamed from win11-nightly.yml. Beyond retiring the VM, this
+# recovers coverage that was already being lost: 14 of the 41 scheduled runs in
+# this workflow's history were CANCELLED at GitHub's 24 h queue ceiling waiting
+# for the single VM (every cancellation's updated_at is created_at + ~24 h). As
+# of 2026-09-04 there are ZERO runners carrying the `win11` label at all, so the
+# nightly had simply stopped running: 09-01, 09-02 and 09-03 were all cancelled.
+#
+# The suite is self-contained — playwright.config.mjs sets
+# `baseURL: http://localhost:${servePort}` and starts its own `webServer`, and
+# the `functional` project carries `testIgnore: ['live/**']`. It reaches no
+# cluster service, so it does not care that it now runs outside the tailnet.
+# Tests that DO need a live backend are the separate `live` project, which this
+# workflow has never run.
+#
+# Scheduled runs execute against the default branch (main) by GitHub design.
+# See docs/ci-reference.md.
+
+on:
+  schedule:
+    - cron: "0 9 * * *" # 09:00 UTC daily
+  workflow_dispatch:
+
+# Kept from the single-VM era, for a different reason: overlapping full-suite
+# runs would race the same Playwright browser cache, and a nightly that takes
+# over 24 h to finish is a problem to see rather than to paper over.
+concurrency:
+  group: windows-nightly
+  cancel-in-progress: false
+
+jobs:
+  windows-full:
+    name: JS Windows Full Functional E2E (hosted)
+    # Pinned, not `windows-latest` — see the matching note in ci.yml's js-windows
+    # leg. Windows SERVER 2025, whereas dubIS ships on Windows 11 client.
+    runs-on: windows-2025
+    # Full suite (~46 specs) plus a possible cold cache miss. Generous ceiling —
+    # this is off the PR path, so latency here does not matter.
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+      # Explicit Node pin — see the matching step and full rationale in ci.yml's
+      # js-windows leg. Must stay identical to it: the two share cache keys.
+      - uses: actions/setup-node@v4
+        id: setup-node
+        with:
+          node-version: 22.22.1
+          cache: npm
+      # Deliberately the SAME keys as ci.yml's js-windows leg. Note the sharing is
+      # ONE-DIRECTIONAL: GitHub scopes cache reads to the run's own branch plus the
+      # default branch, and this workflow runs on main, so the nightly warms the PR
+      # legs but not the other way round.
+      - name: Cache node_modules
+        id: node_modules_cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: winhosted-node${{ steps.setup-node.outputs.node-version }}-nodemodules-${{ hashFiles('package-lock.json') }}
+      - name: Install deps
+        if: steps.node_modules_cache.outputs.cache-hit != 'true'
+        run: npm ci
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\ms-playwright
+          key: winhosted-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: winhosted-playwright-
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+      # The browser cache comes back from actions/cache, not from a fresh
+      # download — a truncated cache entry restores a revision directory that
+      # `playwright install` then treats as complete. Same guard as the PR leg.
+      - name: Verify the Playwright browser can actually launch
+        run: node scripts/check-playwright-browsers.mjs --repair
+      - name: Full functional E2E
+        run: npx playwright test --project functional
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-windows-nightly-functional
+          path: test-results/
