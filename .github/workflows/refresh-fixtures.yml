@@ -39,7 +39,8 @@
 #   to it. Instead it commits the refreshed fixture to a deterministic
 #   automation branch and opens (or updates) a PR. The PR commit deliberately
 #   does NOT carry `[skip ci]` — we WANT CI to run so the offline replay tests
-#   validate the freshly captured data before a human merges.
+#   validate the freshly captured data before a human merges. (Merging still
+#   needs a maintainer to approve the bot's pull_request run — see below.)
 #
 # Why this is safe re: forks
 #   `schedule` and `workflow_dispatch` events always run from the base repo
@@ -57,9 +58,24 @@ on:
   workflow_dispatch: {}
 
 # Minimal but sufficient: push a branch, open/update a PR, and dispatch CI on
-# it (actions: write). The dispatch is needed because pushes and PRs made with
-# GITHUB_TOKEN never trigger pull_request workflows — without it the refresh
-# PR sits forever with no checks and can't merge past branch protection.
+# it (actions: write).
+#
+# What actually happens to the PR's checks (observed, not assumed): the
+# force-push made with GITHUB_TOKEN DOES produce `pull_request` runs of ci.yml
+# and claude-review.yml — but the actor is github-actions[bot], which the repo
+# setting "Require approval for all external contributors" treats as external,
+# so they land as `action_required` with zero jobs (e.g. runs 41463797289,
+# 40320382350; before that they concluded `failure`, again with zero jobs).
+# The dispatched ci.yml run below does run and goes green on the same head
+# SHA, yet the PR reports no checks at all (`gh pr checks`, statusCheckRollup
+# null): the newer, empty action_required suite of the same workflow
+# evidently supersedes the green one. Branch protection therefore sees the
+# required contexts as missing and the PR stays BLOCKED (PR #486, open since
+# 2026-09-29). Unblocking a given refresh PR takes a maintainer: review the
+# diff (it is this repo's own branch, only the fixture JSON), then approve the
+# pending pull_request run. A lasting fix means pushing with a token whose
+# actor is not "external" (a GitHub App installation token or the owner's
+# fine-grained PAT, stored as a secret) — not done here.
 permissions:
   contents: write
   pull-requests: write
@@ -79,6 +95,10 @@ jobs:
     # label MUST track whatever ci.yml's python job runs on, or the schedule
     # queues for 24h and auto-cancels forever.
     runs-on: arc-dubis
+    # p95 1.2 min over the last 8 runs under this job name: the 10-min floor.
+    # (This bounds the run, not the queue: the old 24 h queue-then-cancel
+    # failures came from a runner label that no longer existed.)
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -163,9 +183,10 @@ jobs:
               if (e.status === 422) { core.info('PR already exists for this branch; branch updated by the force-push.'); }
               else { throw e; }
             }
-            // GITHUB_TOKEN pushes/PRs never trigger pull_request workflows, so
-            // the required checks would never report and the PR could not merge.
-            // workflow_dispatch is exempt from that restriction — kick CI here.
+            // The bot's own pull_request runs land as action_required (see the
+            // permissions comment at the top), so this dispatched run is the
+            // only one that actually tests the refreshed fixture. It does NOT
+            // make the PR mergeable on its own: the PR's rollup ignores it.
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner, repo: context.repo.repo,
               workflow_id: 'ci.yml', ref: head, inputs: { suite: 'all' },

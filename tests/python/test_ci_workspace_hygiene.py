@@ -295,6 +295,17 @@ def test_single_machine_legs_stay_advisory(ci_jobs: dict) -> None:
             )
 
 
+@pytest.mark.parametrize("workflow", ["ci.yml", "win11-nightly.yml", "refresh-fixtures.yml"])
+def test_every_job_sets_a_timeout(workflow: str) -> None:
+    """Without `timeout-minutes` a job gets GitHub's 360-minute default, and on a
+    single shared box (m4-air, the win11 VM, the GPU node) a hung leg holds that
+    machine for six hours. Each ceiling is sized from run history — see
+    docs/ci-reference.md "Job timeouts"."""
+    doc = yaml.safe_load((CI_YML.parent / workflow).read_text(encoding="utf-8"))
+    missing = [n for n, j in doc["jobs"].items() if not isinstance(j.get("timeout-minutes"), int)]
+    assert not missing, f"{workflow}: jobs without an integer timeout-minutes: {missing}"
+
+
 # ── nothing may write outside the run's own output dir ───────────────
 
 # A dev machine's own filesystem, in two flavours. Neither can ever be correct

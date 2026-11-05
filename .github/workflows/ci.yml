@@ -32,6 +32,8 @@ jobs:
   parse-tags:
     name: Parse CI tier
     runs-on: ubuntu-latest
+    # p95 <1 min (metadata + git diff): the 10-min floor.
+    timeout-minutes: 10
     outputs:
       run_lint:    ${{ steps.resolve.outputs.run_lint }}
       run_js:      ${{ steps.resolve.outputs.run_js }}
@@ -65,13 +67,21 @@ jobs:
             done
           }
 
-          # --- 0. SECURITY: never run self-hosted CI for fork PRs ---
+          # --- 0. Fork PRs: skip self-hosted jobs (hygiene, NOT a boundary) ---
           #   dubIS is a public repo with self-hosted runners (cluster on the
-          #   home LAN). A fork PR must NOT execute on our hardware. All the
-          #   self-hosted jobs gate on these run_* flags, so zeroing them makes
-          #   every self-hosted job skip. parse-tags itself runs on GitHub-hosted
-          #   ubuntu and only reads metadata (never the PR's code), so this is safe.
-          #   To run full CI on a trusted fork PR: push the branch into this repo.
+          #   home LAN). A fork PR must NOT execute on our hardware — but this
+          #   gate cannot promise that. A fork's pull_request run executes the
+          #   FORK's copy of this file, so a hostile fork just deletes this
+          #   block or adds its own self-hosted job. All this does is keep an
+          #   unmodified ci.yml from queueing fork PRs onto our runners (every
+          #   self-hosted job gates on these run_* flags) and make the required
+          #   contexts fail rather than show green with nothing tested.
+          #   The real control is the repository setting "Require approval for
+          #   all external contributors": no fork workflow runs at all until a
+          #   maintainer approves it. NEVER click "Approve and run" on a fork
+          #   PR — fork code would run on persistent self-hosted runners.
+          #   Review it, then push the branch into this repo (review/<branch>)
+          #   to run CI.
           echo "is_fork=false" >> "$GITHUB_OUTPUT"
           echo "hosted=false"  >> "$GITHUB_OUTPUT"
           if [[ "${{ github.event_name }}" == "pull_request" \
@@ -231,6 +241,8 @@ jobs:
   guard:
     name: Branch guard
     runs-on: ubuntu-latest
+    # p95 <1 min: the 10-min floor.
+    timeout-minutes: 10
     if: github.event_name == 'pull_request'
     steps:
       - name: Check for already-merged PR on this branch
@@ -288,6 +300,8 @@ jobs:
             checkout-clean: false
             advisory: true
     runs-on: ${{ matrix.runner }}
+    # Observed p95 3.3 min (macos), 1.6 (ubuntu) (last 40 runs); ceiling ~2-3x p95.
+    timeout-minutes: 10
     continue-on-error: ${{ matrix.advisory }}
     steps:
       - uses: actions/checkout@v4
@@ -332,6 +346,8 @@ jobs:
             checkout-clean: false
             advisory: true
     runs-on: ${{ matrix.runner }}
+    # Observed p95 11.1 min (macos), 10.4 (ubuntu); max seen 19.3 (last 40 runs); ceiling ~2-3x p95.
+    timeout-minutes: 30
     continue-on-error: ${{ matrix.advisory }}
     steps:
       - uses: actions/checkout@v4
@@ -373,6 +389,8 @@ jobs:
       needs.parse-tags.outputs.hosted != 'true' &&
       needs.parse-tags.outputs.run_js == 'true'
     runs-on: arc-dubis
+    # Observed p95 3.1 min (last 40 runs); ceiling ~2-3x p95.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -504,6 +522,8 @@ jobs:
       needs.parse-tags.outputs.hosted == 'true' &&
       (needs.parse-tags.outputs.run_lint == 'true' || needs.parse-tags.outputs.run_js == 'true')
     runs-on: ubuntu-latest
+    # No run history (hosted fallback): sized like js plus a cold npm install.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - run: npm install
@@ -525,11 +545,14 @@ jobs:
     needs: [parse-tags, guard, js, js-e2e, js-live, js-hosted]
     if: always()
     runs-on: ubuntu-latest
+    # Aggregate only (p95 <1 min): the 10-min floor.
+    timeout-minutes: 10
     steps:
       - name: Fail fork PRs (self-hosted CI never ran)
-        # Without this, a fork PR would show this required context green with
-        # every test skipped. Fork PRs must be pushed into the repo by a
-        # maintainer to run CI and become mergeable.
+        # Without this, an unmodified ci.yml would show this required context
+        # green on a fork PR with every test skipped. Not a security boundary:
+        # a fork runs its own copy of this file (see parse-tags step 0). Fork
+        # PRs are reviewed, then pushed into the repo by a maintainer to run CI.
         if: needs.parse-tags.outputs.is_fork == 'true'
         run: |
           echo "::error::Fork PR — self-hosted CI was skipped, so required checks cannot pass. A maintainer must push this branch into the repo to run CI."
@@ -581,6 +604,8 @@ jobs:
             checkout-clean: false
             advisory: true
     runs-on: ${{ matrix.runner }}
+    # Observed p95 11.5 min (macos), 7.0 (ubuntu); max seen 14.5 (last 40 runs); ceiling ~2-3x p95.
+    timeout-minutes: 30
     continue-on-error: ${{ matrix.advisory }}
     steps:
       - uses: actions/checkout@v4
@@ -646,6 +671,8 @@ jobs:
       needs.parse-tags.outputs.hosted == 'true' &&
       (needs.parse-tags.outputs.run_lint == 'true' || needs.parse-tags.outputs.run_python == 'true')
     runs-on: ubuntu-latest
+    # No run history (hosted fallback): sized like python plus apt + a cold pip install.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -689,6 +716,8 @@ jobs:
     needs: [parse-tags, guard, python, python-hosted]
     if: always()
     runs-on: ubuntu-latest
+    # Aggregate only (p95 <1 min): the 10-min floor.
+    timeout-minutes: 10
     steps:
       - name: Fail fork PRs (self-hosted CI never ran)
         if: needs.parse-tags.outputs.is_fork == 'true'
@@ -839,6 +868,8 @@ jobs:
     needs: [parse-tags, guard, pnp-e2e]
     if: always()
     runs-on: ubuntu-latest
+    # Aggregate only (p95 <1 min): the 10-min floor.
+    timeout-minutes: 10
     steps:
       - name: Aggregate PnP job results
         run: |
@@ -876,6 +907,8 @@ jobs:
             runner: [self-hosted, m4-air]
             checkout-clean: false
     runs-on: ${{ matrix.runner }}
+    # Observed p95 7.6 min (macos), 4.8 (ubuntu) (last 40 runs); ceiling ~2-3x p95.
+    timeout-minutes: 20
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -898,6 +931,8 @@ jobs:
     name: Update visual baselines (Linux)
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.suite == 'visual-baselines'
     runs-on: arc-dubis
+    # Dispatch-only, no recent run history: sized like quality.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - run: npm install
