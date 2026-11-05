@@ -18,15 +18,11 @@
 #   and all this job needs from it is an HTTP GET.
 #
 # Why ask the server instead of driving the browser here
-#   Reaching the shared Chrome directly would mean labelling `arc-runners`
-#   `browser-client=enabled`, and CDP is unauthenticated: that label would let
-#   anything running there read the cookies of a browser holding live
-#   logged-in sessions, including a real X account. Isaac declined it, and a
-#   second dedicated Chrome would not have helped — the cluster NATs through
-#   one public IP and the image is identical, so a fresh profile shares the
-#   fingerprint and merely lacks the aged anti-bot history that makes the real
-#   one credible. Going through /v1 swaps that grant for a dubIS API token.
-#   The token reaches inventory; CDP would have reached the X account.
+#   Reaching the shared Chrome directly would need a NetworkPolicy admission
+#   for the runner pods, and CDP is unauthenticated: anything running there
+#   could drive a browser shared with other services. Isaac declined it.
+#   Going through /v1 swaps that grant for a dubIS API token.
+#   The token reaches inventory; CDP would have reached the shared browser.
 #
 #   Note what this does and does not test. It records what UPSTREAM returns,
 #   through whatever code the deployed server is running — right for "has

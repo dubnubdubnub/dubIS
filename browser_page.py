@@ -26,16 +26,23 @@ all.
 
 SHARING SOMEONE ELSE'S BROWSER
 The CDP backend attaches to a browser it does not own, so it behaves like a
-guest. It uses `contexts[0]` -- the profile that already exists, cookies and
-all; `new_context()` would hand back a blank logged-out profile and quietly
-lose whatever sessions the browser was holding. It closes the pages it opens
-and never the browser process: `close()` on a CDP connection detaches this
-client, and killing the process would take out every other consumer.
+guest. Point it ONLY at a stateless, never-logged-in profile (the cluster's
+`browser-anon`): this module renders arbitrary third-party pages, and CDP is
+unauthenticated, so whatever profile it is pointed at is exposed to any
+renderer exploit or hostile page it loads. It must never be a profile that
+holds a login.
 
-A profile shared with ordinary human browsing is also the point, not a side
-effect -- a profile whose entire history is distributor product pages fetched
-at machine cadence is a louder bot signal than one mixed in with real traffic.
-`human_pause` exists so the cadence does not undo that; see its docstring.
+Every fetch gets its own `new_context()` -- an isolated, empty cookie jar that
+is always closed in a `finally`. The browser is shared with other consumers, so
+a leaked context or page would accumulate in their Chrome until it OOMs, and a
+context shared across jobs would leak state between consumers. It never closes
+the browser process: `close()` on a CDP connection detaches this client, and
+killing the process would take out every other consumer.
+
+An unreachable browser is a loud `BrowserUnavailableError`, not a `None`: a
+misconfigured or down browser must not read as "the part does not exist".
+`human_pause` exists so the navigation cadence of a shared browser does not
+look like a machine; see its docstring.
 """
 
 from __future__ import annotations
@@ -48,6 +55,8 @@ import random
 import threading
 import time
 from typing import Any
+
+from dubis_errors import DistributorError
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +74,14 @@ CDP_ENV = "DUBIS_CDP_URL"
 # the median of a `human_pause`. Unset means no floor: an interactive hover
 # should not stall, and one person hovering cannot burst hard enough to matter.
 CDP_PAUSE_ENV = "DUBIS_CDP_PAUSE_MEDIAN"
+
+
+class BrowserUnavailableError(DistributorError):
+    """The configured CDP browser cannot be reached or driven.
+
+    A `DistributorError`, so `BaseClient.fetch_product` propagates it (and the
+    server maps it to a 502) instead of caching "no such part".
+    """
 
 
 def cdp_endpoint() -> str | None:
@@ -106,8 +123,8 @@ def available() -> bool:
 
     True when a CDP endpoint is configured -- the browser is somebody else's
     and its reachability is not knowable without a round trip, so a failure to
-    connect surfaces later as a None from `fetch_html` rather than as a lie
-    here. Otherwise it comes down to whether a local GUI loop exists: false in
+    connect surfaces later as a BrowserUnavailableError from `fetch_html`
+    rather than as a lie here. Otherwise it comes down to whether a local GUI loop exists: false in
     the container (no `webview`) and false in a plain CLI, where nothing has
     called `webview.start()`.
     """
@@ -233,20 +250,6 @@ class BrowserPage:
         self._browser = self._pw.chromium.connect_over_cdp(endpoint)
         return self._browser
 
-    def _shared_context(self, browser: Any) -> Any:
-        """The browser's existing profile -- the one holding its cookies.
-
-        `new_context()` would return a blank, logged-out profile. Any session
-        the browser was holding would silently not apply, which reads as "the
-        site logged us out" rather than "we asked for a different profile".
-        """
-        contexts = browser.contexts
-        if not contexts:
-            raise RuntimeError(
-                "shared browser exposes no existing context; refusing to "
-                "create one, since a fresh context would be logged out")
-        return contexts[0]
-
     def _throttle(self) -> None:
         """Optional floor on navigation rate against a browser we share."""
         median = (os.environ.get(CDP_PAUSE_ENV) or "").strip()
@@ -300,16 +303,24 @@ class BrowserPage:
         return None
 
     def _fetch_over_cdp(self, endpoint: str, url: str, settle_s: float) -> str | None:
-        """Render `url` in the shared browser. Caller holds _lock."""
+        """Render `url` in an isolated context of the shared browser. Caller holds _lock.
+
+        Raises BrowserUnavailableError when the browser cannot be attached to or
+        cannot make a context; returns None only for a page-level failure.
+        """
         try:
             browser = self._connect_cdp(endpoint)
-            context = self._shared_context(browser)
+            # Isolation unit: a fresh, empty context per fetch, always closed.
+            context = browser.new_context()
         except Exception as exc:  # noqa: BLE001 - connect surfaces many types
-            logger.warning("BrowserPage: cannot attach to %s: %s", endpoint, exc)
             # Drop the connection so the next call reattaches, but keep the
             # driver: see _connect_cdp for why restarting it poisons the retry.
             self._browser = None
-            return None
+            raise BrowserUnavailableError(
+                f"cannot use the shared browser at {endpoint} "
+                f"({CDP_ENV}): {type(exc).__name__}: {exc}",
+                provider="browser",
+            ) from exc
 
         self._throttle()
         page = None
@@ -334,12 +345,12 @@ class BrowserPage:
             logger.warning("BrowserPage: CDP fetch of %s failed: %s", url, exc)
             return None
         finally:
-            # Ours to close; the browser is not.
-            if page is not None:
-                try:
-                    page.close()
-                except Exception as exc:  # noqa: BLE001
-                    logger.debug("BrowserPage: closing page failed: %s", exc)
+            # Ours to close; the browser is not. Closing the context closes
+            # its pages too, and releases its memory in the shared Chrome.
+            try:
+                context.close()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("BrowserPage: closing context failed: %s", exc)
 
     # ── fetching ─────────────────────────────────────────────────────────
 
@@ -353,7 +364,9 @@ class BrowserPage:
 
         Returns None rather than raising on the ordinary failures (no loop, no
         load, still on a challenge page): one part failing to price is not a
-        reason to abandon a run over hundreds of them.
+        reason to abandon a run over hundreds of them. An unreachable CDP
+        browser is different -- every later fetch would fail the same way -- so
+        that raises BrowserUnavailableError.
         """
         if not available():
             return None

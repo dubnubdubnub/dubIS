@@ -121,11 +121,27 @@ class FakeContext:
         self.pages.append(page)
         return page
 
+    closed = False
+
+    def close(self):
+        self.closed = True
+
 
 class FakeBrowser:
-    def __init__(self, contexts):
+    """`new_context()` hands out a fresh FakeContext each call, recorded in
+    `created`; `contexts` is the browser's pre-existing default profile, which
+    the code under test must never touch."""
+
+    def __init__(self, contexts, html="<html></html>", url="https://example.com/landed"):
         self.contexts = contexts
+        self.created = []
+        self._html, self._url = html, url
         self.closed = False
+
+    def new_context(self):
+        ctx = FakeContext(self._html, self._url)
+        self.created.append(ctx)
+        return ctx
 
     def close(self):
         self.closed = True
@@ -134,8 +150,8 @@ class FakeBrowser:
 def install_fake_playwright(monkeypatch, *, html="<html></html>",
                             url="https://example.com/landed", contexts=None):
     """Stand in for playwright.sync_api so no real browser is needed."""
-    shared = FakeContext(html, url)
-    browser = FakeBrowser(contexts if contexts is not None else [shared])
+    shared = FakeContext(html, url)   # the default profile: must stay untouched
+    browser = FakeBrowser(contexts if contexts is not None else [shared], html, url)
     state = {"browser": browser, "shared": shared, "endpoints": [],
              "stopped": False, "extra_contexts": 0}
 
@@ -175,20 +191,31 @@ class TestCdpSelection:
 
 
 class TestSharedBrowserEtiquette:
-    def test_it_reuses_the_existing_profile_not_a_fresh_one(self, monkeypatch):
-        """`new_context()` would be logged out; contexts[0] holds the cookies."""
+    def test_it_uses_an_isolated_context_not_the_default_profile(self, monkeypatch):
+        """Third-party pages must never run in the browser's default profile."""
         monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
         state = install_fake_playwright(monkeypatch, html="<html>ok</html>")
         page = browser_page.BrowserPage()
         assert page.fetch_html("https://example.com") == "<html>ok</html>"
-        assert state["shared"].pages, "should have opened a page on contexts[0]"
-        assert not hasattr(state["browser"], "new_context_called")
+        assert len(state["browser"].created) == 1
+        assert state["browser"].created[0].pages, "page opened in the new context"
+        assert not state["shared"].pages, "default profile must stay untouched"
 
-    def test_it_closes_its_own_page(self, monkeypatch):
+    def test_each_fetch_gets_its_own_context(self, monkeypatch):
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+        state = install_fake_playwright(monkeypatch)
+        page = browser_page.BrowserPage()
+        page.fetch_html("https://example.com")
+        page.fetch_html("https://example.com/2")
+        assert len(state["browser"].created) == 2
+
+    def test_it_closes_its_own_context_and_page(self, monkeypatch):
         monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
         state = install_fake_playwright(monkeypatch)
         browser_page.BrowserPage().fetch_html("https://example.com")
-        assert state["shared"].pages[0].closed is True
+        ctx = state["browser"].created[0]
+        assert ctx.closed is True
+        assert state["browser"].closed is False
 
     def test_it_does_not_close_the_shared_browser_on_a_fetch(self, monkeypatch):
         """Detaching per fetch would churn a browser other consumers are using."""
@@ -200,7 +227,7 @@ class TestSharedBrowserEtiquette:
         assert state["browser"].closed is False
         assert len(state["endpoints"]) == 1, "connection should be reused"
 
-    def test_the_page_is_closed_even_when_the_fetch_raises(self, monkeypatch):
+    def test_the_context_is_closed_even_when_the_fetch_raises(self, monkeypatch):
         monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
 
         def boom():
@@ -208,7 +235,7 @@ class TestSharedBrowserEtiquette:
 
         state = install_fake_playwright(monkeypatch, html=boom)
         assert browser_page.BrowserPage().fetch_html("https://example.com") is None
-        assert state["shared"].pages[0].closed is True
+        assert state["browser"].created[0].closed is True
 
     def test_destroy_detaches_rather_than_leaking(self, monkeypatch):
         monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
@@ -218,11 +245,31 @@ class TestSharedBrowserEtiquette:
         page.destroy()
         assert state["browser"].closed is True and state["stopped"] is True
 
-    def test_a_browser_with_no_context_is_refused(self, monkeypatch):
-        """Rather than making one, which would be a logged-out profile."""
+    def test_a_browser_with_no_default_context_still_works(self, monkeypatch):
+        """Nothing depends on the default profile, so its absence is fine."""
         monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
-        install_fake_playwright(monkeypatch, contexts=[])
-        assert browser_page.BrowserPage().fetch_html("https://example.com") is None
+        install_fake_playwright(monkeypatch, html="<html>ok</html>", contexts=[])
+        assert browser_page.BrowserPage().fetch_html("https://example.com") == "<html>ok</html>"
+
+    def test_a_dead_connection_at_new_context_is_loud_and_reattaches(self, monkeypatch):
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+        state = install_fake_playwright(monkeypatch, html="<html>ok</html>")
+        browser = state["browser"]
+        real = browser.new_context
+        calls = []
+
+        def flaky():
+            calls.append(1)
+            if len(calls) == 1:
+                raise RuntimeError("Target closed")
+            return real()
+
+        browser.new_context = flaky
+        page = browser_page.BrowserPage()
+        with pytest.raises(browser_page.BrowserUnavailableError, match="Target closed"):
+            page.fetch_html("https://example.com")
+        assert page.fetch_html("https://example.com") == "<html>ok</html>"
+        assert len(state["endpoints"]) == 2, "should have reattached"
 
 
 class TestCdpFetchBehaviour:
@@ -239,13 +286,13 @@ class TestCdpFetchBehaviour:
         state = install_fake_playwright(
             monkeypatch, html="<html><title>Just a moment...</title></html>")
         assert browser_page.BrowserPage().fetch_html("https://example.com") is None
-        assert browser_page.INTERSTITIAL_RECHECK_S * 1000 in state["shared"].waits
+        assert browser_page.INTERSTITIAL_RECHECK_S * 1000 in state["browser"].created[0].waits
 
     def test_settle_is_honoured(self, monkeypatch):
         monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
         state = install_fake_playwright(monkeypatch)
         browser_page.BrowserPage().fetch_html("https://example.com", settle_s=2.5)
-        assert 2500 in state["shared"].waits
+        assert 2500 in state["browser"].created[0].waits
 
     def test_a_dropped_connection_is_reattached_without_a_second_driver(
         self, monkeypatch,
@@ -278,12 +325,13 @@ class TestCdpFetchBehaviour:
                             lambda: types.SimpleNamespace(start=start))
 
         page = browser_page.BrowserPage()
-        assert page.fetch_html("https://example.com") is None
+        with pytest.raises(browser_page.BrowserUnavailableError):
+            page.fetch_html("https://example.com")
         assert page.fetch_html("https://example.com") == "<html>ok</html>"
         assert len(attempts) == 2, "the second fetch should have reattached"
         assert len(starts) == 1, "the driver should have been started once"
 
-    def test_an_unreachable_endpoint_is_a_None_not_a_crash(self, monkeypatch):
+    def test_an_unreachable_endpoint_is_a_loud_error_naming_it(self, monkeypatch):
         monkeypatch.setenv(browser_page.CDP_ENV, "http://nowhere:9222")
 
         class Exploding:
@@ -297,7 +345,15 @@ class TestCdpFetchBehaviour:
         pkg.sync_api = module
         monkeypatch.setitem(sys.modules, "playwright", pkg)
         monkeypatch.setitem(sys.modules, "playwright.sync_api", module)
-        assert browser_page.BrowserPage().fetch_html("https://example.com") is None
+        with pytest.raises(browser_page.BrowserUnavailableError,
+                           match=r"http://nowhere:9222.*connection refused"):
+            browser_page.BrowserPage().fetch_html("https://example.com")
+
+    def test_the_error_is_a_distributor_error_so_it_is_never_cached(self):
+        """BaseClient.fetch_product propagates DistributorError uncached (a 502),
+        instead of caching None, i.e. "no such part"."""
+        from dubis_errors import DistributorError
+        assert issubclass(browser_page.BrowserUnavailableError, DistributorError)
 
 
 class TestHumanPause:

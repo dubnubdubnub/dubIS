@@ -28,7 +28,7 @@ is now `fremont.dubis.svc.cluster.local`. Three things keep their old names
 |---|---|
 | PVC `dubis-server-data` | A PVC with a new name is a new, empty volume. The inventory would be orphaned on the old one. |
 | Secret `dubis-server-auth` (plus the bootstrap Role's `resourceNames`) | The tokens exist only in this Secret. A new name means the bootstrap Job mints fresh tokens that no client (CI, OpenPnP, desktop) holds. |
-| Namespace `dubis` | Unchanged. The `ghcr-pull` / `browser-client` labels and the Secret and PVC all live there. |
+| Namespace `dubis` | Unchanged. The `ghcr-pull` label and the Secret and PVC all live there. Browser access (`browser-anon`) is admitted by the infra repo's NetworkPolicy for `dubis/app=fremont`, not a namespace label. |
 
 A cluster that already runs `dubis-server` is **not** migrated by merging the
 rename PR. The live cluster is managed out-of-band, so a human has to run
