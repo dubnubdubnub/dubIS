@@ -24,10 +24,11 @@ jobs:
   win11-full:
     name: JS Windows Full Functional E2E (win11)
     runs-on: [self-hosted, win11]
-    # Full suite (~46 specs) on the slow CoW golden disk, plus a possible cold
-    # cache miss. Generous ceiling — this is off the PR path, so latency here
-    # does not matter.
-    timeout-minutes: 60
+    # Full suite (~46 specs) on the slow CoW golden disk: p95 4.3 min, max 5.1
+    # over the last 40 nightlies. 15 leaves ~3x plus room for a cold cache miss.
+    # Not generous on purpose: this shares the ONE win11 VM with the PR-path
+    # js-windows leg, so a hung nightly would hold that VM, not just itself.
+    timeout-minutes: 15
     defaults:
       run:
         shell: powershell

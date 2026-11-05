@@ -53,7 +53,15 @@ Both scripts are covered by `tests/python/test_ci_workspace_hygiene.py` (behavio
 
 `pnp-e2e`'s macos leg needs neither guard: it takes a default (clean) checkout and uses no browser.
 
-**Fork PRs**: all self-hosted jobs are skipped for security, and `JS Lint & Test (ubuntu)` deliberately **fails** so the PR can't show green without tests. A maintainer must push the branch into the repo to run CI.
+**Fork PRs**: with an unmodified `ci.yml`, all self-hosted jobs are skipped and `JS Lint & Test (ubuntu)` / `Python Lint & Test (ubuntu)` deliberately **fail**, so the PR can't show green without tests. That in-workflow gate (parse-tags step 0) is hygiene, **not a security boundary**: a fork PR's `pull_request` run executes the *fork's* copy of `ci.yml`, which can simply delete the gate or add its own self-hosted job. The real control is the repository setting **"Require approval for all external contributors"** — no fork workflow runs until a maintainer approves it.
+
+> **Never click "Approve and run" on a fork PR** — fork code would run on persistent self-hosted runners. Review, then push the branch into the repo (`review/<branch>`) to run CI.
+
+The same setting also holds back `pull_request` runs on commits pushed by `github-actions[bot]` (they land as `action_required`) — see the refresh-fixtures section below. That branch lives in this repo, so it is not fork code.
+
+### Job timeouts
+
+Every job in `ci.yml`, `win11-nightly.yml` and `refresh-fixtures.yml` sets `timeout-minutes`, sized at roughly 2-3x the observed p95 duration (floor 10 min). Without one a job gets GitHub's 360-minute default, and on a single shared box (m4-air, the win11 VM, the GPU node) a hung leg holds that machine for six hours. The clock starts when a runner picks the job up, so queue time does not count. If a job legitimately outgrows its ceiling, re-measure (`gh api repos/dubnubdubnub/dubIS/actions/runs/<id>/jobs`) and raise it; do not delete it.
 
 ## Override with commit-message tags
 
@@ -139,7 +147,7 @@ The capture → commit → replay flow: `scripts/capture-distributor-fixtures.py
 
 `mouser_client`'s keyless path needs a browser, and the only browser available is the cluster's shared Chrome (`browser-x` in namespace `browser`). Reaching it from a runner would mean labelling `arc-runners` with `browser-client=enabled`, because a `default-deny-ingress` plus `allow-browser-clients` policy admits port 9222 only from labelled namespaces.
 
-That label was **considered and rejected**. CDP is unauthenticated, so it lets anything in the namespace read `contexts[0]`'s cookies and act as every identity the profile holds — including a live X account. CI executes branch code, and while fork PRs already cannot run self-hosted CI (see parse-tags step 0), that only closes the anonymous path, not the "a branch I pushed does something I did not read" one.
+That label was **considered and rejected**. CDP is unauthenticated, so it lets anything in the namespace read `contexts[0]`'s cookies and act as every identity the profile holds — including a live X account. CI executes branch code, and while fork PRs cannot run without a maintainer's approval (the "Require approval for all external contributors" setting — *not* parse-tags step 0, which a fork can edit out), that only closes the anonymous path, not the "a branch I pushed does something I did not read" one.
 
 A second, dedicated Chrome with no personal logins does **not** solve it either, and it is worth writing down why so nobody re-proposes it. Cluster egress is a single NAT with no per-namespace SNAT, so a second browser has the same public IP. The same image gives it the same UA, Chrome version, TLS fingerprint, canvas/WebGL and fonts. The only real difference is the cookie jar, and that difference runs the wrong way: a virgin profile has no anti-bot history, which is itself a mild bot signal. Sharing the aged profile is the better position for the app, so the app keeps it and CI gets nothing.
 
@@ -167,7 +175,7 @@ A scheduled workflow keeps the credential-free fixtures fresh: LCSC and Pololu o
 
 The Mouser step is the only thing here that needs a credential, and it is a dubIS API token rather than a distributor secret. **Needs a human, once:** a repository secret `DUBIS_CI_TOKEN` whose value also appears in the `dubis-server-auth` Secret's `DUBIS_TOKENS` (the server runs `DUBIS_AUTH_MODE=on`). Nothing in this repo creates it. Until it exists the request 401s, the step is `continue-on-error`, and the LCSC/Pololu refresh proceeds untouched. The `dubis` namespace has no NetworkPolicy, so no label is involved in reaching its ClusterIP.
 
-The `mouser` (API key) and `digikey` (cookies) blocks are deliberately skipped and stay local-only (`pytest -m live`). The script's own guard leaves an existing block untouched whenever it cannot capture a replacement — including when the server answers but every part comes back challenged — so no failure here can turn into a deleted fixture. When a fixture does change, the job does **not** push to protected `main`; it force-updates the `automation/refresh-fixtures` branch and opens (or reuses) a PR, so the normal offline replay tests validate the captured data before a human merges. Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
+The `mouser` (API key) and `digikey` (cookies) blocks are deliberately skipped and stay local-only (`pytest -m live`). The script's own guard leaves an existing block untouched whenever it cannot capture a replacement — including when the server answers but every part comes back challenged — so no failure here can turn into a deleted fixture. When a fixture does change, the job does **not** push to protected `main`; it force-updates the `automation/refresh-fixtures` branch and opens (or reuses) a PR, then dispatches `ci.yml` on that branch so the offline replay tests validate the captured data. **That PR does not become mergeable by itself.** The bot's force-push does produce `pull_request` runs, but "Require approval for all external contributors" holds them as `action_required` with zero jobs, and the PR's check rollup then shows *no* checks — the green dispatched run on the same SHA does not count. A maintainer reviews the diff (fixture JSON only, on this repo's own branch — not fork code) and approves the pending `pull_request` run; its required contexts then report and the PR can merge. A lasting fix needs a push token whose actor is not "external" (GitHub App installation token or the owner's fine-grained PAT, as a secret). Design doc: `docs/plans/2026-05-31-live-distributor-test-tier-design.md`.
 
 ## Troubleshooting
 

@@ -23,6 +23,11 @@
   It runs the staleness guards plus ruff, pytest, eslint, tsc, and vitest.
 - After opening a PR, watch CI (`gh pr checks <number>`) and fix failures —
   don't leave a PR red.
+- **Fork PRs (maintainers):** never click "Approve and run" on a fork PR —
+  fork code would run on persistent self-hosted runners. Review, then push the
+  branch into the repo (`review/<branch>`) to run CI. The fork check inside
+  `ci.yml` is not a security boundary (a fork runs its own copy of the file);
+  see `docs/ci-reference.md`.
 
 ## Test policy
 
