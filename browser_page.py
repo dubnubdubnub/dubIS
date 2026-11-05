@@ -124,9 +124,9 @@ def available() -> bool:
     True when a CDP endpoint is configured -- the browser is somebody else's
     and its reachability is not knowable without a round trip, so a failure to
     connect surfaces later as a BrowserUnavailableError from `fetch_html`
-    rather than as a lie here. Otherwise it comes down to whether a local GUI loop exists: false in
-    the container (no `webview`) and false in a plain CLI, where nothing has
-    called `webview.start()`.
+    rather than as a lie here. Otherwise it comes down to whether a local GUI
+    loop exists: false in the container (no `webview`) and false in a plain
+    CLI, where nothing has called `webview.start()`.
     """
     if cdp_endpoint():
         return True
@@ -214,6 +214,28 @@ class BrowserPage:
 
     # ── CDP backend ──────────────────────────────────────────────────────
 
+    @staticmethod
+    def _is_connected(browser: Any) -> bool:
+        try:
+            return bool(browser.is_connected())
+        except Exception:  # noqa: BLE001 - a handle that cannot answer is dead
+            return False
+
+    def _drop_browser(self) -> None:
+        """Forget the CDP connection and release the old Browser object.
+
+        Detaches this client only (`close()` on a CDP connection never stops
+        the shared browser). Keeps the Playwright driver: see _connect_cdp.
+        Caller holds _lock.
+        """
+        browser, self._browser = self._browser, None
+        if browser is None:
+            return
+        try:
+            browser.close()
+        except Exception as exc:  # noqa: BLE001 - already dead is fine
+            logger.debug("BrowserPage: closing stale CDP handle failed: %s", exc)
+
     def _connect_cdp(self, endpoint: str) -> Any:
         """Attach to the shared browser, reusing the connection. Caller holds _lock.
 
@@ -222,7 +244,11 @@ class BrowserPage:
         detach cycles against a browser other things are using.
         """
         if self._browser is not None:
-            return self._browser
+            if self._is_connected(self._browser):
+                return self._browser
+            # The browser went away since the last fetch (restarted Pod): drop
+            # the dead handle and reattach, rather than failing on it.
+            self._drop_browser()
         # The sync API refuses to run inside a running asyncio loop, and says
         # so obscurely. The /v1 routes are plain `def`, so FastAPI runs them in
         # a worker thread and this is fine -- but an `async def` caller would
@@ -315,7 +341,7 @@ class BrowserPage:
         except Exception as exc:  # noqa: BLE001 - connect surfaces many types
             # Drop the connection so the next call reattaches, but keep the
             # driver: see _connect_cdp for why restarting it poisons the retry.
-            self._browser = None
+            self._drop_browser()
             raise BrowserUnavailableError(
                 f"cannot use the shared browser at {endpoint} "
                 f"({CDP_ENV}): {type(exc).__name__}: {exc}",
@@ -343,6 +369,9 @@ class BrowserPage:
             return html or None
         except Exception as exc:  # noqa: BLE001 - one page failing is not fatal
             logger.warning("BrowserPage: CDP fetch of %s failed: %s", url, exc)
+            if not self._is_connected(browser):
+                # Dropped mid-fetch: do not keep a dead handle for the next one.
+                self._drop_browser()
             return None
         finally:
             # Ours to close; the browser is not. Closing the context closes

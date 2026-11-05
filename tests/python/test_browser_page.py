@@ -137,6 +137,10 @@ class FakeBrowser:
         self.created = []
         self._html, self._url = html, url
         self.closed = False
+        self.connected = True
+
+    def is_connected(self):
+        return self.connected
 
     def new_context(self):
         ctx = FakeContext(self._html, self._url)
@@ -270,6 +274,46 @@ class TestSharedBrowserEtiquette:
             page.fetch_html("https://example.com")
         assert page.fetch_html("https://example.com") == "<html>ok</html>"
         assert len(state["endpoints"]) == 2, "should have reattached"
+
+
+    def test_a_mid_fetch_drop_reattaches_without_a_spurious_error(self, monkeypatch):
+        """After the browser vanishes mid-fetch the next fetch must reattach
+        quietly, not raise BrowserUnavailableError on the dead handle."""
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+
+        def boom():
+            raise RuntimeError("Target closed")
+
+        state = install_fake_playwright(monkeypatch, html=boom)
+        browser = state["browser"]
+        page = browser_page.BrowserPage()
+
+        real_new = browser.new_context
+
+        def new_context():
+            ctx = real_new()
+            ctx.new_page = lambda: (_ for _ in ()).throw(RuntimeError("Target closed"))
+            browser.connected = False
+            return ctx
+
+        browser.new_context = new_context
+        assert page.fetch_html("https://example.com") is None
+        assert browser.closed is True, "stale handle should be closed"
+        browser.new_context = real_new
+        browser.connected = True
+        browser.closed = False
+        assert page.fetch_html("https://example.com") is None  # boom html, no raise
+        assert len(state["endpoints"]) == 2, "should have reattached"
+
+    def test_a_stale_handle_is_closed_when_dropped(self, monkeypatch):
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+        state = install_fake_playwright(monkeypatch, html="<html>ok</html>")
+        page = browser_page.BrowserPage()
+        page.fetch_html("https://example.com")
+        state["browser"].connected = False
+        assert page.fetch_html("https://example.com") == "<html>ok</html>"
+        assert state["browser"].closed is True
+        assert len(state["endpoints"]) == 2
 
 
 class TestCdpFetchBehaviour:

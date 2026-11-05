@@ -899,3 +899,25 @@ class TestReelingFeeApplicability:
         p = MouserClient._parse_product_page(
             self._page("Cut Tape", table=PRICING_TABLE_HTML), "PN", "u")
         assert float(p["reelFee"]) == 7.00  # not 0.10
+
+
+class TestBrowserUnavailable:
+    def test_unreachable_cdp_browser_propagates_uncached(self, tmp_path, monkeypatch):
+        """A down browser must be a loud DistributorError, not a cached
+        "no such part", and must not fall through to the urllib scrape."""
+        import browser_page
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://nowhere.invalid:9222")
+        client = MouserClient(credentials_file=str(tmp_path / "none.json"))
+        calls = []
+
+        def boom(*_a, **_k):
+            calls.append(1)
+            raise browser_page.BrowserUnavailableError("cdp down", provider="browser")
+
+        monkeypatch.setattr(browser_page.BrowserPage, "_fetch_over_cdp", boom)
+        monkeypatch.setattr(client, "_fetch_via_scrape",
+                            lambda *_: pytest.fail("fell through to the scrape"))
+        for _ in range(2):
+            with pytest.raises(browser_page.BrowserUnavailableError):
+                client.fetch_product("595-TPS5430DDA")
+        assert len(calls) >= 2, "failure must not be cached as a result"
