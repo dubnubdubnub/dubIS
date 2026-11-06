@@ -10,6 +10,7 @@ graph LR
     "app_launch.py" --> "dubis_errors.py"
     "app_launch.py" --> "server/lockfile.py"
     "base_client.py" --> "dubis_errors.py"
+    "browser_page.py" --> "dubis_errors.py"
     "cache_db.py" --> "domain/pricing.py"
     "cache_db.py" --> "domain/schema.py"
     "cache_db.py" --> "inventory_ops.py"
@@ -1025,6 +1026,7 @@ graph LR
     "tests/python/test_base_client.py" --> "base_client.py"
     "tests/python/test_base_client.py" --> "dubis_errors.py"
     "tests/python/test_browser_page.py" --> "browser_page.py"
+    "tests/python/test_browser_page.py" --> "dubis_errors.py"
     "tests/python/test_browser_page.py" --> "mouser_client.py"
     "tests/python/test_cache_catchup_properties.py" --> "cache_db.py"
     "tests/python/test_cache_catchup_properties.py" --> "domain/inventory.py"
@@ -1076,6 +1078,7 @@ graph LR
     "tests/python/test_clients_digikey.py" --> "digikey_session.py"
     "tests/python/test_clients_digikey.py" --> "dubis_errors.py"
     "tests/python/test_clients_lcsc.py" --> "lcsc_client.py"
+    "tests/python/test_clients_mouser.py" --> "browser_page.py"
     "tests/python/test_clients_mouser.py" --> "mouser_client.py"
     "tests/python/test_clients_pololu.py" --> "pololu_client.py"
     "tests/python/test_concurrency_locks.py" --> "cache_db.py"
@@ -1267,8 +1270,8 @@ graph LR
 
 ### browser_page.py
 
-- **Imports:** —
-- **Imported by:** `mouser_client.py`, `scripts/capture-distributor-fixtures.py`, `scripts/seed-bom-prices.py`, `tests/python/test_browser_page.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_distributor_browser.py`
+- **Imports:** `dubis_errors.py`
+- **Imported by:** `mouser_client.py`, `scripts/capture-distributor-fixtures.py`, `scripts/seed-bom-prices.py`, `tests/python/test_browser_page.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_clients_mouser.py`, `tests/python/test_distributor_browser.py`
 
 ### cache_db.py
 
@@ -1528,7 +1531,7 @@ graph LR
 ### dubis_errors.py
 
 - **Imports:** —
-- **Imported by:** `app_launch.py`, `base_client.py`, `carts.py`, `digikey_browser.py`, `digikey_client.py`, `domain/api_inventory.py`, `domain/federation.py`, `domain/generic_parts.py`, `domain/part_registry.py`, `domain/threshold_snapshots.py`, `jlc_session.py`, `jlcpcb_client.py`, `server/__main__.py`, `server/dispatch.py`, `server/errors.py`, `server/lockfile.py`, `server/proxy.py`, `server/routes/mirror.py`, `server/sources.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry.py`, `tests/python/domain/test_threshold_snapshots.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_ssh_tunnel.py`, `tests/python/test_base_client.py`, `tests/python/test_carts.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_digikey_browser.py`, `tests/python/test_digikey_session.py`, `tests/python/test_dubis_errors.py`, `tests/python/test_jlcpcb_client.py`
+- **Imported by:** `app_launch.py`, `base_client.py`, `browser_page.py`, `carts.py`, `digikey_browser.py`, `digikey_client.py`, `domain/api_inventory.py`, `domain/federation.py`, `domain/generic_parts.py`, `domain/part_registry.py`, `domain/threshold_snapshots.py`, `jlc_session.py`, `jlcpcb_client.py`, `server/__main__.py`, `server/dispatch.py`, `server/errors.py`, `server/lockfile.py`, `server/proxy.py`, `server/routes/mirror.py`, `server/sources.py`, `tests/python/domain/test_generic_parts_reviews.py`, `tests/python/domain/test_part_registry.py`, `tests/python/domain/test_threshold_snapshots.py`, `tests/python/server/test_app_skeleton.py`, `tests/python/server/test_error_mapping_exhaustive.py`, `tests/python/server/test_lifecycle.py`, `tests/python/server/test_lockfile.py`, `tests/python/server/test_multi_server_adversarial.py`, `tests/python/server/test_source_dispatch.py`, `tests/python/server/test_sources_registry.py`, `tests/python/server/test_ssh_tunnel.py`, `tests/python/test_base_client.py`, `tests/python/test_browser_page.py`, `tests/python/test_carts.py`, `tests/python/test_clients_digikey.py`, `tests/python/test_digikey_browser.py`, `tests/python/test_digikey_session.py`, `tests/python/test_dubis_errors.py`, `tests/python/test_jlcpcb_client.py`
 
 ### extension/dubis-bridge/background.js
 
@@ -3544,7 +3547,7 @@ graph LR
 
 ### tests/python/test_browser_page.py
 
-- **Imports:** `browser_page.py`, `mouser_client.py`
+- **Imports:** `browser_page.py`, `dubis_errors.py`, `mouser_client.py`
 - **Imported by:** —
 
 ### tests/python/test_cache_catchup_properties.py
@@ -3679,7 +3682,7 @@ graph LR
 
 ### tests/python/test_clients_mouser.py
 
-- **Imports:** `mouser_client.py`
+- **Imports:** `browser_page.py`, `mouser_client.py`
 - **Imported by:** —
 
 ### tests/python/test_clients_pololu.py

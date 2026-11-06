@@ -121,7 +121,7 @@ The `live` pytest marker gates every test that hits a real distributor endpoint.
 pytest -m live   # requires network, cached DigiKey cookies (data/digikey_cookies.json),
                  # and a Mouser API key (data/mouser_credentials.json)
                  # missing credentials → actionable failure, not a skip
-DUBIS_CDP_URL=http://browser-x.browser.svc.cluster.local:9222 pytest -m browser
+DUBIS_CDP_URL=http://browser-anon.browser.svc.cluster.local:9222 pytest -m browser
 ```
 
 An unset `DUBIS_CDP_URL` in a `browser` run is a **failure**, not a skip: the marker is the opt-in, so by the time one of these is selected the operator has already asked for a real browser fetch, and a green skip would report success for work that never happened.
@@ -137,11 +137,9 @@ The capture → commit → replay flow: `scripts/capture-distributor-fixtures.py
 
 ### Why nothing in CI speaks CDP
 
-`mouser_client`'s keyless path needs a browser, and the only browser available is the cluster's shared Chrome (`browser-x` in namespace `browser`). Reaching it from a runner would mean labelling `arc-runners` with `browser-client=enabled`, because a `default-deny-ingress` plus `allow-browser-clients` policy admits port 9222 only from labelled namespaces.
+`mouser_client`'s keyless path needs a browser, and the only one available is the cluster's `browser-anon` (namespace `browser`; stateless, never logged in). Reaching it from a runner would need a NetworkPolicy admission (`allow-browser-anon`) for the runner pods, because CDP is unauthenticated and that policy admits port 9222 only from named client pods.
 
-That label was **considered and rejected**. CDP is unauthenticated, so it lets anything in the namespace read `contexts[0]`'s cookies and act as every identity the profile holds — including a live X account. CI executes branch code, and while fork PRs already cannot run self-hosted CI (see parse-tags step 0), that only closes the anonymous path, not the "a branch I pushed does something I did not read" one.
-
-A second, dedicated Chrome with no personal logins does **not** solve it either, and it is worth writing down why so nobody re-proposes it. Cluster egress is a single NAT with no per-namespace SNAT, so a second browser has the same public IP. The same image gives it the same UA, Chrome version, TLS fingerprint, canvas/WebGL and fonts. The only real difference is the cookie jar, and that difference runs the wrong way: a virgin profile has no anti-bot history, which is itself a mild bot signal. Sharing the aged profile is the better position for the app, so the app keeps it and CI gets nothing.
+That admission was **considered and rejected**. CI executes branch code, and while fork PRs already cannot run self-hosted CI (see parse-tags step 0), that only closes the anonymous path, not the "a branch I pushed does something I did not read" one: it could drive a browser shared with other services. The logged-in `browser-x` is never an option for this repo at all.
 
 **What CI does instead** splits capture from parsing, because they need different trust levels and only one of them needs a browser:
 
@@ -181,7 +179,7 @@ The `mouser` (API key) and `digikey` (cookies) blocks are deliberately skipped a
 | Visual snapshot "doesn't exist" / fails only on ubuntu | Golden-image baselines are per-platform; CI Linux runner lacks `-linux.png` | Regenerate on the runner — see [visual-testing.md](visual-testing.md) |
 | `distributors` job red | LCSC or Pololu is down, slow, or changed shape | The job is advisory and blocks nothing. If the shape changed, the fixtures need a refresh too |
 | refresh-fixtures: "HTTP 401 from the server" on the Mouser step | The `DUBIS_CI_TOKEN` repository secret is missing, or its value is not in the server's `DUBIS_TOKENS` | Human step, see above. Everything else in that run still refreshed |
-| `pytest -m browser`: endpoint tests pass, every Mouser one fails | Whatever `DUBIS_CDP_URL` points at is a freshly launched or headless browser. Mouser reads the browser, not the address: a `--headless=new` Chrome gets an empty search page and a bot-blocked product page | Point it at a long-lived headful profile that also sees human traffic — the shared `browser-x`. This is not a code regression |
+| `pytest -m browser`: endpoint tests pass, every Mouser one fails | Whatever `DUBIS_CDP_URL` points at is a freshly launched or headless browser. Mouser reads the browser, not the address: a `--headless=new` Chrome gets an empty search page and a bot-blocked product page | Point it at a long-lived headful Chrome (the cluster's `browser-anon` is one, running on Xvfb). Never point it at a profile that holds a login. This is not a code regression |
 | Quality suite "fails" | Quality tier uses `continue-on-error: true` | These are warnings, not blockers — quality failures don't block merge |
 | ruff or eslint fails after refactor | New file not covered by existing config | Check `pyproject.toml` excludes and `eslint.config.mjs` includes |
 

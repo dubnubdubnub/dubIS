@@ -760,10 +760,10 @@ jobs:
   #     rot untouched and every suite would stay green.
   #
   #   Why "and not browser"
-  #     Reaching the shared Chrome over CDP would mean labelling `arc-runners`
-  #     `browser-client=enabled`, and CDP is unauthenticated — that label lets
-  #     any branch pushed to this repo read the cookies of a browser holding
-  #     live logged-in sessions. Isaac declined it, so nothing in CI speaks
+  #     Reaching the shared Chrome over CDP would need a NetworkPolicy
+  #     admission for the runner pods, and CDP is unauthenticated — that would
+  #     let any branch pushed to this repo drive a browser shared with other
+  #     services. Isaac declined it, so nothing in CI speaks
   #     CDP. Mouser drift is watched instead by asking the DEPLOYED server (see
   #     refresh-fixtures.yml), which costs an API token rather than a browser.
   #     `pytest -m browser` still exists and still runs wherever a browser is

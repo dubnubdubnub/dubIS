@@ -19,14 +19,11 @@ Every test here is `live` (it hits mouser.com) *and* `browser` (it needs a CDP
 endpoint). CI runs `-m "live and not credentials and not browser"` and so skips
 the whole module, which is a decision rather than an oversight.
 
-Reaching the cluster's shared Chrome from a runner would mean labelling the
-`arc-runners` namespace `browser-client=enabled`. CDP is unauthenticated, so
-that label lets any branch pushed to this repo read the cookies of a browser
-holding live logged-in sessions, including a real X account. Isaac declined it.
-A second dedicated Chrome was considered and rejected too: the cluster NATs
-through one public IP and the image is identical, so a fresh profile shares the
-fingerprint and only lacks the aged anti-bot history that makes the shared one
-credible.
+Reaching the cluster's shared Chrome from a runner would need a NetworkPolicy
+admission for the runner pods. CDP is unauthenticated, so that would let any
+branch pushed to this repo drive a browser shared with other services (the
+cluster's `browser-anon` is stateless and never logged in, and the logged-in
+`browser-x` is off limits to this repo entirely). Isaac declined it.
 
 What CI does instead is watch for upstream drift without a browser of its own —
 the weekly fixture refresh asks the DEPLOYED server for a Mouser product, and
@@ -35,7 +32,7 @@ changed the page". It cannot catch "this branch broke the parser", which is
 what the tests below are for, so run them wherever a browser is reachable: a
 desktop, or a shell pointed at the cluster.
 
-    DUBIS_CDP_URL=http://browser-x.browser.svc.cluster.local:9222 pytest -m browser
+    DUBIS_CDP_URL=http://browser-anon.browser.svc.cluster.local:9222 pytest -m browser
 
 WHY AN UNSET DUBIS_CDP_URL IS A FAILURE, NOT A SKIP
 The marker is the opt-in. Nothing selects these tests unless someone asked for
@@ -122,9 +119,10 @@ def shared_browser():
             f"{browser_page.CDP_ENV} is not set, so there is no browser to "
             "borrow and these tests cannot prove anything. Set it to a Chrome "
             "DevTools endpoint -- in the cluster that is "
-            "http://browser-x.browser.svc.cluster.local:9222, and reaching it "
-            "requires the calling namespace to carry the label "
-            "browser-client=enabled."
+            "http://browser-anon.browser.svc.cluster.local:9222 (a stateless "
+            "profile; never point this at a browser holding a login), and "
+            "reaching it requires the caller to be admitted by the "
+            "allow-browser-anon NetworkPolicy."
         )
 
     # Pace ourselves against a browser other people are using. Set only as a
@@ -166,7 +164,7 @@ def keyless_mouser_product(shared_browser, tmp_path_factory):
         pytest.fail(
             f"a keyless fetch of {MOUSER_MPN} through {browser_page.cdp_endpoint()} "
             "returned nothing. Either the shared browser is unreachable (check "
-            "the browser-client=enabled label on this namespace), or Mouser "
+            "the allow-browser-anon NetworkPolicy admits this pod), or Mouser "
             "served a challenge page, or the product page changed shape -- the "
             "warnings logged by browser_page/mouser_client say which."
         )
