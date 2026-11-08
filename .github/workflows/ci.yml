@@ -396,7 +396,7 @@ jobs:
           name: playwright-report-live
           path: test-results/
 
-  # ── JS on Windows (win11 VM): lint/type/unit + Windows-smoke E2E ─────
+  # ── JS on Windows (native runners on mauler): lint/type/unit + smoke E2E ──
   #   dubIS ships on Windows (pywebview/WebView2), so this leg exercises the
   #   frontend on a real Windows runner — catching Windows-only path/render
   #   issues the ubuntu+macos legs miss. Runs on the single self-hosted win11
@@ -419,7 +419,7 @@ jobs:
       needs.parse-tags.outputs.run_js == 'true'
     runs-on: [self-hosted, win11]
     # Subset E2E (~15 specs) + cached deps runs well under this; the headroom
-    # covers a cold node_modules/browser cache miss on the slow CoW golden disk.
+    # covers a cold node_modules/browser cache miss.
     timeout-minutes: 30
     defaults:
       run:
@@ -436,7 +436,8 @@ jobs:
       # whenever it exists.) Must run before the first actions/cache step.
       - name: Put Git's gzip on PATH for actions/cache
         run: Add-Content -Path $env:GITHUB_PATH -Value 'C:\Program Files\Git\usr\bin'
-      # The win11 runners are ephemeral (fresh golden disk each boot) with no warm
+      # HISTORICAL: the win11 runners used to be ephemeral KubeVirt VMs (fresh
+      # golden disk each boot) with no warm
       # cache, so npm downloads + the Playwright browser download dominated setup.
       # Cache via the GitHub cache service (works across ephemeral self-hosted
       # runners), keyed on package-lock so a lock change busts them.
