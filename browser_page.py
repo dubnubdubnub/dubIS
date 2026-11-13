@@ -24,20 +24,34 @@ to a Chrome DevTools endpoint and the CDP backend drives that instead, which
 is what lets the cluster price a Mouser part it previously could not fetch at
 all.
 
-SHARING SOMEONE ELSE'S BROWSER
+SHARING THE ONE CLUSTER BROWSER
 The CDP backend attaches to a browser it does not own, so it behaves like a
-guest. Point it ONLY at a stateless, never-logged-in profile (the cluster's
-`browser-anon`): this module renders arbitrary third-party pages, and CDP is
-unauthenticated, so whatever profile it is pointed at is exposed to any
-renderer exploit or hostile page it loads. It must never be a profile that
-holds a login.
+guest. Operator decision 2026-11-12: there is ONE guarded cluster browser
+(`browser-x`) for every consumer, and fremont borrows it. It reuses the
+browser's persistent context (`contexts[0]`) so history and cookies build up in
+a single profile instead of every fetch looking like a first visit from a blank
+machine. CDP is unauthenticated, so reach is limited by the infra
+`allow-browser-clients` NetworkPolicy, not by anything here.
 
-Every fetch gets its own `new_context()` -- an isolated, empty cookie jar that
-is always closed in a `finally`. The browser is shared with other consumers, so
-a leaked context or page would accumulate in their Chrome until it OOMs, and a
-context shared across jobs would leak state between consumers. It never closes
-the browser process: `close()` on a CDP connection detaches this client, and
-killing the process would take out every other consumer.
+Every fetch opens its own page in that context and closes it in a `finally`;
+a leaked page would accumulate in the shared Chrome until it OOMs. It never
+calls `new_context()` and never closes the context (that would wipe the
+persistent profile), and it never closes the browser process: `close()` on a
+CDP connection detaches this client, and killing the process would take out
+every other consumer.
+
+Mouser cookies and history intentionally accumulate in that shared profile:
+that is the point of reusing it.
+
+A page this module opened can outlive it (a dropped connection, a killed pod, a
+failed `page.close()`), and unlike a context nothing disposes it on disconnect.
+So before each fetch it sweeps `context.pages` and closes the orphans it can
+prove are its own: pages on a host in OWNED_HOSTS that carry a `fremont:<unix
+ms>` window.name tag (set at creation, so every CDP connection, replica and
+process sees it) older than ORPHAN_AGE_S, which is well past the longest fetch.
+A tab without a readable tag is skipped, never closed.
+Anything else -- x.com, about:blank, whatever x-relay or pi opened -- is never
+touched.
 
 An unreachable browser is a loud `BrowserUnavailableError`, not a `None`: a
 misconfigured or down browser must not read as "the part does not exist".
@@ -74,6 +88,14 @@ CDP_ENV = "DUBIS_CDP_URL"
 # the median of a `human_pause`. Unset means no floor: an interactive hover
 # should not stall, and one person hovering cannot burst hard enough to matter.
 CDP_PAUSE_ENV = "DUBIS_CDP_PAUSE_MEDIAN"
+# Hosts this module renders over CDP (mouser_client is its only CDP user). A
+# leftover page on one of these, or a subdomain, is ours to sweep; nothing else
+# in the shared context is.
+OWNED_HOSTS = ("mouser.com",)
+# A tagged tab older than this is an orphan: fetches finish (or time out) in a
+# fraction of it, so a younger tab may be another connection's live fetch.
+ORPHAN_AGE_S = 120
+TAB_TAG_PREFIX = "fremont:"
 
 
 class BrowserUnavailableError(DistributorError):
@@ -276,6 +298,60 @@ class BrowserPage:
         self._browser = self._pw.chromium.connect_over_cdp(endpoint)
         return self._browser
 
+    @staticmethod
+    def _owned_url(url: str) -> bool:
+        from urllib.parse import urlsplit
+        try:
+            host = (urlsplit(url or "").hostname or "").lower()
+        except ValueError:
+            return False
+        return any(host == h or host.endswith("." + h) for h in OWNED_HOSTS)
+
+    @staticmethod
+    def _tag_tab(page: Any) -> None:
+        """Stamp creation time into window.name, visible to every CDP client."""
+        try:
+            page.evaluate("(n) => { window.name = n }",
+                          f"{TAB_TAG_PREFIX}{int(time.time() * 1000)}")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("BrowserPage: tagging tab failed (it will never be "
+                           "swept if orphaned): %s", exc)
+
+    @staticmethod
+    def _tab_age_s(page: Any) -> float | None:
+        """Seconds since the tab was tagged, or None if untagged/unreadable."""
+        try:
+            name = page.evaluate("() => window.name")
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("BrowserPage: cannot read tab tag: %s", exc)
+            return None
+        if not isinstance(name, str) or not name.startswith(TAB_TAG_PREFIX):
+            return None
+        try:
+            return time.time() - int(name[len(TAB_TAG_PREFIX):]) / 1000
+        except ValueError:
+            return None
+
+    def _sweep_orphans(self, context: Any) -> None:
+        """Close leftover pages of ours in the shared context. Never raises."""
+        try:
+            pages = list(context.pages)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("BrowserPage: orphan sweep could not list pages: %s", exc)
+            return
+        for orphan in pages:
+            try:
+                url = orphan.url
+                if not self._owned_url(url):
+                    continue
+                age = self._tab_age_s(orphan)
+                if age is None or age < ORPHAN_AGE_S:
+                    continue
+                logger.warning("BrowserPage: closing orphaned tab %s", url)
+                orphan.close()
+            except Exception as exc:  # noqa: BLE001 - sweep is best effort
+                logger.warning("BrowserPage: orphan sweep failed on a page: %s", exc)
+
     def _throttle(self) -> None:
         """Optional floor on navigation rate against a browser we share."""
         median = (os.environ.get(CDP_PAUSE_ENV) or "").strip()
@@ -329,15 +405,19 @@ class BrowserPage:
         return None
 
     def _fetch_over_cdp(self, endpoint: str, url: str, settle_s: float) -> str | None:
-        """Render `url` in an isolated context of the shared browser. Caller holds _lock.
+        """Render `url` in a fresh page of the shared browser's persistent
+        context (`contexts[0]`). Caller holds _lock.
 
         Raises BrowserUnavailableError when the browser cannot be attached to or
-        cannot make a context; returns None only for a page-level failure.
+        has no default context; returns None only for a page-level failure.
+        Only the page is closed afterwards, never the context or the browser.
         """
         try:
             browser = self._connect_cdp(endpoint)
-            # Isolation unit: a fresh, empty context per fetch, always closed.
-            context = browser.new_context()
+            contexts = browser.contexts
+            if not contexts:
+                raise RuntimeError("browser has no default context (contexts is empty)")
+            context = contexts[0]
         except Exception as exc:  # noqa: BLE001 - connect surfaces many types
             # Drop the connection so the next call reattaches, but keep the
             # driver: see _connect_cdp for why restarting it poisons the retry.
@@ -348,13 +428,17 @@ class BrowserPage:
                 provider="browser",
             ) from exc
 
+        self._sweep_orphans(context)
         self._throttle()
         page = None
         try:
             page = context.new_page()
+            self._tag_tab(page)
             self._last_url = None
             page.goto(url, wait_until="load", timeout=LOAD_TIMEOUT_S * 1000)
             self._last_nav = time.monotonic()
+            # window.name may not survive a cross-site navigation: re-stamp.
+            self._tag_tab(page)
             self._last_url = page.url
             if settle_s:
                 page.wait_for_timeout(settle_s * 1000)
@@ -374,12 +458,23 @@ class BrowserPage:
                 self._drop_browser()
             return None
         finally:
-            # Ours to close; the browser is not. Closing the context closes
-            # its pages too, and releases its memory in the shared Chrome.
-            try:
-                context.close()
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("BrowserPage: closing context failed: %s", exc)
+            # Ours to close is the page; the context is the shared persistent
+            # profile and the browser is not ours at all.
+            if page is not None:
+                try:
+                    page.close()
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("BrowserPage: closing page failed: %s", exc)
+                    if not self._is_connected(browser):
+                        # The tab may be orphaned in the shared browser; the
+                        # next attach sweeps it. Say so rather than return.
+                        self._drop_browser()
+                        raise BrowserUnavailableError(
+                            f"lost the shared browser at {endpoint} while a "
+                            f"page was open ({CDP_ENV}): "
+                            f"{type(exc).__name__}: {exc}",
+                            provider="browser",
+                        ) from exc
 
     # ── fetching ─────────────────────────────────────────────────────────
 

@@ -42,25 +42,19 @@ spec:
             - name: http
               containerPort: 8080
           env:
-            # Borrow the cluster's STATELESS, never-logged-in Chrome
-            # (`browser-anon`, namespace `browser`) instead of trying to run
-            # one here: the image has no browser and no GUI loop, so without
-            # this the keyless Mouser path cannot render a page and every
-            # Mouser fetch falls through to the urllib scrape Mouser blocks.
-            # See browser_page.py.
+            # Borrow the ONE shared cluster browser (`browser-x`, namespace
+            # `browser`) instead of trying to run one here: the image has no
+            # browser and no GUI loop, so without this the keyless Mouser path
+            # cannot render a page and every Mouser fetch falls through to the
+            # urllib scrape Mouser blocks. One guarded browser for every
+            # consumer is an operator decision (2026-11-12). browser_page.py
+            # reuses its persistent context (contexts[0]) so history builds up
+            # in one profile, opens one page per fetch and closes only that page.
             #
-            # NEVER point this at `browser-x` (or any profile holding a login):
-            # this app renders arbitrary third-party supplier pages, CDP is
-            # unauthenticated, and a hostile page or renderer exploit would
-            # reach every session in that profile. Third-party pages must never
-            # run in the logged-in profile. browser_page.py also opens one
-            # isolated context per fetch and closes it, since anon is shared
-            # with other consumers.
-            #
-            # Admission is by the `allow-browser-anon` NetworkPolicy in the
+            # Admission is by the `allow-browser-clients` NetworkPolicy in the
             # infra repo (pod selector dubis/app=fremont), not a namespace label.
             - name: DUBIS_CDP_URL
-              value: "http://browser-anon.browser.svc.cluster.local:9222"
+              value: "http://browser-x.browser.svc.cluster.local:9222"
             # Median seconds between navigations against that shared browser,
             # jittered log-normally. Unset means no floor.
             - name: DUBIS_CDP_PAUSE_MEDIAN
