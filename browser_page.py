@@ -40,6 +40,16 @@ persistent profile), and it never closes the browser process: `close()` on a
 CDP connection detaches this client, and killing the process would take out
 every other consumer.
 
+Mouser cookies and history intentionally accumulate in that shared profile:
+that is the point of reusing it.
+
+A page this module opened can outlive it (a dropped connection, a killed pod, a
+failed `page.close()`), and unlike a context nothing disposes it on disconnect.
+So before each fetch it sweeps `context.pages` and closes the orphans it can
+prove are its own: pages on a host in OWNED_HOSTS that no live fetch is using.
+Anything else -- x.com, about:blank, whatever x-relay or pi opened -- is never
+touched.
+
 An unreachable browser is a loud `BrowserUnavailableError`, not a `None`: a
 misconfigured or down browser must not read as "the part does not exist".
 `human_pause` exists so the navigation cadence of a shared browser does not
@@ -75,6 +85,14 @@ CDP_ENV = "DUBIS_CDP_URL"
 # the median of a `human_pause`. Unset means no floor: an interactive hover
 # should not stall, and one person hovering cannot burst hard enough to matter.
 CDP_PAUSE_ENV = "DUBIS_CDP_PAUSE_MEDIAN"
+# Hosts this module renders over CDP (mouser_client is its only CDP user). A
+# leftover page on one of these, or a subdomain, is ours to sweep; nothing else
+# in the shared context is.
+OWNED_HOSTS = ("mouser.com",)
+# Pages currently mid-fetch in ANY BrowserPage instance in this process, so one
+# instance's sweep cannot close another's live page.
+_IN_USE: set[int] = set()
+_IN_USE_LOCK = threading.Lock()
 
 
 class BrowserUnavailableError(DistributorError):
@@ -277,6 +295,35 @@ class BrowserPage:
         self._browser = self._pw.chromium.connect_over_cdp(endpoint)
         return self._browser
 
+    @staticmethod
+    def _owned_url(url: str) -> bool:
+        from urllib.parse import urlsplit
+        try:
+            host = (urlsplit(url or "").hostname or "").lower()
+        except ValueError:
+            return False
+        return any(host == h or host.endswith("." + h) for h in OWNED_HOSTS)
+
+    def _sweep_orphans(self, context: Any) -> None:
+        """Close leftover pages of ours in the shared context. Never raises."""
+        try:
+            pages = list(context.pages)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("BrowserPage: orphan sweep could not list pages: %s", exc)
+            return
+        for orphan in pages:
+            try:
+                with _IN_USE_LOCK:
+                    if id(orphan) in _IN_USE:
+                        continue
+                url = orphan.url
+                if not self._owned_url(url):
+                    continue
+                logger.warning("BrowserPage: closing orphaned tab %s", url)
+                orphan.close()
+            except Exception as exc:  # noqa: BLE001 - sweep is best effort
+                logger.warning("BrowserPage: orphan sweep failed on a page: %s", exc)
+
     def _throttle(self) -> None:
         """Optional floor on navigation rate against a browser we share."""
         median = (os.environ.get(CDP_PAUSE_ENV) or "").strip()
@@ -353,10 +400,13 @@ class BrowserPage:
                 provider="browser",
             ) from exc
 
+        self._sweep_orphans(context)
         self._throttle()
         page = None
         try:
             page = context.new_page()
+            with _IN_USE_LOCK:
+                _IN_USE.add(id(page))
             self._last_url = None
             page.goto(url, wait_until="load", timeout=LOAD_TIMEOUT_S * 1000)
             self._last_nav = time.monotonic()
@@ -382,10 +432,22 @@ class BrowserPage:
             # Ours to close is the page; the context is the shared persistent
             # profile and the browser is not ours at all.
             if page is not None:
+                with _IN_USE_LOCK:
+                    _IN_USE.discard(id(page))
                 try:
                     page.close()
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("BrowserPage: closing page failed: %s", exc)
+                    if not self._is_connected(browser):
+                        # The tab may be orphaned in the shared browser; the
+                        # next attach sweeps it. Say so rather than return.
+                        self._drop_browser()
+                        raise BrowserUnavailableError(
+                            f"lost the shared browser at {endpoint} while a "
+                            f"page was open ({CDP_ENV}): "
+                            f"{type(exc).__name__}: {exc}",
+                            provider="browser",
+                        ) from exc
 
     # ── fetching ─────────────────────────────────────────────────────────
 

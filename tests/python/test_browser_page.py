@@ -311,6 +311,78 @@ class TestSharedBrowserEtiquette:
         assert len(state["endpoints"]) == 2
 
 
+class TestOrphanSweep:
+    def _setup(self, monkeypatch):
+        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
+        state = install_fake_playwright(monkeypatch, html="<html>ok</html>")
+        return state, state["shared"]
+
+    @staticmethod
+    def _tab(ctx, url):
+        tab = FakePage(ctx, "<html></html>", url)
+        ctx.pages.append(tab)
+        return tab
+
+    def test_a_leftover_mouser_tab_is_closed_on_reattach(self, monkeypatch):
+        state, ctx = self._setup(monkeypatch)
+        orphan = self._tab(ctx, "https://www.mouser.com/ProductDetail/x")
+        assert browser_page.BrowserPage().fetch_html("https://example.com") == "<html>ok</html>"
+        assert orphan.closed
+
+    def test_other_consumers_tabs_are_left_alone(self, monkeypatch):
+        state, ctx = self._setup(monkeypatch)
+        x = self._tab(ctx, "https://x.com/home")
+        tw = self._tab(ctx, "https://twitter.com/a")
+        blank = self._tab(ctx, "about:blank")
+        lookalike = self._tab(ctx, "https://notmouser.com/")
+        browser_page.BrowserPage().fetch_html("https://example.com")
+        assert not (x.closed or tw.closed or blank.closed or lookalike.closed)
+
+    def test_sweep_failure_is_logged_not_raised(self, monkeypatch, caplog):
+        state, ctx = self._setup(monkeypatch)
+        bad = self._tab(ctx, "https://www.mouser.com/a")
+
+        def boom():
+            raise RuntimeError("close exploded")
+
+        bad.close = boom
+        good = self._tab(ctx, "https://www.mouser.com/b")
+        assert browser_page.BrowserPage().fetch_html("https://example.com") == "<html>ok</html>"
+        assert good.closed, "one failing orphan must not stop the sweep"
+        assert "orphan sweep failed" in caplog.text
+
+    def test_a_drop_with_the_page_open_is_loud_and_the_next_attach_sweeps(self, monkeypatch):
+        state, ctx = self._setup(monkeypatch)
+        browser = state["browser"]
+        page = browser_page.BrowserPage()
+        real_new_page = ctx.new_page
+
+        def new_page():
+            tab = real_new_page()
+
+            def close():
+                browser.connected = False
+                raise RuntimeError("Target closed")
+
+            tab.close = close
+            tab.url = "https://www.mouser.com/ProductDetail/x"
+            return tab
+
+        ctx.new_page = new_page
+        with pytest.raises(browser_page.BrowserUnavailableError, match="Target closed"):
+            page.fetch_html("https://www.mouser.com/ProductDetail/x")
+        assert browser.closed, "dead handle dropped"
+        orphan = ctx.pages[0]
+        assert not orphan.closed
+        ctx.new_page = real_new_page
+        orphan.close = lambda: setattr(orphan, "closed", True)
+        browser.connected = True
+        browser.closed = False
+        assert page.fetch_html("https://example.com") == "<html>ok</html>"
+        assert orphan.closed, "next attach swept the orphan"
+        assert len(state["endpoints"]) == 2
+
+
 class TestCdpFetchBehaviour:
     def test_the_landed_url_survives_the_page_being_closed(self, monkeypatch):
         """Callers use it to tell a redirect-to-product from a results list."""
