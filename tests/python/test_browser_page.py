@@ -115,10 +115,12 @@ class FakeContext:
         self._html, self._url = html, url
         self.pages = []
         self.waits = []
+        self.pages_opened = 0
 
     def new_page(self):
         page = FakePage(self, self._html, self._url)
         self.pages.append(page)
+        self.pages_opened += 1
         return page
 
     closed = False
@@ -128,13 +130,13 @@ class FakeContext:
 
 
 class FakeBrowser:
-    """`new_context()` hands out a fresh FakeContext each call, recorded in
-    `created`; `contexts` is the browser's pre-existing default profile, which
-    the code under test must never touch."""
+    """`contexts[0]` is the browser's persistent profile, the one the code
+    under test must reuse; `new_context()` must never be called (counted in
+    `new_context_calls`, and it fails loudly if it is)."""
 
     def __init__(self, contexts, html="<html></html>", url="https://example.com/landed"):
         self.contexts = contexts
-        self.created = []
+        self.new_context_calls = 0
         self._html, self._url = html, url
         self.closed = False
         self.connected = True
@@ -143,9 +145,8 @@ class FakeBrowser:
         return self.connected
 
     def new_context(self):
-        ctx = FakeContext(self._html, self._url)
-        self.created.append(ctx)
-        return ctx
+        self.new_context_calls += 1
+        raise AssertionError("fetch must reuse contexts[0], never new_context()")
 
     def close(self):
         self.closed = True
@@ -154,10 +155,10 @@ class FakeBrowser:
 def install_fake_playwright(monkeypatch, *, html="<html></html>",
                             url="https://example.com/landed", contexts=None):
     """Stand in for playwright.sync_api so no real browser is needed."""
-    shared = FakeContext(html, url)   # the default profile: must stay untouched
+    shared = FakeContext(html, url)   # the persistent profile: contexts[0]
     browser = FakeBrowser(contexts if contexts is not None else [shared], html, url)
     state = {"browser": browser, "shared": shared, "endpoints": [],
-             "stopped": False, "extra_contexts": 0}
+             "stopped": False}
 
     class FakeChromium:
         def connect_over_cdp(self, endpoint):
@@ -195,31 +196,30 @@ class TestCdpSelection:
 
 
 class TestSharedBrowserEtiquette:
-    def test_it_uses_an_isolated_context_not_the_default_profile(self, monkeypatch):
-        """Third-party pages must never run in the browser's default profile."""
+    def test_fetch_uses_the_persistent_context_and_closes_only_its_page(self, monkeypatch):
         monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
         state = install_fake_playwright(monkeypatch, html="<html>ok</html>")
-        page = browser_page.BrowserPage()
-        assert page.fetch_html("https://example.com") == "<html>ok</html>"
-        assert len(state["browser"].created) == 1
-        assert state["browser"].created[0].pages, "page opened in the new context"
-        assert not state["shared"].pages, "default profile must stay untouched"
+        assert browser_page.BrowserPage().fetch_html("https://example.com") == "<html>ok</html>"
+        browser, ctx = state["browser"], state["shared"]
+        assert browser.new_context_calls == 0
+        assert ctx.pages_opened == 1 and ctx.pages[0].closed
+        assert not ctx.closed and not browser.closed
 
-    def test_each_fetch_gets_its_own_context(self, monkeypatch):
+    def test_each_fetch_opens_and_closes_its_own_page_in_the_one_context(self, monkeypatch):
         monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
         state = install_fake_playwright(monkeypatch)
         page = browser_page.BrowserPage()
         page.fetch_html("https://example.com")
         page.fetch_html("https://example.com/2")
-        assert len(state["browser"].created) == 2
+        ctx = state["shared"]
+        assert ctx.pages_opened == 2 and all(p.closed for p in ctx.pages)
+        assert not ctx.closed
 
-    def test_it_closes_its_own_context_and_page(self, monkeypatch):
+    def test_no_default_context_is_browser_unavailable(self, monkeypatch):
         monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
-        state = install_fake_playwright(monkeypatch)
-        browser_page.BrowserPage().fetch_html("https://example.com")
-        ctx = state["browser"].created[0]
-        assert ctx.closed is True
-        assert state["browser"].closed is False
+        install_fake_playwright(monkeypatch, contexts=[])
+        with pytest.raises(browser_page.BrowserUnavailableError, match="context"):
+            browser_page.BrowserPage().fetch_html("https://example.com")
 
     def test_it_does_not_close_the_shared_browser_on_a_fetch(self, monkeypatch):
         """Detaching per fetch would churn a browser other consumers are using."""
@@ -231,7 +231,7 @@ class TestSharedBrowserEtiquette:
         assert state["browser"].closed is False
         assert len(state["endpoints"]) == 1, "connection should be reused"
 
-    def test_the_context_is_closed_even_when_the_fetch_raises(self, monkeypatch):
+    def test_the_page_is_closed_even_when_the_fetch_raises(self, monkeypatch):
         monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
 
         def boom():
@@ -239,7 +239,8 @@ class TestSharedBrowserEtiquette:
 
         state = install_fake_playwright(monkeypatch, html=boom)
         assert browser_page.BrowserPage().fetch_html("https://example.com") is None
-        assert state["browser"].created[0].closed is True
+        ctx = state["shared"]
+        assert ctx.pages[0].closed is True and ctx.closed is False
 
     def test_destroy_detaches_rather_than_leaking(self, monkeypatch):
         monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
@@ -249,32 +250,31 @@ class TestSharedBrowserEtiquette:
         page.destroy()
         assert state["browser"].closed is True and state["stopped"] is True
 
-    def test_a_browser_with_no_default_context_still_works(self, monkeypatch):
-        """Nothing depends on the default profile, so its absence is fine."""
-        monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
-        install_fake_playwright(monkeypatch, html="<html>ok</html>", contexts=[])
-        assert browser_page.BrowserPage().fetch_html("https://example.com") == "<html>ok</html>"
-
-    def test_a_dead_connection_at_new_context_is_loud_and_reattaches(self, monkeypatch):
+    def test_a_dead_connection_at_context_lookup_is_loud_and_reattaches(self, monkeypatch):
         monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
         state = install_fake_playwright(monkeypatch, html="<html>ok</html>")
         browser = state["browser"]
-        real = browser.new_context
+        good = browser.contexts
         calls = []
 
-        def flaky():
-            calls.append(1)
-            if len(calls) == 1:
-                raise RuntimeError("Target closed")
-            return real()
+        class Flaky:
+            @property
+            def contexts(self):
+                calls.append(1)
+                if len(calls) == 1:
+                    raise RuntimeError("Target closed")
+                return good
 
-        browser.new_context = flaky
-        page = browser_page.BrowserPage()
-        with pytest.raises(browser_page.BrowserUnavailableError, match="Target closed"):
-            page.fetch_html("https://example.com")
-        assert page.fetch_html("https://example.com") == "<html>ok</html>"
-        assert len(state["endpoints"]) == 2, "should have reattached"
-
+        flaky = Flaky()
+        type(browser).contexts = flaky.__class__.contexts
+        try:
+            page = browser_page.BrowserPage()
+            with pytest.raises(browser_page.BrowserUnavailableError, match="Target closed"):
+                page.fetch_html("https://example.com")
+            assert page.fetch_html("https://example.com") == "<html>ok</html>"
+            assert len(state["endpoints"]) == 2, "should have reattached"
+        finally:
+            del type(browser).contexts
 
     def test_a_mid_fetch_drop_reattaches_without_a_spurious_error(self, monkeypatch):
         """After the browser vanishes mid-fetch the next fetch must reattach
@@ -288,18 +288,13 @@ class TestSharedBrowserEtiquette:
         browser = state["browser"]
         page = browser_page.BrowserPage()
 
-        real_new = browser.new_context
-
-        def new_context():
-            ctx = real_new()
-            ctx.new_page = lambda: (_ for _ in ()).throw(RuntimeError("Target closed"))
-            browser.connected = False
-            return ctx
-
-        browser.new_context = new_context
+        ctx = browser.contexts[0]
+        real_new_page = ctx.new_page
+        ctx.new_page = lambda: (_ for _ in ()).throw(RuntimeError("Target closed"))
+        browser.connected = False
         assert page.fetch_html("https://example.com") is None
         assert browser.closed is True, "stale handle should be closed"
-        browser.new_context = real_new
+        ctx.new_page = real_new_page
         browser.connected = True
         browser.closed = False
         assert page.fetch_html("https://example.com") is None  # boom html, no raise
@@ -330,13 +325,13 @@ class TestCdpFetchBehaviour:
         state = install_fake_playwright(
             monkeypatch, html="<html><title>Just a moment...</title></html>")
         assert browser_page.BrowserPage().fetch_html("https://example.com") is None
-        assert browser_page.INTERSTITIAL_RECHECK_S * 1000 in state["browser"].created[0].waits
+        assert browser_page.INTERSTITIAL_RECHECK_S * 1000 in state["shared"].waits
 
     def test_settle_is_honoured(self, monkeypatch):
         monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
         state = install_fake_playwright(monkeypatch)
         browser_page.BrowserPage().fetch_html("https://example.com", settle_s=2.5)
-        assert 2500 in state["browser"].created[0].waits
+        assert 2500 in state["shared"].waits
 
     def test_a_dropped_connection_is_reattached_without_a_second_driver(
         self, monkeypatch,

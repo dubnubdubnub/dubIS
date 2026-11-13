@@ -24,20 +24,21 @@ to a Chrome DevTools endpoint and the CDP backend drives that instead, which
 is what lets the cluster price a Mouser part it previously could not fetch at
 all.
 
-SHARING SOMEONE ELSE'S BROWSER
+SHARING THE ONE CLUSTER BROWSER
 The CDP backend attaches to a browser it does not own, so it behaves like a
-guest. Point it ONLY at a stateless, never-logged-in profile (the cluster's
-`browser-anon`): this module renders arbitrary third-party pages, and CDP is
-unauthenticated, so whatever profile it is pointed at is exposed to any
-renderer exploit or hostile page it loads. It must never be a profile that
-holds a login.
+guest. Operator decision 2026-11-12: there is ONE guarded cluster browser
+(`browser-x`) for every consumer, and fremont borrows it. It reuses the
+browser's persistent context (`contexts[0]`) so history and cookies build up in
+a single profile instead of every fetch looking like a first visit from a blank
+machine. CDP is unauthenticated, so reach is limited by the infra
+`allow-browser-clients` NetworkPolicy, not by anything here.
 
-Every fetch gets its own `new_context()` -- an isolated, empty cookie jar that
-is always closed in a `finally`. The browser is shared with other consumers, so
-a leaked context or page would accumulate in their Chrome until it OOMs, and a
-context shared across jobs would leak state between consumers. It never closes
-the browser process: `close()` on a CDP connection detaches this client, and
-killing the process would take out every other consumer.
+Every fetch opens its own page in that context and closes it in a `finally`;
+a leaked page would accumulate in the shared Chrome until it OOMs. It never
+calls `new_context()` and never closes the context (that would wipe the
+persistent profile), and it never closes the browser process: `close()` on a
+CDP connection detaches this client, and killing the process would take out
+every other consumer.
 
 An unreachable browser is a loud `BrowserUnavailableError`, not a `None`: a
 misconfigured or down browser must not read as "the part does not exist".
@@ -329,15 +330,19 @@ class BrowserPage:
         return None
 
     def _fetch_over_cdp(self, endpoint: str, url: str, settle_s: float) -> str | None:
-        """Render `url` in an isolated context of the shared browser. Caller holds _lock.
+        """Render `url` in a fresh page of the shared browser's persistent
+        context (`contexts[0]`). Caller holds _lock.
 
         Raises BrowserUnavailableError when the browser cannot be attached to or
-        cannot make a context; returns None only for a page-level failure.
+        has no default context; returns None only for a page-level failure.
+        Only the page is closed afterwards, never the context or the browser.
         """
         try:
             browser = self._connect_cdp(endpoint)
-            # Isolation unit: a fresh, empty context per fetch, always closed.
-            context = browser.new_context()
+            contexts = browser.contexts
+            if not contexts:
+                raise RuntimeError("browser has no default context (contexts is empty)")
+            context = contexts[0]
         except Exception as exc:  # noqa: BLE001 - connect surfaces many types
             # Drop the connection so the next call reattaches, but keep the
             # driver: see _connect_cdp for why restarting it poisons the retry.
@@ -374,12 +379,13 @@ class BrowserPage:
                 self._drop_browser()
             return None
         finally:
-            # Ours to close; the browser is not. Closing the context closes
-            # its pages too, and releases its memory in the shared Chrome.
-            try:
-                context.close()
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("BrowserPage: closing context failed: %s", exc)
+            # Ours to close is the page; the context is the shared persistent
+            # profile and the browser is not ours at all.
+            if page is not None:
+                try:
+                    page.close()
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("BrowserPage: closing page failed: %s", exc)
 
     # ── fetching ─────────────────────────────────────────────────────────
 
