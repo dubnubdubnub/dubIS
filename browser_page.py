@@ -46,7 +46,10 @@ that is the point of reusing it.
 A page this module opened can outlive it (a dropped connection, a killed pod, a
 failed `page.close()`), and unlike a context nothing disposes it on disconnect.
 So before each fetch it sweeps `context.pages` and closes the orphans it can
-prove are its own: pages on a host in OWNED_HOSTS that no live fetch is using.
+prove are its own: pages on a host in OWNED_HOSTS that carry a `fremont:<unix
+ms>` window.name tag (set at creation, so every CDP connection, replica and
+process sees it) older than ORPHAN_AGE_S, which is well past the longest fetch.
+A tab without a readable tag is skipped, never closed.
 Anything else -- x.com, about:blank, whatever x-relay or pi opened -- is never
 touched.
 
@@ -89,10 +92,10 @@ CDP_PAUSE_ENV = "DUBIS_CDP_PAUSE_MEDIAN"
 # leftover page on one of these, or a subdomain, is ours to sweep; nothing else
 # in the shared context is.
 OWNED_HOSTS = ("mouser.com",)
-# Pages currently mid-fetch in ANY BrowserPage instance in this process, so one
-# instance's sweep cannot close another's live page.
-_IN_USE: set[int] = set()
-_IN_USE_LOCK = threading.Lock()
+# A tagged tab older than this is an orphan: fetches finish (or time out) in a
+# fraction of it, so a younger tab may be another connection's live fetch.
+ORPHAN_AGE_S = 120
+TAB_TAG_PREFIX = "fremont:"
 
 
 class BrowserUnavailableError(DistributorError):
@@ -304,6 +307,31 @@ class BrowserPage:
             return False
         return any(host == h or host.endswith("." + h) for h in OWNED_HOSTS)
 
+    @staticmethod
+    def _tag_tab(page: Any) -> None:
+        """Stamp creation time into window.name, visible to every CDP client."""
+        try:
+            page.evaluate("(n) => { window.name = n }",
+                          f"{TAB_TAG_PREFIX}{int(time.time() * 1000)}")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("BrowserPage: tagging tab failed (it will never be "
+                           "swept if orphaned): %s", exc)
+
+    @staticmethod
+    def _tab_age_s(page: Any) -> float | None:
+        """Seconds since the tab was tagged, or None if untagged/unreadable."""
+        try:
+            name = page.evaluate("() => window.name")
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("BrowserPage: cannot read tab tag: %s", exc)
+            return None
+        if not isinstance(name, str) or not name.startswith(TAB_TAG_PREFIX):
+            return None
+        try:
+            return time.time() - int(name[len(TAB_TAG_PREFIX):]) / 1000
+        except ValueError:
+            return None
+
     def _sweep_orphans(self, context: Any) -> None:
         """Close leftover pages of ours in the shared context. Never raises."""
         try:
@@ -313,11 +341,11 @@ class BrowserPage:
             return
         for orphan in pages:
             try:
-                with _IN_USE_LOCK:
-                    if id(orphan) in _IN_USE:
-                        continue
                 url = orphan.url
                 if not self._owned_url(url):
+                    continue
+                age = self._tab_age_s(orphan)
+                if age is None or age < ORPHAN_AGE_S:
                     continue
                 logger.warning("BrowserPage: closing orphaned tab %s", url)
                 orphan.close()
@@ -405,11 +433,12 @@ class BrowserPage:
         page = None
         try:
             page = context.new_page()
-            with _IN_USE_LOCK:
-                _IN_USE.add(id(page))
+            self._tag_tab(page)
             self._last_url = None
             page.goto(url, wait_until="load", timeout=LOAD_TIMEOUT_S * 1000)
             self._last_nav = time.monotonic()
+            # window.name may not survive a cross-site navigation: re-stamp.
+            self._tag_tab(page)
             self._last_url = page.url
             if settle_s:
                 page.wait_for_timeout(settle_s * 1000)
@@ -432,8 +461,6 @@ class BrowserPage:
             # Ours to close is the page; the context is the shared persistent
             # profile and the browser is not ours at all.
             if page is not None:
-                with _IN_USE_LOCK:
-                    _IN_USE.discard(id(page))
                 try:
                     page.close()
                 except Exception as exc:  # noqa: BLE001

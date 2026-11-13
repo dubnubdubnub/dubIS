@@ -96,6 +96,14 @@ class FakePage:
         self.url = url
         self.closed = False
         self.goto_calls = []
+        self.name = ""
+
+    def evaluate(self, expr, arg=None):
+        """window.name only: a write when given an arg, a read otherwise."""
+        if arg is not None:
+            self.name = arg
+            return None
+        return self.name
 
     def goto(self, url, **kwargs):
         self.goto_calls.append(url)
@@ -312,44 +320,79 @@ class TestSharedBrowserEtiquette:
 
 
 class TestOrphanSweep:
+    OLD = browser_page.ORPHAN_AGE_S + 60
+
     def _setup(self, monkeypatch):
         monkeypatch.setenv(browser_page.CDP_ENV, "http://browser:9222")
         state = install_fake_playwright(monkeypatch, html="<html>ok</html>")
         return state, state["shared"]
 
     @staticmethod
-    def _tab(ctx, url):
+    def _tab(ctx, url, age_s=None):
+        """A tab some other connection opened: its own wrapper object."""
+        import time as _t
         tab = FakePage(ctx, "<html></html>", url)
+        if age_s is not None:
+            tab.name = f"fremont:{int((_t.time() - age_s) * 1000)}"
         ctx.pages.append(tab)
         return tab
 
-    def test_a_leftover_mouser_tab_is_closed_on_reattach(self, monkeypatch):
+    def test_an_old_tagged_mouser_tab_is_closed(self, monkeypatch, caplog):
         state, ctx = self._setup(monkeypatch)
-        orphan = self._tab(ctx, "https://www.mouser.com/ProductDetail/x")
+        orphan = self._tab(ctx, "https://www.mouser.com/ProductDetail/x", self.OLD)
         assert browser_page.BrowserPage().fetch_html("https://example.com") == "<html>ok</html>"
         assert orphan.closed
+        assert "orphaned tab" in caplog.text
+
+    def test_a_fresh_tab_from_another_connection_is_not_closed(self, monkeypatch):
+        state, ctx = self._setup(monkeypatch)
+        live = self._tab(ctx, "https://www.mouser.com/ProductDetail/x", 5)
+        browser_page.BrowserPage().fetch_html("https://example.com")
+        assert not live.closed
+
+    def test_untagged_owned_tabs_are_skipped_not_closed(self, monkeypatch):
+        state, ctx = self._setup(monkeypatch)
+        untagged = self._tab(ctx, "https://www.mouser.com/a")
+        junk = self._tab(ctx, "https://www.mouser.com/b")
+        junk.name = "fremont:notanumber"
+        browser_page.BrowserPage().fetch_html("https://example.com")
+        assert not (untagged.closed or junk.closed)
+
+    def test_host_matching_is_exact_or_subdomain(self, monkeypatch):
+        state, ctx = self._setup(monkeypatch)
+        bare = self._tab(ctx, "https://mouser.com/x", self.OLD)
+        sub = self._tab(ctx, "https://eu.mouser.com/x", self.OLD)
+        evil = self._tab(ctx, "https://mouser.com.evil.example/x", self.OLD)
+        look = self._tab(ctx, "https://notmouser.com/", self.OLD)
+        browser_page.BrowserPage().fetch_html("https://example.com")
+        assert bare.closed and sub.closed
+        assert not evil.closed and not look.closed
 
     def test_other_consumers_tabs_are_left_alone(self, monkeypatch):
         state, ctx = self._setup(monkeypatch)
-        x = self._tab(ctx, "https://x.com/home")
-        tw = self._tab(ctx, "https://twitter.com/a")
-        blank = self._tab(ctx, "about:blank")
-        lookalike = self._tab(ctx, "https://notmouser.com/")
+        x = self._tab(ctx, "https://x.com/home", self.OLD)
+        tw = self._tab(ctx, "https://twitter.com/a", self.OLD)
+        blank = self._tab(ctx, "about:blank", self.OLD)
         browser_page.BrowserPage().fetch_html("https://example.com")
-        assert not (x.closed or tw.closed or blank.closed or lookalike.closed)
+        assert not (x.closed or tw.closed or blank.closed)
 
     def test_sweep_failure_is_logged_not_raised(self, monkeypatch, caplog):
         state, ctx = self._setup(monkeypatch)
-        bad = self._tab(ctx, "https://www.mouser.com/a")
+        bad = self._tab(ctx, "https://www.mouser.com/a", self.OLD)
 
         def boom():
             raise RuntimeError("close exploded")
 
         bad.close = boom
-        good = self._tab(ctx, "https://www.mouser.com/b")
+        good = self._tab(ctx, "https://www.mouser.com/b", self.OLD)
         assert browser_page.BrowserPage().fetch_html("https://example.com") == "<html>ok</html>"
         assert good.closed, "one failing orphan must not stop the sweep"
         assert "orphan sweep failed" in caplog.text
+
+    def test_a_fetch_tags_its_tab(self, monkeypatch):
+        state, ctx = self._setup(monkeypatch)
+        browser_page.BrowserPage().fetch_html("https://example.com")
+        assert ctx.pages[0].name.startswith("fremont:")
 
     def test_a_drop_with_the_page_open_is_loud_and_the_next_attach_sweeps(self, monkeypatch):
         state, ctx = self._setup(monkeypatch)
@@ -374,6 +417,8 @@ class TestOrphanSweep:
         assert browser.closed, "dead handle dropped"
         orphan = ctx.pages[0]
         assert not orphan.closed
+        import time as _t
+        orphan.name = f"fremont:{int((_t.time() - self.OLD) * 1000)}"  # time passes
         ctx.new_page = real_new_page
         orphan.close = lambda: setattr(orphan, "closed", True)
         browser.connected = True
